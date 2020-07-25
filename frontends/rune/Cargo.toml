@@ -1,0 +1,17 @@
+[package]
+name = "st-frontend-rune"
+version = "0.0.0"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+edition = "2018"
+description = """
+Rune is a simple dynamic language for the ST virtual machine.
+"""
+
+[dependencies]
+st-frontend = {version = "0.0.0", path = "../base"}
+st = {version = "0.0.0", path = "../.."}
+thiserror = "1.0.20"
+log = "0.4.11"
+
+[dev-dependencies]
+anyhow = "1"
