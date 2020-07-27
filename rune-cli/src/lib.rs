@@ -10,7 +10,6 @@ where
     T: st::FromValue,
 {
     let mut vm = st::Vm::new();
-    assert_eq!(vm.stack.len(), 0);
 
     let unit = parse_all::<ast::File>(&source)?;
     let unit = unit.encode()?;

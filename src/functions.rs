@@ -1,7 +1,8 @@
 use crate::collections::HashMap;
+use crate::hash::{FnHash, Hash};
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::value::{ExternalTypeError, ValueTypeInfo};
-use crate::vm::{FnHash, Vm};
+use crate::vm::Vm;
 use std::any::type_name;
 use std::future::Future;
 use std::pin::Pin;
@@ -23,7 +24,10 @@ pub enum CallError {
 }
 
 /// The handler of a function.
-type FnHandler = dyn (for<'stack> Fn(&'stack mut Vm) -> Pin<Box<dyn Future<Output = Result<(), CallError>> + 'stack>>)
+type FnHandler = dyn (for<'stack> Fn(
+        &'stack mut Vm,
+        usize,
+    ) -> Pin<Box<dyn Future<Output = Result<(), CallError>> + 'stack>>)
     + Send
     + Sync;
 
@@ -40,10 +44,62 @@ impl Functions {
         }
     }
 
+    /// Construct a new collection of functions with default packages installed.
+    pub fn with_default_packages() -> Result<Self, Error> {
+        let mut functions = Self::new();
+        crate::packages::core::install(&mut functions)?;
+        Ok(functions)
+    }
+
     /// Lookup the given function.
     pub fn lookup(&self, hash: FnHash) -> Option<&FnHandler> {
         let handler = self.handlers.get(&hash)?;
         Some(&*handler)
+    }
+
+    /// Register a raw function which interacts directly with the virtual
+    /// machine.
+    pub fn register_raw<F>(&mut self, name: &str, f: F) -> Result<FnHash, Error>
+    where
+        for<'stack> F: 'static + Copy + Fn(&'stack mut Vm, usize) + Send + Sync,
+    {
+        let hash = Hash::of(name);
+        let hash = FnHash::raw(hash);
+
+        self.handlers.insert(
+            hash,
+            Box::new(move |vm, args| {
+                Box::pin(async move {
+                    f(vm, args);
+                    Ok(())
+                })
+            }),
+        );
+
+        Ok(hash)
+    }
+
+    /// Register a raw function which interacts directly with the virtual
+    /// machine.
+    pub fn register_raw_async<F, O>(&mut self, name: &str, f: F) -> Result<FnHash, Error>
+    where
+        for<'stack> F: 'static + Copy + Fn(&'stack mut Vm, usize) -> O + Send + Sync,
+        O: Future<Output = ()>,
+    {
+        let hash = Hash::of(name);
+        let hash = FnHash::raw(hash);
+
+        self.handlers.insert(
+            hash,
+            Box::new(move |vm, args| {
+                Box::pin(async move {
+                    f(vm, args).await;
+                    Ok(())
+                })
+            }),
+        );
+
+        Ok(hash)
     }
 }
 
@@ -113,7 +169,7 @@ macro_rules! impl_register {
                     return Err(Error::ConflictingFunction(hash));
                 }
 
-                let handler: Box<FnHandler> = Box::new(move |vm| Box::pin(async move {
+                let handler: Box<FnHandler> = Box::new(move |vm, _| Box::pin(async move {
                     $(
                         let $var = match vm.managed_pop() {
                             Some(value) => match $ty::from_value(value, vm) {
@@ -157,7 +213,7 @@ macro_rules! impl_register {
                     return Err(Error::ConflictingFunction(hash));
                 }
 
-                let handler: Box<FnHandler> = Box::new(move |vm| Box::pin(async move {
+                let handler: Box<FnHandler> = Box::new(move |vm, _| Box::pin(async move {
                     $(
                         let $var = match vm.managed_pop() {
                             Some(value) => match $ty::from_value(value, vm) {

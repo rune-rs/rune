@@ -18,16 +18,19 @@ mod value;
 mod vm;
 #[macro_use]
 mod macros;
+mod hash;
+pub mod packages;
 mod reflection;
 mod unit;
 
 pub use crate::functions::{Functions, Register, RegisterAsync};
+pub use crate::hash::{FnDynamicHash, FnHash, Hash};
 pub use crate::reflection::{
     Allocate, AllocateError, FromValue, IntoArgs, ReflectValueType, ToValue,
 };
 pub use crate::unit::{Unit, UnitError};
-pub use crate::value::{TypeHash, Value, ValueType};
-pub use crate::vm::{FnDynamicHash, FnHash, Inst, Task, Vm};
+pub use crate::value::{TypeHash, Value, ValueError, ValueRef, ValueType};
+pub use crate::vm::{Inst, Task, Vm};
 
 mod collections {
     pub use std::collections::{hash_map, HashMap};

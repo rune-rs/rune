@@ -18,25 +18,26 @@ macro_rules! impl_external {
         impl $crate::Allocate for $external {
             fn allocate(self, state: &mut $crate::State) -> Result<usize, $crate::AllocateError> {
                 let index = state.allocate_external(self);
-                Ok(state.allocate($crate::Value::External(index)))
+                Ok(state.allocate($crate::ValueRef::External(index)))
             }
         }
 
         impl $crate::ToValue for $external {
-            fn to_value(self, state: &mut $crate::State) -> Option<$crate::Value> {
-                Some($crate::Value::External(state.allocate_external(self)))
+            fn to_value(self, state: &mut $crate::State) -> Option<$crate::ValueRef> {
+                Some($crate::ValueRef::External(state.allocate_external(self)))
             }
         }
 
         impl $crate::FromValue for $external {
             fn from_value(
-                value: $crate::Value,
+                value: $crate::ValueRef,
                 state: &$crate::State,
-            ) -> Result<Self, $crate::Value> {
+            ) -> Result<Self, $crate::ValueRef> {
                 match value {
-                    $crate::Value::External(index) => match state.cloned_external::<Self>(index) {
+                    $crate::ValueRef::External(index) => match state.cloned_external::<Self>(index)
+                    {
                         Some(value) => Ok(value),
-                        None => return Err($crate::Value::External(index)),
+                        None => return Err($crate::ValueRef::External(index)),
                     },
                     value => Err(value),
                 }

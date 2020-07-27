@@ -1,0 +1,6 @@
+fn main() {
+    let a = "foo";
+    let b = "bar";
+    dbg(a, b);
+    a + "/" + b
+}

@@ -183,11 +183,24 @@ impl<'a> Lexer<'a> {
         }));
     }
 
+    /// Consume the entire line.
+    fn consume_line<I>(&mut self, it: &mut I)
+    where
+        I: Clone + Iterator<Item = (usize, char)>,
+    {
+        loop {
+            match it.next() {
+                Some((_, '\n')) | None => break,
+                _ => (),
+            }
+        }
+    }
+
     /// Consume the next token from the lexer.
     pub fn next(&mut self) -> Result<Option<Token>, ParseError> {
         let mut it = self.source[self.cursor..].char_indices();
 
-        while let Some((start, c)) = it.next() {
+        'outer: while let Some((start, c)) = it.next() {
             let start = self.cursor + start;
 
             if char::is_whitespace(c) {
@@ -196,6 +209,10 @@ impl<'a> Lexer<'a> {
 
             let kind = loop {
                 match (c, it.clone().next().map(|(_, c)| c)) {
+                    ('/', Some('/')) => {
+                        self.consume_line(&mut it);
+                        continue 'outer;
+                    }
                     ('<', Some('=')) => {
                         it.next();
                         break Kind::Lte;

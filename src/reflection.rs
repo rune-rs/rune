@@ -1,4 +1,4 @@
-use crate::value::{Value, ValueType};
+use crate::value::{Value, ValueRef, ValueType};
 use crate::vm::Vm;
 use thiserror::Error;
 
@@ -38,13 +38,13 @@ pub trait Allocate {
 /// Trait for converting types into values.
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self, _state: &mut Vm) -> Option<Value>;
+    fn to_value(self, vm: &mut Vm) -> Option<ValueRef>;
 }
 
 /// Trait for converting from a value.
 pub trait FromValue: Sized {
     /// Try to convert to the given type, from the given value.
-    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value>;
+    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef>;
 }
 
 impl<T> ReflectValueType for Option<T>
@@ -56,13 +56,49 @@ where
     }
 }
 
+impl FromValue for Value {
+    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+        Ok(vm.to_owned_value(value))
+    }
+}
+
+impl<T> FromValue for Vec<T>
+where
+    T: FromValue,
+{
+    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+        match value {
+            ValueRef::Array(slot) => {
+                let values = match vm.arrays.get(slot) {
+                    Some(array) => array,
+                    None => return Err(ValueRef::Array(slot)),
+                };
+
+                let mut output = Vec::with_capacity(values.len());
+
+                for value in values.iter().copied() {
+                    let value = match vm.values.get(value) {
+                        Some(value) => value.value,
+                        None => return Err(ValueRef::Array(slot)),
+                    };
+
+                    output.push(T::from_value(value, vm)?);
+                }
+
+                Ok(output)
+            }
+            other => Err(other),
+        }
+    }
+}
+
 impl<T> FromValue for Option<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Value, vm: &Vm) -> Result<Self, Value> {
+    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            Value::Unit => Ok(None),
+            ValueRef::Unit => Ok(None),
             _ => Ok(Some(T::from_value(value, vm)?)),
         }
     }
@@ -72,10 +108,10 @@ impl<T> ToValue for Option<T>
 where
     T: ToValue,
 {
-    fn to_value(self, vm: &mut Vm) -> Option<Value> {
+    fn to_value(self, vm: &mut Vm) -> Option<ValueRef> {
         match self {
             Some(value) => value.to_value(vm),
-            None => Some(Value::Unit),
+            None => Some(ValueRef::Unit),
         }
     }
 }
@@ -89,20 +125,20 @@ impl ReflectValueType for () {
 
 impl Allocate for () {
     fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(Value::Unit))
+        Ok(vm.allocate_value(ValueRef::Unit))
     }
 }
 
 impl ToValue for () {
-    fn to_value(self, _state: &mut Vm) -> Option<Value> {
-        Some(Value::Unit)
+    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
+        Some(ValueRef::Unit)
     }
 }
 
 impl FromValue for () {
-    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            Value::Unit => Ok(()),
+            ValueRef::Unit => Ok(()),
             value => Err(value),
         }
     }
@@ -117,20 +153,20 @@ impl ReflectValueType for bool {
 
 impl Allocate for bool {
     fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(Value::Bool(self)))
+        Ok(vm.allocate_value(ValueRef::Bool(self)))
     }
 }
 
 impl ToValue for bool {
-    fn to_value(self, _state: &mut Vm) -> Option<Value> {
-        Some(Value::Bool(self))
+    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
+        Some(ValueRef::Bool(self))
     }
 }
 
 impl FromValue for bool {
-    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            Value::Bool(value) => Ok(value),
+            ValueRef::Bool(value) => Ok(value),
             value => Err(value),
         }
     }
@@ -146,22 +182,22 @@ impl ReflectValueType for String {
 impl Allocate for String {
     fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
         let index = vm.allocate_string(self.into_boxed_str());
-        Ok(vm.allocate_value(Value::String(index)))
+        Ok(vm.allocate_value(ValueRef::String(index)))
     }
 }
 
 impl ToValue for String {
-    fn to_value(self, vm: &mut Vm) -> Option<Value> {
-        Some(Value::String(vm.allocate_string(self.into_boxed_str())))
+    fn to_value(self, vm: &mut Vm) -> Option<ValueRef> {
+        Some(ValueRef::String(vm.allocate_string(self.into_boxed_str())))
     }
 }
 
 impl FromValue for String {
-    fn from_value(value: Value, vm: &Vm) -> Result<Self, Value> {
+    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            Value::String(index) => match vm.cloned_string(index) {
-                Some(value) => Ok((&*value).to_owned()),
-                None => return Err(Value::String(index)),
+            ValueRef::String(index) => match vm.string_clone(index) {
+                Some(value) => Ok(String::from(value)),
+                None => return Err(ValueRef::String(index)),
             },
             value => Err(value),
         }
@@ -178,22 +214,22 @@ impl ReflectValueType for Box<str> {
 impl Allocate for Box<str> {
     fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
         let index = vm.allocate_string(self);
-        Ok(vm.allocate_value(Value::String(index)))
+        Ok(vm.allocate_value(ValueRef::String(index)))
     }
 }
 
 impl ToValue for Box<str> {
-    fn to_value(self, vm: &mut Vm) -> Option<Value> {
-        Some(Value::String(vm.allocate_string(self)))
+    fn to_value(self, vm: &mut Vm) -> Option<ValueRef> {
+        Some(ValueRef::String(vm.allocate_string(self)))
     }
 }
 
 impl FromValue for Box<str> {
-    fn from_value(value: Value, vm: &Vm) -> Result<Self, Value> {
+    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            Value::String(index) => match vm.cloned_string(index) {
+            ValueRef::String(index) => match vm.string_clone(index) {
                 Some(value) => Ok(value),
-                None => return Err(Value::String(index)),
+                None => return Err(ValueRef::String(index)),
             },
             value => Err(value),
         }
@@ -209,20 +245,20 @@ impl ReflectValueType for i64 {
 
 impl Allocate for i64 {
     fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(Value::Integer(self)))
+        Ok(vm.allocate_value(ValueRef::Integer(self)))
     }
 }
 
 impl ToValue for i64 {
-    fn to_value(self, _state: &mut Vm) -> Option<Value> {
-        Some(Value::Integer(self))
+    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
+        Some(ValueRef::Integer(self))
     }
 }
 
 impl FromValue for i64 {
-    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            Value::Integer(number) => Ok(number),
+            ValueRef::Integer(number) => Ok(number),
             value => Err(value),
         }
     }
@@ -242,24 +278,26 @@ macro_rules! number_value_trait {
                 use std::convert::TryInto as _;
 
                 let number = self.try_into().map_err(|_| AllocateError(()))?;
-                Ok(vm.allocate_value(Value::Integer(number)))
+                Ok(vm.allocate_value(ValueRef::Integer(number)))
             }
         }
 
         impl ToValue for $ty {
-            fn to_value(self, _state: &mut Vm) -> Option<Value> {
+            fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
                 use std::convert::TryInto as _;
 
-                Some(Value::Integer(self.try_into().ok()?))
+                Some(ValueRef::Integer(self.try_into().ok()?))
             }
         }
 
         impl FromValue for $ty {
-            fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+            fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
                 use std::convert::TryInto as _;
 
                 match value {
-                    Value::Integer(number) => number.try_into().map_err(|_| Value::Integer(number)),
+                    ValueRef::Integer(number) => {
+                        number.try_into().map_err(|_| ValueRef::Integer(number))
+                    }
                     value => Err(value),
                 }
             }
@@ -285,20 +323,20 @@ impl ReflectValueType for f64 {
 
 impl Allocate for f64 {
     fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(Value::Float(self)))
+        Ok(vm.allocate_value(ValueRef::Float(self)))
     }
 }
 
 impl ToValue for f64 {
-    fn to_value(self, _state: &mut Vm) -> Option<Value> {
-        Some(Value::Float(self))
+    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
+        Some(ValueRef::Float(self))
     }
 }
 
 impl FromValue for f64 {
-    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            Value::Float(number) => Ok(number),
+            ValueRef::Float(number) => Ok(number),
             value => Err(value),
         }
     }
@@ -313,21 +351,21 @@ impl ReflectValueType for f32 {
 
 impl Allocate for f32 {
     fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(Value::Float(self as f64)))
+        Ok(vm.allocate_value(ValueRef::Float(self as f64)))
     }
 }
 
 impl ToValue for f32 {
-    fn to_value(self, _state: &mut Vm) -> Option<Value> {
+    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
         use std::convert::TryInto as _;
-        Some(Value::Float(self.try_into().ok()?))
+        Some(ValueRef::Float(self.try_into().ok()?))
     }
 }
 
 impl FromValue for f32 {
-    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            Value::Float(number) => Ok(number as f32),
+            ValueRef::Float(number) => Ok(number as f32),
             value => Err(value),
         }
     }

@@ -1,8 +1,11 @@
 use crate::external::External;
 use crate::functions::{CallError, Functions};
+use crate::hash::{FnDynamicHash, FnHash, Hash};
 use crate::reflection::{EncodeError, FromValue, IntoArgs};
 use crate::unit::Unit;
-use crate::value::{ExternalTypeError, TypeHash, Value, ValueType, ValueTypeInfo};
+use crate::value::{
+    ExternalTypeError, TypeHash, Value, ValueError, ValueRef, ValueType, ValueTypeInfo,
+};
 use anyhow::Result;
 use slab::Slab;
 use std::any::type_name;
@@ -14,8 +17,12 @@ use thiserror::Error;
 pub enum VmError {
     #[error("failed to encode arguments")]
     EncodeError(#[source] EncodeError),
-    #[error("missing function: {0:?}")]
-    MissingFunction(FnHash),
+    #[error("missing function (raw: {raw}, dynamic: {dynamic}, full: {full})")]
+    MissingFunction {
+        raw: FnHash,
+        dynamic: FnDynamicHash,
+        full: FnHash,
+    },
     #[error("missing dynamic function: {0:?}")]
     MissingDynamicFunction(FnDynamicHash),
     #[error("error while calling function")]
@@ -41,8 +48,12 @@ pub enum VmError {
     NoStackFrame,
     #[error("tried to access an out-of-bounds stack entry")]
     StackOutOfBounds,
-    #[error("tried to access a missing slot")]
-    SlotMissing,
+    #[error("tried to access a slot which is out of bounds")]
+    SlotOutOfBounds,
+    #[error("tried to access value at missing slot `{slot}`")]
+    ValueSlotMissing { slot: usize },
+    #[error("tried to access string at missing slot `{slot}`")]
+    StringSlotMissing { slot: usize },
     #[error("tried to access an out-of-bounds frame")]
     FrameOutOfBounds,
     #[error("failed to convert value `{actual}`, expected `{expected}`")]
@@ -50,6 +61,8 @@ pub enum VmError {
         expected: &'static str,
         actual: ValueTypeInfo,
     },
+    #[error("static string slot `{slot}` does not exist")]
+    MissingStaticString { slot: usize },
 }
 
 impl From<ExternalTypeError> for VmError {
@@ -64,111 +77,6 @@ impl From<EncodeError> for VmError {
     }
 }
 
-/// The hash of a dynamic method.
-///
-/// It is simply determined by its name and number of arguments and is
-/// constructed through the [of][FnDynamicHash::of] function.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FnDynamicHash(u64);
-
-impl fmt::Display for FnDynamicHash {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "0x{:x}", self.0)
-    }
-}
-
-impl fmt::Debug for FnDynamicHash {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "FnDynamicHash(0x{:x})", self.0)
-    }
-}
-
-impl FnDynamicHash {
-    const MARKER_ARGS: usize = 0;
-
-    /// Construct a function hash.
-    pub fn of(name: &str, args: usize) -> Self {
-        use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
-        use twox_hash::XxHash64;
-
-        let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
-
-        name.hash(&mut hasher);
-        Self::MARKER_ARGS.hash(&mut hasher);
-        args.hash(&mut hasher);
-        Self(hasher.finish())
-    }
-}
-
-/// The hash of a function handler.
-///
-/// This is calculated as the hash of:
-/// * The function name
-/// * The function arguments
-/// * The function return value type
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FnHash(u64);
-
-impl fmt::Display for FnHash {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "0x{:x}", self.0)
-    }
-}
-
-impl fmt::Debug for FnHash {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "FnHash(0x{:x})", self.0)
-    }
-}
-
-impl FnHash {
-    const MARKER_ARG: usize = 77;
-
-    /// Construct a function hash.
-    pub fn of(name: &str, args: &[ValueType]) -> Self {
-        let hash = FnDynamicHash::of(name, args.len());
-        Self::of_dynamic(hash, args.iter().copied())
-    }
-
-    /// Construct a function hash based on a dynamic one.
-    pub fn of_dynamic<I>(hash: FnDynamicHash, args: I) -> Self
-    where
-        I: IntoIterator<Item = ValueType>,
-    {
-        use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
-        use twox_hash::XxHash64;
-
-        let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
-        hash.hash(&mut hasher);
-
-        for arg in args {
-            Self::MARKER_ARG.hash(&mut hasher);
-            arg.hash(&mut hasher);
-        }
-
-        Self(hasher.finish())
-    }
-
-    /// Construct a function hash based on a dynamic one.
-    pub fn of_dynamic_fallible<I, E>(hash: FnDynamicHash, args: I) -> Result<Self, E>
-    where
-        I: IntoIterator<Item = Result<ValueType, E>>,
-    {
-        use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
-        use twox_hash::XxHash64;
-
-        let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
-        hash.hash(&mut hasher);
-
-        for arg in args {
-            Self::MARKER_ARG.hash(&mut hasher);
-            arg?.hash(&mut hasher);
-        }
-
-        Ok(Self(hasher.finish()))
-    }
-}
-
 /// Pop and type check a value off the stack.
 macro_rules! pop {
     ($vm:expr) => {
@@ -177,7 +85,7 @@ macro_rules! pop {
 
     ($vm:expr, $variant:ident) => {
         match pop!($vm) {
-            Value::$variant(b) => b,
+            ValueRef::$variant(b) => b,
             other => {
                 return Err(VmError::StackTopTypeError {
                     expected: ValueTypeInfo::$variant,
@@ -192,8 +100,8 @@ macro_rules! pop {
 macro_rules! primitive_ops {
     ($vm:expr, $a:ident $op:tt $b:ident) => {
         match ($a, $b) {
-            (Value::Bool($a), Value::Bool($b)) => $a $op $b,
-            (Value::Integer($a), Value::Integer($b)) => $a $op $b,
+            (ValueRef::Bool($a), ValueRef::Bool($b)) => $a $op $b,
+            (ValueRef::Integer($a), ValueRef::Integer($b)) => $a $op $b,
             (a, b) => return Err(VmError::UnsupportedOperation {
                 op: stringify!($op),
                 a: a.type_info($vm)?,
@@ -207,8 +115,8 @@ macro_rules! primitive_ops {
 macro_rules! numeric_ops {
     ($vm:expr, $a:ident $op:tt $b:ident) => {
         match ($a, $b) {
-            (Value::Float($a), Value::Float($b)) => Value::Float($a $op $b),
-            (Value::Integer($a), Value::Integer($b)) => Value::Integer($a $op $b),
+            (ValueRef::Float($a), ValueRef::Float($b)) => ValueRef::Float($a $op $b),
+            (ValueRef::Integer($a), ValueRef::Integer($b)) => ValueRef::Integer($a $op $b),
             (a, b) => return Err(VmError::UnsupportedOperation {
                 op: stringify!($op),
                 a: a.type_info($vm)?,
@@ -239,13 +147,13 @@ pub enum Inst {
     Mul,
     /// Perform a dynamic call.
     ///
-    /// It will construct a new stack frame which includes the last `stack_depth`
+    /// It will construct a new stack frame which includes the last `args`
     /// number of entries.
     Call {
         /// The hash of the function to call.
-        hash: FnDynamicHash,
-        /// The stack depth to make part of the call frame.
-        stack_depth: usize,
+        hash: Hash,
+        /// The number of arguments expected on the stack for this call.
+        args: usize,
     },
     /// Push a literal integer.
     Integer {
@@ -319,6 +227,11 @@ pub enum Inst {
         /// The size of the array.
         count: usize,
     },
+    /// Load a literal string.
+    String {
+        /// The static string slot to load the string from.
+        slot: usize,
+    },
 }
 
 impl Inst {
@@ -331,24 +244,32 @@ impl Inst {
         unit: &Unit,
     ) -> Result<(), VmError> {
         match self {
-            Self::Call { hash, stack_depth } => {
-                match unit.lookup(hash) {
+            Self::Call { hash, args } => {
+                let dynamic = FnDynamicHash::of(hash, args);
+
+                match unit.lookup(dynamic) {
                     Some(loc) => {
-                        vm.push_frame(*ip, stack_depth)?;
+                        vm.push_frame(*ip, args)?;
                         *ip = loc;
                     }
                     None => {
-                        // Calculate the call hash from the values on the stack.
-                        let hash = FnHash::of_dynamic_fallible(
-                            hash,
-                            vm.iter_stack_types().take(stack_depth),
-                        )?;
+                        let raw = FnHash::raw(hash);
 
-                        let f = functions
-                            .lookup(hash)
-                            .ok_or_else(|| VmError::MissingFunction(hash))?;
+                        let handler = if let Some(handler) = functions.lookup(raw) {
+                            handler
+                        } else {
+                            // Calculate the call hash from the values on the stack.
+                            let full = FnHash::of_dynamic_fallible(
+                                dynamic,
+                                vm.iter_stack_types().take(args),
+                            )?;
 
-                        f(vm).await.map_err(VmError::CallError)?;
+                            functions
+                                .lookup(full)
+                                .ok_or_else(|| VmError::MissingFunction { raw, dynamic, full })?
+                        };
+
+                        handler(vm, args).await.map_err(VmError::CallError)?;
                     }
                 }
             }
@@ -369,22 +290,22 @@ impl Inst {
                 }
 
                 vm.exited = vm.frames.is_empty();
-                vm.managed_push(Value::Unit);
+                vm.managed_push(ValueRef::Unit);
             }
             Self::Pop => {
                 vm.managed_pop();
             }
             Self::Integer { number } => {
-                vm.managed_push(Value::Integer(number));
+                vm.managed_push(ValueRef::Integer(number));
             }
             Self::Float { number } => {
-                vm.managed_push(Value::Float(number));
+                vm.managed_push(ValueRef::Float(number));
             }
             Self::Copy { offset } => {
                 vm.stack_copy_frame(offset)?;
             }
             Self::Unit => {
-                vm.managed_push(Value::Unit);
+                vm.managed_push(ValueRef::Unit);
             }
             Self::Jump { offset } => {
                 *ip = offset;
@@ -392,7 +313,29 @@ impl Inst {
             Self::Add => {
                 let b = pop!(vm);
                 let a = pop!(vm);
-                vm.managed_push(numeric_ops!(vm, a + b));
+
+                let value = match (a, b) {
+                    (ValueRef::Float(a), ValueRef::Float(b)) => ValueRef::Float(a + b),
+                    (ValueRef::Integer(a), ValueRef::Integer(b)) => ValueRef::Integer(a + b),
+                    (ValueRef::String(a), ValueRef::String(b)) => {
+                        let a = vm.string_ref(a)?;
+                        let b = vm.string_ref(b)?;
+                        let mut string = String::with_capacity(a.len() + b.len());
+                        string.push_str(a);
+                        string.push_str(b);
+                        let slot = vm.allocate_string(string.into_boxed_str());
+                        ValueRef::String(slot)
+                    }
+                    (a, b) => {
+                        return Err(VmError::UnsupportedOperation {
+                            op: "+",
+                            a: a.type_info(vm)?,
+                            b: b.type_info(vm)?,
+                        })
+                    }
+                };
+
+                vm.managed_push(value);
             }
             Self::Sub => {
                 let b = pop!(vm);
@@ -412,32 +355,32 @@ impl Inst {
             Self::Gt => {
                 let b = pop!(vm);
                 let a = pop!(vm);
-                vm.managed_push(Value::Bool(primitive_ops!(vm, a > b)));
+                vm.managed_push(ValueRef::Bool(primitive_ops!(vm, a > b)));
             }
             Self::Gte => {
                 let b = pop!(vm);
                 let a = pop!(vm);
-                vm.managed_push(Value::Bool(primitive_ops!(vm, a >= b)));
+                vm.managed_push(ValueRef::Bool(primitive_ops!(vm, a >= b)));
             }
             Self::Lt => {
                 let b = pop!(vm);
                 let a = pop!(vm);
-                vm.managed_push(Value::Bool(primitive_ops!(vm, a < b)));
+                vm.managed_push(ValueRef::Bool(primitive_ops!(vm, a < b)));
             }
             Self::Lte => {
                 let b = pop!(vm);
                 let a = pop!(vm);
-                vm.managed_push(Value::Bool(primitive_ops!(vm, a <= b)));
+                vm.managed_push(ValueRef::Bool(primitive_ops!(vm, a <= b)));
             }
             Self::Eq => {
                 let b = pop!(vm);
                 let a = pop!(vm);
-                vm.managed_push(Value::Bool(primitive_ops!(vm, a == b)));
+                vm.managed_push(ValueRef::Bool(primitive_ops!(vm, a == b)));
             }
             Self::Neq => {
                 let b = pop!(vm);
                 let a = pop!(vm);
-                vm.managed_push(Value::Bool(primitive_ops!(vm, a != b)));
+                vm.managed_push(ValueRef::Bool(primitive_ops!(vm, a != b)));
             }
             Self::JumpIf { offset } => {
                 if pop!(vm, Bool) {
@@ -457,7 +400,15 @@ impl Inst {
                 }
 
                 let array_slot = vm.allocate_array(array);
-                vm.managed_push(Value::Array(array_slot));
+                vm.managed_push(ValueRef::Array(array_slot));
+            }
+            Self::String { slot } => {
+                let string = unit
+                    .lookup_string(slot)
+                    .ok_or_else(|| VmError::MissingStaticString { slot })?;
+                // TODO: do something sneaky to only allocate the static string once.
+                let string_slot = vm.allocate_string(string.to_owned().into_boxed_str());
+                vm.managed_push(ValueRef::String(string_slot));
             }
         }
 
@@ -493,7 +444,7 @@ where
 /// Maintains the reference count of the value.
 pub struct ValueHolder {
     count: usize,
-    value: Value,
+    pub(crate) value: ValueRef,
 }
 
 impl fmt::Debug for ValueHolder {
@@ -515,26 +466,25 @@ pub struct Frame {
 }
 
 /// A stack which references variables indirectly from a slab.
-#[derive(Default)]
 pub struct Vm {
     /// The current stack of values.
-    pub stack: Vec<usize>,
+    pub(crate) stack: Vec<usize>,
     /// Frames relative to the stack.
-    pub frames: Vec<Frame>,
+    pub(crate) frames: Vec<Frame>,
     /// Values which needs to be freed.
-    pub gc_freed: Vec<usize>,
+    gc_freed: Vec<usize>,
     /// The work list for the gc.
-    pub gc_work: Vec<usize>,
-    /// Value slots.
+    gc_work: Vec<usize>,
+    /// ValueRef slots.
     ///
     /// Values in here might indirectly reference other specializes slots.
-    pub values: Slab<ValueHolder>,
+    pub(crate) values: Slab<ValueHolder>,
     /// Slots with external values.
-    pub externals: Slab<Box<ExternalHolder<dyn External>>>,
+    pub(crate) externals: Slab<Box<ExternalHolder<dyn External>>>,
     /// Slots with strings.
-    pub strings: Slab<Box<str>>,
+    pub(crate) strings: Slab<Box<str>>,
     /// Slots with arrays, which themselves reference values.
-    pub arrays: Slab<Vec<usize>>,
+    pub(crate) arrays: Slab<Vec<usize>>,
     /// We have exited from the last frame.
     pub(crate) exited: bool,
 }
@@ -542,7 +492,34 @@ pub struct Vm {
 impl Vm {
     /// Construct a new ST virtual machine.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            stack: Vec::new(),
+            frames: Vec::new(),
+            gc_freed: Vec::new(),
+            gc_work: Vec::new(),
+            values: Slab::new(),
+            externals: Slab::new(),
+            strings: Slab::new(),
+            arrays: Slab::new(),
+            exited: false,
+        }
+    }
+
+    /// Iterate over the stack, producing the value associated with each stack
+    /// item.
+    pub fn iter_stack_debug(&self) -> impl Iterator<Item = (usize, Value)> + '_ {
+        let mut it = self.stack.iter().copied();
+
+        std::iter::from_fn(move || {
+            let value_slot = it.next()?;
+
+            let value = match self.values.get(value_slot) {
+                Some(value) => self.to_owned_value(value.value),
+                None => Value::Error(ValueError::Stack(value_slot)),
+            };
+
+            Some((value_slot, value))
+        })
     }
 
     /// Iterate over stack types from top to bottom.
@@ -567,7 +544,9 @@ impl Vm {
         A: IntoArgs,
         T: FromValue,
     {
-        let hash = FnDynamicHash::of(name, A::count());
+        let hash = Hash::of(name);
+        let hash = FnDynamicHash::of(hash, A::count());
+
         let fn_address = unit
             .lookup(hash)
             .ok_or_else(|| VmError::MissingDynamicFunction(hash))?;
@@ -620,20 +599,25 @@ impl Vm {
     }
 
     /// Push a value onto the stack and return its stack index.
-    pub fn managed_push(&mut self, value: Value) -> usize {
+    pub fn managed_push(&mut self, value: ValueRef) -> usize {
+        if let ValueRef::Unit = value {
+            self.stack.push(0);
+            return 0;
+        }
+
         let index = self.allocate_value(value);
         self.stack.push(index);
         index
     }
 
     /// Pop a value from the stack, freeing it if it's no longer use.
-    pub fn managed_pop(&mut self) -> Option<Value> {
+    pub fn managed_pop(&mut self) -> Option<ValueRef> {
         let value_slot = self.stack.pop()?;
         self.free(value_slot)
     }
 
     /// Free the given value_slot.
-    fn free(&mut self, value_slot: usize) -> Option<Value> {
+    fn free(&mut self, value_slot: usize) -> Option<ValueRef> {
         if let Some(holder) = self.values.get_mut(value_slot) {
             debug_assert!(holder.count > 0);
             holder.count = holder.count.saturating_sub(1);
@@ -670,7 +654,7 @@ impl Vm {
                 debug_assert!(v.count == 0);
 
                 match v.value {
-                    Value::External(slot) => {
+                    ValueRef::External(slot) => {
                         if !self.externals.contains(slot) {
                             log::trace!("trying to free non-existant external: {}", slot);
                             continue;
@@ -678,7 +662,7 @@ impl Vm {
 
                         let _ = self.externals.remove(slot);
                     }
-                    Value::String(slot) => {
+                    ValueRef::String(slot) => {
                         if !self.strings.contains(slot) {
                             log::trace!("trying to free non-existant string: {}", slot);
                             continue;
@@ -686,7 +670,7 @@ impl Vm {
 
                         let _ = self.strings.remove(slot);
                     }
-                    Value::Array(slot) => {
+                    ValueRef::Array(slot) => {
                         if !self.arrays.contains(slot) {
                             log::trace!("trying to free non-existant array: {}", slot);
                             continue;
@@ -725,7 +709,7 @@ impl Vm {
             value.count += 1;
             self.stack.push(value_slot);
         } else {
-            return Err(VmError::SlotMissing);
+            return Err(VmError::ValueSlotMissing { slot: value_slot });
         }
 
         Ok(())
@@ -740,7 +724,7 @@ impl Vm {
         let slot = if let Some(Frame { offset, .. }) = self.frames.last().copied() {
             offset
                 .checked_add(rel)
-                .ok_or_else(|| VmError::SlotMissing)?
+                .ok_or_else(|| VmError::SlotOutOfBounds)?
         } else {
             rel
         };
@@ -774,7 +758,7 @@ impl Vm {
     }
 
     /// Allocate a new empty variable.
-    pub fn allocate_value(&mut self, value: Value) -> usize {
+    pub fn allocate_value(&mut self, value: ValueRef) -> usize {
         self.values.insert(ValueHolder { count: 1, value })
     }
 
@@ -796,8 +780,16 @@ impl Vm {
         }))
     }
 
-    /// Get a cloned string at the given slot.
-    pub fn cloned_string(&self, index: usize) -> Option<Box<str>> {
+    /// Get a reference of the string at the given string slot.
+    pub fn string_ref(&self, slot: usize) -> Result<&str, VmError> {
+        match self.strings.get(slot) {
+            Some(string) => Ok(&**string),
+            None => Err(VmError::StringSlotMissing { slot }),
+        }
+    }
+
+    /// Get a cloned string from the given slot.
+    pub fn string_clone(&self, index: usize) -> Option<Box<str>> {
         self.strings.get(index).cloned()
     }
 
@@ -821,17 +813,17 @@ impl Vm {
     }
 
     /// Get the last value on the stack.
-    pub fn last(&self) -> Option<Value> {
+    pub fn last(&self) -> Option<ValueRef> {
         let index = *self.stack.last()?;
         self.values.get(index).map(|v| v.value)
     }
 
-    /// Evaluate the last value on the stack as the given type.
-    pub fn eval_last<T>(&self) -> Result<T, VmError>
+    /// Pop the last value on the stack and evaluate it as `T`.
+    pub fn pop_decode<T>(&mut self) -> Result<T, VmError>
     where
         T: FromValue,
     {
-        let value = self.last().ok_or_else(|| VmError::StackEmpty)?;
+        let value = self.managed_pop().ok_or_else(|| VmError::StackEmpty)?;
 
         let value = match T::from_value(value, self) {
             Ok(value) => value,
@@ -845,7 +837,50 @@ impl Vm {
             }
         };
 
+        self.gc();
         Ok(value)
+    }
+
+    /// Convert into an owned array.
+    pub fn to_owned_array(&self, values: &[usize]) -> Vec<Value> {
+        let mut output = Vec::with_capacity(values.len());
+
+        for value in values.iter().copied() {
+            let value = match self.values.get(value) {
+                Some(value) => value.value,
+                None => {
+                    output.push(Value::Error(ValueError::Value(value)));
+                    continue;
+                }
+            };
+
+            output.push(self.to_owned_value(value));
+        }
+
+        output
+    }
+
+    /// Convert a value reference into an owned value.
+    pub fn to_owned_value(&self, value: ValueRef) -> Value {
+        match value {
+            ValueRef::Unit => Value::Unit,
+            ValueRef::String(slot) => match self.strings.get(slot) {
+                Some(string) => Value::String(string.to_owned()),
+                None => Value::Error(ValueError::String(slot)),
+            },
+            ValueRef::Array(slot) => match self.arrays.get(slot) {
+                Some(array) => Value::Array(self.to_owned_array(array)),
+                None => Value::Error(ValueError::Array(slot)),
+            },
+            ValueRef::Integer(integer) => Value::Integer(integer),
+            ValueRef::Float(float) => Value::Float(float),
+            ValueRef::Bool(boolean) => Value::Bool(boolean),
+            ValueRef::External(slot) => match self.externals.get(slot) {
+                Some(external) => Value::External(external.value.clone_external()),
+                None => Value::Error(ValueError::External(slot)),
+            },
+            ValueRef::Fn(hash) => Value::Fn(hash),
+        }
     }
 }
 
@@ -895,7 +930,7 @@ impl<'a> Iterator for IterStackTypes<'a> {
 
         let value = match self.vm.values.get(slot) {
             Some(value) => value,
-            None => return Some(Err(VmError::SlotMissing)),
+            None => return Some(Err(VmError::ValueSlotMissing { slot })),
         };
 
         match value.value.value_type(self.vm) {
@@ -927,8 +962,7 @@ where
         while !self.vm.exited {
             let inst = self
                 .unit
-                .instructions
-                .get(self.ip)
+                .instruction_at(self.ip)
                 .ok_or_else(|| VmError::IpOutOfBounds)?;
 
             self.ip += 1;
@@ -936,15 +970,14 @@ where
                 .await?;
         }
 
-        Ok(self.vm.eval_last()?)
+        Ok(self.vm.pop_decode()?)
     }
 
     /// Step the given task until the return value is available.
     pub async fn step(&mut self) -> Result<Option<T>, VmError> {
         let inst = self
             .unit
-            .instructions
-            .get(self.ip)
+            .instruction_at(self.ip)
             .ok_or_else(|| VmError::IpOutOfBounds)?;
 
         self.ip += 1;
@@ -952,7 +985,7 @@ where
             .await?;
 
         if self.vm.exited {
-            return Ok(Some(self.vm.eval_last()?));
+            return Ok(Some(self.vm.pop_decode()?));
         }
 
         Ok(None)

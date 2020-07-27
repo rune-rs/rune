@@ -1,4 +1,6 @@
-use crate::vm::{FnHash, Vm};
+use crate::external::External;
+use crate::hash::FnHash;
+use crate::vm::Vm;
 use std::any::{Any, TypeId};
 use std::fmt;
 use thiserror::Error;
@@ -27,9 +29,64 @@ impl TypeHash {
     }
 }
 
+/// Describes what slot error happened.
+#[derive(Debug, Clone, Copy)]
+pub enum ValueError {
+    /// The given stack item did not exist.
+    Stack(usize),
+    /// A string slot could not be looked up.
+    String(usize),
+    /// An array slot could not be looked up.
+    Array(usize),
+    /// An external could not be looked up.
+    External(usize),
+    /// A dynamic value could not be looked up.
+    Value(usize),
+}
+
+#[derive(Debug)]
+/// An owned value.
+pub enum Value {
+    /// An empty unit.
+    Unit,
+    /// A string.
+    String(Box<str>),
+    /// An array.
+    Array(Vec<Value>),
+    /// An integer.
+    Integer(i64),
+    /// A float.
+    Float(f64),
+    /// A boolean.
+    Bool(bool),
+    /// Reference to an external type.
+    External(Box<dyn External>),
+    /// Reference to a function with a known signature.
+    Fn(FnHash),
+    /// A slot error value where we were unable to convert a value reference
+    /// from a slot.
+    Error(ValueError),
+}
+
+impl Clone for Value {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Unit => Self::Unit,
+            Self::String(string) => Self::String(string.clone()),
+            Self::Array(array) => Self::Array(array.clone()),
+            Self::Integer(integer) => Self::Integer(*integer),
+            Self::Float(float) => Self::Float(*float),
+            Self::Bool(boolean) => Self::Bool(*boolean),
+            Self::External(external) => Self::External(external.as_ref().clone_external()),
+            Self::Fn(hash) => Self::Fn(*hash),
+            Self::Error(error) => Self::Error(*error),
+        }
+    }
+}
+
 /// An entry on the stack.
 #[derive(Debug, Clone, Copy)]
-pub enum Value {
+pub enum ValueRef {
     /// An empty unit.
     Unit,
     /// A string.
@@ -42,13 +99,13 @@ pub enum Value {
     Float(f64),
     /// A boolean.
     Bool(bool),
-    /// Reference to a foreign type.
+    /// Reference to an external type.
     External(usize),
     /// Reference to an internal function.
     Fn(FnHash),
 }
 
-impl Value {
+impl ValueRef {
     /// Get the type information for the current value.
     pub fn value_type(&self, vm: &Vm) -> Result<ValueType, ExternalTypeError> {
         Ok(match *self {
@@ -90,7 +147,7 @@ impl Value {
     }
 }
 
-impl Default for Value {
+impl Default for ValueRef {
     fn default() -> Self {
         Self::Unit
     }

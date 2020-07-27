@@ -7,5 +7,5 @@ fn fib(n) {
 }
 
 fn main() {
-    fib(35)
+    fib(20)
 }

@@ -99,15 +99,19 @@ impl<'a> st_frontend::Encode for crate::ParseAll<'a, ast::File> {
 
         for f in file.functions {
             let name = f.name.resolve(source)?;
-            let instructions = unit.new_function(name, f.args.items.len())?;
+            let count = f.args.items.len();
+
+            let mut instructions = Vec::new();
 
             let mut encoder = Encoder {
-                instructions,
+                unit: &mut unit,
+                instructions: &mut instructions,
                 locals: Locals::new(),
                 source,
             };
 
             encoder.encode_fn_decl(f)?;
+            unit.new_function(name, count, &instructions)?;
         }
 
         Ok(unit)
@@ -115,6 +119,7 @@ impl<'a> st_frontend::Encode for crate::ParseAll<'a, ast::File> {
 }
 
 struct Encoder<'a> {
+    unit: &'a mut st::Unit,
     instructions: &'a mut Vec<st::Inst>,
     locals: Locals,
     source: Source<'a>,
@@ -180,6 +185,9 @@ impl Encoder<'_> {
         log::trace!("{:?}", expr);
 
         match expr {
+            ast::Expr::ExprGroup(expr) => {
+                self.encode_expr(*expr.expr)?;
+            }
             ast::Expr::Ident(ident) => {
                 let name = ident.resolve(self.source)?;
 
@@ -197,6 +205,15 @@ impl Encoder<'_> {
                     offset: local.offset,
                 });
             }
+            ast::Expr::FnCall(fn_call) => {
+                self.encode_fn_call(fn_call)?;
+            }
+            ast::Expr::ExprBinary(expr_binary) => {
+                self.encode_expr_binary(expr_binary)?;
+            }
+            ast::Expr::ExprIf(expr_if) => {
+                self.encode_expr_if(expr_if)?;
+            }
             ast::Expr::NumberLiteral(number) => {
                 let number = number.resolve(self.source)?;
 
@@ -209,15 +226,6 @@ impl Encoder<'_> {
                     }
                 }
             }
-            ast::Expr::FnCall(fn_call) => {
-                self.encode_fn_call(fn_call)?;
-            }
-            ast::Expr::ExprBinary(expr_binary) => {
-                self.encode_expr_binary(expr_binary)?;
-            }
-            ast::Expr::ExprIf(expr_if) => {
-                self.encode_expr_if(expr_if)?;
-            }
             ast::Expr::ArrayLiteral(array_literal) => {
                 let count = array_literal.items.len();
 
@@ -227,7 +235,11 @@ impl Encoder<'_> {
 
                 self.instructions.push(st::Inst::Array { count })
             }
-            ast => panic!("unsupported expr: {:?}", ast),
+            ast::Expr::StringLiteral(string_literal) => {
+                let string = string_literal.resolve(self.source)?;
+                let slot = self.unit.static_string(&*string)?;
+                self.instructions.push(st::Inst::String { slot })
+            }
         }
 
         Ok(())
@@ -245,15 +257,15 @@ impl Encoder<'_> {
     fn encode_fn_call(&mut self, fn_call: ast::FnCall) -> Result<(), EncodeError> {
         log::trace!("{:?}", fn_call);
 
-        let stack_depth = fn_call.args.items.len();
+        let args = fn_call.args.items.len();
 
         for expr in fn_call.args.items.into_iter().rev() {
             self.encode_expr(expr)?;
         }
 
         let name = fn_call.name.resolve(self.source)?;
-        let hash = st::FnDynamicHash::of(name, stack_depth);
-        self.instructions.push(st::Inst::Call { hash, stack_depth });
+        let hash = st::Hash::of(name);
+        self.instructions.push(st::Inst::Call { hash, args });
         Ok(())
     }
 
@@ -306,6 +318,7 @@ impl Encoder<'_> {
         let mut then_branch = Vec::new();
 
         Encoder {
+            unit: &mut *self.unit,
             instructions: &mut then_branch,
             locals: Locals::with_parent(self.locals.clone()),
             source: self.source,
@@ -316,6 +329,7 @@ impl Encoder<'_> {
             let mut else_branch = Vec::new();
 
             Encoder {
+                unit: &mut *self.unit,
                 instructions: &mut else_branch,
                 locals: Locals::with_parent(self.locals.clone()),
                 source: self.source,

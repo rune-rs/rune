@@ -20,12 +20,20 @@ async fn main() -> Result<()> {
     args.next();
 
     let mut path = None;
-    let mut debug = false;
+    let mut trace = false;
+    let mut dump_unit = false;
+    let mut dump_vm_state = false;
 
     for arg in args {
         match arg.as_str() {
-            "--debug" => {
-                debug = true;
+            "--trace" => {
+                trace = true;
+            }
+            "--dump-unit" => {
+                dump_unit = true;
+            }
+            "--dump-vm-state" => {
+                dump_vm_state = true;
             }
             other => {
                 path = Some(PathBuf::from(other));
@@ -36,7 +44,7 @@ async fn main() -> Result<()> {
     let path = match path {
         Some(path) => PathBuf::from(path),
         None => {
-            bail!("expected: rune-cli [--debug] <file>");
+            bail!("expected: rune-cli [--trace] [--dump-unit] [--dump-vm-state] <file>");
         }
     };
 
@@ -71,21 +79,43 @@ async fn main() -> Result<()> {
         }
     };
 
-    if debug {
-        println!("unit: {:?}", unit);
+    if dump_unit {
+        println!("# unit dump");
+        println!("instructions:");
+
+        for (i, inst) in unit.iter_instructions().enumerate() {
+            println!("{:04x} = {:?}", i, inst);
+        }
+
+        println!("functions:");
+
+        for (hash, f) in unit.iter_functions() {
+            println!("{} = {:?}", hash, f);
+        }
+
+        println!("strings:");
+
+        for (hash, string) in unit.iter_static_strings() {
+            println!("{} = {:?}", hash, string);
+        }
+
+        println!("---");
     }
 
     let mut vm = st::Vm::new();
-    let functions = st::Functions::new();
+    let functions = st::Functions::with_default_packages()?;
 
-    let mut task: st::Task<u128> = vm.call_function(&functions, &unit, "main", ())?;
+    let mut task: st::Task<st::Value> = vm.call_function(&functions, &unit, "main", ())?;
 
     let last = std::time::Instant::now();
 
     let result = loop {
-        if debug {
-            println!("ip = {}, state = {:?}", task.ip, task.vm);
-            println!("next = {:?}", task.unit.instructions.get(task.ip));
+        if trace {
+            println!(
+                "ip:{:04x} = {:?}",
+                task.ip,
+                task.unit.instruction_at(task.ip)
+            );
         }
 
         let result = task.step().await;
@@ -107,12 +137,33 @@ async fn main() -> Result<()> {
             }
         };
 
+        if trace && dump_vm_state {
+            println!("# stack dump");
+
+            for (n, (slot, value)) in task.vm.iter_stack_debug().enumerate() {
+                println!("{} = {} ({:?})", n, slot, value);
+            }
+
+            println!("---");
+        }
+
         if let Some(result) = result {
             break result;
         }
     };
 
     let duration = std::time::Instant::now().duration_since(last);
-    println!("result = {:?} ({:?})", result, duration);
+    println!("== {:?} ({:?})", result, duration);
+
+    if dump_vm_state {
+        println!("# stack dump after completion");
+
+        for (n, (slot, value)) in vm.iter_stack_debug().enumerate() {
+            println!("{} = {} ({:?})", n, slot, value);
+        }
+
+        println!("---");
+    }
+
     Ok(())
 }
