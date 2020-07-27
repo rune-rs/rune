@@ -7,7 +7,7 @@ use st_frontend_rune::{ast, parse_all};
 pub async fn run_program<'a, A, T>(source: &str, name: &str, args: A) -> Result<T>
 where
     A: st::IntoArgs,
-    T: st::ReflectFromValue,
+    T: st::FromValue,
 {
     let mut vm = st::Vm::new();
     assert_eq!(vm.stack.len(), 0);

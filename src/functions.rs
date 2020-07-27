@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::reflection::{ReflectFromValue, ReflectToValue};
+use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::value::{ExternalTypeError, ValueTypeInfo};
 use crate::vm::{FnHash, Vm};
 use std::any::type_name;
@@ -103,8 +103,8 @@ macro_rules! impl_register {
         impl<Func, Ret, $($ty,)*> Register<Func, Ret, ($($ty,)*)> for Functions
         where
             Func: 'static + Copy + (Fn($($ty,)*) -> Ret) + Send + Sync,
-            Ret: ReflectToValue,
-            $($ty: ReflectFromValue,)*
+            Ret: ToValue,
+            $($ty: FromValue + ReflectValueType,)*
         {
             fn register(&mut self, name: &str, f: Func) -> Result<FnHash, Error> {
                 let hash = FnHash::of(name, &[$($ty::reflect_value_type(),)*]);
@@ -116,7 +116,7 @@ macro_rules! impl_register {
                 let handler: Box<FnHandler> = Box::new(move |vm| Box::pin(async move {
                     $(
                         let $var = match vm.managed_pop() {
-                            Some(value) => match $ty::reflect_from_value(value, vm) {
+                            Some(value) => match $ty::from_value(value, vm) {
                                 Ok(v) => v,
                                 Err(v) => {
                                     let ty = v.type_info(vm).map_err(CallError::ExternalTypeError)?;
@@ -133,7 +133,7 @@ macro_rules! impl_register {
                     )*
 
                     let ret = f($($var,)*);
-                    let ret = ret.reflect_to_value(vm).unwrap();
+                    let ret = ret.to_value(vm).unwrap();
                     vm.managed_push(ret);
                     Ok(())
                 }));
@@ -147,8 +147,8 @@ macro_rules! impl_register {
         where
             Func: 'static + Copy + (Fn($($ty,)*) -> Ret) + Send + Sync,
             Ret: Future,
-            Ret::Output: ReflectToValue,
-            $($ty: ReflectFromValue,)*
+            Ret::Output: ToValue,
+            $($ty: FromValue + ReflectValueType,)*
         {
             fn register_async(&mut self, name: &str, f: Func) -> Result<FnHash, Error> {
                 let hash = FnHash::of(name, &[$($ty::reflect_value_type(),)*]);
@@ -160,7 +160,7 @@ macro_rules! impl_register {
                 let handler: Box<FnHandler> = Box::new(move |vm| Box::pin(async move {
                     $(
                         let $var = match vm.managed_pop() {
-                            Some(value) => match $ty::reflect_from_value(value, vm) {
+                            Some(value) => match $ty::from_value(value, vm) {
                                 Ok(v) => v,
                                 Err(v) => {
                                     let ty = v.type_info(vm).map_err(CallError::ExternalTypeError)?;
@@ -177,7 +177,7 @@ macro_rules! impl_register {
                     )*
 
                     let ret = f($($var,)*).await;
-                    let ret = ret.reflect_to_value(vm).unwrap();
+                    let ret = ret.to_value(vm).unwrap();
                     vm.managed_push(ret);
                     Ok(())
                 }));

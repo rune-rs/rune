@@ -1,6 +1,6 @@
 use crate::external::External;
 use crate::functions::{CallError, Functions};
-use crate::reflection::{EncodeError, IntoArgs, ReflectFromValue};
+use crate::reflection::{EncodeError, FromValue, IntoArgs};
 use crate::unit::Unit;
 use crate::value::{ExternalTypeError, TypeHash, Value, ValueType, ValueTypeInfo};
 use anyhow::Result;
@@ -565,7 +565,7 @@ impl Vm {
     ) -> Result<Task<'a, T>, VmError>
     where
         A: IntoArgs,
-        T: ReflectFromValue,
+        T: FromValue,
     {
         let hash = FnDynamicHash::of(name, A::count());
         let fn_address = unit
@@ -594,7 +594,7 @@ impl Vm {
     /// Run the given program on the virtual machine.
     pub fn run<'a, T>(&'a mut self, functions: &'a Functions, unit: &'a Unit) -> Task<'a, T>
     where
-        T: ReflectFromValue,
+        T: FromValue,
     {
         Task {
             vm: self,
@@ -829,11 +829,11 @@ impl Vm {
     /// Evaluate the last value on the stack as the given type.
     pub fn eval_last<T>(&self) -> Result<T, VmError>
     where
-        T: ReflectFromValue,
+        T: FromValue,
     {
         let value = self.last().ok_or_else(|| VmError::StackEmpty)?;
 
-        let value = match T::reflect_from_value(value, self) {
+        let value = match T::from_value(value, self) {
             Ok(value) => value,
             Err(e) => {
                 let type_info = e.type_info(self)?;
@@ -920,7 +920,7 @@ pub struct Task<'a, T> {
 
 impl<'a, T> Task<'a, T>
 where
-    T: ReflectFromValue,
+    T: FromValue,
 {
     /// Run the given task to completion.
     pub async fn run_to_completion(mut self) -> Result<T, VmError> {

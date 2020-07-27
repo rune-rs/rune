@@ -36,15 +36,15 @@ pub trait Allocate {
 }
 
 /// Trait for converting types into values.
-pub trait ReflectToValue: ReflectValueType {
+pub trait ToValue: Sized {
     /// Convert into a value.
-    fn reflect_to_value(self, _state: &mut Vm) -> Option<Value>;
+    fn to_value(self, _state: &mut Vm) -> Option<Value>;
 }
 
 /// Trait for converting from a value.
-pub trait ReflectFromValue: ReflectValueType {
+pub trait FromValue: Sized {
     /// Try to convert to the given type, from the given value.
-    fn reflect_from_value(value: Value, _state: &Vm) -> Result<Self, Value>;
+    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value>;
 }
 
 impl<T> ReflectValueType for Option<T>
@@ -56,25 +56,25 @@ where
     }
 }
 
-impl<T> ReflectFromValue for Option<T>
+impl<T> FromValue for Option<T>
 where
-    T: ReflectFromValue,
+    T: FromValue,
 {
-    fn reflect_from_value(value: Value, vm: &Vm) -> Result<Self, Value> {
+    fn from_value(value: Value, vm: &Vm) -> Result<Self, Value> {
         match value {
             Value::Unit => Ok(None),
-            _ => Ok(Some(T::reflect_from_value(value, vm)?)),
+            _ => Ok(Some(T::from_value(value, vm)?)),
         }
     }
 }
 
-impl<T> ReflectToValue for Option<T>
+impl<T> ToValue for Option<T>
 where
-    T: ReflectToValue,
+    T: ToValue,
 {
-    fn reflect_to_value(self, vm: &mut Vm) -> Option<Value> {
+    fn to_value(self, vm: &mut Vm) -> Option<Value> {
         match self {
-            Some(value) => value.reflect_to_value(vm),
+            Some(value) => value.to_value(vm),
             None => Some(Value::Unit),
         }
     }
@@ -93,14 +93,14 @@ impl Allocate for () {
     }
 }
 
-impl ReflectToValue for () {
-    fn reflect_to_value(self, _state: &mut Vm) -> Option<Value> {
+impl ToValue for () {
+    fn to_value(self, _state: &mut Vm) -> Option<Value> {
         Some(Value::Unit)
     }
 }
 
-impl ReflectFromValue for () {
-    fn reflect_from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+impl FromValue for () {
+    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
         match value {
             Value::Unit => Ok(()),
             value => Err(value),
@@ -121,14 +121,14 @@ impl Allocate for bool {
     }
 }
 
-impl ReflectToValue for bool {
-    fn reflect_to_value(self, _state: &mut Vm) -> Option<Value> {
+impl ToValue for bool {
+    fn to_value(self, _state: &mut Vm) -> Option<Value> {
         Some(Value::Bool(self))
     }
 }
 
-impl ReflectFromValue for bool {
-    fn reflect_from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+impl FromValue for bool {
+    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
         match value {
             Value::Bool(value) => Ok(value),
             value => Err(value),
@@ -150,14 +150,14 @@ impl Allocate for String {
     }
 }
 
-impl ReflectToValue for String {
-    fn reflect_to_value(self, vm: &mut Vm) -> Option<Value> {
+impl ToValue for String {
+    fn to_value(self, vm: &mut Vm) -> Option<Value> {
         Some(Value::String(vm.allocate_string(self.into_boxed_str())))
     }
 }
 
-impl ReflectFromValue for String {
-    fn reflect_from_value(value: Value, vm: &Vm) -> Result<Self, Value> {
+impl FromValue for String {
+    fn from_value(value: Value, vm: &Vm) -> Result<Self, Value> {
         match value {
             Value::String(index) => match vm.cloned_string(index) {
                 Some(value) => Ok((&*value).to_owned()),
@@ -182,14 +182,14 @@ impl Allocate for Box<str> {
     }
 }
 
-impl ReflectToValue for Box<str> {
-    fn reflect_to_value(self, vm: &mut Vm) -> Option<Value> {
+impl ToValue for Box<str> {
+    fn to_value(self, vm: &mut Vm) -> Option<Value> {
         Some(Value::String(vm.allocate_string(self)))
     }
 }
 
-impl ReflectFromValue for Box<str> {
-    fn reflect_from_value(value: Value, vm: &Vm) -> Result<Self, Value> {
+impl FromValue for Box<str> {
+    fn from_value(value: Value, vm: &Vm) -> Result<Self, Value> {
         match value {
             Value::String(index) => match vm.cloned_string(index) {
                 Some(value) => Ok(value),
@@ -213,14 +213,14 @@ impl Allocate for i64 {
     }
 }
 
-impl ReflectToValue for i64 {
-    fn reflect_to_value(self, _state: &mut Vm) -> Option<Value> {
+impl ToValue for i64 {
+    fn to_value(self, _state: &mut Vm) -> Option<Value> {
         Some(Value::Integer(self))
     }
 }
 
-impl ReflectFromValue for i64 {
-    fn reflect_from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+impl FromValue for i64 {
+    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
         match value {
             Value::Integer(number) => Ok(number),
             value => Err(value),
@@ -246,16 +246,16 @@ macro_rules! number_value_trait {
             }
         }
 
-        impl ReflectToValue for $ty {
-            fn reflect_to_value(self, _state: &mut Vm) -> Option<Value> {
+        impl ToValue for $ty {
+            fn to_value(self, _state: &mut Vm) -> Option<Value> {
                 use std::convert::TryInto as _;
 
                 Some(Value::Integer(self.try_into().ok()?))
             }
         }
 
-        impl ReflectFromValue for $ty {
-            fn reflect_from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+        impl FromValue for $ty {
+            fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
                 use std::convert::TryInto as _;
 
                 match value {
@@ -289,14 +289,14 @@ impl Allocate for f64 {
     }
 }
 
-impl ReflectToValue for f64 {
-    fn reflect_to_value(self, _state: &mut Vm) -> Option<Value> {
+impl ToValue for f64 {
+    fn to_value(self, _state: &mut Vm) -> Option<Value> {
         Some(Value::Float(self))
     }
 }
 
-impl ReflectFromValue for f64 {
-    fn reflect_from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+impl FromValue for f64 {
+    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
         match value {
             Value::Float(number) => Ok(number),
             value => Err(value),
@@ -317,15 +317,15 @@ impl Allocate for f32 {
     }
 }
 
-impl ReflectToValue for f32 {
-    fn reflect_to_value(self, _state: &mut Vm) -> Option<Value> {
+impl ToValue for f32 {
+    fn to_value(self, _state: &mut Vm) -> Option<Value> {
         use std::convert::TryInto as _;
         Some(Value::Float(self.try_into().ok()?))
     }
 }
 
-impl ReflectFromValue for f32 {
-    fn reflect_from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
+impl FromValue for f32 {
+    fn from_value(value: Value, _state: &Vm) -> Result<Self, Value> {
         match value {
             Value::Float(number) => Ok(number as f32),
             value => Err(value),
@@ -346,12 +346,12 @@ macro_rules! impl_into_args {
     (@impl $count:expr, $({$ty:ident, $var:ident, $ignore_count:expr},)*) => {
         impl<$($ty,)*> IntoArgs for ($($ty,)*)
         where
-            $($ty: ReflectToValue,)*
+            $($ty: ToValue,)*
         {
             #[allow(unused)]
             fn encode(self, vm: &mut Vm) -> Result<(), EncodeError> {
                 let ($($var,)*) = self;
-                $(let $var = $var.reflect_to_value(vm).ok_or_else(|| EncodeError(()))?;)*
+                $(let $var = $var.to_value(vm).ok_or_else(|| EncodeError(()))?;)*
                 $(vm.managed_push($var);)*
                 Ok(())
             }

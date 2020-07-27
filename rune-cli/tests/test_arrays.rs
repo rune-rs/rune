@@ -2,7 +2,7 @@ use anyhow::Result;
 
 async fn run_main<T>(source: &str) -> Result<T>
 where
-    T: st::ReflectFromValue,
+    T: st::FromValue,
 {
     Ok(rune_cli::run_program::<_, T>(source, "main", ()).await?)
 }

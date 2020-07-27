@@ -23,7 +23,7 @@ mod unit;
 
 pub use crate::functions::{Functions, Register, RegisterAsync};
 pub use crate::reflection::{
-    Allocate, AllocateError, IntoArgs, ReflectFromValue, ReflectToValue, ReflectValueType,
+    Allocate, AllocateError, FromValue, IntoArgs, ReflectValueType, ToValue,
 };
 pub use crate::unit::{Unit, UnitError};
 pub use crate::value::{TypeHash, Value, ValueType};

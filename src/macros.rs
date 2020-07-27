@@ -22,14 +22,14 @@ macro_rules! impl_external {
             }
         }
 
-        impl $crate::ReflectToValue for $external {
-            fn reflect_to_value(self, state: &mut $crate::State) -> Option<$crate::Value> {
+        impl $crate::ToValue for $external {
+            fn to_value(self, state: &mut $crate::State) -> Option<$crate::Value> {
                 Some($crate::Value::External(state.allocate_external(self)))
             }
         }
 
-        impl $crate::ReflectFromValue for $external {
-            fn reflect_from_value(
+        impl $crate::FromValue for $external {
+            fn from_value(
                 value: $crate::Value,
                 state: &$crate::State,
             ) -> Result<Self, $crate::Value> {
