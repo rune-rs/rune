@@ -4,11 +4,10 @@ use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 
-use st_frontend::Encode as _;
-use st_frontend_rune::{ast, parse_all, SpannedError as _};
+use rune::SpannedError as _;
 
-fn compile(source: &str) -> st_frontend_rune::Result<st::Unit> {
-    let unit = parse_all::<ast::File>(&source)?;
+fn compile(source: &str) -> rune::Result<st::Unit> {
+    let unit = rune::parse_all::<rune::ast::File>(&source)?;
     Ok(unit.encode()?)
 }
 
@@ -23,11 +22,16 @@ async fn main() -> Result<()> {
     let mut trace = false;
     let mut dump_unit = false;
     let mut dump_vm_state = false;
+    let mut help = false;
 
     for arg in args {
         match arg.as_str() {
             "--trace" => {
                 trace = true;
+            }
+            "--dump" => {
+                dump_unit = true;
+                dump_vm_state = true;
             }
             "--dump-unit" => {
                 dump_unit = true;
@@ -35,16 +39,31 @@ async fn main() -> Result<()> {
             "--dump-vm-state" => {
                 dump_vm_state = true;
             }
+            "--help" => {
+                help = true;
+            }
             other => {
                 path = Some(PathBuf::from(other));
             }
         }
     }
 
+    const USAGE: &str = "rune-cli [--trace] [--dump-unit] [--dump-vm-state] <file>";
+
+    if help {
+        println!("Usage: {}", USAGE);
+        println!();
+        println!("  --trace         - Provide detailed tracing for each instruction executed.");
+        println!("  --dump          - Dump all forms of diagnostic.");
+        println!("  --dump-unit     - Dump diagnostics on the unit generated from the file.");
+        println!("  --dump-vm-state - Dump diagnostics on VM state (stack).");
+        return Ok(());
+    }
+
     let path = match path {
         Some(path) => PathBuf::from(path),
         None => {
-            bail!("expected: rune-cli [--trace] [--dump-unit] [--dump-vm-state] <file>");
+            bail!("Invalid usage: {}", USAGE);
         }
     };
 

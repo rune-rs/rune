@@ -11,5 +11,5 @@ ST comes with a simple scripting language called rune.
 You can run example scripts through rune-cli:
 
 ```bash
-cargo run --manifest-path=rune-cli/Cargo.toml --release -- ./scripts/fib.rn
+cargo rune-cli ./scripts/fib.rn
 ```

@@ -8,9 +8,9 @@ use crate::traits::{Parse, Peek};
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{ast, Parser};
+/// use rune::{ast, Parser};
 ///
-/// # fn main() -> st_frontend_rune::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// let mut parser = Parser::new("fn foo() {}");
 /// parser.parse::<ast::FnDecl>()?;
 /// # Ok(())

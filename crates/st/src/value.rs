@@ -79,14 +79,90 @@ impl Clone for Value {
 }
 
 /// Managed entries on the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Managed {
     /// A string.
-    String(usize),
+    String,
     /// An array.
-    Array(usize),
+    Array,
     /// Reference to an external type.
-    External(usize),
+    External,
+}
+
+/// Compact information on typed slot.
+///
+/// # Examples
+///
+/// ```rust
+/// assert_eq!(st::Slot::string(4).into_managed(), (st::Managed::String, 4));
+/// assert_eq!(st::Slot::array(4).into_managed(), (st::Managed::Array, 4));
+/// assert_eq!(st::Slot::external(4).into_managed(), (st::Managed::External, 4));
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct Slot(usize);
+
+impl Slot {
+    const STRING: usize = 0;
+    const ARRAY: usize = 1;
+    const EXTERNAL: usize = 2;
+
+    /// Slot
+    pub fn into_managed(self) -> (Managed, usize) {
+        let slot = (self.0 >> 2) as usize;
+
+        match self.0 & 0b11 {
+            0 => (Managed::String, slot),
+            1 => (Managed::Array, slot),
+            _ => (Managed::External, slot),
+        }
+    }
+
+    /// Construct a string slot.
+    pub fn string(slot: usize) -> Self {
+        Self(slot << 2 | Self::STRING)
+    }
+
+    /// Construct an array slot.
+    pub fn array(slot: usize) -> Self {
+        Self(slot << 2 | Self::ARRAY)
+    }
+
+    /// Construct an external slot.
+    pub fn external(slot: usize) -> Self {
+        Self(slot << 2 | Self::EXTERNAL)
+    }
+}
+
+macro_rules! decl_managed {
+    ($name:ident, $constant:ident) => {
+        #[allow(unused)]
+        pub(crate) struct $name(());
+
+        impl IntoSlot for $name {
+            fn into_slot(value: ValueRef) -> Result<usize, ValueRef> {
+                let Slot(slot) = match value {
+                    ValueRef::Managed(managed) => managed,
+                    _ => return Err(value),
+                };
+
+                if slot & 0b11 == Slot::$constant {
+                    Ok((slot >> 2) as usize)
+                } else {
+                    Err(value)
+                }
+            }
+        }
+    };
+}
+
+decl_managed!(ManagedString, STRING);
+decl_managed!(ManagedArray, ARRAY);
+decl_managed!(ManagedExternal, EXTERNAL);
+
+/// Trait for converting into managed slots.
+pub trait IntoSlot {
+    /// Convert thing into a managed slot.
+    fn into_slot(value: ValueRef) -> Result<usize, ValueRef>;
 }
 
 /// An entry on the stack.
@@ -101,10 +177,29 @@ pub enum ValueRef {
     /// A boolean.
     Bool(bool),
     /// A managed reference.
-    Managed(Managed),
+    Managed(Slot),
 }
 
 impl ValueRef {
+    /// Convert value into a managed.
+    #[inline]
+    pub fn into_managed(self) -> Option<(Managed, usize)> {
+        if let Self::Managed(slot) = self {
+            Some(slot.into_managed())
+        } else {
+            None
+        }
+    }
+
+    /// Convert value into a managed slot.
+    #[inline]
+    pub fn into_slot<T>(self) -> Result<usize, Self>
+    where
+        T: IntoSlot,
+    {
+        T::into_slot(self)
+    }
+
     /// Get the type information for the current value.
     pub fn value_type(&self, vm: &Vm) -> Result<ValueType, ExternalTypeError> {
         Ok(match *self {
@@ -112,13 +207,13 @@ impl ValueRef {
             Self::Integer(..) => ValueType::Integer,
             Self::Float(..) => ValueType::Float,
             Self::Bool(..) => ValueType::Bool,
-            Self::Managed(managed) => match managed {
-                Managed::String(..) => ValueType::String,
-                Managed::Array(..) => ValueType::Array,
-                Managed::External(external) => {
+            Self::Managed(slot) => match slot.into_managed() {
+                (Managed::String, ..) => ValueType::String,
+                (Managed::Array, _) => ValueType::Array,
+                (Managed::External, slot) => {
                     let (_, type_hash) = vm
-                        .external_type(external)
-                        .ok_or_else(|| ExternalTypeError(external))?;
+                        .external_type(slot)
+                        .ok_or_else(|| ExternalTypeError(slot))?;
 
                     ValueType::External(type_hash)
                 }
@@ -133,10 +228,10 @@ impl ValueRef {
             Self::Integer(..) => ValueTypeInfo::Integer,
             Self::Float(..) => ValueTypeInfo::Float,
             Self::Bool(..) => ValueTypeInfo::Bool,
-            Self::Managed(managed) => match managed {
-                Managed::String(..) => ValueTypeInfo::String,
-                Managed::Array(..) => ValueTypeInfo::Array,
-                Managed::External(slot) => {
+            Self::Managed(slot) => match slot.into_managed() {
+                (Managed::String, _) => ValueTypeInfo::String,
+                (Managed::Array, _) => ValueTypeInfo::Array,
+                (Managed::External, slot) => {
                     let (type_name, type_hash) = vm
                         .external_type(slot)
                         .ok_or_else(|| ExternalTypeError(slot))?;

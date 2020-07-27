@@ -7,7 +7,7 @@
 //! You can run example scripts through rune-cli:
 //!
 //! ```bash
-//! cargo run --manifest-path=rune-cli/Cargo.toml --release -- ./scripts/fib.rn
+//! cargo rune-cli ./scripts/fib.rn
 //! ```
 
 #![deny(missing_docs)]
@@ -29,7 +29,7 @@ pub use crate::reflection::{
     Allocate, AllocateError, FromValue, IntoArgs, ReflectValueType, ToValue,
 };
 pub use crate::unit::{Unit, UnitError};
-pub use crate::value::{TypeHash, Value, ValueError, ValueRef, ValueType};
+pub use crate::value::{Managed, Slot, TypeHash, Value, ValueError, ValueRef, ValueType};
 pub use crate::vm::{Inst, Task, Vm};
 
 mod collections {

@@ -1,0 +1,21 @@
+[package]
+name = "st"
+version = "0.0.0"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+edition = "2018"
+description = """
+The ST stack-based virtual machine.
+"""
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+env_logger = "0.7.1"
+log = "0.4.11"
+twox-hash = "1.5.0"
+anyhow = "1.0.32"
+thiserror = "1.0.20"
+slab = "0.4.2"
+
+[dev-dependencies]
+tokio = {version = "0.2.22", features = ["full"]}

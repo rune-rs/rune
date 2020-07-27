@@ -18,6 +18,13 @@ pub use crate::source::Source;
 pub use crate::token::{Kind, Span, Token};
 pub use crate::traits::Resolve;
 
+/// Helper function to compile the given source.
+pub fn compile(source: &str) -> Result<st::Unit> {
+    let unit = parse_all::<ast::File>(&source)?;
+    let unit = unit.encode()?;
+    Ok(unit)
+}
+
 /// The result from parsing a string.
 pub struct ParseAll<'a, T> {
     /// The source parsed.

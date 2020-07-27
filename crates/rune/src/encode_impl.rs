@@ -87,12 +87,9 @@ impl Locals {
     }
 }
 
-impl<'a> st_frontend::Encode for crate::ParseAll<'a, ast::File> {
-    /// The error that can be raised by the encodeable object.
-    type Err = EncodeError;
-
+impl<'a> crate::ParseAll<'a, ast::File> {
     /// Encode the given object into a collection of instructions.
-    fn encode(self) -> Result<st::Unit, Self::Err> {
+    pub fn encode(self) -> Result<st::Unit, EncodeError> {
         let ParseAll { source, item: file } = self;
 
         let mut unit = st::Unit::new();

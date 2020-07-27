@@ -1,4 +1,4 @@
-use crate::value::{Managed, Value, ValueRef, ValueType};
+use crate::value::{self, Value, ValueRef, ValueType};
 use crate::vm::Vm;
 use thiserror::Error;
 
@@ -67,23 +67,20 @@ where
     T: FromValue,
 {
     fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
-        match value {
-            ValueRef::Managed(Managed::Array(slot)) => {
-                let holder = match vm.arrays.get(slot) {
-                    Some(array) => array,
-                    None => return Err(value),
-                };
+        let slot = value.into_slot::<value::ManagedArray>()?;
 
-                let mut output = Vec::with_capacity(holder.value.len());
+        let holder = match vm.arrays.get(slot) {
+            Some(array) => array,
+            None => return Err(value),
+        };
 
-                for value in holder.value.iter().copied() {
-                    output.push(T::from_value(value, vm)?);
-                }
+        let mut output = Vec::with_capacity(holder.value.len());
 
-                Ok(output)
-            }
-            other => Err(other),
+        for value in holder.value.iter().copied() {
+            output.push(T::from_value(value, vm)?);
         }
+
+        Ok(output)
     }
 }
 
@@ -188,12 +185,11 @@ impl ToValue for String {
 
 impl FromValue for String {
     fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
-        match value {
-            ValueRef::Managed(Managed::String(index)) => match vm.string_clone(index) {
-                Some(value) => Ok(String::from(value)),
-                None => Err(value),
-            },
-            value => Err(value),
+        let slot = value.into_slot::<value::ManagedString>()?;
+
+        match vm.string_clone(slot) {
+            Some(value) => Ok(String::from(value)),
+            None => Err(value),
         }
     }
 }
@@ -219,12 +215,11 @@ impl ToValue for Box<str> {
 
 impl FromValue for Box<str> {
     fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
-        match value {
-            ValueRef::Managed(Managed::String(index)) => match vm.string_clone(index) {
-                Some(value) => Ok(value),
-                None => return Err(value),
-            },
-            value => Err(value),
+        let slot = value.into_slot::<value::ManagedString>()?;
+
+        match vm.string_clone(slot) {
+            Some(value) => Ok(value),
+            _ => Err(value),
         }
     }
 }

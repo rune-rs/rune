@@ -4,7 +4,8 @@ use crate::hash::{FnDynamicHash, FnHash, Hash};
 use crate::reflection::{EncodeError, FromValue, IntoArgs};
 use crate::unit::Unit;
 use crate::value::{
-    ExternalTypeError, Managed, TypeHash, Value, ValueError, ValueRef, ValueType, ValueTypeInfo,
+    ExternalTypeError, Managed, Slot, TypeHash, Value, ValueError, ValueRef, ValueType,
+    ValueTypeInfo,
 };
 use anyhow::Result;
 use slab::Slab;
@@ -303,35 +304,7 @@ impl Inst {
                     *ip = offset;
                 }
                 Self::Add => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-
-                    let value = match (a, b) {
-                        (ValueRef::Float(a), ValueRef::Float(b)) => ValueRef::Float(a + b),
-                        (ValueRef::Integer(a), ValueRef::Integer(b)) => ValueRef::Integer(a + b),
-                        (
-                            ValueRef::Managed(Managed::String(a)),
-                            ValueRef::Managed(Managed::String(b)),
-                        ) => {
-                            let a = vm.string_ref(a)?;
-                            let b = vm.string_ref(b)?;
-                            let mut string = String::with_capacity(a.len() + b.len());
-                            string.push_str(a);
-                            string.push_str(b);
-                            let value = vm.allocate_string(string.into_boxed_str());
-                            vm.managed_push(value)?;
-                            break;
-                        }
-                        (a, b) => {
-                            return Err(VmError::UnsupportedOperation {
-                                op: "+",
-                                a: a.type_info(vm)?,
-                                b: b.type_info(vm)?,
-                            })
-                        }
-                    };
-
-                    vm.managed_push(value)?;
+                    vm.add()?;
                 }
                 Self::Sub => {
                     let b = vm.managed_pop()?;
@@ -485,9 +458,9 @@ pub struct Vm {
     /// Frames relative to the stack.
     pub(crate) frames: Vec<Frame>,
     /// Values which needs to be freed.
-    gc_freed: Vec<Managed>,
+    gc_freed: Vec<(Managed, usize)>,
     /// The work list for the gc.
-    gc_work: Vec<Managed>,
+    gc_work: Vec<(Managed, usize)>,
     /// Slots with external values.
     pub(crate) externals: Slab<Box<ExternalHolder<dyn External>>>,
     /// Slots with strings.
@@ -605,8 +578,8 @@ impl Vm {
     pub fn managed_push(&mut self, value: ValueRef) -> Result<(), StackError> {
         self.stack.push(value);
 
-        if let ValueRef::Managed(managed) = value {
-            self.inc_count(managed)?;
+        if let Some((managed, slot)) = value.into_managed() {
+            self.inc_count(managed, slot)?;
         }
 
         Ok(())
@@ -616,8 +589,8 @@ impl Vm {
     pub fn managed_pop(&mut self) -> Result<ValueRef, StackError> {
         let value = self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
 
-        if let ValueRef::Managed(managed) = value {
-            self.dec_count(managed)?;
+        if let Some((managed, slot)) = value.into_managed() {
+            self.dec_count(managed, slot)?;
         }
 
         Ok(value)
@@ -632,11 +605,11 @@ impl Vm {
         while !self.gc_freed.is_empty() {
             gc_work.append(&mut self.gc_freed);
 
-            for managed in gc_work.drain(..) {
+            for (managed, slot) in gc_work.drain(..) {
                 log::trace!("freeing: {:?}", managed);
 
                 match managed {
-                    Managed::External(slot) => {
+                    Managed::External => {
                         if !self.externals.contains(slot) {
                             log::trace!("trying to free non-existant external: {}", slot);
                             continue;
@@ -645,7 +618,7 @@ impl Vm {
                         let external = self.externals.remove(slot);
                         debug_assert!(external.count == 0);
                     }
-                    Managed::String(slot) => {
+                    Managed::String => {
                         if !self.strings.contains(slot) {
                             log::trace!("trying to free non-existant string: {}", slot);
                             continue;
@@ -654,7 +627,7 @@ impl Vm {
                         let string = self.strings.remove(slot);
                         debug_assert!(string.count == 0);
                     }
-                    Managed::Array(slot) => {
+                    Managed::Array => {
                         if !self.arrays.contains(slot) {
                             log::trace!("trying to free non-existant array: {}", slot);
                             continue;
@@ -663,8 +636,8 @@ impl Vm {
                         let array = self.arrays.remove(slot);
 
                         for value in array.value.into_iter().copied() {
-                            if let ValueRef::Managed(managed) = value {
-                                self.dec_count(managed)?;
+                            if let Some((managed, slot)) = value.into_managed() {
+                                self.dec_count(managed, slot)?;
                             }
                         }
 
@@ -693,8 +666,8 @@ impl Vm {
             }
         };
 
-        if let ValueRef::Managed(managed) = value {
-            self.inc_count(managed)?;
+        if let Some((managed, slot)) = value.into_managed() {
+            self.inc_count(managed, slot)?;
         }
 
         self.stack.push(value);
@@ -702,23 +675,23 @@ impl Vm {
     }
 
     /// Decrement reference count of value reference.
-    fn inc_count(&mut self, managed: Managed) -> Result<(), StackError> {
+    fn inc_count(&mut self, managed: Managed, slot: usize) -> Result<(), StackError> {
         match managed {
-            Managed::String(slot) => {
+            Managed::String => {
                 let holder = self
                     .strings
                     .get_mut(slot)
                     .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
                 holder.count += 1;
             }
-            Managed::Array(slot) => {
+            Managed::Array => {
                 let holder = self
                     .arrays
                     .get_mut(slot)
                     .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
                 holder.count += 1;
             }
-            Managed::External(slot) => {
+            Managed::External => {
                 let holder = self
                     .externals
                     .get_mut(slot)
@@ -731,9 +704,9 @@ impl Vm {
     }
 
     /// Decrement ref count and free if appropriate.
-    fn dec_count(&mut self, managed: Managed) -> Result<(), StackError> {
+    fn dec_count(&mut self, managed: Managed, slot: usize) -> Result<(), StackError> {
         match managed {
-            Managed::String(slot) => {
+            Managed::String => {
                 let holder = self
                     .strings
                     .get_mut(slot)
@@ -744,35 +717,35 @@ impl Vm {
 
                 if holder.count == 0 {
                     log::trace!("pushing to freed: {:?}", managed);
-                    self.gc_freed.push(managed);
+                    self.gc_freed.push((managed, slot));
                 }
             }
-            Managed::Array(slot) => {
+            Managed::Array => {
                 let holder = self
                     .arrays
                     .get_mut(slot)
-                    .ok_or_else(|| StackError::StringSlotMissing { slot })?;
+                    .ok_or_else(|| StackError::ArraySlotMissing { slot })?;
 
                 debug_assert!(holder.count > 0);
                 holder.count = holder.count.saturating_sub(1);
 
                 if holder.count == 0 {
                     log::trace!("pushing to freed: {:?}", managed);
-                    self.gc_freed.push(managed);
+                    self.gc_freed.push((managed, slot));
                 }
             }
-            Managed::External(slot) => {
+            Managed::External => {
                 let holder = self
                     .externals
                     .get_mut(slot)
-                    .ok_or_else(|| StackError::StringSlotMissing { slot })?;
+                    .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
 
                 debug_assert!(holder.count > 0);
                 holder.count = holder.count.saturating_sub(1);
 
                 if holder.count == 0 {
                     log::trace!("pushing to freed: {:?}", managed);
-                    self.gc_freed.push(managed);
+                    self.gc_freed.push((managed, slot));
                 }
             }
         }
@@ -835,7 +808,7 @@ impl Vm {
             value: string,
         });
 
-        ValueRef::Managed(Managed::String(slot))
+        ValueRef::Managed(Slot::string(slot))
     }
 
     /// Allocate an array and return its value reference.
@@ -848,7 +821,7 @@ impl Vm {
             value: array,
         });
 
-        ValueRef::Managed(Managed::Array(slot))
+        ValueRef::Managed(Slot::array(slot))
     }
 
     /// Allocate and insert an external and return its reference.
@@ -862,7 +835,7 @@ impl Vm {
             value,
         }));
 
-        ValueRef::Managed(Managed::External(slot))
+        ValueRef::Managed(Slot::external(slot))
     }
 
     /// Get a reference of the string at the given string slot.
@@ -943,21 +916,60 @@ impl Vm {
             ValueRef::Integer(integer) => Value::Integer(integer),
             ValueRef::Float(float) => Value::Float(float),
             ValueRef::Bool(boolean) => Value::Bool(boolean),
-            ValueRef::Managed(managed) => match managed {
-                Managed::String(slot) => match self.strings.get(slot) {
+            ValueRef::Managed(managed) => match managed.into_managed() {
+                (Managed::String, slot) => match self.strings.get(slot) {
                     Some(string) => Value::String(string.value.to_owned()),
                     None => Value::Error(ValueError::String(slot)),
                 },
-                Managed::Array(slot) => match self.arrays.get(slot) {
+                (Managed::Array, slot) => match self.arrays.get(slot) {
                     Some(array) => Value::Array(self.to_owned_array(&array.value)),
                     None => Value::Error(ValueError::Array(slot)),
                 },
-                Managed::External(slot) => match self.externals.get(slot) {
+                (Managed::External, slot) => match self.externals.get(slot) {
                     Some(external) => Value::External(external.value.clone_external()),
                     None => Value::Error(ValueError::External(slot)),
                 },
             },
         }
+    }
+
+    /// Implementation of the add operation.
+    fn add(&mut self) -> Result<(), VmError> {
+        let b = self.managed_pop()?;
+        let a = self.managed_pop()?;
+
+        match (a, b) {
+            (ValueRef::Float(a), ValueRef::Float(b)) => {
+                self.managed_push(ValueRef::Float(a + b))?;
+                return Ok(());
+            }
+            (ValueRef::Integer(a), ValueRef::Integer(b)) => {
+                self.managed_push(ValueRef::Integer(a + b))?;
+                return Ok(());
+            }
+            (ValueRef::Managed(a), ValueRef::Managed(b)) => {
+                match (a.into_managed(), b.into_managed()) {
+                    ((Managed::String, a), (Managed::String, b)) => {
+                        let a = self.string_ref(a)?;
+                        let b = self.string_ref(b)?;
+                        let mut string = String::with_capacity(a.len() + b.len());
+                        string.push_str(a);
+                        string.push_str(b);
+                        let value = self.allocate_string(string.into_boxed_str());
+                        self.managed_push(value)?;
+                        return Ok(());
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
+        };
+
+        Err(VmError::UnsupportedOperation {
+            op: "+",
+            a: a.type_info(self)?,
+            b: b.type_info(self)?,
+        })
     }
 }
 

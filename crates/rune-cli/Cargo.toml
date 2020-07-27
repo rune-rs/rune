@@ -10,8 +10,7 @@ edition = "2018"
 tokio = {version = "0.2.22", features = ["full"]}
 env_logger = "0.7.1"
 
-st-frontend = {version = "0.0.0", path = "../frontends/base"}
-st-frontend-rune = {version = "0.0.0", path = "../frontends/rune"}
-st = {version = "0.0.0", path = ".."}
+rune = {version = "0.0.0", path = "../rune"}
+st = {version = "0.0.0", path = "../st"}
 
 anyhow = "1.0.32"

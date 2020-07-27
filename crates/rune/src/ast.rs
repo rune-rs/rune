@@ -18,7 +18,7 @@ pub struct File {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::File>(r#"
@@ -69,7 +69,7 @@ pub struct ArrayLiteral {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::ArrayLiteral>("[1, \"two\"]")?;
@@ -113,7 +113,7 @@ pub struct NumberLiteral {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::NumberLiteral>("42")?;
@@ -228,7 +228,7 @@ impl<'a> Resolve<'a> for StringLiteral {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{ParseAll, parse_all, ast, Resolve as _};
+/// use rune::{ParseAll, parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let ParseAll { source, item } = parse_all::<ast::StringLiteral>("\"hello world\"")?;
@@ -528,7 +528,7 @@ impl Expr {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::Expr>("var")?;
@@ -558,7 +558,7 @@ pub struct FnCall {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::FnCall>("foo()")?;
@@ -588,7 +588,7 @@ pub enum BlockExpr {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::BlockExpr>("var")?;
@@ -663,7 +663,7 @@ pub struct FnDecl {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{ParseAll, parse_all, ast, Resolve as _};
+/// use rune::{ParseAll, parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let ParseAll { item, .. } = parse_all::<ast::FnDecl>("fn hello() {}")?;
@@ -702,7 +702,7 @@ pub struct Block {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{parse_all, ast};
+/// use rune::{parse_all, ast};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let block = parse_all::<ast::Block>("{}")?.item;
@@ -774,7 +774,7 @@ pub struct FunctionArgs<T> {
 /// # Examples
 ///
 /// ```rust
-/// use st_frontend_rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::FunctionArgs<ast::Expr>>("(1, \"two\")")?;

@@ -14,9 +14,9 @@ impl<'a> Lexer<'a> {
     /// # Examples
     ///
     /// ```rust
-    /// use st_frontend_rune::{Lexer, Kind, Span, Token};
+    /// use rune::{Lexer, Kind, Span, Token};
     ///
-    /// # fn main() -> st_frontend_rune::Result<()> {
+    /// # fn main() -> rune::Result<()> {
     /// assert_eq! {
     ///     Lexer::new("fn").next()?.unwrap(),
     ///     Token {

@@ -4,7 +4,12 @@ async fn run_main<T>(source: &str) -> Result<T>
 where
     T: st::FromValue,
 {
-    Ok(rune_cli::run_program::<_, T>(source, "main", ()).await?)
+    let unit = rune::compile(source)?;
+    let mut vm = st::Vm::new();
+    let functions = st::Functions::new();
+    let task: st::Task<T> = vm.call_function(&functions, &unit, "main", ())?;
+    let output = task.run_to_completion().await?;
+    Ok(output)
 }
 
 #[tokio::test]

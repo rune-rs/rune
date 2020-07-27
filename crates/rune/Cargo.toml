@@ -1,5 +1,5 @@
 [package]
-name = "st-frontend-rune"
+name = "rune"
 version = "0.0.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2018"
@@ -8,10 +8,10 @@ Rune is a simple dynamic language for the ST virtual machine.
 """
 
 [dependencies]
-st-frontend = {version = "0.0.0", path = "../base"}
-st = {version = "0.0.0", path = "../.."}
+st = {version = "0.0.0", path = "../st"}
 thiserror = "1.0.20"
 log = "0.4.11"
 
 [dev-dependencies]
+tokio = {version = "0.2", features = ["full"]}
 anyhow = "1"
