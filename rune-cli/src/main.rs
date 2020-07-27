@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
             println!("# stack dump");
 
             for (n, (slot, value)) in task.vm.iter_stack_debug().enumerate() {
-                println!("{} = {} ({:?})", n, slot, value);
+                println!("{} = {:?} ({:?})", n, slot, value);
             }
 
             println!("---");
@@ -159,7 +159,7 @@ async fn main() -> Result<()> {
         println!("# stack dump after completion");
 
         for (n, (slot, value)) in vm.iter_stack_debug().enumerate() {
-            println!("{} = {} ({:?})", n, slot, value);
+            println!("{} = {:?} ({:?})", n, slot, value);
         }
 
         println!("---");

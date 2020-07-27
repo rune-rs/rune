@@ -15,31 +15,13 @@ pub trait SpannedError {
 pub enum Error {
     /// Source resolve error.
     #[error("resolve error")]
-    ResolveError(#[source] ResolveError),
+    ResolveError(#[from] ResolveError),
     /// Source parse error.
     #[error("parse error")]
-    ParseError(#[source] ParseError),
+    ParseError(#[from] ParseError),
     /// Source encode error.
     #[error("encode error")]
-    EncodeError(#[source] EncodeError),
-}
-
-impl From<ResolveError> for Error {
-    fn from(value: ResolveError) -> Self {
-        Self::ResolveError(value)
-    }
-}
-
-impl From<ParseError> for Error {
-    fn from(value: ParseError) -> Self {
-        Self::ParseError(value)
-    }
-}
-
-impl From<EncodeError> for Error {
-    fn from(value: EncodeError) -> Self {
-        Self::EncodeError(value)
-    }
+    EncodeError(#[from] EncodeError),
 }
 
 impl SpannedError for Error {
@@ -195,14 +177,14 @@ pub enum EncodeError {
     #[error("unit construction error")]
     UnitError {
         /// Source error.
-        #[source]
+        #[from]
         error: st::UnitError,
     },
     /// Error for resolving values from source files.
     #[error("resolve error")]
     ResolveError {
         /// Source error.
-        #[source]
+        #[from]
         error: ResolveError,
     },
     /// Error for variable conflicts.
@@ -223,18 +205,6 @@ pub enum EncodeError {
         /// Name of the missing local.
         name: String,
     },
-}
-
-impl From<ResolveError> for EncodeError {
-    fn from(error: ResolveError) -> Self {
-        Self::ResolveError { error }
-    }
-}
-
-impl From<st::UnitError> for EncodeError {
-    fn from(error: st::UnitError) -> Self {
-        Self::UnitError { error }
-    }
 }
 
 impl SpannedError for EncodeError {

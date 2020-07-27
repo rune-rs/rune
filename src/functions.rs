@@ -2,7 +2,7 @@ use crate::collections::HashMap;
 use crate::hash::{FnHash, Hash};
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::value::{ExternalTypeError, ValueTypeInfo};
-use crate::vm::Vm;
+use crate::vm::{StackError, Vm};
 use std::any::type_name;
 use std::future::Future;
 use std::pin::Pin;
@@ -16,7 +16,7 @@ pub enum Error {
 #[derive(Debug, Error)]
 pub enum CallError {
     #[error("stack was empty")]
-    StackEmpty,
+    StackError(#[from] StackError),
     #[error("failed to convert argument #{0} from `{1}` into `{2}`")]
     ArgumentConversionError(usize, ValueTypeInfo, &'static str),
     #[error("failed to resolve type info for external type")]
@@ -61,19 +61,15 @@ impl Functions {
     /// machine.
     pub fn register_raw<F>(&mut self, name: &str, f: F) -> Result<FnHash, Error>
     where
-        for<'stack> F: 'static + Copy + Fn(&'stack mut Vm, usize) + Send + Sync,
+        for<'stack> F:
+            'static + Copy + Fn(&'stack mut Vm, usize) -> Result<(), CallError> + Send + Sync,
     {
         let hash = Hash::of(name);
         let hash = FnHash::raw(hash);
 
         self.handlers.insert(
             hash,
-            Box::new(move |vm, args| {
-                Box::pin(async move {
-                    f(vm, args);
-                    Ok(())
-                })
-            }),
+            Box::new(move |vm, args| Box::pin(async move { f(vm, args) })),
         );
 
         Ok(hash)
@@ -84,19 +80,14 @@ impl Functions {
     pub fn register_raw_async<F, O>(&mut self, name: &str, f: F) -> Result<FnHash, Error>
     where
         for<'stack> F: 'static + Copy + Fn(&'stack mut Vm, usize) -> O + Send + Sync,
-        O: Future<Output = ()>,
+        O: Future<Output = Result<(), CallError>>,
     {
         let hash = Hash::of(name);
         let hash = FnHash::raw(hash);
 
         self.handlers.insert(
             hash,
-            Box::new(move |vm, args| {
-                Box::pin(async move {
-                    f(vm, args).await;
-                    Ok(())
-                })
-            }),
+            Box::new(move |vm, args| Box::pin(async move { f(vm, args).await })),
         );
 
         Ok(hash)
@@ -171,26 +162,25 @@ macro_rules! impl_register {
 
                 let handler: Box<FnHandler> = Box::new(move |vm, _| Box::pin(async move {
                     $(
-                        let $var = match vm.managed_pop() {
-                            Some(value) => match $ty::from_value(value, vm) {
-                                Ok(v) => v,
-                                Err(v) => {
-                                    let ty = v.type_info(vm).map_err(CallError::ExternalTypeError)?;
+                        let $var = vm.managed_pop()?;
 
-                                    return Err(CallError::ArgumentConversionError(
-                                        $count - $num,
-                                        ty,
-                                        type_name::<$ty>()
-                                    ));
-                                }
+                        let $var = match $ty::from_value($var, vm) {
+                            Ok(v) => v,
+                            Err(v) => {
+                                let ty = v.type_info(vm).map_err(CallError::ExternalTypeError)?;
+
+                                return Err(CallError::ArgumentConversionError(
+                                    $count - $num,
+                                    ty,
+                                    type_name::<$ty>()
+                                ));
                             }
-                            None => return Err(CallError::StackEmpty),
                         };
                     )*
 
                     let ret = f($($var,)*);
                     let ret = ret.to_value(vm).unwrap();
-                    vm.managed_push(ret);
+                    vm.managed_push(ret)?;
                     Ok(())
                 }));
 
@@ -215,26 +205,24 @@ macro_rules! impl_register {
 
                 let handler: Box<FnHandler> = Box::new(move |vm, _| Box::pin(async move {
                     $(
-                        let $var = match vm.managed_pop() {
-                            Some(value) => match $ty::from_value(value, vm) {
-                                Ok(v) => v,
-                                Err(v) => {
-                                    let ty = v.type_info(vm).map_err(CallError::ExternalTypeError)?;
+                        let $var = vm.managed_pop()?;
+                        let $var = match $ty::from_value($var, vm) {
+                            Ok(v) => v,
+                            Err(v) => {
+                                let ty = v.type_info(vm).map_err(CallError::ExternalTypeError)?;
 
-                                    return Err(CallError::ArgumentConversionError(
-                                        $count - $num,
-                                        ty,
-                                        type_name::<$ty>()
-                                    ));
-                                }
+                                return Err(CallError::ArgumentConversionError(
+                                    $count - $num,
+                                    ty,
+                                    type_name::<$ty>()
+                                ));
                             }
-                            None => return Err(CallError::StackEmpty),
                         };
                     )*
 
                     let ret = f($($var,)*).await;
                     let ret = ret.to_value(vm).unwrap();
-                    vm.managed_push(ret);
+                    vm.managed_push(ret)?;
                     Ok(())
                 }));
 

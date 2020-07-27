@@ -1,5 +1,4 @@
 use crate::external::External;
-use crate::hash::FnHash;
 use crate::vm::Vm;
 use std::any::{Any, TypeId};
 use std::fmt;
@@ -32,8 +31,6 @@ impl TypeHash {
 /// Describes what slot error happened.
 #[derive(Debug, Clone, Copy)]
 pub enum ValueError {
-    /// The given stack item did not exist.
-    Stack(usize),
     /// A string slot could not be looked up.
     String(usize),
     /// An array slot could not be looked up.
@@ -52,7 +49,7 @@ pub enum Value {
     /// A string.
     String(Box<str>),
     /// An array.
-    Array(Vec<Value>),
+    Array(Box<[Value]>),
     /// An integer.
     Integer(i64),
     /// A float.
@@ -61,8 +58,6 @@ pub enum Value {
     Bool(bool),
     /// Reference to an external type.
     External(Box<dyn External>),
-    /// Reference to a function with a known signature.
-    Fn(FnHash),
     /// A slot error value where we were unable to convert a value reference
     /// from a slot.
     Error(ValueError),
@@ -78,10 +73,20 @@ impl Clone for Value {
             Self::Float(float) => Self::Float(*float),
             Self::Bool(boolean) => Self::Bool(*boolean),
             Self::External(external) => Self::External(external.as_ref().clone_external()),
-            Self::Fn(hash) => Self::Fn(*hash),
             Self::Error(error) => Self::Error(*error),
         }
     }
+}
+
+/// Managed entries on the stack.
+#[derive(Debug, Clone, Copy)]
+pub enum Managed {
+    /// A string.
+    String(usize),
+    /// An array.
+    Array(usize),
+    /// Reference to an external type.
+    External(usize),
 }
 
 /// An entry on the stack.
@@ -89,20 +94,14 @@ impl Clone for Value {
 pub enum ValueRef {
     /// An empty unit.
     Unit,
-    /// A string.
-    String(usize),
-    /// An array.
-    Array(usize),
     /// A number.
     Integer(i64),
     /// A float.
     Float(f64),
     /// A boolean.
     Bool(bool),
-    /// Reference to an external type.
-    External(usize),
-    /// Reference to an internal function.
-    Fn(FnHash),
+    /// A managed reference.
+    Managed(Managed),
 }
 
 impl ValueRef {
@@ -110,19 +109,20 @@ impl ValueRef {
     pub fn value_type(&self, vm: &Vm) -> Result<ValueType, ExternalTypeError> {
         Ok(match *self {
             Self::Unit => ValueType::Unit,
-            Self::String(..) => ValueType::String,
-            Self::Array(..) => ValueType::Array,
             Self::Integer(..) => ValueType::Integer,
             Self::Float(..) => ValueType::Float,
             Self::Bool(..) => ValueType::Bool,
-            Self::External(external) => {
-                let (_, type_hash) = vm
-                    .external_type(external)
-                    .ok_or_else(|| ExternalTypeError(external))?;
+            Self::Managed(managed) => match managed {
+                Managed::String(..) => ValueType::String,
+                Managed::Array(..) => ValueType::Array,
+                Managed::External(external) => {
+                    let (_, type_hash) = vm
+                        .external_type(external)
+                        .ok_or_else(|| ExternalTypeError(external))?;
 
-                ValueType::External(type_hash)
-            }
-            Self::Fn(fn_hash) => ValueType::Fn(fn_hash),
+                    ValueType::External(type_hash)
+                }
+            },
         })
     }
 
@@ -130,19 +130,20 @@ impl ValueRef {
     pub fn type_info(&self, vm: &Vm) -> Result<ValueTypeInfo, ExternalTypeError> {
         Ok(match *self {
             Self::Unit => ValueTypeInfo::Unit,
-            Self::String(..) => ValueTypeInfo::String,
-            Self::Array(..) => ValueTypeInfo::Array,
             Self::Integer(..) => ValueTypeInfo::Integer,
             Self::Float(..) => ValueTypeInfo::Float,
             Self::Bool(..) => ValueTypeInfo::Bool,
-            Self::External(external) => {
-                let (type_name, type_hash) = vm
-                    .external_type(external)
-                    .ok_or_else(|| ExternalTypeError(external))?;
+            Self::Managed(managed) => match managed {
+                Managed::String(..) => ValueTypeInfo::String,
+                Managed::Array(..) => ValueTypeInfo::Array,
+                Managed::External(slot) => {
+                    let (type_name, type_hash) = vm
+                        .external_type(slot)
+                        .ok_or_else(|| ExternalTypeError(slot))?;
 
-                ValueTypeInfo::External(type_name, type_hash)
-            }
-            Self::Fn(fn_hash) => ValueTypeInfo::Fn(fn_hash),
+                    ValueTypeInfo::External(type_name, type_hash)
+                }
+            },
         })
     }
 }
@@ -170,8 +171,6 @@ pub enum ValueType {
     Bool,
     /// Reference to a foreign type.
     External(TypeHash),
-    /// Reference to an internal function.
-    Fn(FnHash),
 }
 
 /// Type information about a value, that can be printed for human consumption
@@ -192,8 +191,6 @@ pub enum ValueTypeInfo {
     Bool,
     /// Reference to a foreign type.
     External(&'static str, TypeHash),
-    /// Reference to an internal function.
-    Fn(FnHash),
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -206,7 +203,19 @@ impl fmt::Display for ValueTypeInfo {
             Self::Float => write!(fmt, "Float"),
             Self::Bool => write!(fmt, "Bool"),
             Self::External(name, _) => write!(fmt, "External({})", name),
-            Self::Fn(hash) => write!(fmt, "Fn({})", hash),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ValueRef;
+
+    #[test]
+    fn test_size() {
+        assert_eq! {
+            std::mem::size_of::<ValueRef>(),
+            16
+        };
     }
 }

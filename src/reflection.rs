@@ -1,4 +1,4 @@
-use crate::value::{Value, ValueRef, ValueType};
+use crate::value::{Managed, Value, ValueRef, ValueType};
 use crate::vm::Vm;
 use thiserror::Error;
 
@@ -32,7 +32,7 @@ pub trait ReflectValueType: Sized {
 /// [allocate][crate::Vm::allocate].
 pub trait Allocate {
     /// Allocate the given value into the vm.
-    fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError>;
+    fn allocate(self, vm: &mut Vm) -> Result<ValueRef, AllocateError>;
 }
 
 /// Trait for converting types into values.
@@ -68,20 +68,15 @@ where
 {
     fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            ValueRef::Array(slot) => {
-                let values = match vm.arrays.get(slot) {
+            ValueRef::Managed(Managed::Array(slot)) => {
+                let holder = match vm.arrays.get(slot) {
                     Some(array) => array,
-                    None => return Err(ValueRef::Array(slot)),
+                    None => return Err(value),
                 };
 
-                let mut output = Vec::with_capacity(values.len());
+                let mut output = Vec::with_capacity(holder.value.len());
 
-                for value in values.iter().copied() {
-                    let value = match vm.values.get(value) {
-                        Some(value) => value.value,
-                        None => return Err(ValueRef::Array(slot)),
-                    };
-
+                for value in holder.value.iter().copied() {
                     output.push(T::from_value(value, vm)?);
                 }
 
@@ -124,8 +119,8 @@ impl ReflectValueType for () {
 }
 
 impl Allocate for () {
-    fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(ValueRef::Unit))
+    fn allocate(self, _vm: &mut Vm) -> Result<ValueRef, AllocateError> {
+        Ok(ValueRef::Unit)
     }
 }
 
@@ -152,8 +147,8 @@ impl ReflectValueType for bool {
 }
 
 impl Allocate for bool {
-    fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(ValueRef::Bool(self)))
+    fn allocate(self, _vm: &mut Vm) -> Result<ValueRef, AllocateError> {
+        Ok(ValueRef::Bool(self))
     }
 }
 
@@ -180,24 +175,23 @@ impl ReflectValueType for String {
 }
 
 impl Allocate for String {
-    fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        let index = vm.allocate_string(self.into_boxed_str());
-        Ok(vm.allocate_value(ValueRef::String(index)))
+    fn allocate(self, vm: &mut Vm) -> Result<ValueRef, AllocateError> {
+        Ok(vm.allocate_string(self.into_boxed_str()))
     }
 }
 
 impl ToValue for String {
     fn to_value(self, vm: &mut Vm) -> Option<ValueRef> {
-        Some(ValueRef::String(vm.allocate_string(self.into_boxed_str())))
+        Some(vm.allocate_string(self.into_boxed_str()))
     }
 }
 
 impl FromValue for String {
     fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            ValueRef::String(index) => match vm.string_clone(index) {
+            ValueRef::Managed(Managed::String(index)) => match vm.string_clone(index) {
                 Some(value) => Ok(String::from(value)),
-                None => return Err(ValueRef::String(index)),
+                None => Err(value),
             },
             value => Err(value),
         }
@@ -212,24 +206,23 @@ impl ReflectValueType for Box<str> {
 }
 
 impl Allocate for Box<str> {
-    fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        let index = vm.allocate_string(self);
-        Ok(vm.allocate_value(ValueRef::String(index)))
+    fn allocate(self, vm: &mut Vm) -> Result<ValueRef, AllocateError> {
+        Ok(vm.allocate_string(self))
     }
 }
 
 impl ToValue for Box<str> {
     fn to_value(self, vm: &mut Vm) -> Option<ValueRef> {
-        Some(ValueRef::String(vm.allocate_string(self)))
+        Some(vm.allocate_string(self))
     }
 }
 
 impl FromValue for Box<str> {
     fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
         match value {
-            ValueRef::String(index) => match vm.string_clone(index) {
+            ValueRef::Managed(Managed::String(index)) => match vm.string_clone(index) {
                 Some(value) => Ok(value),
-                None => return Err(ValueRef::String(index)),
+                None => return Err(value),
             },
             value => Err(value),
         }
@@ -244,8 +237,8 @@ impl ReflectValueType for i64 {
 }
 
 impl Allocate for i64 {
-    fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(ValueRef::Integer(self)))
+    fn allocate(self, _vm: &mut Vm) -> Result<ValueRef, AllocateError> {
+        Ok(ValueRef::Integer(self))
     }
 }
 
@@ -274,11 +267,11 @@ macro_rules! number_value_trait {
         }
 
         impl Allocate for $ty {
-            fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
+            fn allocate(self, _vm: &mut Vm) -> Result<ValueRef, AllocateError> {
                 use std::convert::TryInto as _;
 
                 let number = self.try_into().map_err(|_| AllocateError(()))?;
-                Ok(vm.allocate_value(ValueRef::Integer(number)))
+                Ok(ValueRef::Integer(number))
             }
         }
 
@@ -322,8 +315,8 @@ impl ReflectValueType for f64 {
 }
 
 impl Allocate for f64 {
-    fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(ValueRef::Float(self)))
+    fn allocate(self, _vm: &mut Vm) -> Result<ValueRef, AllocateError> {
+        Ok(ValueRef::Float(self))
     }
 }
 
@@ -350,8 +343,8 @@ impl ReflectValueType for f32 {
 }
 
 impl Allocate for f32 {
-    fn allocate(self, vm: &mut Vm) -> Result<usize, AllocateError> {
-        Ok(vm.allocate_value(ValueRef::Float(self as f64)))
+    fn allocate(self, _vm: &mut Vm) -> Result<ValueRef, AllocateError> {
+        Ok(ValueRef::Float(self as f64))
     }
 }
 
