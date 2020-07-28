@@ -22,6 +22,12 @@ pub enum RegisterError {
 /// An error raised during a function call.
 #[derive(Debug, Error)]
 pub enum CallError {
+    /// Other boxed error raised.
+    #[error("other error")]
+    Other {
+        /// The error raised.
+        error: anyhow::Error,
+    },
     /// Failure to interact with the stack.
     #[error("failed to interact with the stack")]
     StackError {
@@ -46,6 +52,18 @@ pub enum CallError {
         /// The native type we attempt to convert to.
         to: &'static str,
     },
+}
+
+impl CallError {
+    /// Construct a boxed error.
+    pub fn other<E>(error: E) -> Self
+    where
+        E: 'static + std::error::Error + Send + Sync,
+    {
+        Self::Other {
+            error: error.into(),
+        }
+    }
 }
 
 /// The handler of a function.
