@@ -23,7 +23,7 @@ pub mod packages;
 mod reflection;
 mod unit;
 
-pub use crate::functions::{CallError, Functions, Register, RegisterAsync, RegisterError};
+pub use crate::functions::{CallError, Functions, RegisterError};
 pub use crate::hash::{FnDynamicHash, FnHash, Hash};
 pub use crate::reflection::{
     Allocate, AllocateError, FromValue, IntoArgs, ReflectValueType, ToValue,

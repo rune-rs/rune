@@ -13,8 +13,6 @@ where
 
 #[tokio::test]
 async fn test_custom_functions() {
-    use st::Register;
-
     let mut functions = st::Functions::new();
 
     functions.register("test", || Ok(42)).unwrap();
