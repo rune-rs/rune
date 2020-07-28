@@ -818,16 +818,24 @@ impl Vm {
         Some(self.strings.get(index)?.value.to_owned())
     }
 
-    /// Get a cloned instance of the external value of the given type and the
-    /// given slot.
-    pub fn cloned_external<T: External + Clone>(&self, index: usize) -> Option<T> {
+    /// Get a clone of the external value of the given type and the given slot.
+    pub fn external_clone<T: External + Clone>(&self, index: usize) -> Option<T> {
         let external = self.externals.get(index)?;
+
         external
             .as_ref()
             .value
             .as_any()
             .downcast_ref::<T>()
             .cloned()
+    }
+
+    /// Get a reference of the external value of the given type and the given
+    /// slot.
+    pub fn external_ref<T: External + Clone>(&self, index: usize) -> Option<&T> {
+        let external = self.externals.get(index)?;
+
+        external.as_ref().value.as_any().downcast_ref::<T>()
     }
 
     /// Access information about an external type, if available.
@@ -893,7 +901,7 @@ impl Vm {
                     None => Value::Error(ValueError::Array(slot)),
                 },
                 (Managed::External, slot) => match self.externals.get(slot) {
-                    Some(external) => Value::External(external.value.clone_external()),
+                    Some(external) => Value::External(external.value.external_clone()),
                     None => Value::Error(ValueError::External(slot)),
                 },
             },

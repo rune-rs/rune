@@ -122,7 +122,18 @@ async fn main() -> Result<()> {
     }
 
     let mut vm = st::Vm::new();
-    let functions = st::Functions::with_default_packages()?;
+    let mut functions = st::Functions::with_default_packages()?;
+
+    functions.async_global_fn("http", |url: String| async move {
+        let text = reqwest::get(&url)
+            .await
+            .map_err(st::CallError::other)?
+            .text()
+            .await
+            .map_err(st::CallError::other)?;
+
+        Ok(text)
+    })?;
 
     let mut task: st::Task<st::Value> = vm.call_function(&functions, &unit, "main", ())?;
 

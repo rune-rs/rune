@@ -7,38 +7,50 @@
 ///
 /// [specialization]: https://github.com/rust-lang/rust/issues/31844
 #[macro_export]
-macro_rules! impl_external {
+macro_rules! decl_external {
     ($external:ty) => {
         impl $crate::ReflectValueType for $external {
             fn reflect_value_type() -> $crate::ValueType {
-                $crate::ValueType::External(std::any::TypeId::of<Self>())
+                $crate::ValueType::External(std::any::TypeId::of::<$external>())
             }
         }
 
-        impl $crate::Allocate for $external {
-            fn allocate(self, state: &mut $crate::State) -> Result<usize, $crate::AllocateError> {
-                Ok($crate::ValueRef::External(state.allocate_external(self)))
+        impl<'a> $crate::ReflectValueType for &'a $external {
+            fn reflect_value_type() -> $crate::ValueType {
+                $crate::ValueType::External(std::any::TypeId::of::<$external>())
             }
         }
 
         impl $crate::ToValue for $external {
-            fn to_value(self, state: &mut $crate::State) -> Option<$crate::ValueRef> {
-                Some($crate::ValueRef::External(state.allocate_external(self)))
+            fn to_value(self, vm: &mut $crate::Vm) -> Option<$crate::ValueRef> {
+                Some(vm.allocate_external(self))
             }
         }
 
         impl $crate::FromValue for $external {
             fn from_value(
                 value: $crate::ValueRef,
-                state: &$crate::State,
+                vm: &$crate::Vm,
             ) -> Result<Self, $crate::ValueRef> {
-                match value {
-                    $crate::ValueRef::External(index) => match state.cloned_external::<Self>(index)
-                    {
-                        Some(value) => Ok(value),
-                        None => return Err($crate::ValueRef::External(index)),
-                    },
-                    value => Err(value),
+                let slot = value.into_external()?;
+
+                match vm.external_clone::<$external>(slot) {
+                    Some(value) => Ok(value),
+                    None => Err(value),
+                }
+            }
+        }
+
+        impl<'a> $crate::UnsafeFromValue for &'a $external {
+            unsafe fn unsafe_from_value(
+                value: $crate::ValueRef,
+                vm: &$crate::Vm,
+            ) -> Result<Self, $crate::ValueRef> {
+                let slot = value.into_external()?;
+
+                match vm.external_ref::<$external>(slot) {
+                    Some(value) => Ok(std::mem::transmute(value)),
+                    None => Err(value),
                 }
             }
         }

@@ -34,12 +34,35 @@ pub trait FromValue: Sized {
     fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef>;
 }
 
-impl<T> ReflectValueType for &T
+/// A potentially unsafe conversion for value conversion.
+pub trait UnsafeFromValue: Sized {
+    /// Convert the given reference using unsafe assumptions to a value.
+    ///
+    /// # Safety
+    ///
+    /// The return value of this function may only be used while a virtual
+    /// machine is not being modified.
+    unsafe fn unsafe_from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef>;
+}
+
+impl<T> UnsafeFromValue for T
 where
-    T: ReflectValueType,
+    T: FromValue,
 {
-    fn reflect_value_type() -> ValueType {
-        T::reflect_value_type()
+    unsafe fn unsafe_from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+        T::from_value(value, vm)
+    }
+}
+
+impl<'a> UnsafeFromValue for &'a str {
+    unsafe fn unsafe_from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+        let slot = value.into_string()?;
+
+        if let Ok(value) = vm.string_ref(slot) {
+            return Ok(std::mem::transmute(value));
+        }
+
+        Err(value)
     }
 }
 
@@ -148,8 +171,13 @@ impl FromValue for bool {
     }
 }
 
-/// Convert a string into a value type.
 impl ReflectValueType for String {
+    fn reflect_value_type() -> ValueType {
+        ValueType::String
+    }
+}
+
+impl<'a> ReflectValueType for &'a str {
     fn reflect_value_type() -> ValueType {
         ValueType::String
     }

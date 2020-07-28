@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
 use crate::hash::Hash;
-use crate::reflection::{FromValue, ReflectValueType, ToValue};
+use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::value::{ExternalTypeError, ValueType, ValueTypeInfo};
 use crate::vm::{StackError, Vm};
 use std::any::type_name;
@@ -51,6 +51,12 @@ pub enum CallError {
         from: ValueTypeInfo,
         /// The native type we attempt to convert to.
         to: &'static str,
+    },
+    /// Failure to convert return value.
+    #[error("failed to convert return value `{ret}`")]
+    ReturnConversionError {
+        /// Type of the return value we attempted to convert.
+        ret: &'static str,
     },
 }
 
@@ -107,15 +113,15 @@ impl Functions {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut functions = st::Functions::new();
     ///
-    /// functions.register("empty", || Ok(()))?;
-    /// functions.register("string", |a: String| Ok(()))?;
-    /// functions.register("optional", |a: Option<String>| Ok(()))?;
+    /// functions.global_fn("empty", || Ok(()))?;
+    /// functions.global_fn("string", |a: String| Ok(()))?;
+    /// functions.global_fn("optional", |a: Option<String>| Ok(()))?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn register<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
+    pub fn global_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
     where
-        Func: Register<Args>,
+        Func: GlobalFn<Args>,
     {
         let hash = Hash::global_fn(name);
 
@@ -124,47 +130,8 @@ impl Functions {
         }
 
         let handler: Box<Handler> = Box::new(move |vm, _| {
-            Box::pin(async move {
-                f.vm_call(vm)?;
-                Ok(())
-            })
-        });
-
-        self.functions.insert(hash, handler);
-        Ok(hash)
-    }
-
-    /// Register an instance function.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # fn main() -> anyhow::Result<()> {
-    /// let mut functions = st::Functions::new();
-    ///
-    /// functions.register_instance("len", |s: &String| Ok(s.len()))?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn register_instance<Func, Args>(
-        &mut self,
-        name: &str,
-        f: Func,
-    ) -> Result<Hash, RegisterError>
-    where
-        Func: RegisterInstance<Args>,
-    {
-        let hash = Hash::instance_fn(Func::instance_value_type(), name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
-        }
-
-        let handler: Box<Handler> = Box::new(move |vm, _| {
-            Box::pin(async move {
-                f.vm_call(vm)?;
-                Ok(())
-            })
+            let ret = f.vm_call(vm);
+            Box::pin(async move { ret })
         });
 
         self.functions.insert(hash, handler);
@@ -176,20 +143,24 @@ impl Functions {
     /// # Examples
     ///
     /// ```rust
-    /// use st::{Functions, RegisterAsync as _};
+    /// use st::Functions;
     ///
     /// # fn main() -> anyhow::Result<()> {
     /// let mut functions = Functions::new();
     ///
-    /// functions.register_async("empty", || async { Ok(()) })?;
-    /// functions.register_async("string", |a: String| async { Ok(()) })?;
-    /// functions.register_async("optional", |a: Option<String>| async { Ok(()) })?;
+    /// functions.async_global_fn("empty", || async { Ok(()) })?;
+    /// functions.async_global_fn("string", |a: String| async { Ok(()) })?;
+    /// functions.async_global_fn("optional", |a: Option<String>| async { Ok(()) })?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn register_async<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
+    pub fn async_global_fn<Func, Args>(
+        &mut self,
+        name: &str,
+        f: Func,
+    ) -> Result<Hash, RegisterError>
     where
-        Func: RegisterAsync<Args>,
+        Func: AsyncGlobalFn<Args>,
     {
         let hash = Hash::global_fn(name);
 
@@ -203,9 +174,87 @@ impl Functions {
         Ok(hash)
     }
 
+    /// Register an instance function.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # fn main() -> anyhow::Result<()> {
+    /// let mut functions = st::Functions::new();
+    ///
+    /// functions.instance_fn("len", |s: &str| Ok(s.len()))?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn instance_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
+    where
+        Func: InstanceFn<Args>,
+    {
+        let hash = Hash::instance_fn(Func::instance_value_type(), name);
+
+        if self.functions.contains_key(&hash) {
+            return Err(RegisterError::ConflictingFunction { hash });
+        }
+
+        let handler: Box<Handler> = Box::new(move |vm, _| {
+            let ret = f.vm_call(vm);
+            Box::pin(async move { ret })
+        });
+
+        self.functions.insert(hash, handler);
+        Ok(hash)
+    }
+
+    /// Register an instance function.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::sync::atomic::AtomicU32;
+    /// use std::sync::Arc;
+    ///
+    /// st::decl_external!(MyType);
+    ///
+    /// #[derive(Clone, Debug)]
+    /// struct MyType {
+    ///     value: Arc<AtomicU32>,
+    /// }
+    ///
+    /// impl MyType {
+    ///     async fn test(&self) -> Result<(), st::CallError> {
+    ///         Ok(())
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> anyhow::Result<()> {
+    /// let mut functions = st::Functions::new();
+    /// functions.async_instance_fn("test", MyType::test)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn async_instance_fn<Func, Args>(
+        &mut self,
+        name: &str,
+        f: Func,
+    ) -> Result<Hash, RegisterError>
+    where
+        Func: AsyncInstanceFn<Args>,
+    {
+        let hash = Hash::instance_fn(Func::instance_value_type(), name);
+
+        if self.functions.contains_key(&hash) {
+            return Err(RegisterError::ConflictingFunction { hash });
+        }
+
+        let handler: Box<Handler> = Box::new(move |vm, _| f.vm_call(vm));
+
+        self.functions.insert(hash, handler);
+        Ok(hash)
+    }
+
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn register_raw<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
+    pub fn raw_global_fn<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), CallError> + Send + Sync,
     {
@@ -225,7 +274,7 @@ impl Functions {
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn register_raw_async<F, O>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
+    pub fn raw_async_global_fn<F, O>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
         O: Future<Output = Result<(), CallError>>,
@@ -245,14 +294,20 @@ impl Functions {
     }
 }
 
-/// Trait used to provide the [register][Functions::register] function.
-pub trait Register<Args>: 'static + Copy + Send + Sync {
+/// Trait used to provide the [global_fn][Functions::global_fn] function.
+pub trait GlobalFn<Args>: 'static + Copy + Send + Sync {
     /// Perform the vm call.
     fn vm_call(self, vm: &mut Vm) -> Result<(), CallError>;
 }
 
-/// Trait used to provide the [register][Functions::register_instance] function.
-pub trait RegisterInstance<Args>: 'static + Copy + Send + Sync {
+/// Trait used to provide the [async_global_fn][Self::async_global_fn] function.
+pub trait AsyncGlobalFn<Args>: 'static + Copy + Send + Sync {
+    /// Perform the vm call.
+    fn vm_call<'vm>(self, vm: &'vm mut Vm) -> BoxFuture<'vm, Result<(), CallError>>;
+}
+
+/// Trait used to provide the [instance_fn][Functions::instance_fn] function.
+pub trait InstanceFn<Args>: 'static + Copy + Send + Sync {
     /// Access the value type of the instance.
     fn instance_value_type() -> ValueType;
 
@@ -260,8 +315,11 @@ pub trait RegisterInstance<Args>: 'static + Copy + Send + Sync {
     fn vm_call(self, vm: &mut Vm) -> Result<(), CallError>;
 }
 
-/// Trait used to provide the [register][Self::register] function.
-pub trait RegisterAsync<Args>: 'static + Copy + Send + Sync {
+/// Trait used to provide the [async_instance_fn][Functions::async_instance_fn] function.
+pub trait AsyncInstanceFn<Args>: 'static + Copy + Send + Sync {
+    /// Access the value type of the instance.
+    fn instance_value_type() -> ValueType;
+
     /// Perform the vm call.
     fn vm_call<'vm>(self, vm: &'vm mut Vm) -> BoxFuture<'vm, Result<(), CallError>>;
 }
@@ -277,123 +335,188 @@ macro_rules! impl_register {
     };
 
     (@impl $count:expr, $({$ty:ident, $var:ident, $num:expr},)*) => {
-        impl<Func, Ret, $($ty,)*> Register<($($ty,)*)> for Func
+        impl<Func, Ret, $($ty,)*> GlobalFn<($($ty,)*)> for Func
         where
-            Func: 'static + Copy + Send + Sync + (Fn($($ty,)*) -> Result<Ret, CallError>),
+            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Result<Ret, CallError>,
             Ret: ToValue,
             $($ty: FromValue,)*
         {
             fn vm_call(self, vm: &mut Vm) -> Result<(), CallError> {
-                $(
-                    let $var = vm.managed_pop()?;
+                $(let $var = vm.managed_pop()?;)*
 
-                    let $var = match $ty::from_value($var, vm) {
-                        Ok(v) => v,
-                        Err(v) => {
-                            let ty = v.type_info(vm)?;
-
-                            return Err(CallError::ArgumentConversionError {
-                                arg: $count - $num,
-                                from: ty,
-                                to: type_name::<$ty>()
-                            });
-                        }
-                    };
-                )*
-
-                let ret = self($($var,)*)?;
-                let ret = ret.to_value(vm).unwrap();
-                vm.managed_push(ret)?;
-                Ok(())
-            }
-        }
-
-        impl<Func, Ret, Inst, $($ty,)*> RegisterInstance<(Inst, $($ty,)*)> for Func
-        where
-            Func: 'static + Copy + Send + Sync + (Fn(Inst $(, $ty)*) -> Result<Ret, CallError>),
-            Ret: ToValue,
-            Inst: FromValue + ReflectValueType,
-            $($ty: FromValue,)*
-        {
-            fn instance_value_type() -> ValueType {
-                Inst::reflect_value_type()
-            }
-
-            fn vm_call(self, vm: &mut Vm) -> Result<(), CallError> {
-                let this = vm.managed_pop()?;
-
-                let this = match Inst::from_value(this, vm) {
-                    Ok(v) => v,
-                    Err(v) => {
-                        let ty = v.type_info(vm)?;
-
-                        return Err(CallError::ArgumentConversionError {
-                            arg: 0,
-                            from: ty,
-                            to: type_name::<&Inst>()
-                        });
-                    }
+                // Safety: We hold a reference to the Vm, so we can
+                // guarantee that it won't be modified.
+                //
+                // The scope is also necessary, since we mutably access `vm`
+                // when we return below.
+                #[allow(unused_unsafe)]
+                let ret = unsafe {
+                    impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
+                    self($($var,)*)?
                 };
 
-                $(
-                    let $var = vm.managed_pop()?;
-
-                    let $var = match $ty::from_value($var, vm) {
-                        Ok(v) => v,
-                        Err(v) => {
-                            let ty = v.type_info(vm)?;
-
-                            return Err(CallError::ArgumentConversionError {
-                                arg: 1 + $count - $num,
-                                from: ty,
-                                to: type_name::<$ty>()
-                            });
-                        }
-                    };
-                )*
-
-                let ret = self(this, $($var,)*)?;
-                let ret = ret.to_value(vm).unwrap();
-                vm.managed_push(ret)?;
+                impl_register!{@return vm, ret, Ret}
                 Ok(())
             }
         }
 
-        impl<Func, Ret, Output, $($ty,)*> RegisterAsync<($($ty,)*)> for Func
+        impl<Func, Ret, Output, $($ty,)*> AsyncGlobalFn<($($ty,)*)> for Func
         where
-            Func: 'static + Copy + (Fn($($ty,)*) -> Ret) + Send + Sync,
+            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
             Ret: Future<Output = Result<Output, CallError>>,
             Output: ToValue,
-            $($ty: FromValue + ReflectValueType,)*
+            $($ty: UnsafeFromValue + ReflectValueType,)*
         {
             fn vm_call<'vm>(
                 self,
                 vm: &'vm mut Vm,
             ) -> BoxFuture<'vm, Result<(), CallError>> {
                 Box::pin(async move {
-                    $(
-                        let $var = vm.managed_pop()?;
-                        let $var = match $ty::from_value($var, vm) {
-                            Ok(v) => v,
-                            Err(v) => {
-                                let ty = v.type_info(vm)?;
+                    $(let $var = vm.managed_pop()?;)*
 
-                                return Err(CallError::ArgumentConversionError {
-                                    arg: $count - $num,
-                                    from: ty,
-                                    to: type_name::<$ty>(),
-                                });
-                            }
-                        };
-                    )*
+                    // Safety: We hold a reference to the Vm, so we can
+                    // guarantee that it won't be modified.
+                    //
+                    // The scope is also necessary, since we mutably access `vm`
+                    // when we return below.
+                    #[allow(unused_unsafe)]
+                    let ret = unsafe {
+                        impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
+                        self($($var,)*).await?
+                    };
 
-                    let ret = self($($var,)*).await?;
-                    let ret = ret.to_value(vm).unwrap();
-                    vm.managed_push(ret)?;
+                    impl_register!{@return vm, ret, Ret}
                     Ok(())
                 })
             }
         }
+
+        impl<Func, Ret, Inst, $($ty,)*> InstanceFn<(Inst, $($ty,)*)> for Func
+        where
+            Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Result<Ret, CallError>,
+            Ret: ToValue,
+            Inst: UnsafeFromValue + ReflectValueType,
+            $($ty: UnsafeFromValue,)*
+        {
+            fn instance_value_type() -> ValueType {
+                Inst::reflect_value_type()
+            }
+
+            fn vm_call(self, vm: &mut Vm) -> Result<(), CallError> {
+                let inst = vm.managed_pop()?;
+                $(let $var = vm.managed_pop()?;)*
+
+                // Safety: We hold a reference to the Vm, so we can
+                // guarantee that it won't be modified.
+                //
+                // The scope is also necessary, since we mutably access `vm`
+                // when we return below.
+                #[allow(unused_unsafe)]
+                let ret = unsafe {
+                    impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
+                    self(inst, $($var,)*)?
+                };
+
+                impl_register!{@return vm, ret, Ret}
+                Ok(())
+            }
+        }
+
+        impl<Func, Ret, Output, Inst, $($ty,)*> AsyncInstanceFn<(Inst, $($ty,)*)> for Func
+        where
+            Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Ret,
+            Ret: Future<Output = Result<Output, CallError>>,
+            Output: ToValue,
+            Inst: UnsafeFromValue + ReflectValueType,
+            $($ty: UnsafeFromValue,)*
+        {
+            fn instance_value_type() -> ValueType {
+                Inst::reflect_value_type()
+            }
+
+            fn vm_call<'vm>(self, vm: &'vm mut Vm) -> BoxFuture<'vm, Result<(), CallError>> {
+                Box::pin(async move {
+                    let inst = vm.managed_pop()?;
+                    $(let $var = vm.managed_pop()?;)*
+
+                    // Safety: We hold a reference to the Vm, so we can
+                    // guarantee that it won't be modified.
+                    //
+                    // The scope is also necessary, since we mutably access `vm`
+                    // when we return below.
+                    #[allow(unused_unsafe)]
+                    let ret = unsafe {
+                        impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
+                        self(inst, $($var,)*).await?
+                    };
+
+                    impl_register!{@return vm, ret, Ret}
+                    Ok(())
+                })
+            }
+        }
+    };
+
+    (@return $vm:ident, $ret:ident, $ty:ty) => {
+        let $ret = match $ret.to_value($vm) {
+            Some($ret) => $ret,
+            None => {
+                return Err(CallError::ReturnConversionError {
+                    ret: type_name::<$ty>()
+                });
+            }
+        };
+
+        $vm.managed_push($ret)?;
+    };
+
+    // Expand to function variable bindings.
+    (@vars $vm:expr, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
+        $(
+            let $var = match <$ty>::unsafe_from_value($var, $vm) {
+                Ok(v) => v,
+                Err(v) => {
+                    let ty = v.type_info($vm)?;
+
+                    return Err(CallError::ArgumentConversionError {
+                        arg: $count - $num,
+                        from: ty,
+                        to: type_name::<$ty>(),
+                    });
+                }
+            };
+        )*
+    };
+
+    // Expand to instance variable bindings.
+    (@unsafeinstancevars $inst:ident, $vm:expr, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
+        let $inst = match Inst::unsafe_from_value($inst, $vm) {
+            Ok(v) => v,
+            Err(v) => {
+                let ty = v.type_info($vm)?;
+
+                return Err(CallError::ArgumentConversionError {
+                    arg: 0,
+                    from: ty,
+                    to: type_name::<&Inst>()
+                });
+            }
+        };
+
+        $(
+            let $var = match <$ty>::unsafe_from_value($var, $vm) {
+                Ok(v) => v,
+                Err(v) => {
+                    let ty = v.type_info($vm)?;
+
+                    return Err(CallError::ArgumentConversionError {
+                        arg: 1 + $count - $num,
+                        from: ty,
+                        to: type_name::<$ty>()
+                    });
+                }
+            };
+        )*
     };
 }
 

@@ -4,7 +4,7 @@ use std::fmt;
 /// Trait for external types stored in the VM.
 pub trait External: Any + Send + Sync + fmt::Debug + private::Sealed {
     /// Helper to clone an external.
-    fn clone_external(&self) -> Box<dyn External>;
+    fn external_clone(&self) -> Box<dyn External>;
 
     /// Coerce external into any.
     fn as_any(&self) -> &dyn Any;
@@ -14,7 +14,7 @@ impl<T> External for T
 where
     T: Any + Send + Sync + fmt::Debug + Clone,
 {
-    fn clone_external(&self) -> Box<dyn External> {
+    fn external_clone(&self) -> Box<dyn External> {
         Box::new(self.clone())
     }
 

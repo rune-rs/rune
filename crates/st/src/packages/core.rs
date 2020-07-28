@@ -8,7 +8,7 @@ use crate::value::ValueRef;
 
 /// Install the core package into the given functions namespace.
 pub fn install(functions: &mut Functions) -> Result<(), RegisterError> {
-    functions.register_raw("dbg", |vm, args| {
+    functions.raw_global_fn("dbg", |vm, args| {
         for n in 0..args {
             match vm.managed_pop() {
                 Ok(value) => {

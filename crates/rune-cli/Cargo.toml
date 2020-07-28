@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 tokio = {version = "0.2.22", features = ["full"]}
+reqwest = "0.10.7"
 env_logger = "0.7.1"
 
 rune = {version = "0.0.0", path = "../rune"}

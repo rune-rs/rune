@@ -53,7 +53,7 @@ impl Clone for Value {
             Self::Integer(integer) => Self::Integer(*integer),
             Self::Float(float) => Self::Float(*float),
             Self::Bool(boolean) => Self::Bool(*boolean),
-            Self::External(external) => Self::External(external.as_ref().clone_external()),
+            Self::External(external) => Self::External(external.as_ref().external_clone()),
             Self::Error(error) => Self::Error(*error),
         }
     }

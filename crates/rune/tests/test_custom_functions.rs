@@ -15,7 +15,7 @@ where
 async fn test_custom_functions() {
     let mut functions = st::Functions::new();
 
-    functions.register("test", || Ok(42)).unwrap();
+    functions.global_fn("test", || Ok(42)).unwrap();
 
     assert_eq! {
         run_main::<i64>(
