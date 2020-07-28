@@ -4,12 +4,11 @@ use crate::hash::{FnDynamicHash, FnHash, Hash};
 use crate::reflection::{EncodeError, FromValue, IntoArgs};
 use crate::unit::Unit;
 use crate::value::{
-    ExternalTypeError, Managed, Slot, TypeHash, Value, ValueError, ValueRef, ValueType,
-    ValueTypeInfo,
+    ExternalTypeError, Managed, Slot, Value, ValueError, ValueRef, ValueType, ValueTypeInfo,
 };
 use anyhow::Result;
 use slab::Slab;
-use std::any::type_name;
+use std::any::{type_name, TypeId};
 use std::fmt;
 use std::marker::PhantomData;
 use thiserror::Error;
@@ -864,10 +863,10 @@ impl Vm {
     }
 
     /// Access information about an external type, if available.
-    pub fn external_type(&self, index: usize) -> Option<(&'static str, TypeHash)> {
+    pub fn external_type(&self, index: usize) -> Option<(&'static str, TypeId)> {
         let external = self.externals.get(index)?;
         let any = external.as_ref().value.as_any();
-        Some((external.type_name, TypeHash::new(any.type_id())))
+        Some((external.type_name, any.type_id()))
     }
 
     /// Get the last value on the stack.

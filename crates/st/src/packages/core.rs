@@ -3,11 +3,11 @@
 //! Contains functions such as:
 //! * `dbg` to debug print to stdout.
 
-use crate::functions::{Error, Functions};
+use crate::functions::{Functions, RegisterError};
 use crate::value::ValueRef;
 
 /// Install the core package into the given functions namespace.
-pub fn install(functions: &mut Functions) -> Result<(), Error> {
+pub fn install(functions: &mut Functions) -> Result<(), RegisterError> {
     functions.register_raw("dbg", |vm, args| {
         for n in 0..args {
             match vm.managed_pop() {

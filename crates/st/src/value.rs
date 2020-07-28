@@ -1,6 +1,6 @@
 use crate::external::External;
 use crate::vm::Vm;
-use std::any::{Any, TypeId};
+use std::any::TypeId;
 use std::fmt;
 use thiserror::Error;
 
@@ -8,25 +8,6 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[error("failed to resolve external at slot `{0}`")]
 pub struct ExternalTypeError(usize);
-
-/// The hash of a foreign type.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TypeHash(TypeId);
-
-impl TypeHash {
-    /// Construct a new TypeHash.
-    pub(crate) fn new(type_id: TypeId) -> Self {
-        Self(type_id)
-    }
-
-    /// Construct a hash for the given type.
-    pub fn of<T>() -> Self
-    where
-        T: Any,
-    {
-        Self(TypeId::of::<T>())
-    }
-}
 
 /// Describes what slot error happened.
 #[derive(Debug, Clone, Copy)]
@@ -265,7 +246,7 @@ pub enum ValueType {
     /// A boolean.
     Bool,
     /// Reference to a foreign type.
-    External(TypeHash),
+    External(TypeId),
 }
 
 /// Type information about a value, that can be printed for human consumption
@@ -285,7 +266,7 @@ pub enum ValueTypeInfo {
     /// A boolean.
     Bool,
     /// Reference to a foreign type.
-    External(&'static str, TypeHash),
+    External(&'static str, TypeId),
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -304,13 +285,18 @@ impl fmt::Display for ValueTypeInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::ValueRef;
+    use super::{ValueRef, ValueType};
 
     #[test]
     fn test_size() {
         assert_eq! {
             std::mem::size_of::<ValueRef>(),
-            16
+            16,
+        };
+
+        assert_eq! {
+            std::mem::size_of::<ValueType>(),
+            16,
         };
     }
 }

@@ -23,13 +23,13 @@ pub mod packages;
 mod reflection;
 mod unit;
 
-pub use crate::functions::{Functions, Register, RegisterAsync};
+pub use crate::functions::{CallError, Functions, Register, RegisterAsync, RegisterError};
 pub use crate::hash::{FnDynamicHash, FnHash, Hash};
 pub use crate::reflection::{
     Allocate, AllocateError, FromValue, IntoArgs, ReflectValueType, ToValue,
 };
 pub use crate::unit::{Unit, UnitError};
-pub use crate::value::{Managed, Slot, TypeHash, Value, ValueError, ValueRef, ValueType};
+pub use crate::value::{Managed, Slot, Value, ValueError, ValueRef, ValueType};
 pub use crate::vm::{Inst, Task, Vm};
 
 mod collections {

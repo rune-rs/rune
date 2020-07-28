@@ -8,19 +8,44 @@ use std::future::Future;
 use std::pin::Pin;
 use thiserror::Error;
 
+/// An error raised while registering a function.
 #[derive(Debug, Error)]
-pub enum Error {
-    #[error("function with hash already exists: {0:?}")]
-    ConflictingFunction(FnHash),
+pub enum RegisterError {
+    /// Error raised when attempting to register a conflicting function.
+    #[error("function with hash `{hash}` already exists")]
+    ConflictingFunction {
+        /// The hash of the conflicting function.
+        hash: FnHash,
+    },
 }
+
+/// An error raised during a function call.
 #[derive(Debug, Error)]
 pub enum CallError {
-    #[error("stack was empty")]
-    StackError(#[from] StackError),
-    #[error("failed to convert argument #{0} from `{1}` into `{2}`")]
-    ArgumentConversionError(usize, ValueTypeInfo, &'static str),
+    /// Failure to interact with the stack.
+    #[error("failed to interact with the stack")]
+    StackError {
+        /// Source error.
+        #[from]
+        error: StackError,
+    },
+    /// Failure to resolve external type.
     #[error("failed to resolve type info for external type")]
-    ExternalTypeError(#[source] ExternalTypeError),
+    ExternalTypeError {
+        /// Source error.
+        #[from]
+        error: ExternalTypeError,
+    },
+    /// Failure to convert from one type to another.
+    #[error("failed to convert argument #{arg} from `{from}` to `{to}`")]
+    ArgumentConversionError {
+        /// The argument location that was converted.
+        arg: usize,
+        /// The value type we attempted to convert from.
+        from: ValueTypeInfo,
+        /// The native type we attempt to convert to.
+        to: &'static str,
+    },
 }
 
 /// The handler of a function.
@@ -45,7 +70,7 @@ impl Functions {
     }
 
     /// Construct a new collection of functions with default packages installed.
-    pub fn with_default_packages() -> Result<Self, Error> {
+    pub fn with_default_packages() -> Result<Self, RegisterError> {
         let mut functions = Self::new();
         crate::packages::core::install(&mut functions)?;
         Ok(functions)
@@ -59,7 +84,7 @@ impl Functions {
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn register_raw<F>(&mut self, name: &str, f: F) -> Result<FnHash, Error>
+    pub fn register_raw<F>(&mut self, name: &str, f: F) -> Result<FnHash, RegisterError>
     where
         for<'stack> F:
             'static + Copy + Fn(&'stack mut Vm, usize) -> Result<(), CallError> + Send + Sync,
@@ -77,7 +102,7 @@ impl Functions {
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn register_raw_async<F, O>(&mut self, name: &str, f: F) -> Result<FnHash, Error>
+    pub fn register_raw_async<F, O>(&mut self, name: &str, f: F) -> Result<FnHash, RegisterError>
     where
         for<'stack> F: 'static + Copy + Fn(&'stack mut Vm, usize) -> O + Send + Sync,
         O: Future<Output = Result<(), CallError>>,
@@ -106,13 +131,13 @@ pub trait Register<Func, Ret, Args> {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut functions = Functions::new();
     ///
-    /// functions.register("empty", || ())?;
-    /// functions.register("string", |a: String| ())?;
-    /// functions.register("optional", |a: Option<String>| ())?;
+    /// functions.register("empty", || Ok(()))?;
+    /// functions.register("string", |a: String| Ok(()))?;
+    /// functions.register("optional", |a: Option<String>| Ok(()))?;
     /// # Ok(())
     /// # }
     /// ```
-    fn register(&mut self, name: &str, f: Func) -> Result<FnHash, Error>;
+    fn register(&mut self, name: &str, f: Func) -> Result<FnHash, RegisterError>;
 }
 
 /// Trait used to provide the [register][Self::register] function.
@@ -127,13 +152,13 @@ pub trait RegisterAsync<Func, Ret, Args> {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut functions = Functions::new();
     ///
-    /// functions.register_async("empty", || async { () })?;
-    /// functions.register_async("string", |a: String| async { () })?;
-    /// functions.register_async("optional", |a: Option<String>| async { () })?;
+    /// functions.register_async("empty", || async { Ok(()) })?;
+    /// functions.register_async("string", |a: String| async { Ok(()) })?;
+    /// functions.register_async("optional", |a: Option<String>| async { Ok(()) })?;
     /// # Ok(())
     /// # }
     /// ```
-    fn register_async(&mut self, name: &str, f: Func) -> Result<FnHash, Error>;
+    fn register_async(&mut self, name: &str, f: Func) -> Result<FnHash, RegisterError>;
 }
 
 macro_rules! impl_register {
@@ -149,15 +174,15 @@ macro_rules! impl_register {
     (@impl $count:expr, $({$ty:ident, $var:ident, $num:expr},)*) => {
         impl<Func, Ret, $($ty,)*> Register<Func, Ret, ($($ty,)*)> for Functions
         where
-            Func: 'static + Copy + (Fn($($ty,)*) -> Ret) + Send + Sync,
+            Func: 'static + Copy + (Fn($($ty,)*) -> Result<Ret, CallError>) + Send + Sync,
             Ret: ToValue,
             $($ty: FromValue + ReflectValueType,)*
         {
-            fn register(&mut self, name: &str, f: Func) -> Result<FnHash, Error> {
+            fn register(&mut self, name: &str, f: Func) -> Result<FnHash, RegisterError> {
                 let hash = FnHash::of(name, &[$($ty::reflect_value_type(),)*]);
 
                 if self.handlers.contains_key(&hash) {
-                    return Err(Error::ConflictingFunction(hash));
+                    return Err(RegisterError::ConflictingFunction { hash });
                 }
 
                 let handler: Box<FnHandler> = Box::new(move |vm, _| Box::pin(async move {
@@ -167,18 +192,18 @@ macro_rules! impl_register {
                         let $var = match $ty::from_value($var, vm) {
                             Ok(v) => v,
                             Err(v) => {
-                                let ty = v.type_info(vm).map_err(CallError::ExternalTypeError)?;
+                                let ty = v.type_info(vm)?;
 
-                                return Err(CallError::ArgumentConversionError(
-                                    $count - $num,
-                                    ty,
-                                    type_name::<$ty>()
-                                ));
+                                return Err(CallError::ArgumentConversionError {
+                                    arg: $count - $num,
+                                    from: ty,
+                                    to: type_name::<$ty>()
+                                });
                             }
                         };
                     )*
 
-                    let ret = f($($var,)*);
+                    let ret = f($($var,)*)?;
                     let ret = ret.to_value(vm).unwrap();
                     vm.managed_push(ret)?;
                     Ok(())
@@ -189,18 +214,18 @@ macro_rules! impl_register {
             }
         }
 
-        impl<Func, Ret, $($ty,)*> RegisterAsync<Func, Ret, ($($ty,)*)> for Functions
+        impl<Func, Ret, Output, $($ty,)*> RegisterAsync<Func, Ret, ($($ty,)*)> for Functions
         where
             Func: 'static + Copy + (Fn($($ty,)*) -> Ret) + Send + Sync,
-            Ret: Future,
-            Ret::Output: ToValue,
+            Ret: Future<Output = Result<Output, CallError>>,
+            Output: ToValue,
             $($ty: FromValue + ReflectValueType,)*
         {
-            fn register_async(&mut self, name: &str, f: Func) -> Result<FnHash, Error> {
+            fn register_async(&mut self, name: &str, f: Func) -> Result<FnHash, RegisterError> {
                 let hash = FnHash::of(name, &[$($ty::reflect_value_type(),)*]);
 
                 if self.handlers.contains_key(&hash) {
-                    return Err(Error::ConflictingFunction(hash));
+                    return Err(RegisterError::ConflictingFunction { hash });
                 }
 
                 let handler: Box<FnHandler> = Box::new(move |vm, _| Box::pin(async move {
@@ -209,18 +234,18 @@ macro_rules! impl_register {
                         let $var = match $ty::from_value($var, vm) {
                             Ok(v) => v,
                             Err(v) => {
-                                let ty = v.type_info(vm).map_err(CallError::ExternalTypeError)?;
+                                let ty = v.type_info(vm)?;
 
-                                return Err(CallError::ArgumentConversionError(
-                                    $count - $num,
-                                    ty,
-                                    type_name::<$ty>()
-                                ));
+                                return Err(CallError::ArgumentConversionError {
+                                    arg: $count - $num,
+                                    from: ty,
+                                    to: type_name::<$ty>(),
+                                });
                             }
                         };
                     )*
 
-                    let ret = f($($var,)*).await;
+                    let ret = f($($var,)*).await?;
                     let ret = ret.to_value(vm).unwrap();
                     vm.managed_push(ret)?;
                     Ok(())

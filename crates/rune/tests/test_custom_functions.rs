@@ -13,23 +13,21 @@ where
 
 #[tokio::test]
 async fn test_custom_functions() {
+    use st::Register;
+
     let mut functions = st::Functions::new();
+
+    functions.register("test", || Ok(42)).unwrap();
 
     assert_eq! {
         run_main::<i64>(
             &functions,
             r#"
                 fn main() {
-                    let n = 2;
-
-                    if n > 5 {
-                        10
-                    } else {
-                        0
-                    }
+                    test()
                 }
             "#
         ).await.unwrap(),
-        0,
+        42,
     };
 }
