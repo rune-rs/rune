@@ -1,0 +1,8 @@
+fn main() {
+    let bytes = bytes();
+    bytes.extend_str("hello world");
+    bytes.extend_str("hello world");
+    let other = bytes.clone();
+    bytes.extend(other);
+    bytes
+}

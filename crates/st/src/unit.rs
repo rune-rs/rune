@@ -11,7 +11,7 @@ pub enum UnitError {
     #[error("conflicting function signature already exists `{existing}`")]
     FunctionConflict {
         /// The signature of an already existing function.
-        existing: FnSignature,
+        existing: UnitFnSignature,
     },
     /// A static string was missing for the given hash and slot.
     #[error("missing static string for hash `{hash}` and slot `{slot}`")]
@@ -33,14 +33,33 @@ pub enum UnitError {
     },
 }
 
+/// Information about a registered function.
+#[derive(Debug)]
+pub struct UnitFnInfo {
+    /// Offset into the instruction set.
+    offset: usize,
+    /// Signature of the function.
+    signature: UnitFnSignature,
+}
+
 /// A description of a function signature.
 #[derive(Debug)]
-pub struct FnSignature {
+pub struct UnitFnSignature {
     name: String,
     args: usize,
 }
 
-impl fmt::Display for FnSignature {
+impl UnitFnSignature {
+    /// Construct a new function signature.
+    pub fn new(name: &str, args: usize) -> Self {
+        Self {
+            name: name.to_owned(),
+            args,
+        }
+    }
+}
+
+impl fmt::Display for UnitFnSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{}(", self.name)?;
 
@@ -60,22 +79,13 @@ impl fmt::Display for FnSignature {
     }
 }
 
-/// Information about a registered function.
-#[derive(Debug)]
-pub struct FnInfo {
-    /// Offset into the instruction set.
-    offset: usize,
-    /// Signature of the function.
-    signature: FnSignature,
-}
-
 /// Instructions from a single source file.
 #[derive(Debug)]
 pub struct Unit {
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
     /// Where functions are located in the collection of instructions.
-    functions: HashMap<Hash, FnInfo>,
+    functions: HashMap<Hash, UnitFnInfo>,
     /// A static string.
     static_strings: Vec<String>,
     /// Reverse lookup for static strings.
@@ -114,7 +124,7 @@ impl Unit {
     }
 
     /// Iterate over known functions.
-    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &FnInfo)> + '_ {
+    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFnInfo)> + '_ {
         let mut it = self.functions.iter();
 
         std::iter::from_fn(move || {
@@ -176,12 +186,9 @@ impl Unit {
 
         let hash = Hash::global_fn(name);
 
-        let info = FnInfo {
+        let info = UnitFnInfo {
             offset,
-            signature: FnSignature {
-                name: name.to_owned(),
-                args,
-            },
+            signature: UnitFnSignature::new(name, args),
         };
 
         if let Some(old) = self.functions.insert(hash, info) {

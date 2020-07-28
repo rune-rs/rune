@@ -202,8 +202,11 @@ impl Encoder<'_> {
                     offset: local.offset,
                 });
             }
-            ast::Expr::FnCall(fn_call) => {
-                self.encode_fn_call(fn_call)?;
+            ast::Expr::CallFn(call_fn) => {
+                self.encode_call_fn(call_fn)?;
+            }
+            ast::Expr::CallInstanceFn(call_instance_fn) => {
+                self.encode_call_instance_fn(call_instance_fn)?;
             }
             ast::Expr::ExprBinary(expr_binary) => {
                 self.encode_expr_binary(expr_binary)?;
@@ -251,18 +254,39 @@ impl Encoder<'_> {
         Ok(())
     }
 
-    fn encode_fn_call(&mut self, fn_call: ast::FnCall) -> Result<(), EncodeError> {
-        log::trace!("{:?}", fn_call);
+    fn encode_call_fn(&mut self, call_fn: ast::CallFn) -> Result<(), EncodeError> {
+        log::trace!("{:?}", call_fn);
 
-        let args = fn_call.args.items.len();
+        let args = call_fn.args.items.len();
 
-        for expr in fn_call.args.items.into_iter().rev() {
+        for expr in call_fn.args.items.into_iter().rev() {
             self.encode_expr(expr)?;
         }
 
-        let name = fn_call.name.resolve(self.source)?;
+        let name = call_fn.name.resolve(self.source)?;
         let hash = st::Hash::global_fn(name);
         self.instructions.push(st::Inst::Call { hash, args });
+        Ok(())
+    }
+
+    fn encode_call_instance_fn(
+        &mut self,
+        call_instance_fn: ast::CallInstanceFn,
+    ) -> Result<(), EncodeError> {
+        log::trace!("{:?}", call_instance_fn);
+
+        let args = call_instance_fn.call_fn.args.items.len();
+
+        for expr in call_instance_fn.call_fn.args.items.into_iter().rev() {
+            self.encode_expr(expr)?;
+        }
+
+        self.encode_expr(*call_instance_fn.instance)?;
+
+        let name = call_instance_fn.call_fn.name.resolve(self.source)?;
+        let hash = st::Hash::of(name);
+        self.instructions
+            .push(st::Inst::CallInstance { hash, args });
         Ok(())
     }
 

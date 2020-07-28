@@ -1,0 +1,13 @@
+[package]
+name = "st-http"
+version = "0.0.0"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+edition = "2018"
+description = """
+An HTTP module based on reqwest for st.
+"""
+
+[dependencies]
+anyhow = "1.0.32"
+reqwest = "0.10.7"
+st = {version = "0.0.0", path = "../st"}

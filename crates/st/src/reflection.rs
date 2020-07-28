@@ -1,3 +1,4 @@
+use crate::external::External;
 use crate::value::{Value, ValueRef, ValueType};
 use crate::vm::Vm;
 use thiserror::Error;
@@ -374,3 +375,23 @@ impl_into_args!(
     {B, b, 2},
     {A, a, 1},
 );
+
+/// Trait applied to external impls through [decl_external!] macro so we can
+/// conditionally implement [FromValue] for types implementing [Clone].
+///
+/// [decl_external!]: [crate::decl_external!]
+pub trait ExternalFromValue {}
+
+impl<T> FromValue for T
+where
+    T: ExternalFromValue + External + Clone,
+{
+    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+        let slot = value.into_external()?;
+
+        match vm.external_clone::<T>(slot) {
+            Some(value) => Ok(value),
+            None => Err(value),
+        }
+    }
+}

@@ -771,6 +771,7 @@ dependencies = [
  "reqwest",
  "rune",
  "st",
+ "st-http",
  "tokio",
 ]
 
@@ -882,6 +883,15 @@ dependencies = [
  "thiserror",
  "tokio",
  "twox-hash",
+]
+
+[[package]]
+name = "st-http"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "reqwest",
+ "st",
 ]
 
 [[package]]

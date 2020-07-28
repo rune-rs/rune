@@ -144,6 +144,8 @@ pub enum Kind {
         /// The delimiter being closed.
         delimiter: Delimiter,
     },
+    /// A dot `.`.
+    Dot,
     /// A comma `,`.
     Comma,
     /// A semi-colon `;`.
@@ -183,6 +185,7 @@ impl fmt::Display for Kind {
             Self::Open { delimiter } => write!(fmt, "{}", delimiter.open()),
             Self::Close { delimiter } => write!(fmt, "{}", delimiter.close()),
             Self::Comma => write!(fmt, ","),
+            Self::Dot => write!(fmt, "."),
             Self::SemiColon => write!(fmt, ";"),
             Self::Plus => write!(fmt, "+"),
             Self::Minus => write!(fmt, "-"),

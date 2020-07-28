@@ -22,6 +22,7 @@ async fn main() -> Result<()> {
     let mut trace = false;
     let mut dump_unit = false;
     let mut dump_vm_state = false;
+    let mut dump_functions = false;
     let mut help = false;
 
     for arg in args {
@@ -32,12 +33,16 @@ async fn main() -> Result<()> {
             "--dump" => {
                 dump_unit = true;
                 dump_vm_state = true;
+                dump_functions = true;
             }
             "--dump-unit" => {
                 dump_unit = true;
             }
             "--dump-vm-state" => {
                 dump_vm_state = true;
+            }
+            "--dump-functions" => {
+                dump_functions = true;
             }
             "--help" => {
                 help = true;
@@ -48,15 +53,16 @@ async fn main() -> Result<()> {
         }
     }
 
-    const USAGE: &str = "rune-cli [--trace] [--dump-unit] [--dump-vm-state] <file>";
+    const USAGE: &str = "rune-cli [--trace] <file>";
 
     if help {
         println!("Usage: {}", USAGE);
         println!();
-        println!("  --trace         - Provide detailed tracing for each instruction executed.");
-        println!("  --dump          - Dump all forms of diagnostic.");
-        println!("  --dump-unit     - Dump diagnostics on the unit generated from the file.");
-        println!("  --dump-vm-state - Dump diagnostics on VM state (stack).");
+        println!("  --trace          - Provide detailed tracing for each instruction executed.");
+        println!("  --dump           - Dump all forms of diagnostic.");
+        println!("  --dump-unit      - Dump diagnostics on the unit generated from the file.");
+        println!("  --dump-vm-state  - Dump diagnostics on VM state (stack).");
+        println!("  --dump-functions - Dump available functions.");
         return Ok(());
     }
 
@@ -98,6 +104,18 @@ async fn main() -> Result<()> {
         }
     };
 
+    let mut functions = st::Functions::with_default_packages()?;
+    st_http::install(&mut functions)?;
+
+    if dump_functions {
+        println!("# functions dump");
+        println!("functions:");
+
+        for (hash, f) in functions.functions() {
+            println!("{} = {}", hash, f);
+        }
+    }
+
     if dump_unit {
         println!("# unit dump");
         println!("instructions:");
@@ -122,18 +140,6 @@ async fn main() -> Result<()> {
     }
 
     let mut vm = st::Vm::new();
-    let mut functions = st::Functions::with_default_packages()?;
-
-    functions.async_global_fn("http", |url: String| async move {
-        let text = reqwest::get(&url)
-            .await
-            .map_err(st::CallError::other)?
-            .text()
-            .await
-            .map_err(st::CallError::other)?;
-
-        Ok(text)
-    })?;
 
     let mut task: st::Task<st::Value> = vm.call_function(&functions, &unit, "main", ())?;
 

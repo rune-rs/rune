@@ -63,9 +63,14 @@ impl<'a> Parser<'a> {
         Ok(T::peek(self.p2?))
     }
 
-    /// Peek the next token.
+    /// Peek the current token.
     pub(crate) fn token_peek(&mut self) -> Result<Option<Token>, ParseError> {
         self.p1
+    }
+
+    /// Peek the next token.
+    pub(crate) fn token_peek2(&mut self) -> Result<Option<Token>, ParseError> {
+        self.p2
     }
 
     /// Consume the next token from the lexer.
@@ -81,7 +86,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Peek the next token from the lexer but treat a missing token as an
+    /// Peek the current token from the lexer but treat a missing token as an
     /// unexpected end-of-file.
     pub(crate) fn token_peek_eof(&mut self) -> Result<Token, ParseError> {
         match self.p1? {

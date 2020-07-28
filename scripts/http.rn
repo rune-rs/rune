@@ -1,3 +1,5 @@
 fn main() {
-    http("https://google.com")
+    let client = client();
+    let response = client.get("https://google.com");
+    let text = response.text();
 }

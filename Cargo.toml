@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/st",
+    "crates/st-http",
     "crates/rune",
     "crates/rune-cli",
 ]

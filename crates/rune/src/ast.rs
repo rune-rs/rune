@@ -431,6 +431,9 @@ impl Parse for ExprIf {
     }
 }
 
+/// Argument to indicate if we are in an instance call.
+struct SupportInstanceCall(bool);
+
 /// A rune expression.
 #[derive(Debug)]
 pub enum Expr {
@@ -439,7 +442,9 @@ pub enum Expr {
     /// An empty expression.
     Ident(Ident),
     /// A function call,
-    FnCall(FnCall),
+    CallFn(CallFn),
+    /// An instance function call,
+    CallInstanceFn(CallInstanceFn),
     /// A literal array declaration.
     ArrayLiteral(ArrayLiteral),
     /// A literal number expression.
@@ -453,19 +458,32 @@ pub enum Expr {
 }
 
 impl Expr {
+    /// Default parse function.
+    fn parse_default(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Self::parse_primary(parser, SupportInstanceCall(true))
+    }
+
+    /// Special parse function to parse an expression inside of an instance call.
+    fn parse_in_instance_call(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Self::parse_primary(parser, SupportInstanceCall(false))
+    }
+
     /// Parse a single expression value.
-    fn parse_value(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse_primary(
+        parser: &mut Parser<'_>,
+        instance_call: SupportInstanceCall,
+    ) -> Result<Self, ParseError> {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
             Kind::If => Self::ExprIf(parser.parse()?),
-            Kind::Ident => {
-                if parser.peek2::<OpenParen>()? {
-                    Self::FnCall(parser.parse()?)
-                } else {
-                    Self::Ident(parser.parse()?)
-                }
-            }
+            Kind::Ident => match parser.token_peek2()?.map(|t| t.kind) {
+                Some(Kind::Open {
+                    delimiter: Delimiter::Parenthesis,
+                }) => Self::CallFn(parser.parse()?),
+                Some(Kind::Dot) if instance_call.0 => Self::CallInstanceFn(parser.parse()?),
+                _ => Self::Ident(parser.parse()?),
+            },
             Kind::NumberLiteral { .. } => Self::NumberLiteral(parser.parse()?),
             Kind::StringLiteral { .. } => Self::StringLiteral(parser.parse()?),
             Kind::Open {
@@ -498,7 +516,7 @@ impl Expr {
             };
 
             parser.token_next()?;
-            let mut rhs = Self::parse_value(parser)?;
+            let mut rhs = Self::parse_default(parser)?;
 
             lookahead = parser.token_peek()?.and_then(BinOp::from_token);
 
@@ -530,23 +548,24 @@ impl Expr {
 /// ```rust
 /// use rune::{parse_all, ast, Resolve as _};
 ///
-/// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::Expr>("var")?;
-/// let _ = parse_all::<ast::Expr>("42")?;
-/// let _ = parse_all::<ast::Expr>("1 + 2 / 3 - 4 * 1")?;
-/// # Ok(())
+/// # fn main() {
+/// parse_all::<ast::Expr>("foo.bar()").unwrap();
+/// parse_all::<ast::Expr>("var()").unwrap();
+/// parse_all::<ast::Expr>("var").unwrap();
+/// parse_all::<ast::Expr>("42").unwrap();
+/// parse_all::<ast::Expr>("1 + 2 / 3 - 4 * 1").unwrap();
 /// # }
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let lhs = Self::parse_value(parser)?;
+        let lhs = Self::parse_default(parser)?;
         Self::parse_expr_binary(parser, lhs, 0)
     }
 }
 
 /// A function call `<name>(<args>)`.
 #[derive(Debug)]
-pub struct FnCall {
+pub struct CallFn {
     /// The name of the function being called.
     pub name: Ident,
     /// The arguments of the function call.
@@ -561,15 +580,49 @@ pub struct FnCall {
 /// use rune::{parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::FnCall>("foo()")?;
+/// let _ = parse_all::<ast::CallFn>("foo()")?;
 /// # Ok(())
 /// # }
 /// ```
-impl Parse for FnCall {
+impl Parse for CallFn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(FnCall {
+        Ok(CallFn {
             name: parser.parse()?,
             args: parser.parse()?,
+        })
+    }
+}
+
+/// An instance function call `<instance>.<name>(<args>)`.
+#[derive(Debug)]
+pub struct CallInstanceFn {
+    /// The instance being called.
+    pub instance: Box<Expr>,
+    /// The parsed dot separator.
+    pub dot: Dot,
+    /// The name of the function being called.
+    pub call_fn: CallFn,
+}
+
+/// Parsing an instance function call.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast, Resolve as _};
+///
+/// # fn main() -> anyhow::Result<()> {
+/// let _ = parse_all::<ast::CallInstanceFn>("foo.bar()")?;
+/// assert!(parse_all::<ast::CallInstanceFn>("foo.bar.baz()").is_err());
+/// # Ok(())
+/// # }
+/// ```
+impl Parse for CallInstanceFn {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(CallInstanceFn {
+            instance: Box::new(Expr::parse_in_instance_call(parser)?),
+            dot: parser.parse()?,
+            call_fn: parser.parse()?,
         })
     }
 }
@@ -604,30 +657,13 @@ impl Parse for BlockExpr {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            // pre-matching valid expression starts provides better block
-            // diagnostics.
-            Kind::If
-            | Kind::Ident
-            | Kind::NumberLiteral { .. }
-            | Kind::StringLiteral { .. }
-            | Kind::Open {
-                delimiter: Delimiter::Parenthesis,
-            }
-            | Kind::Open {
-                delimiter: Delimiter::Bracket,
-            } => Self::Expr(parser.parse()?),
             Kind::Let => Self::Let(Let {
                 let_: parser.parse()?,
                 name: parser.parse()?,
                 eq: parser.parse()?,
                 expr: parser.parse()?,
             }),
-            _ => {
-                return Err(ParseError::ExpectedBlockExprError {
-                    actual: token.kind,
-                    span: token.span,
-                })
-            }
+            _ => Self::Expr(parser.parse()?),
         })
     }
 }
@@ -640,7 +676,7 @@ pub struct Let {
     /// The name of the binding.
     pub name: Ident,
     /// The equality keyword.
-    pub eq: EqToken,
+    pub eq: Eq,
     /// The expression the binding is assigned to.
     pub expr: Expr,
 }
@@ -884,8 +920,9 @@ decl_tokens! {
     (OpenBracket, Kind::Open { delimiter: Delimiter::Bracket }),
     (CloseBracket, Kind::Close { delimiter: Delimiter::Bracket }),
     (Comma, Kind::Comma),
+    (Dot, Kind::Dot),
     (SemiColon, Kind::SemiColon),
-    (EqToken, Kind::Eq),
+    (Eq, Kind::Eq),
 }
 
 impl<'a> Resolve<'a> for Ident {

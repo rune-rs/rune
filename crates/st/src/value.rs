@@ -1,4 +1,3 @@
-use crate::external::External;
 use crate::vm::Vm;
 use std::any::TypeId;
 use std::fmt;
@@ -38,7 +37,7 @@ pub enum Value {
     /// A boolean.
     Bool(bool),
     /// Reference to an external type.
-    External(Box<dyn External>),
+    External(Slot),
     /// A slot error value where we were unable to convert a value reference
     /// from a slot.
     Error(ValueError),
@@ -53,7 +52,7 @@ impl Clone for Value {
             Self::Integer(integer) => Self::Integer(*integer),
             Self::Float(float) => Self::Float(*float),
             Self::Bool(boolean) => Self::Bool(*boolean),
-            Self::External(external) => Self::External(external.as_ref().external_clone()),
+            Self::External(slot) => Self::External(*slot),
             Self::Error(error) => Self::Error(*error),
         }
     }
@@ -68,6 +67,16 @@ pub enum Managed {
     Array,
     /// Reference to an external type.
     External,
+}
+
+impl fmt::Display for Managed {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::String => write!(fmt, "string"),
+            Self::Array => write!(fmt, "array"),
+            Self::External => write!(fmt, "external"),
+        }
+    }
 }
 
 /// Compact information on typed slot.

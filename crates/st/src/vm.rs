@@ -7,6 +7,7 @@ use crate::value::{ExternalTypeError, Managed, Slot, Value, ValueError, ValueRef
 use anyhow::Result;
 use slab::Slab;
 use std::any::{type_name, TypeId};
+use std::cell::{Cell, RefCell, UnsafeCell};
 use std::fmt;
 use std::marker::PhantomData;
 use thiserror::Error;
@@ -34,7 +35,7 @@ pub enum VmError {
     #[error("missing function with hash `{hash}`")]
     MissingFunction { hash: Hash },
     #[error("error while calling function")]
-    CallError(#[source] CallError),
+    CallError(#[from] CallError),
     #[error("instruction pointer is out-of-bounds")]
     IpOutOfBounds,
     #[error("unexpected stack value, expected `{expected}` but was `{actual}`")]
@@ -131,12 +132,22 @@ pub enum Inst {
     ///
     /// This is the result of an `<a> * <b>` expression.
     Mul,
-    /// Perform a dynamic call.
+    /// Perform a function call.
     ///
     /// It will construct a new stack frame which includes the last `args`
     /// number of entries.
     Call {
         /// The hash of the function to call.
+        hash: Hash,
+        /// The number of arguments expected on the stack for this call.
+        args: usize,
+    },
+    /// Perform a instance function call.
+    ///
+    /// The instance being called on should be on top of the stack, followed by
+    /// `args` number of arguments.
+    CallInstance {
+        /// The hash of the name of the function to call.
         hash: Hash,
         /// The number of arguments expected on the stack for this call.
         args: usize,
@@ -237,17 +248,52 @@ impl Inst {
                         *ip = loc;
                     }
                     None => {
-                        let handler = if let Some(handler) = functions.lookup(hash) {
-                            handler
-                        } else {
-                            functions
-                                .lookup(hash)
-                                .ok_or_else(|| VmError::MissingFunction { hash })?
-                        };
+                        let handler = functions
+                            .lookup(hash)
+                            .ok_or_else(|| VmError::MissingFunction { hash })?;
 
-                        handler(vm, args).await.map_err(VmError::CallError)?;
+                        let result = handler(vm, args).await;
+
+                        // Safety: We have exclusive access to the VM and
+                        // everything that was borrowed during the call can now
+                        // be cleared since it's only used in the handler.
+                        unsafe {
+                            vm.disarm();
+                        }
+
+                        result?;
                     }
                 },
+                Self::CallInstance { hash, args } => {
+                    let instance = vm.peek()?;
+                    let ty = instance.value_type(vm)?;
+
+                    let hash = Hash::instance_fn(ty, hash);
+
+                    match unit.lookup(hash) {
+                        Some(loc) => {
+                            vm.push_frame(*ip, args)?;
+                            *ip = loc;
+                        }
+                        None => {
+                            let handler = functions
+                                .lookup(hash)
+                                .ok_or_else(|| VmError::MissingFunction { hash })?;
+
+                            let result = handler(vm, args).await;
+
+                            // Safety: We have exclusive access to the VM and
+                            // everything that was borrowed during the call can
+                            // now be cleared since it's only used in the
+                            // handler.
+                            unsafe {
+                                vm.disarm();
+                            }
+
+                            result?;
+                        }
+                    }
+                }
                 Self::Return => {
                     // NB: unmanaged because we're effectively moving the value.
                     let return_value = vm.unmanaged_pop().ok_or_else(|| StackError::StackEmpty)?;
@@ -367,11 +413,59 @@ impl Inst {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+struct Access(Cell<isize>);
+
+impl Access {
+    /// Test if the access token is accessible.
+    #[inline]
+    fn is_sharable(&self) -> bool {
+        self.0.get() <= 0
+    }
+
+    /// Clear the given access token.
+    fn clear(&self) {
+        self.0.set(0);
+    }
+
+    /// Mark that we want shared access to the given access token.
+    #[inline]
+    fn shared(&self) -> bool {
+        let b = self.0.get().wrapping_sub(1);
+
+        if b < 0 {
+            self.0.set(b);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Mark that we want exclusive access to the given access token.
+    #[inline]
+    fn exclusive(&self) -> bool {
+        let b = self.0.get().wrapping_add(1);
+
+        if b == 1 {
+            self.0.set(b);
+            true
+        } else {
+            false
+        }
+    }
+}
+
 /// The holde of an external value.
 pub(crate) struct ExternalHolder<T: ?Sized + External> {
-    count: usize,
     type_name: &'static str,
-    value: T,
+    type_id: TypeId,
+    count: usize,
+    /// How the external is accessed (if it is accessed).
+    /// This only happens during function calls, and the function callee is
+    /// responsible for unwinding the access.
+    access: Access,
+    /// The value being held.
+    value: UnsafeCell<T>,
 }
 
 impl<T> fmt::Debug for ExternalHolder<T>
@@ -447,6 +541,8 @@ pub struct Vm {
     pub(crate) arrays: Slab<Holder<Box<[ValueRef]>>>,
     /// We have exited from the last frame.
     pub(crate) exited: bool,
+    /// Slots that needs to be disarmed next time we call `disarm`.
+    guards: RefCell<Vec<(Managed, usize)>>,
 }
 
 impl Vm {
@@ -461,6 +557,7 @@ impl Vm {
             strings: Slab::new(),
             arrays: Slab::new(),
             exited: false,
+            guards: RefCell::new(Vec::new()),
         }
     }
 
@@ -561,6 +658,14 @@ impl Vm {
         }
 
         Ok(value)
+    }
+
+    /// Peek the top of the stack.
+    pub fn peek(&mut self) -> Result<ValueRef, StackError> {
+        self.stack
+            .last()
+            .copied()
+            .ok_or_else(|| StackError::StackEmpty)
     }
 
     /// Collect any garbage accumulated.
@@ -746,7 +851,6 @@ impl Vm {
             .ok_or_else(|| VmError::StackOutOfBounds)?;
 
         self.frames.push(Frame { ip, offset });
-
         Ok(())
     }
 
@@ -797,9 +901,11 @@ impl Vm {
     /// be managed.
     pub fn allocate_external<T: External>(&mut self, value: T) -> ValueRef {
         let slot = self.externals.insert(Box::new(ExternalHolder {
-            count: 0,
             type_name: type_name::<T>(),
-            value,
+            type_id: TypeId::of::<T>(),
+            count: 0,
+            access: Access::default(),
+            value: UnsafeCell::new(value),
         }));
 
         ValueRef::Managed(Slot::external(slot))
@@ -818,31 +924,83 @@ impl Vm {
         Some(self.strings.get(index)?.value.to_owned())
     }
 
-    /// Get a clone of the external value of the given type and the given slot.
-    pub fn external_clone<T: External + Clone>(&self, index: usize) -> Option<T> {
-        let external = self.externals.get(index)?;
+    /// Get a clone of the given external.
+    pub fn external_clone<T: Clone + External>(&self, slot: usize) -> Option<T> {
+        let external = self.externals.get(slot)?;
+        let external = external.as_ref();
 
-        external
-            .as_ref()
-            .value
-            .as_any()
-            .downcast_ref::<T>()
-            .cloned()
+        if !external.access.is_sharable() {
+            return None;
+        }
+
+        // This is safe since we check if the external is sharable above.
+        let external = unsafe { (&*external.value.get()).as_any().downcast_ref::<T>()? };
+        Some(external.clone())
     }
 
     /// Get a reference of the external value of the given type and the given
     /// slot.
-    pub fn external_ref<T: External + Clone>(&self, index: usize) -> Option<&T> {
-        let external = self.externals.get(index)?;
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the made up returned reference is no longer used
+    /// before [disarm][Vm::disarm] is called.
+    pub unsafe fn external_ref<'out, T: External>(&self, slot: usize) -> Option<&'out T> {
+        let external = self.externals.get(slot)?;
+        let external = external.as_ref();
 
-        external.as_ref().value.as_any().downcast_ref::<T>()
+        if !external.access.shared() {
+            return None;
+        }
+
+        let external = (&*external.value.get()).as_any().downcast_ref::<T>()?;
+        self.guards.borrow_mut().push((Managed::External, slot));
+        Some(external)
+    }
+
+    /// Get a reference of the external value of the given type and the given
+    /// slot.
+    ///
+    /// Mark the given value as mutably used, preventing it from being used
+    /// again.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the made up returned reference is no longer used
+    /// before [disarm][Vm::disarm] is called.
+    pub unsafe fn external_mut<'out, T: External>(&self, slot: usize) -> Option<&'out mut T> {
+        let external = self.externals.get(slot)?;
+        let external = external.as_ref();
+
+        if !external.access.exclusive() {
+            return None;
+        }
+
+        let external = (&mut *external.value.get())
+            .as_any_mut()
+            .downcast_mut::<T>()?;
+        self.guards.borrow_mut().push((Managed::External, slot));
+        Some(external)
+    }
+
+    /// Disarm all collected guards.
+    pub unsafe fn disarm(&self) {
+        for (managed, slot) in self.guards.borrow_mut().drain(..) {
+            match managed {
+                Managed::External => {
+                    if let Some(holder) = self.externals.get(slot) {
+                        holder.access.clear();
+                    }
+                }
+                _ => (),
+            }
+        }
     }
 
     /// Access information about an external type, if available.
     pub fn external_type(&self, index: usize) -> Option<(&'static str, TypeId)> {
         let external = self.externals.get(index)?;
-        let any = external.as_ref().value.as_any();
-        Some((external.type_name, any.type_id()))
+        Some((external.type_name, external.type_id))
     }
 
     /// Get the last value on the stack.
@@ -900,10 +1058,7 @@ impl Vm {
                     Some(array) => Value::Array(self.to_owned_array(&array.value)),
                     None => Value::Error(ValueError::Array(slot)),
                 },
-                (Managed::External, slot) => match self.externals.get(slot) {
-                    Some(external) => Value::External(external.value.external_clone()),
-                    None => Value::Error(ValueError::External(slot)),
-                },
+                (Managed::External, _) => Value::External(managed),
             },
         }
     }
@@ -1020,5 +1175,25 @@ where
         }
 
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Access;
+
+    #[test]
+    fn test_access() {
+        let access = Access::default();
+
+        assert!(access.is_sharable());
+        assert!(access.shared());
+        assert!(!access.exclusive());
+        assert!(access.shared());
+        access.clear();
+        assert!(access.exclusive());
+        assert!(!access.exclusive());
+        access.clear();
+        assert!(access.exclusive());
     }
 }

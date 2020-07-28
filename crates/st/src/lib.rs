@@ -18,14 +18,18 @@ mod value;
 mod vm;
 #[macro_use]
 mod macros;
+mod error;
 mod hash;
 pub mod packages;
 mod reflection;
 mod unit;
 
+pub use crate::error::{Error, Result};
 pub use crate::functions::{CallError, Functions, RegisterError};
 pub use crate::hash::Hash;
-pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
+pub use crate::reflection::{
+    ExternalFromValue, FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue,
+};
 pub use crate::unit::{Unit, UnitError};
 pub use crate::value::{Managed, Slot, Value, ValueError, ValueRef, ValueType};
 pub use crate::vm::{Inst, Task, Vm};

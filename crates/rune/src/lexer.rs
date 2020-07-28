@@ -62,7 +62,7 @@ impl<'a> Lexer<'a> {
         self.cursor = loop {
             break match it.clone().next() {
                 Some((n, c)) => match c {
-                    'a'..='z' | 'A'..='Z' | '_' => {
+                    'a'..='z' | 'A'..='Z' | '_' | '0'..='9' => {
                         it.next();
                         continue;
                     }
@@ -248,6 +248,7 @@ impl<'a> Lexer<'a> {
                         delimiter: Delimiter::Bracket,
                     },
                     ',' => Kind::Comma,
+                    '.' => Kind::Dot,
                     ';' => Kind::SemiColon,
                     '=' => Kind::Eq,
                     '+' => Kind::Plus,

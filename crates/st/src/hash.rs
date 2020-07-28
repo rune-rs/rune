@@ -27,7 +27,7 @@ impl Hash {
 
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
-    pub fn instance_fn(ty: ValueType, name: &str) -> Self {
+    pub fn instance_fn(ty: ValueType, name: Hash) -> Self {
         Self::of((Self::INSTANCE_FN, ty, Self::SEP, name))
     }
 }
