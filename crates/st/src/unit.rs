@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::hash::{FnDynamicHash, Hash};
+use crate::hash::Hash;
 use crate::vm::Inst;
 use std::fmt;
 use thiserror::Error;
@@ -75,7 +75,7 @@ pub struct Unit {
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
     /// Where functions are located in the collection of instructions.
-    functions: HashMap<FnDynamicHash, FnInfo>,
+    functions: HashMap<Hash, FnInfo>,
     /// A static string.
     static_strings: Vec<String>,
     /// Reverse lookup for static strings.
@@ -114,7 +114,7 @@ impl Unit {
     }
 
     /// Iterate over known functions.
-    pub fn iter_functions(&self) -> impl Iterator<Item = (FnDynamicHash, &FnInfo)> + '_ {
+    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &FnInfo)> + '_ {
         let mut it = self.functions.iter();
 
         std::iter::from_fn(move || {
@@ -161,7 +161,7 @@ impl Unit {
     }
 
     /// Lookup the location of a dynamic function.
-    pub fn lookup(&self, hash: FnDynamicHash) -> Option<usize> {
+    pub fn lookup(&self, hash: Hash) -> Option<usize> {
         Some(self.functions.get(&hash)?.offset)
     }
 
@@ -174,8 +174,7 @@ impl Unit {
     ) -> Result<(), UnitError> {
         let offset = self.instructions.len();
 
-        let hash = Hash::of(name);
-        let hash = FnDynamicHash::of(hash, args);
+        let hash = Hash::global_fn(name);
 
         let info = FnInfo {
             offset,

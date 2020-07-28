@@ -261,7 +261,7 @@ impl Encoder<'_> {
         }
 
         let name = fn_call.name.resolve(self.source)?;
-        let hash = st::Hash::of(name);
+        let hash = st::Hash::global_fn(name);
         self.instructions.push(st::Inst::Call { hash, args });
         Ok(())
     }

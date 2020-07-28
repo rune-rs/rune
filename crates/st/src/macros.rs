@@ -11,14 +11,13 @@ macro_rules! impl_external {
     ($external:ty) => {
         impl $crate::ReflectValueType for $external {
             fn reflect_value_type() -> $crate::ValueType {
-                $crate::ValueType::External($crate::TypeHash::of::<Self>())
+                $crate::ValueType::External(std::any::TypeId::of<Self>())
             }
         }
 
         impl $crate::Allocate for $external {
             fn allocate(self, state: &mut $crate::State) -> Result<usize, $crate::AllocateError> {
-                let index = state.allocate_external(self);
-                Ok(state.allocate($crate::ValueRef::External(index)))
+                Ok($crate::ValueRef::External(state.allocate_external(self)))
             }
         }
 

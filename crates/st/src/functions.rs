@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
-use crate::hash::{FnHash, Hash};
+use crate::hash::Hash;
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
-use crate::value::{ExternalTypeError, ValueTypeInfo};
+use crate::value::{ExternalTypeError, ValueType, ValueTypeInfo};
 use crate::vm::{StackError, Vm};
 use std::any::type_name;
 use std::future::Future;
@@ -15,7 +15,7 @@ pub enum RegisterError {
     #[error("function with hash `{hash}` already exists")]
     ConflictingFunction {
         /// The hash of the conflicting function.
-        hash: FnHash,
+        hash: Hash,
     },
 }
 
@@ -66,21 +66,23 @@ impl CallError {
     }
 }
 
+/// Helper alias for boxed futures.
+type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+
 /// The handler of a function.
-type FnHandler = dyn (for<'vm> Fn(&'vm mut Vm, usize) -> Pin<Box<dyn Future<Output = Result<(), CallError>> + 'vm>>)
-    + Send
-    + Sync;
+type Handler = dyn for<'vm> Fn(&'vm mut Vm, usize) -> BoxFuture<'vm, Result<(), CallError>> + Sync;
 
 /// A collection of functions that can be looked up by type.
 pub struct Functions {
-    handlers: HashMap<FnHash, Box<FnHandler>>,
+    /// Free functions.
+    functions: HashMap<Hash, Box<Handler>>,
 }
 
 impl Functions {
     /// Construct a new functions container.
     pub fn new() -> Self {
         Self {
-            handlers: Default::default(),
+            functions: Default::default(),
         }
     }
 
@@ -92,8 +94,8 @@ impl Functions {
     }
 
     /// Lookup the given function.
-    pub fn lookup(&self, hash: FnHash) -> Option<&FnHandler> {
-        let handler = self.handlers.get(&hash)?;
+    pub fn lookup(&self, hash: Hash) -> Option<&Handler> {
+        let handler = self.functions.get(&hash)?;
         Some(&*handler)
     }
 
@@ -102,10 +104,8 @@ impl Functions {
     /// # Examples
     ///
     /// ```rust
-    /// use st::{Functions, Register as _};
-    ///
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut functions = Functions::new();
+    /// let mut functions = st::Functions::new();
     ///
     /// functions.register("empty", || Ok(()))?;
     /// functions.register("string", |a: String| Ok(()))?;
@@ -113,24 +113,61 @@ impl Functions {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn register<Func, Args>(&mut self, name: &str, f: Func) -> Result<FnHash, RegisterError>
+    pub fn register<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
     where
         Func: Register<Args>,
     {
-        let hash = Func::hash(name);
+        let hash = Hash::global_fn(name);
 
-        if self.handlers.contains_key(&hash) {
+        if self.functions.contains_key(&hash) {
             return Err(RegisterError::ConflictingFunction { hash });
         }
 
-        let handler: Box<FnHandler> = Box::new(move |vm, _| {
+        let handler: Box<Handler> = Box::new(move |vm, _| {
             Box::pin(async move {
                 f.vm_call(vm)?;
                 Ok(())
             })
         });
 
-        self.handlers.insert(hash, handler);
+        self.functions.insert(hash, handler);
+        Ok(hash)
+    }
+
+    /// Register an instance function.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # fn main() -> anyhow::Result<()> {
+    /// let mut functions = st::Functions::new();
+    ///
+    /// functions.register_instance("len", |s: &String| Ok(s.len()))?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn register_instance<Func, Args>(
+        &mut self,
+        name: &str,
+        f: Func,
+    ) -> Result<Hash, RegisterError>
+    where
+        Func: RegisterInstance<Args>,
+    {
+        let hash = Hash::instance_fn(Func::instance_value_type(), name);
+
+        if self.functions.contains_key(&hash) {
+            return Err(RegisterError::ConflictingFunction { hash });
+        }
+
+        let handler: Box<Handler> = Box::new(move |vm, _| {
+            Box::pin(async move {
+                f.vm_call(vm)?;
+                Ok(())
+            })
+        });
+
+        self.functions.insert(hash, handler);
         Ok(hash)
     }
 
@@ -150,39 +187,35 @@ impl Functions {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn register_async<Func, Args>(
-        &mut self,
-        name: &str,
-        f: Func,
-    ) -> Result<FnHash, RegisterError>
+    pub fn register_async<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
     where
         Func: RegisterAsync<Args>,
     {
-        let hash = Func::hash(name);
+        let hash = Hash::global_fn(name);
 
-        if self.handlers.contains_key(&hash) {
+        if self.functions.contains_key(&hash) {
             return Err(RegisterError::ConflictingFunction { hash });
         }
 
-        let handler: Box<FnHandler> = Box::new(move |vm, _| f.vm_call(vm));
+        let handler: Box<Handler> = Box::new(move |vm, _| f.vm_call(vm));
 
-        self.handlers.insert(hash, handler);
+        self.functions.insert(hash, handler);
         Ok(hash)
     }
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn register_raw<F>(&mut self, name: &str, f: F) -> Result<FnHash, RegisterError>
+    pub fn register_raw<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), CallError> + Send + Sync,
     {
-        let hash = FnHash::raw(Hash::of(name));
+        let hash = Hash::global_fn(name);
 
-        if self.handlers.contains_key(&hash) {
+        if self.functions.contains_key(&hash) {
             return Err(RegisterError::ConflictingFunction { hash });
         }
 
-        self.handlers.insert(
+        self.functions.insert(
             hash,
             Box::new(move |vm, args| Box::pin(async move { f(vm, args) })),
         );
@@ -192,18 +225,18 @@ impl Functions {
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn register_raw_async<F, O>(&mut self, name: &str, f: F) -> Result<FnHash, RegisterError>
+    pub fn register_raw_async<F, O>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
         O: Future<Output = Result<(), CallError>>,
     {
-        let hash = FnHash::raw(Hash::of(name));
+        let hash = Hash::global_fn(name);
 
-        if self.handlers.contains_key(&hash) {
+        if self.functions.contains_key(&hash) {
             return Err(RegisterError::ConflictingFunction { hash });
         }
 
-        self.handlers.insert(
+        self.functions.insert(
             hash,
             Box::new(move |vm, args| Box::pin(async move { f(vm, args).await })),
         );
@@ -212,10 +245,16 @@ impl Functions {
     }
 }
 
-/// Trait used to provide the [register][Self::register] function.
+/// Trait used to provide the [register][Functions::register] function.
 pub trait Register<Args>: 'static + Copy + Send + Sync {
-    /// Get the signature hash of the function.
-    fn hash(name: &str) -> FnHash;
+    /// Perform the vm call.
+    fn vm_call(self, vm: &mut Vm) -> Result<(), CallError>;
+}
+
+/// Trait used to provide the [register][Functions::register_instance] function.
+pub trait RegisterInstance<Args>: 'static + Copy + Send + Sync {
+    /// Access the value type of the instance.
+    fn instance_value_type() -> ValueType;
 
     /// Perform the vm call.
     fn vm_call(self, vm: &mut Vm) -> Result<(), CallError>;
@@ -223,14 +262,8 @@ pub trait Register<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [register][Self::register] function.
 pub trait RegisterAsync<Args>: 'static + Copy + Send + Sync {
-    /// Get the signature hash of the function.
-    fn hash(name: &str) -> FnHash;
-
     /// Perform the vm call.
-    fn vm_call<'vm>(
-        self,
-        vm: &'vm mut Vm,
-    ) -> Pin<Box<dyn Future<Output = Result<(), CallError>> + 'vm>>;
+    fn vm_call<'vm>(self, vm: &'vm mut Vm) -> BoxFuture<'vm, Result<(), CallError>>;
 }
 
 macro_rules! impl_register {
@@ -248,12 +281,8 @@ macro_rules! impl_register {
         where
             Func: 'static + Copy + Send + Sync + (Fn($($ty,)*) -> Result<Ret, CallError>),
             Ret: ToValue,
-            $($ty: FromValue + ReflectValueType,)*
+            $($ty: FromValue,)*
         {
-            fn hash(name: &str) -> FnHash {
-                FnHash::of(name, &[$($ty::reflect_value_type(),)*])
-            }
-
             fn vm_call(self, vm: &mut Vm) -> Result<(), CallError> {
                 $(
                     let $var = vm.managed_pop()?;
@@ -279,6 +308,57 @@ macro_rules! impl_register {
             }
         }
 
+        impl<Func, Ret, Inst, $($ty,)*> RegisterInstance<(Inst, $($ty,)*)> for Func
+        where
+            Func: 'static + Copy + Send + Sync + (Fn(Inst $(, $ty)*) -> Result<Ret, CallError>),
+            Ret: ToValue,
+            Inst: FromValue + ReflectValueType,
+            $($ty: FromValue,)*
+        {
+            fn instance_value_type() -> ValueType {
+                Inst::reflect_value_type()
+            }
+
+            fn vm_call(self, vm: &mut Vm) -> Result<(), CallError> {
+                let this = vm.managed_pop()?;
+
+                let this = match Inst::from_value(this, vm) {
+                    Ok(v) => v,
+                    Err(v) => {
+                        let ty = v.type_info(vm)?;
+
+                        return Err(CallError::ArgumentConversionError {
+                            arg: 0,
+                            from: ty,
+                            to: type_name::<&Inst>()
+                        });
+                    }
+                };
+
+                $(
+                    let $var = vm.managed_pop()?;
+
+                    let $var = match $ty::from_value($var, vm) {
+                        Ok(v) => v,
+                        Err(v) => {
+                            let ty = v.type_info(vm)?;
+
+                            return Err(CallError::ArgumentConversionError {
+                                arg: 1 + $count - $num,
+                                from: ty,
+                                to: type_name::<$ty>()
+                            });
+                        }
+                    };
+                )*
+
+                let ret = self(this, $($var,)*)?;
+                let ret = ret.to_value(vm).unwrap();
+                vm.managed_push(ret)?;
+                Ok(())
+            }
+        }
+
         impl<Func, Ret, Output, $($ty,)*> RegisterAsync<($($ty,)*)> for Func
         where
             Func: 'static + Copy + (Fn($($ty,)*) -> Ret) + Send + Sync,
@@ -286,14 +366,10 @@ macro_rules! impl_register {
             Output: ToValue,
             $($ty: FromValue + ReflectValueType,)*
         {
-            fn hash(name: &str) -> FnHash {
-                FnHash::of(name, &[$($ty::reflect_value_type(),)*])
-            }
-
             fn vm_call<'vm>(
                 self,
                 vm: &'vm mut Vm,
-            ) -> Pin<Box<dyn Future<Output = Result<(), CallError>> + 'vm>> {
+            ) -> BoxFuture<'vm, Result<(), CallError>> {
                 Box::pin(async move {
                     $(
                         let $var = vm.managed_pop()?;

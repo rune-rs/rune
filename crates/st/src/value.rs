@@ -71,14 +71,6 @@ pub enum Managed {
 }
 
 /// Compact information on typed slot.
-///
-/// # Examples
-///
-/// ```rust
-/// assert_eq!(st::Slot::string(4).into_managed(), (st::Managed::String, 4));
-/// assert_eq!(st::Slot::array(4).into_managed(), (st::Managed::Array, 4));
-/// assert_eq!(st::Slot::external(4).into_managed(), (st::Managed::External, 4));
-/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct Slot(usize);
 
@@ -117,7 +109,7 @@ impl Slot {
 macro_rules! decl_managed {
     ($name:ident, $constant:ident) => {
         #[allow(unused)]
-        pub(crate) struct $name(());
+        struct $name(());
 
         impl IntoSlot for $name {
             fn into_slot(value: ValueRef) -> Result<usize, ValueRef> {
@@ -141,7 +133,7 @@ decl_managed!(ManagedArray, ARRAY);
 decl_managed!(ManagedExternal, EXTERNAL);
 
 /// Trait for converting into managed slots.
-pub trait IntoSlot {
+trait IntoSlot {
     /// Convert thing into a managed slot.
     fn into_slot(value: ValueRef) -> Result<usize, ValueRef>;
 }
@@ -174,11 +166,26 @@ impl ValueRef {
 
     /// Convert value into a managed slot.
     #[inline]
-    pub fn into_slot<T>(self) -> Result<usize, Self>
+    fn into_slot<T>(self) -> Result<usize, Self>
     where
         T: IntoSlot,
     {
         T::into_slot(self)
+    }
+
+    /// Try to coerce value reference into an external.
+    pub fn into_external(self) -> Result<usize, Self> {
+        self.into_slot::<ManagedExternal>()
+    }
+
+    /// Try to coerce value reference into an array.
+    pub fn into_array(self) -> Result<usize, Self> {
+        self.into_slot::<ManagedArray>()
+    }
+
+    /// Try to coerce value reference into an array.
+    pub fn into_string(self) -> Result<usize, Self> {
+        self.into_slot::<ManagedString>()
     }
 
     /// Get the type information for the current value.
@@ -285,7 +292,17 @@ impl fmt::Display for ValueTypeInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::{ValueRef, ValueType};
+    use super::{Slot, ValueRef, ValueType};
+
+    #[test]
+    fn test_slot() {
+        assert_eq!(Slot::string(4).into_managed(), (crate::Managed::String, 4));
+        assert_eq!(Slot::array(4).into_managed(), (crate::Managed::Array, 4));
+        assert_eq!(
+            Slot::external(4).into_managed(),
+            (crate::Managed::External, 4)
+        );
+    }
 
     #[test]
     fn test_size() {

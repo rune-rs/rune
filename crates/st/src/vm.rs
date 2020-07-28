@@ -1,11 +1,9 @@
 use crate::external::External;
 use crate::functions::{CallError, Functions};
-use crate::hash::{FnDynamicHash, FnHash, Hash};
+use crate::hash::Hash;
 use crate::reflection::{EncodeError, FromValue, IntoArgs};
 use crate::unit::Unit;
-use crate::value::{
-    ExternalTypeError, Managed, Slot, Value, ValueError, ValueRef, ValueType, ValueTypeInfo,
-};
+use crate::value::{ExternalTypeError, Managed, Slot, Value, ValueError, ValueRef, ValueTypeInfo};
 use anyhow::Result;
 use slab::Slab;
 use std::any::{type_name, TypeId};
@@ -33,14 +31,8 @@ pub enum VmError {
     EncodeError(#[from] EncodeError),
     #[error("stack error")]
     StackError(#[from] StackError),
-    #[error("missing function (raw: {raw}, dynamic: {dynamic}, full: {full})")]
-    MissingFunction {
-        raw: FnHash,
-        dynamic: FnDynamicHash,
-        full: FnHash,
-    },
-    #[error("missing dynamic function: {0:?}")]
-    MissingDynamicFunction(FnDynamicHash),
+    #[error("missing function with hash `{hash}`")]
+    MissingFunction { hash: Hash },
     #[error("error while calling function")]
     CallError(#[source] CallError),
     #[error("instruction pointer is out-of-bounds")]
@@ -239,36 +231,23 @@ impl Inst {
     ) -> Result<(), VmError> {
         loop {
             match self {
-                Self::Call { hash, args } => {
-                    let dynamic = FnDynamicHash::of(hash, args);
-
-                    match unit.lookup(dynamic) {
-                        Some(loc) => {
-                            vm.push_frame(*ip, args)?;
-                            *ip = loc;
-                        }
-                        None => {
-                            let raw = FnHash::raw(hash);
-
-                            let handler =
-                                if let Some(handler) = functions.lookup(raw) {
-                                    handler
-                                } else {
-                                    // Calculate the call hash from the values on the stack.
-                                    let full = FnHash::of_dynamic_fallible(
-                                        dynamic,
-                                        vm.iter_stack_types().take(args),
-                                    )?;
-
-                                    functions.lookup(full).ok_or_else(|| {
-                                        VmError::MissingFunction { raw, dynamic, full }
-                                    })?
-                                };
-
-                            handler(vm, args).await.map_err(VmError::CallError)?;
-                        }
+                Self::Call { hash, args } => match unit.lookup(hash) {
+                    Some(loc) => {
+                        vm.push_frame(*ip, args)?;
+                        *ip = loc;
                     }
-                }
+                    None => {
+                        let handler = if let Some(handler) = functions.lookup(hash) {
+                            handler
+                        } else {
+                            functions
+                                .lookup(hash)
+                                .ok_or_else(|| VmError::MissingFunction { hash })?
+                        };
+
+                        handler(vm, args).await.map_err(VmError::CallError)?;
+                    }
+                },
                 Self::Return => {
                     // NB: unmanaged because we're effectively moving the value.
                     let return_value = vm.unmanaged_pop().ok_or_else(|| StackError::StackEmpty)?;
@@ -497,16 +476,6 @@ impl Vm {
         })
     }
 
-    /// Iterate over stack types from top to bottom.
-    ///
-    /// This iterator will not end if the stack ends, instead it will error.
-    pub(crate) fn iter_stack_types(&self) -> IterStackTypes<'_> {
-        IterStackTypes {
-            vm: self,
-            index: self.stack.len(),
-        }
-    }
-
     /// Call the given function in the given compilation unit.
     pub fn call_function<'a, A, T>(
         &'a mut self,
@@ -519,12 +488,11 @@ impl Vm {
         A: IntoArgs,
         T: FromValue,
     {
-        let hash = Hash::of(name);
-        let hash = FnDynamicHash::of(hash, A::count());
+        let hash = Hash::global_fn(name);
 
         let fn_address = unit
             .lookup(hash)
-            .ok_or_else(|| VmError::MissingDynamicFunction(hash))?;
+            .ok_or_else(|| VmError::MissingFunction { hash })?;
 
         args.encode(self)?;
 
@@ -992,33 +960,6 @@ where
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_map().entries(self.0.iter()).finish()
-    }
-}
-
-pub(crate) struct IterStackTypes<'a> {
-    vm: &'a Vm,
-    index: usize,
-}
-
-impl<'a> Iterator for IterStackTypes<'a> {
-    type Item = Result<ValueType, VmError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index == 0 {
-            return Some(Err(VmError::StackOutOfBounds));
-        }
-
-        self.index -= 1;
-
-        let value = match self.vm.stack.get(self.index).copied() {
-            Some(slot) => slot,
-            None => return Some(Err(VmError::StackOutOfBounds)),
-        };
-
-        match value.value_type(self.vm) {
-            Ok(ty) => Some(Ok(ty)),
-            Err(e) => Some(Err(VmError::ExternalTypeError(e))),
-        }
     }
 }
 
