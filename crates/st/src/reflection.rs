@@ -171,7 +171,6 @@ impl FromValue for () {
     }
 }
 
-/// Convert a unit into a value type.
 impl ReflectValueType for bool {
     fn value_type() -> ValueType {
         ValueType::Bool
@@ -193,6 +192,31 @@ impl FromValue for bool {
         match value {
             ValuePtr::Bool(value) => Ok(value),
             _ => Err(StackError::ExpectedBoolean),
+        }
+    }
+}
+
+impl ReflectValueType for char {
+    fn value_type() -> ValueType {
+        ValueType::Char
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Char
+    }
+}
+
+impl ToValue for char {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(ValuePtr::Char(self))
+    }
+}
+
+impl FromValue for char {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
+        match value {
+            ValuePtr::Char(value) => Ok(value),
+            _ => Err(StackError::ExpectedChar),
         }
     }
 }

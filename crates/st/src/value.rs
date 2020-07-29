@@ -31,6 +31,8 @@ pub enum Value {
     Float(f64),
     /// A boolean.
     Bool(bool),
+    /// A character.
+    Char(char),
     /// Reference to an external type.
     External(Box<dyn External>),
 }
@@ -50,6 +52,8 @@ pub enum ValueRef<'a> {
     Float(f64),
     /// A boolean.
     Bool(bool),
+    /// A character.
+    Char(char),
     /// Reference to an external type.
     External(Ref<'a, dyn External>),
 }
@@ -161,6 +165,8 @@ pub enum ValuePtr {
     Float(f64),
     /// A boolean.
     Bool(bool),
+    /// A character.
+    Char(char),
     /// A managed reference.
     Managed(Slot),
 }
@@ -217,6 +223,7 @@ impl ValuePtr {
             Self::Integer(..) => ValueType::Integer,
             Self::Float(..) => ValueType::Float,
             Self::Bool(..) => ValueType::Bool,
+            Self::Char(..) => ValueType::Char,
             Self::Managed(slot) => match slot.into_managed() {
                 (Managed::String, ..) => ValueType::String,
                 (Managed::Array, _) => ValueType::Array,
@@ -236,6 +243,7 @@ impl ValuePtr {
             Self::Integer(..) => ValueTypeInfo::Integer,
             Self::Float(..) => ValueTypeInfo::Float,
             Self::Bool(..) => ValueTypeInfo::Bool,
+            Self::Char(..) => ValueTypeInfo::Char,
             Self::Managed(slot) => match slot.into_managed() {
                 (Managed::String, _) => ValueTypeInfo::String,
                 (Managed::Array, _) => ValueTypeInfo::Array,
@@ -269,6 +277,8 @@ pub enum ValueType {
     Float,
     /// A boolean.
     Bool,
+    /// A character.
+    Char,
     /// Reference to a foreign type.
     External(TypeId),
 }
@@ -289,6 +299,8 @@ pub enum ValueTypeInfo {
     Float,
     /// A boolean.
     Bool,
+    /// A character.
+    Char,
     /// Reference to a foreign type.
     External(&'static str),
 }
@@ -302,6 +314,7 @@ impl fmt::Display for ValueTypeInfo {
             Self::Integer => write!(fmt, "Integer"),
             Self::Float => write!(fmt, "Float"),
             Self::Bool => write!(fmt, "Bool"),
+            Self::Char => write!(fmt, "Char"),
             Self::External(name) => write!(fmt, "External({})", name),
         }
     }

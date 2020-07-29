@@ -68,6 +68,9 @@ pub enum StackError {
     /// Error raised when we expected a boolean value.
     #[error("expected boolean value")]
     ExpectedBoolean,
+    /// Error raised when we expected a char value.
+    #[error("expected char value")]
+    ExpectedChar,
     /// Error raised when an integer value was expected.
     #[error("expected integer value")]
     ExpectedInteger,
@@ -1638,6 +1641,7 @@ impl Vm {
             ValuePtr::Integer(integer) => Value::Integer(integer),
             ValuePtr::Float(float) => Value::Float(float),
             ValuePtr::Bool(boolean) => Value::Bool(boolean),
+            ValuePtr::Char(c) => Value::Char(c),
             ValuePtr::Managed(managed) => match managed.into_managed() {
                 (Managed::String, slot) => Value::String(self.string_take(slot)?),
                 (Managed::Array, slot) => {
@@ -1670,6 +1674,7 @@ impl Vm {
             ValuePtr::Integer(integer) => ValueRef::Integer(integer),
             ValuePtr::Float(float) => ValueRef::Float(float),
             ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
+            ValuePtr::Char(c) => ValueRef::Char(c),
             ValuePtr::Managed(managed) => match managed.into_managed() {
                 (Managed::String, slot) => ValueRef::String(self.string_ref(slot)?),
                 (Managed::Array, slot) => {
