@@ -9,6 +9,8 @@ use std::borrow::Cow;
 
 /// A parsed file.
 pub struct File {
+    /// Imports for the current file.
+    pub imports: Vec<ImportDecl>,
     /// All function declarations in the file.
     pub functions: Vec<FnDecl>,
 }
@@ -18,13 +20,17 @@ pub struct File {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast};
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::File>(r#"
+/// import foo;
+///
 /// fn foo() {
 ///     42
 /// }
+///
+/// import bar;
 ///
 /// fn bar(a, b) {
 ///     a
@@ -33,15 +39,42 @@ pub struct File {
 /// # Ok(())
 /// # }
 /// ```
+///
+/// # Realistic Example
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// # fn main() -> anyhow::Result<()> {
+/// let _ = parse_all::<ast::File>(r#"
+/// import http;
+///
+/// fn main() {
+///     let client = http::client();
+///     let response = client.get("https://google.com");
+///     let text = response.text();
+/// }
+/// "#)?;
+/// # Ok(())
+/// # }
+/// ```
 impl Parse for File {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let mut imports = Vec::new();
         let mut functions = Vec::new();
 
         while !parser.is_eof()? {
-            functions.push(parser.parse::<FnDecl>()?);
+            match parser.token_peek()?.map(|t| t.kind) {
+                Some(Kind::Import) => {
+                    imports.push(parser.parse()?);
+                }
+                _ => {
+                    functions.push(parser.parse()?);
+                }
+            }
         }
 
-        Ok(Self { functions })
+        Ok(Self { imports, functions })
     }
 }
 
@@ -480,7 +513,8 @@ impl Expr {
             Kind::Ident => match parser.token_peek2()?.map(|t| t.kind) {
                 Some(Kind::Open {
                     delimiter: Delimiter::Parenthesis,
-                }) => Self::CallFn(parser.parse()?),
+                })
+                | Some(Kind::Scope) => Self::CallFn(parser.parse()?),
                 Some(Kind::Dot) if instance_call.0 => Self::CallInstanceFn(parser.parse()?),
                 _ => Self::Ident(parser.parse()?),
             },
@@ -567,7 +601,7 @@ impl Parse for Expr {
 #[derive(Debug)]
 pub struct CallFn {
     /// The name of the function being called.
-    pub name: Ident,
+    pub name: Path,
     /// The arguments of the function call.
     pub args: FunctionArgs<Expr>,
 }
@@ -581,6 +615,7 @@ pub struct CallFn {
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::CallFn>("foo()")?;
+/// let _ = parse_all::<ast::CallFn>("http::foo()")?;
 /// # Ok(())
 /// # }
 /// ```
@@ -601,7 +636,9 @@ pub struct CallInstanceFn {
     /// The parsed dot separator.
     pub dot: Dot,
     /// The name of the function being called.
-    pub call_fn: CallFn,
+    pub name: Ident,
+    /// The arguments of the function call.
+    pub args: FunctionArgs<Expr>,
 }
 
 /// Parsing an instance function call.
@@ -622,7 +659,8 @@ impl Parse for CallInstanceFn {
         Ok(CallInstanceFn {
             instance: Box::new(Expr::parse_in_instance_call(parser)?),
             dot: parser.parse()?,
-            call_fn: parser.parse()?,
+            name: parser.parse()?,
+            args: parser.parse()?,
         })
     }
 }
@@ -679,6 +717,77 @@ pub struct Let {
     pub eq: Eq,
     /// The expression the binding is assigned to.
     pub expr: Expr,
+}
+
+/// An imported declaration.
+#[derive(Debug)]
+pub struct ImportDecl {
+    /// The import token.
+    pub import_: Import,
+    /// The name of the imported module.
+    pub path: Path,
+    /// Trailing semi-colon.
+    pub semi_colon: SemiColon,
+}
+
+/// Parsing an import declaration.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// # fn main() -> anyhow::Result<()> {
+/// let _ = parse_all::<ast::ImportDecl>("import foo;")?;
+/// let _ = parse_all::<ast::ImportDecl>("import foo::bar;")?;
+/// let _ = parse_all::<ast::ImportDecl>("import foo::bar::baz;")?;
+/// # Ok(())
+/// # }
+/// ```
+impl Parse for ImportDecl {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(Self {
+            import_: parser.parse()?,
+            path: parser.parse()?,
+            semi_colon: parser.parse()?,
+        })
+    }
+}
+
+/// A path, where each element is separated by a `::`.
+#[derive(Debug)]
+pub struct Path {
+    /// The first component in the path.
+    pub first: Ident,
+    /// The rest of the components in the path.
+    pub rest: Vec<(Scope, Ident)>,
+}
+
+impl Path {
+    /// Calculate the full span of the path.
+    pub fn span(&self) -> Span {
+        let mut span = self.first.token.span;
+
+        for (_, ident) in &self.rest {
+            span = span.join(ident.token.span);
+        }
+
+        span
+    }
+}
+
+impl Parse for Path {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let first = parser.parse()?;
+        let mut rest = Vec::new();
+
+        while parser.peek::<Scope>()? {
+            let scope = parser.parse::<Scope>()?;
+            rest.push((scope, parser.parse()?));
+        }
+
+        Ok(Self { first, rest })
+    }
 }
 
 /// A function.
@@ -923,6 +1032,8 @@ decl_tokens! {
     (Dot, Kind::Dot),
     (SemiColon, Kind::SemiColon),
     (Eq, Kind::Eq),
+    (Import, Kind::Import),
+    (Scope, Kind::Scope),
 }
 
 impl<'a> Resolve<'a> for Ident {

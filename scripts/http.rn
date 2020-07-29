@@ -1,5 +1,7 @@
+import http;
+
 fn main() {
-    let client = client();
+    let client = http::client();
     let response = client.get("https://google.com");
     let text = response.text();
 }

@@ -14,8 +14,10 @@ where
 #[tokio::test]
 async fn test_custom_functions() {
     let mut functions = st::Functions::new();
-
-    functions.global_fn("test", || 42).unwrap();
+    functions
+        .global_module_mut()
+        .global_fn("test", || 42)
+        .unwrap();
 
     assert_eq! {
         run_main::<i64>(

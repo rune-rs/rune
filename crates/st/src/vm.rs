@@ -34,6 +34,10 @@ pub enum VmError {
     StackError(#[from] StackError),
     #[error("missing function with hash `{hash}`")]
     MissingFunction { hash: Hash },
+    #[error("missing module with hash `{module}`")]
+    MissingModule { module: Hash },
+    #[error("missing function with hash `{hash}` in module with hash `{module}`")]
+    MissingModuleFunction { module: Hash, hash: Hash },
     #[error("error while calling function")]
     CallError(#[from] CallError),
     #[error("instruction pointer is out-of-bounds")]
@@ -137,6 +141,8 @@ pub enum Inst {
     /// It will construct a new stack frame which includes the last `args`
     /// number of entries.
     Call {
+        /// The hash of the module to call.
+        module: Hash,
         /// The hash of the function to call.
         hash: Hash,
         /// The number of arguments expected on the stack for this call.
@@ -242,28 +248,54 @@ impl Inst {
     ) -> Result<(), VmError> {
         loop {
             match self {
-                Self::Call { hash, args } => match unit.lookup(hash) {
-                    Some(loc) => {
-                        vm.push_frame(*ip, args)?;
-                        *ip = loc;
-                    }
-                    None => {
-                        let handler = functions
-                            .lookup(hash)
-                            .ok_or_else(|| VmError::MissingFunction { hash })?;
-
-                        let result = handler(vm, args).await;
-
-                        // Safety: We have exclusive access to the VM and
-                        // everything that was borrowed during the call can now
-                        // be cleared since it's only used in the handler.
-                        unsafe {
-                            vm.disarm();
+                Self::Call {
+                    module: Hash::GLOBAL_MODULE,
+                    hash,
+                    args,
+                } => {
+                    match unit.lookup(hash) {
+                        Some(loc) => {
+                            vm.push_frame(*ip, args)?;
+                            *ip = loc;
                         }
+                        None => {
+                            let handler = functions
+                                .lookup(hash)
+                                .ok_or_else(|| VmError::MissingFunction { hash })?;
 
-                        result?;
+                            let result = handler(vm, args).await;
+
+                            // Safety: We have exclusive access to the VM and
+                            // everything that was borrowed during the call can now
+                            // be cleared since it's only used in the handler.
+                            unsafe {
+                                vm.disarm();
+                            }
+
+                            result?;
+                        }
                     }
-                },
+                }
+                Self::Call { module, hash, args } => {
+                    let m = functions
+                        .lookup_module(module)
+                        .ok_or_else(|| VmError::MissingModule { module })?;
+
+                    let handler = m
+                        .lookup(hash)
+                        .ok_or_else(|| VmError::MissingModuleFunction { module, hash })?;
+
+                    let result = handler(vm, args).await;
+
+                    // Safety: We have exclusive access to the VM and
+                    // everything that was borrowed during the call can now
+                    // be cleared since it's only used in the handler.
+                    unsafe {
+                        vm.disarm();
+                    }
+
+                    result?;
+                }
                 Self::CallInstance { hash, args } => {
                     let instance = vm.peek()?;
                     let ty = instance.value_type(vm)?;

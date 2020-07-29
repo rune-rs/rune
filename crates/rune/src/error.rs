@@ -205,6 +205,14 @@ pub enum EncodeError {
         /// Name of the missing local.
         name: String,
     },
+    /// Tried to use a module that was missing.
+    #[error("missing module `{name}`")]
+    MissingModule {
+        /// The span of the missing module.
+        span: Span,
+        /// The name of the missing module.
+        name: String,
+    },
 }
 
 impl SpannedError for EncodeError {
@@ -214,6 +222,7 @@ impl SpannedError for EncodeError {
             Self::ResolveError { error, .. } => error.span(),
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
+            Self::MissingModule { span, .. } => span,
         }
     }
 }

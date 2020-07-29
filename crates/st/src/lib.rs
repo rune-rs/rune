@@ -25,7 +25,7 @@ mod reflection;
 mod unit;
 
 pub use crate::error::{Error, Result};
-pub use crate::functions::{CallError, Functions, RegisterError};
+pub use crate::functions::{CallError, Functions, GlobalModule, Module, RegisterError};
 pub use crate::hash::Hash;
 pub use crate::reflection::{
     ExternalFromValue, FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue,

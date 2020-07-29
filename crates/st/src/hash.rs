@@ -1,22 +1,42 @@
 use crate::value::ValueType;
 use std::fmt;
+use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
+use twox_hash::XxHash64;
 
 /// The hash of a primitive thing.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Hash(u64);
 
 impl Hash {
+    /// Hash corresponding to global function calls.
+    pub const GLOBAL_MODULE: Hash = Hash(0);
+
     const SEP: usize = 0x7f;
-    const GLOBAL_FN: usize = 1;
-    const INSTANCE_FN: usize = 2;
+    const IMPORT: usize = 1;
+    const GLOBAL_FN: usize = 2;
+    const INSTANCE_FN: usize = 3;
 
     /// Construct a simple hash from something that is hashable.
     pub fn of<T: std::hash::Hash>(thing: T) -> Self {
-        use std::hash::{BuildHasher as _, BuildHasherDefault, Hasher as _};
-        use twox_hash::XxHash64;
-
         let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
         thing.hash(&mut hasher);
+        Self(hasher.finish())
+    }
+
+    /// Construct a hash for an import.
+    pub fn module<I>(path: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
+        Self::IMPORT.hash(&mut hasher);
+
+        for part in path {
+            part.as_ref().hash(&mut hasher);
+            Self::SEP.hash(&mut hasher);
+        }
+
         Self(hasher.finish())
     }
 

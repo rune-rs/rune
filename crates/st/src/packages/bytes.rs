@@ -45,11 +45,12 @@ decl_external!(Bytes);
 
 /// Install the bytes package.
 pub fn install(functions: &mut Functions) -> Result<(), RegisterError> {
-    functions.global_fn("bytes", Bytes::new)?;
-    functions.instance_fn("extend", Bytes::extend)?;
-    functions.instance_fn("extend_str", Bytes::extend_str)?;
-    functions.instance_fn("len", Bytes::len)?;
-    functions.instance_fn("clear", Bytes::clear)?;
-    functions.instance_fn("clone", Bytes::clone)?;
+    let global_module = functions.global_module_mut();
+    global_module.global_fn("bytes", Bytes::new)?;
+    global_module.instance_fn("extend", Bytes::extend)?;
+    global_module.instance_fn("extend_str", Bytes::extend_str)?;
+    global_module.instance_fn("len", Bytes::len)?;
+    global_module.instance_fn("clear", Bytes::clear)?;
+    global_module.instance_fn("clone", Bytes::clone)?;
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::collections::HashMap;
+use crate::collections::{hash_map, HashMap};
 use crate::error;
 use crate::hash::Hash;
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
@@ -17,6 +17,14 @@ pub enum RegisterError {
     #[error("function with hash `{hash}` already exists")]
     ConflictingFunction {
         /// The hash of the conflicting function.
+        hash: Hash,
+    },
+    /// Tried to insert a module that conflicted with an already existing one.
+    #[error("module `{name}` with hash `{hash}` already exists")]
+    ConflictingModule {
+        /// The name of the module that conflicted.
+        name: ModuleName,
+        /// The hash of the module that conflicted.
         hash: Hash,
     },
 }
@@ -69,6 +77,49 @@ pub enum CallError {
         /// The expected number of arguments.
         expected: usize,
     },
+}
+
+/// The name of a module.
+#[derive(Debug, Clone, Default)]
+pub struct ModuleName {
+    path: Vec<String>,
+}
+
+impl ModuleName {
+    /// Construct a new module name.
+    fn of<I>(iter: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        Self {
+            path: iter
+                .into_iter()
+                .map(|s| s.as_ref().to_owned())
+                .collect::<Vec<_>>(),
+        }
+    }
+
+    /// Return the hash of the module.
+    pub fn hash(&self) -> Hash {
+        Hash::module(&self.path)
+    }
+}
+
+impl fmt::Display for ModuleName {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.path.iter().peekable();
+
+        while let Some(part) = it.next() {
+            write!(fmt, "{}", part)?;
+
+            if it.peek().is_some() {
+                write!(fmt, "::")?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// Helper alias for boxed futures.
@@ -134,29 +185,38 @@ impl fmt::Display for FnSignature {
     }
 }
 
-/// A collection of functions that can be looked up by type.
+/// Functions visible to the virtual machine.
+#[derive(Default)]
 pub struct Functions {
-    /// Free functions.
-    functions: HashMap<Hash, Box<Handler>>,
-    functions_info: HashMap<Hash, FnSignature>,
+    /// The current global module.
+    global_module: GlobalModule,
+    /// Registered modules by hash.
+    modules: HashMap<Hash, Module>,
 }
 
 impl Functions {
-    /// Construct a new functions container.
+    /// Construct a new empty collection of functions.
     pub fn new() -> Self {
-        Self {
-            functions: Default::default(),
-            functions_info: Default::default(),
-        }
+        Functions::default()
     }
 
-    /// Iterate over all available functions
-    pub fn functions(&self) -> impl Iterator<Item = (Hash, &FnSignature)> {
-        let mut it = self.functions_info.iter();
+    /// Access the global module.
+    pub fn global_module(&self) -> &GlobalModule {
+        &self.global_module
+    }
+
+    /// Return a mutable variant of the global module.
+    pub fn global_module_mut(&mut self) -> &mut GlobalModule {
+        &mut self.global_module
+    }
+
+    /// Iterate over all modules.
+    pub fn iter_modules(&self) -> impl Iterator<Item = (Hash, &Module)> {
+        let mut it = self.modules.iter();
 
         std::iter::from_fn(move || {
-            let (hash, signature) = it.next()?;
-            Some((*hash, signature))
+            let (hash, m) = it.next()?;
+            Some((*hash, m))
         })
     }
 
@@ -166,6 +226,64 @@ impl Functions {
         crate::packages::core::install(&mut functions)?;
         crate::packages::bytes::install(&mut functions)?;
         Ok(functions)
+    }
+
+    /// Construct or insert functions into the module with the given name.
+    pub fn module_mut<I>(&mut self, name: I) -> Result<&mut Module, RegisterError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let name = ModuleName::of(name);
+        let hash = name.hash();
+
+        match self.modules.entry(hash) {
+            hash_map::Entry::Occupied(e) => Err(RegisterError::ConflictingModule {
+                hash,
+                name: e.get().name.clone(),
+            }),
+            hash_map::Entry::Vacant(e) => {
+                let new_module = Module::with_name(name);
+                Ok(e.insert(new_module))
+            }
+        }
+    }
+
+    /// Lookup module by hash.
+    pub fn lookup_module(&self, module: Hash) -> Option<&Module> {
+        self.modules.get(&module)
+    }
+
+    /// Lookup the given function in the global module.
+    pub fn lookup(&self, hash: Hash) -> Option<&Handler> {
+        let handler = self.global_module.lookup(hash)?;
+        Some(&*handler)
+    }
+}
+
+/// A collection of functions that can be looked up by type.
+#[derive(Default)]
+pub struct GlobalModule {
+    /// Free functions.
+    functions: HashMap<Hash, Box<Handler>>,
+    /// Information on functions.
+    functions_info: HashMap<Hash, FnSignature>,
+}
+
+impl GlobalModule {
+    /// Construct a new global module.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Iterate over all available functions
+    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &FnSignature)> {
+        let mut it = self.functions_info.iter();
+
+        std::iter::from_fn(move || {
+            let (hash, signature) = it.next()?;
+            Some((*hash, signature))
+        })
     }
 
     /// Lookup the given function.
@@ -180,11 +298,11 @@ impl Functions {
     ///
     /// ```rust
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut functions = st::Functions::new();
+    /// let mut module = st::GlobalModule::default();
     ///
-    /// functions.global_fallible_fn("empty", || Ok::<_, st::Error>(()))?;
-    /// functions.global_fallible_fn("string", |a: String| Ok::<_, st::Error>(()))?;
-    /// functions.global_fallible_fn("optional", |a: Option<String>| Ok::<_, st::Error>(()))?;
+    /// module.global_fallible_fn("empty", || Ok::<_, st::Error>(()))?;
+    /// module.global_fallible_fn("string", |a: String| Ok::<_, st::Error>(()))?;
+    /// module.global_fallible_fn("optional", |a: Option<String>| Ok::<_, st::Error>(()))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -234,10 +352,10 @@ impl Functions {
     /// st::decl_external!(StringQueue);
     ///
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut functions = st::Functions::new();
+    /// let mut module = st::GlobalModule::default();
     ///
-    /// functions.global_fn("bytes", StringQueue::new)?;
-    /// functions.instance_fn("len", StringQueue::len)?;
+    /// module.global_fn("bytes", StringQueue::new)?;
+    /// module.instance_fn("len", StringQueue::len)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -267,14 +385,12 @@ impl Functions {
     /// # Examples
     ///
     /// ```rust
-    /// use st::Functions;
-    ///
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut functions = Functions::new();
+    /// let mut module = st::GlobalModule::default();
     ///
-    /// functions.async_fn("empty", || async { Ok::<_, st::Error>(()) })?;
-    /// functions.async_fn("string", |a: String| async { Ok::<_, st::Error>(()) })?;
-    /// functions.async_fn("optional", |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
+    /// module.async_fn("empty", || async { Ok::<_, st::Error>(()) })?;
+    /// module.async_fn("string", |a: String| async { Ok::<_, st::Error>(()) })?;
+    /// module.async_fn("optional", |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
     /// # Ok(())
     /// # }
     /// ```
@@ -302,9 +418,9 @@ impl Functions {
     ///
     /// ```rust
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut functions = st::Functions::new();
+    /// let mut module = st::GlobalModule::default();
     ///
-    /// functions.instance_fallible_fn("len", |s: &str| Ok::<_, st::Error>(s.len()))?;
+    /// module.instance_fallible_fn("len", |s: &str| Ok::<_, st::Error>(s.len()))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -359,10 +475,10 @@ impl Functions {
     /// st::decl_external!(StringQueue);
     ///
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut functions = st::Functions::new();
+    /// let mut module = st::GlobalModule::default();
     ///
-    /// functions.global_fn("bytes", StringQueue::new)?;
-    /// functions.instance_fn("len", StringQueue::len)?;
+    /// module.global_fn("bytes", StringQueue::new)?;
+    /// module.instance_fn("len", StringQueue::len)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -412,8 +528,9 @@ impl Functions {
     /// }
     ///
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut functions = st::Functions::new();
-    /// functions.async_instance_fn("test", MyType::test)?;
+    /// let mut module = st::GlobalModule::default();
+    ///
+    /// module.async_instance_fn("test", MyType::test)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -444,7 +561,206 @@ impl Functions {
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn raw_global_fn<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
+    pub fn raw_fn<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
+    where
+        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), CallError> + Send + Sync,
+    {
+        let hash = Hash::global_fn(name);
+
+        if self.functions.contains_key(&hash) {
+            return Err(RegisterError::ConflictingFunction { hash });
+        }
+
+        self.functions.insert(
+            hash,
+            Box::new(move |vm, args| Box::pin(async move { f(vm, args) })),
+        );
+
+        Ok(hash)
+    }
+
+    /// Register a raw function which interacts directly with the virtual
+    /// machine.
+    pub fn raw_async_fn<F, O>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
+    where
+        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
+        O: Future<Output = Result<(), CallError>>,
+    {
+        let hash = Hash::global_fn(name);
+
+        if self.functions.contains_key(&hash) {
+            return Err(RegisterError::ConflictingFunction { hash });
+        }
+
+        self.functions.insert(
+            hash,
+            Box::new(move |vm, args| Box::pin(async move { f(vm, args).await })),
+        );
+
+        Ok(hash)
+    }
+}
+
+/// A collection of functions that can be looked up by type.
+#[derive(Default)]
+pub struct Module {
+    /// The name of the module.
+    name: ModuleName,
+    /// Free functions.
+    functions: HashMap<Hash, Box<Handler>>,
+    /// Information on functions.
+    functions_info: HashMap<Hash, FnSignature>,
+}
+
+impl Module {
+    /// Construct a new module with the given name.
+    pub fn with_name(name: ModuleName) -> Self {
+        Self {
+            name,
+            functions: Default::default(),
+            functions_info: Default::default(),
+        }
+    }
+
+    /// Get the module name.
+    pub fn name(&self) -> &ModuleName {
+        &self.name
+    }
+
+    /// Iterate over all available functions
+    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &FnSignature)> {
+        let mut it = self.functions_info.iter();
+
+        std::iter::from_fn(move || {
+            let (hash, signature) = it.next()?;
+            Some((*hash, signature))
+        })
+    }
+
+    /// Lookup the given function.
+    pub fn lookup(&self, hash: Hash) -> Option<&Handler> {
+        let handler = self.functions.get(&hash)?;
+        Some(&*handler)
+    }
+
+    /// Register a function.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # fn main() -> anyhow::Result<()> {
+    /// let mut module = st::Module::default();
+    ///
+    /// module.global_fallible_fn("empty", || Ok::<_, st::Error>(()))?;
+    /// module.global_fallible_fn("string", |a: String| Ok::<_, st::Error>(()))?;
+    /// module.global_fallible_fn("optional", |a: Option<String>| Ok::<_, st::Error>(()))?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn global_fallible_fn<Func, Args>(
+        &mut self,
+        name: &str,
+        f: Func,
+    ) -> Result<Hash, RegisterError>
+    where
+        Func: GlobalFallibleFn<Args>,
+    {
+        let hash = Hash::global_fn(name);
+
+        if self.functions.contains_key(&hash) {
+            return Err(RegisterError::ConflictingFunction { hash });
+        }
+
+        let handler: Box<Handler> = Box::new(move |vm, args| {
+            let ret = f.vm_call(vm, args);
+            Box::pin(async move { ret })
+        });
+
+        self.functions.insert(hash, handler);
+        Ok(hash)
+    }
+
+    /// Register a function that cannot error internally.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use std::collections::VecDeque;
+    ///
+    /// #[derive(Debug, Clone)]
+    /// struct StringQueue(VecDeque<String>);
+    ///
+    /// impl StringQueue {
+    ///     fn new() -> Self {
+    ///         Self(VecDeque::new())
+    ///     }
+    /// }
+    ///
+    /// st::decl_external!(StringQueue);
+    ///
+    /// # fn main() -> anyhow::Result<()> {
+    /// let mut module = st::Module::default();
+    ///
+    /// module.global_fn("bytes", StringQueue::new)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn global_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
+    where
+        Func: GlobalFn<Args>,
+    {
+        let hash = Hash::global_fn(name);
+
+        if self.functions.contains_key(&hash) {
+            return Err(RegisterError::ConflictingFunction { hash });
+        }
+
+        let handler: Box<Handler> = Box::new(move |vm, args| {
+            let ret = f.vm_call(vm, args);
+            Box::pin(async move { ret })
+        });
+
+        self.functions.insert(hash, handler);
+        self.functions_info
+            .insert(hash, FnSignature::new_global(name, Func::args()));
+        Ok(hash)
+    }
+
+    /// Register a function.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # fn main() -> anyhow::Result<()> {
+    /// let mut module = st::Module::default();
+    ///
+    /// module.async_fn("empty", || async { Ok::<_, st::Error>(()) })?;
+    /// module.async_fn("string", |a: String| async { Ok::<_, st::Error>(()) })?;
+    /// module.async_fn("optional", |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn async_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
+    where
+        Func: AsyncFn<Args>,
+    {
+        let hash = Hash::global_fn(name);
+
+        if self.functions.contains_key(&hash) {
+            return Err(RegisterError::ConflictingFunction { hash });
+        }
+
+        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+
+        self.functions.insert(hash, handler);
+        self.functions_info
+            .insert(hash, FnSignature::new_global(name, Func::args()));
+        Ok(hash)
+    }
+
+    /// Register a raw function which interacts directly with the virtual
+    /// machine.
+    pub fn raw_fn<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), CallError> + Send + Sync,
     {

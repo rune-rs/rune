@@ -10,6 +10,14 @@ pub struct Span {
 }
 
 impl Span {
+    /// Join this span with another span.
+    pub fn join(self, other: Self) -> Self {
+        Self {
+            start: usize::min(self.start, other.start),
+            end: usize::min(self.end, other.end),
+        }
+    }
+
     /// Get the point span.
     pub fn point(pos: usize) -> Self {
         Self {
@@ -42,8 +50,11 @@ impl Span {
             count += c.encode_utf8(&mut [0u8; 4]).len();
 
             if let '\n' | '\r' = c {
-                if col > 0 {
+                if c == '\n' {
                     line += 1;
+                }
+
+                if col > 0 {
                     col = 0;
                 }
 
@@ -122,6 +133,8 @@ pub enum Kind {
     If,
     /// An `else` token.
     Else,
+    /// An `import` token.
+    Import,
     /// An identifier.
     Ident,
     /// A number literal, like `42` or `3.14` or `0xff`.
@@ -146,6 +159,8 @@ pub enum Kind {
     },
     /// A dot `.`.
     Dot,
+    /// A scope `::`.
+    Scope,
     /// A comma `,`.
     Comma,
     /// A semi-colon `;`.
@@ -179,6 +194,7 @@ impl fmt::Display for Kind {
             Self::Let => write!(fmt, "let"),
             Self::If => write!(fmt, "if"),
             Self::Else => write!(fmt, "else"),
+            Self::Import => write!(fmt, "import"),
             Self::Ident => write!(fmt, "ident"),
             Self::NumberLiteral { number } => write!(fmt, "{}", number),
             Self::StringLiteral { .. } => write!(fmt, "string"),
@@ -186,6 +202,7 @@ impl fmt::Display for Kind {
             Self::Close { delimiter } => write!(fmt, "{}", delimiter.close()),
             Self::Comma => write!(fmt, ","),
             Self::Dot => write!(fmt, "."),
+            Self::Scope => write!(fmt, "::"),
             Self::SemiColon => write!(fmt, ";"),
             Self::Plus => write!(fmt, "+"),
             Self::Minus => write!(fmt, "-"),

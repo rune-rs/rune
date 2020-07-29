@@ -108,11 +108,18 @@ async fn main() -> Result<()> {
     st_http::install(&mut functions)?;
 
     if dump_functions {
-        println!("# functions dump");
-        println!("functions:");
+        println!("# global functions");
 
-        for (hash, f) in functions.functions() {
-            println!("{} = {}", hash, f);
+        for (i, (hash, f)) in functions.global_module().iter_functions().enumerate() {
+            println!("{:04} = {} ({})", i, f, hash);
+        }
+
+        for (hash, m) in functions.iter_modules() {
+            println!("# module: {} ({})", m.name(), hash);
+
+            for (i, (hash, f)) in m.iter_functions().enumerate() {
+                println!("{:04} = {} ({})", i, f, hash);
+            }
         }
     }
 
@@ -122,6 +129,12 @@ async fn main() -> Result<()> {
 
         for (i, inst) in unit.iter_instructions().enumerate() {
             println!("{:04x} = {:?}", i, inst);
+        }
+
+        println!("imports:");
+
+        for (hash, f) in unit.iter_imports() {
+            println!("{} = {}", hash, f);
         }
 
         println!("functions:");

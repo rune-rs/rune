@@ -13,6 +13,12 @@ pub enum UnitError {
         /// The signature of an already existing function.
         existing: UnitFnSignature,
     },
+    /// Tried to add an import that conflicts with an existing one.
+    #[error("conflicting import already exists `{existing}`")]
+    ImportConflict {
+        /// The signature of the old import.
+        existing: UnitImport,
+    },
     /// A static string was missing for the given hash and slot.
     #[error("missing static string for hash `{hash}` and slot `{slot}`")]
     StaticStringMissing {
@@ -40,6 +46,34 @@ pub struct UnitFnInfo {
     offset: usize,
     /// Signature of the function.
     signature: UnitFnSignature,
+}
+/// A description of a function signature.
+#[derive(Debug)]
+pub struct UnitImport {
+    path: Vec<String>,
+}
+
+impl UnitImport {
+    /// Construct a new import declaration.
+    fn new(path: Vec<String>) -> Self {
+        Self { path }
+    }
+}
+
+impl fmt::Display for UnitImport {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.path.iter().peekable();
+
+        while let Some(part) = it.next() {
+            write!(fmt, "{}", part)?;
+
+            if it.peek().is_some() {
+                write!(fmt, "::")?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// A description of a function signature.
@@ -84,6 +118,13 @@ impl fmt::Display for UnitFnSignature {
 pub struct Unit {
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
+    /// All imports in the current unit.
+    ///
+    /// Only used to link against the current environment to make sure all
+    /// required units are present.
+    imports: HashMap<Hash, UnitImport>,
+    /// Import hashes by name.
+    imports_rev: HashMap<Vec<String>, Hash>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFnInfo>,
     /// A static string.
@@ -97,6 +138,8 @@ impl Unit {
     pub fn new() -> Self {
         Self {
             instructions: Vec::new(),
+            imports: HashMap::new(),
+            imports_rev: HashMap::new(),
             functions: HashMap::new(),
             static_strings: Vec::new(),
             static_string_rev: HashMap::new(),
@@ -126,6 +169,16 @@ impl Unit {
     /// Iterate over known functions.
     pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFnInfo)> + '_ {
         let mut it = self.functions.iter();
+
+        std::iter::from_fn(move || {
+            let (k, v) = it.next()?;
+            Some((*k, v))
+        })
+    }
+
+    /// Iterate over known imports.
+    pub fn iter_imports(&self) -> impl Iterator<Item = (Hash, &UnitImport)> + '_ {
+        let mut it = self.imports.iter();
 
         std::iter::from_fn(move || {
             let (k, v) = it.next()?;
@@ -175,9 +228,37 @@ impl Unit {
         Some(self.functions.get(&hash)?.offset)
     }
 
-    /// Construct a new function.
-    pub fn new_function<'a>(
-        &'a mut self,
+    /// Look up an import by name.
+    pub fn lookup_import_by_name(&self, import: &[String]) -> Option<&UnitImport> {
+        let hash = self.imports_rev.get(import)?;
+        self.imports.get(hash)
+    }
+
+    /// Declare a new import.
+    pub fn new_import<I>(&mut self, path: I) -> Result<(), UnitError>
+    where
+        I: Copy + IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let name = path
+            .into_iter()
+            .map(|s| s.as_ref().to_owned())
+            .collect::<Vec<_>>();
+
+        let info = UnitImport::new(name.clone());
+        let hash = Hash::module(&name);
+
+        if let Some(old) = self.imports.insert(hash, info) {
+            return Err(UnitError::ImportConflict { existing: old });
+        }
+
+        self.imports_rev.insert(name, hash);
+        Ok(())
+    }
+
+    /// Declare a new function at the current instruction pointer.
+    pub fn new_function(
+        &mut self,
         name: &str,
         args: usize,
         instructions: &[Inst],

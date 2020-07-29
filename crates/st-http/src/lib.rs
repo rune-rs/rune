@@ -41,8 +41,11 @@ st::decl_external!(Response);
 
 /// Install the http library.
 pub fn install(functions: &mut st::Functions) -> Result<(), st::RegisterError> {
-    functions.global_fn("client", Client::new)?;
-    functions.async_instance_fn("get", Client::get)?;
-    functions.async_instance_fn("text", Response::text)?;
+    let module = functions.module_mut(&["http"])?;
+    module.global_fn("client", Client::new)?;
+
+    let module = functions.global_module_mut();
+    module.async_instance_fn("get", Client::get)?;
+    module.async_instance_fn("text", Response::text)?;
     Ok(())
 }

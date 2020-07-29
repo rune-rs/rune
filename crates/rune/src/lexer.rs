@@ -79,6 +79,7 @@ impl<'a> Lexer<'a> {
             "let" => Kind::Let,
             "if" => Kind::If,
             "else" => Kind::Else,
+            "import" => Kind::Import,
             _ => Kind::Ident,
         };
 
@@ -208,24 +209,30 @@ impl<'a> Lexer<'a> {
             }
 
             let kind = loop {
-                match (c, it.clone().next().map(|(_, c)| c)) {
-                    ('/', Some('/')) => {
-                        self.consume_line(&mut it);
-                        continue 'outer;
+                if let Some(c2) = it.clone().next().map(|(_, c)| c) {
+                    match (c, c2) {
+                        ('/', '/') => {
+                            self.consume_line(&mut it);
+                            continue 'outer;
+                        }
+                        (':', ':') => {
+                            it.next();
+                            break Kind::Scope;
+                        }
+                        ('<', '=') => {
+                            it.next();
+                            break Kind::Lte;
+                        }
+                        ('>', '=') => {
+                            it.next();
+                            break Kind::Gte;
+                        }
+                        ('=', '=') => {
+                            it.next();
+                            break Kind::EqEq;
+                        }
+                        _ => (),
                     }
-                    ('<', Some('=')) => {
-                        it.next();
-                        break Kind::Lte;
-                    }
-                    ('>', Some('=')) => {
-                        it.next();
-                        break Kind::Gte;
-                    }
-                    ('=', Some('=')) => {
-                        it.next();
-                        break Kind::EqEq;
-                    }
-                    _ => (),
                 }
 
                 break match c {
