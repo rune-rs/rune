@@ -14,7 +14,7 @@ pub fn install(functions: &mut Functions) -> Result<(), RegisterError> {
         for n in 0..args {
             match vm.managed_pop() {
                 Ok(value) => {
-                    println!("{} = {:?}", n, vm.to_value(value));
+                    println!("{} = {:?}", n, vm.to_value_ref(value));
                 }
                 Err(e) => {
                     println!("{} = {}", n, e);

@@ -7,7 +7,7 @@ use crate::value::{Managed, Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
 use anyhow::Result;
 use slab::Slab;
 use std::any::{type_name, TypeId};
-use std::cell::{Cell, RefCell, UnsafeCell};
+use std::cell::{Cell, UnsafeCell};
 use std::fmt;
 use std::marker::PhantomData;
 use thiserror::Error;
@@ -39,9 +39,19 @@ pub enum StackError {
         /// The slot that was missing.
         slot: usize,
     },
-    /// The given external slot is inaccessible.
-    #[error("external slot `{slot}` is inaccessible")]
-    ExternalInaccessible {
+    /// The given slot is inaccessible.
+    #[error("{managed} slot `{slot}` is inaccessible for exclusive access")]
+    SlotInaccessibleExclusive {
+        /// Error raised when a slot is inaccessible.
+        managed: Managed,
+        /// The slot that could not be accessed.
+        slot: usize,
+    },
+    /// The given slot is inaccessible.
+    #[error("{managed} slot `{slot}` is inaccessible for shared access")]
+    SlotInaccessibleShared {
+        /// Error raised when a slot is inaccessible.
+        managed: Managed,
         /// The slot that could not be accessed.
         slot: usize,
     },
@@ -602,7 +612,7 @@ impl Inst {
                         array.push(vm.stack.pop().ok_or_else(|| StackError::StackEmpty)?);
                     }
 
-                    let value = vm.allocate_array(array.into_boxed_slice());
+                    let value = vm.allocate_array(array);
                     vm.managed_push(value)?;
                 }
                 Self::String { slot } => {
@@ -610,7 +620,7 @@ impl Inst {
                         .lookup_string(slot)
                         .ok_or_else(|| VmError::MissingStaticString { slot })?;
                     // TODO: do something sneaky to only allocate the static string once.
-                    let value = vm.allocate_string(string.to_owned().into_boxed_str());
+                    let value = vm.allocate_string(string.to_owned());
                     vm.managed_push(value)?;
                 }
             }
@@ -627,41 +637,55 @@ impl Inst {
 struct Access(Cell<isize>);
 
 impl Access {
-    /// Test if the access token is accessible.
-    #[inline]
-    fn is_sharable(&self) -> bool {
-        self.0.get() <= 0
-    }
-
     /// Clear the given access token.
+    #[inline]
     fn clear(&self) {
         self.0.set(0);
     }
 
-    /// Mark that we want shared access to the given access token.
+    /// Test if we have shared access without modifying the internal count.
     #[inline]
-    fn shared(&self) -> bool {
+    fn test_shared(&self, managed: Managed, slot: usize) -> Result<(), StackError> {
         let b = self.0.get().wrapping_sub(1);
 
-        if b < 0 {
-            self.0.set(b);
-            true
-        } else {
-            false
+        if b >= 0 {
+            return Err(StackError::SlotInaccessibleShared { managed, slot });
         }
+
+        Ok(())
+    }
+
+    /// Mark that we want shared access to the given access token.
+    #[inline]
+    fn shared(&self, managed: Managed, slot: usize) -> Result<(), StackError> {
+        let b = self.0.get().wrapping_sub(1);
+
+        if b >= 0 {
+            return Err(StackError::SlotInaccessibleShared { managed, slot });
+        }
+
+        self.0.set(b);
+        Ok(())
+    }
+
+    /// Unshare the current access.
+    #[inline]
+    fn unshared(&self) {
+        let b = self.0.get().wrapping_add(1);
+        self.0.set(b);
     }
 
     /// Mark that we want exclusive access to the given access token.
     #[inline]
-    fn exclusive(&self) -> bool {
+    fn exclusive(&self, managed: Managed, slot: usize) -> Result<(), StackError> {
         let b = self.0.get().wrapping_add(1);
 
-        if b == 1 {
-            self.0.set(b);
-            true
-        } else {
-            false
+        if b != 1 {
+            return Err(StackError::SlotInaccessibleExclusive { managed, slot });
         }
+
+        self.0.set(b);
+        Ok(())
     }
 }
 
@@ -696,8 +720,10 @@ where
 pub(crate) struct Holder<T> {
     /// Number of references to this value.
     count: usize,
+    /// Access for the given holder.
+    access: Access,
     /// The value being held.
-    pub(crate) value: T,
+    pub(crate) value: UnsafeCell<T>,
 }
 
 impl<T> fmt::Debug for Holder<T>
@@ -748,13 +774,13 @@ pub struct Vm {
     /// Slots with external values.
     pub(crate) externals: Slab<ExternalHolder<dyn External>>,
     /// Slots with strings.
-    pub(crate) strings: Slab<Holder<Box<str>>>,
+    pub(crate) strings: Slab<Holder<String>>,
     /// Slots with arrays, which themselves reference values.
-    pub(crate) arrays: Slab<Holder<Box<[ValuePtr]>>>,
+    pub(crate) arrays: Slab<Holder<Vec<ValuePtr>>>,
     /// We have exited from the last frame.
     pub(crate) exited: bool,
     /// Slots that needs to be disarmed next time we call `disarm`.
-    guards: RefCell<Vec<(Managed, usize)>>,
+    guards: UnsafeCell<Vec<(Managed, usize)>>,
 }
 
 impl Vm {
@@ -769,8 +795,16 @@ impl Vm {
             strings: Slab::new(),
             arrays: Slab::new(),
             exited: false,
-            guards: RefCell::new(Vec::new()),
+            guards: UnsafeCell::new(Vec::new()),
         }
+    }
+
+    /// Push the given guard to be disarmed.
+    fn push_guard(&self, managed: Managed, slot: usize) {
+        log::trace!("pushing slot guard: {}({})", managed, slot);
+        // Safety: we are the only ones pushing to the guard and can guarantee
+        // sound access.
+        unsafe { (*self.guards.get()).push((managed, slot)) }
     }
 
     /// Iterate over the stack, producing the value associated with each stack
@@ -782,7 +816,7 @@ impl Vm {
 
         std::iter::from_fn(move || {
             let value_ref = it.next()?;
-            let value = self.to_value(value_ref);
+            let value = self.to_value_ref(value_ref);
             Some((value_ref, value))
         })
     }
@@ -921,8 +955,9 @@ impl Vm {
                         }
 
                         let array = self.arrays.remove(slot);
+                        let value = UnsafeCell::into_inner(array.value);
 
-                        for value in array.value.into_iter().copied() {
+                        for value in value {
                             if let Some((managed, slot)) = value.try_into_managed() {
                                 self.dec_count(managed, slot)?;
                             }
@@ -1089,10 +1124,11 @@ impl Vm {
     ///
     /// This operation can leak memory unless the returned slot is pushed onto
     /// the stack.
-    pub fn allocate_string(&mut self, string: Box<str>) -> ValuePtr {
+    pub fn allocate_string(&mut self, string: String) -> ValuePtr {
         let slot = self.strings.insert(Holder {
             count: 0,
-            value: string,
+            access: Default::default(),
+            value: UnsafeCell::new(string),
         });
 
         ValuePtr::Managed(Slot::string(slot))
@@ -1102,10 +1138,11 @@ impl Vm {
     ///
     /// This operation can leak memory unless the returned slot is pushed onto
     /// the stack.
-    pub fn allocate_array(&mut self, array: Box<[ValuePtr]>) -> ValuePtr {
+    pub fn allocate_array(&mut self, array: Vec<ValuePtr>) -> ValuePtr {
         let slot = self.arrays.insert(Holder {
             count: 0,
-            value: array,
+            access: Default::default(),
+            value: UnsafeCell::new(array),
         });
 
         ValuePtr::Managed(Slot::array(slot))
@@ -1128,80 +1165,179 @@ impl Vm {
     }
 
     /// Get a reference of the string at the given string slot.
-    pub fn string_ref(&self, slot: usize) -> Result<&str, StackError> {
+    pub fn string_ref(&self, slot: usize) -> Result<&String, StackError> {
         if let Some(holder) = self.strings.get(slot) {
-            return Ok(&holder.value);
+            holder.access.shared(Managed::String, slot)?;
+            self.push_guard(Managed::String, slot);
+            return Ok(unsafe { &*holder.value.get() });
+        }
+
+        Err(StackError::StringSlotMissing { slot })
+    }
+
+    /// Get a mutable reference of the string at the given string slot.
+    pub fn string_mut(&self, slot: usize) -> Result<&mut String, StackError> {
+        if let Some(holder) = self.strings.get(slot) {
+            holder.access.exclusive(Managed::String, slot)?;
+            self.push_guard(Managed::String, slot);
+            return Ok(unsafe { &mut *holder.value.get() });
         }
 
         Err(StackError::StringSlotMissing { slot })
     }
 
     /// Get a cloned string from the given slot.
-    pub fn string_clone(&self, slot: usize) -> Result<Box<str>, StackError> {
+    pub fn string_clone(&self, slot: usize) -> Result<String, StackError> {
         if let Some(holder) = self.strings.get(slot) {
-            return Ok(holder.value.to_owned());
+            holder.access.test_shared(Managed::Array, slot)?;
+            return Ok(unsafe { (*holder.value.get()).clone() });
         }
 
         Err(StackError::StringSlotMissing { slot })
     }
 
     /// Take the string at the given slot.
-    pub fn string_take(&mut self, slot: usize) -> Result<Box<str>, StackError> {
+    pub fn string_take(&mut self, slot: usize) -> Result<String, StackError> {
         if !self.strings.contains(slot) {
             return Err(StackError::StringSlotMissing { slot });
         }
 
         let holder = self.strings.remove(slot);
-        Ok(holder.value)
+        holder.access.exclusive(Managed::String, slot)?;
+        Ok(UnsafeCell::into_inner(holder.value))
     }
 
     /// Get a reference of the array at the given slot.
-    pub fn array_ref(&self, slot: usize) -> Result<&[ValuePtr], StackError> {
+    pub fn array_ref(&self, slot: usize) -> Result<&Vec<ValuePtr>, StackError> {
         if let Some(holder) = self.arrays.get(slot) {
-            return Ok(&holder.value);
+            holder.access.shared(Managed::Array, slot)?;
+            self.push_guard(Managed::Array, slot);
+            return Ok(unsafe { &*holder.value.get() });
         }
 
         Err(StackError::ArraySlotMissing { slot })
     }
 
     /// Get a cloned array from the given slot.
-    pub fn array_clone(&self, slot: usize) -> Result<Box<[ValuePtr]>, StackError> {
+    pub fn array_clone(&self, slot: usize) -> Result<Vec<ValuePtr>, StackError> {
         if let Some(holder) = self.arrays.get(slot) {
-            return Ok(holder.value.to_owned());
+            // NB: we only need temporary access.
+            holder.access.test_shared(Managed::Array, slot)?;
+            // Safety: Caller needs to ensure that they safely call disarm.
+            return Ok(unsafe { (*holder.value.get()).clone() });
+        }
+
+        Err(StackError::ArraySlotMissing { slot })
+    }
+
+    /// Get a reference of the array at the given slot.
+    pub fn array_mut(&self, slot: usize) -> Result<&mut Vec<ValuePtr>, StackError> {
+        if let Some(holder) = self.arrays.get(slot) {
+            holder.access.exclusive(Managed::Array, slot)?;
+            self.push_guard(Managed::Array, slot);
+            // Safety: Caller needs to ensure that they safely call disarm.
+            return Ok(unsafe { &mut *holder.value.get() });
         }
 
         Err(StackError::ArraySlotMissing { slot })
     }
 
     /// Take the array at the given slot.
-    pub fn array_take(&mut self, slot: usize) -> Result<Box<[ValuePtr]>, StackError> {
+    ///
+    /// After taking the array, the caller is responsible for deallocating it.
+    pub fn array_take(&mut self, slot: usize) -> Result<Vec<ValuePtr>, StackError> {
         if !self.arrays.contains(slot) {
             return Err(StackError::ArraySlotMissing { slot });
         }
 
         let holder = self.arrays.remove(slot);
-        Ok(holder.value)
+        holder.access.exclusive(Managed::Array, slot)?;
+        Ok(UnsafeCell::into_inner(holder.value))
+    }
+
+    /// Get a reference of the external value of the given type and the given
+    /// slot.
+    pub fn external_ref<'out, T: External>(&self, slot: usize) -> Result<&'out T, StackError> {
+        let holder = self
+            .externals
+            .get(slot)
+            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
+
+        holder.access.shared(Managed::External, slot)?;
+
+        // Safety: Caller needs to ensure that they safely call disarm.
+        unsafe {
+            let external = match (&*holder.value.get()).as_any().downcast_ref::<T>() {
+                Some(external) => external,
+                None => {
+                    holder.access.unshared();
+
+                    return Err(StackError::ExpectedExternalType {
+                        expected: type_name::<T>(),
+                        actual: holder.type_name,
+                    });
+                }
+            };
+
+            self.push_guard(Managed::External, slot);
+            Ok(&*(external as *const T))
+        }
+    }
+
+    /// Get a mutable reference of the external value of the given type and the
+    /// given slot.
+    ///
+    /// Mark the given value as mutably used, preventing it from being used
+    /// again.
+    pub fn external_mut<'out, T: External>(&self, slot: usize) -> Result<&'out mut T, StackError> {
+        let holder = self
+            .externals
+            .get(slot)
+            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
+
+        holder.access.exclusive(Managed::External, slot)?;
+
+        // Safety: Caller needs to ensure that they safely call disarm.
+        unsafe {
+            let external = (*holder.value.get())
+                .as_any_mut()
+                .downcast_mut::<T>()
+                .ok_or_else(|| StackError::ExpectedExternalType {
+                    expected: type_name::<T>(),
+                    actual: holder.type_name,
+                })?;
+
+            self.push_guard(Managed::External, slot);
+            Ok(external)
+        }
     }
 
     /// Get a clone of the given external.
     pub fn external_clone<T: Clone + External>(&self, slot: usize) -> Result<T, StackError> {
         // This is safe since we can rely on the typical reference guarantees of
         // VM.
-        unsafe {
-            if let Some(holder) = self.externals.get(slot) {
-                let external = (*holder.value.get())
-                    .as_any()
-                    .downcast_ref::<T>()
-                    .ok_or_else(|| StackError::ExpectedExternalType {
-                        expected: type_name::<T>(),
-                        actual: holder.type_name,
-                    })?;
+        if let Some(holder) = self.externals.get(slot) {
+            holder.access.test_shared(Managed::Array, slot)?;
 
+            // Safety: Caller needs to ensure that they safely call disarm.
+            unsafe {
+                let external = match (*holder.value.get()).as_any().downcast_ref::<T>() {
+                    Some(external) => external,
+                    None => {
+                        holder.access.unshared();
+                        return Err(StackError::ExpectedExternalType {
+                            expected: type_name::<T>(),
+                            actual: holder.type_name,
+                        });
+                    }
+                };
+
+                self.push_guard(Managed::External, slot);
                 return Ok(external.clone());
             }
-
-            Err(StackError::ExternalSlotMissing { slot })
         }
+
+        Err(StackError::ExternalSlotMissing { slot })
     }
 
     /// Take an external value by dyn, assuming you have exlusive access to it.
@@ -1213,21 +1349,23 @@ impl Vm {
             return Err(StackError::ExternalSlotMissing { slot });
         }
 
-        let mut external = self.externals.remove(slot);
+        let mut holder = self.externals.remove(slot);
+        holder.access.exclusive(Managed::External, slot)?;
 
-        // Safety: We have mutable access to the VM, so we're the only ones
-        // accessing this right now.
+        // Safety: Caller needs to ensure that they safely call disarm.
         unsafe {
-            let value = Box::into_raw(external.value);
+            let value = Box::into_raw(holder.value);
 
             if let Some(ptr) = (&mut *(*value).get()).as_mut_ptr(TypeId::of::<T>()) {
                 return Ok(*Box::from_raw(ptr as *mut T));
             }
 
-            let actual = external.type_name;
+            let actual = holder.type_name;
 
-            external.value = Box::from_raw(value);
-            let new_slot = self.externals.insert(external);
+            holder.access.clear();
+            holder.value = Box::from_raw(value);
+
+            let new_slot = self.externals.insert(holder);
             debug_assert!(new_slot == slot);
 
             Err(StackError::ExpectedExternalType {
@@ -1237,118 +1375,66 @@ impl Vm {
         }
     }
 
+    /// Get a reference of the external value of the given type and the given
+    /// slot.
+    pub fn external_ref_dyn(&self, slot: usize) -> Result<&dyn External, StackError> {
+        let holder = self
+            .externals
+            .get(slot)
+            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
+
+        holder.access.shared(Managed::External, slot)?;
+        self.push_guard(Managed::External, slot);
+
+        // Safety: Caller needs to ensure that they safely call disarm.
+        Ok(unsafe { &*holder.value.get() })
+    }
+
     /// Take an external value by dyn, assuming you have exlusive access to it.
     pub fn external_take_dyn(&mut self, slot: usize) -> Result<Box<dyn External>, StackError> {
         if !self.externals.contains(slot) {
             return Err(StackError::ExternalSlotMissing { slot });
         }
 
-        // Safety: We have mutable access to the VM, so we're the only ones
-        // accessing this right now.
+        let holder = self.externals.remove(slot);
+        holder.access.exclusive(Managed::External, slot)?;
+
+        // Safety: Caller needs to ensure that they safely call disarm.
         unsafe {
-            let external = self.externals.remove(slot);
-            let value = Box::into_raw(external.value);
+            let value = Box::into_raw(holder.value);
             Ok(Box::from_raw((*value).get()))
         }
     }
 
-    /// Get a reference of the external value of the given type and the given
-    /// slot.
-    ///
-    /// # Safety
-    ///
-    /// Caller must ensure that the made up returned reference is no longer used
-    /// before [disarm][Vm::disarm] is called.
-    pub fn external_ref_dyn(&self, slot: usize) -> Result<&dyn External, StackError> {
-        let external = self
-            .externals
-            .get(slot)
-            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
-
-        if !external.access.is_sharable() {
-            return Err(StackError::ExternalInaccessible { slot });
-        }
-
-        Ok(unsafe { &*external.value.get() })
-    }
-
-    /// Get a reference of the external value of the given type and the given
-    /// slot.
-    ///
-    /// # Safety
-    ///
-    /// Caller must ensure that the made up returned reference is no longer used
-    /// before [disarm][Vm::disarm] is called.
-    pub unsafe fn unsafe_external_ref<'out, T: External>(
-        &self,
-        slot: usize,
-    ) -> Result<&'out T, StackError> {
-        let external = self
-            .externals
-            .get(slot)
-            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
-
-        if !external.access.shared() {
-            return Err(StackError::ExternalInaccessible { slot });
-        }
-
-        let external = (&*external.value.get())
-            .as_any()
-            .downcast_ref::<T>()
-            .ok_or_else(|| StackError::ExpectedExternalType {
-                expected: type_name::<T>(),
-                actual: external.type_name,
-            })?;
-
-        self.guards.borrow_mut().push((Managed::External, slot));
-        Ok(&*(external as *const T))
-    }
-
-    /// Get a reference of the external value of the given type and the given
-    /// slot.
-    ///
-    /// Mark the given value as mutably used, preventing it from being used
-    /// again.
-    ///
-    /// # Safety
-    ///
-    /// Caller must ensure that the made up returned reference is no longer used
-    /// before [disarm][Vm::disarm] is called.
-    pub unsafe fn unsafe_external_mut<'out, T: External>(
-        &self,
-        slot: usize,
-    ) -> Result<&'out mut T, StackError> {
-        let external = self
-            .externals
-            .get(slot)
-            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
-
-        if !external.access.exclusive() {
-            return Err(StackError::ExternalInaccessible { slot });
-        }
-
-        let external = (&mut *external.value.get())
-            .as_any_mut()
-            .downcast_mut::<T>()
-            .ok_or_else(|| StackError::ExpectedExternalType {
-                expected: type_name::<T>(),
-                actual: external.type_name,
-            })?;
-
-        self.guards.borrow_mut().push((Managed::External, slot));
-        Ok(external)
-    }
-
     /// Disarm all collected guards.
-    pub unsafe fn disarm(&self) {
-        for (managed, slot) in self.guards.borrow_mut().drain(..) {
+    ///
+    /// # Safety
+    ///
+    /// This may only be called once all references fetched through the various
+    /// `*_mut` and `*_ref` methods are no longer live.
+    ///
+    /// Otherwise, this could permit aliasing of slot values.
+    pub unsafe fn disarm(&mut self) {
+        // Safety: We have exclusive access to the guards field.
+        for (managed, slot) in (*self.guards.get()).drain(..) {
+            log::trace!("clearing access: {}({})", managed, slot);
+
             match managed {
+                Managed::String => {
+                    if let Some(holder) = self.strings.get(slot) {
+                        holder.access.clear();
+                    }
+                }
+                Managed::Array => {
+                    if let Some(holder) = self.arrays.get(slot) {
+                        holder.access.clear();
+                    }
+                }
                 Managed::External => {
                     if let Some(holder) = self.externals.get(slot) {
                         holder.access.clear();
                     }
                 }
-                _ => (),
             }
         }
     }
@@ -1392,17 +1478,14 @@ impl Vm {
     }
 
     /// Convert into an owned array.
-    pub fn take_owned_array(
-        &mut self,
-        values: Box<[ValuePtr]>,
-    ) -> Result<Box<[Value]>, StackError> {
+    pub fn take_owned_array(&mut self, values: Vec<ValuePtr>) -> Result<Vec<Value>, StackError> {
         let mut output = Vec::with_capacity(values.len());
 
-        for value in values.iter().copied() {
+        for value in values {
             output.push(self.take_owned_value(value)?);
         }
 
-        Ok(output.into_boxed_slice())
+        Ok(output)
     }
 
     /// Convert a value reference into an owned value.
@@ -1423,19 +1506,22 @@ impl Vm {
         })
     }
 
-    /// Convert into an owned array.
-    pub fn to_array<'a>(&'a self, values: &[ValuePtr]) -> Result<Box<[ValueRef<'_>]>, StackError> {
+    /// Convert the given value pointers into an array.
+    pub fn to_array_ref<'a>(
+        &'a self,
+        values: &[ValuePtr],
+    ) -> Result<Vec<ValueRef<'_>>, StackError> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
-            output.push(self.to_value(value)?);
+            output.push(self.to_value_ref(value)?);
         }
 
-        Ok(output.into_boxed_slice())
+        Ok(output)
     }
 
     /// Convert a value reference into an owned value.
-    pub fn to_value<'a>(&'a self, value: ValuePtr) -> Result<ValueRef<'a>, StackError> {
+    pub fn to_value_ref<'a>(&'a self, value: ValuePtr) -> Result<ValueRef<'a>, StackError> {
         Ok(match value {
             ValuePtr::Unit => ValueRef::Unit,
             ValuePtr::Integer(integer) => ValueRef::Integer(integer),
@@ -1445,7 +1531,7 @@ impl Vm {
                 (Managed::String, slot) => ValueRef::String(self.string_ref(slot)?),
                 (Managed::Array, slot) => {
                     let array = self.array_ref(slot)?;
-                    ValueRef::Array(self.to_array(array)?)
+                    ValueRef::Array(self.to_array_ref(array)?)
                 }
                 (Managed::External, slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             },
@@ -1474,7 +1560,7 @@ impl Vm {
                         let mut string = String::with_capacity(a.len() + b.len());
                         string.push_str(a);
                         string.push_str(b);
-                        let value = self.allocate_string(string.into_boxed_str());
+                        let value = self.allocate_string(string);
                         self.managed_push(value)?;
                         return Ok(());
                     }
@@ -1565,25 +1651,5 @@ where
         }
 
         Ok(None)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Access;
-
-    #[test]
-    fn test_access() {
-        let access = Access::default();
-
-        assert!(access.is_sharable());
-        assert!(access.shared());
-        assert!(!access.exclusive());
-        assert!(access.shared());
-        access.clear();
-        assert!(access.exclusive());
-        assert!(!access.exclusive());
-        access.clear();
-        assert!(access.exclusive());
     }
 }

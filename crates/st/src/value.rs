@@ -22,9 +22,9 @@ pub enum Value {
     /// An empty unit.
     Unit,
     /// A string.
-    String(Box<str>),
+    String(String),
     /// An array.
-    Array(Box<[Value]>),
+    Array(Vec<Value>),
     /// An integer.
     Integer(i64),
     /// A float.
@@ -43,7 +43,7 @@ pub enum ValueRef<'a> {
     /// A string.
     String(&'a str),
     /// An array.
-    Array(Box<[ValueRef<'a>]>),
+    Array(Vec<ValueRef<'a>>),
     /// An integer.
     Integer(i64),
     /// A float.
@@ -76,7 +76,7 @@ impl fmt::Display for Managed {
 }
 
 /// Compact information on typed slot.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Slot(usize);
 
 impl Slot {
@@ -108,6 +108,13 @@ impl Slot {
     /// Construct an external slot.
     pub fn external(slot: usize) -> Self {
         Self(slot << 2 | Self::EXTERNAL)
+    }
+}
+
+impl fmt::Debug for Slot {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (managed, slot) = self.into_managed();
+        write!(fmt, "{}({})", managed, slot)
     }
 }
 

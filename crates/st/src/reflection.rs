@@ -52,8 +52,36 @@ where
 impl<'a> UnsafeFromValue for &'a str {
     unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_string()?;
+        let value = vm.string_ref(slot)?.as_str();
+        Ok(&*(value as *const _))
+    }
+}
+
+impl<'a> UnsafeFromValue for &'a String {
+    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+        let slot = value.into_string()?;
         let value = vm.string_ref(slot)?;
         Ok(&*(value as *const _))
+    }
+}
+
+impl<'a> ReflectValueType for &'a String {
+    fn reflect_value_type() -> ValueType {
+        ValueType::String
+    }
+}
+
+impl<'a> UnsafeFromValue for &'a mut String {
+    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+        let slot = value.into_string()?;
+        let value = vm.string_mut(slot)?;
+        Ok(&mut *(value as *mut _))
+    }
+}
+
+impl<'a> ReflectValueType for &'a mut String {
+    fn reflect_value_type() -> ValueType {
+        ValueType::String
     }
 }
 
@@ -163,15 +191,14 @@ impl<'a> ReflectValueType for &'a str {
 
 impl ToValue for String {
     fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
-        Ok(vm.allocate_string(self.into_boxed_str()))
+        Ok(vm.allocate_string(self))
     }
 }
 
 impl FromValue for String {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_string()?;
-        let string = vm.string_take(slot)?;
-        Ok(String::from(string))
+        vm.string_take(slot)
     }
 }
 
@@ -184,14 +211,14 @@ impl ReflectValueType for Box<str> {
 
 impl ToValue for Box<str> {
     fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
-        Ok(vm.allocate_string(self))
+        Ok(vm.allocate_string(self.to_string()))
     }
 }
 
 impl FromValue for Box<str> {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_string()?;
-        vm.string_take(slot)
+        Ok(vm.string_take(slot)?.into_boxed_str())
     }
 }
 

@@ -175,6 +175,7 @@ impl Functions {
         let mut functions = Self::new();
         crate::packages::core::install(&mut functions)?;
         crate::packages::bytes::install(&mut functions)?;
+        crate::packages::string::install(&mut functions)?;
         Ok(functions)
     }
 

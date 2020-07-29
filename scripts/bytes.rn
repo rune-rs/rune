@@ -1,5 +1,7 @@
+import bytes;
+
 fn main() {
-    let bytes = bytes();
+    let bytes = bytes::new();
     bytes.extend_str("hello world");
     bytes.extend_str("hello world");
     let other = bytes.clone();
