@@ -905,7 +905,7 @@ impl Vm {
 
         std::iter::from_fn(move || {
             let value_ref = it.next()?;
-            let value = self.to_value_ref(value_ref);
+            let value = self.value_ref(value_ref);
             Some((value_ref, value))
         })
     }
@@ -1594,6 +1594,69 @@ impl Vm {
         Err(StackError::ExternalSlotMissing { slot })
     }
 
+    /// Convert a value reference into an owned value.
+    pub fn value_take(&mut self, value: ValuePtr) -> Result<Value, StackError> {
+        return Ok(match value {
+            ValuePtr::Unit => Value::Unit,
+            ValuePtr::Integer(integer) => Value::Integer(integer),
+            ValuePtr::Float(float) => Value::Float(float),
+            ValuePtr::Bool(boolean) => Value::Bool(boolean),
+            ValuePtr::Char(c) => Value::Char(c),
+            ValuePtr::Managed(managed) => match managed.into_managed() {
+                (Managed::String, slot) => Value::String(self.string_take(slot)?),
+                (Managed::Array, slot) => {
+                    let array = self.array_take(slot)?;
+                    Value::Array(value_take_array(self, array)?)
+                }
+                (Managed::External, slot) => Value::External(self.external_take_dyn(slot)?),
+            },
+        });
+
+        /// Convert into an owned array.
+        fn value_take_array(vm: &mut Vm, values: Vec<ValuePtr>) -> Result<Vec<Value>, StackError> {
+            let mut output = Vec::with_capacity(values.len());
+
+            for value in values {
+                output.push(vm.value_take(value)?);
+            }
+
+            Ok(output)
+        }
+    }
+
+    /// Convert the given ptr into a type-erase ValueRef.
+    pub fn value_ref(&self, value: ValuePtr) -> Result<ValueRef<'_>, StackError> {
+        return Ok(match value {
+            ValuePtr::Unit => ValueRef::Unit,
+            ValuePtr::Integer(integer) => ValueRef::Integer(integer),
+            ValuePtr::Float(float) => ValueRef::Float(float),
+            ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
+            ValuePtr::Char(c) => ValueRef::Char(c),
+            ValuePtr::Managed(managed) => match managed.into_managed() {
+                (Managed::String, slot) => ValueRef::String(self.string_ref(slot)?),
+                (Managed::Array, slot) => {
+                    let array = self.array_ref(slot)?;
+                    ValueRef::Array(value_ref_array(self, &*array)?)
+                }
+                (Managed::External, slot) => ValueRef::External(self.external_ref_dyn(slot)?),
+            },
+        });
+
+        /// Convert the given value pointers into an array.
+        fn value_ref_array<'vm>(
+            vm: &'vm Vm,
+            values: &[ValuePtr],
+        ) -> Result<Vec<ValueRef<'vm>>, StackError> {
+            let mut output = Vec::with_capacity(values.len());
+
+            for value in values.iter().copied() {
+                output.push(vm.value_ref(value)?);
+            }
+
+            Ok(output)
+        }
+    }
+
     /// Get the last value on the stack.
     pub fn last(&self) -> Option<ValuePtr> {
         self.stack.last().copied()
@@ -1621,69 +1684,6 @@ impl Vm {
 
         self.gc()?;
         Ok(value)
-    }
-
-    /// Convert into an owned array.
-    pub fn take_owned_array(&mut self, values: Vec<ValuePtr>) -> Result<Vec<Value>, StackError> {
-        let mut output = Vec::with_capacity(values.len());
-
-        for value in values {
-            output.push(self.take_owned_value(value)?);
-        }
-
-        Ok(output)
-    }
-
-    /// Convert a value reference into an owned value.
-    pub fn take_owned_value(&mut self, value: ValuePtr) -> Result<Value, StackError> {
-        Ok(match value {
-            ValuePtr::Unit => Value::Unit,
-            ValuePtr::Integer(integer) => Value::Integer(integer),
-            ValuePtr::Float(float) => Value::Float(float),
-            ValuePtr::Bool(boolean) => Value::Bool(boolean),
-            ValuePtr::Char(c) => Value::Char(c),
-            ValuePtr::Managed(managed) => match managed.into_managed() {
-                (Managed::String, slot) => Value::String(self.string_take(slot)?),
-                (Managed::Array, slot) => {
-                    let array = self.array_take(slot)?;
-                    Value::Array(self.take_owned_array(array)?)
-                }
-                (Managed::External, slot) => Value::External(self.external_take_dyn(slot)?),
-            },
-        })
-    }
-
-    /// Convert the given value pointers into an array.
-    pub fn to_array_ref<'a>(
-        &'a self,
-        values: &[ValuePtr],
-    ) -> Result<Vec<ValueRef<'_>>, StackError> {
-        let mut output = Vec::with_capacity(values.len());
-
-        for value in values.iter().copied() {
-            output.push(self.to_value_ref(value)?);
-        }
-
-        Ok(output)
-    }
-
-    /// Convert a value reference into an owned value.
-    pub fn to_value_ref<'a>(&'a self, value: ValuePtr) -> Result<ValueRef<'a>, StackError> {
-        Ok(match value {
-            ValuePtr::Unit => ValueRef::Unit,
-            ValuePtr::Integer(integer) => ValueRef::Integer(integer),
-            ValuePtr::Float(float) => ValueRef::Float(float),
-            ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
-            ValuePtr::Char(c) => ValueRef::Char(c),
-            ValuePtr::Managed(managed) => match managed.into_managed() {
-                (Managed::String, slot) => ValueRef::String(self.string_ref(slot)?),
-                (Managed::Array, slot) => {
-                    let array = self.array_ref(slot)?;
-                    ValueRef::Array(self.to_array_ref(&*array)?)
-                }
-                (Managed::External, slot) => ValueRef::External(self.external_ref_dyn(slot)?),
-            },
-        })
     }
 
     /// Implementation of the add operation.
