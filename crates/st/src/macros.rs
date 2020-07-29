@@ -10,20 +10,32 @@
 macro_rules! decl_external {
     ($external:ty) => {
         impl $crate::ReflectValueType for $external {
-            fn reflect_value_type() -> $crate::ValueType {
+            fn value_type() -> $crate::ValueType {
                 $crate::ValueType::External(std::any::TypeId::of::<$external>())
+            }
+
+            fn value_type_info() -> $crate::ValueTypeInfo {
+                $crate::ValueTypeInfo::External(std::any::type_name::<$external>())
             }
         }
 
         impl<'a> $crate::ReflectValueType for &'a $external {
-            fn reflect_value_type() -> $crate::ValueType {
+            fn value_type() -> $crate::ValueType {
                 $crate::ValueType::External(std::any::TypeId::of::<$external>())
+            }
+
+            fn value_type_info() -> $crate::ValueTypeInfo {
+                $crate::ValueTypeInfo::External(std::any::type_name::<$external>())
             }
         }
 
         impl<'a> $crate::ReflectValueType for &'a mut $external {
-            fn reflect_value_type() -> $crate::ValueType {
+            fn value_type() -> $crate::ValueType {
                 $crate::ValueType::External(std::any::TypeId::of::<$external>())
+            }
+
+            fn value_type_info() -> $crate::ValueTypeInfo {
+                $crate::ValueTypeInfo::External(std::any::type_name::<$external>())
             }
         }
 

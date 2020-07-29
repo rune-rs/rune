@@ -438,8 +438,6 @@ pub enum Inst {
     /// It will construct a new stack frame which includes the last `args`
     /// number of entries.
     Call {
-        /// The hash of the module to call.
-        module: Hash,
         /// The hash of the function to call.
         hash: Hash,
         /// The number of arguments expected on the stack for this call.
@@ -545,11 +543,7 @@ impl Inst {
     ) -> Result<(), VmError> {
         loop {
             match self {
-                Self::Call {
-                    module: Hash::GLOBAL_MODULE,
-                    hash,
-                    args,
-                } => {
+                Self::Call { hash, args } => {
                     match unit.lookup(hash) {
                         Some(loc) => {
                             vm.push_frame(*ip, args)?;
@@ -573,31 +567,11 @@ impl Inst {
                         }
                     }
                 }
-                Self::Call { module, hash, args } => {
-                    let m = functions
-                        .lookup_module(module)
-                        .ok_or_else(|| VmError::MissingModule { module })?;
-
-                    let handler = m
-                        .lookup(hash)
-                        .ok_or_else(|| VmError::MissingModuleFunction { module, hash })?;
-
-                    let result = handler(vm, args).await;
-
-                    // Safety: We have exclusive access to the VM and
-                    // everything that was borrowed during the call can now
-                    // be cleared since it's only used in the handler.
-                    unsafe {
-                        vm.disarm();
-                    }
-
-                    result?;
-                }
                 Self::CallInstance { hash, args } => {
                     let instance = vm.peek()?;
                     let ty = instance.value_type(vm)?;
 
-                    let hash = Hash::instance_fn(ty, hash);
+                    let hash = Hash::instance_function(ty, hash);
 
                     match unit.lookup(hash) {
                         Some(loc) => {
@@ -934,18 +908,20 @@ impl Vm {
     }
 
     /// Call the given function in the given compilation unit.
-    pub fn call_function<'a, A, T>(
+    pub fn call_function<'a, A, T, I>(
         &'a mut self,
         functions: &'a Functions,
         unit: &'a Unit,
-        name: &str,
+        name: I,
         args: A,
     ) -> Result<Task<'a, T>, VmError>
     where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
         A: IntoArgs,
         T: FromValue,
     {
-        let hash = Hash::global_fn(name);
+        let hash = Hash::function(name);
 
         let fn_address = unit
             .lookup(hash)

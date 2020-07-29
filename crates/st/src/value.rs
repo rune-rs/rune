@@ -240,9 +240,8 @@ impl ValuePtr {
                 (Managed::String, _) => ValueTypeInfo::String,
                 (Managed::Array, _) => ValueTypeInfo::Array,
                 (Managed::External, slot) => {
-                    let (type_name, type_hash) = vm.external_type(slot)?;
-
-                    ValueTypeInfo::External(type_name, type_hash)
+                    let (type_name, _) = vm.external_type(slot)?;
+                    ValueTypeInfo::External(type_name)
                 }
             },
         })
@@ -291,7 +290,7 @@ pub enum ValueTypeInfo {
     /// A boolean.
     Bool,
     /// Reference to a foreign type.
-    External(&'static str, TypeId),
+    External(&'static str),
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -303,7 +302,7 @@ impl fmt::Display for ValueTypeInfo {
             Self::Integer => write!(fmt, "Integer"),
             Self::Float => write!(fmt, "Float"),
             Self::Bool => write!(fmt, "Bool"),
-            Self::External(name, _) => write!(fmt, "External({})", name),
+            Self::External(name) => write!(fmt, "External({})", name),
         }
     }
 }

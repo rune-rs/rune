@@ -1,4 +1,5 @@
 use crate::collections::HashMap;
+use crate::functions::ItemPath;
 use crate::hash::Hash;
 use crate::vm::Inst;
 use std::fmt;
@@ -17,7 +18,7 @@ pub enum UnitError {
     #[error("conflicting import already exists `{existing}`")]
     ImportConflict {
         /// The signature of the old import.
-        existing: UnitImport,
+        existing: ItemPath,
     },
     /// A static string was missing for the given hash and slot.
     #[error("missing static string for hash `{hash}` and slot `{slot}`")]
@@ -47,47 +48,19 @@ pub struct UnitFnInfo {
     /// Signature of the function.
     signature: UnitFnSignature,
 }
-/// A description of a function signature.
-#[derive(Debug)]
-pub struct UnitImport {
-    path: Vec<String>,
-}
-
-impl UnitImport {
-    /// Construct a new import declaration.
-    fn new(path: Vec<String>) -> Self {
-        Self { path }
-    }
-}
-
-impl fmt::Display for UnitImport {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut it = self.path.iter().peekable();
-
-        while let Some(part) = it.next() {
-            write!(fmt, "{}", part)?;
-
-            if it.peek().is_some() {
-                write!(fmt, "::")?;
-            }
-        }
-
-        Ok(())
-    }
-}
 
 /// A description of a function signature.
 #[derive(Debug)]
 pub struct UnitFnSignature {
-    name: String,
+    path: ItemPath,
     args: usize,
 }
 
 impl UnitFnSignature {
     /// Construct a new function signature.
-    pub fn new(name: &str, args: usize) -> Self {
+    pub fn new(path: ItemPath, args: usize) -> Self {
         Self {
-            name: name.to_owned(),
+            path: path.to_owned(),
             args,
         }
     }
@@ -95,7 +68,7 @@ impl UnitFnSignature {
 
 impl fmt::Display for UnitFnSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}(", self.name)?;
+        write!(fmt, "{}(", self.path)?;
 
         let mut it = 0..self.args;
         let last = it.next_back();
@@ -122,9 +95,7 @@ pub struct Unit {
     ///
     /// Only used to link against the current environment to make sure all
     /// required units are present.
-    imports: HashMap<Hash, UnitImport>,
-    /// Import hashes by name.
-    imports_rev: HashMap<Vec<String>, Hash>,
+    imports: HashMap<String, ItemPath>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFnInfo>,
     /// A static string.
@@ -139,11 +110,18 @@ impl Unit {
         Self {
             instructions: Vec::new(),
             imports: HashMap::new(),
-            imports_rev: HashMap::new(),
             functions: HashMap::new(),
             static_strings: Vec::new(),
             static_string_rev: HashMap::new(),
         }
+    }
+
+    /// Construct a new unit with the default prelude.
+    pub fn with_default_prelude() -> Self {
+        let mut this = Self::new();
+        this.imports
+            .insert(String::from("dbg"), ItemPath::of(&["core", "dbg"]));
+        this
     }
 
     /// Get the instruction at the given instruction pointer.
@@ -177,12 +155,12 @@ impl Unit {
     }
 
     /// Iterate over known imports.
-    pub fn iter_imports(&self) -> impl Iterator<Item = (Hash, &UnitImport)> + '_ {
+    pub fn iter_imports<'a>(&'a self) -> impl Iterator<Item = (&'a str, &'a ItemPath)> + '_ {
         let mut it = self.imports.iter();
 
         std::iter::from_fn(move || {
             let (k, v) = it.next()?;
-            Some((*k, v))
+            Some((k.as_str(), v))
         })
     }
 
@@ -229,9 +207,8 @@ impl Unit {
     }
 
     /// Look up an import by name.
-    pub fn lookup_import_by_name(&self, import: &[String]) -> Option<&UnitImport> {
-        let hash = self.imports_rev.get(import)?;
-        self.imports.get(hash)
+    pub fn lookup_import_by_name(&self, name: &str) -> Option<&ItemPath> {
+        self.imports.get(name)
     }
 
     /// Declare a new import.
@@ -240,36 +217,36 @@ impl Unit {
         I: Copy + IntoIterator,
         I::Item: AsRef<str>,
     {
-        let name = path
-            .into_iter()
-            .map(|s| s.as_ref().to_owned())
-            .collect::<Vec<_>>();
+        let path = ItemPath::of(path);
 
-        let info = UnitImport::new(name.clone());
-        let hash = Hash::module(&name);
-
-        if let Some(old) = self.imports.insert(hash, info) {
-            return Err(UnitError::ImportConflict { existing: old });
+        if let Some(last) = path.last() {
+            if let Some(old) = self.imports.insert(last.to_owned(), path) {
+                return Err(UnitError::ImportConflict { existing: old });
+            }
         }
 
-        self.imports_rev.insert(name, hash);
         Ok(())
     }
 
     /// Declare a new function at the current instruction pointer.
-    pub fn new_function(
+    pub fn new_function<I>(
         &mut self,
-        name: &str,
+        path: I,
         args: usize,
         instructions: &[Inst],
-    ) -> Result<(), UnitError> {
+    ) -> Result<(), UnitError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
         let offset = self.instructions.len();
 
-        let hash = Hash::global_fn(name);
+        let path = ItemPath::of(path);
+        let hash = Hash::function(&path);
 
         let info = UnitFnInfo {
             offset,
-            signature: UnitFnSignature::new(name, args),
+            signature: UnitFnSignature::new(path, args),
         };
 
         if let Some(old) = self.functions.insert(hash, info) {

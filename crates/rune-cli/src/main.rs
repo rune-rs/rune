@@ -106,21 +106,13 @@ fn main() -> Result<()> {
     };
 
     let mut functions = st::Functions::with_default_packages()?;
-    st_http::install(&mut functions)?;
+    functions.install(st_http::module()?)?;
 
     if dump_functions {
-        println!("# global functions");
+        println!("# functions");
 
-        for (i, (hash, f)) in functions.global_module().iter_functions().enumerate() {
+        for (i, (hash, f)) in functions.iter_functions().enumerate() {
             println!("{:04} = {} ({})", i, f, hash);
-        }
-
-        for (hash, m) in functions.iter_modules() {
-            println!("# module: {} ({})", m.name(), hash);
-
-            for (i, (hash, f)) in m.iter_functions().enumerate() {
-                println!("{:04} = {} ({})", i, f, hash);
-            }
         }
     }
 
@@ -155,7 +147,7 @@ fn main() -> Result<()> {
 
     let mut vm = st::Vm::new();
 
-    let mut task: st::Task<st::Value> = vm.call_function(&functions, &unit, "main", ())?;
+    let mut task: st::Task<st::Value> = vm.call_function(&functions, &unit, &["main"], ())?;
 
     let last = std::time::Instant::now();
 

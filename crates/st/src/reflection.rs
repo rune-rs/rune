@@ -1,5 +1,5 @@
 use crate::external::External;
-use crate::value::{Value, ValuePtr, ValueType};
+use crate::value::{Value, ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{Integer, Mut, Ref, StackError, Vm};
 
 /// Trait for converting arguments into values.
@@ -14,7 +14,10 @@ pub trait IntoArgs {
 /// Trait for converting types into values.
 pub trait ReflectValueType: Sized {
     /// Convert into a value type.
-    fn reflect_value_type() -> ValueType;
+    fn value_type() -> ValueType;
+
+    /// Access diagnostical information on the value type.
+    fn value_type_info() -> ValueTypeInfo;
 }
 
 /// Trait for converting types into values.
@@ -64,8 +67,12 @@ impl<'a> UnsafeFromValue for &'a String {
 }
 
 impl<'a> ReflectValueType for &'a String {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::String
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::String
     }
 }
 
@@ -77,8 +84,12 @@ impl<'a> UnsafeFromValue for &'a mut String {
 }
 
 impl<'a> ReflectValueType for &'a mut String {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::String
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::String
     }
 }
 
@@ -86,8 +97,12 @@ impl<T> ReflectValueType for Option<T>
 where
     T: ReflectValueType,
 {
-    fn reflect_value_type() -> ValueType {
-        T::reflect_value_type()
+    fn value_type() -> ValueType {
+        T::value_type()
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        T::value_type_info()
     }
 }
 
@@ -135,8 +150,12 @@ where
 
 /// Convert a unit into a value type.
 impl ReflectValueType for () {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::Unit
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Unit
     }
 }
 
@@ -154,8 +173,12 @@ impl FromValue for () {
 
 /// Convert a unit into a value type.
 impl ReflectValueType for bool {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::Bool
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Bool
     }
 }
 
@@ -175,14 +198,22 @@ impl FromValue for bool {
 }
 
 impl ReflectValueType for String {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::String
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::String
     }
 }
 
 impl<'a> ReflectValueType for &'a str {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::String
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::String
     }
 }
 
@@ -201,8 +232,12 @@ impl FromValue for String {
 
 /// Convert a string into a value type.
 impl ReflectValueType for Box<str> {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::String
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::String
     }
 }
 
@@ -221,8 +256,12 @@ impl FromValue for Box<str> {
 
 /// Convert a number into a value type.
 impl ReflectValueType for i64 {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::Integer
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Integer
     }
 }
 
@@ -245,8 +284,12 @@ macro_rules! number_value_trait {
     ($ty:ty, $variant:ident) => {
         /// Convert a number into a value type.
         impl ReflectValueType for $ty {
-            fn reflect_value_type() -> ValueType {
+            fn value_type() -> ValueType {
                 ValueType::Integer
+            }
+
+            fn value_type_info() -> ValueTypeInfo {
+                ValueTypeInfo::Integer
             }
         }
 
@@ -296,8 +339,12 @@ number_value_trait!(isize, Isize);
 
 /// Convert a float into a value type.
 impl ReflectValueType for f64 {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::Float
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Float
     }
 }
 
@@ -318,8 +365,12 @@ impl FromValue for f64 {
 
 /// Convert a float into a value type.
 impl ReflectValueType for f32 {
-    fn reflect_value_type() -> ValueType {
+    fn value_type() -> ValueType {
         ValueType::Float
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Float
     }
 }
 

@@ -2,15 +2,17 @@ import string;
 
 fn main() {
     let a = "foo";
-    let b = "bar";
 
     let s = string::with_capacity(42);
     s.push_str(a);
-    // s.push_str("/");
-    // s.push_str(b);
+    s.push_str("/");
+    s.push_str("bar");
 
     dbg(s, s.len(), s.capacity());
     s.shrink_to_fit();
-    dbg(s, s.len(), s.capacity());
-    s
+
+    let b = s.into_bytes();
+    dbg(b, b.len(), b.capacity());
+
+    b
 }

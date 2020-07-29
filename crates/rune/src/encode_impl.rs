@@ -105,7 +105,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
     pub fn encode(self) -> Result<st::Unit, EncodeError> {
         let ParseAll { source, item: file } = self;
 
-        let mut unit = st::Unit::new();
+        let mut unit = st::Unit::with_default_prelude();
 
         for import in file.imports {
             let name = resolve_path(import.path, source)?;
@@ -126,7 +126,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
             };
 
             encoder.encode_fn_decl(f)?;
-            unit.new_function(name, count, &instructions)?;
+            unit.new_function(&[name], count, &instructions)?;
         }
 
         Ok(unit)
@@ -273,43 +273,26 @@ impl<'a> Encoder<'a> {
     }
 
     /// Decode a path into a call destination based on its hashes.
-    fn decode_call_dest(&self, path: ast::Path) -> Result<(st::Hash, st::Hash), EncodeError> {
-        let span = path.span();
+    fn decode_call_dest(&self, path: ast::Path) -> Result<st::Hash, EncodeError> {
+        let local = path.first.resolve(self.source)?;
 
-        let mut it = path.rest.into_iter();
-
-        let (name, prefix) = if let Some(last) = it.next_back().map(|(_, ident)| ident) {
-            (
-                last,
-                Some(std::iter::once(path.first).chain(it.map(|(_, ident)| ident))),
-            )
-        } else {
-            (path.first, None)
+        let imported = match self.unit.lookup_import_by_name(local).cloned() {
+            Some(path) => path,
+            None => st::ItemPath::of(&[local]),
         };
 
-        let name = name.resolve(self.source)?;
+        let mut rest = Vec::new();
 
-        let prefix = match prefix {
-            Some(prefix) => prefix,
-            None => {
-                return Ok((st::Hash::GLOBAL_MODULE, st::Hash::global_fn(name)));
-            }
-        };
-
-        let mut module = Vec::new();
-
-        for ident in prefix {
-            module.push(ident.resolve(self.source)?.to_owned());
+        for (_, part) in path.rest {
+            rest.push(part.resolve(self.source)?);
         }
 
-        if self.unit.lookup_import_by_name(&module[..]).is_none() {
-            return Err(EncodeError::MissingModule {
-                span,
-                name: module.join("::"),
-            });
-        }
+        let it = imported
+            .into_iter()
+            .map(String::as_str)
+            .chain(rest.into_iter());
 
-        Ok((st::Hash::module(&module), st::Hash::global_fn(name)))
+        Ok(st::Hash::function(it))
     }
 
     fn encode_call_fn(&mut self, call_fn: ast::CallFn) -> Result<(), EncodeError> {
@@ -321,9 +304,8 @@ impl<'a> Encoder<'a> {
             self.encode_expr(expr)?;
         }
 
-        let (module, hash) = self.decode_call_dest(call_fn.name)?;
-        self.instructions
-            .push(st::Inst::Call { module, hash, args });
+        let hash = self.decode_call_dest(call_fn.name)?;
+        self.instructions.push(st::Inst::Call { hash, args });
         Ok(())
     }
 

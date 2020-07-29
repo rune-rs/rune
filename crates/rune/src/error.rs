@@ -206,12 +206,12 @@ pub enum EncodeError {
         name: String,
     },
     /// Tried to use a module that was missing.
-    #[error("missing module `{name}`")]
+    #[error("missing module `{module}`")]
     MissingModule {
         /// The span of the missing module.
         span: Span,
         /// The name of the missing module.
-        name: String,
+        module: st::ItemPath,
     },
 }
 

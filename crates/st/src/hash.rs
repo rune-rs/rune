@@ -12,9 +12,8 @@ impl Hash {
     pub const GLOBAL_MODULE: Hash = Hash(0);
 
     const SEP: usize = 0x7f;
-    const IMPORT: usize = 1;
-    const GLOBAL_FN: usize = 2;
-    const INSTANCE_FN: usize = 3;
+    const FUNCTION: usize = 2;
+    const INSTANCE_FUNCTION: usize = 3;
 
     /// Construct a simple hash from something that is hashable.
     pub fn of<T: std::hash::Hash>(thing: T) -> Self {
@@ -24,13 +23,13 @@ impl Hash {
     }
 
     /// Construct a hash for an import.
-    pub fn module<I>(path: I) -> Self
+    fn path<I>(kind: usize, path: I) -> Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
         let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
-        Self::IMPORT.hash(&mut hasher);
+        kind.hash(&mut hasher);
 
         for part in path {
             part.as_ref().hash(&mut hasher);
@@ -40,15 +39,19 @@ impl Hash {
         Self(hasher.finish())
     }
 
-    /// Construct a hash for a global free function.
-    pub fn global_fn(name: &str) -> Self {
-        Self::of((Self::GLOBAL_FN, name))
+    /// Construct a hash for a function in the given path.
+    pub fn function<I>(path: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        Self::path(Self::FUNCTION, path)
     }
 
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
-    pub fn instance_fn(ty: ValueType, name: Hash) -> Self {
-        Self::of((Self::INSTANCE_FN, ty, Self::SEP, name))
+    pub fn instance_function(ty: ValueType, name: Hash) -> Self {
+        Self::of((Self::INSTANCE_FUNCTION, ty, Self::SEP, name))
     }
 }
 

@@ -6,18 +6,18 @@ where
 {
     let unit = rune::compile(source)?;
     let mut vm = st::Vm::new();
-    let task: st::Task<T> = vm.call_function(functions, &unit, "main", ())?;
+    let task: st::Task<T> = vm.call_function(functions, &unit, &["main"], ())?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }
 
 #[tokio::test]
 async fn test_custom_functions() {
+    let mut module = st::Module::default();
+    module.global_fn("test", || 42).unwrap();
+
     let mut functions = st::Functions::new();
-    functions
-        .global_module_mut()
-        .global_fn("test", || 42)
-        .unwrap();
+    functions.install(module).unwrap();
 
     assert_eq! {
         run_main::<i64>(

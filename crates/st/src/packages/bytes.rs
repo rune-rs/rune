@@ -1,6 +1,6 @@
 //! The bytes package, providing access to the bytes type.
 
-use crate::{Functions, RegisterError};
+use crate::functions::{Module, RegisterError};
 use std::fmt;
 
 /// A bytes container.
@@ -39,7 +39,7 @@ impl Bytes {
     }
 
     /// Do something with the bytes.
-    fn extend_str(&mut self, s: &str) {
+    fn push_str(&mut self, s: &str) {
         self.bytes.extend(s.as_bytes());
     }
 
@@ -48,31 +48,56 @@ impl Bytes {
         self.bytes.len()
     }
 
+    /// Get the capacity of the bytes collection.
+    fn capacity(&self) -> usize {
+        self.bytes.capacity()
+    }
+
     /// Get the bytes collection.
     fn clear(&mut self) {
         self.bytes.clear();
     }
 
-    /// Optionally remove the last in the container.
+    fn reserve(&mut self, additional: usize) {
+        self.bytes.reserve(additional);
+    }
+
+    fn reserve_exact(&mut self, additional: usize) {
+        self.bytes.reserve_exact(additional);
+    }
+
+    fn shrink_to_fit(&mut self) {
+        self.bytes.shrink_to_fit();
+    }
+
     fn pop(&mut self) -> Option<u8> {
         self.bytes.pop()
+    }
+
+    fn last(&mut self) -> Option<u8> {
+        self.bytes.last().copied()
     }
 }
 
 decl_external!(Bytes);
 
-/// Install the bytes package.
-pub fn install(functions: &mut Functions) -> Result<(), RegisterError> {
-    let module = functions.module_mut(&["bytes"])?;
+/// Get the module for the bytes package.
+pub fn module() -> Result<Module, RegisterError> {
+    let mut module = Module::new(&["bytes"]);
     module.global_fn("new", Bytes::new)?;
     module.global_fn("with_capacity", Bytes::with_capacity)?;
 
-    let module = functions.global_module_mut();
     module.instance_fn("extend", Bytes::extend)?;
-    module.instance_fn("extend_str", Bytes::extend_str)?;
-    module.instance_fn("len", Bytes::len)?;
-    module.instance_fn("clear", Bytes::clear)?;
     module.instance_fn("pop", Bytes::pop)?;
+    module.instance_fn("last", Bytes::last)?;
+
+    module.instance_fn("len", Bytes::len)?;
+    module.instance_fn("capacity", Bytes::capacity)?;
+    module.instance_fn("clear", Bytes::clear)?;
+    module.instance_fn("push_str", Bytes::push_str)?;
+    module.instance_fn("reserve", Bytes::reserve)?;
+    module.instance_fn("reserve_exact", Bytes::reserve_exact)?;
     module.instance_fn("clone", Bytes::clone)?;
-    Ok(())
+    module.instance_fn("shrink_to_fit", Bytes::shrink_to_fit)?;
+    Ok(module)
 }

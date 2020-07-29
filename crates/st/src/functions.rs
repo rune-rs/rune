@@ -1,43 +1,70 @@
-use crate::collections::{hash_map, HashMap};
+use crate::collections::HashMap;
 use crate::error;
 use crate::hash::Hash;
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::value::ValueType;
+use crate::value::{ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 use std::any::type_name;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// An error raised while registering a function.
 #[derive(Debug, Error)]
 pub enum RegisterError {
     /// Error raised when attempting to register a conflicting function.
-    #[error("function with hash `{hash}` already exists")]
+    #[error("function `{signature}` ({hash}) already exists")]
     ConflictingFunction {
+        /// The signature of the conflicting function.
+        signature: FnSignature,
         /// The hash of the conflicting function.
         hash: Hash,
+    },
+    /// Error raised when attempting to register a conflicting function.
+    #[error("function with name `{name}` already exists")]
+    ConflictingFunctionName {
+        /// The name of the conflicting function.
+        name: String,
+    },
+    /// Error raised when attempting to register a conflicting instance function.
+    #[error("instance function `{name}` for type `{type_info}` already exists")]
+    ConflictingInstanceFunction {
+        /// Type that we register the instance function for.
+        type_info: ValueTypeInfo,
+        /// The name of the conflicting function.
+        name: String,
     },
     /// Tried to insert a module that conflicted with an already existing one.
     #[error("module `{name}` with hash `{hash}` already exists")]
     ConflictingModule {
         /// The name of the module that conflicted.
-        name: ModuleName,
+        name: ItemPath,
         /// The hash of the module that conflicted.
         hash: Hash,
     },
 }
 
 /// The name of a module.
-#[derive(Debug, Clone, Default)]
-pub struct ModuleName {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct ItemPath {
     path: Vec<String>,
 }
 
-impl ModuleName {
-    /// Construct a new module name.
-    fn of<I>(iter: I) -> Self
+impl ItemPath {
+    /// Construct a new item path.
+    pub fn new(path: Vec<String>) -> Self {
+        Self { path }
+    }
+
+    /// Access the last component in the path.
+    pub fn last(&self) -> Option<&str> {
+        self.path.last().map(String::as_str)
+    }
+
+    /// Construct a new item path.
+    pub fn of<I>(iter: I) -> Self
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
@@ -50,13 +77,13 @@ impl ModuleName {
         }
     }
 
-    /// Return the hash of the module.
-    pub fn hash(&self) -> Hash {
-        Hash::module(&self.path)
+    /// Return the hash of the specified function.
+    pub fn hash_function(&self, function: &str) -> Hash {
+        Hash::function(self.path.iter().map(String::as_str).chain(Some(function)))
     }
 }
 
-impl fmt::Display for ModuleName {
+impl fmt::Display for ItemPath {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut it = self.path.iter().peekable();
 
@@ -72,6 +99,15 @@ impl fmt::Display for ModuleName {
     }
 }
 
+impl<'a> IntoIterator for &'a ItemPath {
+    type IntoIter = std::slice::Iter<'a, String>;
+    type Item = <Self::IntoIter as Iterator>::Item;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.path.iter()
+    }
+}
+
 /// Helper alias for boxed futures.
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
@@ -79,58 +115,85 @@ type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 type Handler = dyn for<'vm> Fn(&'vm mut Vm, usize) -> BoxFuture<'vm, Result<(), VmError>> + Sync;
 
 /// A description of a function signature.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FnSignature {
-    instance: Option<(&'static str, ValueType)>,
+    path: Arc<ItemPath>,
+    instance: Option<ValueTypeInfo>,
     name: String,
-    args: usize,
+    args: Option<usize>,
 }
 
 impl FnSignature {
     /// Construct a new function signature.
-    pub fn new_instance(instance: (&'static str, ValueType), name: &str, args: usize) -> Self {
+    pub fn new_instance(
+        path: Arc<ItemPath>,
+        instance: ValueTypeInfo,
+        name: &str,
+        args: usize,
+    ) -> Self {
         Self {
+            path,
             instance: Some(instance),
             name: name.to_owned(),
-            args,
+            args: Some(args),
+        }
+    }
+
+    /// Construct a new raw signature.
+    pub fn new_raw(path: Arc<ItemPath>, name: &str) -> Self {
+        Self {
+            path,
+            instance: None,
+            name: name.to_owned(),
+            args: None,
         }
     }
 
     /// Construct a new global function signature.
-    pub fn new_global(name: &str, args: usize) -> Self {
+    pub fn new_global(path: Arc<ItemPath>, name: &str, args: usize) -> Self {
         Self {
+            path,
             instance: None,
             name: name.to_owned(),
-            args,
+            args: Some(args),
         }
     }
 }
 
 impl fmt::Display for FnSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some((name, ty)) = self.instance {
-            write!(fmt, "{} ({:?})::", name, ty)?;
+        if let Some(instance) = self.instance {
+            write!(fmt, "<{}>::{}(self", instance, self.name)?;
+
+            if let Some(args) = self.args {
+                for n in 0..args {
+                    write!(fmt, ", #{}", n)?;
+                }
+            } else {
+                write!(fmt, ", ...")?;
+            }
+
+            write!(fmt, ")")?;
+        } else {
+            write!(fmt, "{}::{}(", self.path, self.name)?;
+
+            if let Some(args) = self.args {
+                let mut it = 0..args;
+                let last = it.next_back();
+
+                for n in it {
+                    write!(fmt, "#{}, ", n)?;
+                }
+
+                if let Some(n) = last {
+                    write!(fmt, "#{}", n)?;
+                }
+            } else {
+                write!(fmt, "...")?;
+            }
+
+            write!(fmt, ")")?;
         }
-
-        write!(fmt, "{}(", self.name)?;
-
-        let mut it = 0..self.args;
-        let last = it.next_back();
-
-        for _ in it {
-            write!(fmt, "arg, ")?;
-        }
-
-        if last.is_some() {
-            write!(fmt, "arg")?;
-        }
-
-        write!(fmt, ")")?;
-
-        if self.instance.is_some() {
-            write!(fmt, " (name: {})", Hash::of(&self.name))?;
-        }
-
         Ok(())
     }
 }
@@ -138,10 +201,10 @@ impl fmt::Display for FnSignature {
 /// Functions visible to the virtual machine.
 #[derive(Default)]
 pub struct Functions {
-    /// The current global module.
-    global_module: GlobalModule,
-    /// Registered modules by hash.
-    modules: HashMap<Hash, Module>,
+    /// Free functions.
+    functions: HashMap<Hash, Box<Handler>>,
+    /// Information on functions.
+    functions_info: HashMap<Hash, FnSignature>,
 }
 
 impl Functions {
@@ -150,81 +213,13 @@ impl Functions {
         Functions::default()
     }
 
-    /// Access the global module.
-    pub fn global_module(&self) -> &GlobalModule {
-        &self.global_module
-    }
-
-    /// Return a mutable variant of the global module.
-    pub fn global_module_mut(&mut self) -> &mut GlobalModule {
-        &mut self.global_module
-    }
-
-    /// Iterate over all modules.
-    pub fn iter_modules(&self) -> impl Iterator<Item = (Hash, &Module)> {
-        let mut it = self.modules.iter();
-
-        std::iter::from_fn(move || {
-            let (hash, m) = it.next()?;
-            Some((*hash, m))
-        })
-    }
-
     /// Construct a new collection of functions with default packages installed.
     pub fn with_default_packages() -> Result<Self, RegisterError> {
-        let mut functions = Self::new();
-        crate::packages::core::install(&mut functions)?;
-        crate::packages::bytes::install(&mut functions)?;
-        crate::packages::string::install(&mut functions)?;
-        Ok(functions)
-    }
-
-    /// Construct or insert functions into the module with the given name.
-    pub fn module_mut<I>(&mut self, name: I) -> Result<&mut Module, RegisterError>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
-        let name = ModuleName::of(name);
-        let hash = name.hash();
-
-        match self.modules.entry(hash) {
-            hash_map::Entry::Occupied(e) => Err(RegisterError::ConflictingModule {
-                hash,
-                name: e.get().name.clone(),
-            }),
-            hash_map::Entry::Vacant(e) => {
-                let new_module = Module::with_name(name);
-                Ok(e.insert(new_module))
-            }
-        }
-    }
-
-    /// Lookup module by hash.
-    pub fn lookup_module(&self, module: Hash) -> Option<&Module> {
-        self.modules.get(&module)
-    }
-
-    /// Lookup the given function in the global module.
-    pub fn lookup(&self, hash: Hash) -> Option<&Handler> {
-        let handler = self.global_module.lookup(hash)?;
-        Some(&*handler)
-    }
-}
-
-/// A collection of functions that can be looked up by type.
-#[derive(Default)]
-pub struct GlobalModule {
-    /// Free functions.
-    functions: HashMap<Hash, Box<Handler>>,
-    /// Information on functions.
-    functions_info: HashMap<Hash, FnSignature>,
-}
-
-impl GlobalModule {
-    /// Construct a new global module.
-    pub fn new() -> Self {
-        Self::default()
+        let mut this = Self::new();
+        this.install(crate::packages::core::module()?)?;
+        this.install(crate::packages::bytes::module()?)?;
+        this.install(crate::packages::string::module()?)?;
+        Ok(this)
     }
 
     /// Iterate over all available functions
@@ -243,13 +238,72 @@ impl GlobalModule {
         Some(&*handler)
     }
 
+    /// Install the specified module.
+    pub fn install(&mut self, module: Module) -> Result<(), RegisterError> {
+        let base = module.path;
+
+        for (name, (handler, signature)) in module.functions.into_iter() {
+            let hash = Hash::function(base.into_iter().chain(Some(&name)));
+
+            if let Some(old) = self.functions_info.insert(hash, signature) {
+                return Err(RegisterError::ConflictingFunction {
+                    signature: old,
+                    hash,
+                });
+            }
+
+            self.functions.insert(hash, handler);
+        }
+
+        for ((ty, name), (handler, signature)) in module.instance_functions.into_iter() {
+            let hash = Hash::instance_function(ty, Hash::of(name));
+
+            if let Some(old) = self.functions_info.insert(hash, signature) {
+                return Err(RegisterError::ConflictingFunction {
+                    signature: old,
+                    hash,
+                });
+            }
+
+            self.functions.insert(hash, handler);
+        }
+
+        Ok(())
+    }
+}
+
+/// A collection of functions that can be looked up by type.
+#[derive(Default)]
+pub struct Module {
+    /// The name of the module.
+    path: Arc<ItemPath>,
+    /// Free functions.
+    functions: HashMap<String, (Box<Handler>, FnSignature)>,
+    /// Instance functions.
+    instance_functions: HashMap<(ValueType, String), (Box<Handler>, FnSignature)>,
+}
+
+impl Module {
+    /// Construct a new module.
+    pub fn new<I>(path: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        Self {
+            path: Arc::new(ItemPath::of(path)),
+            functions: Default::default(),
+            instance_functions: Default::default(),
+        }
+    }
+
     /// Register a function.
     ///
     /// # Examples
     ///
     /// ```rust
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::GlobalModule::default();
+    /// let mut module = st::Module::default();
     ///
     /// module.global_fallible_fn("empty", || Ok::<_, st::Error>(()))?;
     /// module.global_fallible_fn("string", |a: String| Ok::<_, st::Error>(()))?;
@@ -261,14 +315,14 @@ impl GlobalModule {
         &mut self,
         name: &str,
         f: Func,
-    ) -> Result<Hash, RegisterError>
+    ) -> Result<(), RegisterError>
     where
         Func: GlobalFallibleFn<Args>,
     {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
+        if self.functions.contains_key(name) {
+            return Err(RegisterError::ConflictingFunctionName {
+                name: name.to_owned(),
+            });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| {
@@ -276,8 +330,9 @@ impl GlobalModule {
             Box::pin(async move { ret })
         });
 
-        self.functions.insert(hash, handler);
-        Ok(hash)
+        let signature = FnSignature::new_global(self.path.clone(), name, Func::args());
+        self.functions.insert(name.to_owned(), (handler, signature));
+        Ok(())
     }
 
     /// Register a function that cannot error internally.
@@ -294,41 +349,35 @@ impl GlobalModule {
     ///     fn new() -> Self {
     ///         Self(VecDeque::new())
     ///     }
-    ///
-    ///     fn len(&self) -> usize {
-    ///         self.0.len()
-    ///     }
     /// }
     ///
     /// st::decl_external!(StringQueue);
     ///
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::GlobalModule::default();
+    /// let mut module = st::Module::default();
     ///
     /// module.global_fn("bytes", StringQueue::new)?;
-    /// module.instance_fn("len", StringQueue::len)?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn global_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
+    pub fn global_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<(), RegisterError>
     where
         Func: GlobalFn<Args>,
     {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
+        if self.functions.contains_key(name) {
+            return Err(RegisterError::ConflictingFunctionName {
+                name: name.to_owned(),
+            });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| {
             let ret = f.vm_call(vm, args);
             Box::pin(async move { ret })
         });
+        let signature = FnSignature::new_global(self.path.clone(), name, Func::args());
 
-        self.functions.insert(hash, handler);
-        self.functions_info
-            .insert(hash, FnSignature::new_global(name, Func::args()));
-        Ok(hash)
+        self.functions.insert(name.to_owned(), (handler, signature));
+        Ok(())
     }
 
     /// Register a function.
@@ -337,7 +386,7 @@ impl GlobalModule {
     ///
     /// ```rust
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::GlobalModule::default();
+    /// let mut module = st::Module::default();
     ///
     /// module.async_fn("empty", || async { Ok::<_, st::Error>(()) })?;
     /// module.async_fn("string", |a: String| async { Ok::<_, st::Error>(()) })?;
@@ -345,22 +394,61 @@ impl GlobalModule {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn async_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
+    pub fn async_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<(), RegisterError>
     where
         Func: AsyncFn<Args>,
     {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
+        if self.functions.contains_key(name) {
+            return Err(RegisterError::ConflictingFunctionName {
+                name: name.to_owned(),
+            });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let signature = FnSignature::new_global(self.path.clone(), name, Func::args());
 
-        self.functions.insert(hash, handler);
-        self.functions_info
-            .insert(hash, FnSignature::new_global(name, Func::args()));
-        Ok(hash)
+        self.functions.insert(name.to_owned(), (handler, signature));
+        Ok(())
+    }
+
+    /// Register a raw function which interacts directly with the virtual
+    /// machine.
+    pub fn raw_fn<F>(&mut self, name: &str, f: F) -> Result<(), RegisterError>
+    where
+        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), VmError> + Send + Sync,
+    {
+        if self.functions.contains_key(name) {
+            return Err(RegisterError::ConflictingFunctionName {
+                name: name.to_owned(),
+            });
+        }
+
+        let signature = FnSignature::new_raw(self.path.clone(), name);
+        let handler: Box<Handler> = Box::new(move |vm, args| Box::pin(async move { f(vm, args) }));
+        self.functions.insert(name.to_owned(), (handler, signature));
+        Ok(())
+    }
+
+    /// Register a raw function which interacts directly with the virtual
+    /// machine.
+    pub fn raw_async_fn<F, O>(&mut self, name: &str, f: F) -> Result<(), RegisterError>
+    where
+        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
+        O: Future<Output = Result<(), VmError>>,
+    {
+        if self.functions.contains_key(name) {
+            return Err(RegisterError::ConflictingFunctionName {
+                name: name.to_owned(),
+            });
+        }
+
+        let handler: Box<Handler> =
+            Box::new(move |vm, args| Box::pin(async move { f(vm, args).await }));
+        let signature = FnSignature::new_raw(self.path.clone(), name);
+
+        self.functions.insert(name.to_owned(), (handler, signature));
+
+        Ok(())
     }
 
     /// Register an instance function.
@@ -369,7 +457,7 @@ impl GlobalModule {
     ///
     /// ```rust
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::GlobalModule::default();
+    /// let mut module = st::Module::default();
     ///
     /// module.instance_fallible_fn("len", |s: &str| Ok::<_, st::Error>(s.len()))?;
     /// # Ok(())
@@ -379,28 +467,31 @@ impl GlobalModule {
         &mut self,
         name: &str,
         f: Func,
-    ) -> Result<Hash, RegisterError>
+    ) -> Result<(), RegisterError>
     where
         Func: InstanceFallibleFn<Args>,
     {
         let ty = Func::instance_value_type();
-        let hash = Hash::instance_fn(ty, Hash::of(name));
+        let type_info = Func::instance_value_type_info();
 
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
+        let key = (ty, name.to_owned());
+
+        if self.instance_functions.contains_key(&key) {
+            return Err(RegisterError::ConflictingInstanceFunction {
+                type_info,
+                name: name.to_owned(),
+            });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| {
             let ret = f.vm_call(vm, args);
             Box::pin(async move { ret })
         });
+        let signature = FnSignature::new_instance(self.path.clone(), type_info, name, Func::args());
 
-        self.functions.insert(hash, handler);
-        self.functions_info.insert(
-            hash,
-            FnSignature::new_instance((Func::instance_name(), ty), name, Func::args()),
-        );
-        Ok(hash)
+        self.instance_functions
+            .insert(key.clone(), (handler, signature));
+        Ok(())
     }
 
     /// Register an instance function.
@@ -426,35 +517,38 @@ impl GlobalModule {
     /// st::decl_external!(StringQueue);
     ///
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::GlobalModule::default();
+    /// let mut module = st::Module::default();
     ///
     /// module.global_fn("bytes", StringQueue::new)?;
     /// module.instance_fn("len", StringQueue::len)?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn instance_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
+    pub fn instance_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<(), RegisterError>
     where
         Func: InstanceFn<Args>,
     {
         let ty = Func::instance_value_type();
-        let hash = Hash::instance_fn(ty, Hash::of(name));
+        let type_info = Func::instance_value_type_info();
 
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
+        let key = (ty, name.to_owned());
+
+        if self.instance_functions.contains_key(&key) {
+            return Err(RegisterError::ConflictingInstanceFunction {
+                type_info,
+                name: name.to_owned(),
+            });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| {
             let ret = f.vm_call(vm, args);
             Box::pin(async move { ret })
         });
+        let signature = FnSignature::new_instance(self.path.clone(), type_info, name, Func::args());
 
-        self.functions.insert(hash, handler);
-        self.functions_info.insert(
-            hash,
-            FnSignature::new_instance((Func::instance_name(), ty), name, Func::args()),
-        );
-        Ok(hash)
+        self.instance_functions
+            .insert(key.clone(), (handler, signature));
+        Ok(())
     }
 
     /// Register an instance function.
@@ -479,7 +573,7 @@ impl GlobalModule {
     /// }
     ///
     /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::GlobalModule::default();
+    /// let mut module = st::Module::default();
     ///
     /// module.async_instance_fn("test", MyType::test)?;
     /// # Ok(())
@@ -489,265 +583,28 @@ impl GlobalModule {
         &mut self,
         name: &str,
         f: Func,
-    ) -> Result<Hash, RegisterError>
+    ) -> Result<(), RegisterError>
     where
         Func: AsyncInstanceFn<Args>,
     {
         let ty = Func::instance_value_type();
-        let hash = Hash::instance_fn(ty, Hash::of(name));
+        let type_info = Func::instance_value_type_info();
 
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
+        let key = (ty, name.to_owned());
+
+        if self.instance_functions.contains_key(&key) {
+            return Err(RegisterError::ConflictingInstanceFunction {
+                type_info,
+                name: name.to_owned(),
+            });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let signature = FnSignature::new_instance(self.path.clone(), type_info, name, Func::args());
 
-        self.functions.insert(hash, handler);
-        self.functions_info.insert(
-            hash,
-            FnSignature::new_instance((Func::instance_name(), ty), name, Func::args()),
-        );
-        Ok(hash)
-    }
-
-    /// Register a raw function which interacts directly with the virtual
-    /// machine.
-    pub fn raw_fn<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
-    where
-        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), VmError> + Send + Sync,
-    {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
-        }
-
-        self.functions.insert(
-            hash,
-            Box::new(move |vm, args| Box::pin(async move { f(vm, args) })),
-        );
-
-        Ok(hash)
-    }
-
-    /// Register a raw function which interacts directly with the virtual
-    /// machine.
-    pub fn raw_async_fn<F, O>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
-    where
-        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
-        O: Future<Output = Result<(), VmError>>,
-    {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
-        }
-
-        self.functions.insert(
-            hash,
-            Box::new(move |vm, args| Box::pin(async move { f(vm, args).await })),
-        );
-
-        Ok(hash)
-    }
-}
-
-/// A collection of functions that can be looked up by type.
-#[derive(Default)]
-pub struct Module {
-    /// The name of the module.
-    name: ModuleName,
-    /// Free functions.
-    functions: HashMap<Hash, Box<Handler>>,
-    /// Information on functions.
-    functions_info: HashMap<Hash, FnSignature>,
-}
-
-impl Module {
-    /// Construct a new module with the given name.
-    pub fn with_name(name: ModuleName) -> Self {
-        Self {
-            name,
-            functions: Default::default(),
-            functions_info: Default::default(),
-        }
-    }
-
-    /// Get the module name.
-    pub fn name(&self) -> &ModuleName {
-        &self.name
-    }
-
-    /// Iterate over all available functions
-    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &FnSignature)> {
-        let mut it = self.functions_info.iter();
-
-        std::iter::from_fn(move || {
-            let (hash, signature) = it.next()?;
-            Some((*hash, signature))
-        })
-    }
-
-    /// Lookup the given function.
-    pub fn lookup(&self, hash: Hash) -> Option<&Handler> {
-        let handler = self.functions.get(&hash)?;
-        Some(&*handler)
-    }
-
-    /// Register a function.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::Module::default();
-    ///
-    /// module.global_fallible_fn("empty", || Ok::<_, st::Error>(()))?;
-    /// module.global_fallible_fn("string", |a: String| Ok::<_, st::Error>(()))?;
-    /// module.global_fallible_fn("optional", |a: Option<String>| Ok::<_, st::Error>(()))?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn global_fallible_fn<Func, Args>(
-        &mut self,
-        name: &str,
-        f: Func,
-    ) -> Result<Hash, RegisterError>
-    where
-        Func: GlobalFallibleFn<Args>,
-    {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
-        }
-
-        let handler: Box<Handler> = Box::new(move |vm, args| {
-            let ret = f.vm_call(vm, args);
-            Box::pin(async move { ret })
-        });
-
-        self.functions.insert(hash, handler);
-        Ok(hash)
-    }
-
-    /// Register a function that cannot error internally.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use std::collections::VecDeque;
-    ///
-    /// #[derive(Debug, Clone)]
-    /// struct StringQueue(VecDeque<String>);
-    ///
-    /// impl StringQueue {
-    ///     fn new() -> Self {
-    ///         Self(VecDeque::new())
-    ///     }
-    /// }
-    ///
-    /// st::decl_external!(StringQueue);
-    ///
-    /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::Module::default();
-    ///
-    /// module.global_fn("bytes", StringQueue::new)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn global_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
-    where
-        Func: GlobalFn<Args>,
-    {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
-        }
-
-        let handler: Box<Handler> = Box::new(move |vm, args| {
-            let ret = f.vm_call(vm, args);
-            Box::pin(async move { ret })
-        });
-
-        self.functions.insert(hash, handler);
-        self.functions_info
-            .insert(hash, FnSignature::new_global(name, Func::args()));
-        Ok(hash)
-    }
-
-    /// Register a function.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::Module::default();
-    ///
-    /// module.async_fn("empty", || async { Ok::<_, st::Error>(()) })?;
-    /// module.async_fn("string", |a: String| async { Ok::<_, st::Error>(()) })?;
-    /// module.async_fn("optional", |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn async_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<Hash, RegisterError>
-    where
-        Func: AsyncFn<Args>,
-    {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
-        }
-
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
-
-        self.functions.insert(hash, handler);
-        self.functions_info
-            .insert(hash, FnSignature::new_global(name, Func::args()));
-        Ok(hash)
-    }
-
-    /// Register a raw function which interacts directly with the virtual
-    /// machine.
-    pub fn raw_fn<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
-    where
-        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), VmError> + Send + Sync,
-    {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
-        }
-
-        self.functions.insert(
-            hash,
-            Box::new(move |vm, args| Box::pin(async move { f(vm, args) })),
-        );
-
-        Ok(hash)
-    }
-
-    /// Register a raw function which interacts directly with the virtual
-    /// machine.
-    pub fn raw_async_fn<F, O>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
-    where
-        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
-        O: Future<Output = Result<(), VmError>>,
-    {
-        let hash = Hash::global_fn(name);
-
-        if self.functions.contains_key(&hash) {
-            return Err(RegisterError::ConflictingFunction { hash });
-        }
-
-        self.functions.insert(
-            hash,
-            Box::new(move |vm, args| Box::pin(async move { f(vm, args).await })),
-        );
-
-        Ok(hash)
+        self.instance_functions
+            .insert(key.clone(), (handler, signature));
+        Ok(())
     }
 }
 
@@ -780,14 +637,14 @@ pub trait AsyncFn<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [instance_fallible_fn][Functions::instance_fallible_fn] function.
 pub trait InstanceFallibleFn<Args>: 'static + Copy + Send + Sync {
-    /// The name of the instance for diagnostics purposes.
-    fn instance_name() -> &'static str;
-
     /// Get the number of arguments.
     fn args() -> usize;
 
     /// Access the value type of the instance.
     fn instance_value_type() -> ValueType;
+
+    /// Access the value type info of the instance.
+    fn instance_value_type_info() -> ValueTypeInfo;
 
     /// Perform the vm call.
     fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
@@ -795,14 +652,14 @@ pub trait InstanceFallibleFn<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [instance_fn][Functions::instance_fn] function.
 pub trait InstanceFn<Args>: 'static + Copy + Send + Sync {
-    /// The name of the instance for diagnostics purposes.
-    fn instance_name() -> &'static str;
-
     /// Get the number of arguments.
     fn args() -> usize;
 
     /// Access the value type of the instance.
     fn instance_value_type() -> ValueType;
+
+    /// Access the value type info of the instance.
+    fn instance_value_type_info() -> ValueTypeInfo;
 
     /// Perform the vm call.
     fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
@@ -810,14 +667,14 @@ pub trait InstanceFn<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [async_instance_fn][Functions::async_instance_fn] function.
 pub trait AsyncInstanceFn<Args>: 'static + Copy + Send + Sync {
-    /// The name of the instance for diagnostics purposes.
-    fn instance_name() -> &'static str;
-
     /// Get the number of arguments.
     fn args() -> usize;
 
     /// Access the value type of the instance.
     fn instance_value_type() -> ValueType;
+
+    /// Access the value type of the instance.
+    fn instance_value_type_info() -> ValueTypeInfo;
 
     /// Perform the vm call.
     fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>>;
@@ -944,16 +801,16 @@ macro_rules! impl_register {
             Inst: UnsafeFromValue + ReflectValueType,
             $($ty: UnsafeFromValue,)*
         {
-            fn instance_name() -> &'static str {
-                std::any::type_name::<Inst>()
-            }
-
             fn args() -> usize {
                 $count
             }
 
             fn instance_value_type() -> ValueType {
-                Inst::reflect_value_type()
+                Inst::value_type()
+            }
+
+            fn instance_value_type_info() -> ValueTypeInfo {
+                Inst::value_type_info()
             }
 
             fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
@@ -985,16 +842,16 @@ macro_rules! impl_register {
             Inst: UnsafeFromValue + ReflectValueType,
             $($ty: UnsafeFromValue,)*
         {
-            fn instance_name() -> &'static str {
-                std::any::type_name::<Inst>()
-            }
-
             fn args() -> usize {
                 $count
             }
 
             fn instance_value_type() -> ValueType {
-                Inst::reflect_value_type()
+                Inst::value_type()
+            }
+
+            fn instance_value_type_info() -> ValueTypeInfo {
+                Inst::value_type_info()
             }
 
             fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
@@ -1027,16 +884,16 @@ macro_rules! impl_register {
             Inst: UnsafeFromValue + ReflectValueType,
             $($ty: UnsafeFromValue,)*
         {
-            fn instance_name() -> &'static str {
-                std::any::type_name::<Inst>()
-            }
-
             fn args() -> usize {
                 $count
             }
 
             fn instance_value_type() -> ValueType {
-                Inst::reflect_value_type()
+                Inst::value_type()
+            }
+
+            fn instance_value_type_info() -> ValueTypeInfo {
+                Inst::value_type_info()
             }
 
             fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>> {
