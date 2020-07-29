@@ -1,9 +1,11 @@
 use crate::external::External;
 use crate::functions::{CallError, Functions};
 use crate::hash::Hash;
-use crate::reflection::{EncodeError, FromValue, IntoArgs};
+use crate::reflection::{EncodeError, FromValue, IntoArgs, TakeValue};
 use crate::unit::Unit;
-use crate::value::{ExternalTypeError, Managed, Slot, Value, ValueError, ValueRef, ValueTypeInfo};
+use crate::value::{
+    ExternalTypeError, Managed, OwnedValue, Slot, Value, ValueError, ValueRef, ValueTypeInfo,
+};
 use anyhow::Result;
 use slab::Slab;
 use std::any::{type_name, TypeId};
@@ -328,7 +330,7 @@ impl Inst {
                 }
                 Self::Return => {
                     // NB: unmanaged because we're effectively moving the value.
-                    let return_value = vm.unmanaged_pop().ok_or_else(|| StackError::StackEmpty)?;
+                    let return_value = vm.unmanaged_pop()?;
                     let frame = vm.pop_frame()?;
                     *ip = frame.ip;
                     vm.exited = vm.frames.is_empty();
@@ -497,7 +499,7 @@ pub(crate) struct ExternalHolder<T: ?Sized + External> {
     /// responsible for unwinding the access.
     access: Access,
     /// The value being held.
-    value: UnsafeCell<T>,
+    value: Box<UnsafeCell<T>>,
 }
 
 impl<T> fmt::Debug for ExternalHolder<T>
@@ -507,7 +509,9 @@ where
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("external")
             .field("type_name", &self.type_name)
-            .field("value", &&self.value)
+            .field("type_id", &self.type_id)
+            .field("count", &self.count)
+            .field("access", &self.access)
             .finish()
     }
 }
@@ -566,7 +570,7 @@ pub struct Vm {
     /// The work list for the gc.
     gc_work: Vec<(Managed, usize)>,
     /// Slots with external values.
-    pub(crate) externals: Slab<Box<ExternalHolder<dyn External>>>,
+    pub(crate) externals: Slab<ExternalHolder<dyn External>>,
     /// Slots with strings.
     pub(crate) strings: Slab<Holder<Box<str>>>,
     /// Slots with arrays, which themselves reference values.
@@ -600,7 +604,7 @@ impl Vm {
 
         std::iter::from_fn(move || {
             let value_ref = it.next()?;
-            let value = self.to_owned_value(value_ref);
+            let value = self.to_value(value_ref);
             Some((value_ref, value))
         })
     }
@@ -615,7 +619,7 @@ impl Vm {
     ) -> Result<Task<'a, T>, VmError>
     where
         A: IntoArgs,
-        T: FromValue,
+        T: TakeValue,
     {
         let hash = Hash::global_fn(name);
 
@@ -666,8 +670,8 @@ impl Vm {
     /// Pop a reference to a value from the stack.
     ///
     /// The reference count of the value being referenced won't be modified.
-    pub fn unmanaged_pop(&mut self) -> Option<ValueRef> {
-        self.stack.pop()
+    pub fn unmanaged_pop(&mut self) -> Result<ValueRef, StackError> {
+        self.stack.pop().ok_or_else(|| StackError::StackEmpty)
     }
 
     /// Push a value onto the stack and return its stack index.
@@ -710,7 +714,7 @@ impl Vm {
             gc_work.append(&mut self.gc_freed);
 
             for (managed, slot) in gc_work.drain(..) {
-                log::trace!("freeing: {:?}", managed);
+                log::trace!("freeing: {:?}({})", managed, slot);
 
                 match managed {
                     Managed::External => {
@@ -720,6 +724,7 @@ impl Vm {
                         }
 
                         let external = self.externals.remove(slot);
+                        log::trace!("external freed: {:?}", external);
                         debug_assert!(external.count == 0);
                     }
                     Managed::String => {
@@ -811,44 +816,45 @@ impl Vm {
     fn dec_count(&mut self, managed: Managed, slot: usize) -> Result<(), StackError> {
         match managed {
             Managed::String => {
-                let holder = self
-                    .strings
-                    .get_mut(slot)
-                    .ok_or_else(|| StackError::StringSlotMissing { slot })?;
+                let holder = match self.strings.get_mut(slot) {
+                    Some(holder) => holder,
+                    None => return Ok(()),
+                };
 
                 debug_assert!(holder.count > 0);
                 holder.count = holder.count.saturating_sub(1);
 
                 if holder.count == 0 {
-                    log::trace!("pushing to freed: {:?}", managed);
+                    log::trace!("pushing to freed: {:?}({})", managed, slot);
                     self.gc_freed.push((managed, slot));
                 }
             }
             Managed::Array => {
-                let holder = self
-                    .arrays
-                    .get_mut(slot)
-                    .ok_or_else(|| StackError::ArraySlotMissing { slot })?;
+                let holder = match self.arrays.get_mut(slot) {
+                    Some(holder) => holder,
+                    None => return Ok(()),
+                };
 
                 debug_assert!(holder.count > 0);
                 holder.count = holder.count.saturating_sub(1);
 
                 if holder.count == 0 {
-                    log::trace!("pushing to freed: {:?}", managed);
+                    log::trace!("pushing to freed: {:?}({})", managed, slot);
                     self.gc_freed.push((managed, slot));
                 }
             }
             Managed::External => {
-                let holder = self
-                    .externals
-                    .get_mut(slot)
-                    .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
+                // NB: has been moved externally.
+                let holder = match self.externals.get_mut(slot) {
+                    Some(holder) => holder,
+                    None => return Ok(()),
+                };
 
                 debug_assert!(holder.count > 0);
                 holder.count = holder.count.saturating_sub(1);
 
                 if holder.count == 0 {
-                    log::trace!("pushing to freed: {:?}", managed);
+                    log::trace!("pushing to freed: {:?}({})", managed, slot);
                     self.gc_freed.push((managed, slot));
                 }
             }
@@ -932,13 +938,13 @@ impl Vm {
     /// This will leak memory unless the reference is pushed onto the stack to
     /// be managed.
     pub fn allocate_external<T: External>(&mut self, value: T) -> ValueRef {
-        let slot = self.externals.insert(Box::new(ExternalHolder {
+        let slot = self.externals.insert(ExternalHolder {
             type_name: type_name::<T>(),
             type_id: TypeId::of::<T>(),
             count: 0,
             access: Access::default(),
-            value: UnsafeCell::new(value),
-        }));
+            value: Box::new(UnsafeCell::new(value)),
+        });
 
         ValueRef::Managed(Slot::external(slot))
     }
@@ -958,16 +964,72 @@ impl Vm {
 
     /// Get a clone of the given external.
     pub fn external_clone<T: Clone + External>(&self, slot: usize) -> Option<T> {
+        // This is safe since we can rely on the typical reference guarantees of
+        // VM.
+        unsafe {
+            let external = self.externals.get(slot)?;
+            let external = (*external.value.get()).as_any().downcast_ref::<T>()?;
+            Some(external.clone())
+        }
+    }
+
+    /// Take an external value by dyn, assuming you have exlusive access to it.
+    pub fn external_take<T>(&mut self, slot: usize) -> Option<T>
+    where
+        T: External,
+    {
+        if !self.externals.contains(slot) {
+            return None;
+        }
+
+        let mut external = self.externals.remove(slot);
+
+        // Safety: We have mutable access to the VM, so we're the only ones
+        // accessing this right now.
+        unsafe {
+            let value = Box::into_raw(external.value);
+
+            if let Some(ptr) = (&mut *(*value).get()).as_mut_ptr(TypeId::of::<T>()) {
+                return Some(*Box::from_raw(ptr as *mut T));
+            }
+
+            external.value = Box::from_raw(value);
+            let new_slot = self.externals.insert(external);
+            debug_assert!(new_slot == slot);
+            None
+        }
+    }
+
+    /// Take an external value by dyn, assuming you have exlusive access to it.
+    pub fn external_take_dyn(&mut self, slot: usize) -> Option<Box<dyn External>> {
+        if !self.externals.contains(slot) {
+            return None;
+        }
+
+        // Safety: We have mutable access to the VM, so we're the only ones
+        // accessing this right now.
+        unsafe {
+            let external = self.externals.remove(slot);
+            let value = Box::into_raw(external.value);
+            Some(Box::from_raw((*value).get()))
+        }
+    }
+
+    /// Get a reference of the external value of the given type and the given
+    /// slot.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the made up returned reference is no longer used
+    /// before [disarm][Vm::disarm] is called.
+    pub fn external_dyn_ref(&self, slot: usize) -> Option<&dyn External> {
         let external = self.externals.get(slot)?;
-        let external = external.as_ref();
 
         if !external.access.is_sharable() {
             return None;
         }
 
-        // This is safe since we check if the external is sharable above.
-        let external = unsafe { (&*external.value.get()).as_any().downcast_ref::<T>()? };
-        Some(external.clone())
+        Some(unsafe { &*external.value.get() })
     }
 
     /// Get a reference of the external value of the given type and the given
@@ -979,7 +1041,6 @@ impl Vm {
     /// before [disarm][Vm::disarm] is called.
     pub unsafe fn external_ref<'out, T: External>(&self, slot: usize) -> Option<&'out T> {
         let external = self.externals.get(slot)?;
-        let external = external.as_ref();
 
         if !external.access.shared() {
             return None;
@@ -987,7 +1048,7 @@ impl Vm {
 
         let external = (&*external.value.get()).as_any().downcast_ref::<T>()?;
         self.guards.borrow_mut().push((Managed::External, slot));
-        Some(external)
+        Some(&*(external as *const T))
     }
 
     /// Get a reference of the external value of the given type and the given
@@ -1002,7 +1063,6 @@ impl Vm {
     /// before [disarm][Vm::disarm] is called.
     pub unsafe fn external_mut<'out, T: External>(&self, slot: usize) -> Option<&'out mut T> {
         let external = self.externals.get(slot)?;
-        let external = external.as_ref();
 
         if !external.access.exclusive() {
             return None;
@@ -1043,11 +1103,11 @@ impl Vm {
     /// Pop the last value on the stack and evaluate it as `T`.
     pub fn pop_decode<T>(&mut self) -> Result<T, VmError>
     where
-        T: FromValue,
+        T: TakeValue,
     {
-        let value = self.managed_pop()?;
+        let value = self.unmanaged_pop()?;
 
-        let value = match T::from_value(value, self) {
+        let value = match T::take_value(value, self) {
             Ok(value) => value,
             Err(e) => {
                 let type_info = e.type_info(self)?;
@@ -1064,18 +1124,56 @@ impl Vm {
     }
 
     /// Convert into an owned array.
-    pub fn to_owned_array(&self, values: &[ValueRef]) -> Box<[Value]> {
+    pub fn take_owned_array(&mut self, values: Box<[ValueRef]>) -> Box<[OwnedValue]> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
-            output.push(self.to_owned_value(value));
+            output.push(self.take_owned_value(value));
         }
 
         output.into_boxed_slice()
     }
 
     /// Convert a value reference into an owned value.
-    pub fn to_owned_value(&self, value: ValueRef) -> Value {
+    pub fn take_owned_value(&mut self, value: ValueRef) -> OwnedValue {
+        match value {
+            ValueRef::Unit => OwnedValue::Unit,
+            ValueRef::Integer(integer) => OwnedValue::Integer(integer),
+            ValueRef::Float(float) => OwnedValue::Float(float),
+            ValueRef::Bool(boolean) => OwnedValue::Bool(boolean),
+            ValueRef::Managed(managed) => match managed.into_managed() {
+                (Managed::String, slot) => match self.strings.get(slot) {
+                    Some(string) => OwnedValue::String(string.value.to_owned()),
+                    None => OwnedValue::Error(ValueError::String(slot)),
+                },
+                (Managed::Array, slot) => match self.arrays.get(slot) {
+                    Some(array) => {
+                        let array = array.value.to_owned();
+                        OwnedValue::Array(self.take_owned_array(array))
+                    }
+                    None => OwnedValue::Error(ValueError::Array(slot)),
+                },
+                (Managed::External, slot) => match self.external_take_dyn(slot) {
+                    Some(external) => OwnedValue::External(external),
+                    None => OwnedValue::Error(ValueError::External(slot)),
+                },
+            },
+        }
+    }
+
+    /// Convert into an owned array.
+    pub fn to_array<'a>(&'a self, values: &[ValueRef]) -> Box<[Value<'_>]> {
+        let mut output = Vec::with_capacity(values.len());
+
+        for value in values.iter().copied() {
+            output.push(self.to_value(value));
+        }
+
+        output.into_boxed_slice()
+    }
+
+    /// Convert a value reference into an owned value.
+    pub fn to_value<'a>(&'a self, value: ValueRef) -> Value<'a> {
         match value {
             ValueRef::Unit => Value::Unit,
             ValueRef::Integer(integer) => Value::Integer(integer),
@@ -1083,14 +1181,17 @@ impl Vm {
             ValueRef::Bool(boolean) => Value::Bool(boolean),
             ValueRef::Managed(managed) => match managed.into_managed() {
                 (Managed::String, slot) => match self.strings.get(slot) {
-                    Some(string) => Value::String(string.value.to_owned()),
+                    Some(string) => Value::String(&string.value),
                     None => Value::Error(ValueError::String(slot)),
                 },
                 (Managed::Array, slot) => match self.arrays.get(slot) {
-                    Some(array) => Value::Array(self.to_owned_array(&array.value)),
+                    Some(array) => Value::Array(self.to_array(&array.value)),
                     None => Value::Error(ValueError::Array(slot)),
                 },
-                (Managed::External, _) => Value::External(managed),
+                (Managed::External, slot) => match self.external_dyn_ref(slot) {
+                    Some(external) => Value::External(external),
+                    None => Value::Error(ValueError::External(slot)),
+                },
             },
         }
     }
@@ -1173,7 +1274,7 @@ pub struct Task<'a, T> {
 
 impl<'a, T> Task<'a, T>
 where
-    T: FromValue,
+    T: TakeValue,
 {
     /// Run the given task to completion.
     pub async fn run_to_completion(mut self) -> Result<T, VmError> {

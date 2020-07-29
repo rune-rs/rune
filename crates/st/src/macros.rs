@@ -9,8 +9,6 @@
 #[macro_export]
 macro_rules! decl_external {
     ($external:ty) => {
-        impl $crate::ExternalFromValue for $external {}
-
         impl $crate::ReflectValueType for $external {
             fn reflect_value_type() -> $crate::ValueType {
                 $crate::ValueType::External(std::any::TypeId::of::<$external>())
@@ -35,10 +33,38 @@ macro_rules! decl_external {
             }
         }
 
+        impl $crate::TakeValue for $external {
+            fn take_value(
+                value: $crate::ValueRef,
+                vm: &mut $crate::Vm,
+            ) -> Result<Self, $crate::ValueRef> {
+                let slot = value.into_external()?;
+
+                match vm.external_take::<$external>(slot) {
+                    Some(external) => Ok(external),
+                    None => Err(value),
+                }
+            }
+        }
+
+        impl<'a> $crate::UnsafeFromValue for $external {
+            unsafe fn unsafe_from_value(
+                value: $crate::ValueRef,
+                vm: &mut $crate::Vm,
+            ) -> Result<Self, $crate::ValueRef> {
+                let slot = value.into_external()?;
+
+                match vm.external_take::<$external>(slot) {
+                    Some(value) => Ok(value),
+                    None => Err(value),
+                }
+            }
+        }
+
         impl<'a> $crate::UnsafeFromValue for &'a $external {
             unsafe fn unsafe_from_value(
                 value: $crate::ValueRef,
-                vm: &$crate::Vm,
+                vm: &mut $crate::Vm,
             ) -> Result<Self, $crate::ValueRef> {
                 let slot = value.into_external()?;
 
@@ -52,7 +78,7 @@ macro_rules! decl_external {
         impl<'a> $crate::UnsafeFromValue for &'a mut $external {
             unsafe fn unsafe_from_value(
                 value: $crate::ValueRef,
-                vm: &$crate::Vm,
+                vm: &mut $crate::Vm,
             ) -> Result<Self, $crate::ValueRef> {
                 let slot = value.into_external()?;
 

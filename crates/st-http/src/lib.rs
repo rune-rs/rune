@@ -4,18 +4,14 @@ struct Client {
 }
 
 #[derive(Debug)]
-struct Response {
-    response: Option<reqwest::Response>,
+pub struct Response {
+    response: reqwest::Response,
 }
 
 impl Response {
-    async fn text(&mut self) -> st::Result<String> {
-        let response = self
-            .response
-            .take()
-            .ok_or_else(|| st::Error::msg("response has already been consumed"))?;
-
-        Ok(response.text().await?)
+    async fn text(self) -> st::Result<String> {
+        let text = self.response.text().await?;
+        Ok(text)
     }
 }
 
@@ -29,10 +25,7 @@ impl Client {
     /// Get the given URL.
     async fn get(&self, url: &str) -> st::Result<Response> {
         let response = reqwest::get(url).await?;
-
-        Ok(Response {
-            response: Some(response),
-        })
+        Ok(Response { response })
     }
 }
 

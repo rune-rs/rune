@@ -2,6 +2,7 @@ import http;
 
 fn main() {
     let client = http::client();
-    let response = client.get("https://google.com");
+    let response = client.get("http://worldtimeapi.org/api/ip");
     let text = response.text();
+    text
 }

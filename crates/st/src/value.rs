@@ -1,3 +1,4 @@
+use crate::external::External;
 use crate::vm::Vm;
 use std::any::TypeId;
 use std::fmt;
@@ -22,14 +23,14 @@ pub enum ValueError {
 }
 
 #[derive(Debug)]
-/// An owned value.
-pub enum Value {
+/// A value peeked out of the stack.
+pub enum OwnedValue {
     /// An empty unit.
     Unit,
     /// A string.
     String(Box<str>),
     /// An array.
-    Array(Box<[Value]>),
+    Array(Box<[OwnedValue]>),
     /// An integer.
     Integer(i64),
     /// A float.
@@ -37,25 +38,32 @@ pub enum Value {
     /// A boolean.
     Bool(bool),
     /// Reference to an external type.
-    External(Slot),
+    External(Box<dyn External>),
     /// A slot error value where we were unable to convert a value reference
     /// from a slot.
     Error(ValueError),
 }
 
-impl Clone for Value {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Unit => Self::Unit,
-            Self::String(string) => Self::String(string.clone()),
-            Self::Array(array) => Self::Array(array.clone()),
-            Self::Integer(integer) => Self::Integer(*integer),
-            Self::Float(float) => Self::Float(*float),
-            Self::Bool(boolean) => Self::Bool(*boolean),
-            Self::External(slot) => Self::External(*slot),
-            Self::Error(error) => Self::Error(*error),
-        }
-    }
+#[derive(Debug)]
+/// A value peeked out of the stack.
+pub enum Value<'a> {
+    /// An empty unit.
+    Unit,
+    /// A string.
+    String(&'a str),
+    /// An array.
+    Array(Box<[Value<'a>]>),
+    /// An integer.
+    Integer(i64),
+    /// A float.
+    Float(f64),
+    /// A boolean.
+    Bool(bool),
+    /// Reference to an external type.
+    External(&'a dyn External),
+    /// A slot error value where we were unable to convert a value reference
+    /// from a slot.
+    Error(ValueError),
 }
 
 /// Managed entries on the stack.

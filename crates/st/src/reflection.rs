@@ -1,5 +1,5 @@
 use crate::external::External;
-use crate::value::{Value, ValueRef, ValueType};
+use crate::value::{OwnedValue, ValueRef, ValueType};
 use crate::vm::Vm;
 use thiserror::Error;
 
@@ -35,6 +35,12 @@ pub trait FromValue: Sized {
     fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef>;
 }
 
+/// Trait for taking a value from the virtual machine.
+pub trait TakeValue: Sized {
+    /// Try to take and convert the given value.
+    fn take_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef>;
+}
+
 /// A potentially unsafe conversion for value conversion.
 pub trait UnsafeFromValue: Sized {
     /// Convert the given reference using unsafe assumptions to a value.
@@ -43,20 +49,20 @@ pub trait UnsafeFromValue: Sized {
     ///
     /// The return value of this function may only be used while a virtual
     /// machine is not being modified.
-    unsafe fn unsafe_from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef>;
+    unsafe fn unsafe_from_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef>;
 }
 
 impl<T> UnsafeFromValue for T
 where
     T: FromValue,
 {
-    unsafe fn unsafe_from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+    unsafe fn unsafe_from_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef> {
         T::from_value(value, vm)
     }
 }
 
 impl<'a> UnsafeFromValue for &'a str {
-    unsafe fn unsafe_from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+    unsafe fn unsafe_from_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef> {
         let slot = value.into_string()?;
 
         if let Ok(value) = vm.string_ref(slot) {
@@ -100,12 +106,6 @@ where
     }
 }
 
-impl FromValue for Value {
-    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
-        Ok(vm.to_owned_value(value))
-    }
-}
-
 impl<T> FromValue for Vec<T>
 where
     T: FromValue,
@@ -143,6 +143,15 @@ impl ToValue for () {
 
 impl FromValue for () {
     fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
+        match value {
+            ValueRef::Unit => Ok(()),
+            value => Err(value),
+        }
+    }
+}
+
+impl TakeValue for () {
+    fn take_value(value: ValueRef, _vm: &mut Vm) -> Result<Self, ValueRef> {
         match value {
             ValueRef::Unit => Ok(()),
             value => Err(value),
@@ -376,21 +385,18 @@ impl_into_args!(
     {A, a, 1},
 );
 
-/// Trait applied to external impls through [decl_external!] macro so we can
-/// conditionally implement [FromValue] for types implementing [Clone].
-///
-/// [decl_external!]: [crate::decl_external!]
-pub trait ExternalFromValue {}
+impl TakeValue for OwnedValue {
+    fn take_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef> {
+        Ok(vm.take_owned_value(value))
+    }
+}
 
-impl<T> FromValue for T
-where
-    T: ExternalFromValue + External + Clone,
-{
-    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+impl TakeValue for Box<dyn External> {
+    fn take_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef> {
         let slot = value.into_external()?;
 
-        match vm.external_clone::<T>(slot) {
-            Some(value) => Ok(value),
+        match vm.external_take_dyn(slot) {
+            Some(external) => Ok(external),
             None => Err(value),
         }
     }

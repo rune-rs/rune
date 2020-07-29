@@ -11,9 +11,10 @@ fn compile(source: &str) -> rune::Result<st::Unit> {
     Ok(unit.encode()?)
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     env_logger::init();
+
+    let mut runtime = tokio::runtime::Runtime::new()?;
 
     let mut args = env::args();
     args.next();
@@ -154,7 +155,7 @@ async fn main() -> Result<()> {
 
     let mut vm = st::Vm::new();
 
-    let mut task: st::Task<st::Value> = vm.call_function(&functions, &unit, "main", ())?;
+    let mut task: st::Task<st::OwnedValue> = vm.call_function(&functions, &unit, "main", ())?;
 
     let last = std::time::Instant::now();
 
@@ -167,7 +168,7 @@ async fn main() -> Result<()> {
             );
         }
 
-        let result = task.step().await;
+        let result = runtime.block_on(task.step());
 
         let result = match result {
             Ok(result) => result,
