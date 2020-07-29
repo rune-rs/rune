@@ -9,15 +9,17 @@ pub struct Slot(usize);
 impl Slot {
     const STRING: usize = 0;
     const ARRAY: usize = 1;
-    const EXTERNAL: usize = 2;
+    const OBJECT: usize = 2;
+    const EXTERNAL: usize = 3;
 
     /// Slot
     pub fn into_managed(self) -> (Managed, usize) {
         let slot = (self.0 >> 2) as usize;
 
         match self.0 & 0b11 {
-            0 => (Managed::String, slot),
-            1 => (Managed::Array, slot),
+            Self::STRING => (Managed::String, slot),
+            Self::ARRAY => (Managed::Array, slot),
+            Self::OBJECT => (Managed::Object, slot),
             _ => (Managed::External, slot),
         }
     }
@@ -30,6 +32,11 @@ impl Slot {
     /// Construct an array slot.
     pub fn array(slot: usize) -> Self {
         Self(slot << 2 | Self::ARRAY)
+    }
+
+    /// Construct an object slot.
+    pub fn object(slot: usize) -> Self {
+        Self(slot << 2 | Self::OBJECT)
     }
 
     /// Construct an external slot.
@@ -69,6 +76,7 @@ macro_rules! decl_managed {
 
 decl_managed!(StringSlot, STRING);
 decl_managed!(ArraySlot, ARRAY);
+decl_managed!(ObjectSlot, OBJECT);
 decl_managed!(ExternalSlot, EXTERNAL);
 
 /// Trait for converting into managed slots.
@@ -83,11 +91,15 @@ mod tests {
 
     #[test]
     fn test_slot() {
-        assert_eq!(Slot::string(4).into_managed(), (crate::Managed::String, 4));
-        assert_eq!(Slot::array(4).into_managed(), (crate::Managed::Array, 4));
         assert_eq!(
-            Slot::external(4).into_managed(),
-            (crate::Managed::External, 4)
+            Slot::string(77).into_managed(),
+            (crate::Managed::String, 77)
+        );
+        assert_eq!(Slot::array(78).into_managed(), (crate::Managed::Array, 78));
+        assert_eq!(Slot::object(79).into_managed(), (crate::Managed::Array, 79));
+        assert_eq!(
+            Slot::external(80).into_managed(),
+            (crate::Managed::External, 80)
         );
     }
 }

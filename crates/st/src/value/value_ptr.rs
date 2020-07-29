@@ -76,6 +76,7 @@ impl ValuePtr {
             Self::Managed(slot) => match slot.into_managed() {
                 (Managed::String, ..) => ValueType::String,
                 (Managed::Array, _) => ValueType::Array,
+                (Managed::Object, _) => ValueType::Object,
                 (Managed::External, slot) => {
                     let (_, type_hash) = vm.external_type(slot)?;
 
@@ -96,6 +97,7 @@ impl ValuePtr {
             Self::Managed(slot) => match slot.into_managed() {
                 (Managed::String, _) => ValueTypeInfo::String,
                 (Managed::Array, _) => ValueTypeInfo::Array,
+                (Managed::Object, _) => ValueTypeInfo::Object,
                 (Managed::External, slot) => {
                     let (type_name, _) = vm.external_type(slot)?;
                     ValueTypeInfo::External(type_name)

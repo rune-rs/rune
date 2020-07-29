@@ -9,6 +9,8 @@ pub enum ValueType {
     String,
     /// An array of dynamic values.
     Array,
+    /// An object of dynamic values.
+    Object,
     /// A number.
     Integer,
     /// A float.

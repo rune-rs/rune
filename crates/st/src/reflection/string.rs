@@ -26,7 +26,7 @@ impl<'a> ReflectValueType for &'a str {
 
 impl ToValue for String {
     fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
-        Ok(vm.allocate_string(self))
+        Ok(vm.string_allocate(self))
     }
 }
 
@@ -50,7 +50,7 @@ impl ReflectValueType for Box<str> {
 
 impl ToValue for Box<str> {
     fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
-        Ok(vm.allocate_string(self.to_string()))
+        Ok(vm.string_allocate(self.to_string()))
     }
 }
 

@@ -1,15 +1,18 @@
+use crate::collections::HashMap;
 use crate::external::External;
 use crate::vm::Ref;
 
 #[derive(Debug)]
 /// A value peeked out of the stack.
-pub enum ValueRef<'a> {
+pub enum ValueRef<'vm> {
     /// An empty unit.
     Unit,
     /// A string.
-    String(Ref<'a, String>),
+    String(Ref<'vm, String>),
     /// An array.
-    Array(Vec<ValueRef<'a>>),
+    Array(Vec<ValueRef<'vm>>),
+    /// An object.
+    Object(HashMap<String, ValueRef<'vm>>),
     /// An integer.
     Integer(i64),
     /// A float.
@@ -19,5 +22,5 @@ pub enum ValueRef<'a> {
     /// A character.
     Char(char),
     /// Reference to an external type.
-    External(Ref<'a, dyn External>),
+    External(Ref<'vm, dyn External>),
 }

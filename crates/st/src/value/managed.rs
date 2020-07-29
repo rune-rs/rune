@@ -7,6 +7,8 @@ pub enum Managed {
     String,
     /// An array.
     Array,
+    /// An object.
+    Object,
     /// Reference to an external type.
     External,
 }
@@ -16,6 +18,7 @@ impl fmt::Display for Managed {
         match *self {
             Self::String => write!(fmt, "string"),
             Self::Array => write!(fmt, "array"),
+            Self::Object => write!(fmt, "object"),
             Self::External => write!(fmt, "external"),
         }
     }

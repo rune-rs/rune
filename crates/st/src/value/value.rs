@@ -1,3 +1,4 @@
+use crate::collections::HashMap;
 use crate::external::External;
 
 #[derive(Debug)]
@@ -9,6 +10,8 @@ pub enum Value {
     String(String),
     /// An array.
     Array(Vec<Value>),
+    /// An object.
+    Object(HashMap<String, Value>),
     /// An integer.
     Integer(i64),
     /// A float.

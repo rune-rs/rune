@@ -10,6 +10,8 @@ pub enum ValueTypeInfo {
     String,
     /// An array.
     Array,
+    /// An object.
+    Object,
     /// A number.
     Integer,
     /// A float.
@@ -24,15 +26,6 @@ pub enum ValueTypeInfo {
 
 impl fmt::Display for ValueTypeInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::Unit => write!(fmt, "()"),
-            Self::String => write!(fmt, "String"),
-            Self::Array => write!(fmt, "Array"),
-            Self::Integer => write!(fmt, "Integer"),
-            Self::Float => write!(fmt, "Float"),
-            Self::Bool => write!(fmt, "Bool"),
-            Self::Char => write!(fmt, "Char"),
-            Self::External(name) => write!(fmt, "External({})", name),
-        }
+        fmt::Debug::fmt(self, fmt)
     }
 }

@@ -31,6 +31,6 @@ where
             array.push(value.to_value(vm)?);
         }
 
-        Ok(vm.allocate_array(array))
+        Ok(vm.array_allocate(array))
     }
 }
