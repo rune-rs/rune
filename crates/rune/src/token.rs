@@ -163,6 +163,8 @@ pub enum Kind {
     Scope,
     /// A comma `,`.
     Comma,
+    /// A colon `:`.
+    Colon,
     /// A semi-colon `;`.
     SemiColon,
     /// A plus sign `+`.
@@ -201,6 +203,7 @@ impl fmt::Display for Kind {
             Self::Open { delimiter } => write!(fmt, "{}", delimiter.open()),
             Self::Close { delimiter } => write!(fmt, "{}", delimiter.close()),
             Self::Comma => write!(fmt, ","),
+            Self::Colon => write!(fmt, ":"),
             Self::Dot => write!(fmt, "."),
             Self::Scope => write!(fmt, "::"),
             Self::SemiColon => write!(fmt, ";"),

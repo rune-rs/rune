@@ -134,6 +134,54 @@ impl Parse for ArrayLiteral {
 
 /// A number literal.
 #[derive(Debug)]
+pub struct ObjectLiteral {
+    /// The open bracket.
+    pub open: OpenBrace,
+    /// Items in the object declaration.
+    pub items: Vec<(StringLiteral, Colon, Expr)>,
+    /// The close bracket.
+    pub close: CloseBrace,
+}
+
+/// Parse an object literal.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast, Resolve as _};
+///
+/// # fn main() -> anyhow::Result<()> {
+/// let _ = parse_all::<ast::ObjectLiteral>("{\"foo\": 42}")?;
+/// let _ = parse_all::<ast::ObjectLiteral>("{\"foo\": 42,}")?;
+/// # Ok(())
+/// # }
+/// ```
+impl Parse for ObjectLiteral {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let open = parser.parse()?;
+
+        let mut items = Vec::new();
+
+        while !parser.peek::<CloseBrace>()? {
+            let key = parser.parse()?;
+            let colon = parser.parse()?;
+            let expr = parser.parse()?;
+            items.push((key, colon, expr));
+
+            if parser.peek::<Comma>()? {
+                parser.parse::<Comma>()?;
+            } else {
+                break;
+            }
+        }
+
+        let close = parser.parse()?;
+        Ok(Self { open, items, close })
+    }
+}
+
+/// A number literal.
+#[derive(Debug)]
 pub struct NumberLiteral {
     /// The kind of the number literal.
     number: token::NumberLiteral,
@@ -480,6 +528,8 @@ pub enum Expr {
     CallInstanceFn(CallInstanceFn),
     /// A literal array declaration.
     ArrayLiteral(ArrayLiteral),
+    /// A literal object declaration.
+    ObjectLiteral(ObjectLiteral),
     /// A literal number expression.
     NumberLiteral(NumberLiteral),
     /// A literal string expression.
@@ -526,6 +576,9 @@ impl Expr {
             Kind::Open {
                 delimiter: Delimiter::Bracket,
             } => Self::ArrayLiteral(parser.parse()?),
+            Kind::Open {
+                delimiter: Delimiter::Brace,
+            } => Self::ObjectLiteral(parser.parse()?),
             _ => {
                 return Err(ParseError::ExpectedExprError {
                     actual: token.kind,
@@ -1029,6 +1082,7 @@ decl_tokens! {
     (OpenBracket, Kind::Open { delimiter: Delimiter::Bracket }),
     (CloseBracket, Kind::Close { delimiter: Delimiter::Bracket }),
     (Comma, Kind::Comma),
+    (Colon, Kind::Colon),
     (Dot, Kind::Dot),
     (SemiColon, Kind::SemiColon),
     (Eq, Kind::Eq),

@@ -96,7 +96,10 @@ mod tests {
             (crate::Managed::String, 77)
         );
         assert_eq!(Slot::array(78).into_managed(), (crate::Managed::Array, 78));
-        assert_eq!(Slot::object(79).into_managed(), (crate::Managed::Array, 79));
+        assert_eq!(
+            Slot::object(79).into_managed(),
+            (crate::Managed::Object, 79)
+        );
         assert_eq!(
             Slot::external(80).into_managed(),
             (crate::Managed::External, 80)

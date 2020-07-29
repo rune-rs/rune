@@ -1,6 +1,19 @@
-use crate::reflection::{FromValue, ToValue};
-use crate::value::ValuePtr;
+use crate::reflection::{FromValue, ReflectValueType, ToValue};
+use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{StackError, Vm};
+
+impl<T> ReflectValueType for Vec<T>
+where
+    T: ReflectValueType,
+{
+    fn value_type() -> ValueType {
+        ValueType::Array
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Array
+    }
+}
 
 impl<T> FromValue for Vec<T>
 where
@@ -12,7 +25,7 @@ where
 
         let mut output = Vec::with_capacity(array.len());
 
-        for value in array.iter().copied() {
+        for value in array {
             output.push(T::from_value(value, vm)?);
         }
 

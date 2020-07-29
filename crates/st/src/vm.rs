@@ -535,6 +535,14 @@ pub enum Inst {
         /// The size of the array.
         count: usize,
     },
+    /// Construct a push an object onto the stack. The number of elements
+    /// in the object are determined by `count` and are popped from the stack.
+    ///
+    /// For each element, a key and a value is popped.
+    Object {
+        /// The size of the object.
+        count: usize,
+    },
     /// Load a literal string.
     String {
         /// The static string slot to load the string from.
@@ -706,6 +714,18 @@ impl Inst {
                     }
 
                     let value = vm.array_allocate(array);
+                    vm.managed_push(value)?;
+                }
+                Self::Object { count } => {
+                    let mut object = HashMap::with_capacity(count);
+
+                    for _ in 0..count {
+                        let key = vm.pop_decode()?;
+                        let value = vm.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
+                        object.insert(key, value);
+                    }
+
+                    let value = vm.object_allocate(object);
                     vm.managed_push(value)?;
                 }
                 Self::String { slot } => {
@@ -1687,7 +1707,6 @@ impl Vm {
             }
         };
 
-        self.gc()?;
         Ok(value)
     }
 
@@ -1789,7 +1808,9 @@ where
                 .await?;
         }
 
-        Ok(self.vm.pop_decode()?)
+        let value = self.vm.pop_decode()?;
+        self.vm.gc()?;
+        Ok(value)
     }
 
     /// Step the given task until the return value is available.
@@ -1804,7 +1825,9 @@ where
             .await?;
 
         if self.vm.exited {
-            return Ok(Some(self.vm.pop_decode()?));
+            let value = self.vm.pop_decode()?;
+            self.vm.gc()?;
+            return Ok(Some(value));
         }
 
         Ok(None)

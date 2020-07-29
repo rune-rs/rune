@@ -233,16 +233,7 @@ impl<'a> Encoder<'a> {
                 self.encode_expr_if(expr_if)?;
             }
             ast::Expr::NumberLiteral(number) => {
-                let number = number.resolve(self.source)?;
-
-                match number {
-                    ast::Number::Float(number) => {
-                        self.instructions.push(st::Inst::Float { number });
-                    }
-                    ast::Number::Integer(number) => {
-                        self.instructions.push(st::Inst::Integer { number });
-                    }
-                }
+                self.encode_number_literal(number)?;
             }
             ast::Expr::ArrayLiteral(array_literal) => {
                 let count = array_literal.items.len();
@@ -253,10 +244,40 @@ impl<'a> Encoder<'a> {
 
                 self.instructions.push(st::Inst::Array { count })
             }
-            ast::Expr::StringLiteral(string_literal) => {
-                let string = string_literal.resolve(self.source)?;
-                let slot = self.unit.static_string(&*string)?;
-                self.instructions.push(st::Inst::String { slot })
+            ast::Expr::ObjectLiteral(object_literal) => {
+                let count = object_literal.items.len();
+
+                for (key, _, value) in object_literal.items.into_iter().rev() {
+                    self.encode_expr(value)?;
+                    self.encode_string_literal(key)?;
+                }
+
+                self.instructions.push(st::Inst::Object { count })
+            }
+            ast::Expr::StringLiteral(string) => {
+                self.encode_string_literal(string)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn encode_string_literal(&mut self, string: ast::StringLiteral) -> Result<(), EncodeError> {
+        let string = string.resolve(self.source)?;
+        let slot = self.unit.static_string(&*string)?;
+        self.instructions.push(st::Inst::String { slot });
+        Ok(())
+    }
+
+    fn encode_number_literal(&mut self, number: ast::NumberLiteral) -> Result<(), EncodeError> {
+        let number = number.resolve(self.source)?;
+
+        match number {
+            ast::Number::Float(number) => {
+                self.instructions.push(st::Inst::Float { number });
+            }
+            ast::Number::Integer(number) => {
+                self.instructions.push(st::Inst::Integer { number });
             }
         }
 

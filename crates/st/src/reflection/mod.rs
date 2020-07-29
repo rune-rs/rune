@@ -2,6 +2,7 @@ use crate::external::External;
 use crate::value::{Value, ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{StackError, Vm};
 
+mod hash_map;
 mod option;
 mod primitive;
 mod string;

@@ -255,6 +255,7 @@ impl<'a> Lexer<'a> {
                         delimiter: Delimiter::Bracket,
                     },
                     ',' => Kind::Comma,
+                    ':' => Kind::Colon,
                     '.' => Kind::Dot,
                     ';' => Kind::SemiColon,
                     '=' => Kind::Eq,
