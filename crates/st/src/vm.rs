@@ -1,11 +1,9 @@
 use crate::external::External;
 use crate::functions::Functions;
 use crate::hash::Hash;
-use crate::reflection::{FromValue, IntoArgs, IntoArgsError};
+use crate::reflection::{FromValue, IntoArgs};
 use crate::unit::Unit;
-use crate::value::{
-    ExternalTypeError, Managed, Slot, Value, ValueError, ValuePtr, ValueRef, ValueTypeInfo,
-};
+use crate::value::{Managed, Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
 use anyhow::Result;
 use slab::Slab;
 use std::any::{type_name, TypeId};
@@ -14,18 +12,126 @@ use std::fmt;
 use std::marker::PhantomData;
 use thiserror::Error;
 
+/// An error raised when interacting with types on the stack.
 #[derive(Debug, Error)]
 pub enum StackError {
+    /// stack is empty
     #[error("stack is empty")]
     StackEmpty,
+    /// No stack frames.
     #[error("stack frames are empty")]
     StackFramesEmpty,
+    /// The given string slot is missing.
     #[error("tried to access string at missing slot `{slot}`")]
-    StringSlotMissing { slot: usize },
+    StringSlotMissing {
+        /// The slot that was missing.
+        slot: usize,
+    },
+    /// The given array slot is missing.
     #[error("tried to access missing array slot `{slot}`")]
-    ArraySlotMissing { slot: usize },
+    ArraySlotMissing {
+        /// The slot that was missing.
+        slot: usize,
+    },
+    /// The given external slot is missing.
     #[error("tried to access missing external slot `{slot}`")]
-    ExternalSlotMissing { slot: usize },
+    ExternalSlotMissing {
+        /// The slot that was missing.
+        slot: usize,
+    },
+    /// The given external slot is inaccessible.
+    #[error("external slot `{slot}` is inaccessible")]
+    ExternalInaccessible {
+        /// The slot that could not be accessed.
+        slot: usize,
+    },
+    /// Error raised when we expect a specific external type but got another.
+    #[error("expected external `{expected}`, but was `{actual}`")]
+    ExpectedExternalType {
+        /// The type that was expected.
+        expected: &'static str,
+        /// The type that was found.
+        actual: &'static str,
+    },
+    /// Error raised when we expected a boolean value.
+    #[error("expected boolean value")]
+    ExpectedBoolean,
+    /// Error raised when an integer value was expected.
+    #[error("expected integer value")]
+    ExpectedInteger,
+    /// Error raised when we expected a float value.
+    #[error("expected float value")]
+    ExpectedFloat,
+    /// Error raised when we expected a managed value.
+    #[error("expected a managed value")]
+    ExpectedManaged,
+    /// Error raised when we expected a managed value with a specific slot.
+    #[error("slot type is incompatible with expected")]
+    IncompatibleSlot,
+    /// Failure to convert a number into an integer.
+    #[error("failed to convert value `{from}` to integer `{to}`")]
+    ValueToIntegerCoercionError {
+        /// Number we tried to convert from.
+        from: Integer,
+        /// Number type we tried to convert to.
+        to: &'static str,
+    },
+    /// Failure to convert an integer into a value.
+    #[error("failed to convert integer `{from}` to value `{to}`")]
+    IntegerToValueCoercionError {
+        /// Number we tried to convert from.
+        from: Integer,
+        /// Number type we tried to convert to.
+        to: &'static str,
+    },
+}
+
+/// A type-erased rust number.
+#[derive(Debug, Clone, Copy)]
+pub enum Integer {
+    /// `u8`
+    U8(u8),
+    /// `u16`
+    U16(u16),
+    /// `u32`
+    U32(u32),
+    /// `u64`
+    U64(u64),
+    /// `u128`
+    U128(u128),
+    /// `i8`
+    I8(i8),
+    /// `i16`
+    I16(i16),
+    /// `i32`
+    I32(i32),
+    /// `i64`
+    I64(i64),
+    /// `i128`
+    I128(i128),
+    /// `isize`
+    Isize(isize),
+    /// `usize`
+    Usize(usize),
+}
+
+impl fmt::Display for Integer {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::U8(n) => write!(fmt, "{}u8", n),
+            Self::U16(n) => write!(fmt, "{}u16", n),
+            Self::U32(n) => write!(fmt, "{}u32", n),
+            Self::U64(n) => write!(fmt, "{}u64", n),
+            Self::U128(n) => write!(fmt, "{}u128", n),
+            Self::I8(n) => write!(fmt, "{}i8", n),
+            Self::I16(n) => write!(fmt, "{}i16", n),
+            Self::I32(n) => write!(fmt, "{}i32", n),
+            Self::I64(n) => write!(fmt, "{}i64", n),
+            Self::I128(n) => write!(fmt, "{}i128", n),
+            Self::Isize(n) => write!(fmt, "{}isize", n),
+            Self::Usize(n) => write!(fmt, "{}usize", n),
+        }
+    }
 }
 
 /// Errors raised by the execution of the virtual machine.
@@ -38,27 +144,12 @@ pub enum VmError {
         #[from]
         error: crate::error::Error,
     },
-    /// Error when we fail to convert arguments into values through
-    /// [IntoArgs].
-    #[error("failed to convert arguments into values")]
-    IntoArgsError {
-        /// Source error.
-        #[from]
-        error: IntoArgsError,
-    },
     /// Failure to interact with the stack.
     #[error("failed to interact with the stack")]
     StackError {
         /// Source error.
         #[from]
         error: StackError,
-    },
-    /// Failure to resolve external type.
-    #[error("failed to resolve type info for external type")]
-    ExternalTypeError {
-        /// Source error.
-        #[from]
-        error: ExternalTypeError,
     },
     /// Failure to lookup function.
     #[error("missing function with hash `{hash}`")]
@@ -119,6 +210,9 @@ pub enum VmError {
     /// Indicates a failure to convert from one type to another.
     #[error("failed to convert stack value from `{from}` to `{to}`")]
     StackConversionError {
+        /// The source of the error.
+        #[source]
+        error: StackError,
         /// The actual type to be converted.
         from: ValueTypeInfo,
         /// The expected type to convert towards.
@@ -127,6 +221,9 @@ pub enum VmError {
     /// Failure to convert from one type to another.
     #[error("failed to convert argument #{arg} from `{from}` to `{to}`")]
     ArgumentConversionError {
+        /// The underlying stack error.
+        #[source]
+        error: StackError,
         /// The argument location that was converted.
         arg: usize,
         /// The value type we attempted to convert from.
@@ -145,6 +242,9 @@ pub enum VmError {
     /// Failure to convert return value.
     #[error("failed to convert return value `{ret}`")]
     ReturnConversionError {
+        /// Error describing the failed conversion.
+        #[source]
+        error: StackError,
         /// Type of the return value we attempted to convert.
         ret: &'static str,
     },
@@ -675,7 +775,9 @@ impl Vm {
 
     /// Iterate over the stack, producing the value associated with each stack
     /// item.
-    pub fn iter_stack_debug(&self) -> impl Iterator<Item = (ValuePtr, ValueRef)> + '_ {
+    pub fn iter_stack_debug(
+        &self,
+    ) -> impl Iterator<Item = (ValuePtr, Result<ValueRef<'_>, StackError>)> + '_ {
         let mut it = self.stack.iter().copied();
 
         std::iter::from_fn(move || {
@@ -703,7 +805,7 @@ impl Vm {
             .lookup(hash)
             .ok_or_else(|| VmError::MissingFunction { hash })?;
 
-        args.encode(self)?;
+        args.into_args(self)?;
 
         let offset = self
             .stack
@@ -754,7 +856,7 @@ impl Vm {
     pub fn managed_push(&mut self, value: ValuePtr) -> Result<(), StackError> {
         self.stack.push(value);
 
-        if let Some((managed, slot)) = value.into_managed() {
+        if let Some((managed, slot)) = value.try_into_managed() {
             self.inc_count(managed, slot)?;
         }
 
@@ -765,7 +867,7 @@ impl Vm {
     pub fn managed_pop(&mut self) -> Result<ValuePtr, StackError> {
         let value = self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
 
-        if let Some((managed, slot)) = value.into_managed() {
+        if let Some((managed, slot)) = value.try_into_managed() {
             self.dec_count(managed, slot)?;
         }
 
@@ -821,7 +923,7 @@ impl Vm {
                         let array = self.arrays.remove(slot);
 
                         for value in array.value.into_iter().copied() {
-                            if let Some((managed, slot)) = value.into_managed() {
+                            if let Some((managed, slot)) = value.try_into_managed() {
                                 self.dec_count(managed, slot)?;
                             }
                         }
@@ -851,7 +953,7 @@ impl Vm {
             }
         };
 
-        if let Some((managed, slot)) = value.into_managed() {
+        if let Some((managed, slot)) = value.try_into_managed() {
             self.inc_count(managed, slot)?;
         }
 
@@ -866,14 +968,14 @@ impl Vm {
                 let holder = self
                     .strings
                     .get_mut(slot)
-                    .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
+                    .ok_or_else(|| StackError::StringSlotMissing { slot })?;
                 holder.count += 1;
             }
             Managed::Array => {
                 let holder = self
                     .arrays
                     .get_mut(slot)
-                    .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
+                    .ok_or_else(|| StackError::ArraySlotMissing { slot })?;
                 holder.count += 1;
             }
             Managed::External => {
@@ -1027,60 +1129,88 @@ impl Vm {
 
     /// Get a reference of the string at the given string slot.
     pub fn string_ref(&self, slot: usize) -> Result<&str, StackError> {
-        match self.strings.get(slot) {
-            Some(holder) => Ok(&holder.value),
-            None => Err(StackError::StringSlotMissing { slot }),
+        if let Some(holder) = self.strings.get(slot) {
+            return Ok(&holder.value);
         }
+
+        Err(StackError::StringSlotMissing { slot })
     }
 
     /// Get a cloned string from the given slot.
-    pub fn string_clone(&self, index: usize) -> Option<Box<str>> {
-        Some(self.strings.get(index)?.value.to_owned())
+    pub fn string_clone(&self, slot: usize) -> Result<Box<str>, StackError> {
+        if let Some(holder) = self.strings.get(slot) {
+            return Ok(holder.value.to_owned());
+        }
+
+        Err(StackError::StringSlotMissing { slot })
     }
 
     /// Take the string at the given slot.
-    pub fn string_take(&mut self, slot: usize) -> Option<Box<str>> {
+    pub fn string_take(&mut self, slot: usize) -> Result<Box<str>, StackError> {
         if !self.strings.contains(slot) {
-            return None;
+            return Err(StackError::StringSlotMissing { slot });
         }
 
         let holder = self.strings.remove(slot);
-        Some(holder.value)
+        Ok(holder.value)
+    }
+
+    /// Get a reference of the array at the given slot.
+    pub fn array_ref(&self, slot: usize) -> Result<&[ValuePtr], StackError> {
+        if let Some(holder) = self.arrays.get(slot) {
+            return Ok(&holder.value);
+        }
+
+        Err(StackError::ArraySlotMissing { slot })
     }
 
     /// Get a cloned array from the given slot.
-    pub fn array_clone(&self, index: usize) -> Option<Box<[ValuePtr]>> {
-        Some(self.arrays.get(index)?.value.to_owned())
+    pub fn array_clone(&self, slot: usize) -> Result<Box<[ValuePtr]>, StackError> {
+        if let Some(holder) = self.arrays.get(slot) {
+            return Ok(holder.value.to_owned());
+        }
+
+        Err(StackError::ArraySlotMissing { slot })
     }
 
     /// Take the array at the given slot.
-    pub fn array_take(&mut self, slot: usize) -> Option<Box<[ValuePtr]>> {
+    pub fn array_take(&mut self, slot: usize) -> Result<Box<[ValuePtr]>, StackError> {
         if !self.arrays.contains(slot) {
-            return None;
+            return Err(StackError::ArraySlotMissing { slot });
         }
 
         let holder = self.arrays.remove(slot);
-        Some(holder.value)
+        Ok(holder.value)
     }
 
     /// Get a clone of the given external.
-    pub fn external_clone<T: Clone + External>(&self, slot: usize) -> Option<T> {
+    pub fn external_clone<T: Clone + External>(&self, slot: usize) -> Result<T, StackError> {
         // This is safe since we can rely on the typical reference guarantees of
         // VM.
         unsafe {
-            let external = self.externals.get(slot)?;
-            let external = (*external.value.get()).as_any().downcast_ref::<T>()?;
-            Some(external.clone())
+            if let Some(holder) = self.externals.get(slot) {
+                let external = (*holder.value.get())
+                    .as_any()
+                    .downcast_ref::<T>()
+                    .ok_or_else(|| StackError::ExpectedExternalType {
+                        expected: type_name::<T>(),
+                        actual: holder.type_name,
+                    })?;
+
+                return Ok(external.clone());
+            }
+
+            Err(StackError::ExternalSlotMissing { slot })
         }
     }
 
     /// Take an external value by dyn, assuming you have exlusive access to it.
-    pub fn external_take<T>(&mut self, slot: usize) -> Option<T>
+    pub fn external_take<T>(&mut self, slot: usize) -> Result<T, StackError>
     where
         T: External,
     {
         if !self.externals.contains(slot) {
-            return None;
+            return Err(StackError::ExternalSlotMissing { slot });
         }
 
         let mut external = self.externals.remove(slot);
@@ -1091,20 +1221,26 @@ impl Vm {
             let value = Box::into_raw(external.value);
 
             if let Some(ptr) = (&mut *(*value).get()).as_mut_ptr(TypeId::of::<T>()) {
-                return Some(*Box::from_raw(ptr as *mut T));
+                return Ok(*Box::from_raw(ptr as *mut T));
             }
+
+            let actual = external.type_name;
 
             external.value = Box::from_raw(value);
             let new_slot = self.externals.insert(external);
             debug_assert!(new_slot == slot);
-            None
+
+            Err(StackError::ExpectedExternalType {
+                expected: type_name::<T>(),
+                actual,
+            })
         }
     }
 
     /// Take an external value by dyn, assuming you have exlusive access to it.
-    pub fn external_take_dyn(&mut self, slot: usize) -> Option<Box<dyn External>> {
+    pub fn external_take_dyn(&mut self, slot: usize) -> Result<Box<dyn External>, StackError> {
         if !self.externals.contains(slot) {
-            return None;
+            return Err(StackError::ExternalSlotMissing { slot });
         }
 
         // Safety: We have mutable access to the VM, so we're the only ones
@@ -1112,7 +1248,7 @@ impl Vm {
         unsafe {
             let external = self.externals.remove(slot);
             let value = Box::into_raw(external.value);
-            Some(Box::from_raw((*value).get()))
+            Ok(Box::from_raw((*value).get()))
         }
     }
 
@@ -1123,14 +1259,17 @@ impl Vm {
     ///
     /// Caller must ensure that the made up returned reference is no longer used
     /// before [disarm][Vm::disarm] is called.
-    pub fn external_dyn_ref(&self, slot: usize) -> Option<&dyn External> {
-        let external = self.externals.get(slot)?;
+    pub fn external_ref_dyn(&self, slot: usize) -> Result<&dyn External, StackError> {
+        let external = self
+            .externals
+            .get(slot)
+            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
 
         if !external.access.is_sharable() {
-            return None;
+            return Err(StackError::ExternalInaccessible { slot });
         }
 
-        Some(unsafe { &*external.value.get() })
+        Ok(unsafe { &*external.value.get() })
     }
 
     /// Get a reference of the external value of the given type and the given
@@ -1140,16 +1279,29 @@ impl Vm {
     ///
     /// Caller must ensure that the made up returned reference is no longer used
     /// before [disarm][Vm::disarm] is called.
-    pub unsafe fn external_ref<'out, T: External>(&self, slot: usize) -> Option<&'out T> {
-        let external = self.externals.get(slot)?;
+    pub unsafe fn unsafe_external_ref<'out, T: External>(
+        &self,
+        slot: usize,
+    ) -> Result<&'out T, StackError> {
+        let external = self
+            .externals
+            .get(slot)
+            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
 
         if !external.access.shared() {
-            return None;
+            return Err(StackError::ExternalInaccessible { slot });
         }
 
-        let external = (&*external.value.get()).as_any().downcast_ref::<T>()?;
+        let external = (&*external.value.get())
+            .as_any()
+            .downcast_ref::<T>()
+            .ok_or_else(|| StackError::ExpectedExternalType {
+                expected: type_name::<T>(),
+                actual: external.type_name,
+            })?;
+
         self.guards.borrow_mut().push((Managed::External, slot));
-        Some(&*(external as *const T))
+        Ok(&*(external as *const T))
     }
 
     /// Get a reference of the external value of the given type and the given
@@ -1162,18 +1314,29 @@ impl Vm {
     ///
     /// Caller must ensure that the made up returned reference is no longer used
     /// before [disarm][Vm::disarm] is called.
-    pub unsafe fn external_mut<'out, T: External>(&self, slot: usize) -> Option<&'out mut T> {
-        let external = self.externals.get(slot)?;
+    pub unsafe fn unsafe_external_mut<'out, T: External>(
+        &self,
+        slot: usize,
+    ) -> Result<&'out mut T, StackError> {
+        let external = self
+            .externals
+            .get(slot)
+            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
 
         if !external.access.exclusive() {
-            return None;
+            return Err(StackError::ExternalInaccessible { slot });
         }
 
         let external = (&mut *external.value.get())
             .as_any_mut()
-            .downcast_mut::<T>()?;
+            .downcast_mut::<T>()
+            .ok_or_else(|| StackError::ExpectedExternalType {
+                expected: type_name::<T>(),
+                actual: external.type_name,
+            })?;
+
         self.guards.borrow_mut().push((Managed::External, slot));
-        Some(external)
+        Ok(external)
     }
 
     /// Disarm all collected guards.
@@ -1191,9 +1354,12 @@ impl Vm {
     }
 
     /// Access information about an external type, if available.
-    pub fn external_type(&self, index: usize) -> Option<(&'static str, TypeId)> {
-        let external = self.externals.get(index)?;
-        Some((external.type_name, external.type_id))
+    pub fn external_type(&self, slot: usize) -> Result<(&'static str, TypeId), StackError> {
+        if let Some(holder) = self.externals.get(slot) {
+            return Ok((holder.type_name, holder.type_id));
+        }
+
+        Err(StackError::ExternalSlotMissing { slot })
     }
 
     /// Get the last value on the stack.
@@ -1210,10 +1376,11 @@ impl Vm {
 
         let value = match T::from_value(value, self) {
             Ok(value) => value,
-            Err(e) => {
-                let type_info = e.type_info(self)?;
+            Err(error) => {
+                let type_info = value.type_info(self)?;
 
                 return Err(VmError::StackConversionError {
+                    error,
                     from: type_info,
                     to: type_name::<T>(),
                 });
@@ -1225,76 +1392,64 @@ impl Vm {
     }
 
     /// Convert into an owned array.
-    pub fn take_owned_array(&mut self, values: Box<[ValuePtr]>) -> Box<[Value]> {
+    pub fn take_owned_array(
+        &mut self,
+        values: Box<[ValuePtr]>,
+    ) -> Result<Box<[Value]>, StackError> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
-            output.push(self.take_owned_value(value));
+            output.push(self.take_owned_value(value)?);
         }
 
-        output.into_boxed_slice()
+        Ok(output.into_boxed_slice())
     }
 
     /// Convert a value reference into an owned value.
-    pub fn take_owned_value(&mut self, value: ValuePtr) -> Value {
-        match value {
+    pub fn take_owned_value(&mut self, value: ValuePtr) -> Result<Value, StackError> {
+        Ok(match value {
             ValuePtr::Unit => Value::Unit,
             ValuePtr::Integer(integer) => Value::Integer(integer),
             ValuePtr::Float(float) => Value::Float(float),
             ValuePtr::Bool(boolean) => Value::Bool(boolean),
             ValuePtr::Managed(managed) => match managed.into_managed() {
-                (Managed::String, slot) => match self.strings.get(slot) {
-                    Some(string) => Value::String(string.value.to_owned()),
-                    None => Value::Error(ValueError::String(slot)),
-                },
-                (Managed::Array, slot) => match self.arrays.get(slot) {
-                    Some(array) => {
-                        let array = array.value.to_owned();
-                        Value::Array(self.take_owned_array(array))
-                    }
-                    None => Value::Error(ValueError::Array(slot)),
-                },
-                (Managed::External, slot) => match self.external_take_dyn(slot) {
-                    Some(external) => Value::External(external),
-                    None => Value::Error(ValueError::External(slot)),
-                },
+                (Managed::String, slot) => Value::String(self.string_take(slot)?),
+                (Managed::Array, slot) => {
+                    let array = self.array_take(slot)?;
+                    Value::Array(self.take_owned_array(array)?)
+                }
+                (Managed::External, slot) => Value::External(self.external_take_dyn(slot)?),
             },
-        }
+        })
     }
 
     /// Convert into an owned array.
-    pub fn to_array<'a>(&'a self, values: &[ValuePtr]) -> Box<[ValueRef<'_>]> {
+    pub fn to_array<'a>(&'a self, values: &[ValuePtr]) -> Result<Box<[ValueRef<'_>]>, StackError> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
-            output.push(self.to_value(value));
+            output.push(self.to_value(value)?);
         }
 
-        output.into_boxed_slice()
+        Ok(output.into_boxed_slice())
     }
 
     /// Convert a value reference into an owned value.
-    pub fn to_value<'a>(&'a self, value: ValuePtr) -> ValueRef<'a> {
-        match value {
+    pub fn to_value<'a>(&'a self, value: ValuePtr) -> Result<ValueRef<'a>, StackError> {
+        Ok(match value {
             ValuePtr::Unit => ValueRef::Unit,
             ValuePtr::Integer(integer) => ValueRef::Integer(integer),
             ValuePtr::Float(float) => ValueRef::Float(float),
             ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
             ValuePtr::Managed(managed) => match managed.into_managed() {
-                (Managed::String, slot) => match self.strings.get(slot) {
-                    Some(string) => ValueRef::String(&string.value),
-                    None => ValueRef::Error(ValueError::String(slot)),
-                },
-                (Managed::Array, slot) => match self.arrays.get(slot) {
-                    Some(array) => ValueRef::Array(self.to_array(&array.value)),
-                    None => ValueRef::Error(ValueError::Array(slot)),
-                },
-                (Managed::External, slot) => match self.external_dyn_ref(slot) {
-                    Some(external) => ValueRef::External(external),
-                    None => ValueRef::Error(ValueError::External(slot)),
-                },
+                (Managed::String, slot) => ValueRef::String(self.string_ref(slot)?),
+                (Managed::Array, slot) => {
+                    let array = self.array_ref(slot)?;
+                    ValueRef::Array(self.to_array(array)?)
+                }
+                (Managed::External, slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             },
-        }
+        })
     }
 
     /// Implementation of the add operation.

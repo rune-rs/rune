@@ -1065,9 +1065,10 @@ macro_rules! impl_register {
 
     (@return $vm:ident, $ret:ident, $ty:ty) => {
         let $ret = match $ret.to_value($vm) {
-            Some($ret) => $ret,
-            None => {
+            Ok($ret) => $ret,
+            Err(error) => {
                 return Err(VmError::ReturnConversionError {
+                    error,
                     ret: type_name::<$ty>()
                 });
             }
@@ -1081,10 +1082,11 @@ macro_rules! impl_register {
         $(
             let $var = match <$ty>::unsafe_from_value($var, $vm) {
                 Ok(v) => v,
-                Err(v) => {
-                    let ty = v.type_info($vm)?;
+                Err(error) => {
+                    let ty = $var.type_info($vm)?;
 
                     return Err(VmError::ArgumentConversionError {
+                        error,
                         arg: $count - $num,
                         from: ty,
                         to: type_name::<$ty>(),
@@ -1098,10 +1100,11 @@ macro_rules! impl_register {
     (@unsafeinstancevars $inst:ident, $vm:expr, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         let $inst = match Inst::unsafe_from_value($inst, $vm) {
             Ok(v) => v,
-            Err(v) => {
-                let ty = v.type_info($vm)?;
+            Err(error) => {
+                let ty = $inst.type_info($vm)?;
 
                 return Err(VmError::ArgumentConversionError {
+                    error,
                     arg: 0,
                     from: ty,
                     to: type_name::<Inst>()
@@ -1112,10 +1115,11 @@ macro_rules! impl_register {
         $(
             let $var = match <$ty>::unsafe_from_value($var, $vm) {
                 Ok(v) => v,
-                Err(v) => {
-                    let ty = v.type_info($vm)?;
+                Err(error) => {
+                    let ty = $var.type_info($vm)?;
 
                     return Err(VmError::ArgumentConversionError {
+                        error,
                         arg: 1 + $count - $num,
                         from: ty,
                         to: type_name::<$ty>()

@@ -28,8 +28,8 @@ macro_rules! decl_external {
         }
 
         impl $crate::ToValue for $external {
-            fn to_value(self, vm: &mut $crate::Vm) -> Option<$crate::ValuePtr> {
-                Some(vm.allocate_external(self))
+            fn to_value(self, vm: &mut $crate::Vm) -> Result<$crate::ValuePtr, $crate::StackError> {
+                Ok(vm.allocate_external(self))
             }
         }
 
@@ -37,13 +37,9 @@ macro_rules! decl_external {
             fn from_value(
                 value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-            ) -> Result<Self, $crate::ValuePtr> {
+            ) -> Result<Self, $crate::StackError> {
                 let slot = value.into_external()?;
-
-                match vm.external_take::<$external>(slot) {
-                    Some(external) => Ok(external),
-                    None => Err(value),
-                }
+                vm.external_take::<$external>(slot)
             }
         }
 
@@ -51,13 +47,9 @@ macro_rules! decl_external {
             unsafe fn unsafe_from_value(
                 value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-            ) -> Result<Self, $crate::ValuePtr> {
+            ) -> Result<Self, $crate::StackError> {
                 let slot = value.into_external()?;
-
-                match vm.external_ref::<$external>(slot) {
-                    Some(value) => Ok(value),
-                    None => Err(value),
-                }
+                vm.unsafe_external_ref::<$external>(slot)
             }
         }
 
@@ -65,13 +57,9 @@ macro_rules! decl_external {
             unsafe fn unsafe_from_value(
                 value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-            ) -> Result<Self, $crate::ValuePtr> {
+            ) -> Result<Self, $crate::StackError> {
                 let slot = value.into_external()?;
-
-                match vm.external_mut::<$external>(slot) {
-                    Some(value) => Ok(value),
-                    None => Err(value),
-                }
+                vm.unsafe_external_mut::<$external>(slot)
             }
         }
     };

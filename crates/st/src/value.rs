@@ -1,13 +1,7 @@
 use crate::external::External;
-use crate::vm::Vm;
+use crate::vm::{StackError, Vm};
 use std::any::TypeId;
 use std::fmt;
-use thiserror::Error;
-
-/// Error raised when external type cannot be resolved.
-#[derive(Debug, Error)]
-#[error("failed to resolve external at slot `{0}`")]
-pub struct ExternalTypeError(usize);
 
 /// Describes what slot error happened.
 #[derive(Debug, Clone, Copy)]
@@ -39,9 +33,6 @@ pub enum Value {
     Bool(bool),
     /// Reference to an external type.
     External(Box<dyn External>),
-    /// A slot error value where we were unable to convert a value reference
-    /// from a slot.
-    Error(ValueError),
 }
 
 #[derive(Debug)]
@@ -61,9 +52,6 @@ pub enum ValueRef<'a> {
     Bool(bool),
     /// Reference to an external type.
     External(&'a dyn External),
-    /// A slot error value where we were unable to convert a value reference
-    /// from a slot.
-    Error(ValueError),
 }
 
 /// Managed entries on the stack.
@@ -129,16 +117,16 @@ macro_rules! decl_managed {
         struct $name(());
 
         impl IntoSlot for $name {
-            fn into_slot(value: ValuePtr) -> Result<usize, ValuePtr> {
+            fn into_slot(value: ValuePtr) -> Result<usize, StackError> {
                 let Slot(slot) = match value {
                     ValuePtr::Managed(managed) => managed,
-                    _ => return Err(value),
+                    _ => return Err(StackError::ExpectedManaged),
                 };
 
                 if slot & 0b11 == Slot::$constant {
                     Ok((slot >> 2) as usize)
                 } else {
-                    Err(value)
+                    Err(StackError::IncompatibleSlot)
                 }
             }
         }
@@ -152,7 +140,7 @@ decl_managed!(ManagedExternal, EXTERNAL);
 /// Trait for converting into managed slots.
 trait IntoSlot {
     /// Convert thing into a managed slot.
-    fn into_slot(value: ValuePtr) -> Result<usize, ValuePtr>;
+    fn into_slot(value: ValuePtr) -> Result<usize, StackError>;
 }
 
 /// An entry on the stack.
@@ -173,7 +161,17 @@ pub enum ValuePtr {
 impl ValuePtr {
     /// Convert value into a managed.
     #[inline]
-    pub fn into_managed(self) -> Option<(Managed, usize)> {
+    pub fn into_managed(self) -> Result<(Managed, usize), StackError> {
+        if let Self::Managed(slot) = self {
+            Ok(slot.into_managed())
+        } else {
+            Err(StackError::ExpectedManaged)
+        }
+    }
+
+    /// Try to convert into managed.
+    #[inline]
+    pub fn try_into_managed(self) -> Option<(Managed, usize)> {
         if let Self::Managed(slot) = self {
             Some(slot.into_managed())
         } else {
@@ -183,7 +181,7 @@ impl ValuePtr {
 
     /// Convert value into a managed slot.
     #[inline]
-    fn into_slot<T>(self) -> Result<usize, Self>
+    fn into_slot<T>(self) -> Result<usize, StackError>
     where
         T: IntoSlot,
     {
@@ -191,22 +189,22 @@ impl ValuePtr {
     }
 
     /// Try to coerce value reference into an external.
-    pub fn into_external(self) -> Result<usize, Self> {
+    pub fn into_external(self) -> Result<usize, StackError> {
         self.into_slot::<ManagedExternal>()
     }
 
     /// Try to coerce value reference into an array.
-    pub fn into_array(self) -> Result<usize, Self> {
+    pub fn into_array(self) -> Result<usize, StackError> {
         self.into_slot::<ManagedArray>()
     }
 
     /// Try to coerce value reference into an array.
-    pub fn into_string(self) -> Result<usize, Self> {
+    pub fn into_string(self) -> Result<usize, StackError> {
         self.into_slot::<ManagedString>()
     }
 
     /// Get the type information for the current value.
-    pub fn value_type(&self, vm: &Vm) -> Result<ValueType, ExternalTypeError> {
+    pub fn value_type(&self, vm: &Vm) -> Result<ValueType, StackError> {
         Ok(match *self {
             Self::Unit => ValueType::Unit,
             Self::Integer(..) => ValueType::Integer,
@@ -216,9 +214,7 @@ impl ValuePtr {
                 (Managed::String, ..) => ValueType::String,
                 (Managed::Array, _) => ValueType::Array,
                 (Managed::External, slot) => {
-                    let (_, type_hash) = vm
-                        .external_type(slot)
-                        .ok_or_else(|| ExternalTypeError(slot))?;
+                    let (_, type_hash) = vm.external_type(slot)?;
 
                     ValueType::External(type_hash)
                 }
@@ -227,7 +223,7 @@ impl ValuePtr {
     }
 
     /// Get the type information for the current value.
-    pub fn type_info(&self, vm: &Vm) -> Result<ValueTypeInfo, ExternalTypeError> {
+    pub fn type_info(&self, vm: &Vm) -> Result<ValueTypeInfo, StackError> {
         Ok(match *self {
             Self::Unit => ValueTypeInfo::Unit,
             Self::Integer(..) => ValueTypeInfo::Integer,
@@ -237,9 +233,7 @@ impl ValuePtr {
                 (Managed::String, _) => ValueTypeInfo::String,
                 (Managed::Array, _) => ValueTypeInfo::Array,
                 (Managed::External, slot) => {
-                    let (type_name, type_hash) = vm
-                        .external_type(slot)
-                        .ok_or_else(|| ExternalTypeError(slot))?;
+                    let (type_name, type_hash) = vm.external_type(slot)?;
 
                     ValueTypeInfo::External(type_name, type_hash)
                 }

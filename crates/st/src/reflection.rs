@@ -1,17 +1,11 @@
 use crate::external::External;
 use crate::value::{Value, ValuePtr, ValueType};
-use crate::vm::Vm;
-use thiserror::Error;
-
-/// Failure to encode a value.
-#[derive(Debug, Error)]
-#[error("failed to convert arguments into values")]
-pub struct IntoArgsError(());
+use crate::vm::{Integer, StackError, Vm};
 
 /// Trait for converting arguments into values.
 pub trait IntoArgs {
     /// Encode arguments to the vm.
-    fn encode(self, vm: &mut Vm) -> Result<(), IntoArgsError>;
+    fn into_args(self, vm: &mut Vm) -> Result<(), StackError>;
 
     /// The number of arguments.
     fn count() -> usize;
@@ -26,13 +20,13 @@ pub trait ReflectValueType: Sized {
 /// Trait for converting types into values.
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self, vm: &mut Vm) -> Option<ValuePtr>;
+    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError>;
 }
 
 /// Trait for converting from a value.
 pub trait FromValue: Sized {
     /// Try to convert to the given type, from the given value.
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr>;
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError>;
 }
 
 /// A potentially unsafe conversion for value conversion.
@@ -43,28 +37,23 @@ pub trait UnsafeFromValue: Sized {
     ///
     /// The return value of this function may only be used while a virtual
     /// machine is not being modified.
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr>;
+    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError>;
 }
 
 impl<T> UnsafeFromValue for T
 where
     T: FromValue,
 {
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
+    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         T::from_value(value, vm)
     }
 }
 
 impl<'a> UnsafeFromValue for &'a str {
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
+    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_string()?;
-
-        if let Ok(value) = vm.string_ref(slot) {
-            // Make up a lifetime.
-            return Ok(&*(value as *const _));
-        }
-
-        Err(value)
+        let value = vm.string_ref(slot)?;
+        Ok(&*(value as *const _))
     }
 }
 
@@ -81,10 +70,10 @@ impl<T> ToValue for Option<T>
 where
     T: ToValue,
 {
-    fn to_value(self, vm: &mut Vm) -> Option<ValuePtr> {
+    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
         match self {
             Some(s) => s.to_value(vm),
-            None => Some(ValuePtr::Unit),
+            None => Ok(ValuePtr::Unit),
         }
     }
 }
@@ -93,11 +82,11 @@ impl<T> FromValue for Option<T>
 where
     T: FromValue,
 {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
-        Ok(match value {
-            ValuePtr::Unit => None,
-            value => Some(T::from_value(value, vm)?),
-        })
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+        match value {
+            ValuePtr::Unit => Ok(None),
+            _ => Ok(Some(T::from_value(value, vm)?)),
+        }
     }
 }
 
@@ -105,13 +94,9 @@ impl<T> FromValue for Vec<T>
 where
     T: FromValue,
 {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_array()?;
-
-        let array = match vm.array_take(slot) {
-            Some(array) => array,
-            None => return Err(value),
-        };
+        let array = vm.array_take(slot)?;
 
         let mut output = Vec::with_capacity(array.len());
 
@@ -131,17 +116,14 @@ impl ReflectValueType for () {
 }
 
 impl ToValue for () {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
-        Some(ValuePtr::Unit)
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(ValuePtr::Unit)
     }
 }
 
 impl FromValue for () {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
-        match value {
-            ValuePtr::Unit => Ok(()),
-            value => Err(value),
-        }
+    fn from_value(_: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
+        Ok(())
     }
 }
 
@@ -153,16 +135,16 @@ impl ReflectValueType for bool {
 }
 
 impl ToValue for bool {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
-        Some(ValuePtr::Bool(self))
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(ValuePtr::Bool(self))
     }
 }
 
 impl FromValue for bool {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
         match value {
             ValuePtr::Bool(value) => Ok(value),
-            value => Err(value),
+            _ => Err(StackError::ExpectedBoolean),
         }
     }
 }
@@ -180,19 +162,16 @@ impl<'a> ReflectValueType for &'a str {
 }
 
 impl ToValue for String {
-    fn to_value(self, vm: &mut Vm) -> Option<ValuePtr> {
-        Some(vm.allocate_string(self.into_boxed_str()))
+    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(vm.allocate_string(self.into_boxed_str()))
     }
 }
 
 impl FromValue for String {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_string()?;
-
-        match vm.string_clone(slot) {
-            Some(value) => Ok(String::from(value)),
-            None => Err(value),
-        }
+        let string = vm.string_take(slot)?;
+        Ok(String::from(string))
     }
 }
 
@@ -204,19 +183,15 @@ impl ReflectValueType for Box<str> {
 }
 
 impl ToValue for Box<str> {
-    fn to_value(self, vm: &mut Vm) -> Option<ValuePtr> {
-        Some(vm.allocate_string(self))
+    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(vm.allocate_string(self))
     }
 }
 
 impl FromValue for Box<str> {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_string()?;
-
-        match vm.string_clone(slot) {
-            Some(value) => Ok(value),
-            _ => Err(value),
-        }
+        vm.string_take(slot)
     }
 }
 
@@ -228,22 +203,22 @@ impl ReflectValueType for i64 {
 }
 
 impl ToValue for i64 {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
-        Some(ValuePtr::Integer(self))
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(ValuePtr::Integer(self))
     }
 }
 
 impl FromValue for i64 {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
         match value {
             ValuePtr::Integer(number) => Ok(number),
-            value => Err(value),
+            _ => Err(StackError::ExpectedInteger),
         }
     }
 }
 
 macro_rules! number_value_trait {
-    ($ty:ty) => {
+    ($ty:ty, $variant:ident) => {
         /// Convert a number into a value type.
         impl ReflectValueType for $ty {
             fn reflect_value_type() -> ValueType {
@@ -252,38 +227,48 @@ macro_rules! number_value_trait {
         }
 
         impl ToValue for $ty {
-            fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
+            fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
                 use std::convert::TryInto as _;
 
-                Some(ValuePtr::Integer(self.try_into().ok()?))
+                match self.try_into() {
+                    Ok(number) => Ok(ValuePtr::Integer(number)),
+                    Err(..) => Err(StackError::IntegerToValueCoercionError {
+                        from: Integer::$variant(self),
+                        to: std::any::type_name::<i64>(),
+                    }),
+                }
             }
         }
 
         impl FromValue for $ty {
-            fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
+            fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
                 use std::convert::TryInto as _;
 
                 match value {
-                    ValuePtr::Integer(number) => {
-                        number.try_into().map_err(|_| ValuePtr::Integer(number))
-                    }
-                    value => Err(value),
+                    ValuePtr::Integer(number) => match number.try_into() {
+                        Ok(number) => Ok(number),
+                        Err(..) => Err(StackError::ValueToIntegerCoercionError {
+                            from: Integer::I64(number),
+                            to: std::any::type_name::<Self>(),
+                        }),
+                    },
+                    _ => Err(StackError::ExpectedInteger),
                 }
             }
         }
     };
 }
 
-number_value_trait!(u8);
-number_value_trait!(u32);
-number_value_trait!(u64);
-number_value_trait!(u128);
-number_value_trait!(usize);
+number_value_trait!(u8, U8);
+number_value_trait!(u32, U32);
+number_value_trait!(u64, U64);
+number_value_trait!(u128, U128);
+number_value_trait!(usize, Usize);
 
-number_value_trait!(i8);
-number_value_trait!(i32);
-number_value_trait!(i128);
-number_value_trait!(isize);
+number_value_trait!(i8, I8);
+number_value_trait!(i32, I32);
+number_value_trait!(i128, I128);
+number_value_trait!(isize, Isize);
 
 /// Convert a float into a value type.
 impl ReflectValueType for f64 {
@@ -293,16 +278,16 @@ impl ReflectValueType for f64 {
 }
 
 impl ToValue for f64 {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
-        Some(ValuePtr::Float(self))
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(ValuePtr::Float(self))
     }
 }
 
 impl FromValue for f64 {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
         match value {
             ValuePtr::Float(number) => Ok(number),
-            value => Err(value),
+            _ => Err(StackError::ExpectedFloat),
         }
     }
 }
@@ -315,17 +300,16 @@ impl ReflectValueType for f32 {
 }
 
 impl ToValue for f32 {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
-        use std::convert::TryInto as _;
-        Some(ValuePtr::Float(self.try_into().ok()?))
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(ValuePtr::Float(self as f64))
     }
 }
 
 impl FromValue for f32 {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
         match value {
             ValuePtr::Float(number) => Ok(number as f32),
-            value => Err(value),
+            _ => Err(StackError::ExpectedFloat),
         }
     }
 }
@@ -346,9 +330,9 @@ macro_rules! impl_into_args {
             $($ty: ToValue,)*
         {
             #[allow(unused)]
-            fn encode(self, vm: &mut Vm) -> Result<(), IntoArgsError> {
+            fn into_args(self, vm: &mut Vm) -> Result<(), StackError> {
                 let ($($var,)*) = self;
-                $(let $var = $var.to_value(vm).ok_or_else(|| IntoArgsError(()))?;)*
+                $(let $var = $var.to_value(vm)?;)*
                 $(vm.managed_push($var);)*
                 Ok(())
             }
@@ -372,18 +356,14 @@ impl_into_args!(
 );
 
 impl FromValue for Value {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
-        Ok(vm.take_owned_value(value))
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+        vm.take_owned_value(value)
     }
 }
 
 impl FromValue for Box<dyn External> {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_external()?;
-
-        match vm.external_take_dyn(slot) {
-            Some(external) => Ok(external),
-            None => Err(value),
-        }
+        vm.external_take_dyn(slot)
     }
 }
