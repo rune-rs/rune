@@ -60,7 +60,8 @@ impl<'a> UnsafeFromValue for &'a str {
         let slot = value.into_string()?;
 
         if let Ok(value) = vm.string_ref(slot) {
-            return Ok(std::mem::transmute(value));
+            // Make up a lifetime.
+            return Ok(&*(value as *const _));
         }
 
         Err(value)
