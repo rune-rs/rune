@@ -1,5 +1,5 @@
 use crate::external::External;
-use crate::vm::{StackError, Vm};
+use crate::vm::{Ref, StackError, Vm};
 use std::any::TypeId;
 use std::fmt;
 
@@ -41,7 +41,7 @@ pub enum ValueRef<'a> {
     /// An empty unit.
     Unit,
     /// A string.
-    String(&'a str),
+    String(Ref<'a, String>),
     /// An array.
     Array(Vec<ValueRef<'a>>),
     /// An integer.
@@ -51,7 +51,7 @@ pub enum ValueRef<'a> {
     /// A boolean.
     Bool(bool),
     /// Reference to an external type.
-    External(&'a dyn External),
+    External(Ref<'a, dyn External>),
 }
 
 /// Managed entries on the stack.

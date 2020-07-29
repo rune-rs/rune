@@ -1,6 +1,6 @@
 use crate::external::External;
 use crate::value::{Value, ValuePtr, ValueType};
-use crate::vm::{Integer, StackError, Vm};
+use crate::vm::{Integer, Mut, Ref, StackError, Vm};
 
 /// Trait for converting arguments into values.
 pub trait IntoArgs {
@@ -52,16 +52,14 @@ where
 impl<'a> UnsafeFromValue for &'a str {
     unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_string()?;
-        let value = vm.string_ref(slot)?.as_str();
-        Ok(&*(value as *const _))
+        Ok(Ref::unsafe_into_ref(vm.string_ref(slot)?).as_str())
     }
 }
 
 impl<'a> UnsafeFromValue for &'a String {
     unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_string()?;
-        let value = vm.string_ref(slot)?;
-        Ok(&*(value as *const _))
+        Ok(Ref::unsafe_into_ref(vm.string_ref(slot)?))
     }
 }
 
@@ -74,8 +72,7 @@ impl<'a> ReflectValueType for &'a String {
 impl<'a> UnsafeFromValue for &'a mut String {
     unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_string()?;
-        let value = vm.string_mut(slot)?;
-        Ok(&mut *(value as *mut _))
+        Ok(Mut::unsafe_into_mut(vm.string_mut(slot)?))
     }
 }
 

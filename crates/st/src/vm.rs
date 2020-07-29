@@ -10,6 +10,8 @@ use std::any::{type_name, TypeId};
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
 use std::marker::PhantomData;
+use std::mem;
+use std::ops;
 use thiserror::Error;
 
 /// An error raised when interacting with types on the stack.
@@ -94,6 +96,113 @@ pub enum StackError {
         /// Number type we tried to convert to.
         to: &'static str,
     },
+}
+
+/// Guard for a value borrowed from a slot in the virtual machine.
+///
+/// These guards are necessary, since we need to guarantee certain forms of
+/// access depending on what we do. Releasing the guard releases the access.
+///
+/// These also aid in function call integration, since they can be "arm" the
+/// virtual machine to release shared guards through its unsafe functions.
+///
+/// See [disarm][Vm::disarm] for more information.
+pub struct Ref<'a, T: ?Sized + 'a> {
+    value: &'a T,
+    access: &'a Access,
+    guard: Guard,
+    guards: &'a UnsafeCell<Vec<Guard>>,
+}
+
+impl<'a, T: ?Sized> Ref<'a, T> {
+    /// Convert into a reference with an unbounded lifetime.
+    ///
+    /// # Safety
+    ///
+    /// The returned reference must not outlive the VM that produced it.
+    /// Calling [disarm][Vm::disarm] must not be done until all referenced
+    /// produced through these methods are no longer live.
+    pub unsafe fn unsafe_into_ref<'out>(this: Self) -> &'out T {
+        (*this.guards.get()).push(this.guard);
+        let value = &*(this.value as *const _);
+        mem::forget(this);
+        value
+    }
+}
+
+impl<T: ?Sized> ops::Deref for Ref<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+
+impl<T: ?Sized> Drop for Ref<'_, T> {
+    fn drop(&mut self) {
+        self.access.release_shared();
+    }
+}
+
+impl<T: ?Sized> fmt::Debug for Ref<'_, T>
+where
+    T: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.value, fmt)
+    }
+}
+
+/// Guard for a value exclusively borrowed from a slot in the virtual machine.
+///
+/// These guards are necessary, since we need to guarantee certain forms of
+/// access depending on what we do. Releasing the guard releases the access.
+///
+/// These also aid in function call integration, since they can be "arm" the
+/// virtual machine to release shared guards through its unsafe functions.
+///
+/// See [disarm][Vm::disarm] for more information.
+pub struct Mut<'a, T: ?Sized> {
+    value: &'a mut T,
+    access: &'a Access,
+    guard: Guard,
+    guards: &'a UnsafeCell<Vec<Guard>>,
+}
+
+impl<T: ?Sized> Mut<'_, T> {
+    /// Convert into a reference with an unbounded lifetime.
+    ///
+    /// # Safety
+    ///
+    /// The returned reference must not outlive the VM that produced it.
+    /// Calling [disarm][Vm::disarm] must not be done until all referenced
+    /// produced through these methods are no longer live.
+    pub unsafe fn unsafe_into_mut<'out>(this: Self) -> &'out mut T {
+        (*this.guards.get()).push(this.guard);
+        let value = &mut *(this.value as *mut _);
+        mem::forget(this);
+        value
+    }
+}
+
+impl<T: ?Sized> ops::Deref for Mut<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+
+impl<T: ?Sized> ops::DerefMut for Mut<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.value
+    }
+}
+
+impl<T: ?Sized> Drop for Mut<'_, T> {
+    fn drop(&mut self) {
+        self.access.release_exlusive();
+    }
 }
 
 /// A type-erased rust number.
@@ -670,8 +779,17 @@ impl Access {
 
     /// Unshare the current access.
     #[inline]
-    fn unshared(&self) {
+    fn release_shared(&self) {
         let b = self.0.get().wrapping_add(1);
+        debug_assert!(b <= 0);
+        self.0.set(b);
+    }
+
+    /// Unshare the current access.
+    #[inline]
+    fn release_exlusive(&self) {
+        let b = self.0.get().wrapping_sub(1);
+        debug_assert!(b == 0);
         self.0.set(b);
     }
 
@@ -761,6 +879,8 @@ pub struct Frame {
     offset: usize,
 }
 
+pub type Guard = (Managed, usize);
+
 /// A stack which references variables indirectly from a slab.
 pub struct Vm {
     /// The current stack of values.
@@ -780,7 +900,7 @@ pub struct Vm {
     /// We have exited from the last frame.
     pub(crate) exited: bool,
     /// Slots that needs to be disarmed next time we call `disarm`.
-    guards: UnsafeCell<Vec<(Managed, usize)>>,
+    guards: UnsafeCell<Vec<Guard>>,
 }
 
 impl Vm {
@@ -797,14 +917,6 @@ impl Vm {
             exited: false,
             guards: UnsafeCell::new(Vec::new()),
         }
-    }
-
-    /// Push the given guard to be disarmed.
-    fn push_guard(&self, managed: Managed, slot: usize) {
-        log::trace!("pushing slot guard: {}({})", managed, slot);
-        // Safety: we are the only ones pushing to the guard and can guarantee
-        // sound access.
-        unsafe { (*self.guards.get()).push((managed, slot)) }
     }
 
     /// Iterate over the stack, producing the value associated with each stack
@@ -1165,22 +1277,38 @@ impl Vm {
     }
 
     /// Get a reference of the string at the given string slot.
-    pub fn string_ref(&self, slot: usize) -> Result<&String, StackError> {
+    pub fn string_ref(&self, slot: usize) -> Result<Ref<'_, String>, StackError> {
         if let Some(holder) = self.strings.get(slot) {
             holder.access.shared(Managed::String, slot)?;
-            self.push_guard(Managed::String, slot);
-            return Ok(unsafe { &*holder.value.get() });
+
+            // Safety: we return a guard which provides the necessary safety.
+            let value = unsafe { &*holder.value.get() };
+
+            return Ok(Ref {
+                value,
+                access: &holder.access,
+                guard: (Managed::String, slot),
+                guards: &self.guards,
+            });
         }
 
         Err(StackError::StringSlotMissing { slot })
     }
 
     /// Get a mutable reference of the string at the given string slot.
-    pub fn string_mut(&self, slot: usize) -> Result<&mut String, StackError> {
+    pub fn string_mut(&self, slot: usize) -> Result<Mut<'_, String>, StackError> {
         if let Some(holder) = self.strings.get(slot) {
             holder.access.exclusive(Managed::String, slot)?;
-            self.push_guard(Managed::String, slot);
-            return Ok(unsafe { &mut *holder.value.get() });
+
+            // Safety: we wrap it in the required guard to keep it safe.
+            let value = unsafe { &mut *holder.value.get() };
+
+            return Ok(Mut {
+                value,
+                access: &holder.access,
+                guard: (Managed::String, slot),
+                guards: &self.guards,
+            });
         }
 
         Err(StackError::StringSlotMissing { slot })
@@ -1208,11 +1336,19 @@ impl Vm {
     }
 
     /// Get a reference of the array at the given slot.
-    pub fn array_ref(&self, slot: usize) -> Result<&Vec<ValuePtr>, StackError> {
+    pub fn array_ref(&self, slot: usize) -> Result<Ref<'_, Vec<ValuePtr>>, StackError> {
         if let Some(holder) = self.arrays.get(slot) {
             holder.access.shared(Managed::Array, slot)?;
-            self.push_guard(Managed::Array, slot);
-            return Ok(unsafe { &*holder.value.get() });
+
+            // Safety: we wrap the value in the necessary guard to make it safe.
+            let value = unsafe { &*holder.value.get() };
+
+            return Ok(Ref {
+                value,
+                access: &holder.access,
+                guard: (Managed::Array, slot),
+                guards: &self.guards,
+            });
         }
 
         Err(StackError::ArraySlotMissing { slot })
@@ -1231,12 +1367,19 @@ impl Vm {
     }
 
     /// Get a reference of the array at the given slot.
-    pub fn array_mut(&self, slot: usize) -> Result<&mut Vec<ValuePtr>, StackError> {
+    pub fn array_mut(&self, slot: usize) -> Result<Mut<'_, Vec<ValuePtr>>, StackError> {
         if let Some(holder) = self.arrays.get(slot) {
             holder.access.exclusive(Managed::Array, slot)?;
-            self.push_guard(Managed::Array, slot);
+
             // Safety: Caller needs to ensure that they safely call disarm.
-            return Ok(unsafe { &mut *holder.value.get() });
+            let value = unsafe { &mut *holder.value.get() };
+
+            return Ok(Mut {
+                value,
+                access: &holder.access,
+                guard: (Managed::Array, slot),
+                guards: &self.guards,
+            });
         }
 
         Err(StackError::ArraySlotMissing { slot })
@@ -1257,7 +1400,7 @@ impl Vm {
 
     /// Get a reference of the external value of the given type and the given
     /// slot.
-    pub fn external_ref<'out, T: External>(&self, slot: usize) -> Result<&'out T, StackError> {
+    pub fn external_ref<T: External>(&self, slot: usize) -> Result<Ref<'_, T>, StackError> {
         let holder = self
             .externals
             .get(slot)
@@ -1270,7 +1413,9 @@ impl Vm {
             let external = match (&*holder.value.get()).as_any().downcast_ref::<T>() {
                 Some(external) => external,
                 None => {
-                    holder.access.unshared();
+                    // NB: Immediately unshare because the cast failed and we
+                    // won't be maintaining access to the type.
+                    holder.access.release_shared();
 
                     return Err(StackError::ExpectedExternalType {
                         expected: type_name::<T>(),
@@ -1279,8 +1424,14 @@ impl Vm {
                 }
             };
 
-            self.push_guard(Managed::External, slot);
-            Ok(&*(external as *const T))
+            let value = &*(external as *const T);
+
+            Ok(Ref {
+                value,
+                access: &holder.access,
+                guard: (Managed::External, slot),
+                guards: &self.guards,
+            })
         }
     }
 
@@ -1289,7 +1440,7 @@ impl Vm {
     ///
     /// Mark the given value as mutably used, preventing it from being used
     /// again.
-    pub fn external_mut<'out, T: External>(&self, slot: usize) -> Result<&'out mut T, StackError> {
+    pub fn external_mut<'out, T: External>(&self, slot: usize) -> Result<Mut<'_, T>, StackError> {
         let holder = self
             .externals
             .get(slot)
@@ -1299,7 +1450,7 @@ impl Vm {
 
         // Safety: Caller needs to ensure that they safely call disarm.
         unsafe {
-            let external = (*holder.value.get())
+            let value = (*holder.value.get())
                 .as_any_mut()
                 .downcast_mut::<T>()
                 .ok_or_else(|| StackError::ExpectedExternalType {
@@ -1307,8 +1458,12 @@ impl Vm {
                     actual: holder.type_name,
                 })?;
 
-            self.push_guard(Managed::External, slot);
-            Ok(external)
+            Ok(Mut {
+                value,
+                access: &holder.access,
+                guard: (Managed::External, slot),
+                guards: &self.guards,
+            })
         }
     }
 
@@ -1324,7 +1479,6 @@ impl Vm {
                 let external = match (*holder.value.get()).as_any().downcast_ref::<T>() {
                     Some(external) => external,
                     None => {
-                        holder.access.unshared();
                         return Err(StackError::ExpectedExternalType {
                             expected: type_name::<T>(),
                             actual: holder.type_name,
@@ -1332,7 +1486,6 @@ impl Vm {
                     }
                 };
 
-                self.push_guard(Managed::External, slot);
                 return Ok(external.clone());
             }
         }
@@ -1377,17 +1530,21 @@ impl Vm {
 
     /// Get a reference of the external value of the given type and the given
     /// slot.
-    pub fn external_ref_dyn(&self, slot: usize) -> Result<&dyn External, StackError> {
+    pub fn external_ref_dyn(&self, slot: usize) -> Result<Ref<'_, dyn External>, StackError> {
         let holder = self
             .externals
             .get(slot)
             .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
 
         holder.access.shared(Managed::External, slot)?;
-        self.push_guard(Managed::External, slot);
 
         // Safety: Caller needs to ensure that they safely call disarm.
-        Ok(unsafe { &*holder.value.get() })
+        Ok(Ref {
+            value: unsafe { &*holder.value.get() },
+            access: &holder.access,
+            guard: (Managed::External, slot),
+            guards: &self.guards,
+        })
     }
 
     /// Take an external value by dyn, assuming you have exlusive access to it.
@@ -1407,6 +1564,16 @@ impl Vm {
     }
 
     /// Disarm all collected guards.
+    ///
+    /// Borrows are "armed" if they are unsafely converted into an inner unbound
+    /// reference through either [unsafe_into_ref][Ref::unsafe_into_ref] or
+    /// [unsafe_into_mut][Mut::unsafe_into_mut].
+    ///
+    /// After this happens, the slot is permanently marked as used (either
+    /// exclusively or shared) until this disarm function is called.
+    ///
+    /// However, the caller of this function **must** provide some safety
+    /// guarantees documented below.
     ///
     /// # Safety
     ///
@@ -1531,7 +1698,7 @@ impl Vm {
                 (Managed::String, slot) => ValueRef::String(self.string_ref(slot)?),
                 (Managed::Array, slot) => {
                     let array = self.array_ref(slot)?;
-                    ValueRef::Array(self.to_array_ref(array)?)
+                    ValueRef::Array(self.to_array_ref(&*array)?)
                 }
                 (Managed::External, slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             },
@@ -1555,11 +1722,15 @@ impl Vm {
             (ValuePtr::Managed(a), ValuePtr::Managed(b)) => {
                 match (a.into_managed(), b.into_managed()) {
                     ((Managed::String, a), (Managed::String, b)) => {
-                        let a = self.string_ref(a)?;
-                        let b = self.string_ref(b)?;
-                        let mut string = String::with_capacity(a.len() + b.len());
-                        string.push_str(a);
-                        string.push_str(b);
+                        let string = {
+                            let a = self.string_ref(a)?;
+                            let b = self.string_ref(b)?;
+                            let mut string = String::with_capacity(a.len() + b.len());
+                            string.push_str(a.as_str());
+                            string.push_str(b.as_str());
+                            string
+                        };
+
                         let value = self.allocate_string(string);
                         self.managed_push(value)?;
                         return Ok(());

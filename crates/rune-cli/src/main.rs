@@ -194,8 +194,6 @@ fn main() -> Result<()> {
                 println!("{} = {:?} ({:?})", n, slot, value);
             }
 
-            // Since we inspected the stack, we now need to disarm it.
-            unsafe { task.vm.disarm() }
             println!("---");
         }
 
@@ -214,8 +212,6 @@ fn main() -> Result<()> {
             println!("{} = {:?} ({:?})", n, slot, value);
         }
 
-        // Since we inspected the stack, we now need to disarm it.
-        unsafe { vm.disarm() }
         println!("---");
     }
 
