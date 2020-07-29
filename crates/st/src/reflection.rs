@@ -1,5 +1,5 @@
 use crate::external::External;
-use crate::value::{OwnedValue, ValueRef, ValueType};
+use crate::value::{Value, ValuePtr, ValueType};
 use crate::vm::Vm;
 use thiserror::Error;
 
@@ -26,19 +26,13 @@ pub trait ReflectValueType: Sized {
 /// Trait for converting types into values.
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self, vm: &mut Vm) -> Option<ValueRef>;
+    fn to_value(self, vm: &mut Vm) -> Option<ValuePtr>;
 }
 
 /// Trait for converting from a value.
 pub trait FromValue: Sized {
     /// Try to convert to the given type, from the given value.
-    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef>;
-}
-
-/// Trait for taking a value from the virtual machine.
-pub trait TakeValue: Sized {
-    /// Try to take and convert the given value.
-    fn take_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef>;
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr>;
 }
 
 /// A potentially unsafe conversion for value conversion.
@@ -49,20 +43,20 @@ pub trait UnsafeFromValue: Sized {
     ///
     /// The return value of this function may only be used while a virtual
     /// machine is not being modified.
-    unsafe fn unsafe_from_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef>;
+    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr>;
 }
 
 impl<T> UnsafeFromValue for T
 where
     T: FromValue,
 {
-    unsafe fn unsafe_from_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef> {
+    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
         T::from_value(value, vm)
     }
 }
 
 impl<'a> UnsafeFromValue for &'a str {
-    unsafe fn unsafe_from_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef> {
+    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
         let slot = value.into_string()?;
 
         if let Ok(value) = vm.string_ref(slot) {
@@ -86,10 +80,10 @@ impl<T> ToValue for Option<T>
 where
     T: ToValue,
 {
-    fn to_value(self, vm: &mut Vm) -> Option<ValueRef> {
+    fn to_value(self, vm: &mut Vm) -> Option<ValuePtr> {
         match self {
             Some(s) => s.to_value(vm),
-            None => Some(ValueRef::Unit),
+            None => Some(ValuePtr::Unit),
         }
     }
 }
@@ -98,9 +92,9 @@ impl<T> FromValue for Option<T>
 where
     T: FromValue,
 {
-    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
         Ok(match value {
-            ValueRef::Unit => None,
+            ValuePtr::Unit => None,
             value => Some(T::from_value(value, vm)?),
         })
     }
@@ -110,17 +104,17 @@ impl<T> FromValue for Vec<T>
 where
     T: FromValue,
 {
-    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
         let slot = value.into_array()?;
 
-        let holder = match vm.arrays.get(slot) {
+        let array = match vm.array_take(slot) {
             Some(array) => array,
             None => return Err(value),
         };
 
-        let mut output = Vec::with_capacity(holder.value.len());
+        let mut output = Vec::with_capacity(array.len());
 
-        for value in holder.value.iter().copied() {
+        for value in array.iter().copied() {
             output.push(T::from_value(value, vm)?);
         }
 
@@ -136,24 +130,15 @@ impl ReflectValueType for () {
 }
 
 impl ToValue for () {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
-        Some(ValueRef::Unit)
+    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
+        Some(ValuePtr::Unit)
     }
 }
 
 impl FromValue for () {
-    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
         match value {
-            ValueRef::Unit => Ok(()),
-            value => Err(value),
-        }
-    }
-}
-
-impl TakeValue for () {
-    fn take_value(value: ValueRef, _vm: &mut Vm) -> Result<Self, ValueRef> {
-        match value {
-            ValueRef::Unit => Ok(()),
+            ValuePtr::Unit => Ok(()),
             value => Err(value),
         }
     }
@@ -167,15 +152,15 @@ impl ReflectValueType for bool {
 }
 
 impl ToValue for bool {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
-        Some(ValueRef::Bool(self))
+    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
+        Some(ValuePtr::Bool(self))
     }
 }
 
 impl FromValue for bool {
-    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
         match value {
-            ValueRef::Bool(value) => Ok(value),
+            ValuePtr::Bool(value) => Ok(value),
             value => Err(value),
         }
     }
@@ -194,13 +179,13 @@ impl<'a> ReflectValueType for &'a str {
 }
 
 impl ToValue for String {
-    fn to_value(self, vm: &mut Vm) -> Option<ValueRef> {
+    fn to_value(self, vm: &mut Vm) -> Option<ValuePtr> {
         Some(vm.allocate_string(self.into_boxed_str()))
     }
 }
 
 impl FromValue for String {
-    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
         let slot = value.into_string()?;
 
         match vm.string_clone(slot) {
@@ -218,13 +203,13 @@ impl ReflectValueType for Box<str> {
 }
 
 impl ToValue for Box<str> {
-    fn to_value(self, vm: &mut Vm) -> Option<ValueRef> {
+    fn to_value(self, vm: &mut Vm) -> Option<ValuePtr> {
         Some(vm.allocate_string(self))
     }
 }
 
 impl FromValue for Box<str> {
-    fn from_value(value: ValueRef, vm: &Vm) -> Result<Self, ValueRef> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
         let slot = value.into_string()?;
 
         match vm.string_clone(slot) {
@@ -242,15 +227,15 @@ impl ReflectValueType for i64 {
 }
 
 impl ToValue for i64 {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
-        Some(ValueRef::Integer(self))
+    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
+        Some(ValuePtr::Integer(self))
     }
 }
 
 impl FromValue for i64 {
-    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
         match value {
-            ValueRef::Integer(number) => Ok(number),
+            ValuePtr::Integer(number) => Ok(number),
             value => Err(value),
         }
     }
@@ -266,20 +251,20 @@ macro_rules! number_value_trait {
         }
 
         impl ToValue for $ty {
-            fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
+            fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
                 use std::convert::TryInto as _;
 
-                Some(ValueRef::Integer(self.try_into().ok()?))
+                Some(ValuePtr::Integer(self.try_into().ok()?))
             }
         }
 
         impl FromValue for $ty {
-            fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
+            fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
                 use std::convert::TryInto as _;
 
                 match value {
-                    ValueRef::Integer(number) => {
-                        number.try_into().map_err(|_| ValueRef::Integer(number))
+                    ValuePtr::Integer(number) => {
+                        number.try_into().map_err(|_| ValuePtr::Integer(number))
                     }
                     value => Err(value),
                 }
@@ -307,15 +292,15 @@ impl ReflectValueType for f64 {
 }
 
 impl ToValue for f64 {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
-        Some(ValueRef::Float(self))
+    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
+        Some(ValuePtr::Float(self))
     }
 }
 
 impl FromValue for f64 {
-    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
         match value {
-            ValueRef::Float(number) => Ok(number),
+            ValuePtr::Float(number) => Ok(number),
             value => Err(value),
         }
     }
@@ -329,16 +314,16 @@ impl ReflectValueType for f32 {
 }
 
 impl ToValue for f32 {
-    fn to_value(self, _vm: &mut Vm) -> Option<ValueRef> {
+    fn to_value(self, _vm: &mut Vm) -> Option<ValuePtr> {
         use std::convert::TryInto as _;
-        Some(ValueRef::Float(self.try_into().ok()?))
+        Some(ValuePtr::Float(self.try_into().ok()?))
     }
 }
 
 impl FromValue for f32 {
-    fn from_value(value: ValueRef, _vm: &Vm) -> Result<Self, ValueRef> {
+    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, ValuePtr> {
         match value {
-            ValueRef::Float(number) => Ok(number as f32),
+            ValuePtr::Float(number) => Ok(number as f32),
             value => Err(value),
         }
     }
@@ -385,14 +370,14 @@ impl_into_args!(
     {A, a, 1},
 );
 
-impl TakeValue for OwnedValue {
-    fn take_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef> {
+impl FromValue for Value {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
         Ok(vm.take_owned_value(value))
     }
 }
 
-impl TakeValue for Box<dyn External> {
-    fn take_value(value: ValueRef, vm: &mut Vm) -> Result<Self, ValueRef> {
+impl FromValue for Box<dyn External> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, ValuePtr> {
         let slot = value.into_external()?;
 
         match vm.external_take_dyn(slot) {

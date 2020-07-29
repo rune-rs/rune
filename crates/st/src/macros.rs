@@ -28,16 +28,16 @@ macro_rules! decl_external {
         }
 
         impl $crate::ToValue for $external {
-            fn to_value(self, vm: &mut $crate::Vm) -> Option<$crate::ValueRef> {
+            fn to_value(self, vm: &mut $crate::Vm) -> Option<$crate::ValuePtr> {
                 Some(vm.allocate_external(self))
             }
         }
 
-        impl $crate::TakeValue for $external {
-            fn take_value(
-                value: $crate::ValueRef,
+        impl $crate::FromValue for $external {
+            fn from_value(
+                value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-            ) -> Result<Self, $crate::ValueRef> {
+            ) -> Result<Self, $crate::ValuePtr> {
                 let slot = value.into_external()?;
 
                 match vm.external_take::<$external>(slot) {
@@ -47,25 +47,11 @@ macro_rules! decl_external {
             }
         }
 
-        impl<'a> $crate::UnsafeFromValue for $external {
-            unsafe fn unsafe_from_value(
-                value: $crate::ValueRef,
-                vm: &mut $crate::Vm,
-            ) -> Result<Self, $crate::ValueRef> {
-                let slot = value.into_external()?;
-
-                match vm.external_take::<$external>(slot) {
-                    Some(value) => Ok(value),
-                    None => Err(value),
-                }
-            }
-        }
-
         impl<'a> $crate::UnsafeFromValue for &'a $external {
             unsafe fn unsafe_from_value(
-                value: $crate::ValueRef,
+                value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-            ) -> Result<Self, $crate::ValueRef> {
+            ) -> Result<Self, $crate::ValuePtr> {
                 let slot = value.into_external()?;
 
                 match vm.external_ref::<$external>(slot) {
@@ -77,9 +63,9 @@ macro_rules! decl_external {
 
         impl<'a> $crate::UnsafeFromValue for &'a mut $external {
             unsafe fn unsafe_from_value(
-                value: $crate::ValueRef,
+                value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-            ) -> Result<Self, $crate::ValueRef> {
+            ) -> Result<Self, $crate::ValuePtr> {
                 let slot = value.into_external()?;
 
                 match vm.external_mut::<$external>(slot) {

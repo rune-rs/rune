@@ -155,7 +155,7 @@ fn main() -> Result<()> {
 
     let mut vm = st::Vm::new();
 
-    let mut task: st::Task<st::OwnedValue> = vm.call_function(&functions, &unit, "main", ())?;
+    let mut task: st::Task<st::Value> = vm.call_function(&functions, &unit, "main", ())?;
 
     let last = std::time::Instant::now();
 

@@ -1,10 +1,10 @@
 use crate::external::External;
 use crate::functions::{CallError, Functions};
 use crate::hash::Hash;
-use crate::reflection::{EncodeError, FromValue, IntoArgs, TakeValue};
+use crate::reflection::{EncodeError, FromValue, IntoArgs};
 use crate::unit::Unit;
 use crate::value::{
-    ExternalTypeError, Managed, OwnedValue, Slot, Value, ValueError, ValueRef, ValueTypeInfo,
+    ExternalTypeError, Managed, Slot, Value, ValueError, ValuePtr, ValueRef, ValueTypeInfo,
 };
 use anyhow::Result;
 use slab::Slab;
@@ -78,7 +78,7 @@ pub enum VmError {
 macro_rules! pop {
     ($vm:expr, $variant:ident) => {
         match $vm.managed_pop()? {
-            ValueRef::$variant(b) => b,
+            ValuePtr::$variant(b) => b,
             other => {
                 return Err(VmError::StackTopTypeError {
                     expected: ValueTypeInfo::$variant,
@@ -93,8 +93,8 @@ macro_rules! pop {
 macro_rules! primitive_ops {
     ($vm:expr, $a:ident $op:tt $b:ident) => {
         match ($a, $b) {
-            (ValueRef::Bool($a), ValueRef::Bool($b)) => $a $op $b,
-            (ValueRef::Integer($a), ValueRef::Integer($b)) => $a $op $b,
+            (ValuePtr::Bool($a), ValuePtr::Bool($b)) => $a $op $b,
+            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => $a $op $b,
             (a, b) => return Err(VmError::UnsupportedOperation {
                 op: stringify!($op),
                 a: a.type_info($vm)?,
@@ -108,8 +108,8 @@ macro_rules! primitive_ops {
 macro_rules! numeric_ops {
     ($vm:expr, $a:ident $op:tt $b:ident) => {
         match ($a, $b) {
-            (ValueRef::Float($a), ValueRef::Float($b)) => ValueRef::Float($a $op $b),
-            (ValueRef::Integer($a), ValueRef::Integer($b)) => ValueRef::Integer($a $op $b),
+            (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float($a $op $b),
+            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer($a $op $b),
             (a, b) => return Err(VmError::UnsupportedOperation {
                 op: stringify!($op),
                 a: a.type_info($vm)?,
@@ -341,22 +341,22 @@ impl Inst {
                     *ip = frame.ip;
 
                     vm.exited = vm.frames.is_empty();
-                    vm.managed_push(ValueRef::Unit)?;
+                    vm.managed_push(ValuePtr::Unit)?;
                 }
                 Self::Pop => {
                     vm.managed_pop()?;
                 }
                 Self::Integer { number } => {
-                    vm.managed_push(ValueRef::Integer(number))?;
+                    vm.managed_push(ValuePtr::Integer(number))?;
                 }
                 Self::Float { number } => {
-                    vm.managed_push(ValueRef::Float(number))?;
+                    vm.managed_push(ValuePtr::Float(number))?;
                 }
                 Self::Copy { offset } => {
                     vm.stack_copy_frame(offset)?;
                 }
                 Self::Unit => {
-                    vm.managed_push(ValueRef::Unit)?;
+                    vm.managed_push(ValuePtr::Unit)?;
                 }
                 Self::Jump { offset } => {
                     *ip = offset;
@@ -382,32 +382,32 @@ impl Inst {
                 Self::Gt => {
                     let b = vm.managed_pop()?;
                     let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValueRef::Bool(primitive_ops!(vm, a > b)));
+                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a > b)));
                 }
                 Self::Gte => {
                     let b = vm.managed_pop()?;
                     let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValueRef::Bool(primitive_ops!(vm, a >= b)));
+                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a >= b)));
                 }
                 Self::Lt => {
                     let b = vm.managed_pop()?;
                     let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValueRef::Bool(primitive_ops!(vm, a < b)));
+                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a < b)));
                 }
                 Self::Lte => {
                     let b = vm.managed_pop()?;
                     let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValueRef::Bool(primitive_ops!(vm, a <= b)));
+                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a <= b)));
                 }
                 Self::Eq => {
                     let b = vm.managed_pop()?;
                     let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValueRef::Bool(primitive_ops!(vm, a == b)));
+                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a == b)));
                 }
                 Self::Neq => {
                     let b = vm.managed_pop()?;
                     let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValueRef::Bool(primitive_ops!(vm, a != b)));
+                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a != b)));
                 }
                 Self::JumpIf { offset } => {
                     if pop!(vm, Bool) {
@@ -538,7 +538,7 @@ where
 /// Maintains the reference count of the value.
 pub struct ValueHolder {
     count: usize,
-    pub(crate) value: ValueRef,
+    pub(crate) value: ValuePtr,
 }
 
 impl fmt::Debug for ValueHolder {
@@ -562,7 +562,7 @@ pub struct Frame {
 /// A stack which references variables indirectly from a slab.
 pub struct Vm {
     /// The current stack of values.
-    pub(crate) stack: Vec<ValueRef>,
+    pub(crate) stack: Vec<ValuePtr>,
     /// Frames relative to the stack.
     pub(crate) frames: Vec<Frame>,
     /// Values which needs to be freed.
@@ -574,7 +574,7 @@ pub struct Vm {
     /// Slots with strings.
     pub(crate) strings: Slab<Holder<Box<str>>>,
     /// Slots with arrays, which themselves reference values.
-    pub(crate) arrays: Slab<Holder<Box<[ValueRef]>>>,
+    pub(crate) arrays: Slab<Holder<Box<[ValuePtr]>>>,
     /// We have exited from the last frame.
     pub(crate) exited: bool,
     /// Slots that needs to be disarmed next time we call `disarm`.
@@ -599,7 +599,7 @@ impl Vm {
 
     /// Iterate over the stack, producing the value associated with each stack
     /// item.
-    pub fn iter_stack_debug(&self) -> impl Iterator<Item = (ValueRef, Value)> + '_ {
+    pub fn iter_stack_debug(&self) -> impl Iterator<Item = (ValuePtr, ValueRef)> + '_ {
         let mut it = self.stack.iter().copied();
 
         std::iter::from_fn(move || {
@@ -619,7 +619,7 @@ impl Vm {
     ) -> Result<Task<'a, T>, VmError>
     where
         A: IntoArgs,
-        T: TakeValue,
+        T: FromValue,
     {
         let hash = Hash::global_fn(name);
 
@@ -663,19 +663,19 @@ impl Vm {
     /// Push an unmanaged reference.
     ///
     /// The reference count of the value being referenced won't be modified.
-    pub fn unmanaged_push(&mut self, value: ValueRef) {
+    pub fn unmanaged_push(&mut self, value: ValuePtr) {
         self.stack.push(value);
     }
 
     /// Pop a reference to a value from the stack.
     ///
     /// The reference count of the value being referenced won't be modified.
-    pub fn unmanaged_pop(&mut self) -> Result<ValueRef, StackError> {
+    pub fn unmanaged_pop(&mut self) -> Result<ValuePtr, StackError> {
         self.stack.pop().ok_or_else(|| StackError::StackEmpty)
     }
 
     /// Push a value onto the stack and return its stack index.
-    pub fn managed_push(&mut self, value: ValueRef) -> Result<(), StackError> {
+    pub fn managed_push(&mut self, value: ValuePtr) -> Result<(), StackError> {
         self.stack.push(value);
 
         if let Some((managed, slot)) = value.into_managed() {
@@ -686,7 +686,7 @@ impl Vm {
     }
 
     /// Pop a value from the stack, freeing it if it's no longer use.
-    pub fn managed_pop(&mut self) -> Result<ValueRef, StackError> {
+    pub fn managed_pop(&mut self) -> Result<ValuePtr, StackError> {
         let value = self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
 
         if let Some((managed, slot)) = value.into_managed() {
@@ -697,7 +697,7 @@ impl Vm {
     }
 
     /// Peek the top of the stack.
-    pub fn peek(&mut self) -> Result<ValueRef, StackError> {
+    pub fn peek(&mut self) -> Result<ValuePtr, StackError> {
         self.stack
             .last()
             .copied()
@@ -911,33 +911,33 @@ impl Vm {
     ///
     /// This operation can leak memory unless the returned slot is pushed onto
     /// the stack.
-    pub fn allocate_string(&mut self, string: Box<str>) -> ValueRef {
+    pub fn allocate_string(&mut self, string: Box<str>) -> ValuePtr {
         let slot = self.strings.insert(Holder {
             count: 0,
             value: string,
         });
 
-        ValueRef::Managed(Slot::string(slot))
+        ValuePtr::Managed(Slot::string(slot))
     }
 
     /// Allocate an array and return its value reference.
     ///
     /// This operation can leak memory unless the returned slot is pushed onto
     /// the stack.
-    pub fn allocate_array(&mut self, array: Box<[ValueRef]>) -> ValueRef {
+    pub fn allocate_array(&mut self, array: Box<[ValuePtr]>) -> ValuePtr {
         let slot = self.arrays.insert(Holder {
             count: 0,
             value: array,
         });
 
-        ValueRef::Managed(Slot::array(slot))
+        ValuePtr::Managed(Slot::array(slot))
     }
 
     /// Allocate and insert an external and return its reference.
     ///
     /// This will leak memory unless the reference is pushed onto the stack to
     /// be managed.
-    pub fn allocate_external<T: External>(&mut self, value: T) -> ValueRef {
+    pub fn allocate_external<T: External>(&mut self, value: T) -> ValuePtr {
         let slot = self.externals.insert(ExternalHolder {
             type_name: type_name::<T>(),
             type_id: TypeId::of::<T>(),
@@ -946,7 +946,7 @@ impl Vm {
             value: Box::new(UnsafeCell::new(value)),
         });
 
-        ValueRef::Managed(Slot::external(slot))
+        ValuePtr::Managed(Slot::external(slot))
     }
 
     /// Get a reference of the string at the given string slot.
@@ -960,6 +960,31 @@ impl Vm {
     /// Get a cloned string from the given slot.
     pub fn string_clone(&self, index: usize) -> Option<Box<str>> {
         Some(self.strings.get(index)?.value.to_owned())
+    }
+
+    /// Take the string at the given slot.
+    pub fn string_take(&mut self, slot: usize) -> Option<Box<str>> {
+        if !self.strings.contains(slot) {
+            return None;
+        }
+
+        let holder = self.strings.remove(slot);
+        Some(holder.value)
+    }
+
+    /// Get a cloned array from the given slot.
+    pub fn array_clone(&self, index: usize) -> Option<Box<[ValuePtr]>> {
+        Some(self.arrays.get(index)?.value.to_owned())
+    }
+
+    /// Take the array at the given slot.
+    pub fn array_take(&mut self, slot: usize) -> Option<Box<[ValuePtr]>> {
+        if !self.arrays.contains(slot) {
+            return None;
+        }
+
+        let holder = self.arrays.remove(slot);
+        Some(holder.value)
     }
 
     /// Get a clone of the given external.
@@ -1096,18 +1121,18 @@ impl Vm {
     }
 
     /// Get the last value on the stack.
-    pub fn last(&self) -> Option<ValueRef> {
+    pub fn last(&self) -> Option<ValuePtr> {
         self.stack.last().copied()
     }
 
     /// Pop the last value on the stack and evaluate it as `T`.
     pub fn pop_decode<T>(&mut self) -> Result<T, VmError>
     where
-        T: TakeValue,
+        T: FromValue,
     {
         let value = self.unmanaged_pop()?;
 
-        let value = match T::take_value(value, self) {
+        let value = match T::from_value(value, self) {
             Ok(value) => value,
             Err(e) => {
                 let type_info = e.type_info(self)?;
@@ -1124,7 +1149,7 @@ impl Vm {
     }
 
     /// Convert into an owned array.
-    pub fn take_owned_array(&mut self, values: Box<[ValueRef]>) -> Box<[OwnedValue]> {
+    pub fn take_owned_array(&mut self, values: Box<[ValuePtr]>) -> Box<[Value]> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
@@ -1135,34 +1160,34 @@ impl Vm {
     }
 
     /// Convert a value reference into an owned value.
-    pub fn take_owned_value(&mut self, value: ValueRef) -> OwnedValue {
+    pub fn take_owned_value(&mut self, value: ValuePtr) -> Value {
         match value {
-            ValueRef::Unit => OwnedValue::Unit,
-            ValueRef::Integer(integer) => OwnedValue::Integer(integer),
-            ValueRef::Float(float) => OwnedValue::Float(float),
-            ValueRef::Bool(boolean) => OwnedValue::Bool(boolean),
-            ValueRef::Managed(managed) => match managed.into_managed() {
+            ValuePtr::Unit => Value::Unit,
+            ValuePtr::Integer(integer) => Value::Integer(integer),
+            ValuePtr::Float(float) => Value::Float(float),
+            ValuePtr::Bool(boolean) => Value::Bool(boolean),
+            ValuePtr::Managed(managed) => match managed.into_managed() {
                 (Managed::String, slot) => match self.strings.get(slot) {
-                    Some(string) => OwnedValue::String(string.value.to_owned()),
-                    None => OwnedValue::Error(ValueError::String(slot)),
+                    Some(string) => Value::String(string.value.to_owned()),
+                    None => Value::Error(ValueError::String(slot)),
                 },
                 (Managed::Array, slot) => match self.arrays.get(slot) {
                     Some(array) => {
                         let array = array.value.to_owned();
-                        OwnedValue::Array(self.take_owned_array(array))
+                        Value::Array(self.take_owned_array(array))
                     }
-                    None => OwnedValue::Error(ValueError::Array(slot)),
+                    None => Value::Error(ValueError::Array(slot)),
                 },
                 (Managed::External, slot) => match self.external_take_dyn(slot) {
-                    Some(external) => OwnedValue::External(external),
-                    None => OwnedValue::Error(ValueError::External(slot)),
+                    Some(external) => Value::External(external),
+                    None => Value::Error(ValueError::External(slot)),
                 },
             },
         }
     }
 
     /// Convert into an owned array.
-    pub fn to_array<'a>(&'a self, values: &[ValueRef]) -> Box<[Value<'_>]> {
+    pub fn to_array<'a>(&'a self, values: &[ValuePtr]) -> Box<[ValueRef<'_>]> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
@@ -1173,24 +1198,24 @@ impl Vm {
     }
 
     /// Convert a value reference into an owned value.
-    pub fn to_value<'a>(&'a self, value: ValueRef) -> Value<'a> {
+    pub fn to_value<'a>(&'a self, value: ValuePtr) -> ValueRef<'a> {
         match value {
-            ValueRef::Unit => Value::Unit,
-            ValueRef::Integer(integer) => Value::Integer(integer),
-            ValueRef::Float(float) => Value::Float(float),
-            ValueRef::Bool(boolean) => Value::Bool(boolean),
-            ValueRef::Managed(managed) => match managed.into_managed() {
+            ValuePtr::Unit => ValueRef::Unit,
+            ValuePtr::Integer(integer) => ValueRef::Integer(integer),
+            ValuePtr::Float(float) => ValueRef::Float(float),
+            ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
+            ValuePtr::Managed(managed) => match managed.into_managed() {
                 (Managed::String, slot) => match self.strings.get(slot) {
-                    Some(string) => Value::String(&string.value),
-                    None => Value::Error(ValueError::String(slot)),
+                    Some(string) => ValueRef::String(&string.value),
+                    None => ValueRef::Error(ValueError::String(slot)),
                 },
                 (Managed::Array, slot) => match self.arrays.get(slot) {
-                    Some(array) => Value::Array(self.to_array(&array.value)),
-                    None => Value::Error(ValueError::Array(slot)),
+                    Some(array) => ValueRef::Array(self.to_array(&array.value)),
+                    None => ValueRef::Error(ValueError::Array(slot)),
                 },
                 (Managed::External, slot) => match self.external_dyn_ref(slot) {
-                    Some(external) => Value::External(external),
-                    None => Value::Error(ValueError::External(slot)),
+                    Some(external) => ValueRef::External(external),
+                    None => ValueRef::Error(ValueError::External(slot)),
                 },
             },
         }
@@ -1202,15 +1227,15 @@ impl Vm {
         let a = self.managed_pop()?;
 
         match (a, b) {
-            (ValueRef::Float(a), ValueRef::Float(b)) => {
-                self.managed_push(ValueRef::Float(a + b))?;
+            (ValuePtr::Float(a), ValuePtr::Float(b)) => {
+                self.managed_push(ValuePtr::Float(a + b))?;
                 return Ok(());
             }
-            (ValueRef::Integer(a), ValueRef::Integer(b)) => {
-                self.managed_push(ValueRef::Integer(a + b))?;
+            (ValuePtr::Integer(a), ValuePtr::Integer(b)) => {
+                self.managed_push(ValuePtr::Integer(a + b))?;
                 return Ok(());
             }
-            (ValueRef::Managed(a), ValueRef::Managed(b)) => {
+            (ValuePtr::Managed(a), ValuePtr::Managed(b)) => {
                 match (a.into_managed(), b.into_managed()) {
                     ((Managed::String, a), (Managed::String, b)) => {
                         let a = self.string_ref(a)?;
@@ -1244,6 +1269,7 @@ impl fmt::Debug for Vm {
             .field("gc_freed", &self.gc_freed)
             .field("externals", &DebugSlab(&self.externals))
             .field("strings", &DebugSlab(&self.strings))
+            .field("arrays", &DebugSlab(&self.arrays))
             .finish()
     }
 }
@@ -1274,7 +1300,7 @@ pub struct Task<'a, T> {
 
 impl<'a, T> Task<'a, T>
 where
-    T: TakeValue,
+    T: FromValue,
 {
     /// Run the given task to completion.
     pub async fn run_to_completion(mut self) -> Result<T, VmError> {

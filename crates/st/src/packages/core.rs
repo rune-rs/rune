@@ -4,7 +4,7 @@
 //! * `dbg` to debug print to stdout.
 
 use crate::functions::{Functions, RegisterError};
-use crate::value::ValueRef;
+use crate::value::ValuePtr;
 
 /// Install the core package into the given functions namespace.
 pub fn install(functions: &mut Functions) -> Result<(), RegisterError> {
@@ -22,7 +22,7 @@ pub fn install(functions: &mut Functions) -> Result<(), RegisterError> {
             }
         }
 
-        vm.managed_push(ValueRef::Unit)?;
+        vm.managed_push(ValuePtr::Unit)?;
         Ok(())
     })?;
 

@@ -24,13 +24,13 @@ pub enum ValueError {
 
 #[derive(Debug)]
 /// A value peeked out of the stack.
-pub enum OwnedValue {
+pub enum Value {
     /// An empty unit.
     Unit,
     /// A string.
     String(Box<str>),
     /// An array.
-    Array(Box<[OwnedValue]>),
+    Array(Box<[Value]>),
     /// An integer.
     Integer(i64),
     /// A float.
@@ -46,13 +46,13 @@ pub enum OwnedValue {
 
 #[derive(Debug)]
 /// A value peeked out of the stack.
-pub enum Value<'a> {
+pub enum ValueRef<'a> {
     /// An empty unit.
     Unit,
     /// A string.
     String(&'a str),
     /// An array.
-    Array(Box<[Value<'a>]>),
+    Array(Box<[ValueRef<'a>]>),
     /// An integer.
     Integer(i64),
     /// A float.
@@ -129,9 +129,9 @@ macro_rules! decl_managed {
         struct $name(());
 
         impl IntoSlot for $name {
-            fn into_slot(value: ValueRef) -> Result<usize, ValueRef> {
+            fn into_slot(value: ValuePtr) -> Result<usize, ValuePtr> {
                 let Slot(slot) = match value {
-                    ValueRef::Managed(managed) => managed,
+                    ValuePtr::Managed(managed) => managed,
                     _ => return Err(value),
                 };
 
@@ -152,12 +152,12 @@ decl_managed!(ManagedExternal, EXTERNAL);
 /// Trait for converting into managed slots.
 trait IntoSlot {
     /// Convert thing into a managed slot.
-    fn into_slot(value: ValueRef) -> Result<usize, ValueRef>;
+    fn into_slot(value: ValuePtr) -> Result<usize, ValuePtr>;
 }
 
 /// An entry on the stack.
 #[derive(Debug, Clone, Copy)]
-pub enum ValueRef {
+pub enum ValuePtr {
     /// An empty unit.
     Unit,
     /// A number.
@@ -170,7 +170,7 @@ pub enum ValueRef {
     Managed(Slot),
 }
 
-impl ValueRef {
+impl ValuePtr {
     /// Convert value into a managed.
     #[inline]
     pub fn into_managed(self) -> Option<(Managed, usize)> {
@@ -248,7 +248,7 @@ impl ValueRef {
     }
 }
 
-impl Default for ValueRef {
+impl Default for ValuePtr {
     fn default() -> Self {
         Self::Unit
     }
@@ -309,7 +309,7 @@ impl fmt::Display for ValueTypeInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::{Slot, ValueRef, ValueType};
+    use super::{Slot, ValuePtr, ValueType};
 
     #[test]
     fn test_slot() {
@@ -324,7 +324,7 @@ mod tests {
     #[test]
     fn test_size() {
         assert_eq! {
-            std::mem::size_of::<ValueRef>(),
+            std::mem::size_of::<ValuePtr>(),
             16,
         };
 
