@@ -1,7 +1,7 @@
 use crate::external::External;
-use crate::functions::{CallError, Functions};
+use crate::functions::Functions;
 use crate::hash::Hash;
-use crate::reflection::{EncodeError, FromValue, IntoArgs};
+use crate::reflection::{FromValue, IntoArgs, IntoArgsError};
 use crate::unit::Unit;
 use crate::value::{
     ExternalTypeError, Managed, Slot, Value, ValueError, ValuePtr, ValueRef, ValueTypeInfo,
@@ -28,50 +28,126 @@ pub enum StackError {
     ExternalSlotMissing { slot: usize },
 }
 
+/// Errors raised by the execution of the virtual machine.
 #[derive(Debug, Error)]
 pub enum VmError {
-    #[error("failed to encode arguments")]
-    EncodeError(#[from] EncodeError),
-    #[error("stack error")]
-    StackError(#[from] StackError),
+    /// Error raised in a user-defined function.
+    #[error("error in user-defined function")]
+    UserError {
+        /// Source error.
+        #[from]
+        error: crate::error::Error,
+    },
+    /// Error when we fail to convert arguments into values through
+    /// [IntoArgs].
+    #[error("failed to convert arguments into values")]
+    IntoArgsError {
+        /// Source error.
+        #[from]
+        error: IntoArgsError,
+    },
+    /// Failure to interact with the stack.
+    #[error("failed to interact with the stack")]
+    StackError {
+        /// Source error.
+        #[from]
+        error: StackError,
+    },
+    /// Failure to resolve external type.
+    #[error("failed to resolve type info for external type")]
+    ExternalTypeError {
+        /// Source error.
+        #[from]
+        error: ExternalTypeError,
+    },
+    /// Failure to lookup function.
     #[error("missing function with hash `{hash}`")]
-    MissingFunction { hash: Hash },
+    MissingFunction {
+        /// Hash of function to look up.
+        hash: Hash,
+    },
+    /// Failure to lookup module.
     #[error("missing module with hash `{module}`")]
-    MissingModule { module: Hash },
+    MissingModule {
+        /// Hash of module to look up.
+        module: Hash,
+    },
+    /// Failure to lookup function in a module.
     #[error("missing function with hash `{hash}` in module with hash `{module}`")]
-    MissingModuleFunction { module: Hash, hash: Hash },
-    #[error("error while calling function")]
-    CallError(#[from] CallError),
+    MissingModuleFunction {
+        /// Module that was looked up.
+        module: Hash,
+        /// Function that could not be found.
+        hash: Hash,
+    },
+    /// Instruction pointer went out-of-bounds.
     #[error("instruction pointer is out-of-bounds")]
     IpOutOfBounds,
-    #[error("unexpected stack value, expected `{expected}` but was `{actual}`")]
-    StackTopTypeError {
-        expected: ValueTypeInfo,
-        actual: ValueTypeInfo,
-    },
-    #[error("failed to resolve type info for external type")]
-    ExternalTypeError(#[from] ExternalTypeError),
+    /// Unsupported binary operation.
     #[error("unsupported vm operation `{a} {op} {b}`")]
-    UnsupportedOperation {
+    UnsupportedBinaryOperation {
+        /// Operation.
         op: &'static str,
+        /// Left-hand side operator.
         a: ValueTypeInfo,
+        /// Right-hand side operator.
         b: ValueTypeInfo,
     },
-    #[error("no stack frames to pop")]
-    NoStackFrame,
+    /// Attempt to access out-of-bounds stack item.
     #[error("tried to access an out-of-bounds stack entry")]
     StackOutOfBounds,
+    /// Attempt to access out-of-bounds slot.
     #[error("tried to access a slot which is out of bounds")]
     SlotOutOfBounds,
+    /// Attempt to access out-of-bounds frame.
     #[error("tried to access an out-of-bounds frame")]
     FrameOutOfBounds,
-    #[error("failed to convert value `{actual}`, expected `{expected}`")]
-    ConversionError {
-        expected: &'static str,
+    /// Indicates that a static string is missing for the given slot.
+    #[error("static string slot `{slot}` does not exist")]
+    MissingStaticString {
+        /// Slot which is missing a static string.
+        slot: usize,
+    },
+    /// Saw an unexpected stack value.
+    #[error("unexpected stack value, expected `{expected}` but was `{actual}`")]
+    StackTopTypeError {
+        /// The type that was expected.
+        expected: ValueTypeInfo,
+        /// The type observed.
         actual: ValueTypeInfo,
     },
-    #[error("static string slot `{slot}` does not exist")]
-    MissingStaticString { slot: usize },
+    /// Indicates a failure to convert from one type to another.
+    #[error("failed to convert stack value from `{from}` to `{to}`")]
+    StackConversionError {
+        /// The actual type to be converted.
+        from: ValueTypeInfo,
+        /// The expected type to convert towards.
+        to: &'static str,
+    },
+    /// Failure to convert from one type to another.
+    #[error("failed to convert argument #{arg} from `{from}` to `{to}`")]
+    ArgumentConversionError {
+        /// The argument location that was converted.
+        arg: usize,
+        /// The value type we attempted to convert from.
+        from: ValueTypeInfo,
+        /// The native type we attempt to convert to.
+        to: &'static str,
+    },
+    /// Wrong number of arguments provided in call.
+    #[error("wrong number of arguments `{actual}`, expected `{expected}`")]
+    ArgumentCountMismatch {
+        /// The actual number of arguments.
+        actual: usize,
+        /// The expected number of arguments.
+        expected: usize,
+    },
+    /// Failure to convert return value.
+    #[error("failed to convert return value `{ret}`")]
+    ReturnConversionError {
+        /// Type of the return value we attempted to convert.
+        ret: &'static str,
+    },
 }
 
 /// Pop and type check a value off the stack.
@@ -95,7 +171,7 @@ macro_rules! primitive_ops {
         match ($a, $b) {
             (ValuePtr::Bool($a), ValuePtr::Bool($b)) => $a $op $b,
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => $a $op $b,
-            (a, b) => return Err(VmError::UnsupportedOperation {
+            (a, b) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
                 a: a.type_info($vm)?,
                 b: b.type_info($vm)?,
@@ -110,7 +186,7 @@ macro_rules! numeric_ops {
         match ($a, $b) {
             (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float($a $op $b),
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer($a $op $b),
-            (a, b) => return Err(VmError::UnsupportedOperation {
+            (a, b) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
                 a: a.type_info($vm)?,
                 b: b.type_info($vm)?,
@@ -1137,9 +1213,9 @@ impl Vm {
             Err(e) => {
                 let type_info = e.type_info(self)?;
 
-                return Err(VmError::ConversionError {
-                    expected: type_name::<T>(),
-                    actual: type_info,
+                return Err(VmError::StackConversionError {
+                    from: type_info,
+                    to: type_name::<T>(),
                 });
             }
         };
@@ -1253,7 +1329,7 @@ impl Vm {
             _ => (),
         };
 
-        Err(VmError::UnsupportedOperation {
+        Err(VmError::UnsupportedBinaryOperation {
             op: "+",
             a: a.type_info(self)?,
             b: b.type_info(self)?,

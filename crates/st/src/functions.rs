@@ -2,8 +2,8 @@ use crate::collections::{hash_map, HashMap};
 use crate::error;
 use crate::hash::Hash;
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::value::{ExternalTypeError, ValueType, ValueTypeInfo};
-use crate::vm::{StackError, Vm};
+use crate::value::ValueType;
+use crate::vm::{Vm, VmError};
 use std::any::type_name;
 use std::fmt;
 use std::future::Future;
@@ -26,56 +26,6 @@ pub enum RegisterError {
         name: ModuleName,
         /// The hash of the module that conflicted.
         hash: Hash,
-    },
-}
-
-/// An error raised during a function call.
-#[derive(Debug, Error)]
-pub enum CallError {
-    /// Error raised in a user-defined function.
-    #[error("error in user-defined function")]
-    UserError {
-        /// Cause of the error.
-        #[from]
-        error: error::Error,
-    },
-    /// Failure to interact with the stack.
-    #[error("failed to interact with the stack")]
-    StackError {
-        /// Source error.
-        #[from]
-        error: StackError,
-    },
-    /// Failure to resolve external type.
-    #[error("failed to resolve type info for external type")]
-    ExternalTypeError {
-        /// Source error.
-        #[from]
-        error: ExternalTypeError,
-    },
-    /// Failure to convert from one type to another.
-    #[error("failed to convert argument #{arg} from `{from}` to `{to}`")]
-    ArgumentConversionError {
-        /// The argument location that was converted.
-        arg: usize,
-        /// The value type we attempted to convert from.
-        from: ValueTypeInfo,
-        /// The native type we attempt to convert to.
-        to: &'static str,
-    },
-    /// Failure to convert return value.
-    #[error("failed to convert return value `{ret}`")]
-    ReturnConversionError {
-        /// Type of the return value we attempted to convert.
-        ret: &'static str,
-    },
-    /// Wrong number of arguments provided in call.
-    #[error("wrong number of arguments `{actual}`, expected `{expected}`")]
-    ArgumentCountMismatch {
-        /// The actual number of arguments.
-        actual: usize,
-        /// The expected number of arguments.
-        expected: usize,
     },
 }
 
@@ -126,7 +76,7 @@ impl fmt::Display for ModuleName {
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 /// The handler of a function.
-type Handler = dyn for<'vm> Fn(&'vm mut Vm, usize) -> BoxFuture<'vm, Result<(), CallError>> + Sync;
+type Handler = dyn for<'vm> Fn(&'vm mut Vm, usize) -> BoxFuture<'vm, Result<(), VmError>> + Sync;
 
 /// A description of a function signature.
 #[derive(Debug)]
@@ -563,7 +513,7 @@ impl GlobalModule {
     /// machine.
     pub fn raw_fn<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
     where
-        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), CallError> + Send + Sync,
+        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), VmError> + Send + Sync,
     {
         let hash = Hash::global_fn(name);
 
@@ -584,7 +534,7 @@ impl GlobalModule {
     pub fn raw_async_fn<F, O>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
-        O: Future<Output = Result<(), CallError>>,
+        O: Future<Output = Result<(), VmError>>,
     {
         let hash = Hash::global_fn(name);
 
@@ -762,7 +712,7 @@ impl Module {
     /// machine.
     pub fn raw_fn<F>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
     where
-        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), CallError> + Send + Sync,
+        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), VmError> + Send + Sync,
     {
         let hash = Hash::global_fn(name);
 
@@ -783,7 +733,7 @@ impl Module {
     pub fn raw_async_fn<F, O>(&mut self, name: &str, f: F) -> Result<Hash, RegisterError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
-        O: Future<Output = Result<(), CallError>>,
+        O: Future<Output = Result<(), VmError>>,
     {
         let hash = Hash::global_fn(name);
 
@@ -806,7 +756,7 @@ pub trait GlobalFallibleFn<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), CallError>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [global_fn][Functions::global_fn] function.
@@ -815,7 +765,7 @@ pub trait GlobalFn<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), CallError>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_fn][Self::async_fn] function.
@@ -824,7 +774,7 @@ pub trait AsyncFn<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), CallError>>;
+    fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>>;
 }
 
 /// Trait used to provide the [instance_fallible_fn][Functions::instance_fallible_fn] function.
@@ -839,7 +789,7 @@ pub trait InstanceFallibleFn<Args>: 'static + Copy + Send + Sync {
     fn instance_value_type() -> ValueType;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), CallError>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [instance_fn][Functions::instance_fn] function.
@@ -854,7 +804,7 @@ pub trait InstanceFn<Args>: 'static + Copy + Send + Sync {
     fn instance_value_type() -> ValueType;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), CallError>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_instance_fn][Functions::async_instance_fn] function.
@@ -869,7 +819,7 @@ pub trait AsyncInstanceFn<Args>: 'static + Copy + Send + Sync {
     fn instance_value_type() -> ValueType;
 
     /// Perform the vm call.
-    fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), CallError>>;
+    fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>>;
 }
 
 macro_rules! impl_register {
@@ -894,7 +844,7 @@ macro_rules! impl_register {
                 $count
             }
 
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), CallError> {
+            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
                 impl_register!{@args $count, args}
 
                 $(let $var = vm.managed_pop()?;)*
@@ -925,7 +875,7 @@ macro_rules! impl_register {
                 $count
             }
 
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), CallError> {
+            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
                 impl_register!{@args $count, args}
 
                 $(let $var = vm.managed_pop()?;)*
@@ -962,7 +912,7 @@ macro_rules! impl_register {
                 self,
                 vm: &'vm mut Vm,
                 args: usize
-            ) -> BoxFuture<'vm, Result<(), CallError>> {
+            ) -> BoxFuture<'vm, Result<(), VmError>> {
                 Box::pin(async move {
                     impl_register!{@args $count, args}
 
@@ -1005,7 +955,7 @@ macro_rules! impl_register {
                 Inst::reflect_value_type()
             }
 
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), CallError> {
+            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
                 impl_register!{@args $count, args}
 
                 let inst = vm.managed_pop()?;
@@ -1046,7 +996,7 @@ macro_rules! impl_register {
                 Inst::reflect_value_type()
             }
 
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), CallError> {
+            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
                 impl_register!{@args $count, args}
 
                 let inst = vm.managed_pop()?;
@@ -1088,7 +1038,7 @@ macro_rules! impl_register {
                 Inst::reflect_value_type()
             }
 
-            fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), CallError>> {
+            fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>> {
                 Box::pin(async move {
                     impl_register!{@args $count, args}
 
@@ -1103,7 +1053,7 @@ macro_rules! impl_register {
                     #[allow(unused_unsafe)]
                     let ret = unsafe {
                         impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                        self(inst, $($var,)*).await.map_err(CallError::from)?
+                        self(inst, $($var,)*).await?
                     };
 
                     impl_register!{@return vm, ret, Ret}
@@ -1117,7 +1067,7 @@ macro_rules! impl_register {
         let $ret = match $ret.to_value($vm) {
             Some($ret) => $ret,
             None => {
-                return Err(CallError::ReturnConversionError {
+                return Err(VmError::ReturnConversionError {
                     ret: type_name::<$ty>()
                 });
             }
@@ -1134,7 +1084,7 @@ macro_rules! impl_register {
                 Err(v) => {
                     let ty = v.type_info($vm)?;
 
-                    return Err(CallError::ArgumentConversionError {
+                    return Err(VmError::ArgumentConversionError {
                         arg: $count - $num,
                         from: ty,
                         to: type_name::<$ty>(),
@@ -1151,7 +1101,7 @@ macro_rules! impl_register {
             Err(v) => {
                 let ty = v.type_info($vm)?;
 
-                return Err(CallError::ArgumentConversionError {
+                return Err(VmError::ArgumentConversionError {
                     arg: 0,
                     from: ty,
                     to: type_name::<Inst>()
@@ -1165,7 +1115,7 @@ macro_rules! impl_register {
                 Err(v) => {
                     let ty = v.type_info($vm)?;
 
-                    return Err(CallError::ArgumentConversionError {
+                    return Err(VmError::ArgumentConversionError {
                         arg: 1 + $count - $num,
                         from: ty,
                         to: type_name::<$ty>()
@@ -1177,7 +1127,7 @@ macro_rules! impl_register {
 
     (@args $expected:expr, $actual:expr) => {
         if $actual != $expected {
-            return Err(CallError::ArgumentCountMismatch {
+            return Err(VmError::ArgumentCountMismatch {
                 actual: $actual,
                 expected: $expected,
             });

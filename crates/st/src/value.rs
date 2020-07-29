@@ -275,7 +275,7 @@ pub enum ValueType {
 
 /// Type information about a value, that can be printed for human consumption
 /// through its [Display][fmt::Display] implementation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy)]
 pub enum ValueTypeInfo {
     /// An empty unit.
     Unit,

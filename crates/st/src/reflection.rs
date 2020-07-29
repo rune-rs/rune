@@ -5,13 +5,13 @@ use thiserror::Error;
 
 /// Failure to encode a value.
 #[derive(Debug, Error)]
-#[error("failed to encode arguments")]
-pub struct EncodeError(());
+#[error("failed to convert arguments into values")]
+pub struct IntoArgsError(());
 
 /// Trait for converting arguments into values.
 pub trait IntoArgs {
     /// Encode arguments to the vm.
-    fn encode(self, vm: &mut Vm) -> Result<(), EncodeError>;
+    fn encode(self, vm: &mut Vm) -> Result<(), IntoArgsError>;
 
     /// The number of arguments.
     fn count() -> usize;
@@ -345,9 +345,9 @@ macro_rules! impl_into_args {
             $($ty: ToValue,)*
         {
             #[allow(unused)]
-            fn encode(self, vm: &mut Vm) -> Result<(), EncodeError> {
+            fn encode(self, vm: &mut Vm) -> Result<(), IntoArgsError> {
                 let ($($var,)*) = self;
-                $(let $var = $var.to_value(vm).ok_or_else(|| EncodeError(()))?;)*
+                $(let $var = $var.to_value(vm).ok_or_else(|| IntoArgsError(()))?;)*
                 $(vm.managed_push($var);)*
                 Ok(())
             }
