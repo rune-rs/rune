@@ -135,6 +135,8 @@ pub enum Kind {
     Else,
     /// An `import` token.
     Import,
+    /// A `while` token.
+    While,
     /// An identifier.
     Ident,
     /// A number literal, like `42` or `3.14` or `0xff`.
@@ -197,6 +199,7 @@ impl fmt::Display for Kind {
             Self::If => write!(fmt, "if"),
             Self::Else => write!(fmt, "else"),
             Self::Import => write!(fmt, "import"),
+            Self::While => write!(fmt, "while"),
             Self::Ident => write!(fmt, "ident"),
             Self::NumberLiteral { number } => write!(fmt, "{}", number),
             Self::StringLiteral { .. } => write!(fmt, "string"),

@@ -18,11 +18,12 @@ fn main() -> Result<()> {
 
     let mut args = env::args();
     args.next();
+    args.next();
 
     let mut path = None;
     let mut trace = false;
     let mut dump_unit = false;
-    let mut dump_vm_state = false;
+    let mut dump_vm = false;
     let mut dump_functions = false;
     let mut help = false;
 
@@ -33,14 +34,14 @@ fn main() -> Result<()> {
             }
             "--dump" => {
                 dump_unit = true;
-                dump_vm_state = true;
+                dump_vm = true;
                 dump_functions = true;
             }
             "--dump-unit" => {
                 dump_unit = true;
             }
-            "--dump-vm-state" => {
-                dump_vm_state = true;
+            "--dump-vm" => {
+                dump_vm = true;
             }
             "--dump-functions" => {
                 dump_functions = true;
@@ -48,8 +49,12 @@ fn main() -> Result<()> {
             "--help" => {
                 help = true;
             }
-            other => {
+            other if !other.starts_with("-") => {
                 path = Some(PathBuf::from(other));
+            }
+            other => {
+                println!("Unrecognized option: {}", other);
+                help = true;
             }
         }
     }
@@ -153,11 +158,11 @@ fn main() -> Result<()> {
 
     let result = loop {
         if trace {
-            println!(
-                "ip:{:04x} = {:?}",
-                task.ip,
-                task.unit.instruction_at(task.ip)
-            );
+            if let Some(inst) = task.unit.instruction_at(task.vm.ip()) {
+                println!("{:04x} = {:?}", task.vm.ip(), inst,);
+            } else {
+                println!("{:04x} = *out of bounds*", task.vm.ip(),);
+            }
         }
 
         let result = runtime.block_on(task.step());
@@ -179,7 +184,7 @@ fn main() -> Result<()> {
             }
         };
 
-        if trace && dump_vm_state {
+        if trace && dump_vm {
             println!("# stack dump");
 
             for (n, (slot, value)) in task.vm.iter_stack_debug().enumerate() {
@@ -197,7 +202,7 @@ fn main() -> Result<()> {
     let duration = std::time::Instant::now().duration_since(last);
     println!("== {:?} ({:?})", result, duration);
 
-    if dump_vm_state {
+    if dump_vm {
         println!("# stack dump after completion");
 
         for (n, (slot, value)) in vm.iter_stack_debug().enumerate() {

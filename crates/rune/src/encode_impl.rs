@@ -6,6 +6,10 @@ use crate::token::Token;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 
+/// Flag to indicate if the expression should have no effect.
+#[derive(Clone, Copy)]
+struct NoEffect(bool);
+
 /// Decode the specified path.
 fn resolve_path<'a>(path: ast::Path, source: Source<'a>) -> Result<Vec<&'a str>, EncodeError> {
     let mut output = Vec::new();
@@ -84,13 +88,33 @@ impl Locals {
         Ok(())
     }
 
+    /// Insert a new local, and return the old one if there's a conflict.
+    pub fn decl_var(&mut self, name: &str, token: Token) -> Result<(), usize> {
+        if let Some(old) = self.locals.get(name) {
+            return Err(old.offset);
+        }
+
+        self.locals.insert(
+            name.to_owned(),
+            Local {
+                offset: self.var_count,
+                name: name.to_owned(),
+                token,
+            },
+        );
+
+        self.var_count += 1;
+        self.local_count += 1;
+        Ok(())
+    }
+
     /// Access the local with the given name.
-    pub fn get<'a>(&'a self, name: &str) -> Option<&'a Local> {
+    pub fn get_offset(&self, name: &str) -> Option<usize> {
         let mut cur = Some(self);
 
         while let Some(c) = cur {
             if let Some(local) = c.locals.get(name) {
-                return Some(local);
+                return Some(local.offset);
             }
 
             cur = c.parent.as_ref().map(|l| &**l);
@@ -142,17 +166,27 @@ struct Encoder<'a> {
 
 impl<'a> Encoder<'a> {
     fn encode_fn_decl(&mut self, fn_decl: ast::FnDecl) -> Result<(), EncodeError> {
-        for arg in fn_decl.args.items.into_iter().rev() {
+        for arg in fn_decl.args.items.into_iter() {
             let name = arg.resolve(self.source)?;
             self.locals.new_local(name, arg.token)?;
         }
 
-        for expr in fn_decl.body.exprs {
-            self.encode_block_expr(expr, true)?;
+        if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
+            self.instructions.push(st::Inst::ReturnUnit);
+            return Ok(());
         }
 
-        if let Some(expr) = fn_decl.body.implicit_return {
-            self.encode_block_expr(expr, false)?;
+        for (expr, _) in fn_decl.body.exprs {
+            let is_empty = expr.is_empty();
+            self.encode_expr(expr)?;
+
+            if !is_empty {
+                self.instructions.push(st::Inst::Pop);
+            }
+        }
+
+        if let Some(expr) = fn_decl.body.trailing_expr {
+            self.encode_expr(expr)?;
             self.instructions.push(st::Inst::Return);
         } else {
             self.instructions.push(st::Inst::ReturnUnit);
@@ -162,63 +196,67 @@ impl<'a> Encoder<'a> {
     }
 
     /// Encode a block.
-    fn encode_block(&mut self, block: ast::Block) -> Result<(), EncodeError> {
-        for expr in block.exprs {
-            self.encode_block_expr(expr, true)?;
+    fn encode_block(&mut self, block: ast::Block, expects_value: bool) -> Result<(), EncodeError> {
+        log::trace!("{:?}", block);
+
+        if block.exprs.is_empty() && block.trailing_expr.is_none() {
+            // Empty block produces no value, so push a unit.
+            if expects_value {
+                self.instructions.push(st::Inst::Unit);
+            }
+
+            return Ok(());
         }
 
-        if let Some(expr) = block.implicit_return {
-            self.encode_block_expr(expr, false)?;
-        } else {
+        for (expr, _) in block.exprs {
+            let is_empty = expr.is_empty();
+            self.encode_expr(expr)?;
+
+            if !is_empty {
+                self.instructions.push(st::Inst::Pop);
+            }
+        }
+
+        if let Some(expr) = block.trailing_expr {
+            let is_empty = expr.is_empty();
+            self.encode_expr(expr)?;
+
+            if expects_value {
+                if is_empty {
+                    self.instructions.push(st::Inst::Unit);
+                }
+            } else if !is_empty {
+                self.instructions.push(st::Inst::Pop);
+            }
+        } else if expects_value {
             self.instructions.push(st::Inst::Unit);
         }
 
         Ok(())
     }
 
-    /// Encode a block expression.
-    fn encode_block_expr(&mut self, expr: ast::BlockExpr, pop: bool) -> Result<(), EncodeError> {
-        log::trace!("{:?}, pop={:?}", expr, pop);
-
-        match expr {
-            ast::BlockExpr::Expr(expr) => {
-                self.encode_expr(expr)?;
-
-                if pop {
-                    self.instructions.push(st::Inst::Pop);
-                }
-            }
-            ast::BlockExpr::Let(let_) => {
-                self.encode_let(let_)?;
-            }
-        }
-
-        Ok(())
-    }
-
+    /// Encode an expression.
     fn encode_expr(&mut self, expr: ast::Expr) -> Result<(), EncodeError> {
         log::trace!("{:?}", expr);
 
         match expr {
+            ast::Expr::While(while_) => {
+                self.encode_while(while_)?;
+            }
+            ast::Expr::Let(let_) => {
+                self.encode_let(let_)?;
+            }
+            ast::Expr::Update(let_) => {
+                self.encode_update(let_)?;
+            }
+            ast::Expr::IndexSet(index_set) => {
+                self.encode_index_set(index_set)?;
+            }
             ast::Expr::ExprGroup(expr) => {
                 self.encode_expr(*expr.expr)?;
             }
             ast::Expr::Ident(ident) => {
-                let name = ident.resolve(self.source)?;
-
-                log::trace!("ident={:?}, locals={:?}", name, self.locals);
-
-                let local = self
-                    .locals
-                    .get(name)
-                    .ok_or_else(|| EncodeError::MissingLocal {
-                        name: name.to_owned(),
-                        span: ident.token.span,
-                    })?;
-
-                self.instructions.push(st::Inst::Copy {
-                    offset: local.offset,
-                });
+                self.encode_local_copy(ident)?;
             }
             ast::Expr::CallFn(call_fn) => {
                 self.encode_call_fn(call_fn)?;
@@ -257,6 +295,9 @@ impl<'a> Encoder<'a> {
             ast::Expr::StringLiteral(string) => {
                 self.encode_string_literal(string)?;
             }
+            ast::Expr::IndexGet(index_get) => {
+                self.encode_index_get(index_get)?;
+            }
         }
 
         Ok(())
@@ -284,12 +325,101 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
+    fn encode_while(&mut self, while_: ast::While) -> Result<(), EncodeError> {
+        log::trace!("{:?}", while_);
+
+        let mut condition_insts = Vec::new();
+        let mut body_insts = Vec::new();
+
+        Encoder {
+            unit: &mut *self.unit,
+            instructions: &mut condition_insts,
+            locals: Locals::with_parent(self.locals.clone()),
+            source: self.source,
+        }
+        .encode_expr(*while_.condition)?;
+
+        Encoder {
+            unit: &mut *self.unit,
+            instructions: &mut body_insts,
+            locals: Locals::with_parent(self.locals.clone()),
+            source: self.source,
+        }
+        .encode_block(*while_.body, false)?;
+
+        body_insts.push(st::Inst::Jump {
+            offset: -((body_insts.len() + condition_insts.len() + 1) as isize),
+        });
+
+        condition_insts.push(st::Inst::JumpIfNot {
+            offset: (body_insts.len() + 1) as isize,
+        });
+
+        self.instructions.append(&mut condition_insts);
+        self.instructions.append(&mut body_insts);
+        Ok(())
+    }
+
     fn encode_let(&mut self, let_: ast::Let) -> Result<(), EncodeError> {
         log::trace!("{:?}", let_);
 
         let name = let_.name.resolve(self.source)?;
-        self.encode_expr(let_.expr)?;
-        self.locals.new_local(name, let_.name.token)?;
+        self.encode_expr(*let_.expr)?;
+
+        if let Err(offset) = self.locals.decl_var(name, let_.name.token) {
+            // We are overloading an existing variable, so just replace it.
+            self.instructions.push(st::Inst::Replace { offset });
+        }
+
+        Ok(())
+    }
+
+    fn encode_update(&mut self, update: ast::Update) -> Result<(), EncodeError> {
+        log::trace!("{:?}", update);
+
+        let token = update.name.token;
+        let name = update.name.resolve(self.source)?;
+        self.encode_expr(*update.expr)?;
+
+        let offset = self
+            .locals
+            .get_offset(name)
+            .ok_or_else(|| EncodeError::MissingLocal {
+                name: name.to_owned(),
+                span: token.span,
+            })?;
+
+        self.instructions.push(st::Inst::Replace { offset });
+        Ok(())
+    }
+
+    fn encode_index_get(&mut self, index_get: ast::IndexGet) -> Result<(), EncodeError> {
+        self.encode_expr(*index_get.index)?;
+        self.encode_local_copy(index_get.target)?;
+        self.instructions.push(st::Inst::IndexGet);
+        Ok(())
+    }
+
+    fn encode_index_set(&mut self, index_set: ast::IndexSet) -> Result<(), EncodeError> {
+        self.encode_expr(*index_set.value)?;
+        self.encode_expr(*index_set.index)?;
+        self.encode_local_copy(index_set.target)?;
+        self.instructions.push(st::Inst::IndexSet);
+        Ok(())
+    }
+
+    fn encode_local_copy(&mut self, ident: ast::Ident) -> Result<(), EncodeError> {
+        let target = ident.resolve(self.source)?;
+
+        let offset = self
+            .locals
+            .get_offset(target)
+            .ok_or_else(|| EncodeError::MissingLocal {
+                name: target.to_owned(),
+                span: ident.token.span,
+            })?;
+
+        self.instructions.push(st::Inst::Copy { offset });
         Ok(())
     }
 
@@ -395,8 +525,6 @@ impl<'a> Encoder<'a> {
 
         self.encode_expr(*expr_if.condition)?;
 
-        let length = self.instructions.len();
-
         let mut then_branch = Vec::new();
 
         Encoder {
@@ -405,7 +533,7 @@ impl<'a> Encoder<'a> {
             locals: Locals::with_parent(self.locals.clone()),
             source: self.source,
         }
-        .encode_block(*expr_if.then_branch)?;
+        .encode_block(*expr_if.then_branch, expr_if.expr_if_else.is_some())?;
 
         if let Some(expr_if_else) = expr_if.expr_if_else {
             let mut else_branch = Vec::new();
@@ -416,15 +544,16 @@ impl<'a> Encoder<'a> {
                 locals: Locals::with_parent(self.locals.clone()),
                 source: self.source,
             }
-            .encode_block(*expr_if_else.else_branch)?;
+            .encode_block(*expr_if_else.else_branch, true)?;
+
+            // Jump from end of then branch to end of blocks.
+            then_branch.push(st::Inst::Jump {
+                offset: (else_branch.len() + 1) as isize,
+            });
 
             // Jump to else branch.
             self.instructions.push(st::Inst::JumpIfNot {
-                offset: length + 2 + then_branch.len(),
-            });
-            // Jump from end of then branch to end of blocks.
-            then_branch.push(st::Inst::Jump {
-                offset: length + 2 + then_branch.len() + else_branch.len(),
+                offset: (then_branch.len() + 1) as isize,
             });
 
             self.instructions.append(&mut then_branch);
@@ -432,7 +561,7 @@ impl<'a> Encoder<'a> {
         } else {
             // +1 for the JumpIfNot instruction added
             self.instructions.push(st::Inst::JumpIfNot {
-                offset: length + 1 + then_branch.len(),
+                offset: (then_branch.len() + 1) as isize,
             });
             self.instructions.append(&mut then_branch);
         }

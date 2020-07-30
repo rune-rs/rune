@@ -1,0 +1,38 @@
+// Testing a bunch of control flows.
+
+fn test(n) {
+    if n > 1 {
+        2
+    } else {
+        if n < 1 {
+            0
+        } else {
+            1
+        }
+    }
+}
+
+fn from_loop() {
+    let n = 1;
+
+    while n < 4 {
+        n = n + 1;
+    }
+
+    n
+}
+
+fn returns_unit(n) {
+    if n > 0 {
+        100
+    }
+}
+
+fn main() {
+    let a = test(0);
+    let b = test(1);
+    let c = test(2);
+    let d = from_loop();
+    let e = returns_unit(1);
+    [a, b, c, d, e]
+}

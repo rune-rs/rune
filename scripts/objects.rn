@@ -1,4 +1,8 @@
 fn main() {
     let object = {"foo": 42};
+    object["bar"] = object["foo"] + 1;
+    object = {"foo": 1};
+    let object = {"bar": 2};
+    let a = object["foo"];
     object
 }

@@ -80,6 +80,7 @@ impl<'a> Lexer<'a> {
             "if" => Kind::If,
             "else" => Kind::Else,
             "import" => Kind::Import,
+            "while" => Kind::While,
             _ => Kind::Ident,
         };
 

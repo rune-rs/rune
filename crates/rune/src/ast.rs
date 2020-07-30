@@ -97,6 +97,13 @@ pub struct ArrayLiteral {
     pub close: CloseBracket,
 }
 
+impl ArrayLiteral {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
+}
+
 /// Parse an array literal.
 ///
 /// # Examples
@@ -143,6 +150,13 @@ pub struct ObjectLiteral {
     pub close: CloseBrace,
 }
 
+impl ObjectLiteral {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
+}
+
 /// Parse an object literal.
 ///
 /// # Examples
@@ -187,6 +201,13 @@ pub struct NumberLiteral {
     number: token::NumberLiteral,
     /// The token corresponding to the literal.
     token: Token,
+}
+
+impl NumberLiteral {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.token.span
+    }
 }
 
 /// Parse a number literal.
@@ -253,6 +274,13 @@ pub struct StringLiteral {
     token: Token,
     /// If the string literal is escaped.
     escaped: bool,
+}
+
+impl StringLiteral {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.token.span
+    }
 }
 
 impl StringLiteral {
@@ -460,6 +488,13 @@ pub struct ExprBinary {
     pub rhs: Box<Expr>,
 }
 
+impl ExprBinary {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.lhs.span().join(self.rhs.span())
+    }
+}
+
 /// An else branch of an if expression.
 #[derive(Debug)]
 pub struct ExprIfElse {
@@ -491,6 +526,22 @@ pub struct ExprIf {
     pub expr_if_else: Option<ExprIfElse>,
 }
 
+impl ExprIf {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        if let Some(else_) = &self.expr_if_else {
+            self.if_.token.span.join(else_.else_branch.span())
+        } else {
+            self.if_.token.span.join(self.then_branch.span())
+        }
+    }
+
+    /// An if statement evaluates to empty if it does not have an else branch.
+    pub fn is_empty(&self) -> bool {
+        self.expr_if_else.is_none()
+    }
+}
+
 impl Parse for ExprIf {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let if_ = parser.parse()?;
@@ -518,6 +569,14 @@ struct SupportInstanceCall(bool);
 /// A rune expression.
 #[derive(Debug)]
 pub enum Expr {
+    /// A while loop.
+    While(While),
+    /// A let expression.
+    Let(Let),
+    /// Update a local variable.
+    Update(Update),
+    /// An index set operation.
+    IndexSet(IndexSet),
     /// An if expression.
     ExprIf(ExprIf),
     /// An empty expression.
@@ -538,9 +597,43 @@ pub enum Expr {
     ExprGroup(ExprGroup),
     /// A binary expression.
     ExprBinary(ExprBinary),
+    /// An index set operation.
+    IndexGet(IndexGet),
 }
 
 impl Expr {
+    /// Test if the expression implicitly evaluates to unit.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::While(..) => true,
+            Self::Let(..) => true,
+            Self::Update(..) => true,
+            Self::ExprIf(expr_if) => expr_if.is_empty(),
+            _ => false,
+        }
+    }
+
+    /// Get the span of the expression.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::While(expr) => expr.span(),
+            Self::Let(expr) => expr.span(),
+            Self::Update(expr) => expr.span(),
+            Self::IndexSet(expr) => expr.span(),
+            Self::ExprIf(expr) => expr.span(),
+            Self::Ident(expr) => expr.span(),
+            Self::CallFn(expr) => expr.span(),
+            Self::CallInstanceFn(expr) => expr.span(),
+            Self::ArrayLiteral(expr) => expr.span(),
+            Self::ObjectLiteral(expr) => expr.span(),
+            Self::NumberLiteral(expr) => expr.span(),
+            Self::StringLiteral(expr) => expr.span(),
+            Self::ExprGroup(expr) => expr.span(),
+            Self::ExprBinary(expr) => expr.span(),
+            Self::IndexGet(expr) => expr.span(),
+        }
+    }
+
     /// Default parse function.
     fn parse_default(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         Self::parse_primary(parser, SupportInstanceCall(true))
@@ -558,33 +651,83 @@ impl Expr {
     ) -> Result<Self, ParseError> {
         let token = parser.token_peek_eof()?;
 
-        Ok(match token.kind {
-            Kind::If => Self::ExprIf(parser.parse()?),
+        match token.kind {
+            Kind::While => {
+                return Ok(Self::While(parser.parse()?));
+            }
+            Kind::Let => {
+                return Ok(Self::Let(parser.parse()?));
+            }
+            Kind::If => {
+                return Ok(Self::ExprIf(parser.parse()?));
+            }
             Kind::Ident => match parser.token_peek2()?.map(|t| t.kind) {
-                Some(Kind::Open {
-                    delimiter: Delimiter::Parenthesis,
-                })
-                | Some(Kind::Scope) => Self::CallFn(parser.parse()?),
-                Some(Kind::Dot) if instance_call.0 => Self::CallInstanceFn(parser.parse()?),
-                _ => Self::Ident(parser.parse()?),
+                Some(kind) => match kind {
+                    Kind::Open {
+                        delimiter: Delimiter::Bracket,
+                    } => {
+                        let index_get: IndexGet = parser.parse()?;
+
+                        return Ok(if parser.peek::<Eq>()? {
+                            Self::IndexSet(IndexSet {
+                                target: index_get.target,
+                                open_bracket: index_get.open_bracket,
+                                index: index_get.index,
+                                close_bracket: index_get.close_bracket,
+                                eq: parser.parse()?,
+                                value: Box::new(parser.parse()?),
+                            })
+                        } else {
+                            Self::IndexGet(index_get)
+                        });
+                    }
+                    Kind::Eq => {
+                        return Ok(Self::Update(parser.parse()?));
+                    }
+                    Kind::Open {
+                        delimiter: Delimiter::Parenthesis,
+                    }
+                    | Kind::Scope => {
+                        return Ok(Self::CallFn(parser.parse()?));
+                    }
+                    Kind::Dot if instance_call.0 => {
+                        return Ok(Self::CallInstanceFn(parser.parse()?));
+                    }
+                    _ => {
+                        return Ok(Self::Ident(parser.parse()?));
+                    }
+                },
+                _ => {
+                    return Ok(Self::Ident(parser.parse()?));
+                }
             },
-            Kind::NumberLiteral { .. } => Self::NumberLiteral(parser.parse()?),
-            Kind::StringLiteral { .. } => Self::StringLiteral(parser.parse()?),
+            Kind::NumberLiteral { .. } => {
+                return Ok(Self::NumberLiteral(parser.parse()?));
+            }
+            Kind::StringLiteral { .. } => {
+                return Ok(Self::StringLiteral(parser.parse()?));
+            }
             Kind::Open {
                 delimiter: Delimiter::Parenthesis,
-            } => Self::ExprGroup(parser.parse()?),
+            } => {
+                return Ok(Self::ExprGroup(parser.parse()?));
+            }
             Kind::Open {
                 delimiter: Delimiter::Bracket,
-            } => Self::ArrayLiteral(parser.parse()?),
+            } => {
+                return Ok(Self::ArrayLiteral(parser.parse()?));
+            }
             Kind::Open {
                 delimiter: Delimiter::Brace,
-            } => Self::ObjectLiteral(parser.parse()?),
-            _ => {
-                return Err(ParseError::ExpectedExprError {
-                    actual: token.kind,
-                    span: token.span,
-                })
+            } => {
+                return Ok(Self::ObjectLiteral(parser.parse()?));
             }
+            _ => (),
+        }
+
+        Err(ParseError::ExpectedExprError {
+            actual: token.kind,
+            span: token.span,
         })
     }
 
@@ -633,14 +776,35 @@ impl Expr {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast};
 ///
 /// # fn main() {
+/// parse_all::<ast::Expr>("foo[\"foo\"]").unwrap();
 /// parse_all::<ast::Expr>("foo.bar()").unwrap();
 /// parse_all::<ast::Expr>("var()").unwrap();
 /// parse_all::<ast::Expr>("var").unwrap();
 /// parse_all::<ast::Expr>("42").unwrap();
 /// parse_all::<ast::Expr>("1 + 2 / 3 - 4 * 1").unwrap();
+/// parse_all::<ast::Expr>("foo[\"bar\"]").unwrap();
+/// parse_all::<ast::Expr>("let var = 42").unwrap();
+/// parse_all::<ast::Expr>("let var = \"foo bar\"").unwrap();
+/// parse_all::<ast::Expr>("var[\"foo\"] = \"bar\"").unwrap();
+/// parse_all::<ast::Expr>("let var = objects[\"foo\"] + 1").unwrap();
+/// parse_all::<ast::Expr>("var = 42").unwrap();
+///
+/// let expr = parse_all::<ast::Expr>(r#"
+///     if 1 {
+///     } else {
+///         if 2 {
+///         } else {
+///         }
+///     }
+/// "#).unwrap();
+///
+/// if let ast::Expr::ExprIf(..) = expr.item {
+/// } else {
+///     panic!("not an if statement");
+/// }
 /// # }
 /// ```
 impl Parse for Expr {
@@ -657,6 +821,13 @@ pub struct CallFn {
     pub name: Path,
     /// The arguments of the function call.
     pub args: FunctionArgs<Expr>,
+}
+
+impl CallFn {
+    /// Access the span of expression.
+    pub fn span(&self) -> Span {
+        self.name.span().join(self.args.span())
+    }
 }
 
 /// Parsing a function call.
@@ -694,6 +865,13 @@ pub struct CallInstanceFn {
     pub args: FunctionArgs<Expr>,
 }
 
+impl CallInstanceFn {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.instance.span().join(self.args.span())
+    }
+}
+
 /// Parsing an instance function call.
 ///
 /// # Examples
@@ -718,47 +896,6 @@ impl Parse for CallInstanceFn {
     }
 }
 
-/// A rune block expression.
-#[derive(Debug)]
-pub enum BlockExpr {
-    /// An expression.
-    Expr(Expr),
-    /// A let expression.
-    Let(Let),
-}
-
-/// Parsing a block expression.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast, Resolve as _};
-///
-/// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::BlockExpr>("var")?;
-/// let _ = parse_all::<ast::BlockExpr>("42")?;
-/// let _ = parse_all::<ast::BlockExpr>("let var = 42")?;
-/// let _ = parse_all::<ast::BlockExpr>("let var = \"foo bar\"")?;
-/// # Ok(())
-/// # }
-/// ```
-impl Parse for BlockExpr {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        // NB: peek token for efficiency reasons.
-        let token = parser.token_peek_eof()?;
-
-        Ok(match token.kind {
-            Kind::Let => Self::Let(Let {
-                let_: parser.parse()?,
-                name: parser.parse()?,
-                eq: parser.parse()?,
-                expr: parser.parse()?,
-            }),
-            _ => Self::Expr(parser.parse()?),
-        })
-    }
-}
-
 /// A let expression `let <name> = <expr>;`
 #[derive(Debug)]
 pub struct Let {
@@ -769,7 +906,148 @@ pub struct Let {
     /// The equality keyword.
     pub eq: Eq,
     /// The expression the binding is assigned to.
-    pub expr: Expr,
+    pub expr: Box<Expr>,
+}
+
+impl Let {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.let_.token.span.join(self.expr.span())
+    }
+}
+
+impl Parse for Let {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(Self {
+            let_: parser.parse()?,
+            name: parser.parse()?,
+            eq: parser.parse()?,
+            expr: Box::new(parser.parse()?),
+        })
+    }
+}
+
+/// A let expression `let <name> = <expr>;`
+#[derive(Debug)]
+pub struct While {
+    /// The `while` keyword.
+    pub while_: WhileToken,
+    /// The name of the binding.
+    pub condition: Box<Expr>,
+    /// The body of the while loop.
+    pub body: Box<Block>,
+}
+
+impl While {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.while_.token.span.join(self.body.span())
+    }
+}
+
+impl Parse for While {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(While {
+            while_: parser.parse()?,
+            condition: Box::new(parser.parse()?),
+            body: Box::new(parser.parse()?),
+        })
+    }
+}
+
+/// A let expression `<name> = <expr>;`
+#[derive(Debug)]
+pub struct Update {
+    /// The name of the binding.
+    pub name: Ident,
+    /// The equality keyword.
+    pub eq: Eq,
+    /// The expression the binding is assigned to.
+    pub expr: Box<Expr>,
+}
+
+impl Update {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.name.token.span.join(self.expr.span())
+    }
+}
+
+impl Parse for Update {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(Update {
+            name: parser.parse()?,
+            eq: parser.parse()?,
+            expr: Box::new(parser.parse()?),
+        })
+    }
+}
+
+/// An index set operation `<target>[<index>] = <value>`.
+#[derive(Debug)]
+pub struct IndexSet {
+    /// The target of the index set.
+    pub target: Ident,
+    /// The opening bracket.
+    pub open_bracket: OpenBracket,
+    /// The indexing expression.
+    pub index: Box<Expr>,
+    /// The closening bracket.
+    pub close_bracket: CloseBracket,
+    /// The equals sign.
+    pub eq: Eq,
+    /// The value expression we are assigning.
+    pub value: Box<Expr>,
+}
+
+impl IndexSet {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.target.token.span.join(self.value.span())
+    }
+}
+
+/// An index get operation `<target>[<index>]`.
+#[derive(Debug)]
+pub struct IndexGet {
+    /// The target of the index set.
+    pub target: Ident,
+    /// The opening bracket.
+    pub open_bracket: OpenBracket,
+    /// The indexing expression.
+    pub index: Box<Expr>,
+    /// The closening bracket.
+    pub close_bracket: CloseBracket,
+}
+
+impl IndexGet {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.target.span().join(self.close_bracket.span())
+    }
+}
+
+/// Parsing an index get expression.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// # fn main() -> anyhow::Result<()> {
+/// let _ = parse_all::<ast::IndexGet>("var[\"foo\"]")?;
+/// # Ok(())
+/// # }
+/// ```
+impl Parse for IndexGet {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(IndexGet {
+            target: parser.parse()?,
+            open_bracket: parser.parse()?,
+            index: Box::new(parser.parse()?),
+            close_bracket: parser.parse()?,
+        })
+    }
 }
 
 /// An imported declaration.
@@ -889,10 +1167,21 @@ impl Parse for FnDecl {
 /// A block of expressions.
 #[derive(Debug)]
 pub struct Block {
+    /// The close brace.
+    pub open: OpenBrace,
     /// Expressions in the block.
-    pub exprs: Vec<BlockExpr>,
-    /// The implicit return statement.
-    pub implicit_return: Option<BlockExpr>,
+    pub exprs: Vec<(Expr, Option<SemiColon>)>,
+    /// Test if the expression is trailing.
+    pub trailing_expr: Option<Expr>,
+    /// The close brace.
+    pub close: CloseBrace,
+}
+
+impl Block {
+    /// Get the span of the block.
+    pub fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
 }
 
 /// Parse implementation for a block.
@@ -905,15 +1194,15 @@ pub struct Block {
 /// # fn main() -> anyhow::Result<()> {
 /// let block = parse_all::<ast::Block>("{}")?.item;
 /// assert_eq!(block.exprs.len(), 0);
-/// assert!(block.implicit_return.is_none());
+/// assert!(block.trailing_expr.is_none());
 ///
 /// let block = parse_all::<ast::Block>("{ foo }")?.item;
 /// assert_eq!(block.exprs.len(), 0);
-/// assert!(block.implicit_return.is_some());
+/// assert!(block.trailing_expr.is_some());
 ///
 /// let block = parse_all::<ast::Block>("{ foo; }")?.item;
 /// assert_eq!(block.exprs.len(), 1);
-/// assert!(block.implicit_return.is_none());
+/// assert!(block.trailing_expr.is_none());
 ///
 /// let block = parse_all::<ast::Block>(r#"
 ///     {
@@ -923,7 +1212,7 @@ pub struct Block {
 ///     }
 /// "#)?.item;
 /// assert_eq!(block.exprs.len(), 2);
-/// assert!(block.implicit_return.is_some());
+/// assert!(block.trailing_expr.is_some());
 /// # Ok(())
 /// # }
 /// ```
@@ -931,27 +1220,55 @@ impl Parse for Block {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let mut exprs = Vec::new();
 
-        parser.parse::<OpenBrace>()?;
+        let open = parser.parse()?;
+        let mut trailing_expr = None;
 
-        let mut implicit_return = None;
+        // Last expression is of a type that evaluates to a value.
+        let mut last_expr_with_value = false;
 
         while !parser.peek::<CloseBrace>()? {
-            let expr = parser.parse()?;
+            last_expr_with_value = false;
+            let expr: Expr = parser.parse()?;
 
             if parser.peek::<SemiColon>()? {
-                exprs.push(expr);
-                parser.parse::<SemiColon>()?;
-            } else {
-                implicit_return = Some(expr);
-                break;
+                exprs.push((expr, Some(parser.parse::<SemiColon>()?)));
+                continue;
             }
+
+            // expressions where it's allowed not to have a trailing
+            // semi-colon.
+            match &expr {
+                Expr::While(..) => {
+                    exprs.push((expr, None));
+                    continue;
+                }
+                Expr::ExprIf(expr_if) => {
+                    if expr_if.is_empty() {
+                        exprs.push((expr, None));
+                    } else {
+                        last_expr_with_value = true;
+                        exprs.push((expr, None));
+                    }
+
+                    continue;
+                }
+                _ => (),
+            }
+
+            trailing_expr = Some(expr);
+            break;
         }
 
-        parser.parse::<CloseBrace>()?;
+        if last_expr_with_value {
+            trailing_expr = exprs.pop().map(|(expr, _)| expr);
+        }
 
+        let close = parser.parse()?;
         Ok(Block {
+            open,
             exprs,
-            implicit_return,
+            trailing_expr,
+            close,
         })
     }
 }
@@ -965,6 +1282,13 @@ pub struct FunctionArgs<T> {
     pub items: Vec<T>,
     /// The close parenthesis.
     pub close: CloseParen,
+}
+
+impl<T> FunctionArgs<T> {
+    /// Access the span of expression.
+    pub fn span(&self) -> Span {
+        self.open.token.span.join(self.close.token.span)
+    }
 }
 
 /// Parse function arguments.
@@ -1017,6 +1341,13 @@ pub struct ExprGroup {
     pub close: CloseParen,
 }
 
+impl ExprGroup {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
+}
+
 impl Parse for ExprGroup {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         Ok(Self {
@@ -1035,6 +1366,13 @@ macro_rules! decl_tokens {
             pub struct $parser {
                 /// Associated token.
                 pub token: Token,
+            }
+
+            impl $parser {
+                /// Access the span of the token.
+                pub fn span(&self) -> Span {
+                    self.token.span
+                }
             }
 
             impl Parse for $parser {
@@ -1088,6 +1426,7 @@ decl_tokens! {
     (Eq, Kind::Eq),
     (Import, Kind::Import),
     (Scope, Kind::Scope),
+    (WhileToken, Kind::While),
 }
 
 impl<'a> Resolve<'a> for Ident {

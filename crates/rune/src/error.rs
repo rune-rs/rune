@@ -213,6 +213,12 @@ pub enum EncodeError {
         /// The name of the missing module.
         module: st::ItemPath,
     },
+    /// Encountered expression that must be closed.
+    #[error("expression must be closed")]
+    ExprNotClosed {
+        /// Span of the expression that was not closed.
+        span: Span,
+    },
 }
 
 impl SpannedError for EncodeError {
@@ -223,6 +229,7 @@ impl SpannedError for EncodeError {
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
             Self::MissingModule { span, .. } => span,
+            Self::ExprNotClosed { span, .. } => span,
         }
     }
 }
