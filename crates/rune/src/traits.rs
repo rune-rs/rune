@@ -15,7 +15,7 @@ where
 /// Implemented by tokens that can be peeked for.
 pub trait Peek {
     /// Peek the parser for the given token.
-    fn peek(token: Option<Token>) -> bool;
+    fn peek(t1: Option<Token>, t2: Option<Token>) -> bool;
 }
 
 /// A type that can be resolved to an internal value based on a source.

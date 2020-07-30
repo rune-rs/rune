@@ -4,7 +4,7 @@ use crate::value::{Managed, ValueType, ValueTypeInfo};
 use crate::vm::{StackError, Vm};
 
 /// An entry on the stack.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ValuePtr {
     /// An empty unit.
     Unit,

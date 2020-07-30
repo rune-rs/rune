@@ -21,6 +21,7 @@ pub struct Parser<'a> {
     pub(crate) lexer: Lexer<'a>,
     p1: Result<Option<Token>, ParseError>,
     p2: Result<Option<Token>, ParseError>,
+    p3: Result<Option<Token>, ParseError>,
 }
 
 impl<'a> Parser<'a> {
@@ -30,8 +31,9 @@ impl<'a> Parser<'a> {
 
         let p1 = lexer.next();
         let p2 = lexer.next();
+        let p3 = lexer.next();
 
-        Self { lexer, p1, p2 }
+        Self { lexer, p1, p2, p3 }
     }
 
     /// Test if we are at the end of file.
@@ -52,7 +54,7 @@ impl<'a> Parser<'a> {
     where
         T: Peek,
     {
-        Ok(T::peek(self.p1?))
+        Ok(T::peek(self.p1?, self.p2?))
     }
 
     /// Peek for the given token.
@@ -60,7 +62,7 @@ impl<'a> Parser<'a> {
     where
         T: Peek,
     {
-        Ok(T::peek(self.p2?))
+        Ok(T::peek(self.p2?, self.p3?))
     }
 
     /// Peek the current token.
@@ -75,8 +77,9 @@ impl<'a> Parser<'a> {
 
     /// Consume the next token from the lexer.
     pub(crate) fn token_next(&mut self) -> Result<Token, ParseError> {
-        let old = std::mem::replace(&mut self.p2, self.lexer.next());
-        let token = std::mem::replace(&mut self.p1, old);
+        let token = std::mem::replace(&mut self.p3, self.lexer.next());
+        let token = std::mem::replace(&mut self.p2, token);
+        let token = std::mem::replace(&mut self.p1, token);
 
         match token? {
             Some(token) => Ok(token),

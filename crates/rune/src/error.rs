@@ -144,10 +144,18 @@ pub enum ParseError {
     },
     /// Expected an operator but got something else.
     #[error("expected operator (`+`, `-`, `/`, `*`) but got `{actual}`")]
-    ExpectedOperator {
+    ExpectedOperatorError {
         /// The location of the unexpected operator.
         span: Span,
         /// The actual token that was encountered instead of an operator.
+        actual: Kind,
+    },
+    /// Expected a boolean literal.
+    #[error("expected `true` or `false` but got `{actual}`")]
+    ExpectedBoolError {
+        /// The location of the unexpected token.
+        span: Span,
+        /// The actual token that was encountered.
         actual: Kind,
     },
 }
@@ -165,7 +173,8 @@ impl SpannedError for ParseError {
             Self::UnexpectedChar { span, .. } => span,
             Self::ExpectedNumberError { span, .. } => span,
             Self::ExpectedStringError { span, .. } => span,
-            Self::ExpectedOperator { span, .. } => span,
+            Self::ExpectedOperatorError { span, .. } => span,
+            Self::ExpectedBoolError { span, .. } => span,
         }
     }
 }

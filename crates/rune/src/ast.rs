@@ -448,7 +448,7 @@ impl Parse for BinOp {
         Ok(match Self::from_token(token) {
             Some(bin_op) => bin_op,
             None => {
-                return Err(ParseError::ExpectedOperator {
+                return Err(ParseError::ExpectedOperatorError {
                     span: token.span,
                     actual: token.kind,
                 })
@@ -458,9 +458,9 @@ impl Parse for BinOp {
 }
 
 impl Peek for BinOp {
-    fn peek(token: Option<Token>) -> bool {
-        match token {
-            Some(token) => match token.kind {
+    fn peek(p1: Option<Token>, _: Option<Token>) -> bool {
+        match p1 {
+            Some(p1) => match p1.kind {
                 Kind::Plus => true,
                 Kind::Minus => true,
                 Kind::Star => true,
@@ -497,18 +497,42 @@ impl ExprBinary {
 
 /// An else branch of an if expression.
 #[derive(Debug)]
-pub struct ExprIfElse {
+pub struct ExprElseIf {
+    /// The `else` token.
+    pub else_: ElseToken,
+    /// The `if` token.
+    pub if_: IfToken,
+    /// The condition for the branch.
+    pub condition: Box<Expr>,
+    /// The body of the else statement.
+    pub block: Box<Block>,
+}
+
+impl Parse for ExprElseIf {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(Self {
+            else_: parser.parse()?,
+            if_: parser.parse()?,
+            condition: Box::new(parser.parse()?),
+            block: Box::new(parser.parse()?),
+        })
+    }
+}
+
+/// An else branch of an if expression.
+#[derive(Debug)]
+pub struct ExprElse {
     /// The `else` token.
     pub else_: ElseToken,
     /// The body of the else statement.
-    pub else_branch: Box<Block>,
+    pub block: Box<Block>,
 }
 
-impl Parse for ExprIfElse {
+impl Parse for ExprElse {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(ExprIfElse {
+        Ok(ExprElse {
             else_: parser.parse()?,
-            else_branch: Box::new(parser.parse()?),
+            block: Box::new(parser.parse()?),
         })
     }
 }
@@ -521,44 +545,68 @@ pub struct ExprIf {
     /// The condition to the if statement.
     pub condition: Box<Expr>,
     /// The body of the if statement.
-    pub then_branch: Box<Block>,
+    pub block: Box<Block>,
+    /// Else if branches.
+    pub expr_else_ifs: Vec<ExprElseIf>,
     /// The else part of the if expression.
-    pub expr_if_else: Option<ExprIfElse>,
+    pub expr_else: Option<ExprElse>,
 }
 
 impl ExprIf {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
-        if let Some(else_) = &self.expr_if_else {
-            self.if_.token.span.join(else_.else_branch.span())
+        if let Some(else_) = &self.expr_else {
+            self.if_.token.span.join(else_.block.span())
+        } else if let Some(else_if) = self.expr_else_ifs.last() {
+            self.if_.token.span.join(else_if.block.span())
         } else {
-            self.if_.token.span.join(self.then_branch.span())
+            self.if_.token.span.join(self.block.span())
         }
     }
 
     /// An if statement evaluates to empty if it does not have an else branch.
     pub fn is_empty(&self) -> bool {
-        self.expr_if_else.is_none()
+        self.expr_else.is_none()
     }
 }
 
+/// Parse an if statement.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{ParseAll, parse_all, ast};
+///
+/// # fn main() -> anyhow::Result<()> {
+/// parse_all::<ast::ExprIf>("if 0 {  }")?;
+/// parse_all::<ast::ExprIf>("if 0 {  } else {  }")?;
+/// parse_all::<ast::ExprIf>("if 0 {  } else if 0 {  } else {  }")?;
+/// # Ok(())
+/// # }
+/// ```
 impl Parse for ExprIf {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let if_ = parser.parse()?;
         let condition = Box::new(parser.parse()?);
-        let then_branch = Box::new(parser.parse()?);
+        let block = Box::new(parser.parse()?);
+        let mut expr_else_ifs = Vec::new();
+        let mut expr_else = None;
 
-        let expr_if_else = if parser.peek::<ElseToken>()? {
-            Some(parser.parse()?)
-        } else {
-            None
-        };
+        while parser.peek::<ElseToken>()? {
+            if parser.peek2::<IfToken>()? {
+                expr_else_ifs.push(parser.parse()?);
+                continue;
+            }
+
+            expr_else = Some(parser.parse()?);
+        }
 
         Ok(ExprIf {
             if_,
             condition,
-            then_branch,
-            expr_if_else,
+            block,
+            expr_else_ifs,
+            expr_else,
         })
     }
 }
@@ -599,6 +647,10 @@ pub enum Expr {
     ExprBinary(ExprBinary),
     /// An index set operation.
     IndexGet(IndexGet),
+    /// A unit expression.
+    UnitLiteral(UnitLiteral),
+    /// A boolean literal.
+    BoolLiteral(BoolLiteral),
 }
 
 impl Expr {
@@ -631,6 +683,8 @@ impl Expr {
             Self::ExprGroup(expr) => expr.span(),
             Self::ExprBinary(expr) => expr.span(),
             Self::IndexGet(expr) => expr.span(),
+            Self::UnitLiteral(unit) => unit.span(),
+            Self::BoolLiteral(b) => b.span(),
         }
     }
 
@@ -710,6 +764,10 @@ impl Expr {
             Kind::Open {
                 delimiter: Delimiter::Parenthesis,
             } => {
+                if parser.peek::<UnitLiteral>()? {
+                    return Ok(Self::UnitLiteral(parser.parse()?));
+                }
+
                 return Ok(Self::ExprGroup(parser.parse()?));
             }
             Kind::Open {
@@ -721,6 +779,9 @@ impl Expr {
                 delimiter: Delimiter::Brace,
             } => {
                 return Ok(Self::ObjectLiteral(parser.parse()?));
+            }
+            Kind::True | Kind::False => {
+                return Ok(Self::BoolLiteral(parser.parse()?));
             }
             _ => (),
         }
@@ -768,6 +829,125 @@ impl Expr {
         }
 
         Ok(lhs)
+    }
+}
+
+/// The unit literal `()`.
+#[derive(Debug)]
+pub struct UnitLiteral {
+    /// The open parenthesis.
+    pub open: OpenParen,
+    /// The close parenthesis.
+    pub close: CloseParen,
+}
+
+impl UnitLiteral {
+    /// Get the span of this unit literal.
+    pub fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
+}
+
+/// Parsing a unit literal
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// # fn main() {
+/// parse_all::<ast::UnitLiteral>("()").unwrap();
+/// # }
+/// ```
+impl Parse for UnitLiteral {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(Self {
+            open: parser.parse()?,
+            close: parser.parse()?,
+        })
+    }
+}
+
+impl Peek for UnitLiteral {
+    fn peek(p1: Option<Token>, p2: Option<Token>) -> bool {
+        let (p1, p2) = match (p1, p2) {
+            (Some(p1), Some(p2)) => (p1, p2),
+            _ => return false,
+        };
+
+        match (p1.kind, p2.kind) {
+            (
+                Kind::Open {
+                    delimiter: Delimiter::Parenthesis,
+                },
+                Kind::Close {
+                    delimiter: Delimiter::Parenthesis,
+                },
+            ) => true,
+            _ => false,
+        }
+    }
+}
+
+/// The unit literal `()`.
+#[derive(Debug)]
+pub struct BoolLiteral {
+    /// The value of the literal.
+    pub value: bool,
+    /// The token of the literal.
+    pub token: Token,
+}
+
+impl BoolLiteral {
+    /// Get the span of this unit literal.
+    pub fn span(&self) -> Span {
+        self.token.span
+    }
+}
+
+/// Parsing a unit literal
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// # fn main() {
+/// parse_all::<ast::BoolLiteral>("true").unwrap();
+/// parse_all::<ast::BoolLiteral>("false").unwrap();
+/// # }
+/// ```
+impl Parse for BoolLiteral {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let token = parser.token_peek_eof()?;
+
+        let value = match token.kind {
+            Kind::True => true,
+            Kind::False => false,
+            _ => {
+                return Err(ParseError::ExpectedBoolError {
+                    span: token.span,
+                    actual: token.kind,
+                })
+            }
+        };
+
+        Ok(Self { value, token })
+    }
+}
+
+impl Peek for BoolLiteral {
+    fn peek(p1: Option<Token>, _: Option<Token>) -> bool {
+        let p1 = match p1 {
+            Some(p1) => p1,
+            None => return false,
+        };
+
+        match p1.kind {
+            Kind::True => true,
+            Kind::False => true,
+            _ => false,
+        }
     }
 }
 
@@ -1069,9 +1249,9 @@ pub struct ImportDecl {
 /// use rune::{parse_all, ast};
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::ImportDecl>("import foo;")?;
-/// let _ = parse_all::<ast::ImportDecl>("import foo::bar;")?;
-/// let _ = parse_all::<ast::ImportDecl>("import foo::bar::baz;")?;
+/// parse_all::<ast::ImportDecl>("import foo;")?;
+/// parse_all::<ast::ImportDecl>("import foo::bar;")?;
+/// parse_all::<ast::ImportDecl>("import foo::bar::baz;")?;
 /// # Ok(())
 /// # }
 /// ```
@@ -1393,9 +1573,9 @@ macro_rules! decl_tokens {
             }
 
             impl Peek for $parser {
-                fn peek(token: Option<Token>) -> bool {
-                    match token {
-                        Some(token) => match token.kind {
+                fn peek(p1: Option<Token>, _: Option<Token>) -> bool {
+                    match p1 {
+                        Some(p1) => match p1.kind {
                             $($kind)* => true,
                             _ => false,
                         }

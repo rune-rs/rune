@@ -3,7 +3,7 @@ use crate::vm::StackError;
 use std::fmt;
 
 /// Compact information on typed slot.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Slot(usize);
 
 impl Slot {

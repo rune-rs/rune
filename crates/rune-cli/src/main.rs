@@ -126,7 +126,7 @@ fn main() -> Result<()> {
         println!("instructions:");
 
         for (i, inst) in unit.iter_instructions().enumerate() {
-            println!("{:04x} = {:?}", i, inst);
+            println!("{:04} = {:?}", i, inst);
         }
 
         println!("imports:");

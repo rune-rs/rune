@@ -81,6 +81,8 @@ impl<'a> Lexer<'a> {
             "else" => Kind::Else,
             "import" => Kind::Import,
             "while" => Kind::While,
+            "true" => Kind::True,
+            "false" => Kind::False,
             _ => Kind::Ident,
         };
 

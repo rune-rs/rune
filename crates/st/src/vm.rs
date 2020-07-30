@@ -418,8 +418,11 @@ macro_rules! pop {
 macro_rules! primitive_ops {
     ($vm:expr, $a:ident $op:tt $b:ident) => {
         match ($a, $b) {
+            (ValuePtr::Unit, ValuePtr::Unit) => true,
+            (ValuePtr::Char($a), ValuePtr::Char($b)) => $a $op $b,
             (ValuePtr::Bool($a), ValuePtr::Bool($b)) => $a $op $b,
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => $a $op $b,
+            (ValuePtr::Float($a), ValuePtr::Float($b)) => $a $op $b,
             (a, b) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
                 a: a.type_info($vm)?,
@@ -539,8 +542,6 @@ pub enum Inst {
         /// Offset to swap value from.
         offset: usize,
     },
-    /// Push a unit value onto the stack.
-    Unit,
     /// Pop the current stack frame and restore the instruction pointer from it.
     ///
     /// The stack frame will be cleared, and the value on the top of the stack
@@ -565,6 +566,14 @@ pub enum Inst {
     Gte,
     /// Compare two values on the stack for equality and push the result as a
     /// boolean on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <b>
+    /// <a>
+    /// => <bool>
+    /// ```
     Eq,
     /// Compare two values on the stack for inequality and push the result as a
     /// boolean on the stack.
@@ -607,6 +616,25 @@ pub enum Inst {
     JumpIfNot {
         /// Offset to jump to.
         offset: isize,
+    },
+    /// Push a unit value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <unit>
+    /// ```
+    Unit,
+    /// Push a boolean value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <boolean>
+    /// ```
+    Bool {
+        /// The boolean value to push.
+        value: bool,
     },
     /// Construct a push an array value onto the stack. The number of elements
     /// in the array are determined by `count` and are popped from the stack.
@@ -724,9 +752,6 @@ impl Inst {
                 Self::Replace { offset } => {
                     vm.stack_replace(offset)?;
                 }
-                Self::Unit => {
-                    vm.managed_push(ValuePtr::Unit)?;
-                }
                 Self::Add => {
                     vm.add()?;
                 }
@@ -766,9 +791,7 @@ impl Inst {
                     vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a <= b)));
                 }
                 Self::Eq => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a == b)));
+                    vm.eq()?;
                 }
                 Self::Neq => {
                     let b = vm.managed_pop()?;
@@ -793,6 +816,12 @@ impl Inst {
                         // NB: avoid modifying ip.
                         break;
                     }
+                }
+                Self::Unit => {
+                    vm.managed_push(ValuePtr::Unit)?;
+                }
+                Self::Bool { value } => {
+                    vm.managed_push(ValuePtr::Bool(value))?;
                 }
                 Self::Array { count } => {
                     let mut array = Vec::with_capacity(count);
@@ -1762,43 +1791,40 @@ impl Vm {
                 (Managed::String, slot) => ValueRef::String(self.string_ref(slot)?),
                 (Managed::Array, slot) => {
                     let array = self.array_ref(slot)?;
-                    ValueRef::Array(value_ref_array(self, &*array)?)
+                    ValueRef::Array(self.value_array_ref(&*array)?)
                 }
                 (Managed::Object, slot) => {
                     let object = self.object_ref(slot)?;
-                    ValueRef::Object(value_ref_object(self, &*object)?)
+                    ValueRef::Object(self.value_object_ref(&*object)?)
                 }
                 (Managed::External, slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             },
         });
+    }
 
-        /// Convert the given value pointers into an array.
-        fn value_ref_array<'vm>(
-            vm: &'vm Vm,
-            values: &[ValuePtr],
-        ) -> Result<Vec<ValueRef<'vm>>, StackError> {
-            let mut output = Vec::with_capacity(values.len());
+    /// Convert the given value pointers into an array.
+    pub fn value_array_ref(&self, values: &[ValuePtr]) -> Result<Vec<ValueRef<'_>>, StackError> {
+        let mut output = Vec::with_capacity(values.len());
 
-            for value in values.iter().copied() {
-                output.push(vm.value_ref(value)?);
-            }
-
-            Ok(output)
+        for value in values.iter().copied() {
+            output.push(self.value_ref(value)?);
         }
 
-        /// Convert the given value pointers into an array.
-        fn value_ref_object<'vm>(
-            vm: &'vm Vm,
-            object: &HashMap<String, ValuePtr>,
-        ) -> Result<HashMap<String, ValueRef<'vm>>, StackError> {
-            let mut output = HashMap::with_capacity(object.len());
+        Ok(output)
+    }
 
-            for (key, value) in object.iter() {
-                output.insert(key.to_owned(), vm.value_ref(*value)?);
-            }
+    /// Convert the given value pointers into an array.
+    pub fn value_object_ref(
+        &self,
+        object: &HashMap<String, ValuePtr>,
+    ) -> Result<HashMap<String, ValueRef<'_>>, StackError> {
+        let mut output = HashMap::with_capacity(object.len());
 
-            Ok(output)
+        for (key, value) in object.iter() {
+            output.insert(key.to_owned(), self.value_ref(*value)?);
         }
+
+        Ok(output)
     }
 
     /// Get the last value on the stack.
@@ -1827,6 +1853,80 @@ impl Vm {
         };
 
         Ok(value)
+    }
+
+    /// Optimized function to test if two value pointers are deeply equal to
+    /// each other.
+    ///
+    /// This is the basis for the eq operation (`==`).
+    ///
+    /// Note: External types are compared by their slot, but should eventually
+    /// use a dynamically resolve equality function.
+    pub fn value_ptr_eq(&self, a: ValuePtr, b: ValuePtr) -> Result<bool, VmError> {
+        Ok(match (a, b) {
+            (ValuePtr::Unit, ValuePtr::Unit) => true,
+            (ValuePtr::Char(a), ValuePtr::Char(b)) => a == b,
+            (ValuePtr::Bool(a), ValuePtr::Bool(b)) => a == b,
+            (ValuePtr::Integer(a), ValuePtr::Integer(b)) => a == b,
+            (ValuePtr::Float(a), ValuePtr::Float(b)) => a == b,
+            (ValuePtr::Managed(a), ValuePtr::Managed(b)) => {
+                match (a.into_managed(), b.into_managed()) {
+                    ((Managed::Array, a), (Managed::Array, b)) => {
+                        let a = self.array_ref(a)?;
+                        let b = self.array_ref(b)?;
+
+                        if a.len() != b.len() {
+                            return Ok(false);
+                        }
+
+                        for (a, b) in a.iter().copied().zip(b.iter().copied()) {
+                            if !self.value_ptr_eq(a, b)? {
+                                return Ok(false);
+                            }
+                        }
+
+                        true
+                    }
+                    ((Managed::Object, a), (Managed::Object, b)) => {
+                        let a = self.object_ref(a)?;
+                        let b = self.object_ref(b)?;
+
+                        if a.len() != b.len() {
+                            return Ok(false);
+                        }
+
+                        for (key, a) in a.iter() {
+                            let b = match b.get(key) {
+                                Some(b) => b,
+                                None => return Ok(false),
+                            };
+
+                            if !self.value_ptr_eq(*a, *b)? {
+                                return Ok(false);
+                            }
+                        }
+
+                        true
+                    }
+                    ((Managed::String, a), (Managed::String, b)) => {
+                        let a = self.string_ref(a)?;
+                        let b = self.string_ref(b)?;
+                        *a == *b
+                    }
+                    ((Managed::External, a), (Managed::External, b)) => a == b,
+                    _ => false,
+                }
+            }
+            _ => false,
+        })
+    }
+
+    /// Optimized equality implementations.
+    fn eq(&mut self) -> Result<(), VmError> {
+        let b = self.managed_pop()?;
+        let a = self.managed_pop()?;
+        self.unmanaged_push(ValuePtr::Bool(self.value_ptr_eq(a, b)?));
+        Ok(())
     }
 
     /// Implementation of the add operation.

@@ -12,6 +12,28 @@ fn test(n) {
     }
 }
 
+fn test2(n) {
+    if n > 1 {
+        2
+    } else if n < 1 {
+        0
+    } else {
+        1
+    }
+}
+
+fn test3(n) {
+    let out = if n > 1 {
+        2
+    } else if n < 1 {
+        0
+    } else {
+        1
+    };
+
+    out
+}
+
 fn from_loop() {
     let n = 1;
 
@@ -28,11 +50,17 @@ fn returns_unit(n) {
     }
 }
 
+fn returns_string() {
+    "this is a string"
+}
+
 fn main() {
     let a = test(0);
-    let b = test(1);
-    let c = test(2);
+    let b = test2(1);
+    let c = test3(2);
     let d = from_loop();
     let e = returns_unit(1);
-    [a, b, c, d, e]
+    let f = returns_string();
+
+    [0, 1, 2, 4, (), "this is a string"] == [a, b, c, d, e, f]
 }
