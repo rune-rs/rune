@@ -112,6 +112,7 @@ fn main() -> Result<()> {
 
     let mut functions = st::Functions::with_default_packages()?;
     functions.install(st_http::module()?)?;
+    functions.install(st_json::module()?)?;
 
     if dump_functions {
         println!("# functions");
@@ -166,6 +167,16 @@ fn main() -> Result<()> {
         }
 
         let result = runtime.block_on(task.step());
+        
+        if trace && dump_vm {
+            println!("# stack dump");
+
+            for (n, (slot, value)) in task.vm.iter_stack_debug().enumerate() {
+                println!("{} = {:?} ({:?})", n, slot, value);
+            }
+
+            println!("---");
+        }
 
         let result = match result {
             Ok(result) => result,
@@ -183,16 +194,6 @@ fn main() -> Result<()> {
                 return Ok(());
             }
         };
-
-        if trace && dump_vm {
-            println!("# stack dump");
-
-            for (n, (slot, value)) in task.vm.iter_stack_debug().enumerate() {
-                println!("{} = {:?} ({:?})", n, slot, value);
-            }
-
-            println!("---");
-        }
 
         if let Some(result) = result {
             break result;

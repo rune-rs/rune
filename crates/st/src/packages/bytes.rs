@@ -2,11 +2,20 @@
 
 use crate::functions::{Module, RegisterError};
 use std::fmt;
+use std::ops;
 
 /// A bytes container.
 #[derive(Clone)]
 pub struct Bytes {
     bytes: Vec<u8>,
+}
+
+impl ops::Deref for Bytes {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.bytes
+    }
 }
 
 impl fmt::Debug for Bytes {
@@ -80,6 +89,17 @@ impl Bytes {
 }
 
 decl_external!(Bytes);
+
+impl<'a> crate::UnsafeFromValue for &'a [u8] {
+    unsafe fn unsafe_from_value(
+        value: crate::ValuePtr,
+        vm: &mut crate::Vm,
+    ) -> Result<Self, crate::StackError> {
+        let slot = value.into_external()?;
+        let value = crate::Ref::unsafe_into_ref(vm.external_ref::<Bytes>(slot)?);
+        Ok(value.bytes.as_slice())
+    }
+}
 
 /// Get the module for the bytes package.
 pub fn module() -> Result<Module, RegisterError> {

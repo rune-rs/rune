@@ -1499,7 +1499,7 @@ impl Vm {
     ///
     /// This will leak memory unless the reference is pushed onto the stack to
     /// be managed.
-    pub fn allocate_external<T: External>(&mut self, value: T) -> ValuePtr {
+    pub fn external_allocate<T: External>(&mut self, value: T) -> ValuePtr {
         let slot = self.externals.insert(ExternalHolder {
             type_name: type_name::<T>(),
             type_id: TypeId::of::<T>(),

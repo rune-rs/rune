@@ -1,0 +1,11 @@
+fn test2(n) {
+    if n > 1 {
+        2
+    } else if n < 1 {
+        0
+    }
+}
+
+fn main() {
+    test2(1)
+}

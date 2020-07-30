@@ -2,6 +2,7 @@
 members = [
     "crates/st",
     "crates/st-http",
+    "crates/st-json",
     "crates/rune",
     "crates/rune-cli",
 ]

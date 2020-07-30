@@ -41,7 +41,7 @@ macro_rules! decl_external {
 
         impl $crate::ToValue for $external {
             fn to_value(self, vm: &mut $crate::Vm) -> Result<$crate::ValuePtr, $crate::StackError> {
-                Ok(vm.allocate_external(self))
+                Ok(vm.external_allocate(self))
             }
         }
 

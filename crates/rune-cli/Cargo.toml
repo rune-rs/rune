@@ -14,5 +14,6 @@ env_logger = "0.7.1"
 rune = {version = "0.0.0", path = "../rune"}
 st = {version = "0.0.0", path = "../st"}
 st-http = {version = "0.0.0", path = "../st-http"}
+st-json = {version = "0.0.0", path = "../st-json"}
 
 anyhow = "1.0.32"

@@ -772,6 +772,7 @@ dependencies = [
  "rune",
  "st",
  "st-http",
+ "st-json",
  "tokio",
 ]
 
@@ -879,6 +880,7 @@ dependencies = [
  "env_logger",
  "hashbrown",
  "log",
+ "serde",
  "slab",
  "thiserror",
  "tokio",
@@ -891,6 +893,15 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "reqwest",
+ "st",
+]
+
+[[package]]
+name = "st-json"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "serde_json",
  "st",
 ]
 

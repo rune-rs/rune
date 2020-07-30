@@ -22,6 +22,8 @@ mod error;
 mod hash;
 pub mod packages;
 mod reflection;
+mod serde;
+pub mod tls;
 mod unit;
 
 pub use crate::error::{Error, Result};

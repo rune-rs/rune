@@ -17,6 +17,7 @@ anyhow = "1.0.32"
 thiserror = "1.0.20"
 slab = "0.4.2"
 hashbrown = "0.8.1"
+serde = "1.0.114"
 
 [dev-dependencies]
 tokio = {version = "0.2.22", features = ["full"]}
