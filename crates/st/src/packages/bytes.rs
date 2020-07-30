@@ -1,6 +1,8 @@
 //! The bytes package, providing access to the bytes type.
 
 use crate::functions::{Module, RegisterError};
+use crate::value::{ValueType, ValueTypeInfo};
+use std::any::{type_name, TypeId};
 use std::fmt;
 use std::ops;
 
@@ -98,6 +100,16 @@ impl<'a> crate::UnsafeFromValue for &'a [u8] {
         let slot = value.into_external()?;
         let value = crate::Ref::unsafe_into_ref(vm.external_ref::<Bytes>(slot)?);
         Ok(value.bytes.as_slice())
+    }
+}
+
+impl<'a> crate::ReflectValueType for &'a [u8] {
+    fn value_type() -> ValueType {
+        ValueType::External(TypeId::of::<Bytes>())
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::External(type_name::<Bytes>())
     }
 }
 

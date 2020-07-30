@@ -211,7 +211,7 @@ impl<T: ?Sized> ops::DerefMut for Mut<'_, T> {
 
 impl<T: ?Sized> Drop for Mut<'_, T> {
     fn drop(&mut self) {
-        self.access.release_exlusive();
+        self.access.release_exclusive();
     }
 }
 
@@ -577,6 +577,14 @@ pub enum Inst {
     Eq,
     /// Compare two values on the stack for inequality and push the result as a
     /// boolean on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <b>
+    /// <a>
+    /// => <bool>
+    /// ```
     Neq,
     /// Unconditionally jump to `offset` relative to the current instruction
     /// pointer.
@@ -794,9 +802,7 @@ impl Inst {
                     vm.eq()?;
                 }
                 Self::Neq => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a != b)));
+                    vm.neq()?;
                 }
                 Self::Jump { offset } => {
                     vm.modify_ip(offset)?;
@@ -909,7 +915,7 @@ impl Access {
 
     /// Unshare the current access.
     #[inline]
-    fn release_exlusive(&self) {
+    fn release_exclusive(&self) {
         let b = self.0.get().wrapping_sub(1);
         debug_assert!(b == 0);
         self.0.set(b);
@@ -931,7 +937,9 @@ impl Access {
 
 /// The holde of an external value.
 pub(crate) struct ExternalHolder<T: ?Sized + External> {
+    /// The name of the stored value.
     type_name: &'static str,
+    /// The type id of the stored value.
     type_id: TypeId,
     /// The number of things referencing this external.
     count: usize,
@@ -940,7 +948,7 @@ pub(crate) struct ExternalHolder<T: ?Sized + External> {
     /// responsible for unwinding the access.
     access: Access,
     /// The value being held.
-    value: Box<UnsafeCell<T>>,
+    value: Option<Box<UnsafeCell<T>>>,
 }
 
 impl<T> fmt::Debug for ExternalHolder<T>
@@ -964,7 +972,7 @@ pub(crate) struct Holder<T> {
     /// Access for the given holder.
     access: Access,
     /// The value being held.
-    pub(crate) value: UnsafeCell<T>,
+    pub(crate) value: Option<UnsafeCell<T>>,
 }
 
 impl<T> fmt::Debug for Holder<T>
@@ -1097,11 +1105,15 @@ macro_rules! impl_slot_functions {
         ///
         /// This operation can leak memory unless the returned slot is pushed onto
         /// the stack.
+        ///
+        /// Newly allocated items already have a refcount of 1. And should be
+        /// pushed on the stack using [unmanaged_push], rather than
+        /// [managed_push].
         pub fn $fn_allocate(&mut self, value: $ret_ty) -> ValuePtr {
             let slot = self.$field.insert(Holder {
-                count: 0,
+                count: 1,
                 access: Default::default(),
-                value: UnsafeCell::new(value),
+                value: Some(UnsafeCell::new(value)),
             });
 
             ValuePtr::Managed(Slot::$slot(slot))
@@ -1109,65 +1121,110 @@ macro_rules! impl_slot_functions {
 
         /// Get a reference of the value at the given slot.
         pub fn $fn_ref(&self, slot: usize) -> Result<Ref<'_, $ret_ty>, StackError> {
-            if let Some(holder) = self.$field.get(slot) {
-                holder.access.shared(Managed::$managed, slot)?;
+            let holder = match self.$field.get(slot) {
+                Some(holder) => holder,
+                None => {
+                    return Err(StackError::$error { slot });
+                }
+            };
 
-                // Safety: we wrap the value in the necessary guard to make it safe.
-                let value = unsafe { &*holder.value.get() };
+            holder.access.shared(Managed::$managed, slot)?;
 
-                return Ok(Ref {
-                    value,
-                    access: &holder.access,
-                    guard: (Managed::$managed, slot),
-                    guards: &self.guards,
-                });
-            }
+            let value = match &holder.value {
+                Some(value) => value,
+                None => {
+                    holder.access.release_shared();
+                    return Err(StackError::$error { slot });
+                }
+            };
 
-            Err(StackError::$error { slot })
+            // Safety: we wrap the value in the necessary guard to make it safe.
+            let value = unsafe { &*value.get() };
+
+            Ok(Ref {
+                value,
+                access: &holder.access,
+                guard: (Managed::$managed, slot),
+                guards: &self.guards,
+            })
         }
 
         /// Get a cloned value from the given slot.
         pub fn $fn_clone(&self, slot: usize) -> Result<$ret_ty, StackError> {
-            if let Some(holder) = self.$field.get(slot) {
-                // NB: we only need temporary access.
-                holder.access.test_shared(Managed::$managed, slot)?;
-                // Safety: Caller needs to ensure that they safely call disarm.
-                return Ok(unsafe { (*holder.value.get()).clone() });
-            }
+            let holder = match self.$field.get(slot) {
+                Some(holder) => holder,
+                None => {
+                    return Err(StackError::$error { slot });
+                }
+            };
 
-            Err(StackError::$error { slot })
+            // NB: we only need temporary access.
+            holder.access.test_shared(Managed::$managed, slot)?;
+
+            let value = match &holder.value {
+                Some(value) => value,
+                None => {
+                    return Err(StackError::$error { slot });
+                }
+            };
+
+            // Safety: Caller needs to ensure that they safely call disarm.
+            Ok(unsafe { (*value.get()).clone() })
         }
 
         /// Get a reference of the value at the given slot.
         pub fn $fn_mut(&self, slot: usize) -> Result<Mut<'_, $ret_ty>, StackError> {
-            if let Some(holder) = self.$field.get(slot) {
-                holder.access.exclusive(Managed::$managed, slot)?;
+            let holder = match self.$field.get(slot) {
+                Some(holder) => holder,
+                None => {
+                    return Err(StackError::$error { slot });
+                }
+            };
 
-                // Safety: Caller needs to ensure that they safely call disarm.
-                let value = unsafe { &mut *holder.value.get() };
+            holder.access.exclusive(Managed::$managed, slot)?;
 
-                return Ok(Mut {
-                    value,
-                    access: &holder.access,
-                    guard: (Managed::$managed, slot),
-                    guards: &self.guards,
-                });
-            }
+            let value = match &holder.value {
+                Some(value) => value,
+                None => {
+                    holder.access.release_exclusive();
+                    return Err(StackError::$error { slot });
+                }
+            };
 
-            Err(StackError::$error { slot })
+            // Safety: Caller needs to ensure that they safely call disarm.
+            let value = unsafe { &mut *value.get() };
+
+            Ok(Mut {
+                value,
+                access: &holder.access,
+                guard: (Managed::$managed, slot),
+                guards: &self.guards,
+            })
         }
 
         /// Take the value at the given slot.
         ///
         /// After taking the value, the caller is responsible for deallocating it.
         pub fn $fn_take(&mut self, slot: usize) -> Result<$ret_ty, StackError> {
-            if !self.$field.contains(slot) {
-                return Err(StackError::$error { slot });
-            }
+            let holder = match self.$field.get_mut(slot) {
+                Some(holder) => holder,
+                None => {
+                    return Err(StackError::$error { slot });
+                }
+            };
 
-            let holder = self.$field.remove(slot);
             holder.access.exclusive(Managed::$managed, slot)?;
-            Ok(UnsafeCell::into_inner(holder.value))
+
+            let value = match holder.value.take() {
+                Some(value) => value,
+                None => {
+                    holder.access.release_exclusive();
+                    return Err(StackError::$error { slot });
+                }
+            };
+
+            holder.access.release_exclusive();
+            Ok(UnsafeCell::into_inner(value))
         }
     };
 }
@@ -1384,15 +1441,18 @@ impl Vm {
                         }
 
                         let array = self.arrays.remove(slot);
-                        let value = UnsafeCell::into_inner(array.value);
 
-                        for value in value {
-                            if let Some((managed, slot)) = value.try_into_managed() {
-                                self.dec_ref(managed, slot)?;
+                        if let Some(value) = array.value {
+                            let value = UnsafeCell::into_inner(value);
+
+                            for value in value {
+                                if let Some((managed, slot)) = value.try_into_managed() {
+                                    self.dec_ref(managed, slot)?;
+                                }
                             }
-                        }
 
-                        debug_assert!(array.count == 0);
+                            debug_assert!(array.count == 0);
+                        }
                     }
                     Managed::Object => {
                         if !self.objects.contains(slot) {
@@ -1401,15 +1461,18 @@ impl Vm {
                         }
 
                         let object = self.objects.remove(slot);
-                        let value = UnsafeCell::into_inner(object.value);
 
-                        for (_, value) in value {
-                            if let Some((managed, slot)) = value.try_into_managed() {
-                                self.dec_ref(managed, slot)?;
+                        if let Some(value) = object.value {
+                            let value = UnsafeCell::into_inner(value);
+
+                            for (_, value) in value {
+                                if let Some((managed, slot)) = value.try_into_managed() {
+                                    self.dec_ref(managed, slot)?;
+                                }
                             }
-                        }
 
-                        debug_assert!(object.count == 0);
+                            debug_assert!(object.count == 0);
+                        }
                     }
                 }
             }
@@ -1503,9 +1566,9 @@ impl Vm {
         let slot = self.externals.insert(ExternalHolder {
             type_name: type_name::<T>(),
             type_id: TypeId::of::<T>(),
-            count: 0,
+            count: 1,
             access: Access::default(),
-            value: Box::new(UnsafeCell::new(value)),
+            value: Some(Box::new(UnsafeCell::new(value))),
         });
 
         ValuePtr::Managed(Slot::external(slot))
@@ -1567,9 +1630,17 @@ impl Vm {
 
         holder.access.shared(Managed::External, slot)?;
 
+        let value = match &holder.value {
+            Some(value) => value,
+            None => {
+                holder.access.release_shared();
+                return Err(StackError::ExternalSlotMissing { slot });
+            }
+        };
+
         // Safety: Caller needs to ensure that they safely call disarm.
         unsafe {
-            let external = match (&*holder.value.get()).as_any().downcast_ref::<T>() {
+            let external = match (&*value.get()).as_any().downcast_ref::<T>() {
                 Some(external) => external,
                 None => {
                     // NB: Immediately unshare because the cast failed and we
@@ -1607,9 +1678,17 @@ impl Vm {
 
         holder.access.exclusive(Managed::External, slot)?;
 
+        let value = match &holder.value {
+            Some(value) => value,
+            None => {
+                holder.access.release_exclusive();
+                return Err(StackError::ExternalSlotMissing { slot });
+            }
+        };
+
         // Safety: Caller needs to ensure that they safely call disarm.
         unsafe {
-            let value = (*holder.value.get())
+            let value = (*value.get())
                 .as_any_mut()
                 .downcast_mut::<T>()
                 .ok_or_else(|| StackError::ExpectedExternalType {
@@ -1633,19 +1712,21 @@ impl Vm {
         if let Some(holder) = self.externals.get(slot) {
             holder.access.test_shared(Managed::Array, slot)?;
 
-            // Safety: Caller needs to ensure that they safely call disarm.
-            unsafe {
-                let external = match (*holder.value.get()).as_any().downcast_ref::<T>() {
-                    Some(external) => external,
-                    None => {
-                        return Err(StackError::ExpectedExternalType {
-                            expected: type_name::<T>(),
-                            actual: holder.type_name,
-                        });
-                    }
-                };
+            if let Some(value) = &holder.value {
+                // Safety: Caller needs to ensure that they safely call disarm.
+                unsafe {
+                    let external = match (*value.get()).as_any().downcast_ref::<T>() {
+                        Some(external) => external,
+                        None => {
+                            return Err(StackError::ExpectedExternalType {
+                                expected: type_name::<T>(),
+                                actual: holder.type_name,
+                            });
+                        }
+                    };
 
-                return Ok(external.clone());
+                    return Ok(external.clone());
+                }
             }
         }
 
@@ -1657,16 +1738,26 @@ impl Vm {
     where
         T: External,
     {
-        if !self.externals.contains(slot) {
-            return Err(StackError::ExternalSlotMissing { slot });
-        }
+        let holder = self
+            .externals
+            .get_mut(slot)
+            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
 
-        let mut holder = self.externals.remove(slot);
         holder.access.exclusive(Managed::External, slot)?;
+
+        let value = match holder.value.take() {
+            Some(value) => value,
+            None => {
+                holder.access.release_exclusive();
+                return Err(StackError::ExternalSlotMissing { slot });
+            }
+        };
+
+        holder.access.release_exclusive();
 
         // Safety: Caller needs to ensure that they safely call disarm.
         unsafe {
-            let value = Box::into_raw(holder.value);
+            let value = Box::into_raw(value);
 
             if let Some(ptr) = (&mut *(*value).get()).as_mut_ptr(TypeId::of::<T>()) {
                 return Ok(*Box::from_raw(ptr as *mut T));
@@ -1674,11 +1765,8 @@ impl Vm {
 
             let actual = holder.type_name;
 
+            holder.value = Some(Box::from_raw(value));
             holder.access.clear();
-            holder.value = Box::from_raw(value);
-
-            let new_slot = self.externals.insert(holder);
-            debug_assert!(new_slot == slot);
 
             Err(StackError::ExpectedExternalType {
                 expected: type_name::<T>(),
@@ -1697,9 +1785,17 @@ impl Vm {
 
         holder.access.shared(Managed::External, slot)?;
 
+        let value = match &holder.value {
+            Some(value) => value,
+            None => {
+                holder.access.release_shared();
+                return Err(StackError::ExternalSlotMissing { slot });
+            }
+        };
+
         // Safety: Caller needs to ensure that they safely call disarm.
         Ok(Ref {
-            value: unsafe { &*holder.value.get() },
+            value: unsafe { &*value.get() },
             access: &holder.access,
             guard: (Managed::External, slot),
             guards: &self.guards,
@@ -1708,17 +1804,25 @@ impl Vm {
 
     /// Take an external value by dyn, assuming you have exlusive access to it.
     pub fn external_take_dyn(&mut self, slot: usize) -> Result<Box<dyn External>, StackError> {
-        if !self.externals.contains(slot) {
-            return Err(StackError::ExternalSlotMissing { slot });
-        }
+        let holder = self
+            .externals
+            .get_mut(slot)
+            .ok_or_else(|| StackError::ExternalSlotMissing { slot })?;
 
-        let holder = self.externals.remove(slot);
         holder.access.exclusive(Managed::External, slot)?;
+
+        let value = match holder.value.take() {
+            Some(value) => value,
+            None => {
+                holder.access.release_exclusive();
+                return Err(StackError::ExternalSlotMissing { slot });
+            }
+        };
 
         // Safety: Caller needs to ensure that they safely call disarm.
         unsafe {
-            let value = Box::into_raw(holder.value);
-            Ok(Box::from_raw((*value).get()))
+            let value = Box::into_raw(value);
+            return Ok(Box::from_raw((*value).get()));
         }
     }
 
@@ -1921,11 +2025,19 @@ impl Vm {
         })
     }
 
-    /// Optimized equality implementations.
+    /// Optimized equality implementation.
     fn eq(&mut self) -> Result<(), VmError> {
         let b = self.managed_pop()?;
         let a = self.managed_pop()?;
         self.unmanaged_push(ValuePtr::Bool(self.value_ptr_eq(a, b)?));
+        Ok(())
+    }
+
+    /// Optimized inequality implementation.
+    fn neq(&mut self) -> Result<(), VmError> {
+        let b = self.managed_pop()?;
+        let a = self.managed_pop()?;
+        self.unmanaged_push(ValuePtr::Bool(!self.value_ptr_eq(a, b)?));
         Ok(())
     }
 

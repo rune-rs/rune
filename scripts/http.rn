@@ -6,5 +6,10 @@ fn main() {
     let response = client.get("http://worldtimeapi.org/api/ip");
     let text = response.text();
     let json = json::from_string(text);
-    json
+
+    let timezone = json["timezone"];
+
+    if timezone != () {
+        dbg(timezone);
+    }
 }

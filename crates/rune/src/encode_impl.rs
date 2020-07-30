@@ -6,10 +6,6 @@ use crate::token::Token;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 
-/// Flag to indicate if the expression should have no effect.
-#[derive(Clone, Copy)]
-struct NoEffect(bool);
-
 /// Decode the specified path.
 fn resolve_path<'a>(path: ast::Path, source: Source<'a>) -> Result<Vec<&'a str>, EncodeError> {
     let mut output = Vec::new();
@@ -36,8 +32,6 @@ struct Local {
 
 #[derive(Debug, Clone)]
 struct Locals {
-    /// Parent scope, if available.
-    parent: Option<Box<Locals>>,
     locals: HashMap<String, Local>,
     var_count: usize,
     local_count: usize,
@@ -47,21 +41,8 @@ impl Locals {
     /// Construct a new locals handlers.
     pub fn new() -> Locals {
         Self {
-            parent: None,
             locals: HashMap::new(),
             var_count: 0,
-            local_count: 0,
-        }
-    }
-
-    /// Construct a new locals builder with a parent.
-    pub fn with_parent(parent: Self) -> Self {
-        let var_count = parent.var_count;
-
-        Self {
-            parent: Some(Box::new(parent)),
-            locals: HashMap::new(),
-            var_count,
             local_count: 0,
         }
     }
@@ -110,14 +91,8 @@ impl Locals {
 
     /// Access the local with the given name.
     pub fn get_offset(&self, name: &str) -> Option<usize> {
-        let mut cur = Some(self);
-
-        while let Some(c) = cur {
-            if let Some(local) = c.locals.get(name) {
-                return Some(local.offset);
-            }
-
-            cur = c.parent.as_ref().map(|l| &**l);
+        if let Some(local) = self.locals.get(name) {
+            return Some(local.offset);
         }
 
         None
@@ -140,17 +115,19 @@ impl<'a> crate::ParseAll<'a, ast::File> {
             let name = f.name.resolve(source)?;
             let count = f.args.items.len();
 
-            let mut instructions = Vec::new();
+            let mut assembler = st::Assembler::new();
 
             let mut encoder = Encoder {
                 unit: &mut unit,
-                instructions: &mut instructions,
+                instructions: &mut assembler,
+                parents: Vec::new(),
                 locals: Locals::new(),
                 source,
+                level: 0,
             };
 
             encoder.encode_fn_decl(f)?;
-            unit.new_function(&[name], count, &instructions)?;
+            unit.new_function(&[name], count, assembler.assembly()?)?;
         }
 
         Ok(unit)
@@ -159,9 +136,11 @@ impl<'a> crate::ParseAll<'a, ast::File> {
 
 struct Encoder<'a> {
     unit: &'a mut st::Unit,
-    instructions: &'a mut Vec<st::Inst>,
+    instructions: &'a mut st::Assembler,
+    parents: Vec<Locals>,
     locals: Locals,
     source: Source<'a>,
+    level: usize,
 }
 
 impl<'a> Encoder<'a> {
@@ -186,8 +165,14 @@ impl<'a> Encoder<'a> {
         }
 
         if let Some(expr) = fn_decl.body.trailing_expr {
+            let is_empty = expr.is_empty();
             self.encode_expr(expr)?;
-            self.instructions.push(st::Inst::Return);
+
+            if is_empty {
+                self.instructions.push(st::Inst::ReturnUnit);
+            } else {
+                self.instructions.push(st::Inst::Return);
+            }
         } else {
             self.instructions.push(st::Inst::ReturnUnit);
         }
@@ -196,17 +181,11 @@ impl<'a> Encoder<'a> {
     }
 
     /// Encode a block.
-    fn encode_block(&mut self, block: ast::Block, expects_value: bool) -> Result<(), EncodeError> {
+    fn encode_block(&mut self, block: ast::Block) -> Result<(), EncodeError> {
         log::trace!("{:?}", block);
+        let span = block.span();
 
-        if block.exprs.is_empty() && block.trailing_expr.is_none() {
-            // Empty block produces no value, so push a unit.
-            if expects_value {
-                self.instructions.push(st::Inst::Unit);
-            }
-
-            return Ok(());
-        }
+        self.parents.push(self.locals.clone());
 
         for (expr, _) in block.exprs {
             let is_empty = expr.is_empty();
@@ -221,17 +200,17 @@ impl<'a> Encoder<'a> {
             let is_empty = expr.is_empty();
             self.encode_expr(expr)?;
 
-            if expects_value {
-                if is_empty {
-                    self.instructions.push(st::Inst::Unit);
-                }
-            } else if !is_empty {
-                self.instructions.push(st::Inst::Pop);
+            if is_empty {
+                self.instructions.push(st::Inst::Unit);
             }
-        } else if expects_value {
-            self.instructions.push(st::Inst::Unit);
         }
 
+        let parent = self
+            .parents
+            .pop()
+            .ok_or_else(|| EncodeError::MissingParentScope { span })?;
+
+        self.locals = parent;
         Ok(())
     }
 
@@ -343,36 +322,24 @@ impl<'a> Encoder<'a> {
 
     fn encode_while(&mut self, while_: ast::While) -> Result<(), EncodeError> {
         log::trace!("{:?}", while_);
+        let level = self.level;
+        self.level += 1;
 
-        let mut condition_insts = Vec::new();
-        let mut body_insts = Vec::new();
+        let is_empty = while_.body.is_empty();
+        let start_label = format!("while/condition/{}", level);
+        let end_label = format!("while/end/{}", level);
 
-        Encoder {
-            unit: &mut *self.unit,
-            instructions: &mut condition_insts,
-            locals: Locals::with_parent(self.locals.clone()),
-            source: self.source,
+        self.instructions.label(&start_label)?;
+        self.encode_expr(*while_.condition)?;
+        self.instructions.jump_if_not(&end_label);
+        self.encode_block(*while_.body)?;
+
+        if is_empty {
+            self.instructions.push(st::Inst::Unit);
         }
-        .encode_expr(*while_.condition)?;
 
-        Encoder {
-            unit: &mut *self.unit,
-            instructions: &mut body_insts,
-            locals: Locals::with_parent(self.locals.clone()),
-            source: self.source,
-        }
-        .encode_block(*while_.body, false)?;
-
-        body_insts.push(st::Inst::Jump {
-            offset: -((body_insts.len() + condition_insts.len() + 1) as isize),
-        });
-
-        condition_insts.push(st::Inst::JumpIfNot {
-            offset: (body_insts.len() + 1) as isize,
-        });
-
-        self.instructions.append(&mut condition_insts);
-        self.instructions.append(&mut body_insts);
+        self.instructions.jump(&start_label);
+        self.instructions.label(&end_label)?;
         Ok(())
     }
 
@@ -519,6 +486,9 @@ impl<'a> Encoder<'a> {
             ast::BinOp::Eq { .. } => {
                 self.instructions.push(st::Inst::Eq);
             }
+            ast::BinOp::Neq { .. } => {
+                self.instructions.push(st::Inst::Neq);
+            }
             ast::BinOp::Lt { .. } => {
                 self.instructions.push(st::Inst::Lt);
             }
@@ -538,145 +508,74 @@ impl<'a> Encoder<'a> {
 
     fn encode_expr_if(&mut self, expr_if: ast::ExprIf) -> Result<(), EncodeError> {
         log::trace!("{:?}", expr_if);
+        let level = self.level;
+        self.level += 1;
 
-        let mut branches = Vec::new();
-        let mut fallback = None;
+        let is_unit = expr_if.expr_else.is_none();
 
-        let expects_value = expr_if.expr_else.is_some();
+        self.encode_expr(*expr_if.condition)?;
+        self.instructions.jump_if(format!("if/branch/{}", level));
 
-        branches.push(Branch::build(
-            self,
-            *expr_if.condition,
-            *expr_if.block,
-            expects_value,
-        )?);
-
-        for branch in expr_if.expr_else_ifs {
-            branches.push(Branch::build(
-                self,
-                *branch.condition,
-                *branch.block,
-                expects_value,
-            )?);
+        for (i, branch) in expr_if.expr_else_ifs.clone().into_iter().enumerate() {
+            self.encode_expr(*branch.condition)?;
+            self.instructions
+                .jump_if(format!("if/branch/{}/{}", level, i));
         }
 
-        if let Some(expr_else) = expr_if.expr_else {
-            fallback = Some(Fallback::build(self, *expr_else.block, expects_value)?);
-        }
+        // use fallback as fall through.
+        if let Some(fallback) = expr_if.expr_else {
+            let is_empty = fallback.block.is_empty();
+            self.encode_block(*fallback.block)?;
 
-        // The start of the next conditional block.
-        let mut block_start = branches
-            .iter()
-            .map(|b| b.condition.len() + 1)
-            .sum::<usize>();
-
-        block_start += fallback
-            .as_ref()
-            .map(|f| f.block.len() + 1)
-            .unwrap_or_default();
-
-        for branch in &mut branches {
-            // Remove the size of this condition.
-            // NB: instructions + conditional jump
-            block_start -= branch.condition.len();
-            self.instructions.append(&mut branch.condition);
-            self.instructions.push(st::Inst::JumpIf {
-                offset: block_start as isize,
-            });
-            // Shift the block start by the size of our block.
-            block_start += branch.block.len();
-        }
-
-        let mut block_end = branches.iter().map(|b| b.block.len() + 1).sum::<usize>();
-
-        if let Some(fallback) = &mut fallback {
-            self.instructions.append(&mut fallback.block);
-            self.instructions.push(st::Inst::Jump {
-                offset: block_end as isize,
-            });
+            if is_empty {
+                self.instructions.push(st::Inst::Unit);
+            } else if is_unit {
+                self.instructions.push(st::Inst::Pop);
+                self.instructions.push(st::Inst::Unit);
+            }
         } else {
-            self.instructions.push(st::Inst::Jump {
-                offset: block_end as isize,
-            });
+            self.instructions.push(st::Inst::Unit);
         }
 
-        for branch in &mut branches {
-            // Remove the size of this branch.
-            // NB: instructions + jump to end
-            block_end -= branch.block.len() + 1;
-            self.instructions.append(&mut branch.block);
+        self.instructions.jump(format!("if/end/{}", level));
 
-            if block_end != 0 {
-                self.instructions.push(st::Inst::Jump {
-                    offset: block_end as isize,
-                });
+        self.instructions.label(format!("if/branch/{}", level))?;
+
+        let is_empty = expr_if.block.is_empty();
+        self.encode_block(*expr_if.block)?;
+
+        if is_empty {
+            self.instructions.push(st::Inst::Unit);
+        } else if is_unit {
+            self.instructions.push(st::Inst::Pop);
+            self.instructions.push(st::Inst::Unit);
+        }
+
+        if !expr_if.expr_else_ifs.is_empty() {
+            self.instructions.jump(format!("if/end/{}", level));
+        }
+
+        let mut it = expr_if.expr_else_ifs.into_iter().enumerate().peekable();
+
+        if let Some((i, branch)) = it.next() {
+            let is_empty = branch.block.is_empty();
+            self.instructions
+                .label(format!("if/branch/{}/{}", level, i))?;
+            self.encode_block(*branch.block)?;
+
+            if is_empty {
+                self.instructions.push(st::Inst::Unit);
+            } else if is_unit {
+                self.instructions.push(st::Inst::Pop);
+                self.instructions.push(st::Inst::Unit);
+            }
+
+            if it.peek().is_some() {
+                self.instructions.jump(format!("if/end/{}", level));
             }
         }
 
+        self.instructions.label(format!("if/end/{}", level))?;
         Ok(())
-    }
-}
-
-struct Fallback {
-    block: Vec<st::Inst>,
-}
-
-impl Fallback {
-    pub fn build(
-        encoder: &mut Encoder<'_>,
-        block: ast::Block,
-        expects_value: bool,
-    ) -> Result<Self, EncodeError> {
-        let mut block_inst = Vec::new();
-
-        Encoder {
-            unit: &mut *encoder.unit,
-            instructions: &mut block_inst,
-            locals: Locals::with_parent(encoder.locals.clone()),
-            source: encoder.source,
-        }
-        .encode_block(block, expects_value)?;
-
-        Ok(Self { block: block_inst })
-    }
-}
-
-struct Branch {
-    condition: Vec<st::Inst>,
-    block: Vec<st::Inst>,
-}
-
-impl Branch {
-    /// Construct a branch.
-    pub fn build(
-        encoder: &mut Encoder<'_>,
-        condition: ast::Expr,
-        block: ast::Block,
-        expects_value: bool,
-    ) -> Result<Self, EncodeError> {
-        let mut condition_inst = Vec::new();
-
-        Encoder {
-            unit: &mut *encoder.unit,
-            instructions: &mut condition_inst,
-            locals: Locals::with_parent(encoder.locals.clone()),
-            source: encoder.source,
-        }
-        .encode_expr(condition)?;
-
-        let mut block_inst = Vec::new();
-
-        Encoder {
-            unit: &mut *encoder.unit,
-            instructions: &mut block_inst,
-            locals: Locals::with_parent(encoder.locals.clone()),
-            source: encoder.source,
-        }
-        .encode_block(block, expects_value)?;
-
-        Ok(Self {
-            condition: condition_inst,
-            block: block_inst,
-        })
     }
 }

@@ -64,6 +64,12 @@ impl FromValue for ValuePtr {
     }
 }
 
+impl ToValue for ValuePtr {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(self)
+    }
+}
+
 impl FromValue for Value {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         vm.value_take(value)
@@ -96,7 +102,7 @@ macro_rules! impl_into_args {
             fn into_args(self, vm: &mut Vm) -> Result<(), StackError> {
                 let ($($var,)*) = self;
                 $(let $var = $var.to_value(vm)?;)*
-                $(vm.managed_push($var);)*
+                $(vm.unmanaged_push($var);)*
                 Ok(())
             }
 

@@ -4,15 +4,15 @@ use std::fmt;
 
 /// Compact information on typed slot.
 #[derive(Clone, Copy, PartialEq)]
-pub struct Slot(usize);
+pub struct Slot(u64);
 
 impl Slot {
-    const STRING: usize = 0;
-    const ARRAY: usize = 1;
-    const OBJECT: usize = 2;
-    const EXTERNAL: usize = 3;
+    const STRING: u64 = 0;
+    const ARRAY: u64 = 1;
+    const OBJECT: u64 = 2;
+    const EXTERNAL: u64 = 3;
 
-    /// Slot
+    /// Convert into its managed variant.
     pub fn into_managed(self) -> (Managed, usize) {
         let slot = (self.0 >> 2) as usize;
 
@@ -26,22 +26,22 @@ impl Slot {
 
     /// Construct a string slot.
     pub fn string(slot: usize) -> Self {
-        Self(slot << 2 | Self::STRING)
+        Self((slot << 2) as u64 | Self::STRING)
     }
 
     /// Construct an array slot.
     pub fn array(slot: usize) -> Self {
-        Self(slot << 2 | Self::ARRAY)
+        Self((slot << 2) as u64 | Self::ARRAY)
     }
 
     /// Construct an object slot.
     pub fn object(slot: usize) -> Self {
-        Self(slot << 2 | Self::OBJECT)
+        Self((slot << 2) as u64 | Self::OBJECT)
     }
 
     /// Construct an external slot.
     pub fn external(slot: usize) -> Self {
-        Self(slot << 2 | Self::EXTERNAL)
+        Self((slot << 2) as u64 | Self::EXTERNAL)
     }
 }
 

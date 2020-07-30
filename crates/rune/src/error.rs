@@ -182,6 +182,13 @@ impl SpannedError for ParseError {
 /// Error when encoding AST.
 #[derive(Debug, Error)]
 pub enum EncodeError {
+    /// Error during assembly.
+    #[error("error during assembly")]
+    AssemblyError {
+        /// The source error.
+        #[from]
+        error: st::AssemblyError,
+    },
     /// Unit error from ST encoding.
     #[error("unit construction error")]
     UnitError {
@@ -195,6 +202,12 @@ pub enum EncodeError {
         /// Source error.
         #[from]
         error: ResolveError,
+    },
+    /// Missing parent scope.
+    #[error("missing parent scope")]
+    MissingParentScope {
+        /// The span that is missing a parent scope.
+        span: Span,
     },
     /// Error for variable conflicts.
     #[error("variable `{name}` conflicts")]
@@ -234,6 +247,8 @@ impl SpannedError for EncodeError {
     fn span(&self) -> Span {
         match *self {
             Self::UnitError { .. } => Span::default(),
+            Self::AssemblyError { .. } => Span::default(),
+            Self::MissingParentScope { span, .. } => span,
             Self::ResolveError { error, .. } => error.span(),
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,

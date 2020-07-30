@@ -185,6 +185,8 @@ pub enum Kind {
     Eq,
     /// Two equals sign `==`.
     EqEq,
+    /// Not equals `!=`.
+    Neq,
     /// Less than comparison `<`.
     Lt,
     /// Greater than comparison `>`.
@@ -222,6 +224,7 @@ impl fmt::Display for Kind {
             Self::Star => write!(fmt, "*"),
             Self::Eq => write!(fmt, "="),
             Self::EqEq => write!(fmt, "=="),
+            Self::Neq => write!(fmt, "!="),
             Self::Lt => write!(fmt, "<"),
             Self::Gt => write!(fmt, ">"),
             Self::Lte => write!(fmt, "<="),

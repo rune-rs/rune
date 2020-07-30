@@ -1,11 +1,15 @@
-fn test2(n) {
-    if n > 1 {
-        2
-    } else if n < 1 {
-        0
-    }
-}
-
 fn main() {
-    test2(1)
+    if 20 > 20 {
+        1
+    } else if 20 > 20 {
+        42
+    } else {
+        let var = if 1 == 1 {
+            1
+        } else {
+            2
+        };
+
+        var
+    }
 }

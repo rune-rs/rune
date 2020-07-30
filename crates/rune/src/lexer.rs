@@ -234,6 +234,10 @@ impl<'a> Lexer<'a> {
                             it.next();
                             break Kind::EqEq;
                         }
+                        ('!', '=') => {
+                            it.next();
+                            break Kind::Neq;
+                        }
                         _ => (),
                     }
                 }

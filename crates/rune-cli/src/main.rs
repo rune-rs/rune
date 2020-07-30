@@ -160,14 +160,14 @@ fn main() -> Result<()> {
     let result = loop {
         if trace {
             if let Some(inst) = task.unit.instruction_at(task.vm.ip()) {
-                println!("{:04x} = {:?}", task.vm.ip(), inst,);
+                println!("{:04} = {:?}", task.vm.ip(), inst,);
             } else {
-                println!("{:04x} = *out of bounds*", task.vm.ip(),);
+                println!("{:04} = *out of bounds*", task.vm.ip(),);
             }
         }
 
         let result = runtime.block_on(task.step());
-        
+
         if trace && dump_vm {
             println!("# stack dump");
 

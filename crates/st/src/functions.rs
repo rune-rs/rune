@@ -1,7 +1,8 @@
 use crate::collections::HashMap;
 use crate::error;
 use crate::hash::Hash;
-use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
+use crate::reflection::{ReflectValueType, ToValue, UnsafeFromValue};
+use crate::tls;
 use crate::value::{ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 use std::any::type_name;
@@ -696,7 +697,7 @@ macro_rules! impl_register {
             Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Result<Ret, Err>,
             Ret: ToValue,
             error::Error: From<Err>,
-            $($ty: FromValue,)*
+            $($ty: UnsafeFromValue,)*
         {
             fn args() -> usize {
                 $count
@@ -715,7 +716,8 @@ macro_rules! impl_register {
                 #[allow(unused_unsafe)]
                 let ret = unsafe {
                     impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                    self($($var,)*).map_err(error::Error::from)?
+                    let ret = tls::inject_vm(vm, || self($($var,)*));
+                    ret.map_err(error::Error::from)?
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -727,7 +729,7 @@ macro_rules! impl_register {
         where
             Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
             Ret: ToValue,
-            $($ty: FromValue,)*
+            $($ty: UnsafeFromValue,)*
         {
             fn args() -> usize {
                 $count
@@ -746,7 +748,10 @@ macro_rules! impl_register {
                 #[allow(unused_unsafe)]
                 let ret = unsafe {
                     impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                    self($($var,)*)
+
+                    tls::inject_vm(vm, || {
+                        self($($var,)*)
+                    })
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -760,7 +765,7 @@ macro_rules! impl_register {
             Ret: Future<Output = Result<Output, Err>>,
             Output: ToValue,
             error::Error: From<Err>,
-            $($ty: UnsafeFromValue + ReflectValueType,)*
+            $($ty: UnsafeFromValue,)*
         {
             fn args() -> usize {
                 $count
@@ -932,7 +937,7 @@ macro_rules! impl_register {
             }
         };
 
-        $vm.managed_push($ret)?;
+        $vm.unmanaged_push($ret);
     };
 
     // Expand to function variable bindings.

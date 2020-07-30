@@ -1,4 +1,10 @@
-//! Interact with thread-local storage.
+//! Utilities for storing and accessing the virtual machine from thread-local
+//! storage.
+//!
+//! **Warning:** This is potentially very unsafe, and maybe even unsound.
+//!
+//! The serde implementation of `VirtualPtr` relies on being called inside of
+//! [with_vm].
 
 use crate::vm::Vm;
 use std::cell::RefCell;
@@ -6,9 +12,9 @@ use std::cell::RefCell;
 thread_local!(static VM: RefCell<*mut Vm> = RefCell::new(std::ptr::null_mut()));
 
 /// Inject the vm into TLS while running the given closure.
-pub fn inject_vm<F, O, E>(vm: &mut Vm, f: F) -> Result<O, E>
+pub fn inject_vm<F, O>(vm: &mut Vm, f: F) -> O
 where
-    F: FnOnce() -> Result<O, E>,
+    F: FnOnce() -> O,
 {
     let vm = vm as *mut _;
 
@@ -26,9 +32,9 @@ where
 }
 
 /// Run the given closure with access to the vm.
-pub fn with_vm<F, O, E>(f: F) -> Result<O, E>
+pub fn with_vm<F, O>(f: F) -> O
 where
-    F: FnOnce(&mut Vm) -> Result<O, E>,
+    F: FnOnce(&mut Vm) -> O,
 {
     VM.with(|storage| {
         let mut b = storage.borrow_mut();

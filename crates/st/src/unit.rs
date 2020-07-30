@@ -233,7 +233,7 @@ impl Unit {
         &mut self,
         path: I,
         args: usize,
-        instructions: &[Inst],
+        instructions: Vec<Inst>,
     ) -> Result<(), UnitError>
     where
         I: IntoIterator,
@@ -255,7 +255,7 @@ impl Unit {
             });
         }
 
-        self.instructions.extend(instructions.iter().copied());
+        self.instructions.extend(instructions);
         Ok(())
     }
 }

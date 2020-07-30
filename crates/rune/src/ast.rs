@@ -87,7 +87,7 @@ pub enum Number {
 }
 
 /// A number literal.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ArrayLiteral {
     /// The open bracket.
     pub open: OpenBracket,
@@ -140,7 +140,7 @@ impl Parse for ArrayLiteral {
 }
 
 /// A number literal.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ObjectLiteral {
     /// The open bracket.
     pub open: OpenBrace,
@@ -195,7 +195,7 @@ impl Parse for ObjectLiteral {
 }
 
 /// A number literal.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NumberLiteral {
     /// The kind of the number literal.
     number: token::NumberLiteral,
@@ -268,7 +268,7 @@ impl<'a> Resolve<'a> for NumberLiteral {
 }
 
 /// A string literal.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StringLiteral {
     /// The token corresponding to the literal.
     token: Token,
@@ -390,6 +390,11 @@ pub enum BinOp {
         /// Token associated with operator.
         token: Token,
     },
+    /// Inequality check.
+    Neq {
+        /// Token associated with operator.
+        token: Token,
+    },
     /// Greater-than check.
     Gt {
         /// Token associated with operator.
@@ -416,11 +421,11 @@ impl BinOp {
     /// Get the precedence for the current operator.
     fn precedence(self) -> usize {
         match self {
-            Self::Add { .. } | Self::Sub { .. } => 1,
+            Self::Add { .. } | Self::Sub { .. } => 0,
             Self::Div { .. } | Self::Mul { .. } => 10,
-            Self::Eq { .. } => 20,
-            Self::Gt { .. } | Self::Lt { .. } => 20,
-            Self::Gte { .. } | Self::Lte { .. } => 20,
+            Self::Eq { .. } | Self::Neq { .. } => 20,
+            Self::Gt { .. } | Self::Lt { .. } => 30,
+            Self::Gte { .. } | Self::Lte { .. } => 30,
         }
     }
 
@@ -432,6 +437,7 @@ impl BinOp {
             Kind::Slash => Self::Div { token },
             Kind::Star => Self::Mul { token },
             Kind::EqEq => Self::Eq { token },
+            Kind::Neq => Self::Neq { token },
             Kind::Lt => Self::Lt { token },
             Kind::Gt => Self::Gt { token },
             Kind::Lte => Self::Lte { token },
@@ -466,6 +472,7 @@ impl Peek for BinOp {
                 Kind::Star => true,
                 Kind::Slash => true,
                 Kind::EqEq => true,
+                Kind::Neq => true,
                 Kind::Gt => true,
                 Kind::Lt => true,
                 Kind::Gte => true,
@@ -478,7 +485,7 @@ impl Peek for BinOp {
 }
 
 /// A binary expression.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExprBinary {
     /// The left-hand side of a binary operation.
     pub lhs: Box<Expr>,
@@ -496,7 +503,7 @@ impl ExprBinary {
 }
 
 /// An else branch of an if expression.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExprElseIf {
     /// The `else` token.
     pub else_: ElseToken,
@@ -520,7 +527,7 @@ impl Parse for ExprElseIf {
 }
 
 /// An else branch of an if expression.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExprElse {
     /// The `else` token.
     pub else_: ElseToken,
@@ -538,7 +545,7 @@ impl Parse for ExprElse {
 }
 
 /// An if expression.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExprIf {
     /// The `if` token.
     pub if_: IfToken,
@@ -615,7 +622,7 @@ impl Parse for ExprIf {
 struct SupportInstanceCall(bool);
 
 /// A rune expression.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     /// A while loop.
     While(While),
@@ -658,9 +665,11 @@ impl Expr {
     pub fn is_empty(&self) -> bool {
         match self {
             Self::While(..) => true,
-            Self::Let(..) => true,
             Self::Update(..) => true,
+            Self::Let(..) => true,
+            Self::IndexSet(..) => true,
             Self::ExprIf(expr_if) => expr_if.is_empty(),
+            Self::ExprGroup(expr_group) => expr_group.is_empty(),
             _ => false,
         }
     }
@@ -715,6 +724,34 @@ impl Expr {
             Kind::If => {
                 return Ok(Self::ExprIf(parser.parse()?));
             }
+            Kind::NumberLiteral { .. } => {
+                return Ok(Self::NumberLiteral(parser.parse()?));
+            }
+            Kind::StringLiteral { .. } => {
+                return Ok(Self::StringLiteral(parser.parse()?));
+            }
+            Kind::Open {
+                delimiter: Delimiter::Parenthesis,
+            } => {
+                if parser.peek::<UnitLiteral>()? {
+                    return Ok(Self::UnitLiteral(parser.parse()?));
+                }
+
+                return Ok(Self::ExprGroup(parser.parse()?));
+            }
+            Kind::Open {
+                delimiter: Delimiter::Bracket,
+            } => {
+                return Ok(Self::ArrayLiteral(parser.parse()?));
+            }
+            Kind::Open {
+                delimiter: Delimiter::Brace,
+            } => {
+                return Ok(Self::ObjectLiteral(parser.parse()?));
+            }
+            Kind::True | Kind::False => {
+                return Ok(Self::BoolLiteral(parser.parse()?));
+            }
             Kind::Ident => match parser.token_peek2()?.map(|t| t.kind) {
                 Some(kind) => match kind {
                     Kind::Open {
@@ -751,38 +788,10 @@ impl Expr {
                         return Ok(Self::Ident(parser.parse()?));
                     }
                 },
-                _ => {
+                None => {
                     return Ok(Self::Ident(parser.parse()?));
                 }
             },
-            Kind::NumberLiteral { .. } => {
-                return Ok(Self::NumberLiteral(parser.parse()?));
-            }
-            Kind::StringLiteral { .. } => {
-                return Ok(Self::StringLiteral(parser.parse()?));
-            }
-            Kind::Open {
-                delimiter: Delimiter::Parenthesis,
-            } => {
-                if parser.peek::<UnitLiteral>()? {
-                    return Ok(Self::UnitLiteral(parser.parse()?));
-                }
-
-                return Ok(Self::ExprGroup(parser.parse()?));
-            }
-            Kind::Open {
-                delimiter: Delimiter::Bracket,
-            } => {
-                return Ok(Self::ArrayLiteral(parser.parse()?));
-            }
-            Kind::Open {
-                delimiter: Delimiter::Brace,
-            } => {
-                return Ok(Self::ObjectLiteral(parser.parse()?));
-            }
-            Kind::True | Kind::False => {
-                return Ok(Self::BoolLiteral(parser.parse()?));
-            }
             _ => (),
         }
 
@@ -833,7 +842,7 @@ impl Expr {
 }
 
 /// The unit literal `()`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnitLiteral {
     /// The open parenthesis.
     pub open: OpenParen,
@@ -890,7 +899,7 @@ impl Peek for UnitLiteral {
 }
 
 /// The unit literal `()`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BoolLiteral {
     /// The value of the literal.
     pub value: bool,
@@ -919,7 +928,7 @@ impl BoolLiteral {
 /// ```
 impl Parse for BoolLiteral {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let token = parser.token_peek_eof()?;
+        let token = parser.token_next()?;
 
         let value = match token.kind {
             Kind::True => true,
@@ -995,7 +1004,7 @@ impl Parse for Expr {
 }
 
 /// A function call `<name>(<args>)`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CallFn {
     /// The name of the function being called.
     pub name: Path,
@@ -1033,7 +1042,7 @@ impl Parse for CallFn {
 }
 
 /// An instance function call `<instance>.<name>(<args>)`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CallInstanceFn {
     /// The instance being called.
     pub instance: Box<Expr>,
@@ -1077,7 +1086,7 @@ impl Parse for CallInstanceFn {
 }
 
 /// A let expression `let <name> = <expr>;`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Let {
     /// The `let` keyword.
     pub let_: LetToken,
@@ -1108,7 +1117,7 @@ impl Parse for Let {
 }
 
 /// A let expression `let <name> = <expr>;`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct While {
     /// The `while` keyword.
     pub while_: WhileToken,
@@ -1136,7 +1145,7 @@ impl Parse for While {
 }
 
 /// A let expression `<name> = <expr>;`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Update {
     /// The name of the binding.
     pub name: Ident,
@@ -1164,7 +1173,7 @@ impl Parse for Update {
 }
 
 /// An index set operation `<target>[<index>] = <value>`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IndexSet {
     /// The target of the index set.
     pub target: Ident,
@@ -1188,7 +1197,7 @@ impl IndexSet {
 }
 
 /// An index get operation `<target>[<index>]`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IndexGet {
     /// The target of the index set.
     pub target: Ident,
@@ -1231,7 +1240,7 @@ impl Parse for IndexGet {
 }
 
 /// An imported declaration.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ImportDecl {
     /// The import token.
     pub import_: Import,
@@ -1266,7 +1275,7 @@ impl Parse for ImportDecl {
 }
 
 /// A path, where each element is separated by a `::`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Path {
     /// The first component in the path.
     pub first: Ident,
@@ -1302,7 +1311,7 @@ impl Parse for Path {
 }
 
 /// A function.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FnDecl {
     /// The `fn` token.
     pub fn_: FnToken,
@@ -1345,7 +1354,7 @@ impl Parse for FnDecl {
 }
 
 /// A block of expressions.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     /// The close brace.
     pub open: OpenBrace,
@@ -1361,6 +1370,14 @@ impl Block {
     /// Get the span of the block.
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
+    }
+
+    /// Test if the block is empty.
+    pub fn is_empty(&self) -> bool {
+        match &self.trailing_expr {
+            Some(trailing) => trailing.is_empty(),
+            None => true,
+        }
     }
 }
 
@@ -1454,7 +1471,7 @@ impl Parse for Block {
 }
 
 /// Something parenthesized and comma separated `(<T,>*)`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionArgs<T> {
     /// The open parenthesis.
     pub open: OpenParen,
@@ -1511,7 +1528,7 @@ where
 }
 
 /// Something parenthesized and comma separated `(<T,>*)`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExprGroup {
     /// The open parenthesis.
     pub open: OpenParen,
@@ -1525,6 +1542,11 @@ impl ExprGroup {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
+    }
+
+    /// Check if expression is empty.
+    pub fn is_empty(&self) -> bool {
+        self.expr.is_empty()
     }
 }
 
