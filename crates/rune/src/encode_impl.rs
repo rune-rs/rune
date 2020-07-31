@@ -125,13 +125,8 @@ impl<'a> Encoder<'a> {
         self.parents.push(self.locals.clone());
 
         for (expr, _) in &block.exprs {
-            let is_empty = expr.is_empty();
             // NB: terminated expressions do not need to produce a value.
             self.encode_expr(expr, NeedsValue(false))?;
-
-            if !is_empty {
-                self.instructions.push(st::Inst::Pop, expr.span());
-            }
         }
 
         if let Some(expr) = &block.trailing_expr {
@@ -346,7 +341,6 @@ impl<'a> Encoder<'a> {
 
         let span = while_.span();
 
-        let is_empty = while_.body.is_empty();
         let start_label = self.instructions.new_label("while_test");
         let end_label = self.instructions.new_label("while_end");
 
@@ -354,10 +348,6 @@ impl<'a> Encoder<'a> {
         self.encode_expr(&*while_.condition, NeedsValue(true))?;
         self.instructions.jump_if_not(end_label, span);
         self.encode_block(&*while_.body, NeedsValue(false))?;
-
-        if is_empty {
-            self.instructions.push(st::Inst::Unit, span);
-        }
 
         self.instructions.jump(start_label, span);
         self.instructions.label(end_label)?;
@@ -628,8 +618,6 @@ impl<'a> Encoder<'a> {
 
         let mut branch_labels = Vec::new();
 
-        let is_unit = expr_if.expr_else.is_none();
-
         self.encode_expr(&*expr_if.condition, NeedsValue(true))?;
         self.instructions.jump_if(then_label, span);
 
@@ -655,16 +643,7 @@ impl<'a> Encoder<'a> {
         self.instructions.jump(end_label, span);
 
         self.instructions.label(then_label)?;
-
-        let is_empty = expr_if.block.is_empty();
         self.encode_block(&*expr_if.block, needs_value)?;
-
-        if is_empty {
-            self.instructions.push(st::Inst::Unit, span);
-        } else if is_unit {
-            self.instructions.push(st::Inst::Pop, span);
-            self.instructions.push(st::Inst::Unit, span);
-        }
 
         if !expr_if.expr_else_ifs.is_empty() {
             self.instructions.jump(end_label, span);

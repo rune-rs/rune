@@ -8,14 +8,14 @@ use crate::vm::{StackError, Vm};
 pub enum ValuePtr {
     /// An empty unit.
     Unit,
-    /// A number.
-    Integer(i64),
-    /// A float.
-    Float(f64),
     /// A boolean.
     Bool(bool),
     /// A character.
     Char(char),
+    /// A number.
+    Integer(i64),
+    /// A float.
+    Float(f64),
     /// A managed reference.
     Managed(Slot),
 }

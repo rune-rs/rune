@@ -2,9 +2,9 @@ use crate::collections::HashMap;
 use crate::error;
 use crate::packages::bytes::Bytes;
 use crate::tls;
-use crate::value::ValuePtr;
+use crate::value::{Managed, ValuePtr};
 use crate::vm::VmError;
-use serde::de;
+use serde::{de, ser};
 use std::fmt;
 
 /// Deserialize implementation for value pointers.
@@ -17,6 +17,57 @@ impl<'de> de::Deserialize<'de> for ValuePtr {
         D: de::Deserializer<'de>,
     {
         deserializer.deserialize_any(VmVisitor)
+    }
+}
+
+/// Serialize implementation for value pointers.
+///
+/// **Warning:** This only works if a `Vm` is accessible through [tls], like by
+/// being set up with [tls::inject_vm] or [tls::InjectVm].
+impl ser::Serialize for ValuePtr {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        use serde::ser::SerializeMap as _;
+        use serde::ser::SerializeSeq as _;
+
+        match *self {
+            ValuePtr::Unit => serializer.serialize_unit(),
+            ValuePtr::Bool(b) => serializer.serialize_bool(b),
+            ValuePtr::Char(c) => serializer.serialize_char(c),
+            ValuePtr::Integer(integer) => serializer.serialize_i64(integer),
+            ValuePtr::Float(float) => serializer.serialize_f64(float),
+            ValuePtr::Managed(managed) => match managed.into_managed() {
+                (Managed::String, slot) => tls::with_vm(|vm| {
+                    let string = vm.string_ref(slot).map_err(ser::Error::custom)?;
+                    serializer.serialize_str(&*string)
+                }),
+                (Managed::Array, slot) => tls::with_vm(|vm| {
+                    let array = vm.array_ref(slot).map_err(ser::Error::custom)?;
+                    let mut serializer = serializer.serialize_seq(Some(array.len()))?;
+
+                    for value in &*array {
+                        serializer.serialize_element(value)?;
+                    }
+
+                    serializer.end()
+                }),
+                (Managed::Object, slot) => tls::with_vm(|vm| {
+                    let object = vm.object_ref(slot).map_err(ser::Error::custom)?;
+                    let mut serializer = serializer.serialize_map(Some(object.len()))?;
+
+                    for (key, value) in &*object {
+                        serializer.serialize_entry(key, value)?;
+                    }
+
+                    serializer.end()
+                }),
+                (Managed::External, ..) => {
+                    return Err(ser::Error::custom("cannot serialize external objects"));
+                }
+            },
+        }
     }
 }
 
