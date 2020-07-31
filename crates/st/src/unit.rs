@@ -259,8 +259,8 @@ impl Unit {
     }
 
     /// Get the instruction at the given instruction pointer.
-    pub fn instruction_at(&self, ip: usize) -> Option<Inst> {
-        self.instructions.get(ip).copied()
+    pub fn instruction_at(&self, ip: usize) -> Option<&Inst> {
+        self.instructions.get(ip)
     }
 
     /// Iterate over all static strings in the unit.

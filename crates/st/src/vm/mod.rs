@@ -8,12 +8,18 @@ use crate::value::{Managed, Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
 use anyhow::Result;
 use slab::Slab;
 use std::any::{type_name, TypeId};
-use std::cell::{Cell, UnsafeCell};
+use std::cell::UnsafeCell;
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
-use std::ops;
 use thiserror::Error;
+
+mod access;
+mod inst;
+
+use self::access::{Access, Guard};
+pub use self::access::{Mut, Ref};
+pub use self::inst::Inst;
 
 /// An error raised when interacting with types on the stack.
 #[derive(Debug, Error)]
@@ -113,122 +119,13 @@ pub enum StackError {
         to: &'static str,
     },
     /// We encountered a corrupted stack frame.
-    #[error("stack size `{stack_size}` starts before the current stack frame `{frame_at}` with args `{frame_args}`")]
+    #[error("stack size `{stack_size}` starts before the current stack frame `{frame_at}`")]
     CorruptedStackFrame {
         /// The size of the stack.
         stack_size: usize,
         /// The location of the stack frame.
         frame_at: usize,
-        /// The number of arguments.
-        frame_args: usize,
     },
-}
-
-/// Guard for a value borrowed from a slot in the virtual machine.
-///
-/// These guards are necessary, since we need to guarantee certain forms of
-/// access depending on what we do. Releasing the guard releases the access.
-///
-/// These also aid in function call integration, since they can be "arm" the
-/// virtual machine to release shared guards through its unsafe functions.
-///
-/// See [disarm][Vm::disarm] for more information.
-pub struct Ref<'a, T: ?Sized + 'a> {
-    value: &'a T,
-    access: &'a Access,
-    guard: Guard,
-    guards: &'a UnsafeCell<Vec<Guard>>,
-}
-
-impl<'a, T: ?Sized> Ref<'a, T> {
-    /// Convert into a reference with an unbounded lifetime.
-    ///
-    /// # Safety
-    ///
-    /// The returned reference must not outlive the VM that produced it.
-    /// Calling [disarm][Vm::disarm] must not be done until all referenced
-    /// produced through these methods are no longer live.
-    pub unsafe fn unsafe_into_ref<'out>(this: Self) -> &'out T {
-        (*this.guards.get()).push(this.guard);
-        let value = &*(this.value as *const _);
-        mem::forget(this);
-        value
-    }
-}
-
-impl<T: ?Sized> ops::Deref for Ref<'_, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        self.value
-    }
-}
-
-impl<T: ?Sized> Drop for Ref<'_, T> {
-    fn drop(&mut self) {
-        self.access.release_shared();
-    }
-}
-
-impl<T: ?Sized> fmt::Debug for Ref<'_, T>
-where
-    T: fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self.value, fmt)
-    }
-}
-
-/// Guard for a value exclusively borrowed from a slot in the virtual machine.
-///
-/// These guards are necessary, since we need to guarantee certain forms of
-/// access depending on what we do. Releasing the guard releases the access.
-///
-/// These also aid in function call integration, since they can be "arm" the
-/// virtual machine to release shared guards through its unsafe functions.
-///
-/// See [disarm][Vm::disarm] for more information.
-pub struct Mut<'a, T: ?Sized> {
-    value: &'a mut T,
-    access: &'a Access,
-    guard: Guard,
-    guards: &'a UnsafeCell<Vec<Guard>>,
-}
-
-impl<T: ?Sized> Mut<'_, T> {
-    /// Convert into a reference with an unbounded lifetime.
-    ///
-    /// # Safety
-    ///
-    /// The returned reference must not outlive the VM that produced it.
-    /// Calling [disarm][Vm::disarm] must not be done until all referenced
-    /// produced through these methods are no longer live.
-    pub unsafe fn unsafe_into_mut<'out>(this: Self) -> &'out mut T {
-        (*this.guards.get()).push(this.guard);
-        let value = &mut *(this.value as *mut _);
-        mem::forget(this);
-        value
-    }
-}
-
-impl<T: ?Sized> ops::Deref for Mut<'_, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        self.value
-    }
-}
-
-impl<T: ?Sized> ops::DerefMut for Mut<'_, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value
-    }
-}
-
-impl<T: ?Sized> Drop for Mut<'_, T> {
-    fn drop(&mut self) {
-        self.access.release_exclusive();
-    }
 }
 
 /// A type-erased rust number.
@@ -485,705 +382,8 @@ macro_rules! numeric_ops {
     }
 }
 
-/// An operation in the stack-based virtual machine.
-#[derive(Debug, Clone, Copy)]
-pub enum Inst {
-    /// Not operator. Takes a boolean from the top of the stack  and inverts its
-    /// logical value.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <bool>
-    /// => <bool>
-    /// ```
-    Not,
-    /// Add two things together.
-    ///
-    /// This is the result of an `<a> + <b>` expression.
-    Add,
-    /// Subtract two things.
-    ///
-    /// This is the result of an `<a> - <b>` expression.
-    Sub,
-    /// Divide two things.
-    ///
-    /// This is the result of an `<a> / <b>` expression.
-    Div,
-    /// Multiply two things.
-    ///
-    /// This is the result of an `<a> * <b>` expression.
-    Mul,
-    /// Perform a function call.
-    ///
-    /// It will construct a new stack frame which includes the last `args`
-    /// number of entries.
-    Call {
-        /// The hash of the function to call.
-        hash: Hash,
-        /// The number of arguments expected on the stack for this call.
-        args: usize,
-    },
-    /// Perform a instance function call.
-    ///
-    /// The instance being called on should be on top of the stack, followed by
-    /// `args` number of arguments.
-    CallInstance {
-        /// The hash of the name of the function to call.
-        hash: Hash,
-        /// The number of arguments expected on the stack for this call.
-        args: usize,
-    },
-    /// Perform an index get operation. Pushing the result on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <target>
-    /// <index>
-    /// => <value>
-    /// ```
-    IndexGet,
-    /// Perform an index set operation.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <target>
-    /// <index>
-    /// <value>
-    /// => *noop*
-    /// ```
-    IndexSet,
-    /// Push a literal integer.
-    Integer {
-        /// The number to push.
-        number: i64,
-    },
-    /// Push a literal float into a slot.
-    Float {
-        /// The number to push.
-        number: f64,
-    },
-    /// Pop the value on the stack.
-    Pop,
-    /// Pop the given number of elements from the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value..>
-    /// => *noop*
-    /// ```
-    PopN {
-        /// The number of elements to pop from the stack.
-        count: usize,
-    },
-    /// Clean the stack by keeping the top of it, and popping `count` values
-    /// under it.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <top>
-    /// <value..>
-    /// => <top>
-    /// ```
-    Clean {
-        /// The number of entries in the stack to pop.
-        count: usize,
-    },
-    /// Push a variable from a location `offset` relative to the current call
-    /// frame.
-    ///
-    /// A copy is very cheap. It simply means pushing a reference to the stack
-    /// and increasing a reference count.
-    Copy {
-        /// Offset to copy value from.
-        offset: usize,
-    },
-    /// Replace a value at the offset relative from the top of the stack, with
-    /// the top of the stack.
-    Replace {
-        /// Offset to swap value from.
-        offset: usize,
-    },
-    /// Pop the current stack frame and restore the instruction pointer from it.
-    ///
-    /// The stack frame will be cleared, and the value on the top of the stack
-    /// will be left on top of it.
-    Return,
-    /// Pop the current stack frame and restore the instruction pointer from it.
-    ///
-    /// The stack frame will be cleared, and a unit value will be pushed to the
-    /// top of the stack.
-    ReturnUnit,
-    /// Compare two values on the stack for lt and push the result as a
-    /// boolean on the stack.
-    Lt,
-    /// Compare two values on the stack for gt and push the result as a
-    /// boolean on the stack.
-    Gt,
-    /// Compare two values on the stack for lte and push the result as a
-    /// boolean on the stack.
-    Lte,
-    /// Compare two values on the stack for gte and push the result as a
-    /// boolean on the stack.
-    Gte,
-    /// Compare two values on the stack for equality and push the result as a
-    /// boolean on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <b>
-    /// <a>
-    /// => <bool>
-    /// ```
-    Eq,
-    /// Compare two values on the stack for inequality and push the result as a
-    /// boolean on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <b>
-    /// <a>
-    /// => <bool>
-    /// ```
-    Neq,
-    /// Unconditionally jump to `offset` relative to the current instruction
-    /// pointer.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// *nothing*
-    /// => *nothing*
-    /// ```
-    Jump {
-        /// Offset to jump to.
-        offset: isize,
-    },
-    /// Jump to `offset` relative to the current instruction pointer if the
-    /// condition is `true`.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <boolean>
-    /// => *nothing*
-    /// ```
-    JumpIf {
-        /// Offset to jump to.
-        offset: isize,
-    },
-    /// Jump to `offset` relative to the current instruction pointer if the
-    /// condition is `false`.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <boolean>
-    /// => *nothing*
-    /// ```
-    JumpIfNot {
-        /// Offset to jump to.
-        offset: isize,
-    },
-    /// Push a unit value onto the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <unit>
-    /// ```
-    Unit,
-    /// Push a boolean value onto the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <boolean>
-    /// ```
-    Bool {
-        /// The boolean value to push.
-        value: bool,
-    },
-    /// Construct a push an array value onto the stack. The number of elements
-    /// in the array are determined by `count` and are popped from the stack.
-    Array {
-        /// The size of the array.
-        count: usize,
-    },
-    /// Construct a push an object onto the stack. The number of elements
-    /// in the object are determined by `count` and are popped from the stack.
-    ///
-    /// For each element, a key and a value is popped.
-    Object {
-        /// The size of the object.
-        count: usize,
-    },
-    /// Load a literal character.
-    Char {
-        /// The literal character to load.
-        c: char,
-    },
-    /// Load a literal string.
-    String {
-        /// The static string slot to load the string from.
-        slot: usize,
-    },
-    /// Test if the top of the stack is an instance of the second item on the
-    /// stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// <type>
-    /// => <boolean>
-    /// ```
-    Is,
-    /// Push the type with the given hash as a value on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <value>
-    /// ```
-    Type {
-        /// The hash of the type.
-        hash: Hash,
-    },
-}
-
-impl Inst {
-    /// Evaluate the current instruction against the stack.
-    async fn eval(self, vm: &mut Vm, functions: &Functions, unit: &Unit) -> Result<(), VmError> {
-        let mut update_ip = true;
-
-        match self {
-            Self::Not => {
-                vm.not()?;
-            }
-            Self::Add => {
-                vm.add()?;
-            }
-            Self::Sub => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(numeric_ops!(vm, a - b));
-            }
-            Self::Div => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(numeric_ops!(vm, a / b));
-            }
-            Self::Mul => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(numeric_ops!(vm, a * b));
-            }
-            Self::Call { hash, args } => {
-                match unit.lookup(hash) {
-                    Some(loc) => {
-                        vm.push_frame(loc, args)?;
-                        update_ip = false;
-                    }
-                    None => {
-                        let handler = functions
-                            .lookup(hash)
-                            .ok_or_else(|| VmError::MissingFunction { hash })?;
-
-                        let result = handler(vm, args).await;
-
-                        // Safety: We have exclusive access to the VM and
-                        // everything that was borrowed during the call can now
-                        // be cleared since it's only used in the handler.
-                        unsafe {
-                            vm.disarm();
-                        }
-
-                        result?;
-                    }
-                }
-            }
-            Self::CallInstance { hash, args } => {
-                let instance = vm.peek()?;
-                let ty = instance.value_type(vm)?;
-
-                let hash = Hash::instance_function(ty, hash);
-
-                match unit.lookup(hash) {
-                    Some(loc) => {
-                        vm.push_frame(loc, args)?;
-                        update_ip = false;
-                    }
-                    None => {
-                        let handler = functions
-                            .lookup(hash)
-                            .ok_or_else(|| VmError::MissingFunction { hash })?;
-
-                        let result = handler(vm, args).await;
-
-                        // Safety: We have exclusive access to the VM and
-                        // everything that was borrowed during the call can
-                        // now be cleared since it's only used in the
-                        // handler.
-                        unsafe {
-                            vm.disarm();
-                        }
-
-                        result?;
-                    }
-                }
-            }
-            Self::IndexGet => {
-                let target = vm.managed_pop()?;
-                let index = vm.managed_pop()?;
-                vm.index_get(target, index)?;
-            }
-            Self::IndexSet => {
-                let target = vm.managed_pop()?;
-                let index = vm.managed_pop()?;
-                let value = vm.managed_pop()?;
-                vm.index_set(target, index, value)?;
-            }
-            Self::Return => {
-                // NB: unmanaged because we're effectively moving the value.
-                let return_value = vm.unmanaged_pop()?;
-                vm.pop_frame()?;
-                vm.unmanaged_push(return_value);
-            }
-            Self::ReturnUnit => {
-                vm.pop_frame()?;
-                vm.managed_push(ValuePtr::Unit)?;
-            }
-            Self::Pop => {
-                vm.managed_pop()?;
-            }
-            Self::PopN { count } => {
-                vm.managed_popn(count)?;
-            }
-            Self::Clean { count } => {
-                let value = vm.unmanaged_pop()?;
-                vm.managed_popn(count)?;
-                vm.unmanaged_push(value);
-            }
-            Self::Integer { number } => {
-                vm.managed_push(ValuePtr::Integer(number))?;
-            }
-            Self::Float { number } => {
-                vm.managed_push(ValuePtr::Float(number))?;
-            }
-            Self::Copy { offset } => {
-                vm.stack_copy(offset)?;
-            }
-            Self::Replace { offset } => {
-                vm.stack_replace(offset)?;
-            }
-            Self::Gt => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a > b)));
-            }
-            Self::Gte => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a >= b)));
-            }
-            Self::Lt => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a < b)));
-            }
-            Self::Lte => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a <= b)));
-            }
-            Self::Eq => {
-                vm.eq()?;
-            }
-            Self::Neq => {
-                vm.neq()?;
-            }
-            Self::Jump { offset } => {
-                vm.modify_ip(offset)?;
-                update_ip = false;
-            }
-            Self::JumpIf { offset } => {
-                if pop!(vm, Bool) {
-                    vm.modify_ip(offset)?;
-                    update_ip = false;
-                }
-            }
-            Self::JumpIfNot { offset } => {
-                if !pop!(vm, Bool) {
-                    vm.modify_ip(offset)?;
-                    update_ip = false;
-                }
-            }
-            Self::Unit => {
-                vm.managed_push(ValuePtr::Unit)?;
-            }
-            Self::Bool { value } => {
-                vm.managed_push(ValuePtr::Bool(value))?;
-            }
-            Self::Array { count } => {
-                let mut array = Vec::with_capacity(count);
-
-                for _ in 0..count {
-                    array.push(vm.stack.pop().ok_or_else(|| StackError::StackEmpty)?);
-                }
-
-                let value = vm.array_allocate(array);
-                vm.managed_push(value)?;
-            }
-            Self::Object { count } => {
-                let mut object = HashMap::with_capacity(count);
-
-                for _ in 0..count {
-                    let key = vm.pop_decode()?;
-                    let value = vm.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
-                    object.insert(key, value);
-                }
-
-                let value = vm.object_allocate(object);
-                vm.managed_push(value)?;
-            }
-            Self::Type { hash } => {
-                vm.unmanaged_push(ValuePtr::Type(hash));
-            }
-            Self::Char { c } => {
-                vm.unmanaged_push(ValuePtr::Char(c));
-            }
-            Self::String { slot } => {
-                let string = unit
-                    .lookup_string(slot)
-                    .ok_or_else(|| VmError::MissingStaticString { slot })?;
-                // TODO: do something sneaky to only allocate the static string once.
-                let value = vm.string_allocate(string.to_owned());
-                vm.managed_push(value)?;
-            }
-            Self::Is => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-
-                match (a, b) {
-                    (a, ValuePtr::Type(hash)) => {
-                        let a = a.value_type(vm)?;
-
-                        let type_info = functions
-                            .lookup_type(hash)
-                            .ok_or_else(|| VmError::MissingType { hash })?;
-
-                        vm.unmanaged_push(ValuePtr::Bool(a == type_info.value_type));
-                    }
-                    (a, b) => {
-                        let a = a.type_info(vm)?;
-                        let b = b.type_info(vm)?;
-
-                        return Err(VmError::UnsupportedIs {
-                            value_type: a,
-                            test_type: b,
-                        });
-                    }
-                }
-            }
-        }
-
-        if update_ip {
-            vm.ip += 1;
-        }
-
-        vm.reap()?;
-        Ok(())
-    }
-}
-
-impl fmt::Display for Inst {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Inst::Not => {
-                write!(fmt, "not")?;
-            }
-            Inst::Add => {
-                write!(fmt, "add")?;
-            }
-            Inst::Sub => {
-                write!(fmt, "sub")?;
-            }
-            Inst::Div => {
-                write!(fmt, "div")?;
-            }
-            Inst::Mul => {
-                write!(fmt, "mul")?;
-            }
-            Inst::Call { hash, args } => {
-                write!(fmt, "call {}, {}", hash, args)?;
-            }
-            Inst::CallInstance { hash, args } => {
-                write!(fmt, "call-instance {}, {}", hash, args)?;
-            }
-            Inst::IndexGet => {
-                write!(fmt, "index-get")?;
-            }
-            Inst::IndexSet => {
-                write!(fmt, "index-set")?;
-            }
-            Inst::Integer { number } => {
-                write!(fmt, "integer {}", number)?;
-            }
-            Inst::Float { number } => {
-                write!(fmt, "float {}", number)?;
-            }
-            Inst::Pop => {
-                write!(fmt, "pop")?;
-            }
-            Inst::PopN { count } => {
-                write!(fmt, "pop-n {}", count)?;
-            }
-            Inst::Clean { count } => {
-                write!(fmt, "clean {}", count)?;
-            }
-            Inst::Copy { offset } => {
-                write!(fmt, "copy {}", offset)?;
-            }
-            Inst::Replace { offset } => {
-                write!(fmt, "replace {}", offset)?;
-            }
-            Inst::Return => {
-                write!(fmt, "return")?;
-            }
-            Inst::ReturnUnit => {
-                write!(fmt, "return-unit")?;
-            }
-            Inst::Lt => {
-                write!(fmt, "lt")?;
-            }
-            Inst::Gt => {
-                write!(fmt, "gt")?;
-            }
-            Inst::Lte => {
-                write!(fmt, "lte")?;
-            }
-            Inst::Gte => {
-                write!(fmt, "gte")?;
-            }
-            Inst::Eq => {
-                write!(fmt, "eq")?;
-            }
-            Inst::Neq => {
-                write!(fmt, "neq")?;
-            }
-            Inst::Jump { offset } => {
-                write!(fmt, "jump {}", offset)?;
-            }
-            Inst::JumpIf { offset } => {
-                write!(fmt, "jump-if {}", offset)?;
-            }
-            Inst::JumpIfNot { offset } => {
-                write!(fmt, "jump-if-not {}", offset)?;
-            }
-            Inst::Unit => {
-                write!(fmt, "unit")?;
-            }
-            Inst::Bool { value } => {
-                write!(fmt, "bool {}", value)?;
-            }
-            Inst::Array { count } => {
-                write!(fmt, "array {}", count)?;
-            }
-            Inst::Object { count } => {
-                write!(fmt, "object {}", count)?;
-            }
-            Inst::String { slot } => {
-                write!(fmt, "string {}", slot)?;
-            }
-            Inst::Char { c } => {
-                write!(fmt, "char {:?}", c)?;
-            }
-            Inst::Is => {
-                write!(fmt, "is")?;
-            }
-            Inst::Type { hash } => {
-                write!(fmt, "type {}", hash)?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-struct Access(Cell<isize>);
-
-impl Access {
-    /// Clear the given access token.
-    #[inline]
-    fn clear(&self) {
-        self.0.set(0);
-    }
-
-    /// Test if we have shared access without modifying the internal count.
-    #[inline]
-    fn test_shared(&self, managed: Managed, slot: usize) -> Result<(), StackError> {
-        let b = self.0.get().wrapping_sub(1);
-
-        if b >= 0 {
-            return Err(StackError::SlotInaccessibleShared { managed, slot });
-        }
-
-        Ok(())
-    }
-
-    /// Mark that we want shared access to the given access token.
-    #[inline]
-    fn shared(&self, managed: Managed, slot: usize) -> Result<(), StackError> {
-        let b = self.0.get().wrapping_sub(1);
-
-        if b >= 0 {
-            return Err(StackError::SlotInaccessibleShared { managed, slot });
-        }
-
-        self.0.set(b);
-        Ok(())
-    }
-
-    /// Unshare the current access.
-    #[inline]
-    fn release_shared(&self) {
-        let b = self.0.get().wrapping_add(1);
-        debug_assert!(b <= 0);
-        self.0.set(b);
-    }
-
-    /// Unshare the current access.
-    #[inline]
-    fn release_exclusive(&self) {
-        let b = self.0.get().wrapping_sub(1);
-        debug_assert!(b == 0);
-        self.0.set(b);
-    }
-
-    /// Mark that we want exclusive access to the given access token.
-    #[inline]
-    fn exclusive(&self, managed: Managed, slot: usize) -> Result<(), StackError> {
-        let b = self.0.get().wrapping_add(1);
-
-        if b != 1 {
-            return Err(StackError::SlotInaccessibleExclusive { managed, slot });
-        }
-
-        self.0.set(b);
-        Ok(())
-    }
-}
-
 /// The holde of an external value.
-pub(crate) struct ExternalHolder<T: ?Sized + External> {
+struct ExternalHolder<T: ?Sized + External> {
     /// The name of the stored value.
     type_name: &'static str,
     /// The type id of the stored value.
@@ -1213,13 +413,13 @@ where
 }
 
 /// The holder of a heap-allocated value.
-pub(crate) struct Holder<T> {
+struct Holder<T> {
     /// Number of references to this value.
     count: usize,
     /// Access for the given holder.
     access: Access,
     /// The value being held.
-    pub(crate) value: Option<UnsafeCell<T>>,
+    value: Option<UnsafeCell<T>>,
 }
 
 impl<T> fmt::Debug for Holder<T>
@@ -1231,35 +431,14 @@ where
     }
 }
 
-/// The holder of a single value.
-///
-/// Maintains the reference count of the value.
-pub struct ValueHolder {
-    count: usize,
-    pub(crate) value: ValuePtr,
-}
-
-impl fmt::Debug for ValueHolder {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("value")
-            .field("count", &self.count)
-            .field("value", &self.value)
-            .finish()
-    }
-}
-
 /// A stack frame.
 #[derive(Debug, Clone, Copy)]
-pub struct Frame {
+struct Frame {
     /// The stored instruction pointer.
-    pub ip: usize,
+    ip: usize,
     /// The stored offset.
-    old_frame_top: usize,
-    /// The number of arguments in the stack frame.
-    args: usize,
+    frame_top: usize,
 }
-
-pub type Guard = (Managed, usize);
 
 macro_rules! impl_ref_count {
     (
@@ -1484,24 +663,24 @@ pub struct Vm {
     ip: usize,
     /// The top of the current frame.
     frame_top: usize,
+    /// We have exited from the last frame.
+    exited: bool,
     /// The current stack of values.
-    pub(crate) stack: Vec<ValuePtr>,
+    stack: Vec<ValuePtr>,
     /// Frames relative to the stack.
-    pub(crate) frames: Vec<Frame>,
+    frames: Vec<Frame>,
     /// Values which needs to be freed.
     reap_queue: Vec<(Managed, usize)>,
     /// The work list for the reap.
     reap_work: Vec<(Managed, usize)>,
     /// Slots with external values.
-    pub(crate) externals: Slab<ExternalHolder<dyn External>>,
+    externals: Slab<ExternalHolder<dyn External>>,
     /// Slots with strings.
-    pub(crate) strings: Slab<Holder<String>>,
+    strings: Slab<Holder<String>>,
     /// Slots with arrays, which themselves reference values.
-    pub(crate) arrays: Slab<Holder<Vec<ValuePtr>>>,
+    arrays: Slab<Holder<Vec<ValuePtr>>>,
     /// Slots with objects, which themselves reference values.
-    pub(crate) objects: Slab<Holder<HashMap<String, ValuePtr>>>,
-    /// We have exited from the last frame.
-    pub(crate) exited: bool,
+    objects: Slab<Holder<HashMap<String, ValuePtr>>>,
     /// Slots that needs to be disarmed next time we call `disarm`.
     guards: UnsafeCell<Vec<Guard>>,
 }
@@ -1512,6 +691,7 @@ impl Vm {
         Self {
             ip: 0,
             frame_top: 0,
+            exited: false,
             stack: Vec::new(),
             frames: Vec::new(),
             reap_queue: Vec::new(),
@@ -1520,7 +700,6 @@ impl Vm {
             strings: Slab::new(),
             arrays: Slab::new(),
             objects: Slab::new(),
-            exited: false,
             guards: UnsafeCell::new(Vec::new()),
         }
     }
@@ -1577,12 +756,6 @@ impl Vm {
             .ok_or_else(|| VmError::MissingFunction { hash })?;
 
         args.into_args(self)?;
-
-        self.frames.push(Frame {
-            ip: 0,
-            old_frame_top: 0,
-            args: A::count(),
-        });
 
         self.ip = fn_address;
         self.frame_top = 0;
@@ -1658,7 +831,7 @@ impl Vm {
 
     /// Pop a number of values from the stack, freeing them if they are no
     /// longer in use.
-    pub fn managed_popn(&mut self, n: usize) -> Result<(), StackError> {
+    fn managed_popn(&mut self, n: usize) -> Result<(), StackError> {
         if self.stack.len().saturating_sub(self.frame_top) < n {
             return Err(StackError::PopOutOfBounds {
                 frame: self.frame_top,
@@ -1677,7 +850,7 @@ impl Vm {
     }
 
     /// Peek the top of the stack.
-    pub fn peek(&mut self) -> Result<ValuePtr, StackError> {
+    fn peek(&mut self) -> Result<ValuePtr, StackError> {
         self.stack
             .last()
             .copied()
@@ -1687,7 +860,7 @@ impl Vm {
     /// Collect any garbage accumulated.
     ///
     /// This will invalidate external value references.
-    pub fn reap(&mut self) -> Result<(), StackError> {
+    fn reap(&mut self) -> Result<(), StackError> {
         let mut reap_work = std::mem::take(&mut self.reap_work);
 
         while !self.reap_queue.is_empty() {
@@ -1768,7 +941,7 @@ impl Vm {
 
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
-    pub fn stack_copy(&mut self, offset: usize) -> Result<(), VmError> {
+    fn stack_copy(&mut self, offset: usize) -> Result<(), VmError> {
         let value = self
             .frame_top
             .checked_add(offset)
@@ -1785,7 +958,7 @@ impl Vm {
 
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
-    pub fn stack_replace(&mut self, offset: usize) -> Result<(), VmError> {
+    fn stack_replace(&mut self, offset: usize) -> Result<(), VmError> {
         let mut value = self.stack.pop().ok_or_else(|| VmError::StackOutOfBounds)?;
 
         let stack_value = self
@@ -1805,7 +978,7 @@ impl Vm {
     }
 
     /// Push a new call frame.
-    pub(crate) fn push_frame(&mut self, new_ip: usize, args: usize) -> Result<(), VmError> {
+    fn push_frame(&mut self, new_ip: usize, args: usize) -> Result<(), VmError> {
         let offset = self
             .stack
             .len()
@@ -1814,8 +987,7 @@ impl Vm {
 
         self.frames.push(Frame {
             ip: self.ip,
-            old_frame_top: self.frame_top,
-            args,
+            frame_top: self.frame_top,
         });
 
         self.frame_top = offset;
@@ -1824,25 +996,23 @@ impl Vm {
     }
 
     /// Pop a call frame and return it.
-    pub(crate) fn pop_frame(&mut self) -> Result<(), StackError> {
-        let frame = self
-            .frames
-            .pop()
-            .ok_or_else(|| StackError::StackFramesEmpty)?;
+    fn pop_frame(&mut self) -> Result<bool, StackError> {
+        let frame = match self.frames.pop() {
+            Some(frame) => frame,
+            None => return Ok(true),
+        };
 
         // Assert that the stack has been restored to the current stack top.
         if self.stack.len() != self.frame_top {
             return Err(StackError::CorruptedStackFrame {
                 stack_size: self.stack.len(),
                 frame_at: self.frame_top,
-                frame_args: frame.args,
             });
         }
 
-        self.frame_top = frame.old_frame_top;
+        self.frame_top = frame.frame_top;
         self.ip = frame.ip;
-        self.exited = self.frames.is_empty();
-        Ok(())
+        Ok(false)
     }
 
     /// Allocate and insert an external and return its reference.
@@ -2220,13 +1390,8 @@ impl Vm {
         Ok(output)
     }
 
-    /// Get the last value on the stack.
-    pub fn last(&self) -> Option<ValuePtr> {
-        self.stack.last().copied()
-    }
-
     /// Pop the last value on the stack and evaluate it as `T`.
-    pub fn pop_decode<T>(&mut self) -> Result<T, VmError>
+    fn pop_decode<T>(&mut self) -> Result<T, VmError>
     where
         T: FromValue,
     {
@@ -2255,7 +1420,7 @@ impl Vm {
     ///
     /// Note: External types are compared by their slot, but should eventually
     /// use a dynamically resolve equality function.
-    pub fn value_ptr_eq(&self, a: ValuePtr, b: ValuePtr) -> Result<bool, VmError> {
+    fn value_ptr_eq(&self, a: ValuePtr, b: ValuePtr) -> Result<bool, VmError> {
         Ok(match (a, b) {
             (ValuePtr::Unit, ValuePtr::Unit) => true,
             (ValuePtr::Char(a), ValuePtr::Char(b)) => a == b,
@@ -2450,17 +1615,269 @@ impl Vm {
             value_type,
         })
     }
+
+    /// Evaluate a single instruction.
+    pub async fn eval(
+        &mut self,
+        inst: &Inst,
+        functions: &Functions,
+        unit: &Unit,
+    ) -> Result<(), VmError> {
+        let mut update_ip = true;
+
+        match inst {
+            Inst::Not => {
+                self.not()?;
+            }
+            Inst::Add => {
+                self.add()?;
+            }
+            Inst::Sub => {
+                let b = self.managed_pop()?;
+                let a = self.managed_pop()?;
+                self.unmanaged_push(numeric_ops!(self, a - b));
+            }
+            Inst::Div => {
+                let b = self.managed_pop()?;
+                let a = self.managed_pop()?;
+                self.unmanaged_push(numeric_ops!(self, a / b));
+            }
+            Inst::Mul => {
+                let b = self.managed_pop()?;
+                let a = self.managed_pop()?;
+                self.unmanaged_push(numeric_ops!(self, a * b));
+            }
+            Inst::Call { hash, args } => {
+                match unit.lookup(*hash) {
+                    Some(loc) => {
+                        self.push_frame(loc, *args)?;
+                        update_ip = false;
+                    }
+                    None => {
+                        let handler = functions
+                            .lookup(*hash)
+                            .ok_or_else(|| VmError::MissingFunction { hash: *hash })?;
+
+                        let result = handler(self, *args).await;
+
+                        // Safety: We have exclusive access to the VM and
+                        // everything that was borrowed during the call can now
+                        // be cleared since it's only used in the handler.
+                        unsafe {
+                            self.disarm();
+                        }
+
+                        result?;
+                    }
+                }
+            }
+            Inst::CallInstance { hash, args } => {
+                let instance = self.peek()?;
+                let ty = instance.value_type(self)?;
+
+                let hash = Hash::instance_function(ty, *hash);
+
+                match unit.lookup(hash) {
+                    Some(loc) => {
+                        self.push_frame(loc, *args)?;
+                        update_ip = false;
+                    }
+                    None => {
+                        let handler = functions
+                            .lookup(hash)
+                            .ok_or_else(|| VmError::MissingFunction { hash: hash })?;
+
+                        let result = handler(self, *args).await;
+
+                        // Safety: We have exclusive access to the VM and
+                        // everything that was borrowed during the call can
+                        // now be cleared since it's only used in the
+                        // handler.
+                        unsafe {
+                            self.disarm();
+                        }
+
+                        result?;
+                    }
+                }
+            }
+            Inst::IndexGet => {
+                let target = self.managed_pop()?;
+                let index = self.managed_pop()?;
+                self.index_get(target, index)?;
+            }
+            Inst::IndexSet => {
+                let target = self.managed_pop()?;
+                let index = self.managed_pop()?;
+                let value = self.managed_pop()?;
+                self.index_set(target, index, value)?;
+            }
+            Inst::Return => {
+                // NB: unmanaged because we're effectively moving the value.
+                let return_value = self.unmanaged_pop()?;
+                self.exited = self.pop_frame()?;
+                self.unmanaged_push(return_value);
+            }
+            Inst::ReturnUnit => {
+                self.exited = self.pop_frame()?;
+                self.managed_push(ValuePtr::Unit)?;
+            }
+            Inst::Pop => {
+                self.managed_pop()?;
+            }
+            Inst::PopN { count } => {
+                self.managed_popn(*count)?;
+            }
+            Inst::Clean { count } => {
+                let value = self.unmanaged_pop()?;
+                self.managed_popn(*count)?;
+                self.unmanaged_push(value);
+            }
+            Inst::Integer { number } => {
+                self.managed_push(ValuePtr::Integer(*number))?;
+            }
+            Inst::Float { number } => {
+                self.managed_push(ValuePtr::Float(*number))?;
+            }
+            Inst::Copy { offset } => {
+                self.stack_copy(*offset)?;
+            }
+            Inst::Replace { offset } => {
+                self.stack_replace(*offset)?;
+            }
+            Inst::Gt => {
+                let b = self.managed_pop()?;
+                let a = self.managed_pop()?;
+                self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a > b)));
+            }
+            Inst::Gte => {
+                let b = self.managed_pop()?;
+                let a = self.managed_pop()?;
+                self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a >= b)));
+            }
+            Inst::Lt => {
+                let b = self.managed_pop()?;
+                let a = self.managed_pop()?;
+                self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a < b)));
+            }
+            Inst::Lte => {
+                let b = self.managed_pop()?;
+                let a = self.managed_pop()?;
+                self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a <= b)));
+            }
+            Inst::Eq => {
+                self.eq()?;
+            }
+            Inst::Neq => {
+                self.neq()?;
+            }
+            Inst::Jump { offset } => {
+                self.modify_ip(*offset)?;
+                update_ip = false;
+            }
+            Inst::JumpIf { offset } => {
+                if pop!(self, Bool) {
+                    self.modify_ip(*offset)?;
+                    update_ip = false;
+                }
+            }
+            Inst::JumpIfNot { offset } => {
+                if !pop!(self, Bool) {
+                    self.modify_ip(*offset)?;
+                    update_ip = false;
+                }
+            }
+            Inst::Unit => {
+                self.managed_push(ValuePtr::Unit)?;
+            }
+            Inst::Bool { value } => {
+                self.managed_push(ValuePtr::Bool(*value))?;
+            }
+            Inst::Array { count } => {
+                let mut array = Vec::with_capacity(*count);
+
+                for _ in 0..*count {
+                    array.push(self.stack.pop().ok_or_else(|| StackError::StackEmpty)?);
+                }
+
+                let value = self.array_allocate(array);
+                self.managed_push(value)?;
+            }
+            Inst::Object { count } => {
+                let mut object = HashMap::with_capacity(*count);
+
+                for _ in 0..*count {
+                    let key = self.pop_decode()?;
+                    let value = self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
+                    object.insert(key, value);
+                }
+
+                let value = self.object_allocate(object);
+                self.managed_push(value)?;
+            }
+            Inst::Type { hash } => {
+                self.unmanaged_push(ValuePtr::Type(*hash));
+            }
+            Inst::Char { c } => {
+                self.unmanaged_push(ValuePtr::Char(*c));
+            }
+            Inst::String { slot } => {
+                let string = unit
+                    .lookup_string(*slot)
+                    .ok_or_else(|| VmError::MissingStaticString { slot: *slot })?;
+                // TODO: do something sneaky to only allocate the static string once.
+                let value = self.string_allocate(string.to_owned());
+                self.managed_push(value)?;
+            }
+            Inst::Is => {
+                let b = self.managed_pop()?;
+                let a = self.managed_pop()?;
+
+                match (a, b) {
+                    (a, ValuePtr::Type(hash)) => {
+                        let a = a.value_type(self)?;
+
+                        let type_info = functions
+                            .lookup_type(hash)
+                            .ok_or_else(|| VmError::MissingType { hash })?;
+
+                        self.unmanaged_push(ValuePtr::Bool(a == type_info.value_type));
+                    }
+                    (a, b) => {
+                        let a = a.type_info(self)?;
+                        let b = b.type_info(self)?;
+
+                        return Err(VmError::UnsupportedIs {
+                            value_type: a,
+                            test_type: b,
+                        });
+                    }
+                }
+            }
+        }
+
+        if update_ip {
+            self.ip += 1;
+        }
+
+        self.reap()?;
+        Ok(())
+    }
 }
 
 impl fmt::Debug for Vm {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Vm")
+            .field("ip", &self.ip)
+            .field("frame_top", &self.frame_top)
+            .field("exited", &self.exited)
             .field("stack", &self.stack)
             .field("frames", &self.frames)
             .field("reap_queue", &self.reap_queue)
             .field("externals", &DebugSlab(&self.externals))
             .field("strings", &DebugSlab(&self.strings))
             .field("arrays", &DebugSlab(&self.arrays))
+            .field("objects", &DebugSlab(&self.objects))
             .finish()
     }
 }
@@ -2484,6 +1901,7 @@ pub struct Task<'a, T> {
     pub functions: &'a Functions,
     /// The unit associated with the task.
     pub unit: &'a Unit,
+    /// Hold the type of the task.
     _marker: PhantomData<T>,
 }
 
@@ -2492,14 +1910,14 @@ where
     T: FromValue,
 {
     /// Run the given task to completion.
-    pub async fn run_to_completion(mut self) -> Result<T, VmError> {
+    pub async fn run_to_completion(self) -> Result<T, VmError> {
         while !self.vm.exited {
             let inst = self
                 .unit
                 .instruction_at(self.vm.ip())
                 .ok_or_else(|| VmError::IpOutOfBounds)?;
 
-            inst.eval(&mut self.vm, self.functions, self.unit).await?;
+            self.vm.eval(inst, self.functions, self.unit).await?;
         }
 
         let value = self.vm.pop_decode()?;
@@ -2514,7 +1932,7 @@ where
             .instruction_at(self.vm.ip())
             .ok_or_else(|| VmError::IpOutOfBounds)?;
 
-        inst.eval(&mut self.vm, self.functions, self.unit).await?;
+        self.vm.eval(inst, self.functions, self.unit).await?;
 
         if self.vm.exited {
             let value = self.vm.pop_decode()?;
