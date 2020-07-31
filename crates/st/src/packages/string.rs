@@ -26,6 +26,7 @@ pub fn module() -> Result<Module, RegisterError> {
     module.instance_fn("len", String::len)?;
     module.instance_fn("capacity", String::capacity)?;
     module.instance_fn("clear", String::clear)?;
+    module.instance_fn("push", String::push)?;
     module.instance_fn("push_str", String::push_str)?;
     module.instance_fn("reserve", String::reserve)?;
     module.instance_fn("reserve_exact", String::reserve_exact)?;

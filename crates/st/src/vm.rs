@@ -22,7 +22,7 @@ pub enum StackError {
     #[error("stack is empty")]
     StackEmpty,
     /// Attempt to pop outside of current frame offset.
-    #[error("attempted to pop current stack frame `{frame}`")]
+    #[error("attempted to pop beyond current stack frame `{frame}`")]
     PopOutOfBounds {
         /// Frame offset that we tried to pop.
         frame: usize,
@@ -494,32 +494,24 @@ pub enum Inst {
     },
     /// Perform an index get operation. Pushing the result on the stack.
     ///
-    /// Pseudocode:
+    /// # Operation
     ///
-    /// ```rune
-    /// target[index]
+    /// ```text
+    /// <target>
+    /// <index>
     /// => <value>
     /// ```
-    ///
-    /// Expected Stack Layout:
-    ///
-    /// * `target` object
-    /// * `index` to get
     IndexGet,
     /// Perform an index set operation.
     ///
-    /// Pseudocode:
+    /// # Operation
     ///
-    /// ```rune
-    /// target[index] = value
+    /// ```text
+    /// <target>
+    /// <index>
+    /// <value>
     /// => *noop*
     /// ```
-    ///
-    /// Expected Stack Layout:
-    ///
-    /// * `target` object
-    /// * `index` to set
-    /// * `value` to set
     IndexSet,
     /// Push a literal integer.
     Integer {
@@ -533,6 +525,32 @@ pub enum Inst {
     },
     /// Pop the value on the stack.
     Pop,
+    /// Pop the given number of elements from the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value..>
+    /// => *noop*
+    /// ```
+    PopN {
+        /// The number of elements to pop from the stack.
+        count: usize,
+    },
+    /// Clean the stack by keeping the top of it, and popping `count` values
+    /// under it.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <top>
+    /// <value..>
+    /// => <top>
+    /// ```
+    Clean {
+        /// The number of entries in the stack to pop.
+        count: usize,
+    },
     /// Push a variable from a location `offset` relative to the current call
     /// frame.
     ///
@@ -664,6 +682,11 @@ pub enum Inst {
         /// The size of the object.
         count: usize,
     },
+    /// Load a literal character.
+    Char {
+        /// The literal character to load.
+        c: char,
+    },
     /// Load a literal string.
     String {
         /// The static string slot to load the string from.
@@ -754,6 +777,14 @@ impl Inst {
             }
             Self::Pop => {
                 vm.managed_pop()?;
+            }
+            Self::PopN { count } => {
+                vm.managed_popn(count)?;
+            }
+            Self::Clean { count } => {
+                let value = vm.unmanaged_pop()?;
+                vm.managed_popn(count)?;
+                vm.unmanaged_push(value);
             }
             Self::Integer { number } => {
                 vm.managed_push(ValuePtr::Integer(number))?;
@@ -855,6 +886,9 @@ impl Inst {
                 let value = vm.object_allocate(object);
                 vm.managed_push(value)?;
             }
+            Self::Char { c } => {
+                vm.unmanaged_push(ValuePtr::Char(c));
+            }
             Self::String { slot } => {
                 let string = unit
                     .lookup_string(slot)
@@ -910,6 +944,12 @@ impl fmt::Display for Inst {
             Inst::Pop => {
                 write!(fmt, "pop")?;
             }
+            Inst::PopN { count } => {
+                write!(fmt, "pop-n {}", count)?;
+            }
+            Inst::Clean { count } => {
+                write!(fmt, "clean {}", count)?;
+            }
             Inst::Copy { offset } => {
                 write!(fmt, "copy {}", offset)?;
             }
@@ -963,6 +1003,9 @@ impl fmt::Display for Inst {
             }
             Inst::String { slot } => {
                 write!(fmt, "string {}", slot)?;
+            }
+            Inst::Char { c } => {
+                write!(fmt, "char {:?}", c)?;
             }
         }
 
@@ -1472,6 +1515,12 @@ impl Vm {
     ///
     /// The reference count of the value being referenced won't be modified.
     pub fn unmanaged_pop(&mut self) -> Result<ValuePtr, StackError> {
+        if self.stack.len() == self.frame_top {
+            return Err(StackError::PopOutOfBounds {
+                frame: self.frame_top,
+            });
+        }
+
         self.stack.pop().ok_or_else(|| StackError::StackEmpty)
     }
 
@@ -1501,6 +1550,26 @@ impl Vm {
         }
 
         Ok(value)
+    }
+
+    /// Pop a number of values from the stack, freeing them if they are no
+    /// longer in use.
+    pub fn managed_popn(&mut self, n: usize) -> Result<(), StackError> {
+        if self.stack.len().saturating_sub(self.frame_top) < n {
+            return Err(StackError::PopOutOfBounds {
+                frame: self.frame_top,
+            });
+        }
+
+        for _ in 0..n {
+            let value = self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
+
+            if let Some((managed, slot)) = value.try_into_managed() {
+                self.dec_ref(managed, slot)?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Peek the top of the stack.
@@ -1657,10 +1726,18 @@ impl Vm {
             .pop()
             .ok_or_else(|| StackError::StackFramesEmpty)?;
 
+        let mut args = frame.args;
+
         // Pop all values associated with the call frame.
         while self.stack.len() > self.frame_top {
             let popped = self.managed_pop()?;
-            log::trace!("popped local: {:?}", popped);
+
+            if args == 0 {
+                log::warn!("popped garbage: {:?}", popped);
+            } else {
+                log::trace!("popped argument: {:?}", popped);
+                args -= 1;
+            }
         }
 
         self.frame_top = frame.old_frame_top;

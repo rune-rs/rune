@@ -103,6 +103,11 @@ impl ArrayLiteral {
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
     }
+
+    /// Test if the entire expression is literal.
+    pub fn is_all_literal(&self) -> bool {
+        self.items.iter().all(|e| e.is_all_literal())
+    }
 }
 
 /// Parse an array literal.
@@ -156,6 +161,11 @@ impl ObjectLiteral {
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
     }
+
+    /// Test if the entire expression is literal.
+    pub fn is_all_literal(&self) -> bool {
+        self.items.iter().all(|e| e.2.is_all_literal())
+    }
 }
 
 /// Parse an object literal.
@@ -197,6 +207,106 @@ impl Parse for ObjectLiteral {
 
 /// A number literal.
 #[derive(Debug, Clone)]
+pub struct CharLiteral {
+    /// The token corresponding to the literal.
+    pub token: Token,
+}
+
+impl CharLiteral {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.token.span
+    }
+}
+
+/// Parse a number literal.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// # fn main() -> anyhow::Result<()> {
+/// parse_all::<ast::CharLiteral>("'a'")?;
+/// parse_all::<ast::CharLiteral>("'\\0'")?;
+/// parse_all::<ast::CharLiteral>("'\\n'")?;
+/// parse_all::<ast::CharLiteral>("'\\r'")?;
+/// parse_all::<ast::CharLiteral>("'\\''")?;
+/// # Ok(())
+/// # }
+/// ```
+impl Parse for CharLiteral {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let token = parser.token_next()?;
+
+        Ok(match token.kind {
+            Kind::CharLiteral => CharLiteral { token },
+            _ => {
+                return Err(ParseError::ExpectedCharError {
+                    actual: token.kind,
+                    span: token.span,
+                })
+            }
+        })
+    }
+}
+
+impl CharLiteral {
+    fn parse_escaped(
+        &self,
+        span: Span,
+        mut it: impl Iterator<Item = char>,
+    ) -> Result<char, ResolveError> {
+        let mut next = || {
+            it.next()
+                .ok_or_else(|| ResolveError::BadCharLiteral { span })
+        };
+
+        Ok(match next()? {
+            '\'' => '\'',
+            '0' => '\0',
+            'n' => '\n',
+            'r' => '\r',
+            // TODO: parse unicode literal.
+            _ => return Err(ResolveError::BadCharLiteral { span }),
+        })
+    }
+}
+
+impl<'a> Resolve<'a> for CharLiteral {
+    type Output = char;
+
+    fn resolve(&self, source: Source<'a>) -> Result<char, ResolveError> {
+        let span = self.token.span;
+        let string = source.source(span.narrow(1))?;
+
+        let mut it = string.chars();
+
+        let c = loop {
+            let c = match it.next() {
+                Some(c) => c,
+                None => {
+                    return Err(ResolveError::BadCharLiteral { span });
+                }
+            };
+
+            break match c {
+                '\\' => self.parse_escaped(span, &mut it)?,
+                o => o,
+            };
+        };
+
+        // Too many characters in literal.
+        if it.next().is_some() {
+            return Err(ResolveError::BadCharLiteral { span });
+        }
+
+        Ok(c)
+    }
+}
+
+/// A number literal.
+#[derive(Debug, Clone)]
 pub struct NumberLiteral {
     /// The kind of the number literal.
     number: token::NumberLiteral,
@@ -216,10 +326,10 @@ impl NumberLiteral {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast};
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::NumberLiteral>("42")?;
+/// parse_all::<ast::NumberLiteral>("42")?;
 /// # Ok(())
 /// # }
 /// ```
@@ -291,6 +401,10 @@ impl StringLiteral {
 
         while let Some(c) = it.next() {
             match (c, it.clone().next()) {
+                ('\\', Some('0')) => {
+                    buffer.push('\0');
+                    it.next();
+                }
                 ('\\', Some('n')) => {
                     buffer.push('\n');
                     it.next();
@@ -655,14 +769,18 @@ pub enum Expr {
     CallFn(CallFn),
     /// An instance function call,
     CallInstanceFn(CallInstanceFn),
-    /// A literal array declaration.
-    ArrayLiteral(ArrayLiteral),
-    /// A literal object declaration.
-    ObjectLiteral(ObjectLiteral),
+    /// A boolean literal.
+    BoolLiteral(BoolLiteral),
+    /// A char literal.
+    CharLiteral(CharLiteral),
     /// A literal number expression.
     NumberLiteral(NumberLiteral),
     /// A literal string expression.
     StringLiteral(StringLiteral),
+    /// A literal array declaration.
+    ArrayLiteral(ArrayLiteral),
+    /// A literal object declaration.
+    ObjectLiteral(ObjectLiteral),
     /// A grouped expression.
     ExprGroup(ExprGroup),
     /// A binary expression.
@@ -671,8 +789,6 @@ pub enum Expr {
     IndexGet(IndexGet),
     /// A unit expression.
     UnitLiteral(UnitLiteral),
-    /// A boolean literal.
-    BoolLiteral(BoolLiteral),
 }
 
 impl Expr {
@@ -703,12 +819,27 @@ impl Expr {
             Self::ArrayLiteral(expr) => expr.span(),
             Self::ObjectLiteral(expr) => expr.span(),
             Self::NumberLiteral(expr) => expr.span(),
+            Self::CharLiteral(expr) => expr.span(),
             Self::StringLiteral(expr) => expr.span(),
             Self::ExprGroup(expr) => expr.span(),
             Self::ExprBinary(expr) => expr.span(),
             Self::IndexGet(expr) => expr.span(),
             Self::UnitLiteral(unit) => unit.span(),
             Self::BoolLiteral(b) => b.span(),
+        }
+    }
+
+    /// Test if the entire expression is literal.
+    pub fn is_all_literal(&self) -> bool {
+        match self {
+            Expr::UnitLiteral(..) => true,
+            Expr::BoolLiteral(..) => true,
+            Expr::CharLiteral(..) => true,
+            Expr::NumberLiteral(..) => true,
+            Expr::StringLiteral(..) => true,
+            Expr::ArrayLiteral(array) => array.is_all_literal(),
+            Expr::ObjectLiteral(object) => object.is_all_literal(),
+            _ => false,
         }
     }
 
@@ -741,6 +872,9 @@ impl Expr {
             }
             Kind::NumberLiteral { .. } => {
                 return Ok(Self::NumberLiteral(parser.parse()?));
+            }
+            Kind::CharLiteral { .. } => {
+                return Ok(Self::CharLiteral(parser.parse()?));
             }
             Kind::StringLiteral { .. } => {
                 return Ok(Self::StringLiteral(parser.parse()?));

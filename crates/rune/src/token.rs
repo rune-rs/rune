@@ -81,6 +81,8 @@ pub enum Kind {
         /// The number literal kind.
         number: NumberLiteral,
     },
+    /// A characer literal.
+    CharLiteral,
     /// A string literal, including escape sequences. Like `"hello\nworld"`.
     StringLiteral {
         /// If the string literal contains escapes.
@@ -144,6 +146,7 @@ impl fmt::Display for Kind {
             Self::Ident => write!(fmt, "ident"),
             Self::NumberLiteral { number } => write!(fmt, "{}", number),
             Self::StringLiteral { .. } => write!(fmt, "string"),
+            Self::CharLiteral { .. } => write!(fmt, "char"),
             Self::Open { delimiter } => write!(fmt, "{}", delimiter.open()),
             Self::Close { delimiter } => write!(fmt, "{}", delimiter.close()),
             Self::Comma => write!(fmt, ","),

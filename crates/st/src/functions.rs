@@ -748,10 +748,7 @@ macro_rules! impl_register {
                 #[allow(unused_unsafe)]
                 let ret = unsafe {
                     impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-
-                    tls::inject_vm(vm, || {
-                        self($($var,)*)
-                    })
+                    tls::inject_vm(vm, || self($($var,)*))
                 };
 
                 impl_register!{@return vm, ret, Ret}

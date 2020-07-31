@@ -52,6 +52,12 @@ pub enum ResolveError {
         /// Span of the illegal number literal.
         span: Span,
     },
+    /// A bad character literal.
+    #[error("bad character literal")]
+    BadCharLiteral {
+        /// Span containing the bad character literal.
+        span: Span,
+    },
 }
 
 impl SpannedError for ResolveError {
@@ -59,6 +65,7 @@ impl SpannedError for ResolveError {
         match *self {
             Self::BadStringEscapeSequence { span, .. } => span,
             Self::IllegalNumberLiteral { span, .. } => span,
+            Self::BadCharLiteral { span, .. } => span,
         }
     }
 }
@@ -82,14 +89,27 @@ pub enum ParseError {
     },
     /// Error encountered when we see a string escape sequence without a
     /// character being escaped.
-    #[error("expected escape character")]
+    #[error("expected string character")]
     ExpectedStringEscape {
         /// Span that caused the error.
         span: Span,
     },
     /// Expected a string close but didn't see it.
-    #[error("expected string to be closed")]
+    #[error("expected string literal to be closed")]
     ExpectedStringClose {
+        /// Span that caused the error.
+        span: Span,
+    },
+    /// Error encountered when we see a character escape sequence without a
+    /// character being escaped.
+    #[error("expected character character")]
+    ExpectedCharEscape {
+        /// Span that caused the error.
+        span: Span,
+    },
+    /// Expected a char close but didn't see it.
+    #[error("expected char literal to be closed")]
+    ExpectedCharClose {
         /// Span that caused the error.
         span: Span,
     },
@@ -135,6 +155,14 @@ pub enum ParseError {
         /// The kind of the actual token we saw.
         actual: Kind,
     },
+    /// Expected a char, but got something else.
+    #[error("expected char but got `{actual}`")]
+    ExpectedCharError {
+        /// Span that caused the error.
+        span: Span,
+        /// The kind of the actual token we saw.
+        actual: Kind,
+    },
     /// Expected a string, but got something else.
     #[error("expected string but got `{actual}`")]
     ExpectedStringError {
@@ -167,12 +195,15 @@ impl SpannedError for ParseError {
             Self::UnexpectedEof { span, .. } => span,
             Self::ExpectedEof { span, .. } => span,
             Self::ExpectedStringEscape { span, .. } => span,
+            Self::ExpectedCharEscape { span, .. } => span,
             Self::ExpectedStringClose { span, .. } => span,
+            Self::ExpectedCharClose { span, .. } => span,
             Self::TokenMismatch { span, .. } => span,
             Self::ExpectedExprError { span, .. } => span,
             Self::ExpectedBlockExprError { span, .. } => span,
             Self::UnexpectedChar { span, .. } => span,
             Self::ExpectedNumberError { span, .. } => span,
+            Self::ExpectedCharError { span, .. } => span,
             Self::ExpectedStringError { span, .. } => span,
             Self::ExpectedOperatorError { span, .. } => span,
             Self::ExpectedBoolError { span, .. } => span,

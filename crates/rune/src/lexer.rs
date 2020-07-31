@@ -138,6 +138,54 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a string literal.
+    fn next_char_literal<I>(
+        &mut self,
+        it: &mut I,
+        start: usize,
+    ) -> Result<Option<Token>, ParseError>
+    where
+        I: Clone + Iterator<Item = (usize, char)>,
+    {
+        self.cursor = loop {
+            break match it.next() {
+                Some((_, c)) => match c {
+                    '\'' => self.end_span(it),
+                    '\\' => match it.next() {
+                        Some(_) => {
+                            continue;
+                        }
+                        None => {
+                            return Err(ParseError::ExpectedCharEscape {
+                                span: Span {
+                                    start,
+                                    end: self.source.len(),
+                                },
+                            });
+                        }
+                    },
+                    _ => continue,
+                },
+                None => {
+                    return Err(ParseError::ExpectedCharClose {
+                        span: Span {
+                            start,
+                            end: self.source.len(),
+                        },
+                    })
+                }
+            };
+        };
+
+        return Ok(Some(Token {
+            kind: Kind::CharLiteral,
+            span: Span {
+                start,
+                end: self.cursor,
+            },
+        }));
+    }
+
+    /// Consume a string literal.
     fn next_string_literal<I>(
         &mut self,
         it: &mut I,
@@ -281,6 +329,9 @@ impl<'a> Lexer<'a> {
                     }
                     '"' => {
                         return self.next_string_literal(&mut it, start);
+                    }
+                    '\'' => {
+                        return self.next_char_literal(&mut it, start);
                     }
                     _ => {
                         let span = Span {

@@ -5,7 +5,7 @@ fn main() {
 
     let s = string::with_capacity(42);
     s.push_str(a);
-    s.push_str("/");
+    s.push('/');
     s.push_str("bar");
 
     dbg(s, s.len(), s.capacity());
