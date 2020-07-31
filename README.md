@@ -4,12 +4,26 @@
 
 ST, a really simple stack-based virtual machine.
 
-## Example Scripts
+## Features of ST
 
-ST comes with a simple scripting language called rune.
+* Clean Rust ffi.
+* Stack-based C ffi as with Lua (TBD).
+* Stack frames, allowing for isolation across function calls.
+* A rust-like reference language called *Rune*.
+* No variable slots, we only use the stack to store and manipulate variables.
+
+## Rune Scripts
+
+ST comes with a simple scripting language called *Rune*.
 
 You can run example scripts through rune-cli:
 
 ```bash
-cargo rune-cli ./scripts/fib.rn
+cargo rune-cli ./scripts/controls.rn
+```
+
+If you want to see diagnostics of your unit, you can do:
+
+```bash
+cargo rune-cli ./scripts/controls.rn --dump-unit --trace
 ```

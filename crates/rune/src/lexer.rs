@@ -1,5 +1,6 @@
 use crate::error::{ParseError, Result};
-use crate::token::{Delimiter, Kind, NumberLiteral, Span, Token};
+use crate::token::{Delimiter, Kind, NumberLiteral, Token};
+use st::unit::Span;
 
 /// Lexer for the rune language.
 #[derive(Debug, Clone)]

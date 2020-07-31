@@ -21,6 +21,12 @@ pub enum StackError {
     /// stack is empty
     #[error("stack is empty")]
     StackEmpty,
+    /// Attempt to pop outside of current frame offset.
+    #[error("attempted to pop current stack frame `{frame}`")]
+    PopOutOfBounds {
+        /// Frame offset that we tried to pop.
+        frame: usize,
+    },
     /// No stack frames.
     #[error("stack frames are empty")]
     StackFramesEmpty,
@@ -870,6 +876,102 @@ impl Inst {
     }
 }
 
+impl fmt::Display for Inst {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Inst::Add => {
+                write!(fmt, "add")?;
+            }
+            Inst::Sub => {
+                write!(fmt, "sub")?;
+            }
+            Inst::Div => {
+                write!(fmt, "div")?;
+            }
+            Inst::Mul => {
+                write!(fmt, "mul")?;
+            }
+            Inst::Call { hash, args } => {
+                write!(fmt, "call {}, {}", hash, args)?;
+            }
+            Inst::CallInstance { hash, args } => {
+                write!(fmt, "call-instance {}, {}", hash, args)?;
+            }
+            Inst::IndexGet => {
+                write!(fmt, "index-get")?;
+            }
+            Inst::IndexSet => {
+                write!(fmt, "index-set")?;
+            }
+            Inst::Integer { number } => {
+                write!(fmt, "integer {}", number)?;
+            }
+            Inst::Float { number } => {
+                write!(fmt, "float {}", number)?;
+            }
+            Inst::Pop => {
+                write!(fmt, "pop")?;
+            }
+            Inst::Copy { offset } => {
+                write!(fmt, "copy {}", offset)?;
+            }
+            Inst::Replace { offset } => {
+                write!(fmt, "replace {}", offset)?;
+            }
+            Inst::Return => {
+                write!(fmt, "return")?;
+            }
+            Inst::ReturnUnit => {
+                write!(fmt, "return-unit")?;
+            }
+            Inst::Lt => {
+                write!(fmt, "lt")?;
+            }
+            Inst::Gt => {
+                write!(fmt, "gt")?;
+            }
+            Inst::Lte => {
+                write!(fmt, "lte")?;
+            }
+            Inst::Gte => {
+                write!(fmt, "gte")?;
+            }
+            Inst::Eq => {
+                write!(fmt, "eq")?;
+            }
+            Inst::Neq => {
+                write!(fmt, "neq")?;
+            }
+            Inst::Jump { offset } => {
+                write!(fmt, "jump {}", offset)?;
+            }
+            Inst::JumpIf { offset } => {
+                write!(fmt, "jump-if {}", offset)?;
+            }
+            Inst::JumpIfNot { offset } => {
+                write!(fmt, "jump-if-not {}", offset)?;
+            }
+            Inst::Unit => {
+                write!(fmt, "unit")?;
+            }
+            Inst::Bool { value } => {
+                write!(fmt, "bool {}", value)?;
+            }
+            Inst::Array { count } => {
+                write!(fmt, "array {}", count)?;
+            }
+            Inst::Object { count } => {
+                write!(fmt, "object {}", count)?;
+            }
+            Inst::String { slot } => {
+                write!(fmt, "string {}", slot)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 struct Access(Cell<isize>);
 
@@ -1008,6 +1110,8 @@ pub struct Frame {
     pub ip: usize,
     /// The stored offset.
     old_frame_top: usize,
+    /// The number of arguments in the stack frame.
+    args: usize,
 }
 
 pub type Guard = (Managed, usize);
@@ -1332,6 +1436,7 @@ impl Vm {
         self.frames.push(Frame {
             ip: 0,
             old_frame_top: 0,
+            args: A::count(),
         });
 
         self.ip = fn_address;
@@ -1385,6 +1490,12 @@ impl Vm {
 
     /// Pop a value from the stack, freeing it if it's no longer use.
     pub fn managed_pop(&mut self) -> Result<ValuePtr, StackError> {
+        if self.stack.len() == self.frame_top {
+            return Err(StackError::PopOutOfBounds {
+                frame: self.frame_top,
+            });
+        }
+
         let value = self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
 
         if let Some((managed, slot)) = value.try_into_managed() {
@@ -1533,6 +1644,7 @@ impl Vm {
         self.frames.push(Frame {
             ip: self.ip,
             old_frame_top: self.frame_top,
+            args,
         });
 
         self.frame_top = offset;
@@ -1547,9 +1659,17 @@ impl Vm {
             .pop()
             .ok_or_else(|| StackError::StackFramesEmpty)?;
 
+        let mut args = frame.args;
+
         // Pop all values associated with the call frame.
         while self.stack.len() > self.frame_top {
-            self.managed_pop()?;
+            let popped = self.managed_pop()?;
+
+            if args == 0 {
+                log::warn!("popped value as part of stack frame: {:?}", popped);
+            } else {
+                args -= 1;
+            }
         }
 
         self.frame_top = frame.old_frame_top;

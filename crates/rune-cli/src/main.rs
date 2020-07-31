@@ -18,7 +18,6 @@ fn main() -> Result<()> {
 
     let mut args = env::args();
     args.next();
-    args.next();
 
     let mut path = None;
     let mut trace = false;
@@ -29,6 +28,7 @@ fn main() -> Result<()> {
 
     for arg in args {
         match arg.as_str() {
+            "--" => continue,
             "--trace" => {
                 trace = true;
             }
@@ -67,7 +67,7 @@ fn main() -> Result<()> {
         println!("  --trace          - Provide detailed tracing for each instruction executed.");
         println!("  --dump           - Dump all forms of diagnostic.");
         println!("  --dump-unit      - Dump diagnostics on the unit generated from the file.");
-        println!("  --dump-vm-state  - Dump diagnostics on VM state (stack).");
+        println!("  --dump-vm        - Dump diagnostics on VM state. If combined with `--trace`, does so afte each instruction.");
         println!("  --dump-functions - Dump available functions.");
         return Ok(());
     }
@@ -123,11 +123,44 @@ fn main() -> Result<()> {
     }
 
     if dump_unit {
+        use std::io::Write as _;
+
         println!("# unit dump");
         println!("instructions:");
 
-        for (i, inst) in unit.iter_instructions().enumerate() {
-            println!("{:04} = {:?}", i, inst);
+        let mut first_function = true;
+
+        for (n, inst) in unit.iter_instructions().enumerate() {
+            let out = std::io::stdout();
+            let mut out = out.lock();
+
+            let debug = unit.debug_info_at(n);
+
+            if let Some((hash, function)) = unit.function_at(n) {
+                if first_function {
+                    first_function = false;
+                } else {
+                    writeln!(out)?;
+                }
+
+                writeln!(out, "fn {} ({}):", function.signature, hash)?;
+            }
+
+            if let Some(debug) = debug {
+                if let Some(label) = debug.label {
+                    writeln!(out, "{}:", label)?;
+                }
+            }
+
+            write!(out, "  {:04} = {}", n, inst)?;
+
+            if let Some(debug) = debug {
+                if let Some(comment) = &debug.comment {
+                    write!(out, " // {}", comment)?;
+                }
+            }
+
+            writeln!(out)?;
         }
 
         println!("imports:");
@@ -139,7 +172,7 @@ fn main() -> Result<()> {
         println!("functions:");
 
         for (hash, f) in unit.iter_functions() {
-            println!("{} = {:?}", hash, f);
+            println!("{} = {} (at: {})", hash, f.signature, f.offset);
         }
 
         println!("strings:");
@@ -159,11 +192,36 @@ fn main() -> Result<()> {
 
     let result = loop {
         if trace {
-            if let Some(inst) = task.unit.instruction_at(task.vm.ip()) {
-                println!("{:04} = {:?}", task.vm.ip(), inst,);
-            } else {
-                println!("{:04} = *out of bounds*", task.vm.ip(),);
+            use std::io::Write as _;
+
+            let out = std::io::stdout();
+            let mut out = out.lock();
+
+            let debug = task.unit.debug_info_at(task.vm.ip());
+
+            if let Some((hash, function)) = unit.function_at(task.vm.ip()) {
+                writeln!(out, "fn {} ({}):", function.signature, hash)?;
             }
+
+            if let Some(debug) = debug {
+                if let Some(label) = debug.label {
+                    writeln!(out, "{}:", label)?;
+                }
+            }
+
+            if let Some(inst) = task.unit.instruction_at(task.vm.ip()) {
+                write!(out, "  {:04} = {}", task.vm.ip(), inst)?;
+            } else {
+                write!(out, "  {:04} = *out of bounds*", task.vm.ip(),)?;
+            }
+
+            if let Some(debug) = debug {
+                if let Some(comment) = &debug.comment {
+                    write!(out, " // {}", comment)?;
+                }
+            }
+
+            writeln!(out)?;
         }
 
         let result = runtime.block_on(task.step());

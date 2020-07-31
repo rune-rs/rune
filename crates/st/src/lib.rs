@@ -18,16 +18,14 @@ mod value;
 mod vm;
 #[macro_use]
 mod macros;
-mod assembler;
 mod error;
 mod hash;
 pub mod packages;
 mod reflection;
 mod serde;
 pub mod tls;
-mod unit;
+pub mod unit;
 
-pub use crate::assembler::{Assembler, AssemblyError};
 pub use crate::error::{Error, Result};
 pub use crate::functions::{Functions, ItemPath, Module, RegisterError};
 pub use crate::hash::Hash;

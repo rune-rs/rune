@@ -1,3 +1,8 @@
+//! A single execution unit in the ST virtual machine.
+//!
+//! A unit consists of an array of instructions, and lookaside tables for
+//! metadata like function locations.
+
 use crate::collections::HashMap;
 use crate::functions::ItemPath;
 use crate::hash::Hash;
@@ -38,15 +43,95 @@ pub enum UnitError {
         /// The existing static string that conflicted.
         existing: String,
     },
+    /// Tried to add a duplicate label.
+    #[error("duplicate label `{label}`")]
+    DuplicateLabel {
+        /// The duplicate label.
+        label: Label,
+    },
+    /// The specified label is missing.
+    #[error("missing label `{label}`")]
+    MissingLabel {
+        /// The missing label.
+        label: Label,
+    },
+}
+
+/// A span corresponding to a range in the source file being parsed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct Span {
+    /// The start of the span in bytes.
+    pub start: usize,
+    /// The end of the span in bytes.
+    pub end: usize,
+}
+
+impl Span {
+    /// Join this span with another span.
+    pub fn join(self, other: Self) -> Self {
+        Self {
+            start: usize::min(self.start, other.start),
+            end: usize::min(self.end, other.end),
+        }
+    }
+
+    /// Get the point span.
+    pub fn point(pos: usize) -> Self {
+        Self {
+            start: pos,
+            end: pos,
+        }
+    }
+
+    /// Narrow the span with the given amount.
+    pub fn narrow(self, amount: usize) -> Self {
+        Self {
+            start: self.start.saturating_add(amount),
+            end: self.end.saturating_sub(amount),
+        }
+    }
+
+    /// Return the zero-based line and column.
+    pub fn line_col(self, source: &str) -> (usize, usize) {
+        let mut line = 0;
+        let mut col = 0;
+
+        let mut it = source.chars();
+        let mut count = 0;
+
+        while let Some(c) = it.next() {
+            if count >= self.start {
+                break;
+            }
+
+            count += c.encode_utf8(&mut [0u8; 4]).len();
+
+            if let '\n' | '\r' = c {
+                if c == '\n' {
+                    line += 1;
+                }
+
+                if col > 0 {
+                    col = 0;
+                }
+
+                continue;
+            }
+
+            col += 1;
+        }
+
+        (line, col)
+    }
 }
 
 /// Information about a registered function.
 #[derive(Debug)]
 pub struct UnitFnInfo {
     /// Offset into the instruction set.
-    offset: usize,
+    pub offset: usize,
     /// Signature of the function.
-    signature: UnitFnSignature,
+    pub signature: UnitFnSignature,
 }
 
 /// A description of a function signature.
@@ -86,6 +171,17 @@ impl fmt::Display for UnitFnSignature {
     }
 }
 
+/// Debug information for every instruction.
+#[derive(Debug)]
+pub struct DebugInfo {
+    /// The span of the instruction.
+    pub span: Span,
+    /// The comment for the line.
+    pub comment: Option<Box<str>>,
+    /// Label associated with the location.
+    pub label: Option<Label>,
+}
+
 /// Instructions from a single source file.
 #[derive(Debug)]
 pub struct Unit {
@@ -98,10 +194,16 @@ pub struct Unit {
     imports: HashMap<String, ItemPath>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFnInfo>,
+    /// Function by address.
+    functions_rev: HashMap<usize, Hash>,
     /// A static string.
     static_strings: Vec<String>,
     /// Reverse lookup for static strings.
     static_string_rev: HashMap<Hash, usize>,
+    /// Debug info for each line.
+    debug: Vec<DebugInfo>,
+    /// The current label count.
+    label_count: usize,
 }
 
 impl Unit {
@@ -111,8 +213,11 @@ impl Unit {
             instructions: Vec::new(),
             imports: HashMap::new(),
             functions: HashMap::new(),
+            functions_rev: HashMap::new(),
             static_strings: Vec::new(),
             static_string_rev: HashMap::new(),
+            debug: Vec::new(),
+            label_count: 0,
         }
     }
 
@@ -122,6 +227,17 @@ impl Unit {
         this.imports
             .insert(String::from("dbg"), ItemPath::of(&["core", "dbg"]));
         this
+    }
+
+    /// Access the function at the given instruction location.
+    pub fn function_at(&self, n: usize) -> Option<(Hash, &UnitFnInfo)> {
+        let hash = self.functions_rev.get(&n).copied()?;
+        Some((hash, self.functions.get(&hash)?))
+    }
+
+    /// Access debug information for the given location if it is available.
+    pub fn debug_info_at(&self, n: usize) -> Option<&DebugInfo> {
+        self.debug.get(n)
     }
 
     /// Get the instruction at the given instruction pointer.
@@ -228,21 +344,27 @@ impl Unit {
         Ok(())
     }
 
+    /// Construct a new empty assembly associated with the current unit.
+    pub fn new_assembly(&mut self) -> Assembly {
+        Assembly::new(self.label_count)
+    }
+
     /// Declare a new function at the current instruction pointer.
     pub fn new_function<I>(
         &mut self,
         path: I,
         args: usize,
-        instructions: Vec<Inst>,
+        assembly: Assembly,
     ) -> Result<(), UnitError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
         let offset = self.instructions.len();
-
         let path = ItemPath::of(path);
         let hash = Hash::function(&path);
+
+        self.functions_rev.insert(offset, hash);
 
         let info = UnitFnInfo {
             offset,
@@ -255,7 +377,158 @@ impl Unit {
             });
         }
 
-        self.instructions.extend(instructions);
+        self.add_assembly(assembly)?;
         Ok(())
+    }
+
+    /// Translate the given assembly into instructions.
+    fn add_assembly(&mut self, assembly: Assembly) -> Result<(), UnitError> {
+        self.label_count = assembly.label_count;
+
+        for (pos, (inst, span)) in assembly.instructions.into_iter().enumerate() {
+            let mut comment = None;
+            let label = assembly.labels_rev.get(&pos).copied();
+
+            self.instructions.push(match inst {
+                AssemblyInst::Jump { label } => {
+                    comment = Some(format!("label:{}", label).into_boxed_str());
+
+                    Inst::Jump {
+                        offset: translate_offset(pos, label, &assembly.labels)?,
+                    }
+                }
+                AssemblyInst::JumpIf { label } => {
+                    comment = Some(format!("label:{}", label).into_boxed_str());
+
+                    Inst::JumpIf {
+                        offset: translate_offset(pos, label, &assembly.labels)?,
+                    }
+                }
+                AssemblyInst::JumpIfNot { label } => {
+                    comment = Some(format!("label:{}", label).into_boxed_str());
+
+                    Inst::JumpIfNot {
+                        offset: translate_offset(pos, label, &assembly.labels)?,
+                    }
+                }
+                AssemblyInst::Raw { raw } => raw,
+            });
+
+            self.debug.push(DebugInfo {
+                span,
+                comment,
+                label,
+            });
+        }
+
+        return Ok(());
+
+        fn translate_offset(
+            base: usize,
+            label: Label,
+            labels: &HashMap<Label, usize>,
+        ) -> Result<isize, UnitError> {
+            let base = base as isize;
+
+            let offset = labels
+                .get(&label)
+                .copied()
+                .ok_or_else(|| UnitError::MissingLabel {
+                    label: label.to_owned(),
+                })?;
+
+            Ok((offset as isize) - base)
+        }
+    }
+}
+
+/// A label that can be jumped to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Label {
+    name: &'static str,
+    ident: usize,
+}
+
+impl fmt::Display for Label {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "{}_{}", self.name, self.ident)
+    }
+}
+
+#[derive(Debug, Clone)]
+enum AssemblyInst {
+    Jump { label: Label },
+    JumpIf { label: Label },
+    JumpIfNot { label: Label },
+    Raw { raw: Inst },
+}
+
+/// Helper structure to build instructions and maintain certain invariants.
+#[derive(Debug, Clone, Default)]
+pub struct Assembly {
+    /// Label to offset.
+    labels: HashMap<Label, usize>,
+    /// Registered label by offset.
+    labels_rev: HashMap<usize, Label>,
+    /// Instructions with spans.
+    instructions: Vec<(AssemblyInst, Span)>,
+    /// The number of labels.
+    label_count: usize,
+}
+
+impl Assembly {
+    /// Construct a new assembly.
+    fn new(label_count: usize) -> Self {
+        Self {
+            labels: Default::default(),
+            labels_rev: Default::default(),
+            instructions: Default::default(),
+            label_count,
+        }
+    }
+
+    /// Construct and return a new label.
+    pub fn new_label(&mut self, name: &'static str) -> Label {
+        let label = Label {
+            name,
+            ident: self.label_count,
+        };
+
+        self.label_count += 1;
+        label
+    }
+
+    /// Apply the label at the current instruction offset.
+    pub fn label(&mut self, label: Label) -> Result<Label, UnitError> {
+        let offset = self.instructions.len();
+
+        if let Some(_) = self.labels.insert(label, offset) {
+            return Err(UnitError::DuplicateLabel { label });
+        }
+
+        self.labels_rev.insert(offset, label);
+        Ok(label)
+    }
+
+    /// Add a jump to the given label.
+    pub fn jump(&mut self, label: Label, span: Span) {
+        self.instructions.push((AssemblyInst::Jump { label }, span));
+    }
+
+    /// Add a conditional jump to the given label.
+    pub fn jump_if(&mut self, label: Label, span: Span) {
+        self.instructions
+            .push((AssemblyInst::JumpIf { label }, span));
+    }
+
+    /// Add a conditional jump to the given label.
+    pub fn jump_if_not(&mut self, label: Label, span: Span) {
+        self.instructions
+            .push((AssemblyInst::JumpIfNot { label }, span));
+    }
+
+    /// Push a raw instruction.
+    pub fn push(&mut self, raw: Inst, span: Span) {
+        self.instructions.push((AssemblyInst::Raw { raw }, span));
     }
 }

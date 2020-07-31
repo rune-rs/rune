@@ -1,5 +1,5 @@
 use crate::error::{ResolveError, Result};
-use crate::token::Span;
+use st::unit::Span;
 
 /// A parsed input coupled with it's source.
 #[derive(Debug, Clone, Copy)]

@@ -115,19 +115,18 @@ impl<'a> crate::ParseAll<'a, ast::File> {
             let name = f.name.resolve(source)?;
             let count = f.args.items.len();
 
-            let mut assembler = st::Assembler::new();
+            let mut assembly = unit.new_assembly();
 
             let mut encoder = Encoder {
                 unit: &mut unit,
-                instructions: &mut assembler,
+                instructions: &mut assembly,
                 parents: Vec::new(),
                 locals: Locals::new(),
                 source,
-                level: 0,
             };
 
             encoder.encode_fn_decl(f)?;
-            unit.new_function(&[name], count, assembler.assembly()?)?;
+            unit.new_function(&[name], count, assembly)?;
         }
 
         Ok(unit)
@@ -136,72 +135,74 @@ impl<'a> crate::ParseAll<'a, ast::File> {
 
 struct Encoder<'a> {
     unit: &'a mut st::Unit,
-    instructions: &'a mut st::Assembler,
+    instructions: &'a mut st::unit::Assembly,
     parents: Vec<Locals>,
     locals: Locals,
     source: Source<'a>,
-    level: usize,
 }
 
 impl<'a> Encoder<'a> {
     fn encode_fn_decl(&mut self, fn_decl: ast::FnDecl) -> Result<(), EncodeError> {
+        let span = fn_decl.span();
+
         for arg in fn_decl.args.items.into_iter() {
             let name = arg.resolve(self.source)?;
             self.locals.new_local(name, arg.token)?;
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
-            self.instructions.push(st::Inst::ReturnUnit);
+            self.instructions.push(st::Inst::ReturnUnit, span);
             return Ok(());
         }
 
-        for (expr, _) in fn_decl.body.exprs {
+        for (expr, _) in &fn_decl.body.exprs {
             let is_empty = expr.is_empty();
             self.encode_expr(expr)?;
 
             if !is_empty {
-                self.instructions.push(st::Inst::Pop);
+                self.instructions.push(st::Inst::Pop, expr.span());
             }
         }
 
-        if let Some(expr) = fn_decl.body.trailing_expr {
+        if let Some(expr) = &fn_decl.body.trailing_expr {
             let is_empty = expr.is_empty();
+            let span = expr.span();
             self.encode_expr(expr)?;
 
             if is_empty {
-                self.instructions.push(st::Inst::ReturnUnit);
+                self.instructions.push(st::Inst::ReturnUnit, span);
             } else {
-                self.instructions.push(st::Inst::Return);
+                self.instructions.push(st::Inst::Return, span);
             }
         } else {
-            self.instructions.push(st::Inst::ReturnUnit);
+            self.instructions.push(st::Inst::ReturnUnit, span);
         }
 
         Ok(())
     }
 
     /// Encode a block.
-    fn encode_block(&mut self, block: ast::Block) -> Result<(), EncodeError> {
+    fn encode_block(&mut self, block: &ast::Block) -> Result<(), EncodeError> {
         log::trace!("{:?}", block);
         let span = block.span();
 
         self.parents.push(self.locals.clone());
 
-        for (expr, _) in block.exprs {
+        for (expr, _) in &block.exprs {
             let is_empty = expr.is_empty();
             self.encode_expr(expr)?;
 
             if !is_empty {
-                self.instructions.push(st::Inst::Pop);
+                self.instructions.push(st::Inst::Pop, expr.span());
             }
         }
 
-        if let Some(expr) = block.trailing_expr {
+        if let Some(expr) = &block.trailing_expr {
             let is_empty = expr.is_empty();
             self.encode_expr(expr)?;
 
             if is_empty {
-                self.instructions.push(st::Inst::Unit);
+                self.instructions.push(st::Inst::Unit, expr.span());
             }
         }
 
@@ -215,7 +216,7 @@ impl<'a> Encoder<'a> {
     }
 
     /// Encode an expression.
-    fn encode_expr(&mut self, expr: ast::Expr) -> Result<(), EncodeError> {
+    fn encode_expr(&mut self, expr: &ast::Expr) -> Result<(), EncodeError> {
         log::trace!("{:?}", expr);
 
         match expr {
@@ -232,7 +233,7 @@ impl<'a> Encoder<'a> {
                 self.encode_index_set(index_set)?;
             }
             ast::Expr::ExprGroup(expr) => {
-                self.encode_expr(*expr.expr)?;
+                self.encode_expr(&*expr.expr)?;
             }
             ast::Expr::Ident(ident) => {
                 self.encode_local_copy(ident)?;
@@ -261,21 +262,23 @@ impl<'a> Encoder<'a> {
             ast::Expr::ArrayLiteral(array_literal) => {
                 let count = array_literal.items.len();
 
-                for expr in array_literal.items.into_iter().rev() {
+                for expr in array_literal.items.iter().rev() {
                     self.encode_expr(expr)?;
                 }
 
-                self.instructions.push(st::Inst::Array { count })
+                self.instructions
+                    .push(st::Inst::Array { count }, array_literal.span())
             }
             ast::Expr::ObjectLiteral(object_literal) => {
                 let count = object_literal.items.len();
 
-                for (key, _, value) in object_literal.items.into_iter().rev() {
+                for (key, _, value) in object_literal.items.iter().rev() {
                     self.encode_expr(value)?;
                     self.encode_string_literal(key)?;
                 }
 
-                self.instructions.push(st::Inst::Object { count })
+                self.instructions
+                    .push(st::Inst::Object { count }, object_literal.span())
             }
             ast::Expr::StringLiteral(string) => {
                 self.encode_string_literal(string)?;
@@ -288,81 +291,85 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_string_literal(&mut self, string: ast::StringLiteral) -> Result<(), EncodeError> {
+    fn encode_string_literal(&mut self, string: &ast::StringLiteral) -> Result<(), EncodeError> {
+        let span = string.span();
         let string = string.resolve(self.source)?;
         let slot = self.unit.static_string(&*string)?;
-        self.instructions.push(st::Inst::String { slot });
+        self.instructions.push(st::Inst::String { slot }, span);
         Ok(())
     }
 
-    fn encode_unit_literal(&mut self, _: ast::UnitLiteral) -> Result<(), EncodeError> {
-        self.instructions.push(st::Inst::Unit);
+    fn encode_unit_literal(&mut self, literal: &ast::UnitLiteral) -> Result<(), EncodeError> {
+        self.instructions.push(st::Inst::Unit, literal.span());
         Ok(())
     }
 
-    fn encode_bool_literal(&mut self, b: ast::BoolLiteral) -> Result<(), EncodeError> {
-        self.instructions.push(st::Inst::Bool { value: b.value });
+    fn encode_bool_literal(&mut self, b: &ast::BoolLiteral) -> Result<(), EncodeError> {
+        self.instructions
+            .push(st::Inst::Bool { value: b.value }, b.span());
         Ok(())
     }
 
-    fn encode_number_literal(&mut self, number: ast::NumberLiteral) -> Result<(), EncodeError> {
+    fn encode_number_literal(&mut self, number: &ast::NumberLiteral) -> Result<(), EncodeError> {
+        let span = number.span();
         let number = number.resolve(self.source)?;
 
         match number {
             ast::Number::Float(number) => {
-                self.instructions.push(st::Inst::Float { number });
+                self.instructions.push(st::Inst::Float { number }, span);
             }
             ast::Number::Integer(number) => {
-                self.instructions.push(st::Inst::Integer { number });
+                self.instructions.push(st::Inst::Integer { number }, span);
             }
         }
 
         Ok(())
     }
 
-    fn encode_while(&mut self, while_: ast::While) -> Result<(), EncodeError> {
+    fn encode_while(&mut self, while_: &ast::While) -> Result<(), EncodeError> {
         log::trace!("{:?}", while_);
-        let level = self.level;
-        self.level += 1;
+
+        let span = while_.span();
 
         let is_empty = while_.body.is_empty();
-        let start_label = format!("while/condition/{}", level);
-        let end_label = format!("while/end/{}", level);
+        let start_label = self.instructions.new_label("while_test");
+        let end_label = self.instructions.new_label("while_end");
 
-        self.instructions.label(&start_label)?;
-        self.encode_expr(*while_.condition)?;
-        self.instructions.jump_if_not(&end_label);
-        self.encode_block(*while_.body)?;
+        self.instructions.label(start_label)?;
+        self.encode_expr(&*while_.condition)?;
+        self.instructions.jump_if_not(end_label, span);
+        self.encode_block(&*while_.body)?;
 
         if is_empty {
-            self.instructions.push(st::Inst::Unit);
+            self.instructions.push(st::Inst::Unit, span);
         }
 
-        self.instructions.jump(&start_label);
-        self.instructions.label(&end_label)?;
+        self.instructions.jump(start_label, span);
+        self.instructions.label(end_label)?;
         Ok(())
     }
 
-    fn encode_let(&mut self, let_: ast::Let) -> Result<(), EncodeError> {
+    fn encode_let(&mut self, let_: &ast::Let) -> Result<(), EncodeError> {
         log::trace!("{:?}", let_);
 
         let name = let_.name.resolve(self.source)?;
-        self.encode_expr(*let_.expr)?;
+        self.encode_expr(&*let_.expr)?;
 
         if let Err(offset) = self.locals.decl_var(name, let_.name.token) {
             // We are overloading an existing variable, so just replace it.
-            self.instructions.push(st::Inst::Replace { offset });
+            self.instructions
+                .push(st::Inst::Replace { offset }, let_.span());
         }
 
         Ok(())
     }
 
-    fn encode_update(&mut self, update: ast::Update) -> Result<(), EncodeError> {
+    fn encode_update(&mut self, update: &ast::Update) -> Result<(), EncodeError> {
         log::trace!("{:?}", update);
 
         let token = update.name.token;
         let name = update.name.resolve(self.source)?;
-        self.encode_expr(*update.expr)?;
+        self.encode_expr(&*update.expr)?;
 
         let offset = self
             .locals
@@ -372,26 +379,27 @@ impl<'a> Encoder<'a> {
                 span: token.span,
             })?;
 
-        self.instructions.push(st::Inst::Replace { offset });
+        self.instructions
+            .push(st::Inst::Replace { offset }, update.span());
         Ok(())
     }
 
-    fn encode_index_get(&mut self, index_get: ast::IndexGet) -> Result<(), EncodeError> {
-        self.encode_expr(*index_get.index)?;
-        self.encode_local_copy(index_get.target)?;
-        self.instructions.push(st::Inst::IndexGet);
+    fn encode_index_get(&mut self, index_get: &ast::IndexGet) -> Result<(), EncodeError> {
+        self.encode_expr(&*index_get.index)?;
+        self.encode_local_copy(&index_get.target)?;
+        self.instructions.push(st::Inst::IndexGet, index_get.span());
         Ok(())
     }
 
-    fn encode_index_set(&mut self, index_set: ast::IndexSet) -> Result<(), EncodeError> {
-        self.encode_expr(*index_set.value)?;
-        self.encode_expr(*index_set.index)?;
-        self.encode_local_copy(index_set.target)?;
-        self.instructions.push(st::Inst::IndexSet);
+    fn encode_index_set(&mut self, index_set: &ast::IndexSet) -> Result<(), EncodeError> {
+        self.encode_expr(&*index_set.value)?;
+        self.encode_expr(&*index_set.index)?;
+        self.encode_local_copy(&index_set.target)?;
+        self.instructions.push(st::Inst::IndexSet, index_set.span());
         Ok(())
     }
 
-    fn encode_local_copy(&mut self, ident: ast::Ident) -> Result<(), EncodeError> {
+    fn encode_local_copy(&mut self, ident: &ast::Ident) -> Result<(), EncodeError> {
         let target = ident.resolve(self.source)?;
 
         let offset = self
@@ -402,12 +410,13 @@ impl<'a> Encoder<'a> {
                 span: ident.token.span,
             })?;
 
-        self.instructions.push(st::Inst::Copy { offset });
+        self.instructions
+            .push(st::Inst::Copy { offset }, ident.span());
         Ok(())
     }
 
     /// Decode a path into a call destination based on its hashes.
-    fn decode_call_dest(&self, path: ast::Path) -> Result<st::Hash, EncodeError> {
+    fn decode_call_dest(&self, path: &ast::Path) -> Result<st::Hash, EncodeError> {
         let local = path.first.resolve(self.source)?;
 
         let imported = match self.unit.lookup_import_by_name(local).cloned() {
@@ -417,7 +426,7 @@ impl<'a> Encoder<'a> {
 
         let mut rest = Vec::new();
 
-        for (_, part) in path.rest {
+        for (_, part) in &path.rest {
             rest.push(part.resolve(self.source)?);
         }
 
@@ -429,153 +438,170 @@ impl<'a> Encoder<'a> {
         Ok(st::Hash::function(it))
     }
 
-    fn encode_call_fn(&mut self, call_fn: ast::CallFn) -> Result<(), EncodeError> {
+    fn encode_call_fn(&mut self, call_fn: &ast::CallFn) -> Result<(), EncodeError> {
         log::trace!("{:?}", call_fn);
 
         let args = call_fn.args.items.len();
 
-        for expr in call_fn.args.items.into_iter().rev() {
+        for expr in call_fn.args.items.iter().rev() {
             self.encode_expr(expr)?;
         }
 
-        let hash = self.decode_call_dest(call_fn.name)?;
-        self.instructions.push(st::Inst::Call { hash, args });
+        let hash = self.decode_call_dest(&call_fn.name)?;
+        self.instructions
+            .push(st::Inst::Call { hash, args }, call_fn.span());
         Ok(())
     }
 
     fn encode_call_instance_fn(
         &mut self,
-        call_instance_fn: ast::CallInstanceFn,
+        call_instance_fn: &ast::CallInstanceFn,
     ) -> Result<(), EncodeError> {
         log::trace!("{:?}", call_instance_fn);
 
         let args = call_instance_fn.args.items.len();
 
-        for expr in call_instance_fn.args.items.into_iter().rev() {
+        for expr in call_instance_fn.args.items.iter().rev() {
             self.encode_expr(expr)?;
         }
 
-        self.encode_expr(*call_instance_fn.instance)?;
+        self.encode_expr(&*call_instance_fn.instance)?;
 
         let name = call_instance_fn.name.resolve(self.source)?;
         let hash = st::Hash::of(name);
-        self.instructions
-            .push(st::Inst::CallInstance { hash, args });
+        self.instructions.push(
+            st::Inst::CallInstance { hash, args },
+            call_instance_fn.span(),
+        );
         Ok(())
     }
 
-    fn encode_expr_binary(&mut self, expr_binary: ast::ExprBinary) -> Result<(), EncodeError> {
+    fn encode_expr_binary(&mut self, expr_binary: &ast::ExprBinary) -> Result<(), EncodeError> {
         log::trace!("{:?}", expr_binary);
 
-        self.encode_expr(*expr_binary.lhs)?;
-        self.encode_expr(*expr_binary.rhs)?;
+        let span = expr_binary.span();
+
+        self.encode_expr(&*expr_binary.lhs)?;
+        self.encode_expr(&*expr_binary.rhs)?;
 
         match expr_binary.op {
             ast::BinOp::Add { .. } => {
-                self.instructions.push(st::Inst::Add);
+                self.instructions.push(st::Inst::Add, span);
             }
             ast::BinOp::Sub { .. } => {
-                self.instructions.push(st::Inst::Sub);
+                self.instructions.push(st::Inst::Sub, span);
             }
             ast::BinOp::Div { .. } => {
-                self.instructions.push(st::Inst::Div);
+                self.instructions.push(st::Inst::Div, span);
             }
             ast::BinOp::Mul { .. } => {
-                self.instructions.push(st::Inst::Mul);
+                self.instructions.push(st::Inst::Mul, span);
             }
             ast::BinOp::Eq { .. } => {
-                self.instructions.push(st::Inst::Eq);
+                self.instructions.push(st::Inst::Eq, span);
             }
             ast::BinOp::Neq { .. } => {
-                self.instructions.push(st::Inst::Neq);
+                self.instructions.push(st::Inst::Neq, span);
             }
             ast::BinOp::Lt { .. } => {
-                self.instructions.push(st::Inst::Lt);
+                self.instructions.push(st::Inst::Lt, span);
             }
             ast::BinOp::Gt { .. } => {
-                self.instructions.push(st::Inst::Gt);
+                self.instructions.push(st::Inst::Gt, span);
             }
             ast::BinOp::Lte { .. } => {
-                self.instructions.push(st::Inst::Lte);
+                self.instructions.push(st::Inst::Lte, span);
             }
             ast::BinOp::Gte { .. } => {
-                self.instructions.push(st::Inst::Gte);
+                self.instructions.push(st::Inst::Gte, span);
             }
         }
 
         Ok(())
     }
 
-    fn encode_expr_if(&mut self, expr_if: ast::ExprIf) -> Result<(), EncodeError> {
+    fn encode_expr_if(&mut self, expr_if: &ast::ExprIf) -> Result<(), EncodeError> {
+        let span = expr_if.span();
+
         log::trace!("{:?}", expr_if);
-        let level = self.level;
-        self.level += 1;
+
+        let then_label = self.instructions.new_label("if_then");
+        let end_label = self.instructions.new_label("if_end");
+
+        let mut branch_labels = Vec::new();
 
         let is_unit = expr_if.expr_else.is_none();
 
-        self.encode_expr(*expr_if.condition)?;
-        self.instructions.jump_if(format!("if/branch/{}", level));
+        self.encode_expr(&*expr_if.condition)?;
+        self.instructions.jump_if(then_label, span);
 
-        for (i, branch) in expr_if.expr_else_ifs.clone().into_iter().enumerate() {
-            self.encode_expr(*branch.condition)?;
-            self.instructions
-                .jump_if(format!("if/branch/{}/{}", level, i));
+        for branch in &expr_if.expr_else_ifs {
+            let label = self.instructions.new_label("if_branch");
+            branch_labels.push(label);
+
+            self.encode_expr(&*branch.condition)?;
+            self.instructions.jump_if(label, branch.span());
         }
 
         // use fallback as fall through.
-        if let Some(fallback) = expr_if.expr_else {
+        if let Some(fallback) = &expr_if.expr_else {
+            let span = fallback.span();
             let is_empty = fallback.block.is_empty();
-            self.encode_block(*fallback.block)?;
+            self.encode_block(&*fallback.block)?;
 
             if is_empty {
-                self.instructions.push(st::Inst::Unit);
+                self.instructions.push(st::Inst::Unit, span);
             } else if is_unit {
-                self.instructions.push(st::Inst::Pop);
-                self.instructions.push(st::Inst::Unit);
+                self.instructions.push(st::Inst::Pop, span);
+                self.instructions.push(st::Inst::Unit, span);
             }
         } else {
-            self.instructions.push(st::Inst::Unit);
+            self.instructions.push(st::Inst::Unit, span);
         }
 
-        self.instructions.jump(format!("if/end/{}", level));
+        self.instructions.jump(end_label, span);
 
-        self.instructions.label(format!("if/branch/{}", level))?;
+        self.instructions.label(then_label)?;
 
         let is_empty = expr_if.block.is_empty();
-        self.encode_block(*expr_if.block)?;
+        self.encode_block(&*expr_if.block)?;
 
         if is_empty {
-            self.instructions.push(st::Inst::Unit);
+            self.instructions.push(st::Inst::Unit, span);
         } else if is_unit {
-            self.instructions.push(st::Inst::Pop);
-            self.instructions.push(st::Inst::Unit);
+            self.instructions.push(st::Inst::Pop, span);
+            self.instructions.push(st::Inst::Unit, span);
         }
 
         if !expr_if.expr_else_ifs.is_empty() {
-            self.instructions.jump(format!("if/end/{}", level));
+            self.instructions.jump(end_label, span);
         }
 
-        let mut it = expr_if.expr_else_ifs.into_iter().enumerate().peekable();
+        let mut it = expr_if
+            .expr_else_ifs
+            .iter()
+            .zip(branch_labels.iter().copied())
+            .peekable();
 
-        if let Some((i, branch)) = it.next() {
+        if let Some((branch, label)) = it.next() {
+            let span = branch.span();
             let is_empty = branch.block.is_empty();
-            self.instructions
-                .label(format!("if/branch/{}/{}", level, i))?;
-            self.encode_block(*branch.block)?;
+            self.instructions.label(label)?;
+            self.encode_block(&*branch.block)?;
 
             if is_empty {
-                self.instructions.push(st::Inst::Unit);
+                self.instructions.push(st::Inst::Unit, span);
             } else if is_unit {
-                self.instructions.push(st::Inst::Pop);
-                self.instructions.push(st::Inst::Unit);
+                self.instructions.push(st::Inst::Pop, span);
+                self.instructions.push(st::Inst::Unit, span);
             }
 
             if it.peek().is_some() {
-                self.instructions.jump(format!("if/end/{}", level));
+                self.instructions.jump(end_label, span);
             }
         }
 
-        self.instructions.label(format!("if/end/{}", level))?;
+        self.instructions.label(end_label)?;
         Ok(())
     }
 }

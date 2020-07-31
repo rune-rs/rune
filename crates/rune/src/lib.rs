@@ -15,8 +15,9 @@ pub use crate::error::{EncodeError, Error, ParseError, ResolveError, Result, Spa
 pub use crate::lexer::Lexer;
 pub use crate::parser::Parser;
 pub use crate::source::Source;
-pub use crate::token::{Kind, Span, Token};
+pub use crate::token::{Kind, Token};
 pub use crate::traits::Resolve;
+pub use st::unit::Span;
 
 /// Helper function to compile the given source.
 pub fn compile(source: &str) -> Result<st::Unit> {

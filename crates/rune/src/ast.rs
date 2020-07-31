@@ -3,8 +3,9 @@
 use crate::error::{ParseError, ResolveError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
-use crate::token::{self, Delimiter, Kind, Span, Token};
+use crate::token::{self, Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek, Resolve};
+use st::unit::Span;
 use std::borrow::Cow;
 
 /// A parsed file.
@@ -241,7 +242,7 @@ impl Parse for NumberLiteral {
 impl<'a> Resolve<'a> for NumberLiteral {
     type Output = Number;
 
-    fn resolve(self, source: Source<'a>) -> Result<Number, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<Number, ResolveError> {
         let string = source.source(self.token.span)?;
 
         let number = match self.number {
@@ -284,7 +285,7 @@ impl StringLiteral {
 }
 
 impl StringLiteral {
-    fn parse_escaped(self, source: &str) -> Result<String, ResolveError> {
+    fn parse_escaped(&self, source: &str) -> Result<String, ResolveError> {
         let mut buffer = String::with_capacity(source.len());
         let mut it = source.chars();
 
@@ -321,7 +322,7 @@ impl StringLiteral {
 impl<'a> Resolve<'a> for StringLiteral {
     type Output = Cow<'a, str>;
 
-    fn resolve(self, source: Source<'a>) -> Result<Cow<'a, str>, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<Cow<'a, str>, ResolveError> {
         let string = source.source(self.token.span.narrow(1))?;
 
         Ok(if self.escaped {
@@ -515,6 +516,13 @@ pub struct ExprElseIf {
     pub block: Box<Block>,
 }
 
+impl ExprElseIf {
+    /// Access the span for the expression.
+    pub fn span(&self) -> Span {
+        self.else_.span().join(self.block.span())
+    }
+}
+
 impl Parse for ExprElseIf {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(Self {
@@ -533,6 +541,13 @@ pub struct ExprElse {
     pub else_: ElseToken,
     /// The body of the else statement.
     pub block: Box<Block>,
+}
+
+impl ExprElse {
+    /// Access the span for the expression.
+    pub fn span(&self) -> Span {
+        self.else_.span().join(self.block.span())
+    }
 }
 
 impl Parse for ExprElse {
@@ -1323,6 +1338,13 @@ pub struct FnDecl {
     pub body: Block,
 }
 
+impl FnDecl {
+    /// Access the span for the function declaration.
+    pub fn span(&self) -> Span {
+        self.fn_.span().join(self.body.span())
+    }
+}
+
 /// Parse implementation for a function.
 ///
 /// # Examples
@@ -1634,7 +1656,7 @@ decl_tokens! {
 impl<'a> Resolve<'a> for Ident {
     type Output = &'a str;
 
-    fn resolve(self, source: Source<'a>) -> Result<&'a str, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<&'a str, ResolveError> {
         source.source(self.token.span)
     }
 }
