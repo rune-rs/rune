@@ -1,6 +1,6 @@
 //! The bytes package, providing access to the bytes type.
 
-use crate::functions::{Module, RegisterError};
+use crate::context::{ContextError, Module};
 use crate::value::{ValueType, ValueTypeInfo};
 use std::any::{type_name, TypeId};
 use std::fmt;
@@ -119,22 +119,22 @@ impl<'a> crate::ReflectValueType for &'a [u8] {
 }
 
 /// Get the module for the bytes package.
-pub fn module() -> Result<Module, RegisterError> {
+pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["bytes"]);
-    module.global_fn("new", Bytes::new)?;
-    module.global_fn("with_capacity", Bytes::with_capacity)?;
+    module.free_fn("new", Bytes::new)?;
+    module.free_fn("with_capacity", Bytes::with_capacity)?;
 
-    module.instance_fn("extend", Bytes::extend)?;
-    module.instance_fn("pop", Bytes::pop)?;
-    module.instance_fn("last", Bytes::last)?;
+    module.inst_fn("extend", Bytes::extend)?;
+    module.inst_fn("pop", Bytes::pop)?;
+    module.inst_fn("last", Bytes::last)?;
 
-    module.instance_fn("len", Bytes::len)?;
-    module.instance_fn("capacity", Bytes::capacity)?;
-    module.instance_fn("clear", Bytes::clear)?;
-    module.instance_fn("push_str", Bytes::push_str)?;
-    module.instance_fn("reserve", Bytes::reserve)?;
-    module.instance_fn("reserve_exact", Bytes::reserve_exact)?;
-    module.instance_fn("clone", Bytes::clone)?;
-    module.instance_fn("shrink_to_fit", Bytes::shrink_to_fit)?;
+    module.inst_fn("len", Bytes::len)?;
+    module.inst_fn("capacity", Bytes::capacity)?;
+    module.inst_fn("clear", Bytes::clear)?;
+    module.inst_fn("push_str", Bytes::push_str)?;
+    module.inst_fn("reserve", Bytes::reserve)?;
+    module.inst_fn("reserve_exact", Bytes::reserve_exact)?;
+    module.inst_fn("clone", Bytes::clone)?;
+    module.inst_fn("shrink_to_fit", Bytes::shrink_to_fit)?;
     Ok(module)
 }

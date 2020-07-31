@@ -275,7 +275,7 @@ pub enum EncodeError {
         /// The span of the missing module.
         span: Span,
         /// The name of the missing module.
-        module: st::ItemPath,
+        module: st::Item,
     },
     /// Encountered expression that must be closed.
     #[error("expression must be closed")]

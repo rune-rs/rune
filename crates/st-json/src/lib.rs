@@ -2,7 +2,7 @@
 //! json.
 
 use st::packages::bytes::Bytes;
-use st::{Module, RegisterError, ValuePtr};
+use st::{ContextError, Module, ValuePtr};
 
 fn from_bytes(bytes: &[u8]) -> st::Result<ValuePtr> {
     Ok(serde_json::from_slice(&bytes)?)
@@ -25,11 +25,11 @@ fn to_bytes(value: ValuePtr) -> st::Result<Bytes> {
 }
 
 /// Get the module for the bytes package.
-pub fn module() -> Result<Module, RegisterError> {
+pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["json"]);
-    module.global_fallible_fn("from_bytes", from_bytes)?;
-    module.global_fallible_fn("from_string", from_string)?;
-    module.global_fallible_fn("to_string", to_string)?;
-    module.global_fallible_fn("to_bytes", to_bytes)?;
+    module.fallible_free_fn("from_bytes", from_bytes)?;
+    module.fallible_free_fn("from_string", from_string)?;
+    module.fallible_free_fn("to_string", to_string)?;
+    module.fallible_free_fn("to_bytes", to_bytes)?;
     Ok(module)
 }

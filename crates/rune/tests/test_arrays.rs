@@ -6,8 +6,8 @@ where
 {
     let unit = rune::compile(source)?;
     let mut vm = st::Vm::new();
-    let functions = st::Functions::new();
-    let task: st::Task<T> = vm.call_function(&functions, &unit, &["main"], ())?;
+    let context = st::Context::new();
+    let task: st::Task<T> = vm.call_function(&context, &unit, &["main"], ())?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }

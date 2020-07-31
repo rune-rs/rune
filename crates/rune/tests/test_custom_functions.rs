@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-async fn run_main<T>(functions: &st::Functions, source: &str) -> Result<T>
+async fn run_main<T>(functions: &st::Context, source: &str) -> Result<T>
 where
     T: st::FromValue,
 {
@@ -12,16 +12,16 @@ where
 }
 
 #[tokio::test]
-async fn test_custom_functions() {
+async fn test_custom_functions() -> anyhow::Result<()> {
     let mut module = st::Module::default();
-    module.global_fn("test", || 42).unwrap();
+    module.free_fn("test", || 42).unwrap();
 
-    let mut functions = st::Functions::new();
-    functions.install(module).unwrap();
+    let mut context = st::Context::new();
+    context.install(module)?;
 
     assert_eq! {
         run_main::<i64>(
-            &functions,
+            &context,
             r#"
                 fn main() {
                     test()
@@ -30,4 +30,6 @@ async fn test_custom_functions() {
         ).await.unwrap(),
         42,
     };
+
+    Ok(())
 }

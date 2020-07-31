@@ -115,14 +115,14 @@ async fn main() -> Result<()> {
         }
     };
 
-    let mut functions = st::Functions::with_default_packages()?;
-    functions.install(st_http::module()?)?;
-    functions.install(st_json::module()?)?;
+    let mut context = st::Context::with_default_packages()?;
+    context.install(st_http::module()?)?;
+    context.install(st_json::module()?)?;
 
     if dump_functions {
         println!("# functions");
 
-        for (i, (hash, f)) in functions.iter_functions().enumerate() {
+        for (i, (hash, f)) in context.iter_functions().enumerate() {
             println!("{:04} = {} ({})", i, f, hash);
         }
     }
@@ -130,7 +130,7 @@ async fn main() -> Result<()> {
     if dump_types {
         println!("# types");
 
-        for (i, (hash, ty)) in functions.iter_types().enumerate() {
+        for (i, (hash, ty)) in context.iter_types().enumerate() {
             println!("{:04} = {} ({})", i, ty, hash);
         }
     }
@@ -138,8 +138,7 @@ async fn main() -> Result<()> {
     if dump_unit {
         use std::io::Write as _;
 
-        println!("# unit dump");
-        println!("instructions:");
+        println!("# instructions:");
 
         let mut first_function = true;
 
@@ -176,19 +175,19 @@ async fn main() -> Result<()> {
             writeln!(out)?;
         }
 
-        println!("imports:");
+        println!("# imports:");
 
         for (hash, f) in unit.iter_imports() {
             println!("{} = {}", hash, f);
         }
 
-        println!("functions:");
+        println!("# functions:");
 
         for (hash, f) in unit.iter_functions() {
             println!("{} = {} (at: {})", hash, f.signature, f.offset);
         }
 
-        println!("strings:");
+        println!("# strings:");
 
         for (hash, string) in unit.iter_static_strings() {
             println!("{} = {:?}", hash, string);
@@ -199,7 +198,7 @@ async fn main() -> Result<()> {
 
     let mut vm = st::Vm::new();
 
-    let task: st::Task<st::Value> = vm.call_function(&functions, &unit, &["main"], ())?;
+    let task: st::Task<st::Value> = vm.call_function(&context, &unit, &["main"], ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {

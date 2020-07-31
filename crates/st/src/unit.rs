@@ -4,7 +4,7 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
-use crate::functions::ItemPath;
+use crate::context::Item;
 use crate::hash::Hash;
 use crate::vm::Inst;
 use std::fmt;
@@ -23,7 +23,7 @@ pub enum UnitError {
     #[error("conflicting import already exists `{existing}`")]
     ImportConflict {
         /// The signature of the old import.
-        existing: ItemPath,
+        existing: Item,
     },
     /// A static string was missing for the given hash and slot.
     #[error("missing static string for hash `{hash}` and slot `{slot}`")]
@@ -137,13 +137,13 @@ pub struct UnitFnInfo {
 /// A description of a function signature.
 #[derive(Debug)]
 pub struct UnitFnSignature {
-    path: ItemPath,
+    path: Item,
     args: usize,
 }
 
 impl UnitFnSignature {
     /// Construct a new function signature.
-    pub fn new(path: ItemPath, args: usize) -> Self {
+    pub fn new(path: Item, args: usize) -> Self {
         Self {
             path: path.to_owned(),
             args,
@@ -191,7 +191,7 @@ pub struct Unit {
     ///
     /// Only used to link against the current environment to make sure all
     /// required units are present.
-    imports: HashMap<String, ItemPath>,
+    imports: HashMap<String, Item>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFnInfo>,
     /// Function by address.
@@ -225,24 +225,24 @@ impl Unit {
     pub fn with_default_prelude() -> Self {
         let mut this = Self::new();
         this.imports
-            .insert(String::from("dbg"), ItemPath::of(&["core", "dbg"]));
+            .insert(String::from("dbg"), Item::of(&["core", "dbg"]));
         this.imports
-            .insert(String::from("unit"), ItemPath::of(&["core", "unit"]));
+            .insert(String::from("unit"), Item::of(&["core", "unit"]));
         this.imports
-            .insert(String::from("bool"), ItemPath::of(&["core", "bool"]));
+            .insert(String::from("bool"), Item::of(&["core", "bool"]));
         this.imports
-            .insert(String::from("char"), ItemPath::of(&["core", "char"]));
+            .insert(String::from("char"), Item::of(&["core", "char"]));
         this.imports
-            .insert(String::from("int"), ItemPath::of(&["core", "int"]));
+            .insert(String::from("int"), Item::of(&["core", "int"]));
         this.imports
-            .insert(String::from("float"), ItemPath::of(&["core", "float"]));
+            .insert(String::from("float"), Item::of(&["core", "float"]));
         this.imports
-            .insert(String::from("Object"), ItemPath::of(&["core", "Object"]));
+            .insert(String::from("Object"), Item::of(&["core", "Object"]));
         this.imports
-            .insert(String::from("Array"), ItemPath::of(&["core", "Array"]));
+            .insert(String::from("Array"), Item::of(&["core", "Array"]));
         this.imports.insert(
             String::from("String"),
-            ItemPath::of(&["std", "string", "String"]),
+            Item::of(&["std", "string", "String"]),
         );
         this
     }
@@ -289,7 +289,7 @@ impl Unit {
     }
 
     /// Iterate over known imports.
-    pub fn iter_imports<'a>(&'a self) -> impl Iterator<Item = (&'a str, &'a ItemPath)> + '_ {
+    pub fn iter_imports<'a>(&'a self) -> impl Iterator<Item = (&'a str, &'a Item)> + '_ {
         let mut it = self.imports.iter();
 
         std::iter::from_fn(move || {
@@ -341,7 +341,7 @@ impl Unit {
     }
 
     /// Look up an import by name.
-    pub fn lookup_import_by_name(&self, name: &str) -> Option<&ItemPath> {
+    pub fn lookup_import_by_name(&self, name: &str) -> Option<&Item> {
         self.imports.get(name)
     }
 
@@ -351,7 +351,7 @@ impl Unit {
         I: Copy + IntoIterator,
         I::Item: AsRef<str>,
     {
-        let path = ItemPath::of(path);
+        let path = Item::of(path);
 
         if let Some(last) = path.last() {
             if let Some(old) = self.imports.insert(last.to_owned(), path) {
@@ -379,7 +379,7 @@ impl Unit {
         I::Item: AsRef<str>,
     {
         let offset = self.instructions.len();
-        let path = ItemPath::of(path);
+        let path = Item::of(path);
         let hash = Hash::function(&path);
 
         self.functions_rev.insert(offset, hash);

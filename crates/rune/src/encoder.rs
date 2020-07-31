@@ -504,7 +504,7 @@ impl<'a> Encoder<'a> {
 
         let imported = match self.unit.lookup_import_by_name(local).cloned() {
             Some(path) => path,
-            None => st::ItemPath::of(&[local]),
+            None => st::Item::of(&[local]),
         };
 
         let mut rest = Vec::new();

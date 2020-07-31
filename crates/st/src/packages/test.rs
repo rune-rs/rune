@@ -3,8 +3,8 @@
 //! Contains functions such as:
 //! * `assert` assert that a value is true.
 
+use crate::context::{ContextError, Module};
 use crate::error::{Error, Result};
-use crate::functions::{Module, RegisterError};
 
 /// Assert that a value is true.
 fn assert(value: bool, message: &str) -> Result<()> {
@@ -16,8 +16,8 @@ fn assert(value: bool, message: &str) -> Result<()> {
 }
 
 /// Install the core package into the given functions namespace.
-pub fn module() -> Result<Module, RegisterError> {
+pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["test"]);
-    module.global_fallible_fn("assert", assert)?;
+    module.fallible_free_fn("assert", assert)?;
     Ok(module)
 }

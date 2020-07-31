@@ -12,8 +12,8 @@
 
 #![deny(missing_docs)]
 
+mod context;
 mod external;
-mod functions;
 mod value;
 mod vm;
 #[macro_use]
@@ -26,8 +26,8 @@ mod serde;
 pub mod tls;
 pub mod unit;
 
+pub use crate::context::{Context, ContextError, Item, Module};
 pub use crate::error::{Error, Result};
-pub use crate::functions::{Functions, ItemPath, Module, RegisterError};
 pub use crate::hash::Hash;
 pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
 pub use crate::unit::{Unit, UnitError};

@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
+use crate::context::Context;
 use crate::external::External;
-use crate::functions::Functions;
 use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::unit::Unit;
@@ -738,7 +738,7 @@ impl Vm {
     /// Call the given function in the given compilation unit.
     pub fn call_function<'a, A, T, I>(
         &'a mut self,
-        functions: &'a Functions,
+        context: &'a Context,
         unit: &'a Unit,
         name: I,
         args: A,
@@ -762,20 +762,20 @@ impl Vm {
 
         Ok(Task {
             vm: self,
-            functions,
+            context,
             unit,
             _marker: PhantomData,
         })
     }
 
     /// Run the given program on the virtual machine.
-    pub fn run<'a, T>(&'a mut self, functions: &'a Functions, unit: &'a Unit) -> Task<'a, T>
+    pub fn run<'a, T>(&'a mut self, context: &'a Context, unit: &'a Unit) -> Task<'a, T>
     where
         T: FromValue,
     {
         Task {
             vm: self,
-            functions,
+            context,
             unit,
             _marker: PhantomData,
         }
@@ -1620,7 +1620,7 @@ impl Vm {
     pub async fn eval(
         &mut self,
         inst: &Inst,
-        functions: &Functions,
+        context: &Context,
         unit: &Unit,
     ) -> Result<(), VmError> {
         let mut update_ip = true;
@@ -1654,7 +1654,7 @@ impl Vm {
                         update_ip = false;
                     }
                     None => {
-                        let handler = functions
+                        let handler = context
                             .lookup(*hash)
                             .ok_or_else(|| VmError::MissingFunction { hash: *hash })?;
 
@@ -1683,7 +1683,7 @@ impl Vm {
                         update_ip = false;
                     }
                     None => {
-                        let handler = functions
+                        let handler = context
                             .lookup(hash)
                             .ok_or_else(|| VmError::MissingFunction { hash: hash })?;
 
@@ -1837,7 +1837,7 @@ impl Vm {
                     (a, ValuePtr::Type(hash)) => {
                         let a = a.value_type(self)?;
 
-                        let type_info = functions
+                        let type_info = context
                             .lookup_type(hash)
                             .ok_or_else(|| VmError::MissingType { hash })?;
 
@@ -1898,7 +1898,7 @@ pub struct Task<'a, T> {
     /// The virtual machine of the task.
     pub vm: &'a mut Vm,
     /// Functions collection associated with the task.
-    pub functions: &'a Functions,
+    pub context: &'a Context,
     /// The unit associated with the task.
     pub unit: &'a Unit,
     /// Hold the type of the task.
@@ -1917,7 +1917,7 @@ where
                 .instruction_at(self.vm.ip())
                 .ok_or_else(|| VmError::IpOutOfBounds)?;
 
-            self.vm.eval(inst, self.functions, self.unit).await?;
+            self.vm.eval(inst, self.context, self.unit).await?;
         }
 
         let value = self.vm.pop_decode()?;
@@ -1932,7 +1932,7 @@ where
             .instruction_at(self.vm.ip())
             .ok_or_else(|| VmError::IpOutOfBounds)?;
 
-        self.vm.eval(inst, self.functions, self.unit).await?;
+        self.vm.eval(inst, self.context, self.unit).await?;
 
         if self.vm.exited {
             let value = self.vm.pop_decode()?;

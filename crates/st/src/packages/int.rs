@@ -3,8 +3,8 @@
 //! Contains functions such as:
 //! * `parse` to parse a string into a number.
 
+use crate::context::{ContextError, Module};
 use crate::error::Result;
-use crate::functions::{Module, RegisterError};
 
 /// Parse an integer.
 fn parse(s: &str) -> Result<i64> {
@@ -22,10 +22,10 @@ fn to_integer(value: f64) -> i64 {
 }
 
 /// Install the core package into the given functions namespace.
-pub fn module() -> Result<Module, RegisterError> {
+pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["int"]);
-    module.global_fallible_fn("parse", parse)?;
-    module.instance_fn("to_float", to_float)?;
-    module.instance_fn("to_integer", to_integer)?;
+    module.fallible_free_fn("parse", parse)?;
+    module.inst_fn("to_float", to_float)?;
+    module.inst_fn("to_integer", to_integer)?;
     Ok(module)
 }
