@@ -36,6 +36,6 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("into_bytes", into_bytes)?;
     module.inst_fn("clone", String::clone)?;
     module.inst_fn("shrink_to_fit", String::shrink_to_fit)?;
-    module.fallible_inst_fn("char_at", char_at)?;
+    module.inst_fn("char_at", char_at)?;
     Ok(module)
 }

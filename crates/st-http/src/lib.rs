@@ -78,7 +78,7 @@ pub fn module() -> Result<st::Module, st::ContextError> {
     module.ty(&["RequestBuilder"]).build::<RequestBuilder>()?;
 
     module.function(&["Client", "new"], Client::new)?;
-    module.async_fn(&["get"], get)?;
+    module.async_function(&["get"], get)?;
 
     module.async_inst_fn("get", Client::get)?;
     module.async_inst_fn("post", Client::post)?;

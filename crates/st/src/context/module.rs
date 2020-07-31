@@ -1,5 +1,4 @@
 use crate::collections::HashMap;
-use crate::error;
 use crate::hash::Hash;
 use crate::reflection::{ReflectValueType, ToValue, UnsafeFromValue};
 use crate::tls;
@@ -95,10 +94,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| {
-            let ret = f.vm_call(vm, args);
-            Box::pin(async move { ret })
-        });
+        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
         let signature = FnSignature::new_free(self.path.join(&name), Func::args());
         self.functions.insert(name, (handler, signature));
         Ok(())
@@ -112,15 +108,16 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.async_fn(&["empty"], || async { Ok::<_, st::Error>(()) })?;
-    /// module.async_fn(&["string"], |a: String| async { Ok::<_, st::Error>(()) })?;
-    /// module.async_fn(&["optional"], |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
+    /// module.async_function(&["empty"], || async { () })?;
+    /// module.async_function(&["empty_fallible"], || async { Ok::<_, st::Error>(()) })?;
+    /// module.async_function(&["string"], |a: String| async { Ok::<_, st::Error>(()) })?;
+    /// module.async_function(&["optional"], |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn async_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    pub fn async_function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        Func: AsyncFn<Args>,
+        Func: AsyncFunction<Args>,
         N: IntoIterator,
         N::Item: AsRef<str>,
     {
@@ -227,50 +224,7 @@ impl Module {
             });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| {
-            let ret = f.vm_call(vm, args);
-            Box::pin(async move { ret })
-        });
-        let signature = FnSignature::new_inst(type_info, name, Func::args());
-
-        self.instance_functions
-            .insert(key.clone(), (handler, signature));
-        Ok(())
-    }
-
-    /// Register an instance function.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::Module::default();
-    ///
-    /// module.ty(&["String"]).build::<String>()?;
-    /// module.fallible_inst_fn("len", |s: &str| Ok::<_, st::Error>(s.len()))?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn fallible_inst_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<(), ContextError>
-    where
-        Func: FallibleInstFn<Args>,
-    {
-        let ty = Func::instance_value_type();
-        let type_info = Func::instance_value_type_info();
-
-        let key = (ty, name.to_owned());
-
-        if self.instance_functions.contains_key(&key) {
-            return Err(ContextError::ConflictingInstanceFunction {
-                type_info,
-                name: name.to_owned(),
-            });
-        }
-
-        let handler: Box<Handler> = Box::new(move |vm, args| {
-            let ret = f.vm_call(vm, args);
-            Box::pin(async move { ret })
-        });
+        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
         let signature = FnSignature::new_inst(type_info, name, Func::args());
 
         self.instance_functions
@@ -369,31 +323,33 @@ where
 }
 
 /// Helper trait to convert function return values into results.
-pub trait IntoResult {
-    type Output;
+pub trait IntoVmResult {
+    type Output: ToValue;
 
-    fn into_result(self) -> Result<Self::Output, VmError>;
+    fn into_vm_result(self) -> Result<Self::Output, VmError>;
 }
 
-impl<T> IntoResult for T
+impl<T> IntoVmResult for T
 where
     T: ToValue,
 {
     type Output = T;
 
-    fn into_result(self) -> Result<T, VmError> {
+    fn into_vm_result(self) -> Result<Self::Output, VmError> {
         Ok(self)
     }
 }
 
-impl<T, E> IntoResult for Result<T, E>
+impl<T, E> IntoVmResult for Result<T, E>
 where
     crate::Error: From<E>,
+    T: ToValue,
 {
     type Output = T;
 
-    fn into_result(self) -> Result<T, VmError> {
-        Ok(self.map_err(crate::Error::from)?)
+    fn into_vm_result(self) -> Result<Self::Output, VmError> {
+        use crate::error::Error;
+        self.map_err(|e| VmError::from(Error::from(e)))
     }
 }
 
@@ -403,11 +359,11 @@ pub trait Function<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
+    fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>>;
 }
 
-/// Trait used to provide the [async_fn][Context::async_fn] function.
-pub trait AsyncFn<Args>: 'static + Copy + Send + Sync {
+/// Trait used to provide the [async_function][Context::async_function] function.
+pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
     /// Get the number of arguments.
     fn args() -> usize;
 
@@ -427,22 +383,7 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     fn instance_value_type_info() -> ValueTypeInfo;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
-}
-
-/// Trait used to provide the [fallible_inst_fn][Context::fallible_inst_fn] function.
-pub trait FallibleInstFn<Args>: 'static + Copy + Send + Sync {
-    /// Get the number of arguments.
-    fn args() -> usize;
-
-    /// Access the value type of the instance.
-    fn instance_value_type() -> ValueType;
-
-    /// Access the value type info of the instance.
-    fn instance_value_type_info() -> ValueTypeInfo;
-
-    /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
+    fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>>;
 }
 
 /// Trait used to provide the [async_inst_fn][Context::async_inst_fn] function.
@@ -474,41 +415,8 @@ macro_rules! impl_register {
         impl<Func, Ret, $($ty,)*> Function<($($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
-            Ret: IntoResult,
+            Ret: IntoVmResult,
             Ret::Output: ToValue,
-            $($ty: UnsafeFromValue,)*
-        {
-            fn args() -> usize {
-                $count
-            }
-
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
-                impl_register!{@args $count, args}
-
-                $(let $var = vm.managed_pop()?;)*
-
-                // Safety: We hold a reference to the Vm, so we can
-                // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `vm`
-                // when we return below.
-                #[allow(unused_unsafe)]
-                let ret = unsafe {
-                    impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self($($var,)*)).into_result()?
-                };
-
-                impl_register!{@return vm, ret, Ret}
-                Ok(())
-            }
-        }
-
-        impl<Func, Ret, Output, Err, $($ty,)*> AsyncFn<($($ty,)*)> for Func
-        where
-            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
-            Ret: Future<Output = Result<Output, Err>>,
-            Output: ToValue,
-            error::Error: From<Err>,
             $($ty: UnsafeFromValue,)*
         {
             fn args() -> usize {
@@ -533,7 +441,45 @@ macro_rules! impl_register {
                     #[allow(unused_unsafe)]
                     let ret = unsafe {
                         impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                        tls::InjectVm::new(vm, self($($var,)*)).await.map_err(error::Error::from)?
+                        tls::inject_vm(vm, || self($($var,)*)).into_vm_result()?
+                    };
+
+                    impl_register!{@return vm, ret, Ret}
+                    Ok(())
+                })
+            }
+        }
+
+        impl<Func, Ret, $($ty,)*> AsyncFunction<($($ty,)*)> for Func
+        where
+            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
+            Ret: Future,
+            Ret::Output: IntoVmResult,
+            $($ty: UnsafeFromValue,)*
+        {
+            fn args() -> usize {
+                $count
+            }
+
+            fn vm_call<'vm>(
+                self,
+                vm: &'vm mut Vm,
+                args: usize
+            ) -> BoxFuture<'vm, Result<(), VmError>> {
+                Box::pin(async move {
+                    impl_register!{@args $count, args}
+
+                    $(let $var = vm.managed_pop()?;)*
+
+                    // Safety: We hold a reference to the Vm, so we can
+                    // guarantee that it won't be modified.
+                    //
+                    // The scope is also necessary, since we mutably access `vm`
+                    // when we return below.
+                    #[allow(unused_unsafe)]
+                    let ret = unsafe {
+                        impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
+                        tls::InjectVm::new(vm, self($($var,)*)).await.into_vm_result()?
                     };
 
                     impl_register!{@return vm, ret, Ret}
@@ -545,91 +491,7 @@ macro_rules! impl_register {
         impl<Func, Ret, Inst, $($ty,)*> InstFn<(Inst, $($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Ret,
-            Ret: ToValue,
-            Inst: UnsafeFromValue + ReflectValueType,
-            $($ty: UnsafeFromValue,)*
-        {
-            fn args() -> usize {
-                $count
-            }
-
-            fn instance_value_type() -> ValueType {
-                Inst::value_type()
-            }
-
-            fn instance_value_type_info() -> ValueTypeInfo {
-                Inst::value_type_info()
-            }
-
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
-                impl_register!{@args $count, args}
-
-                let inst = vm.managed_pop()?;
-                $(let $var = vm.managed_pop()?;)*
-
-                // Safety: We hold a reference to the Vm, so we can
-                // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `vm`
-                // when we return below.
-                #[allow(unused_unsafe)]
-                let ret = unsafe {
-                    impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self(inst, $($var,)*))
-                };
-
-                impl_register!{@return vm, ret, Ret}
-                Ok(())
-            }
-        }
-
-        impl<Func, Ret, Inst, Err, $($ty,)*> FallibleInstFn<(Inst, $($ty,)*)> for Func
-        where
-            Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Result<Ret, Err>,
-            Ret: ToValue,
-            error::Error: From<Err>,
-            Inst: UnsafeFromValue + ReflectValueType,
-            $($ty: UnsafeFromValue,)*
-        {
-            fn args() -> usize {
-                $count
-            }
-
-            fn instance_value_type() -> ValueType {
-                Inst::value_type()
-            }
-
-            fn instance_value_type_info() -> ValueTypeInfo {
-                Inst::value_type_info()
-            }
-
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
-                impl_register!{@args $count, args}
-
-                let inst = vm.managed_pop()?;
-                $(let $var = vm.managed_pop()?;)*
-
-                // Safety: We hold a reference to the Vm, so we can
-                // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `vm`
-                // when we return below.
-                #[allow(unused_unsafe)]
-                let ret = unsafe {
-                    impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self(inst, $($var,)*).map_err(error::Error::from))?
-                };
-
-                impl_register!{@return vm, ret, Ret}
-                Ok(())
-            }
-        }
-
-        impl<Func, Ret, Output, Inst, $($ty,)*> AsyncInstFn<(Inst, $($ty,)*)> for Func
-        where
-            Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Ret,
-            Ret: Future<Output = Result<Output, error::Error>>,
-            Output: ToValue,
+            Ret: IntoVmResult,
             Inst: UnsafeFromValue + ReflectValueType,
             $($ty: UnsafeFromValue,)*
         {
@@ -660,7 +522,51 @@ macro_rules! impl_register {
                     #[allow(unused_unsafe)]
                     let ret = unsafe {
                         impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                        tls::InjectVm::new(vm, self(inst, $($var,)*)).await?
+                        tls::inject_vm(vm, || self(inst, $($var,)*)).into_vm_result()?
+                    };
+
+                    impl_register!{@return vm, ret, Ret}
+                    Ok(())
+                })
+            }
+        }
+
+        impl<Func, Ret, Inst, $($ty,)*> AsyncInstFn<(Inst, $($ty,)*)> for Func
+        where
+            Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Ret,
+            Ret: Future,
+            Ret::Output: IntoVmResult,
+            Inst: UnsafeFromValue + ReflectValueType,
+            $($ty: UnsafeFromValue,)*
+        {
+            fn args() -> usize {
+                $count
+            }
+
+            fn instance_value_type() -> ValueType {
+                Inst::value_type()
+            }
+
+            fn instance_value_type_info() -> ValueTypeInfo {
+                Inst::value_type_info()
+            }
+
+            fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>> {
+                Box::pin(async move {
+                    impl_register!{@args $count, args}
+
+                    let inst = vm.managed_pop()?;
+                    $(let $var = vm.managed_pop()?;)*
+
+                    // Safety: We hold a reference to the Vm, so we can
+                    // guarantee that it won't be modified.
+                    //
+                    // The scope is also necessary, since we mutably access `vm`
+                    // when we return below.
+                    #[allow(unused_unsafe)]
+                    let ret = unsafe {
+                        impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
+                        tls::InjectVm::new(vm, self(inst, $($var,)*)).await.into_vm_result()?
                     };
 
                     impl_register!{@return vm, ret, Ret}
