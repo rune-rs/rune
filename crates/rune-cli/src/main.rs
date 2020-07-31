@@ -11,10 +11,9 @@ fn compile(source: &str) -> rune::Result<st::Unit> {
     Ok(unit.encode()?)
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     env_logger::init();
-
-    let mut runtime = tokio::runtime::Runtime::new()?;
 
     let mut args = env::args();
     args.next();
@@ -200,75 +199,29 @@ fn main() -> Result<()> {
 
     let mut vm = st::Vm::new();
 
-    let mut task: st::Task<st::Value> = vm.call_function(&functions, &unit, &["main"], ())?;
-
+    let task: st::Task<st::Value> = vm.call_function(&functions, &unit, &["main"], ())?;
     let last = std::time::Instant::now();
 
-    let result = loop {
-        if trace {
-            use std::io::Write as _;
+    let result = if trace {
+        do_trace(task, dump_vm).await
+    } else {
+        task.run_to_completion().await.map_err(anyhow::Error::from)
+    };
 
-            let out = std::io::stdout();
-            let mut out = out.lock();
+    let result = match result {
+        Ok(result) => result,
+        Err(e) => {
+            println!("#0: {}", e);
+            let mut e = &*e as &dyn Error;
+            let mut i = 1;
 
-            let debug = task.unit.debug_info_at(task.vm.ip());
-
-            if let Some((hash, function)) = unit.function_at(task.vm.ip()) {
-                writeln!(out, "fn {} ({}):", function.signature, hash)?;
+            while let Some(err) = e.source() {
+                println!("#{}: {}", i, err);
+                i += 1;
+                e = err;
             }
 
-            if let Some(debug) = debug {
-                if let Some(label) = debug.label {
-                    writeln!(out, "{}:", label)?;
-                }
-            }
-
-            if let Some(inst) = task.unit.instruction_at(task.vm.ip()) {
-                write!(out, "  {:04} = {}", task.vm.ip(), inst)?;
-            } else {
-                write!(out, "  {:04} = *out of bounds*", task.vm.ip(),)?;
-            }
-
-            if let Some(debug) = debug {
-                if let Some(comment) = &debug.comment {
-                    write!(out, " // {}", comment)?;
-                }
-            }
-
-            writeln!(out)?;
-        }
-
-        let result = runtime.block_on(task.step());
-
-        if trace && dump_vm {
-            println!("# stack dump");
-
-            for (n, (slot, value)) in task.vm.iter_stack_debug().enumerate() {
-                println!("{} = {:?} ({:?})", n, slot, value);
-            }
-
-            println!("---");
-        }
-
-        let result = match result {
-            Ok(result) => result,
-            Err(e) => {
-                println!("#0: {}", e);
-                let mut e = &e as &dyn Error;
-                let mut i = 1;
-
-                while let Some(err) = e.source() {
-                    println!("#{}: {}", i, err);
-                    i += 1;
-                    e = err;
-                }
-
-                return Ok(());
-            }
-        };
-
-        if let Some(result) = result {
-            break result;
+            return Ok(());
         }
     };
 
@@ -286,4 +239,59 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Perform a detailed trace of the program.
+async fn do_trace<T>(mut task: st::Task<'_, T>, dump_vm: bool) -> Result<T>
+where
+    T: st::FromValue,
+{
+    loop {
+        use std::io::Write as _;
+
+        let out = std::io::stdout();
+        let mut out = out.lock();
+
+        let debug = task.unit.debug_info_at(task.vm.ip());
+
+        if let Some((hash, function)) = task.unit.function_at(task.vm.ip()) {
+            writeln!(out, "fn {} ({}):", function.signature, hash)?;
+        }
+
+        if let Some(debug) = debug {
+            if let Some(label) = debug.label {
+                writeln!(out, "{}:", label)?;
+            }
+        }
+
+        if let Some(inst) = task.unit.instruction_at(task.vm.ip()) {
+            write!(out, "  {:04} = {}", task.vm.ip(), inst)?;
+        } else {
+            write!(out, "  {:04} = *out of bounds*", task.vm.ip(),)?;
+        }
+
+        if let Some(debug) = debug {
+            if let Some(comment) = &debug.comment {
+                write!(out, " // {}", comment)?;
+            }
+        }
+
+        writeln!(out)?;
+
+        let result = task.step().await?;
+
+        if dump_vm {
+            println!("# stack dump");
+
+            for (n, (slot, value)) in task.vm.iter_stack_debug().enumerate() {
+                println!("{} = {:?} ({:?})", n, slot, value);
+            }
+
+            println!("---");
+        }
+
+        if let Some(result) = result {
+            break Ok(result);
+        }
+    }
 }

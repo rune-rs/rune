@@ -1,7 +1,9 @@
 fn main() {
-    if true {
-        1
-    } else {
-        4
+    let n = 0;
+
+    while n < 1000000 {
+        n = n + 1;
     }
+
+    dbg("done", n)
 }
