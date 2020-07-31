@@ -73,12 +73,12 @@ st::decl_external!(RequestBuilder);
 pub fn module() -> Result<st::Module, st::ContextError> {
     let mut module = st::Module::new(&["http"]);
 
-    module.ty::<Client>("Client")?;
-    module.ty::<Response>("Response")?;
-    module.ty::<RequestBuilder>("RequestBuilder")?;
+    module.ty(&["Client"]).build::<Client>()?;
+    module.ty(&["Response"]).build::<Response>()?;
+    module.ty(&["RequestBuilder"]).build::<RequestBuilder>()?;
 
-    module.free_fn(&["Client", "new"], Client::new)?;
-    module.async_free_fn(&["get"], get)?;
+    module.function(&["Client", "new"], Client::new)?;
+    module.async_fn(&["get"], get)?;
 
     module.async_inst_fn("get", Client::get)?;
     module.async_inst_fn("post", Client::post)?;

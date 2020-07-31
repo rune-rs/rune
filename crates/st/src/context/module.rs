@@ -21,7 +21,7 @@ pub struct Module {
     /// Instance functions.
     pub(super) instance_functions: HashMap<(ValueType, String), (Box<Handler>, FnSignature)>,
     /// Registered types.
-    pub(super) types: HashMap<ValueType, (ValueTypeInfo, String)>,
+    pub(super) types: HashMap<ValueType, (ValueTypeInfo, Item)>,
 }
 
 impl Module {
@@ -43,25 +43,16 @@ impl Module {
     ///
     /// This will allow the type to be used within scripts, using the item named
     /// here.
-    pub fn ty<T>(&mut self, name: &str) -> Result<(), ContextError>
+    pub fn ty<N>(&mut self, name: N) -> TypeBuilder<'_, N>
     where
-        T: ReflectValueType,
+        N: IntoIterator,
+        N::Item: AsRef<str>,
     {
-        let value_type = T::value_type();
-        let type_info = T::value_type_info();
-
-        if let Some((existing, _)) = self.types.insert(value_type, (type_info, name.to_owned())) {
-            let name = self.path.extended(name);
-            let hash = Hash::of_type(&name);
-
-            return Err(ContextError::ConflictingType {
-                name,
-                hash,
-                existing,
-            });
+        TypeBuilder {
+            name,
+            path: &self.path,
+            types: &mut self.types,
         }
-
-        Ok(())
     }
 
     /// Register a function that cannot error internally.
@@ -85,11 +76,11 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.free_fn(&["bytes"], StringQueue::new)?;
+    /// module.function(&["bytes"], StringQueue::new)?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn free_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
         Func: FreeFn<Args>,
         N: IntoIterator,
@@ -118,15 +109,15 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.fallible_free_fn(&["empty"], || Ok::<_, st::Error>(()))?;
-    /// module.fallible_free_fn(&["string"], |a: String| Ok::<_, st::Error>(()))?;
-    /// module.fallible_free_fn(&["optional"], |a: Option<String>| Ok::<_, st::Error>(()))?;
+    /// module.fallible_fn(&["empty"], || Ok::<_, st::Error>(()))?;
+    /// module.fallible_fn(&["string"], |a: String| Ok::<_, st::Error>(()))?;
+    /// module.fallible_fn(&["optional"], |a: Option<String>| Ok::<_, st::Error>(()))?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn fallible_free_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    pub fn fallible_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        Func: FallibleFreeFn<Args>,
+        Func: FallibleFn<Args>,
         N: IntoIterator,
         N::Item: AsRef<str>,
     {
@@ -153,15 +144,15 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.async_free_fn(&["empty"], || async { Ok::<_, st::Error>(()) })?;
-    /// module.async_free_fn(&["string"], |a: String| async { Ok::<_, st::Error>(()) })?;
-    /// module.async_free_fn(&["optional"], |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
+    /// module.async_fn(&["empty"], || async { Ok::<_, st::Error>(()) })?;
+    /// module.async_fn(&["string"], |a: String| async { Ok::<_, st::Error>(()) })?;
+    /// module.async_fn(&["optional"], |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn async_free_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    pub fn async_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        Func: AsyncFreeFn<Args>,
+        Func: AsyncFn<Args>,
         N: IntoIterator,
         N::Item: AsRef<str>,
     {
@@ -179,7 +170,7 @@ impl Module {
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn raw_free_fn<F, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
+    pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), VmError> + Send + Sync,
         N: IntoIterator,
@@ -201,7 +192,7 @@ impl Module {
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn async_raw_free_fn<F, O, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
+    pub fn async_raw_fn<F, O, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
         O: Future<Output = Result<(), VmError>>,
@@ -246,8 +237,8 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.ty::<StringQueue>("StringQueue");
-    /// module.free_fn(&["StringQueue", "bytes"], StringQueue::new)?;
+    /// module.ty(&["StringQueue"]).build::<StringQueue>()?;
+    /// module.function(&["StringQueue", "bytes"], StringQueue::new)?;
     /// module.inst_fn("len", StringQueue::len)?;
     /// # Ok(())
     /// # }
@@ -258,12 +249,6 @@ impl Module {
     {
         let ty = Func::instance_value_type();
         let type_info = Func::instance_value_type_info();
-
-        if !self.types.contains_key(&ty) {
-            return Err(ContextError::MissingInstance {
-                instance_type: type_info,
-            });
-        }
 
         let key = (ty, name.to_owned());
 
@@ -293,7 +278,7 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.ty::<String>("String");
+    /// module.ty(&["String"]).build::<String>()?;
     /// module.fallible_inst_fn("len", |s: &str| Ok::<_, st::Error>(s.len()))?;
     /// # Ok(())
     /// # }
@@ -304,12 +289,6 @@ impl Module {
     {
         let ty = Func::instance_value_type();
         let type_info = Func::instance_value_type_info();
-
-        if !self.types.contains_key(&ty) {
-            return Err(ContextError::MissingInstance {
-                instance_type: type_info,
-            });
-        }
 
         let key = (ty, name.to_owned());
 
@@ -355,7 +334,7 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.ty::<MyType>("MyType");
+    /// module.ty(&["MyType"]).build::<MyType>()?;
     /// module.async_inst_fn("test", MyType::test)?;
     /// # Ok(())
     /// # }
@@ -366,12 +345,6 @@ impl Module {
     {
         let ty = Func::instance_value_type();
         let type_info = Func::instance_value_type_info();
-
-        if !self.types.contains_key(&ty) {
-            return Err(ContextError::MissingInstance {
-                instance_type: type_info,
-            });
-        }
 
         let key = (ty, name.to_owned());
 
@@ -391,7 +364,43 @@ impl Module {
     }
 }
 
-/// Trait used to provide the [free_fn][Context::free_fn] function.
+/// The builder for a type.
+#[must_use = "must be consumed with build::<T>() to construct a type"]
+pub struct TypeBuilder<'a, N> {
+    name: N,
+    path: &'a Item,
+    types: &'a mut HashMap<ValueType, (ValueTypeInfo, Item)>,
+}
+
+impl<N> TypeBuilder<'_, N>
+where
+    N: IntoIterator,
+    N::Item: AsRef<str>,
+{
+    /// Construct a new type, specifying which type it is with the parameter.
+    pub fn build<T>(self) -> Result<(), ContextError>
+    where
+        T: ReflectValueType,
+    {
+        let name = self.path.join(self.name);
+        let value_type = T::value_type();
+        let type_info = T::value_type_info();
+
+        if let Some((existing, _)) = self.types.insert(value_type, (type_info, name.clone())) {
+            let hash = Hash::of_type(&name);
+
+            return Err(ContextError::ConflictingType {
+                name,
+                hash,
+                existing,
+            });
+        }
+
+        Ok(())
+    }
+}
+
+/// Trait used to provide the [function][Context::function] function.
 pub trait FreeFn<Args>: 'static + Copy + Send + Sync {
     /// Get the number of arguments.
     fn args() -> usize;
@@ -400,8 +409,8 @@ pub trait FreeFn<Args>: 'static + Copy + Send + Sync {
     fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
-/// Trait used to provide the [fallible_free_fn][Context::fallible_free_fn] function.
-pub trait FallibleFreeFn<Args>: 'static + Copy + Send + Sync {
+/// Trait used to provide the [fallible_fn][Context::fallible_fn] function.
+pub trait FallibleFn<Args>: 'static + Copy + Send + Sync {
     /// Get the number of arguments.
     fn args() -> usize;
 
@@ -409,8 +418,8 @@ pub trait FallibleFreeFn<Args>: 'static + Copy + Send + Sync {
     fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
-/// Trait used to provide the [async_free_fn][Context::async_free_fn] function.
-pub trait AsyncFreeFn<Args>: 'static + Copy + Send + Sync {
+/// Trait used to provide the [async_fn][Context::async_fn] function.
+pub trait AsyncFn<Args>: 'static + Copy + Send + Sync {
     /// Get the number of arguments.
     fn args() -> usize;
 
@@ -505,7 +514,7 @@ macro_rules! impl_register {
             }
         }
 
-        impl<Func, Ret, Err, $($ty,)*> FallibleFreeFn<($($ty,)*)> for Func
+        impl<Func, Ret, Err, $($ty,)*> FallibleFn<($($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Result<Ret, Err>,
             Ret: ToValue,
@@ -538,7 +547,7 @@ macro_rules! impl_register {
             }
         }
 
-        impl<Func, Ret, Output, Err, $($ty,)*> AsyncFreeFn<($($ty,)*)> for Func
+        impl<Func, Ret, Output, Err, $($ty,)*> AsyncFn<($($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
             Ret: Future<Output = Result<Output, Err>>,

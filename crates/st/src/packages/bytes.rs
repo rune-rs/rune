@@ -122,9 +122,9 @@ impl<'a> crate::ReflectValueType for &'a [u8] {
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.ty::<Bytes>("Bytes")?;
-    module.free_fn(&["Bytes", "new"], Bytes::new)?;
-    module.free_fn(&["Bytes", "with_capacity"], Bytes::with_capacity)?;
+    module.ty(&["Bytes"]).build::<Bytes>()?;
+    module.function(&["Bytes", "new"], Bytes::new)?;
+    module.function(&["Bytes", "with_capacity"], Bytes::with_capacity)?;
 
     module.inst_fn("extend", Bytes::extend)?;
     module.inst_fn("extend_str", Bytes::extend_str)?;

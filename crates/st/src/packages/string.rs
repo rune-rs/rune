@@ -21,10 +21,10 @@ fn char_at(s: &str, index: usize) -> Result<Option<char>, Error> {
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.ty::<String>("String")?;
+    module.ty(&["String"]).build::<String>()?;
 
-    module.free_fn(&["String", "new"], String::new)?;
-    module.free_fn(&["String", "with_capacity"], String::with_capacity)?;
+    module.function(&["String", "new"], String::new)?;
+    module.function(&["String", "with_capacity"], String::with_capacity)?;
 
     module.inst_fn("len", String::len)?;
     module.inst_fn("capacity", String::capacity)?;

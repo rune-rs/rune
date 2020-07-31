@@ -251,7 +251,7 @@ impl Context {
         }
 
         for (value_type, (type_info, name)) in module.types.into_iter() {
-            let name = module.path.extended(name);
+            let name = module.path.join(&name);
             let hash = Hash::of_type(&name);
 
             let type_info = TypeInfo {

@@ -20,8 +20,9 @@ fn to_float(value: i64) -> f64 {
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.ty::<i64>("int")?;
-    module.fallible_free_fn(&["int", "parse"], parse)?;
+    module.ty(&["int"]).build::<i64>()?;
+
+    module.fallible_fn(&["int", "parse"], parse)?;
     module.inst_fn("to_float", to_float)?;
 
     Ok(module)

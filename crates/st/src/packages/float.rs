@@ -20,8 +20,8 @@ fn to_integer(value: f64) -> i64 {
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.ty::<f64>("float")?;
-    module.fallible_free_fn(&["float", "parse"], parse)?;
+    module.ty(&["float"]).build::<f64>()?;
+    module.fallible_fn(&["float", "parse"], parse)?;
     module.inst_fn("to_integer", to_integer)?;
 
     Ok(module)

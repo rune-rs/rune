@@ -10,13 +10,13 @@ use crate::value::{Array, Object, Value, ValuePtr};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.ty::<()>("unit")?;
-    module.ty::<bool>("bool")?;
-    module.ty::<char>("char")?;
-    module.ty::<Array<Value>>("Array")?;
-    module.ty::<Object<Value>>("Object")?;
+    module.ty(&["unit"]).build::<()>()?;
+    module.ty(&["bool"]).build::<bool>()?;
+    module.ty(&["char"]).build::<char>()?;
+    module.ty(&["Array"]).build::<Array<Value>>()?;
+    module.ty(&["Object"]).build::<Object<Value>>()?;
 
-    module.raw_free_fn(&["dbg"], |vm, args| {
+    module.raw_fn(&["dbg"], |vm, args| {
         for n in 0..args {
             match vm.managed_pop() {
                 Ok(value) => {
