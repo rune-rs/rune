@@ -1,3 +1,4 @@
+use crate::ast;
 use crate::token::Kind;
 use st::unit::Span;
 use thiserror::Error;
@@ -187,6 +188,12 @@ pub enum ParseError {
         /// The actual token that was encountered.
         actual: Kind,
     },
+    /// Trying to call an instance function consisting of a path.
+    #[error("cannot call instance functions consisting of paths")]
+    PathCallInstanceError {
+        /// The location of the unexpected token.
+        span: Span,
+    },
 }
 
 impl SpannedError for ParseError {
@@ -207,6 +214,7 @@ impl SpannedError for ParseError {
             Self::ExpectedStringError { span, .. } => span,
             Self::ExpectedOperatorError { span, .. } => span,
             Self::ExpectedBoolError { span, .. } => span,
+            Self::PathCallInstanceError { span, .. } => span,
         }
     }
 }
@@ -266,6 +274,14 @@ pub enum EncodeError {
         /// Span of the expression that was not closed.
         span: Span,
     },
+    /// Encountered a binary operator we can't encode.
+    #[error("unsupported binary operator `{op}`")]
+    UnsupportedBinaryOp {
+        /// The span of the illegal call.
+        span: Span,
+        /// The operator.
+        op: ast::BinOp,
+    },
 }
 
 impl SpannedError for EncodeError {
@@ -278,6 +294,7 @@ impl SpannedError for EncodeError {
             Self::MissingLocal { span, .. } => span,
             Self::MissingModule { span, .. } => span,
             Self::ExprNotClosed { span, .. } => span,
+            Self::UnsupportedBinaryOp { span, .. } => span,
         }
     }
 }

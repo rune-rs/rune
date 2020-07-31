@@ -14,8 +14,13 @@ fn main() {
     }
 
     let body = json::to_bytes({"hello": "world"});
-    let response = client.post("https://postman-echo.com/post");
-    let response = response.body_bytes(body);
-    let response = response.send();
-    dbg(json::from_string(response.text()));
+
+    let response = client.post("https://postman-echo.com/post")
+        .body_bytes(body)
+        .send();
+
+    let response = json::from_string(response.text());
+
+    let content_length = response["headers"]["content-length"];
+    dbg(content_length, response);
 }

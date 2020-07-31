@@ -7,6 +7,7 @@ use crate::token::{self, Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek, Resolve};
 use st::unit::Span;
 use std::borrow::Cow;
+use std::fmt;
 
 /// A parsed file.
 pub struct File {
@@ -530,6 +531,11 @@ pub enum BinOp {
         /// Token associated with operator.
         token: Token,
     },
+    /// The dot operator.
+    Dot {
+        /// Token associated with operator.
+        token: Token,
+    },
 }
 
 impl BinOp {
@@ -541,6 +547,7 @@ impl BinOp {
             Self::Eq { .. } | Self::Neq { .. } => 20,
             Self::Gt { .. } | Self::Lt { .. } => 30,
             Self::Gte { .. } | Self::Lte { .. } => 30,
+            Self::Dot { .. } => 40,
         }
     }
 
@@ -557,8 +564,51 @@ impl BinOp {
             Kind::Gt => Self::Gt { token },
             Kind::Lte => Self::Lte { token },
             Kind::Gte => Self::Gte { token },
+            Kind::Dot => Self::Dot { token },
             _ => return None,
         })
+    }
+}
+
+impl fmt::Display for BinOp {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            BinOp::Add { .. } => {
+                write!(fmt, "+")?;
+            }
+            BinOp::Sub { .. } => {
+                write!(fmt, "-")?;
+            }
+            BinOp::Div { .. } => {
+                write!(fmt, "/")?;
+            }
+            BinOp::Mul { .. } => {
+                write!(fmt, "*")?;
+            }
+            BinOp::Eq { .. } => {
+                write!(fmt, "==")?;
+            }
+            BinOp::Neq { .. } => {
+                write!(fmt, "!=")?;
+            }
+            BinOp::Gt { .. } => {
+                write!(fmt, ">")?;
+            }
+            BinOp::Lt { .. } => {
+                write!(fmt, "<")?;
+            }
+            BinOp::Gte { .. } => {
+                write!(fmt, ">=")?;
+            }
+            BinOp::Lte { .. } => {
+                write!(fmt, "<=")?;
+            }
+            BinOp::Dot { .. } => {
+                write!(fmt, ".")?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -592,6 +642,7 @@ impl Peek for BinOp {
                 Kind::Lt => true,
                 Kind::Gte => true,
                 Kind::Lte => true,
+                Kind::Dot => true,
                 _ => false,
             },
             None => false,
@@ -747,9 +798,6 @@ impl Parse for ExprIf {
     }
 }
 
-/// Argument to indicate if we are in an instance call.
-struct SupportInstanceCall(bool);
-
 /// A rune expression.
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -843,21 +891,8 @@ impl Expr {
         }
     }
 
-    /// Default parse function.
-    fn parse_default(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_primary(parser, SupportInstanceCall(true))
-    }
-
-    /// Special parse function to parse an expression inside of an instance call.
-    fn parse_in_instance_call(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_primary(parser, SupportInstanceCall(false))
-    }
-
     /// Parse a single expression value.
-    fn parse_primary(
-        parser: &mut Parser<'_>,
-        instance_call: SupportInstanceCall,
-    ) -> Result<Self, ParseError> {
+    pub fn parse_primary(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let token = parser.token_peek_eof()?;
 
         match token.kind {
@@ -930,9 +965,6 @@ impl Expr {
                     | Kind::Scope => {
                         return Ok(Self::CallFn(parser.parse()?));
                     }
-                    Kind::Dot if instance_call.0 => {
-                        return Ok(Self::CallInstanceFn(parser.parse()?));
-                    }
                     _ => {
                         return Ok(Self::Ident(parser.parse()?));
                     }
@@ -965,7 +997,7 @@ impl Expr {
             };
 
             parser.token_next()?;
-            let mut rhs = Self::parse_default(parser)?;
+            let mut rhs = Self::parse_primary(parser)?;
 
             lookahead = parser.token_peek()?.and_then(BinOp::from_token);
 
@@ -979,11 +1011,23 @@ impl Expr {
                 lookahead = parser.token_peek()?.and_then(BinOp::from_token);
             }
 
-            lhs = Expr::ExprBinary(ExprBinary {
-                lhs: Box::new(lhs),
-                op,
-                rhs: Box::new(rhs),
-            });
+            lhs = match (op, rhs) {
+                (BinOp::Dot { token }, Expr::CallFn(call_fn)) => {
+                    let name = call_fn.name.into_instance_call_ident()?;
+
+                    Expr::CallInstanceFn(CallInstanceFn {
+                        instance: Box::new(lhs),
+                        dot: Dot { token },
+                        name,
+                        args: call_fn.args,
+                    })
+                }
+                (op, rhs) => Expr::ExprBinary(ExprBinary {
+                    lhs: Box::new(lhs),
+                    op,
+                    rhs: Box::new(rhs),
+                }),
+            }
         }
 
         Ok(lhs)
@@ -1143,11 +1187,14 @@ impl Peek for BoolLiteral {
 /// } else {
 ///     panic!("not an if statement");
 /// }
+///
+/// // Chained function calls.
+/// parse_all::<ast::Expr>("foo.bar.baz()").unwrap();
 /// # }
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let lhs = Self::parse_default(parser)?;
+        let lhs = Self::parse_primary(parser)?;
         Self::parse_expr_binary(parser, lhs, 0)
     }
 }
@@ -1173,11 +1220,11 @@ impl CallFn {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast};
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::CallFn>("foo()")?;
-/// let _ = parse_all::<ast::CallFn>("http::foo()")?;
+/// parse_all::<ast::CallFn>("foo()")?;
+/// parse_all::<ast::CallFn>("http::foo()")?;
 /// # Ok(())
 /// # }
 /// ```
@@ -1207,30 +1254,6 @@ impl CallInstanceFn {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.instance.span().join(self.args.span())
-    }
-}
-
-/// Parsing an instance function call.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast, Resolve as _};
-///
-/// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::CallInstanceFn>("foo.bar()")?;
-/// assert!(parse_all::<ast::CallInstanceFn>("foo.bar.baz()").is_err());
-/// # Ok(())
-/// # }
-/// ```
-impl Parse for CallInstanceFn {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(CallInstanceFn {
-            instance: Box::new(Expr::parse_in_instance_call(parser)?),
-            dot: parser.parse()?,
-            name: parser.parse()?,
-            args: parser.parse()?,
-        })
     }
 }
 
@@ -1433,15 +1456,21 @@ pub struct Path {
 }
 
 impl Path {
-    /// Calculate the full span of the path.
-    pub fn span(&self) -> Span {
-        let mut span = self.first.token.span;
-
-        for (_, ident) in &self.rest {
-            span = span.join(ident.token.span);
+    /// Convert into an identifier used for instance calls.
+    pub fn into_instance_call_ident(self) -> Result<Ident, ParseError> {
+        if !self.rest.is_empty() {
+            return Err(ParseError::PathCallInstanceError { span: self.span() });
         }
 
-        span
+        Ok(self.first)
+    }
+
+    /// Calculate the full span of the path.
+    pub fn span(&self) -> Span {
+        match self.rest.last() {
+            Some((_, ident)) => self.first.span().join(ident.span()),
+            None => self.first.span(),
+        }
     }
 }
 

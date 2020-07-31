@@ -3,7 +3,7 @@
 #![deny(missing_docs)]
 
 pub mod ast;
-mod encode_impl;
+mod encoder;
 mod error;
 mod lexer;
 mod parser;

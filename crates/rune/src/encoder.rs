@@ -599,6 +599,9 @@ impl<'a> Encoder<'a> {
             ast::BinOp::Gte { .. } => {
                 self.instructions.push(st::Inst::Gte, span);
             }
+            op => {
+                return Err(EncodeError::UnsupportedBinaryOp { span, op });
+            }
         }
 
         Ok(())
