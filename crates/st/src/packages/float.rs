@@ -21,7 +21,7 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
     module.ty(&["float"]).build::<f64>()?;
-    module.fallible_fn(&["float", "parse"], parse)?;
+    module.function(&["float", "parse"], parse)?;
     module.inst_fn("to_integer", to_integer)?;
 
     Ok(module)

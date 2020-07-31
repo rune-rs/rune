@@ -27,9 +27,9 @@ fn to_bytes(value: ValuePtr) -> st::Result<Bytes> {
 /// Get the module for the bytes package.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["json"]);
-    module.fallible_fn(&["from_bytes"], from_bytes)?;
-    module.fallible_fn(&["from_string"], from_string)?;
-    module.fallible_fn(&["to_string"], to_string)?;
-    module.fallible_fn(&["to_bytes"], to_bytes)?;
+    module.function(&["from_bytes"], from_bytes)?;
+    module.function(&["from_string"], from_string)?;
+    module.function(&["to_string"], to_string)?;
+    module.function(&["to_bytes"], to_bytes)?;
     Ok(module)
 }

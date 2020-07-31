@@ -22,7 +22,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty(&["int"]).build::<i64>()?;
 
-    module.fallible_fn(&["int", "parse"], parse)?;
+    module.function(&["int", "parse"], parse)?;
     module.inst_fn("to_float", to_float)?;
 
     Ok(module)

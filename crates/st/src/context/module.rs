@@ -77,47 +77,15 @@ impl Module {
     /// let mut module = st::Module::default();
     ///
     /// module.function(&["bytes"], StringQueue::new)?;
+    /// module.function(&["empty"], || Ok::<_, st::Error>(()))?;
+    /// module.function(&["string"], |a: String| Ok::<_, st::Error>(()))?;
+    /// module.function(&["optional"], |a: Option<String>| Ok::<_, st::Error>(()))?;
     /// # Ok(())
     /// # }
     /// ```
     pub fn function<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        Func: FreeFn<Args>,
-        N: IntoIterator,
-        N::Item: AsRef<str>,
-    {
-        let name = self.path.join(name);
-
-        if self.functions.contains_key(&name) {
-            return Err(ContextError::ConflictingFunctionName { name });
-        }
-
-        let handler: Box<Handler> = Box::new(move |vm, args| {
-            let ret = f.vm_call(vm, args);
-            Box::pin(async move { ret })
-        });
-        let signature = FnSignature::new_free(self.path.join(&name), Func::args());
-        self.functions.insert(name, (handler, signature));
-        Ok(())
-    }
-
-    /// Register a function.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # fn main() -> anyhow::Result<()> {
-    /// let mut module = st::Module::default();
-    ///
-    /// module.fallible_fn(&["empty"], || Ok::<_, st::Error>(()))?;
-    /// module.fallible_fn(&["string"], |a: String| Ok::<_, st::Error>(()))?;
-    /// module.fallible_fn(&["optional"], |a: Option<String>| Ok::<_, st::Error>(()))?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn fallible_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
-    where
-        Func: FallibleFn<Args>,
+        Func: Function<Args>,
         N: IntoIterator,
         N::Item: AsRef<str>,
     {
@@ -400,17 +368,37 @@ where
     }
 }
 
-/// Trait used to provide the [function][Context::function] function.
-pub trait FreeFn<Args>: 'static + Copy + Send + Sync {
-    /// Get the number of arguments.
-    fn args() -> usize;
+/// Helper trait to convert function return values into results.
+pub trait IntoResult {
+    type Output;
 
-    /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
+    fn into_result(self) -> Result<Self::Output, VmError>;
 }
 
-/// Trait used to provide the [fallible_fn][Context::fallible_fn] function.
-pub trait FallibleFn<Args>: 'static + Copy + Send + Sync {
+impl<T> IntoResult for T
+where
+    T: ToValue,
+{
+    type Output = T;
+
+    fn into_result(self) -> Result<T, VmError> {
+        Ok(self)
+    }
+}
+
+impl<T, E> IntoResult for Result<T, E>
+where
+    crate::Error: From<E>,
+{
+    type Output = T;
+
+    fn into_result(self) -> Result<T, VmError> {
+        Ok(self.map_err(crate::Error::from)?)
+    }
+}
+
+/// Trait used to provide the [function][Context::function] function.
+pub trait Function<Args>: 'static + Copy + Send + Sync {
     /// Get the number of arguments.
     fn args() -> usize;
 
@@ -483,10 +471,11 @@ macro_rules! impl_register {
     };
 
     (@impl $count:expr, $({$ty:ident, $var:ident, $num:expr},)*) => {
-        impl<Func, Ret, $($ty,)*> FreeFn<($($ty,)*)> for Func
+        impl<Func, Ret, $($ty,)*> Function<($($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
-            Ret: ToValue,
+            Ret: IntoResult,
+            Ret::Output: ToValue,
             $($ty: UnsafeFromValue,)*
         {
             fn args() -> usize {
@@ -506,40 +495,7 @@ macro_rules! impl_register {
                 #[allow(unused_unsafe)]
                 let ret = unsafe {
                     impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self($($var,)*))
-                };
-
-                impl_register!{@return vm, ret, Ret}
-                Ok(())
-            }
-        }
-
-        impl<Func, Ret, Err, $($ty,)*> FallibleFn<($($ty,)*)> for Func
-        where
-            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Result<Ret, Err>,
-            Ret: ToValue,
-            error::Error: From<Err>,
-            $($ty: UnsafeFromValue,)*
-        {
-            fn args() -> usize {
-                $count
-            }
-
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
-                impl_register!{@args $count, args}
-
-                $(let $var = vm.managed_pop()?;)*
-
-                // Safety: We hold a reference to the Vm, so we can
-                // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `vm`
-                // when we return below.
-                #[allow(unused_unsafe)]
-                let ret = unsafe {
-                    impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                    let ret = tls::inject_vm(vm, || self($($var,)*));
-                    ret.map_err(error::Error::from)?
+                    tls::inject_vm(vm, || self($($var,)*)).into_result()?
                 };
 
                 impl_register!{@return vm, ret, Ret}
