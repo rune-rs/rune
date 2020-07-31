@@ -14,7 +14,7 @@ where
 #[tokio::test]
 async fn test_custom_functions() -> anyhow::Result<()> {
     let mut module = st::Module::default();
-    module.free_fn("test", || 42).unwrap();
+    module.free_fn(&["test"], || 42).unwrap();
 
     let mut context = st::Context::new();
     context.install(module)?;

@@ -7,7 +7,6 @@ use crate::value::{ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 use std::any::type_name;
 use std::future::Future;
-use std::sync::Arc;
 
 use crate::context::item::Item;
 use crate::context::{BoxFuture, ContextError, FnSignature, Handler};
@@ -16,9 +15,9 @@ use crate::context::{BoxFuture, ContextError, FnSignature, Handler};
 #[derive(Default)]
 pub struct Module {
     /// The name of the module.
-    pub(super) path: Arc<Item>,
+    pub(super) path: Item,
     /// Free functions.
-    pub(super) functions: HashMap<String, (Box<Handler>, FnSignature)>,
+    pub(super) functions: HashMap<Item, (Box<Handler>, FnSignature)>,
     /// Instance functions.
     pub(super) instance_functions: HashMap<(ValueType, String), (Box<Handler>, FnSignature)>,
     /// Registered types.
@@ -33,7 +32,7 @@ impl Module {
         I::Item: AsRef<str>,
     {
         Self {
-            path: Arc::new(Item::of(path)),
+            path: Item::of(path),
             functions: Default::default(),
             instance_functions: Default::default(),
             types: Default::default(),
@@ -86,27 +85,28 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.free_fn("bytes", StringQueue::new)?;
+    /// module.free_fn(&["bytes"], StringQueue::new)?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn free_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<(), ContextError>
+    pub fn free_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
         Func: FreeFn<Args>,
+        N: IntoIterator,
+        N::Item: AsRef<str>,
     {
-        if self.functions.contains_key(name) {
-            return Err(ContextError::ConflictingFunctionName {
-                name: name.to_owned(),
-            });
+        let name = self.path.join(name);
+
+        if self.functions.contains_key(&name) {
+            return Err(ContextError::ConflictingFunctionName { name });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| {
             let ret = f.vm_call(vm, args);
             Box::pin(async move { ret })
         });
-        let signature = FnSignature::new_global(self.path.clone(), name, Func::args());
-
-        self.functions.insert(name.to_owned(), (handler, signature));
+        let signature = FnSignature::new_free(self.path.join(&name), Func::args());
+        self.functions.insert(name, (handler, signature));
         Ok(())
     }
 
@@ -118,29 +118,30 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.fallible_free_fn("empty", || Ok::<_, st::Error>(()))?;
-    /// module.fallible_free_fn("string", |a: String| Ok::<_, st::Error>(()))?;
-    /// module.fallible_free_fn("optional", |a: Option<String>| Ok::<_, st::Error>(()))?;
+    /// module.fallible_free_fn(&["empty"], || Ok::<_, st::Error>(()))?;
+    /// module.fallible_free_fn(&["string"], |a: String| Ok::<_, st::Error>(()))?;
+    /// module.fallible_free_fn(&["optional"], |a: Option<String>| Ok::<_, st::Error>(()))?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn fallible_free_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<(), ContextError>
+    pub fn fallible_free_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
         Func: FallibleFreeFn<Args>,
+        N: IntoIterator,
+        N::Item: AsRef<str>,
     {
-        if self.functions.contains_key(name) {
-            return Err(ContextError::ConflictingFunctionName {
-                name: name.to_owned(),
-            });
+        let name = self.path.join(name);
+
+        if self.functions.contains_key(&name) {
+            return Err(ContextError::ConflictingFunctionName { name });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| {
             let ret = f.vm_call(vm, args);
             Box::pin(async move { ret })
         });
-
-        let signature = FnSignature::new_global(self.path.clone(), name, Func::args());
-        self.functions.insert(name.to_owned(), (handler, signature));
+        let signature = FnSignature::new_free(self.path.join(&name), Func::args());
+        self.functions.insert(name, (handler, signature));
         Ok(())
     }
 
@@ -152,66 +153,71 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.async_free_fn("empty", || async { Ok::<_, st::Error>(()) })?;
-    /// module.async_free_fn("string", |a: String| async { Ok::<_, st::Error>(()) })?;
-    /// module.async_free_fn("optional", |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
+    /// module.async_free_fn(&["empty"], || async { Ok::<_, st::Error>(()) })?;
+    /// module.async_free_fn(&["string"], |a: String| async { Ok::<_, st::Error>(()) })?;
+    /// module.async_free_fn(&["optional"], |a: Option<String>| async { Ok::<_, st::Error>(()) })?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn async_free_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<(), ContextError>
+    pub fn async_free_fn<Func, Args, N>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
         Func: AsyncFreeFn<Args>,
+        N: IntoIterator,
+        N::Item: AsRef<str>,
     {
-        if self.functions.contains_key(name) {
-            return Err(ContextError::ConflictingFunctionName {
-                name: name.to_owned(),
-            });
+        let name = self.path.join(name);
+
+        if self.functions.contains_key(&name) {
+            return Err(ContextError::ConflictingFunctionName { name });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
-        let signature = FnSignature::new_global(self.path.clone(), name, Func::args());
-
-        self.functions.insert(name.to_owned(), (handler, signature));
+        let signature = FnSignature::new_free(self.path.join(&name), Func::args());
+        self.functions.insert(name, (handler, signature));
         Ok(())
     }
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn raw_free_fn<F>(&mut self, name: &str, f: F) -> Result<(), ContextError>
+    pub fn raw_free_fn<F, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), VmError> + Send + Sync,
+        N: IntoIterator,
+        N::Item: AsRef<str>,
     {
-        if self.functions.contains_key(name) {
+        let name = self.path.join(name);
+
+        if self.functions.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName {
                 name: name.to_owned(),
             });
         }
 
-        let signature = FnSignature::new_raw(self.path.clone(), name);
         let handler: Box<Handler> = Box::new(move |vm, args| Box::pin(async move { f(vm, args) }));
+        let signature = FnSignature::new_raw(self.path.join(&name));
         self.functions.insert(name.to_owned(), (handler, signature));
         Ok(())
     }
 
     /// Register a raw function which interacts directly with the virtual
     /// machine.
-    pub fn async_raw_free_fn<F, O>(&mut self, name: &str, f: F) -> Result<(), ContextError>
+    pub fn async_raw_free_fn<F, O, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
     where
         for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> O + Send + Sync,
         O: Future<Output = Result<(), VmError>>,
+        N: IntoIterator,
+        N::Item: AsRef<str>,
     {
-        if self.functions.contains_key(name) {
-            return Err(ContextError::ConflictingFunctionName {
-                name: name.to_owned(),
-            });
+        let name = Item::of(name);
+
+        if self.functions.contains_key(&name) {
+            return Err(ContextError::ConflictingFunctionName { name });
         }
 
         let handler: Box<Handler> =
             Box::new(move |vm, args| Box::pin(async move { f(vm, args).await }));
-        let signature = FnSignature::new_raw(self.path.clone(), name);
-
-        self.functions.insert(name.to_owned(), (handler, signature));
-
+        let signature = FnSignature::new_raw(self.path.join(&name));
+        self.functions.insert(name, (handler, signature));
         Ok(())
     }
 
@@ -240,7 +246,8 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
-    /// module.free_fn("bytes", StringQueue::new)?;
+    /// module.ty::<StringQueue>("StringQueue");
+    /// module.free_fn(&["StringQueue", "bytes"], StringQueue::new)?;
     /// module.inst_fn("len", StringQueue::len)?;
     /// # Ok(())
     /// # }
@@ -251,6 +258,12 @@ impl Module {
     {
         let ty = Func::instance_value_type();
         let type_info = Func::instance_value_type_info();
+
+        if !self.types.contains_key(&ty) {
+            return Err(ContextError::MissingInstance {
+                instance_type: type_info,
+            });
+        }
 
         let key = (ty, name.to_owned());
 
@@ -265,7 +278,7 @@ impl Module {
             let ret = f.vm_call(vm, args);
             Box::pin(async move { ret })
         });
-        let signature = FnSignature::new_instance(self.path.clone(), type_info, name, Func::args());
+        let signature = FnSignature::new_inst(type_info, name, Func::args());
 
         self.instance_functions
             .insert(key.clone(), (handler, signature));
@@ -280,6 +293,7 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
+    /// module.ty::<String>("String");
     /// module.fallible_inst_fn("len", |s: &str| Ok::<_, st::Error>(s.len()))?;
     /// # Ok(())
     /// # }
@@ -290,6 +304,12 @@ impl Module {
     {
         let ty = Func::instance_value_type();
         let type_info = Func::instance_value_type_info();
+
+        if !self.types.contains_key(&ty) {
+            return Err(ContextError::MissingInstance {
+                instance_type: type_info,
+            });
+        }
 
         let key = (ty, name.to_owned());
 
@@ -304,7 +324,7 @@ impl Module {
             let ret = f.vm_call(vm, args);
             Box::pin(async move { ret })
         });
-        let signature = FnSignature::new_instance(self.path.clone(), type_info, name, Func::args());
+        let signature = FnSignature::new_inst(type_info, name, Func::args());
 
         self.instance_functions
             .insert(key.clone(), (handler, signature));
@@ -335,6 +355,7 @@ impl Module {
     /// # fn main() -> anyhow::Result<()> {
     /// let mut module = st::Module::default();
     ///
+    /// module.ty::<MyType>("MyType");
     /// module.async_inst_fn("test", MyType::test)?;
     /// # Ok(())
     /// # }
@@ -346,6 +367,12 @@ impl Module {
         let ty = Func::instance_value_type();
         let type_info = Func::instance_value_type_info();
 
+        if !self.types.contains_key(&ty) {
+            return Err(ContextError::MissingInstance {
+                instance_type: type_info,
+            });
+        }
+
         let key = (ty, name.to_owned());
 
         if self.instance_functions.contains_key(&key) {
@@ -356,7 +383,7 @@ impl Module {
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
-        let signature = FnSignature::new_instance(self.path.clone(), type_info, name, Func::args());
+        let signature = FnSignature::new_inst(type_info, name, Func::args());
 
         self.instance_functions
             .insert(key.clone(), (handler, signature));
@@ -382,7 +409,7 @@ pub trait FallibleFreeFn<Args>: 'static + Copy + Send + Sync {
     fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
-/// Trait used to provide the [async_free_fn][Self::async_free_fn] function.
+/// Trait used to provide the [async_free_fn][Context::async_free_fn] function.
 pub trait AsyncFreeFn<Args>: 'static + Copy + Send + Sync {
     /// Get the number of arguments.
     fn args() -> usize;
@@ -447,6 +474,37 @@ macro_rules! impl_register {
     };
 
     (@impl $count:expr, $({$ty:ident, $var:ident, $num:expr},)*) => {
+        impl<Func, Ret, $($ty,)*> FreeFn<($($ty,)*)> for Func
+        where
+            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
+            Ret: ToValue,
+            $($ty: UnsafeFromValue,)*
+        {
+            fn args() -> usize {
+                $count
+            }
+
+            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
+                impl_register!{@args $count, args}
+
+                $(let $var = vm.managed_pop()?;)*
+
+                // Safety: We hold a reference to the Vm, so we can
+                // guarantee that it won't be modified.
+                //
+                // The scope is also necessary, since we mutably access `vm`
+                // when we return below.
+                #[allow(unused_unsafe)]
+                let ret = unsafe {
+                    impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
+                    tls::inject_vm(vm, || self($($var,)*))
+                };
+
+                impl_register!{@return vm, ret, Ret}
+                Ok(())
+            }
+        }
+
         impl<Func, Ret, Err, $($ty,)*> FallibleFreeFn<($($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Result<Ret, Err>,
@@ -473,37 +531,6 @@ macro_rules! impl_register {
                     impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
                     let ret = tls::inject_vm(vm, || self($($var,)*));
                     ret.map_err(error::Error::from)?
-                };
-
-                impl_register!{@return vm, ret, Ret}
-                Ok(())
-            }
-        }
-
-        impl<Func, Ret, $($ty,)*> FreeFn<($($ty,)*)> for Func
-        where
-            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
-            Ret: ToValue,
-            $($ty: UnsafeFromValue,)*
-        {
-            fn args() -> usize {
-                $count
-            }
-
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
-                impl_register!{@args $count, args}
-
-                $(let $var = vm.managed_pop()?;)*
-
-                // Safety: We hold a reference to the Vm, so we can
-                // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `vm`
-                // when we return below.
-                #[allow(unused_unsafe)]
-                let ret = unsafe {
-                    impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self($($var,)*))
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -550,6 +577,47 @@ macro_rules! impl_register {
             }
         }
 
+        impl<Func, Ret, Inst, $($ty,)*> InstFn<(Inst, $($ty,)*)> for Func
+        where
+            Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Ret,
+            Ret: ToValue,
+            Inst: UnsafeFromValue + ReflectValueType,
+            $($ty: UnsafeFromValue,)*
+        {
+            fn args() -> usize {
+                $count
+            }
+
+            fn instance_value_type() -> ValueType {
+                Inst::value_type()
+            }
+
+            fn instance_value_type_info() -> ValueTypeInfo {
+                Inst::value_type_info()
+            }
+
+            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
+                impl_register!{@args $count, args}
+
+                let inst = vm.managed_pop()?;
+                $(let $var = vm.managed_pop()?;)*
+
+                // Safety: We hold a reference to the Vm, so we can
+                // guarantee that it won't be modified.
+                //
+                // The scope is also necessary, since we mutably access `vm`
+                // when we return below.
+                #[allow(unused_unsafe)]
+                let ret = unsafe {
+                    impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
+                    tls::inject_vm(vm, || self(inst, $($var,)*))
+                };
+
+                impl_register!{@return vm, ret, Ret}
+                Ok(())
+            }
+        }
+
         impl<Func, Ret, Inst, Err, $($ty,)*> FallibleInstFn<(Inst, $($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Result<Ret, Err>,
@@ -585,47 +653,6 @@ macro_rules! impl_register {
                 let ret = unsafe {
                     impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
                     tls::inject_vm(vm, || self(inst, $($var,)*).map_err(error::Error::from))?
-                };
-
-                impl_register!{@return vm, ret, Ret}
-                Ok(())
-            }
-        }
-
-        impl<Func, Ret, Inst, $($ty,)*> InstFn<(Inst, $($ty,)*)> for Func
-        where
-            Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Ret,
-            Ret: ToValue,
-            Inst: UnsafeFromValue + ReflectValueType,
-            $($ty: UnsafeFromValue,)*
-        {
-            fn args() -> usize {
-                $count
-            }
-
-            fn instance_value_type() -> ValueType {
-                Inst::value_type()
-            }
-
-            fn instance_value_type_info() -> ValueTypeInfo {
-                Inst::value_type_info()
-            }
-
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
-                impl_register!{@args $count, args}
-
-                let inst = vm.managed_pop()?;
-                $(let $var = vm.managed_pop()?;)*
-
-                // Safety: We hold a reference to the Vm, so we can
-                // guarantee that it won't be modified.
-                //
-                // The scope is also necessary, since we mutably access `vm`
-                // when we return below.
-                #[allow(unused_unsafe)]
-                let ret = unsafe {
-                    impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self(inst, $($var,)*))
                 };
 
                 impl_register!{@return vm, ret, Ret}

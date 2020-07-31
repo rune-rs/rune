@@ -3,6 +3,7 @@
 
 pub mod bytes;
 pub mod core;
+pub mod float;
 pub mod int;
 pub mod string;
 pub mod test;

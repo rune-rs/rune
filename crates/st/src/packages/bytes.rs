@@ -55,7 +55,7 @@ impl Bytes {
     }
 
     /// Do something with the bytes.
-    fn push_str(&mut self, s: &str) {
+    fn extend_str(&mut self, s: &str) {
         self.bytes.extend(s.as_bytes());
     }
 
@@ -102,7 +102,7 @@ impl<'a> crate::UnsafeFromValue for &'a [u8] {
         value: crate::ValuePtr,
         vm: &mut crate::Vm,
     ) -> Result<Self, crate::StackError> {
-        let slot = value.into_external()?;
+        let slot = value.into_external(vm)?;
         let value = crate::Ref::unsafe_into_ref(vm.external_ref::<Bytes>(slot)?);
         Ok(value.bytes.as_slice())
     }
@@ -120,18 +120,20 @@ impl<'a> crate::ReflectValueType for &'a [u8] {
 
 /// Get the module for the bytes package.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["bytes"]);
-    module.free_fn("new", Bytes::new)?;
-    module.free_fn("with_capacity", Bytes::with_capacity)?;
+    let mut module = Module::new(&["std"]);
+
+    module.ty::<Bytes>("Bytes")?;
+    module.free_fn(&["Bytes", "new"], Bytes::new)?;
+    module.free_fn(&["Bytes", "with_capacity"], Bytes::with_capacity)?;
 
     module.inst_fn("extend", Bytes::extend)?;
+    module.inst_fn("extend_str", Bytes::extend_str)?;
     module.inst_fn("pop", Bytes::pop)?;
     module.inst_fn("last", Bytes::last)?;
 
     module.inst_fn("len", Bytes::len)?;
     module.inst_fn("capacity", Bytes::capacity)?;
     module.inst_fn("clear", Bytes::clear)?;
-    module.inst_fn("push_str", Bytes::push_str)?;
     module.inst_fn("reserve", Bytes::reserve)?;
     module.inst_fn("reserve_exact", Bytes::reserve_exact)?;
     module.inst_fn("clone", Bytes::clone)?;

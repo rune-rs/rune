@@ -19,12 +19,12 @@ fn char_at(s: &str, index: usize) -> Result<Option<char>, Error> {
 
 /// Get the module for the string package.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "string"]);
+    let mut module = Module::new(&["std"]);
 
     module.ty::<String>("String")?;
 
-    module.free_fn("new", String::new)?;
-    module.free_fn("with_capacity", String::with_capacity)?;
+    module.free_fn(&["String", "new"], String::new)?;
+    module.free_fn(&["String", "with_capacity"], String::with_capacity)?;
 
     module.inst_fn("len", String::len)?;
     module.inst_fn("capacity", String::capacity)?;

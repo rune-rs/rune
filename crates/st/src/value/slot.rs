@@ -1,5 +1,5 @@
 use crate::value::{Managed, ValuePtr};
-use crate::vm::StackError;
+use crate::vm::{StackError, Vm};
 use std::fmt;
 
 /// Compact information on typed slot.
@@ -53,15 +53,18 @@ impl fmt::Debug for Slot {
 }
 
 macro_rules! decl_managed {
-    ($name:ident, $constant:ident) => {
+    ($name:ident, $constant:ident, $expected:ident) => {
         #[allow(unused)]
         pub(super) struct $name(());
 
         impl IntoSlot for $name {
-            fn into_slot(value: ValuePtr) -> Result<usize, StackError> {
+            fn into_slot(value: ValuePtr, vm: &Vm) -> Result<usize, StackError> {
                 let Slot(slot) = match value {
                     ValuePtr::Managed(managed) => managed,
-                    _ => return Err(StackError::ExpectedManaged),
+                    actual => {
+                        let actual = actual.type_info(vm)?;
+                        return Err(StackError::$expected { actual });
+                    }
                 };
 
                 if slot & 0b11 == Slot::$constant {
@@ -74,15 +77,15 @@ macro_rules! decl_managed {
     };
 }
 
-decl_managed!(StringSlot, STRING);
-decl_managed!(ArraySlot, ARRAY);
-decl_managed!(ObjectSlot, OBJECT);
-decl_managed!(ExternalSlot, EXTERNAL);
+decl_managed!(StringSlot, STRING, ExpectedString);
+decl_managed!(ArraySlot, ARRAY, ExpectedArray);
+decl_managed!(ObjectSlot, OBJECT, ExpectedObject);
+decl_managed!(ExternalSlot, EXTERNAL, ExpectedExternal);
 
 /// Trait for converting into managed slots.
 pub(super) trait IntoSlot {
     /// Convert thing into a managed slot.
-    fn into_slot(value: ValuePtr) -> Result<usize, StackError>;
+    fn into_slot(value: ValuePtr, vm: &Vm) -> Result<usize, StackError>;
 }
 
 #[cfg(test)]

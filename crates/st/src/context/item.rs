@@ -31,6 +31,21 @@ impl Item {
         }
     }
 
+    /// Join this path with another.
+    pub fn join<I>(&self, other: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let mut path = self.path.to_vec();
+
+        for part in other {
+            path.push(part.as_ref().to_owned());
+        }
+
+        Self::new(path)
+    }
+
     /// Clone and extend the item path.
     pub fn extended<S>(&self, part: S) -> Self
     where
@@ -65,7 +80,7 @@ impl fmt::Display for Item {
 
 impl<'a> IntoIterator for &'a Item {
     type IntoIter = std::slice::Iter<'a, String>;
-    type Item = <Self::IntoIter as Iterator>::Item;
+    type Item = &'a String;
 
     fn into_iter(self) -> Self::IntoIter {
         self.path.iter()

@@ -2,7 +2,7 @@ import http;
 import json;
 
 fn main() {
-    let client = http::client();
+    let client = http::Client::new();
     let response = http::get("http://worldtimeapi.org/api/ip");
     let text = response.text();
     let json = json::from_string(text);
@@ -22,5 +22,10 @@ fn main() {
     let response = json::from_string(response.text());
 
     let content_length = int::parse(response["headers"]["content-length"]);
+
+    if content_length is int {
+        dbg("it is indeed an integer");
+    }
+
     dbg(content_length + 20, response);
 }

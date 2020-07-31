@@ -72,8 +72,13 @@ st::decl_external!(RequestBuilder);
 /// Construct the http library.
 pub fn module() -> Result<st::Module, st::ContextError> {
     let mut module = st::Module::new(&["http"]);
-    module.free_fn("client", Client::new)?;
-    module.async_free_fn("get", get)?;
+
+    module.ty::<Client>("Client")?;
+    module.ty::<Response>("Response")?;
+    module.ty::<RequestBuilder>("RequestBuilder")?;
+
+    module.free_fn(&["Client", "new"], Client::new)?;
+    module.async_free_fn(&["get"], get)?;
 
     module.async_inst_fn("get", Client::get)?;
     module.async_inst_fn("post", Client::post)?;

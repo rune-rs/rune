@@ -4,13 +4,12 @@
 
 ST, a really simple stack-based virtual machine.
 
-## Features of ST
+## Features of st
 
-* Clean Rust ffi.
-* Stack-based C ffi as with Lua (TBD).
+* [Clean Rust FFI][rust-ffi].
+* Stack-based C FFI like with Lua (TBD).
 * Stack frames, allowing for isolation across function calls.
 * A rust-like reference language called *Rune*.
-* No variable slots, we only use the stack to store and manipulate variables.
 
 ## Rune Scripts
 
@@ -27,3 +26,5 @@ If you want to see diagnostics of your unit, you can do:
 ```bash
 cargo rune-cli ./scripts/controls.rn --dump-unit --trace
 ```
+
+[rust-ffi]: https://github.com/udoprog/st/blob/master/crates/st-http/src/lib.rs

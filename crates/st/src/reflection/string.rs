@@ -32,7 +32,7 @@ impl ToValue for String {
 
 impl FromValue for String {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
-        let slot = value.into_string()?;
+        let slot = value.into_string(vm)?;
         vm.string_take(slot)
     }
 }
@@ -56,21 +56,21 @@ impl ToValue for Box<str> {
 
 impl FromValue for Box<str> {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
-        let slot = value.into_string()?;
+        let slot = value.into_string(vm)?;
         Ok(vm.string_take(slot)?.into_boxed_str())
     }
 }
 
 impl<'a> UnsafeFromValue for &'a str {
     unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
-        let slot = value.into_string()?;
+        let slot = value.into_string(vm)?;
         Ok(Ref::unsafe_into_ref(vm.string_ref(slot)?).as_str())
     }
 }
 
 impl<'a> UnsafeFromValue for &'a String {
     unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
-        let slot = value.into_string()?;
+        let slot = value.into_string(vm)?;
         Ok(Ref::unsafe_into_ref(vm.string_ref(slot)?))
     }
 }
@@ -87,7 +87,7 @@ impl<'a> ReflectValueType for &'a String {
 
 impl<'a> UnsafeFromValue for &'a mut String {
     unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
-        let slot = value.into_string()?;
+        let slot = value.into_string(vm)?;
         Ok(Mut::unsafe_into_mut(vm.string_mut(slot)?))
     }
 }

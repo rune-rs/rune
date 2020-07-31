@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use std::env;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use rune::SpannedError as _;
 
@@ -89,28 +89,7 @@ async fn main() -> Result<()> {
     let unit = match compile(&source) {
         Ok(unit) => unit,
         Err(e) => {
-            let span = e.span();
-            let thing = &source[span.start..span.end];
-            let (line, col) = span.line_col(&source);
-
-            println!(
-                "{} at {}:{}:{} {}",
-                e,
-                path.display(),
-                line + 1,
-                col + 1,
-                thing
-            );
-
-            let mut i = 0;
-            let mut e = &e as &dyn Error;
-
-            while let Some(err) = e.source() {
-                println!("#{}: {}", i, err);
-                i += 1;
-                e = err;
-            }
-
+            emit_diagnostics("compiler error", &path, &source, e.span(), &e)?;
             return Ok(());
         }
     };
@@ -118,6 +97,13 @@ async fn main() -> Result<()> {
     let mut context = st::Context::with_default_packages()?;
     context.install(st_http::module()?)?;
     context.install(st_json::module()?)?;
+
+    let mut errors = st::unit::LinkerErrors::new();
+
+    if !unit.link(&context, &mut errors) {
+        emit_link_diagnostics(&path, &source, errors)?;
+        return Ok(());
+    }
 
     if dump_functions {
         println!("# functions");
@@ -210,7 +196,14 @@ async fn main() -> Result<()> {
     let result = match result {
         Ok(result) => result,
         Err(e) => {
+            if let Some(debug) = unit.debug_info_at(vm.ip()) {
+                emit_diagnostics("runtime error", &path, &source, debug.span, &*e)?;
+                return Ok(());
+            }
+
+            println!("warning: debuginfo not available!");
             println!("#0: {}", e);
+
             let mut e = &*e as &dyn Error;
             let mut i = 1;
 
@@ -293,4 +286,79 @@ where
             break Ok(result);
         }
     }
+}
+
+fn emit_link_diagnostics(path: &Path, source: &str, errors: st::unit::LinkerErrors) -> Result<()> {
+    use codespan_reporting::diagnostic::{Diagnostic, Label};
+    use codespan_reporting::files::SimpleFiles;
+    use codespan_reporting::term;
+    use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
+
+    let mut files = SimpleFiles::new();
+
+    let source_file = files.add(path.display().to_string(), source);
+
+    let writer = StandardStream::stderr(ColorChoice::Always);
+    let config = codespan_reporting::term::Config::default();
+
+    for error in errors.errors() {
+        match error {
+            st::unit::LinkerError::MissingFunction { hash, spans } => {
+                let mut labels = Vec::new();
+
+                for span in spans {
+                    labels.push(
+                        Label::primary(source_file, span.start..span.end)
+                            .with_message("called here."),
+                    );
+                }
+
+                let diagnostic = Diagnostic::error()
+                    .with_message(format!("missing function with hash `{}`", hash))
+                    .with_labels(labels);
+
+                term::emit(&mut writer.lock(), &config, &files, &diagnostic)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn emit_diagnostics(
+    what: &str,
+    path: &Path,
+    source: &str,
+    span: st::unit::Span,
+    error: &dyn Error,
+) -> Result<()> {
+    use codespan_reporting::diagnostic::{Diagnostic, Label};
+    use codespan_reporting::files::SimpleFiles;
+    use codespan_reporting::term;
+    use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
+
+    let mut files = SimpleFiles::new();
+
+    let source_file = files.add(path.display().to_string(), source);
+
+    let mut current = error;
+    let mut labels = Vec::new();
+
+    labels
+        .push(Label::primary(source_file, span.start..span.end).with_message(current.to_string()));
+
+    while let Some(source) = current.source() {
+        labels.push(
+            Label::primary(source_file, span.start..span.end).with_message(source.to_string()),
+        );
+        current = source;
+    }
+
+    let diagnostic = Diagnostic::error().with_message(what).with_labels(labels);
+
+    let writer = StandardStream::stderr(ColorChoice::Always);
+    let config = codespan_reporting::term::Config::default();
+
+    term::emit(&mut writer.lock(), &config, &files, &diagnostic)?;
+    Ok(())
 }

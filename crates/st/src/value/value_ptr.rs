@@ -26,11 +26,13 @@ pub enum ValuePtr {
 impl ValuePtr {
     /// Convert value into a managed.
     #[inline]
-    pub fn into_managed(self) -> Result<(Managed, usize), StackError> {
-        if let Self::Managed(slot) = self {
-            Ok(slot.into_managed())
-        } else {
-            Err(StackError::ExpectedManaged)
+    pub fn into_managed(self, vm: &Vm) -> Result<(Managed, usize), StackError> {
+        match self {
+            Self::Managed(slot) => Ok(slot.into_managed()),
+            actual => {
+                let actual = actual.type_info(vm)?;
+                Err(StackError::ExpectedManaged { actual })
+            }
         }
     }
 
@@ -46,26 +48,26 @@ impl ValuePtr {
 
     /// Convert value into a managed slot.
     #[inline]
-    fn into_slot<T>(self) -> Result<usize, StackError>
+    fn into_slot<T>(self, vm: &Vm) -> Result<usize, StackError>
     where
         T: IntoSlot,
     {
-        T::into_slot(self)
+        T::into_slot(self, vm)
     }
 
     /// Try to coerce value reference into an external.
-    pub fn into_external(self) -> Result<usize, StackError> {
-        self.into_slot::<slot::ExternalSlot>()
+    pub fn into_external(self, vm: &Vm) -> Result<usize, StackError> {
+        self.into_slot::<slot::ExternalSlot>(vm)
     }
 
     /// Try to coerce value reference into an array.
-    pub fn into_array(self) -> Result<usize, StackError> {
-        self.into_slot::<slot::ArraySlot>()
+    pub fn into_array(self, vm: &Vm) -> Result<usize, StackError> {
+        self.into_slot::<slot::ArraySlot>(vm)
     }
 
     /// Try to coerce value reference into an array.
-    pub fn into_string(self) -> Result<usize, StackError> {
-        self.into_slot::<slot::StringSlot>()
+    pub fn into_string(self, vm: &Vm) -> Result<usize, StackError> {
+        self.into_slot::<slot::StringSlot>(vm)
     }
 
     /// Get the type information for the current value.

@@ -37,5 +37,6 @@ pub use crate::value::{
 pub use crate::vm::{Inst, Mut, Ref, StackError, Task, Vm, VmError};
 
 mod collections {
-    pub use hashbrown::{hash_map, HashMap};
+    pub use hashbrown::HashMap;
+    pub use hashbrown::HashSet;
 }

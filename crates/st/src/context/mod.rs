@@ -5,7 +5,6 @@ use crate::vm::{Vm, VmError};
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 use thiserror::Error;
 
 mod item;
@@ -29,7 +28,7 @@ pub enum ContextError {
     #[error("function with name `{name}` already exists")]
     ConflictingFunctionName {
         /// The name of the conflicting function.
-        name: String,
+        name: Item,
     },
     /// Error raised when attempting to register a conflicting instance function.
     #[error("instance function `{name}` for type `{type_info}` already exists")]
@@ -56,6 +55,13 @@ pub enum ContextError {
         hash: Hash,
         /// The type information for the type that already existed.
         existing: ValueTypeInfo,
+    },
+    /// Error raised when attempting to register an instance function on an
+    /// instance which does not exist.
+    #[error("instance `{instance_type}` does not exist in module")]
+    MissingInstance {
+        /// The instance type.
+        instance_type: ValueTypeInfo,
     },
 }
 
@@ -85,40 +91,37 @@ impl fmt::Display for TypeInfo {
 
 /// A description of a function signature.
 #[derive(Debug, Clone)]
-pub struct FnSignature {
-    path: Arc<Item>,
-    instance: Option<ValueTypeInfo>,
-    name: String,
-    args: Option<usize>,
+pub enum FnSignature {
+    Free {
+        path: Item,
+        args: Option<usize>,
+    },
+    Instance {
+        instance: ValueTypeInfo,
+        name: String,
+        args: Option<usize>,
+    },
 }
 
 impl FnSignature {
     /// Construct a new function signature.
-    pub fn new_instance(path: Arc<Item>, instance: ValueTypeInfo, name: &str, args: usize) -> Self {
-        Self {
-            path,
-            instance: Some(instance),
+    pub fn new_inst(instance: ValueTypeInfo, name: &str, args: usize) -> Self {
+        Self::Instance {
+            instance,
             name: name.to_owned(),
             args: Some(args),
         }
     }
 
     /// Construct a new raw signature.
-    pub fn new_raw(path: Arc<Item>, name: &str) -> Self {
-        Self {
-            path,
-            instance: None,
-            name: name.to_owned(),
-            args: None,
-        }
+    pub fn new_raw(path: Item) -> Self {
+        Self::Free { path, args: None }
     }
 
     /// Construct a new global function signature.
-    pub fn new_global(path: Arc<Item>, name: &str, args: usize) -> Self {
-        Self {
+    pub fn new_free(path: Item, args: usize) -> Self {
+        Self::Free {
             path,
-            instance: None,
-            name: name.to_owned(),
             args: Some(args),
         }
     }
@@ -126,38 +129,30 @@ impl FnSignature {
 
 impl fmt::Display for FnSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(instance) = self.instance {
-            write!(fmt, "<{}>::{}(self", instance, self.name)?;
-
-            if let Some(args) = self.args {
-                for n in 0..args {
-                    write!(fmt, ", #{}", n)?;
-                }
-            } else {
-                write!(fmt, ", ...")?;
+        let args = match self {
+            Self::Free { path, args } => {
+                write!(fmt, "{}(", path)?;
+                *args
             }
+            Self::Instance {
+                instance,
+                name,
+                args,
+            } => {
+                write!(fmt, "<{}>::{}(self", instance, name)?;
+                *args
+            }
+        };
 
-            write!(fmt, ")")?;
+        if let Some(args) = args {
+            for n in 0..args {
+                write!(fmt, ", #{}", n)?;
+            }
         } else {
-            write!(fmt, "{}::{}(", self.path, self.name)?;
-
-            if let Some(args) = self.args {
-                let mut it = 0..args;
-                let last = it.next_back();
-
-                for n in it {
-                    write!(fmt, "#{}, ", n)?;
-                }
-
-                if let Some(n) = last {
-                    write!(fmt, "#{}", n)?;
-                }
-            } else {
-                write!(fmt, "...")?;
-            }
-
-            write!(fmt, ")")?;
+            write!(fmt, ", ...")?;
         }
+
+        write!(fmt, ")")?;
         Ok(())
     }
 }
@@ -191,6 +186,7 @@ impl Context {
         this.install(crate::packages::bytes::module()?)?;
         this.install(crate::packages::string::module()?)?;
         this.install(crate::packages::int::module()?)?;
+        this.install(crate::packages::float::module()?)?;
         this.install(crate::packages::test::module()?)?;
         Ok(this)
     }
@@ -228,10 +224,8 @@ impl Context {
 
     /// Install the specified module.
     pub fn install(&mut self, module: Module) -> Result<(), ContextError> {
-        let base = module.path;
-
         for (name, (handler, signature)) in module.functions.into_iter() {
-            let hash = Hash::function(base.into_iter().chain(Some(&name)));
+            let hash = Hash::function(&name);
 
             if let Some(old) = self.functions_info.insert(hash, signature) {
                 return Err(ContextError::ConflictingFunction {
@@ -257,7 +251,7 @@ impl Context {
         }
 
         for (value_type, (type_info, name)) in module.types.into_iter() {
-            let name = base.extended(name);
+            let name = module.path.extended(name);
             let hash = Hash::of_type(&name);
 
             let type_info = TypeInfo {

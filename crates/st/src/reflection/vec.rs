@@ -17,7 +17,7 @@ where
     T: FromValue,
 {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
-        let slot = value.into_array()?;
+        let slot = value.into_array(vm)?;
         let array = vm.array_take(slot)?;
 
         let mut output = Vec::with_capacity(array.len());

@@ -8,17 +8,15 @@ use crate::value::{Array, Object, Value, ValuePtr};
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["core"]);
+    let mut module = Module::new(&["std"]);
 
     module.ty::<()>("unit")?;
     module.ty::<bool>("bool")?;
     module.ty::<char>("char")?;
-    module.ty::<i64>("int")?;
-    module.ty::<f64>("float")?;
     module.ty::<Array<Value>>("Array")?;
     module.ty::<Object<Value>>("Object")?;
 
-    module.raw_free_fn("dbg", |vm, args| {
+    module.raw_free_fn(&["dbg"], |vm, args| {
         for n in 0..args {
             match vm.managed_pop() {
                 Ok(value) => {

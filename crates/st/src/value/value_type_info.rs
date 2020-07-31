@@ -28,6 +28,39 @@ pub enum ValueTypeInfo {
 
 impl fmt::Display for ValueTypeInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, fmt)
+        match *self {
+            ValueTypeInfo::Unit => {
+                write!(fmt, "unit")?;
+            }
+            ValueTypeInfo::String => {
+                write!(fmt, "String")?;
+            }
+            ValueTypeInfo::Array => {
+                write!(fmt, "Array")?;
+            }
+            ValueTypeInfo::Object => {
+                write!(fmt, "Object")?;
+            }
+            ValueTypeInfo::Integer => {
+                write!(fmt, "int")?;
+            }
+            ValueTypeInfo::Float => {
+                write!(fmt, "float")?;
+            }
+            ValueTypeInfo::Bool => {
+                write!(fmt, "bool")?;
+            }
+            ValueTypeInfo::Char => {
+                write!(fmt, "char")?;
+            }
+            ValueTypeInfo::External(type_name) => {
+                write!(fmt, "{}", type_name)?;
+            }
+            ValueTypeInfo::Type => {
+                write!(fmt, "type")?;
+            }
+        }
+
+        Ok(())
     }
 }

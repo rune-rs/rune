@@ -78,7 +78,7 @@ impl FromValue for Value {
 
 impl FromValue for Box<dyn External> {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
-        let slot = value.into_external()?;
+        let slot = value.into_external(vm)?;
         vm.external_take_dyn(slot)
     }
 }

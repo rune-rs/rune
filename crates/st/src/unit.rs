@@ -4,6 +4,7 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
+use crate::context::Context;
 use crate::context::Item;
 use crate::hash::Hash;
 use crate::vm::Inst;
@@ -67,11 +68,16 @@ pub struct Span {
 }
 
 impl Span {
+    /// Get the length of the span.
+    pub fn len(self) -> usize {
+        self.end.saturating_sub(self.start)
+    }
+
     /// Join this span with another span.
     pub fn join(self, other: Self) -> Self {
         Self {
             start: usize::min(self.start, other.start),
-            end: usize::min(self.end, other.end),
+            end: usize::max(self.end, other.end),
         }
     }
 
@@ -89,39 +95,6 @@ impl Span {
             start: self.start.saturating_add(amount),
             end: self.end.saturating_sub(amount),
         }
-    }
-
-    /// Return the zero-based line and column.
-    pub fn line_col(self, source: &str) -> (usize, usize) {
-        let mut line = 0;
-        let mut col = 0;
-
-        let mut it = source.chars();
-        let mut count = 0;
-
-        while let Some(c) = it.next() {
-            if count >= self.start {
-                break;
-            }
-
-            count += c.encode_utf8(&mut [0u8; 4]).len();
-
-            if let '\n' | '\r' = c {
-                if c == '\n' {
-                    line += 1;
-                }
-
-                if col > 0 {
-                    col = 0;
-                }
-
-                continue;
-            }
-
-            col += 1;
-        }
-
-        (line, col)
     }
 }
 
@@ -204,6 +177,8 @@ pub struct Unit {
     debug: Vec<DebugInfo>,
     /// The current label count.
     label_count: usize,
+    /// A collection of required function hashes.
+    required_functions: HashMap<Hash, Vec<Span>>,
 }
 
 impl Unit {
@@ -218,6 +193,7 @@ impl Unit {
             static_string_rev: HashMap::new(),
             debug: Vec::new(),
             label_count: 0,
+            required_functions: HashMap::new(),
         }
     }
 
@@ -225,21 +201,21 @@ impl Unit {
     pub fn with_default_prelude() -> Self {
         let mut this = Self::new();
         this.imports
-            .insert(String::from("dbg"), Item::of(&["core", "dbg"]));
+            .insert(String::from("dbg"), Item::of(&["std", "dbg"]));
         this.imports
-            .insert(String::from("unit"), Item::of(&["core", "unit"]));
+            .insert(String::from("unit"), Item::of(&["std", "unit"]));
         this.imports
-            .insert(String::from("bool"), Item::of(&["core", "bool"]));
+            .insert(String::from("bool"), Item::of(&["std", "bool"]));
         this.imports
-            .insert(String::from("char"), Item::of(&["core", "char"]));
+            .insert(String::from("char"), Item::of(&["std", "char"]));
         this.imports
-            .insert(String::from("int"), Item::of(&["core", "int"]));
+            .insert(String::from("int"), Item::of(&["std", "int"]));
         this.imports
-            .insert(String::from("float"), Item::of(&["core", "float"]));
+            .insert(String::from("float"), Item::of(&["std", "float"]));
         this.imports
-            .insert(String::from("Object"), Item::of(&["core", "Object"]));
+            .insert(String::from("Object"), Item::of(&["std", "Object"]));
         this.imports
-            .insert(String::from("Array"), Item::of(&["core", "Array"]));
+            .insert(String::from("Array"), Item::of(&["std", "Array"]));
         this.imports.insert(
             String::from("String"),
             Item::of(&["std", "string", "String"]),
@@ -403,6 +379,8 @@ impl Unit {
     fn add_assembly(&mut self, assembly: Assembly) -> Result<(), UnitError> {
         self.label_count = assembly.label_count;
 
+        self.required_functions.extend(assembly.required_functions);
+
         for (pos, (inst, span)) in assembly.instructions.into_iter().enumerate() {
             let mut comment = None;
             let label = assembly.labels_rev.get(&pos).copied();
@@ -458,6 +436,23 @@ impl Unit {
             Ok((offset as isize) - base)
         }
     }
+
+    /// Try to link the unit with the context, checking that all necessary
+    /// functions are provided.
+    ///
+    /// This can prevent a number of runtime errors, like missing functions.
+    pub fn link(&self, context: &Context, errors: &mut LinkerErrors) -> bool {
+        for (hash, spans) in &self.required_functions {
+            if self.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
+                errors.errors.push(LinkerError::MissingFunction {
+                    hash: *hash,
+                    spans: spans.clone(),
+                });
+            }
+        }
+
+        errors.errors.is_empty()
+    }
 }
 
 /// A label that can be jumped to.
@@ -492,6 +487,8 @@ pub struct Assembly {
     instructions: Vec<(AssemblyInst, Span)>,
     /// The number of labels.
     label_count: usize,
+    /// The collection of functions required by this assembly.
+    required_functions: HashMap<Hash, Vec<Span>>,
 }
 
 impl Assembly {
@@ -502,6 +499,7 @@ impl Assembly {
             labels_rev: Default::default(),
             instructions: Default::default(),
             label_count,
+            required_functions: Default::default(),
         }
     }
 
@@ -547,6 +545,46 @@ impl Assembly {
 
     /// Push a raw instruction.
     pub fn push(&mut self, raw: Inst, span: Span) {
+        match raw {
+            Inst::Call { hash, .. } => {
+                self.required_functions.entry(hash).or_default().push(span);
+            }
+            _ => (),
+        }
+
         self.instructions.push((AssemblyInst::Raw { raw }, span));
+    }
+}
+
+/// An error raised during linking.
+pub enum LinkerError {
+    /// Missing a function with the given hash.
+    MissingFunction {
+        /// Hash of the function.
+        hash: Hash,
+        /// Spans where the function is used.
+        spans: Vec<Span>,
+    },
+}
+
+/// Linker errors.
+pub struct LinkerErrors {
+    errors: Vec<LinkerError>,
+}
+
+impl LinkerErrors {
+    /// Construct a new collection of linker errors.
+    pub fn new() -> Self {
+        Self { errors: Vec::new() }
+    }
+
+    /// Test if error collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty()
+    }
+
+    /// Return an iterator over all linker errors.
+    pub fn errors(self) -> impl Iterator<Item = LinkerError> {
+        self.errors.into_iter()
     }
 }

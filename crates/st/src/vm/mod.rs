@@ -96,9 +96,36 @@ pub enum StackError {
     /// Error raised when we expected a float value.
     #[error("expected float value")]
     ExpectedFloat,
+    /// Error raised when we expected a string.
+    #[error("expected a string but found `{actual}`")]
+    ExpectedString {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a array.
+    #[error("expected a array but found `{actual}`")]
+    ExpectedArray {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a object.
+    #[error("expected a object but found `{actual}`")]
+    ExpectedObject {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected an external value.
+    #[error("expected a external value but found `{actual}`")]
+    ExpectedExternal {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
     /// Error raised when we expected a managed value.
-    #[error("expected a managed value")]
-    ExpectedManaged,
+    #[error("expected an external, array, object, or string, but found `{actual}`")]
+    ExpectedManaged {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
     /// Error raised when we expected a managed value with a specific slot.
     #[error("slot type is incompatible with expected")]
     IncompatibleSlot,

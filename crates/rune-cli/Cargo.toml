@@ -15,5 +15,6 @@ rune = {version = "0.0.0", path = "../rune"}
 st = {version = "0.0.0", path = "../st"}
 st-http = {version = "0.0.0", path = "../st-http"}
 st-json = {version = "0.0.0", path = "../st-json"}
+codespan-reporting = "0.9.5"
 
 anyhow = "1.0.32"

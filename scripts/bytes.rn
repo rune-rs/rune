@@ -1,10 +1,15 @@
 import bytes;
+import test::assert;
 
 fn main() {
-    let bytes = bytes::new();
+    let bytes = bytes::Bytes::new();
     bytes.extend_str("hello world");
     bytes.extend_str("hello world");
     let other = bytes.clone();
     bytes.extend(other);
+
+    assert(bytes is bytes::Bytes, "bytes should be bytes");
+    dbg(bytes);
+
     bytes
 }

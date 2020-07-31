@@ -17,7 +17,7 @@ fn assert(value: bool, message: &str) -> Result<()> {
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["test"]);
-    module.fallible_free_fn("assert", assert)?;
+    let mut module = Module::new(&["std", "test"]);
+    module.fallible_free_fn(&["assert"], assert)?;
     Ok(module)
 }
