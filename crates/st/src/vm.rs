@@ -674,201 +674,199 @@ pub enum Inst {
 impl Inst {
     /// Evaluate the current instruction against the stack.
     async fn eval(self, vm: &mut Vm, functions: &Functions, unit: &Unit) -> Result<(), VmError> {
-        loop {
-            match self {
-                Self::Call { hash, args } => {
-                    match unit.lookup(hash) {
-                        Some(loc) => {
-                            vm.push_frame(loc, args)?;
-                            break;
+        let mut update_ip = true;
+
+        match self {
+            Self::Call { hash, args } => {
+                match unit.lookup(hash) {
+                    Some(loc) => {
+                        vm.push_frame(loc, args)?;
+                        update_ip = false;
+                    }
+                    None => {
+                        let handler = functions
+                            .lookup(hash)
+                            .ok_or_else(|| VmError::MissingFunction { hash })?;
+
+                        let result = handler(vm, args).await;
+
+                        // Safety: We have exclusive access to the VM and
+                        // everything that was borrowed during the call can now
+                        // be cleared since it's only used in the handler.
+                        unsafe {
+                            vm.disarm();
                         }
-                        None => {
-                            let handler = functions
-                                .lookup(hash)
-                                .ok_or_else(|| VmError::MissingFunction { hash })?;
 
-                            let result = handler(vm, args).await;
-
-                            // Safety: We have exclusive access to the VM and
-                            // everything that was borrowed during the call can now
-                            // be cleared since it's only used in the handler.
-                            unsafe {
-                                vm.disarm();
-                            }
-
-                            result?;
-                        }
+                        result?;
                     }
-                }
-                Self::CallInstance { hash, args } => {
-                    let instance = vm.peek()?;
-                    let ty = instance.value_type(vm)?;
-
-                    let hash = Hash::instance_function(ty, hash);
-
-                    match unit.lookup(hash) {
-                        Some(loc) => {
-                            vm.push_frame(loc, args)?;
-                            break;
-                        }
-                        None => {
-                            let handler = functions
-                                .lookup(hash)
-                                .ok_or_else(|| VmError::MissingFunction { hash })?;
-
-                            let result = handler(vm, args).await;
-
-                            // Safety: We have exclusive access to the VM and
-                            // everything that was borrowed during the call can
-                            // now be cleared since it's only used in the
-                            // handler.
-                            unsafe {
-                                vm.disarm();
-                            }
-
-                            result?;
-                        }
-                    }
-                }
-                Self::IndexGet => {
-                    let target = vm.managed_pop()?;
-                    let index = vm.managed_pop()?;
-                    vm.index_get(target, index)?;
-                }
-                Self::IndexSet => {
-                    let target = vm.managed_pop()?;
-                    let index = vm.managed_pop()?;
-                    let value = vm.managed_pop()?;
-                    vm.index_set(target, index, value)?;
-                }
-                Self::Return => {
-                    // NB: unmanaged because we're effectively moving the value.
-                    let return_value = vm.unmanaged_pop()?;
-                    vm.pop_frame()?;
-                    vm.unmanaged_push(return_value);
-                }
-                Self::ReturnUnit => {
-                    vm.pop_frame()?;
-                    vm.managed_push(ValuePtr::Unit)?;
-                }
-                Self::Pop => {
-                    vm.managed_pop()?;
-                }
-                Self::Integer { number } => {
-                    vm.managed_push(ValuePtr::Integer(number))?;
-                }
-                Self::Float { number } => {
-                    vm.managed_push(ValuePtr::Float(number))?;
-                }
-                Self::Copy { offset } => {
-                    vm.stack_copy(offset)?;
-                }
-                Self::Replace { offset } => {
-                    vm.stack_replace(offset)?;
-                }
-                Self::Add => {
-                    vm.add()?;
-                }
-                Self::Sub => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-                    vm.unmanaged_push(numeric_ops!(vm, a - b));
-                }
-                Self::Div => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-                    vm.unmanaged_push(numeric_ops!(vm, a / b));
-                }
-                Self::Mul => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-                    vm.unmanaged_push(numeric_ops!(vm, a * b));
-                }
-                Self::Gt => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a > b)));
-                }
-                Self::Gte => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a >= b)));
-                }
-                Self::Lt => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a < b)));
-                }
-                Self::Lte => {
-                    let b = vm.managed_pop()?;
-                    let a = vm.managed_pop()?;
-                    vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a <= b)));
-                }
-                Self::Eq => {
-                    vm.eq()?;
-                }
-                Self::Neq => {
-                    vm.neq()?;
-                }
-                Self::Jump { offset } => {
-                    vm.modify_ip(offset)?;
-                    // NB: avoid modifying ip.
-                    break;
-                }
-                Self::JumpIf { offset } => {
-                    if pop!(vm, Bool) {
-                        vm.modify_ip(offset)?;
-                        // NB: avoid modifying ip.
-                        break;
-                    }
-                }
-                Self::JumpIfNot { offset } => {
-                    if !pop!(vm, Bool) {
-                        vm.modify_ip(offset)?;
-                        // NB: avoid modifying ip.
-                        break;
-                    }
-                }
-                Self::Unit => {
-                    vm.managed_push(ValuePtr::Unit)?;
-                }
-                Self::Bool { value } => {
-                    vm.managed_push(ValuePtr::Bool(value))?;
-                }
-                Self::Array { count } => {
-                    let mut array = Vec::with_capacity(count);
-
-                    for _ in 0..count {
-                        array.push(vm.stack.pop().ok_or_else(|| StackError::StackEmpty)?);
-                    }
-
-                    let value = vm.array_allocate(array);
-                    vm.managed_push(value)?;
-                }
-                Self::Object { count } => {
-                    let mut object = HashMap::with_capacity(count);
-
-                    for _ in 0..count {
-                        let key = vm.pop_decode()?;
-                        let value = vm.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
-                        object.insert(key, value);
-                    }
-
-                    let value = vm.object_allocate(object);
-                    vm.managed_push(value)?;
-                }
-                Self::String { slot } => {
-                    let string = unit
-                        .lookup_string(slot)
-                        .ok_or_else(|| VmError::MissingStaticString { slot })?;
-                    // TODO: do something sneaky to only allocate the static string once.
-                    let value = vm.string_allocate(string.to_owned());
-                    vm.managed_push(value)?;
                 }
             }
+            Self::CallInstance { hash, args } => {
+                let instance = vm.peek()?;
+                let ty = instance.value_type(vm)?;
 
+                let hash = Hash::instance_function(ty, hash);
+
+                match unit.lookup(hash) {
+                    Some(loc) => {
+                        vm.push_frame(loc, args)?;
+                        update_ip = false;
+                    }
+                    None => {
+                        let handler = functions
+                            .lookup(hash)
+                            .ok_or_else(|| VmError::MissingFunction { hash })?;
+
+                        let result = handler(vm, args).await;
+
+                        // Safety: We have exclusive access to the VM and
+                        // everything that was borrowed during the call can
+                        // now be cleared since it's only used in the
+                        // handler.
+                        unsafe {
+                            vm.disarm();
+                        }
+
+                        result?;
+                    }
+                }
+            }
+            Self::IndexGet => {
+                let target = vm.managed_pop()?;
+                let index = vm.managed_pop()?;
+                vm.index_get(target, index)?;
+            }
+            Self::IndexSet => {
+                let target = vm.managed_pop()?;
+                let index = vm.managed_pop()?;
+                let value = vm.managed_pop()?;
+                vm.index_set(target, index, value)?;
+            }
+            Self::Return => {
+                // NB: unmanaged because we're effectively moving the value.
+                let return_value = vm.unmanaged_pop()?;
+                vm.pop_frame()?;
+                vm.unmanaged_push(return_value);
+            }
+            Self::ReturnUnit => {
+                vm.pop_frame()?;
+                vm.managed_push(ValuePtr::Unit)?;
+            }
+            Self::Pop => {
+                vm.managed_pop()?;
+            }
+            Self::Integer { number } => {
+                vm.managed_push(ValuePtr::Integer(number))?;
+            }
+            Self::Float { number } => {
+                vm.managed_push(ValuePtr::Float(number))?;
+            }
+            Self::Copy { offset } => {
+                vm.stack_copy(offset)?;
+            }
+            Self::Replace { offset } => {
+                vm.stack_replace(offset)?;
+            }
+            Self::Add => {
+                vm.add()?;
+            }
+            Self::Sub => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(numeric_ops!(vm, a - b));
+            }
+            Self::Div => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(numeric_ops!(vm, a / b));
+            }
+            Self::Mul => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(numeric_ops!(vm, a * b));
+            }
+            Self::Gt => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a > b)));
+            }
+            Self::Gte => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a >= b)));
+            }
+            Self::Lt => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a < b)));
+            }
+            Self::Lte => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(ValuePtr::Bool(primitive_ops!(vm, a <= b)));
+            }
+            Self::Eq => {
+                vm.eq()?;
+            }
+            Self::Neq => {
+                vm.neq()?;
+            }
+            Self::Jump { offset } => {
+                vm.modify_ip(offset)?;
+                update_ip = false;
+            }
+            Self::JumpIf { offset } => {
+                if pop!(vm, Bool) {
+                    vm.modify_ip(offset)?;
+                    update_ip = false;
+                }
+            }
+            Self::JumpIfNot { offset } => {
+                if !pop!(vm, Bool) {
+                    vm.modify_ip(offset)?;
+                    update_ip = false;
+                }
+            }
+            Self::Unit => {
+                vm.managed_push(ValuePtr::Unit)?;
+            }
+            Self::Bool { value } => {
+                vm.managed_push(ValuePtr::Bool(value))?;
+            }
+            Self::Array { count } => {
+                let mut array = Vec::with_capacity(count);
+
+                for _ in 0..count {
+                    array.push(vm.stack.pop().ok_or_else(|| StackError::StackEmpty)?);
+                }
+
+                let value = vm.array_allocate(array);
+                vm.managed_push(value)?;
+            }
+            Self::Object { count } => {
+                let mut object = HashMap::with_capacity(count);
+
+                for _ in 0..count {
+                    let key = vm.pop_decode()?;
+                    let value = vm.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
+                    object.insert(key, value);
+                }
+
+                let value = vm.object_allocate(object);
+                vm.managed_push(value)?;
+            }
+            Self::String { slot } => {
+                let string = unit
+                    .lookup_string(slot)
+                    .ok_or_else(|| VmError::MissingStaticString { slot })?;
+                // TODO: do something sneaky to only allocate the static string once.
+                let value = vm.string_allocate(string.to_owned());
+                vm.managed_push(value)?;
+            }
+        }
+
+        if update_ip {
             vm.ip += 1;
-            break;
         }
 
         vm.reap()?;
@@ -1659,17 +1657,10 @@ impl Vm {
             .pop()
             .ok_or_else(|| StackError::StackFramesEmpty)?;
 
-        let mut args = frame.args;
-
         // Pop all values associated with the call frame.
         while self.stack.len() > self.frame_top {
             let popped = self.managed_pop()?;
-
-            if args == 0 {
-                log::warn!("popped value as part of stack frame: {:?}", popped);
-            } else {
-                args -= 1;
-            }
+            log::trace!("popped local: {:?}", popped);
         }
 
         self.frame_top = frame.old_frame_top;
