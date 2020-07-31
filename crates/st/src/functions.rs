@@ -146,6 +146,13 @@ pub struct TypeInfo {
     pub type_info: ValueTypeInfo,
 }
 
+impl fmt::Display for TypeInfo {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "{} => {}", self.name, self.type_info)?;
+        Ok(())
+    }
+}
+
 /// A description of a function signature.
 #[derive(Debug, Clone)]
 pub struct FnSignature {
@@ -254,6 +261,7 @@ impl Functions {
         this.install(crate::packages::bytes::module()?)?;
         this.install(crate::packages::string::module()?)?;
         this.install(crate::packages::int::module()?)?;
+        this.install(crate::packages::test::module()?)?;
         Ok(this)
     }
 
@@ -264,6 +272,16 @@ impl Functions {
         std::iter::from_fn(move || {
             let (hash, signature) = it.next()?;
             Some((*hash, signature))
+        })
+    }
+
+    /// Iterate over all available types.
+    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &TypeInfo)> {
+        let mut it = self.types.iter();
+
+        std::iter::from_fn(move || {
+            let (hash, ty) = it.next()?;
+            Some((*hash, ty))
         })
     }
 

@@ -134,6 +134,8 @@ pub enum Kind {
     Lte,
     /// Greater than or equal comparison `>=`.
     Gte,
+    /// Not operator `!`.
+    Not,
 }
 
 impl fmt::Display for Kind {
@@ -170,6 +172,7 @@ impl fmt::Display for Kind {
             Self::Gt => write!(fmt, ">"),
             Self::Lte => write!(fmt, "<="),
             Self::Gte => write!(fmt, ">="),
+            Self::Not => write!(fmt, "!"),
         }
     }
 }

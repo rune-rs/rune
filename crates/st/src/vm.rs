@@ -320,14 +320,22 @@ pub enum VmError {
     #[error("instruction pointer is out-of-bounds")]
     IpOutOfBounds,
     /// Unsupported binary operation.
-    #[error("unsupported vm operation `{a} {op} {b}`")]
+    #[error("unsupported vm operation `{lhs} {op} {rhs}`")]
     UnsupportedBinaryOperation {
         /// Operation.
         op: &'static str,
         /// Left-hand side operator.
-        a: ValueTypeInfo,
+        lhs: ValueTypeInfo,
         /// Right-hand side operator.
-        b: ValueTypeInfo,
+        rhs: ValueTypeInfo,
+    },
+    /// Unsupported unary operation.
+    #[error("unsupported vm operation `{op}{operand}`")]
+    UnsupportedUnaryOperation {
+        /// Operation.
+        op: &'static str,
+        /// Operand.
+        operand: ValueTypeInfo,
     },
     /// Attempt to access out-of-bounds stack item.
     #[error("tried to access an out-of-bounds stack entry")]
@@ -453,10 +461,10 @@ macro_rules! primitive_ops {
             (ValuePtr::Bool($a), ValuePtr::Bool($b)) => $a $op $b,
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => $a $op $b,
             (ValuePtr::Float($a), ValuePtr::Float($b)) => $a $op $b,
-            (a, b) => return Err(VmError::UnsupportedBinaryOperation {
+            (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
-                a: a.type_info($vm)?,
-                b: b.type_info($vm)?,
+                lhs: lhs.type_info($vm)?,
+                rhs: rhs.type_info($vm)?,
             }),
         }
     }
@@ -468,10 +476,10 @@ macro_rules! numeric_ops {
         match ($a, $b) {
             (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float($a $op $b),
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer($a $op $b),
-            (a, b) => return Err(VmError::UnsupportedBinaryOperation {
+            (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
-                a: a.type_info($vm)?,
-                b: b.type_info($vm)?,
+                lhs: lhs.type_info($vm)?,
+                rhs: rhs.type_info($vm)?,
             }),
         }
     }
@@ -480,6 +488,16 @@ macro_rules! numeric_ops {
 /// An operation in the stack-based virtual machine.
 #[derive(Debug, Clone, Copy)]
 pub enum Inst {
+    /// Not operator. Takes a boolean from the top of the stack  and inverts its
+    /// logical value.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <bool>
+    /// => <bool>
+    /// ```
+    Not,
     /// Add two things together.
     ///
     /// This is the result of an `<a> + <b>` expression.
@@ -746,6 +764,27 @@ impl Inst {
         let mut update_ip = true;
 
         match self {
+            Self::Not => {
+                vm.not()?;
+            }
+            Self::Add => {
+                vm.add()?;
+            }
+            Self::Sub => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(numeric_ops!(vm, a - b));
+            }
+            Self::Div => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(numeric_ops!(vm, a / b));
+            }
+            Self::Mul => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+                vm.unmanaged_push(numeric_ops!(vm, a * b));
+            }
             Self::Call { hash, args } => {
                 match unit.lookup(hash) {
                     Some(loc) => {
@@ -843,24 +882,6 @@ impl Inst {
             }
             Self::Replace { offset } => {
                 vm.stack_replace(offset)?;
-            }
-            Self::Add => {
-                vm.add()?;
-            }
-            Self::Sub => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(numeric_ops!(vm, a - b));
-            }
-            Self::Div => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(numeric_ops!(vm, a / b));
-            }
-            Self::Mul => {
-                let b = vm.managed_pop()?;
-                let a = vm.managed_pop()?;
-                vm.unmanaged_push(numeric_ops!(vm, a * b));
             }
             Self::Gt => {
                 let b = vm.managed_pop()?;
@@ -985,6 +1006,9 @@ impl Inst {
 impl fmt::Display for Inst {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Inst::Not => {
+                write!(fmt, "not")?;
+            }
             Inst::Add => {
                 write!(fmt, "add")?;
             }
@@ -2306,6 +2330,21 @@ impl Vm {
         Ok(())
     }
 
+    fn not(&mut self) -> Result<(), VmError> {
+        let value = self.unmanaged_pop()?;
+
+        let value = match value {
+            ValuePtr::Bool(value) => ValuePtr::Bool(!value),
+            other => {
+                let operand = other.type_info(self)?;
+                return Err(VmError::UnsupportedUnaryOperation { op: "!", operand });
+            }
+        };
+
+        self.unmanaged_push(value);
+        Ok(())
+    }
+
     /// Implementation of the add operation.
     fn add(&mut self) -> Result<(), VmError> {
         let b = self.managed_pop()?;
@@ -2344,8 +2383,8 @@ impl Vm {
 
         Err(VmError::UnsupportedBinaryOperation {
             op: "+",
-            a: a.type_info(self)?,
-            b: b.type_info(self)?,
+            lhs: a.type_info(self)?,
+            rhs: b.type_info(self)?,
         })
     }
 

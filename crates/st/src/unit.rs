@@ -226,6 +226,24 @@ impl Unit {
         let mut this = Self::new();
         this.imports
             .insert(String::from("dbg"), ItemPath::of(&["core", "dbg"]));
+        this.imports
+            .insert(String::from("unit"), ItemPath::of(&["core", "unit"]));
+        this.imports
+            .insert(String::from("bool"), ItemPath::of(&["core", "bool"]));
+        this.imports
+            .insert(String::from("char"), ItemPath::of(&["core", "char"]));
+        this.imports
+            .insert(String::from("int"), ItemPath::of(&["core", "int"]));
+        this.imports
+            .insert(String::from("float"), ItemPath::of(&["core", "float"]));
+        this.imports
+            .insert(String::from("Object"), ItemPath::of(&["core", "Object"]));
+        this.imports
+            .insert(String::from("Array"), ItemPath::of(&["core", "Array"]));
+        this.imports.insert(
+            String::from("String"),
+            ItemPath::of(&["std", "string", "String"]),
+        );
         this
     }
 

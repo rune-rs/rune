@@ -19,7 +19,10 @@ fn char_at(s: &str, index: usize) -> Result<Option<char>, Error> {
 
 /// Get the module for the string package.
 pub fn module() -> Result<Module, RegisterError> {
-    let mut module = Module::new(&["string"]);
+    let mut module = Module::new(&["std", "string"]);
+
+    module.register_type::<String>("String")?;
+
     module.global_fn("new", String::new)?;
     module.global_fn("with_capacity", String::with_capacity)?;
 

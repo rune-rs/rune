@@ -2,10 +2,7 @@ use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{StackError, Vm};
 
-impl<T> ReflectValueType for Vec<T>
-where
-    T: ReflectValueType,
-{
+impl<T> ReflectValueType for Vec<T> {
     fn value_type() -> ValueType {
         ValueType::Array
     }

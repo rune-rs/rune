@@ -5,6 +5,7 @@ use crate::source::Source;
 use crate::token::Token;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
+use st::unit::Span;
 
 /// Flag to indicate if the expression should produce a value or not.
 #[derive(Debug, Clone, Copy)]
@@ -83,7 +84,7 @@ impl<'a> Encoder<'a> {
     }
 
     /// Pop locals by simply popping them.
-    fn pop_locals(&mut self, var_count: usize, span: st::unit::Span) {
+    fn pop_locals(&mut self, var_count: usize, span: Span) {
         match var_count {
             0 => (),
             1 => {
@@ -100,7 +101,7 @@ impl<'a> Encoder<'a> {
     ///
     /// The clean operation will preserve the value that is on top of the stack,
     /// and pop the values under it.
-    fn clean_up_locals(&mut self, var_count: usize, span: st::unit::Span) {
+    fn clean_up_locals(&mut self, var_count: usize, span: Span) {
         match var_count {
             0 => (),
             count => {
@@ -175,13 +176,19 @@ impl<'a> Encoder<'a> {
                 self.encode_expr(&*expr.expr, needs_value)?;
             }
             ast::Expr::Ident(ident) => {
-                self.encode_local_copy(ident, needs_value)?;
+                self.encode_ident(ident, needs_value)?;
+            }
+            ast::Expr::Path(path) => {
+                self.encode_type(path, needs_value)?;
             }
             ast::Expr::CallFn(call_fn) => {
                 self.encode_call_fn(call_fn, needs_value)?;
             }
             ast::Expr::CallInstanceFn(call_instance_fn) => {
                 self.encode_call_instance_fn(call_instance_fn, needs_value)?;
+            }
+            ast::Expr::ExprUnary(expr_unary) => {
+                self.encode_expr_unary(expr_unary)?;
             }
             ast::Expr::ExprBinary(expr_binary) => {
                 self.encode_expr_binary(expr_binary)?;
@@ -454,7 +461,7 @@ impl<'a> Encoder<'a> {
     }
 
     /// Encode a local copy.
-    fn encode_local_copy(
+    fn encode_ident(
         &mut self,
         ident: &ast::Ident,
         needs_value: NeedsValue,
@@ -468,13 +475,23 @@ impl<'a> Encoder<'a> {
 
         let target = ident.resolve(self.source)?;
 
-        let offset = self
-            .locals
-            .get_offset(target)
-            .ok_or_else(|| EncodeError::MissingLocal {
-                name: target.to_owned(),
-                span: ident.token.span,
-            })?;
+        let offset = match self.locals.get_offset(target) {
+            Some(offset) => offset,
+            None => {
+                // Something imported is automatically a type.
+                if let Some(path) = self.unit.lookup_import_by_name(target) {
+                    let hash = st::Hash::of_type(path);
+                    self.instructions
+                        .push(st::Inst::Type { hash }, ident.span());
+                    return Ok(());
+                }
+
+                return Err(EncodeError::MissingLocal {
+                    name: target.to_owned(),
+                    span: ident.token.span,
+                });
+            }
+        };
 
         self.instructions
             .push(st::Inst::Copy { offset }, ident.span());
@@ -502,6 +519,31 @@ impl<'a> Encoder<'a> {
             .chain(rest.into_iter());
 
         Ok(st::Hash::function(it))
+    }
+
+    /// Encode the given type.
+    fn encode_type(
+        &mut self,
+        path: &ast::Path,
+        needs_value: NeedsValue,
+    ) -> Result<(), EncodeError> {
+        log::trace!("{:?}", path);
+
+        // NB: do nothing if we don't need a value.
+        if !needs_value.0 {
+            return Ok(());
+        }
+
+        let mut parts = Vec::new();
+        parts.push(path.first.resolve(self.source)?);
+
+        for (_, part) in &path.rest {
+            parts.push(part.resolve(self.source)?);
+        }
+
+        let hash = st::Hash::of_type(&parts);
+        self.instructions.push(st::Inst::Type { hash }, path.span());
+        Ok(())
     }
 
     fn encode_call_fn(
@@ -555,6 +597,22 @@ impl<'a> Encoder<'a> {
         // But if we don't need the value, then pop it from the stack.
         if !needs_value.0 {
             self.instructions.push(st::Inst::Pop, span);
+        }
+
+        Ok(())
+    }
+
+    fn encode_expr_unary(&mut self, expr_unary: &ast::ExprUnary) -> Result<(), EncodeError> {
+        log::trace!("{:?}", expr_unary);
+
+        let span = expr_unary.span();
+
+        self.encode_expr(&*expr_unary.expr, NeedsValue(true))?;
+
+        match expr_unary.op {
+            ast::UnaryOp::Not { .. } => {
+                self.instructions.push(st::Inst::Not, span);
+            }
         }
 
         Ok(())

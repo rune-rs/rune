@@ -24,6 +24,7 @@ fn main() -> Result<()> {
     let mut dump_unit = false;
     let mut dump_vm = false;
     let mut dump_functions = false;
+    let mut dump_types = false;
     let mut help = false;
 
     for arg in args {
@@ -36,6 +37,7 @@ fn main() -> Result<()> {
                 dump_unit = true;
                 dump_vm = true;
                 dump_functions = true;
+                dump_types = true;
             }
             "--dump-unit" => {
                 dump_unit = true;
@@ -45,6 +47,9 @@ fn main() -> Result<()> {
             }
             "--dump-functions" => {
                 dump_functions = true;
+            }
+            "--dump-types" => {
+                dump_types = true;
             }
             "--help" => {
                 help = true;
@@ -69,6 +74,7 @@ fn main() -> Result<()> {
         println!("  --dump-unit      - Dump diagnostics on the unit generated from the file.");
         println!("  --dump-vm        - Dump diagnostics on VM state. If combined with `--trace`, does so afte each instruction.");
         println!("  --dump-functions - Dump available functions.");
+        println!("  --dump-types     - Dump available types.");
         return Ok(());
     }
 
@@ -119,6 +125,14 @@ fn main() -> Result<()> {
 
         for (i, (hash, f)) in functions.iter_functions().enumerate() {
             println!("{:04} = {} ({})", i, f, hash);
+        }
+    }
+
+    if dump_types {
+        println!("# types");
+
+        for (i, (hash, ty)) in functions.iter_types().enumerate() {
+            println!("{:04} = {} ({})", i, ty, hash);
         }
     }
 

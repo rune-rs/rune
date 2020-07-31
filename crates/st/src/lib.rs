@@ -31,7 +31,9 @@ pub use crate::functions::{Functions, ItemPath, Module, RegisterError};
 pub use crate::hash::Hash;
 pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
 pub use crate::unit::{Unit, UnitError};
-pub use crate::value::{Managed, Slot, Value, ValuePtr, ValueRef, ValueType, ValueTypeInfo};
+pub use crate::value::{
+    Array, Managed, Object, Slot, Value, ValuePtr, ValueRef, ValueType, ValueTypeInfo,
+};
 pub use crate::vm::{Inst, Mut, Ref, StackError, Task, Vm, VmError};
 
 mod collections {

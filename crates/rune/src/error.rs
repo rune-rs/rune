@@ -194,6 +194,14 @@ pub enum ParseError {
         /// The location of the unexpected token.
         span: Span,
     },
+    /// Expected a unary operator.
+    #[error("expected unary operator (`!`) but got `{actual}`")]
+    ExpectedUnaryOperator {
+        /// The span that caused the error.
+        span: Span,
+        /// The actual token.
+        actual: Kind,
+    },
 }
 
 impl SpannedError for ParseError {
@@ -215,6 +223,7 @@ impl SpannedError for ParseError {
             Self::ExpectedOperatorError { span, .. } => span,
             Self::ExpectedBoolError { span, .. } => span,
             Self::PathCallInstanceError { span, .. } => span,
+            Self::ExpectedUnaryOperator { span, .. } => span,
         }
     }
 }

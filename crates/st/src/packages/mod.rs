@@ -5,3 +5,4 @@ pub mod bytes;
 pub mod core;
 pub mod int;
 pub mod string;
+pub mod test;

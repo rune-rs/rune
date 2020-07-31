@@ -507,7 +507,42 @@ impl Parse for StringLiteral {
     }
 }
 
-/// A simple operation.
+/// A unary operation.
+#[derive(Debug, Clone, Copy)]
+pub enum UnaryOp {
+    /// Not `!`.
+    Not {
+        /// Token associated with operator.
+        token: Token,
+    },
+}
+
+impl UnaryOp {
+    /// Access the span of the unary operator.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Not { token } => token.span,
+        }
+    }
+}
+
+impl Parse for UnaryOp {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let token = parser.token_next()?;
+
+        Ok(match token.kind {
+            Kind::Not => Self::Not { token },
+            actual => {
+                return Err(ParseError::ExpectedUnaryOperator {
+                    span: token.span,
+                    actual,
+                })
+            }
+        })
+    }
+}
+
+/// A binary operation.
 #[derive(Debug, Clone, Copy)]
 pub enum BinOp {
     /// Addition.
@@ -603,6 +638,7 @@ impl BinOp {
             Kind::Lte => Self::Lte { token },
             Kind::Gte => Self::Gte { token },
             Kind::Dot => Self::Dot { token },
+            Kind::Is => Self::Is { token },
             _ => return None,
         })
     }
@@ -684,6 +720,7 @@ impl Peek for BinOp {
                 Kind::Gte => true,
                 Kind::Lte => true,
                 Kind::Dot => true,
+                Kind::Is => true,
                 _ => false,
             },
             None => false,
@@ -706,6 +743,31 @@ impl ExprBinary {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.lhs.span().join(self.rhs.span())
+    }
+}
+
+/// A unary expression.
+#[derive(Debug, Clone)]
+pub struct ExprUnary {
+    /// The operation to apply.
+    pub op: UnaryOp,
+    /// The expression of the operation.
+    pub expr: Box<Expr>,
+}
+
+impl ExprUnary {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.op.span().join(self.expr.span())
+    }
+}
+
+impl Parse for ExprUnary {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(Self {
+            op: parser.parse()?,
+            expr: Box::new(parser.parse()?),
+        })
     }
 }
 
@@ -854,6 +916,8 @@ pub enum Expr {
     ExprIf(ExprIf),
     /// An empty expression.
     Ident(Ident),
+    /// An path expression.
+    Path(Path),
     /// A function call,
     CallFn(CallFn),
     /// An instance function call,
@@ -874,6 +938,8 @@ pub enum Expr {
     ExprGroup(ExprGroup),
     /// A binary expression.
     ExprBinary(ExprBinary),
+    /// A unary expression.
+    ExprUnary(ExprUnary),
     /// An index set operation.
     IndexGet(IndexGet),
     /// A unit expression.
@@ -903,6 +969,7 @@ impl Expr {
             Self::IndexSet(expr) => expr.span(),
             Self::ExprIf(expr) => expr.span(),
             Self::Ident(expr) => expr.span(),
+            Self::Path(path) => path.span(),
             Self::CallFn(expr) => expr.span(),
             Self::CallInstanceFn(expr) => expr.span(),
             Self::ArrayLiteral(expr) => expr.span(),
@@ -911,6 +978,7 @@ impl Expr {
             Self::CharLiteral(expr) => expr.span(),
             Self::StringLiteral(expr) => expr.span(),
             Self::ExprGroup(expr) => expr.span(),
+            Self::ExprUnary(expr) => expr.span(),
             Self::ExprBinary(expr) => expr.span(),
             Self::IndexGet(expr) => expr.span(),
             Self::UnitLiteral(unit) => unit.span(),
@@ -930,6 +998,24 @@ impl Expr {
             Expr::ObjectLiteral(object) => object.is_all_literal(),
             _ => false,
         }
+    }
+
+    /// Parse expressions that start with an identifier.
+    pub fn parse_ident_start(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let path = parser.parse::<Path>()?;
+
+        if !parser.peek::<OpenParen>()? {
+            if path.rest.is_empty() {
+                return Ok(Self::Ident(path.first));
+            }
+
+            return Ok(Self::Path(path));
+        }
+
+        Ok(Self::CallFn(CallFn {
+            name: path,
+            args: parser.parse()?,
+        }))
     }
 
     /// Parse indexing operation.
@@ -960,6 +1046,7 @@ impl Expr {
         let token = parser.token_peek_eof()?;
 
         let expr = match token.kind {
+            Kind::Not => Self::ExprUnary(parser.parse()?),
             Kind::While => Self::While(parser.parse()?),
             Kind::Let => Self::Let(parser.parse()?),
             Kind::If => Self::ExprIf(parser.parse()?),
@@ -988,13 +1075,9 @@ impl Expr {
                         delimiter: Delimiter::Bracket,
                     } if !no_index.0 => Self::parse_indexing_op(parser)?,
                     Kind::Eq => Self::Update(parser.parse()?),
-                    Kind::Open {
-                        delimiter: Delimiter::Parenthesis,
-                    }
-                    | Kind::Scope => Self::CallFn(parser.parse()?),
-                    _ => Self::Ident(parser.parse()?),
+                    _ => Self::parse_ident_start(parser)?,
                 },
-                None => Self::Ident(parser.parse()?),
+                None => Self::parse_ident_start(parser)?,
             },
             _ => {
                 return Err(ParseError::ExpectedExprError {
@@ -1247,6 +1330,8 @@ impl Peek for BoolLiteral {
 /// parse_all::<ast::Expr>("foo.bar.baz()").unwrap();
 /// parse_all::<ast::Expr>("foo[0][1][2]").unwrap();
 /// parse_all::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
+///
+/// parse_all::<ast::Expr>("42 is int::int").unwrap();
 /// # }
 /// ```
 impl Parse for Expr {
@@ -1269,28 +1354,6 @@ impl CallFn {
     /// Access the span of expression.
     pub fn span(&self) -> Span {
         self.name.span().join(self.args.span())
-    }
-}
-
-/// Parsing a function call.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// # fn main() -> anyhow::Result<()> {
-/// parse_all::<ast::CallFn>("foo()")?;
-/// parse_all::<ast::CallFn>("http::foo()")?;
-/// # Ok(())
-/// # }
-/// ```
-impl Parse for CallFn {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(CallFn {
-            name: parser.parse()?,
-            args: parser.parse()?,
-        })
     }
 }
 
