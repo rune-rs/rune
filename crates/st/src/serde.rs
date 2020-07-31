@@ -9,7 +9,8 @@ use std::fmt;
 
 /// Deserialize implementation for value pointers.
 ///
-/// **Warning:** This only works if a `Vm` is accessible through [tls].
+/// **Warning:** This only works if a `Vm` is accessible through [tls], like by
+/// being set up with [tls::inject_vm] or [tls::InjectVm].
 impl<'de> de::Deserialize<'de> for ValuePtr {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

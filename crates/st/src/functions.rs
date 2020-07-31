@@ -786,7 +786,7 @@ macro_rules! impl_register {
                     #[allow(unused_unsafe)]
                     let ret = unsafe {
                         impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                        self($($var,)*).await.map_err(error::Error::from)?
+                        tls::InjectVm::new(vm, self($($var,)*)).await.map_err(error::Error::from)?
                     };
 
                     impl_register!{@return vm, ret, Ret}
@@ -829,7 +829,7 @@ macro_rules! impl_register {
                 #[allow(unused_unsafe)]
                 let ret = unsafe {
                     impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                    self(inst, $($var,)*).map_err(error::Error::from)?
+                    tls::inject_vm(vm, || self(inst, $($var,)*).map_err(error::Error::from))?
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -870,7 +870,7 @@ macro_rules! impl_register {
                 #[allow(unused_unsafe)]
                 let ret = unsafe {
                     impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                    self(inst, $($var,)*)
+                    tls::inject_vm(vm, || self(inst, $($var,)*))
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -913,7 +913,7 @@ macro_rules! impl_register {
                     #[allow(unused_unsafe)]
                     let ret = unsafe {
                         impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                        self(inst, $($var,)*).await?
+                        tls::InjectVm::new(vm, self(inst, $($var,)*)).await?
                     };
 
                     impl_register!{@return vm, ret, Ret}
