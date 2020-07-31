@@ -60,6 +60,8 @@ impl Delimiter {
 pub enum Kind {
     /// An `fn` token.
     Fn,
+    /// An `is` token.
+    Is,
     /// A `let` token.
     Let,
     /// An `if` token.
@@ -78,6 +80,8 @@ pub enum Kind {
     Ident,
     /// A number literal, like `42` or `3.14` or `0xff`.
     NumberLiteral {
+        /// Indicates if it's a decimal number.
+        is_fractional: bool,
         /// The number literal kind.
         number: NumberLiteral,
     },
@@ -136,6 +140,7 @@ impl fmt::Display for Kind {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Fn => write!(fmt, "fn"),
+            Self::Is => write!(fmt, "is"),
             Self::Let => write!(fmt, "let"),
             Self::If => write!(fmt, "if"),
             Self::Else => write!(fmt, "else"),
@@ -144,7 +149,7 @@ impl fmt::Display for Kind {
             Self::True => write!(fmt, "true"),
             Self::False => write!(fmt, "false"),
             Self::Ident => write!(fmt, "ident"),
-            Self::NumberLiteral { number } => write!(fmt, "{}", number),
+            Self::NumberLiteral { .. } => write!(fmt, "number"),
             Self::StringLiteral { .. } => write!(fmt, "string"),
             Self::CharLiteral { .. } => write!(fmt, "char"),
             Self::Open { delimiter } => write!(fmt, "{}", delimiter.open()),

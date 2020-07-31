@@ -1,3 +1,4 @@
+use crate::hash::Hash;
 use crate::value::slot;
 use crate::value::slot::{IntoSlot, Slot};
 use crate::value::{Managed, ValueType, ValueTypeInfo};
@@ -18,6 +19,8 @@ pub enum ValuePtr {
     Float(f64),
     /// A managed reference.
     Managed(Slot),
+    /// A type.
+    Type(Hash),
 }
 
 impl ValuePtr {
@@ -83,6 +86,7 @@ impl ValuePtr {
                     ValueType::External(type_hash)
                 }
             },
+            Self::Type(..) => ValueType::Type,
         })
     }
 
@@ -103,6 +107,7 @@ impl ValuePtr {
                     ValueTypeInfo::External(type_name)
                 }
             },
+            Self::Type(..) => ValueTypeInfo::Type,
         })
     }
 }

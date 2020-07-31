@@ -420,7 +420,7 @@ impl<'a> Encoder<'a> {
         let span = index_get.span();
 
         self.encode_expr(&*index_get.index, NeedsValue(true))?;
-        self.encode_local_copy(&index_get.target, NeedsValue(true))?;
+        self.encode_expr(&*index_get.target, NeedsValue(true))?;
         self.instructions.push(st::Inst::IndexGet, span);
 
         // NB: we still need to perform the operation since it might have side
@@ -442,7 +442,7 @@ impl<'a> Encoder<'a> {
 
         self.encode_expr(&*index_set.value, NeedsValue(true))?;
         self.encode_expr(&*index_set.index, NeedsValue(true))?;
-        self.encode_local_copy(&index_set.target, NeedsValue(true))?;
+        self.encode_expr(&*index_set.target, NeedsValue(true))?;
         self.instructions.push(st::Inst::IndexSet, span);
 
         // Encode a unit in case a value is needed.
@@ -598,6 +598,9 @@ impl<'a> Encoder<'a> {
             }
             ast::BinOp::Gte { .. } => {
                 self.instructions.push(st::Inst::Gte, span);
+            }
+            ast::BinOp::Is { .. } => {
+                self.instructions.push(st::Inst::Is, span);
             }
             op => {
                 return Err(EncodeError::UnsupportedBinaryOp { span, op });

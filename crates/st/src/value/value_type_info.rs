@@ -22,6 +22,8 @@ pub enum ValueTypeInfo {
     Char,
     /// Reference to a foreign type.
     External(&'static str),
+    /// The type of a value.
+    Type,
 }
 
 impl fmt::Display for ValueTypeInfo {

@@ -21,6 +21,6 @@ fn main() {
 
     let response = json::from_string(response.text());
 
-    let content_length = response["headers"]["content-length"];
-    dbg(content_length, response);
+    let content_length = int::parse(response["headers"]["content-length"]);
+    dbg(content_length + 20, response);
 }

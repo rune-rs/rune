@@ -45,6 +45,16 @@ pub enum RegisterError {
         /// The hash of the module that conflicted.
         hash: Hash,
     },
+    /// Raised when we try to register a conflicting type.
+    #[error("type with name `{name}` ({hash}) already exists with `{existing}`")]
+    ConflictingType {
+        /// The name we tried to register.
+        name: ItemPath,
+        /// The hash of the conflicting type.
+        hash: Hash,
+        /// The type information for the type that already existed.
+        existing: ValueTypeInfo,
+    },
 }
 
 /// The name of a module.
@@ -57,6 +67,16 @@ impl ItemPath {
     /// Construct a new item path.
     pub fn new(path: Vec<String>) -> Self {
         Self { path }
+    }
+
+    /// Clone and extend the item path.
+    pub fn extended<S>(&self, part: S) -> Self
+    where
+        S: AsRef<str>,
+    {
+        let mut extended = self.clone();
+        extended.path.push(part.as_ref().to_owned());
+        extended
     }
 
     /// Access the last component in the path.
@@ -114,6 +134,17 @@ type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 /// The handler of a function.
 type Handler = dyn for<'vm> Fn(&'vm mut Vm, usize) -> BoxFuture<'vm, Result<(), VmError>> + Sync;
+
+/// Information on a specific type.
+#[derive(Debug, Clone)]
+pub struct TypeInfo {
+    /// The name of the type.
+    pub name: ItemPath,
+    /// The value type of the type.
+    pub value_type: ValueType,
+    /// Information on the type.
+    pub type_info: ValueTypeInfo,
+}
 
 /// A description of a function signature.
 #[derive(Debug, Clone)]
@@ -206,6 +237,8 @@ pub struct Functions {
     functions: HashMap<Hash, Box<Handler>>,
     /// Information on functions.
     functions_info: HashMap<Hash, FnSignature>,
+    /// Registered types.
+    types: HashMap<Hash, TypeInfo>,
 }
 
 impl Functions {
@@ -220,6 +253,7 @@ impl Functions {
         this.install(crate::packages::core::module()?)?;
         this.install(crate::packages::bytes::module()?)?;
         this.install(crate::packages::string::module()?)?;
+        this.install(crate::packages::int::module()?)?;
         Ok(this)
     }
 
@@ -237,6 +271,11 @@ impl Functions {
     pub fn lookup(&self, hash: Hash) -> Option<&Handler> {
         let handler = self.functions.get(&hash)?;
         Some(&*handler)
+    }
+
+    /// Lookup a type by hash.
+    pub fn lookup_type(&self, hash: Hash) -> Option<&TypeInfo> {
+        self.types.get(&hash)
     }
 
     /// Install the specified module.
@@ -269,6 +308,25 @@ impl Functions {
             self.functions.insert(hash, handler);
         }
 
+        for (value_type, (type_info, name)) in module.types.into_iter() {
+            let name = base.extended(name);
+            let hash = Hash::of_type(&name);
+
+            let type_info = TypeInfo {
+                name,
+                value_type,
+                type_info,
+            };
+
+            if let Some(existing) = self.types.insert(hash, type_info) {
+                return Err(RegisterError::ConflictingType {
+                    name: existing.name,
+                    hash,
+                    existing: existing.type_info,
+                });
+            }
+        }
+
         Ok(())
     }
 }
@@ -282,6 +340,8 @@ pub struct Module {
     functions: HashMap<String, (Box<Handler>, FnSignature)>,
     /// Instance functions.
     instance_functions: HashMap<(ValueType, String), (Box<Handler>, FnSignature)>,
+    /// Registered types.
+    types: HashMap<ValueType, (ValueTypeInfo, String)>,
 }
 
 impl Module {
@@ -295,7 +355,33 @@ impl Module {
             path: Arc::new(ItemPath::of(path)),
             functions: Default::default(),
             instance_functions: Default::default(),
+            types: Default::default(),
         }
+    }
+
+    /// Register a type.
+    ///
+    /// This will allow the type to be used within scripts, using the item named
+    /// here.
+    pub fn register_type<T>(&mut self, name: &str) -> Result<(), RegisterError>
+    where
+        T: ReflectValueType,
+    {
+        let value_type = T::value_type();
+        let type_info = T::value_type_info();
+
+        if let Some((existing, _)) = self.types.insert(value_type, (type_info, name.to_owned())) {
+            let name = self.path.extended(name);
+            let hash = Hash::of_type(&name);
+
+            return Err(RegisterError::ConflictingType {
+                name,
+                hash,
+                existing,
+            });
+        }
+
+        Ok(())
     }
 
     /// Register a function.

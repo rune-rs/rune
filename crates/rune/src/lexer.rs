@@ -84,6 +84,7 @@ impl<'a> Lexer<'a> {
             "while" => Kind::While,
             "true" => Kind::True,
             "false" => Kind::False,
+            "is" => Kind::Is,
             _ => Kind::Ident,
         };
 
@@ -105,6 +106,8 @@ impl<'a> Lexer<'a> {
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
+        let mut is_fractional = false;
+
         let number = match it.clone().next() {
             Some((_, c)) => match c {
                 'x' => NumberLiteral::Hex,
@@ -117,19 +120,24 @@ impl<'a> Lexer<'a> {
 
         self.cursor = loop {
             break match it.next() {
-                Some((n, c)) => {
-                    if char::is_alphanumeric(c) {
+                Some((n, c)) => match c {
+                    c if char::is_alphanumeric(c) => continue,
+                    '.' => {
+                        is_fractional = true;
                         continue;
-                    } else {
-                        self.cursor + n
                     }
-                }
+                    '-' => continue,
+                    _ => self.cursor + n,
+                },
                 None => self.source.len(),
             };
         };
 
         return Ok(Some(Token {
-            kind: Kind::NumberLiteral { number },
+            kind: Kind::NumberLiteral {
+                is_fractional,
+                number,
+            },
             span: Span {
                 start,
                 end: self.cursor,
@@ -286,6 +294,9 @@ impl<'a> Lexer<'a> {
                         ('!', '=') => {
                             it.next();
                             break Kind::Neq;
+                        }
+                        ('-', '0'..='9') => {
+                            return self.next_number_literal(&mut it, start);
                         }
                         _ => (),
                     }

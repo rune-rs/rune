@@ -9,6 +9,9 @@ use st::unit::Span;
 use std::borrow::Cow;
 use std::fmt;
 
+#[derive(Debug, Clone, Copy)]
+struct NoIndex(bool);
+
 /// A parsed file.
 pub struct File {
     /// Imports for the current file.
@@ -119,9 +122,9 @@ impl ArrayLiteral {
 /// use rune::{parse_all, ast, Resolve as _};
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::ArrayLiteral>("[1, \"two\"]")?;
-/// let _ = parse_all::<ast::ArrayLiteral>("[1, 2,]")?;
-/// let _ = parse_all::<ast::ArrayLiteral>("[1, 2, foo()]")?;
+/// parse_all::<ast::ArrayLiteral>("[1, \"two\"]").unwrap();
+/// parse_all::<ast::ArrayLiteral>("[1, 2,]").unwrap();
+/// parse_all::<ast::ArrayLiteral>("[1, 2, foo()]").unwrap();
 /// # Ok(())
 /// # }
 /// ```
@@ -309,6 +312,8 @@ impl<'a> Resolve<'a> for CharLiteral {
 /// A number literal.
 #[derive(Debug, Clone)]
 pub struct NumberLiteral {
+    /// Indicates if the number is fractional.
+    is_fractional: bool,
     /// The kind of the number literal.
     number: token::NumberLiteral,
     /// The token corresponding to the literal.
@@ -339,7 +344,14 @@ impl Parse for NumberLiteral {
         let token = parser.token_next()?;
 
         Ok(match token.kind {
-            Kind::NumberLiteral { number } => NumberLiteral { number, token },
+            Kind::NumberLiteral {
+                is_fractional,
+                number,
+            } => NumberLiteral {
+                is_fractional,
+                number,
+                token,
+            },
             _ => {
                 return Err(ParseError::ExpectedNumberError {
                     actual: token.kind,
@@ -354,22 +366,39 @@ impl<'a> Resolve<'a> for NumberLiteral {
     type Output = Number;
 
     fn resolve(&self, source: Source<'a>) -> Result<Number, ResolveError> {
-        let string = source.source(self.token.span)?;
+        use std::str::FromStr as _;
 
-        let number = match self.number {
-            token::NumberLiteral::Binary => {
-                i64::from_str_radix(&string[2..], 2).map_err(err_span(self.token.span))?
+        let mut string = source.source(self.token.span)?;
+        let mut is_negative = false;
+
+        if string.starts_with('-') {
+            string = &string[..];
+            is_negative = true;
+        }
+
+        if self.is_fractional {
+            let mut number = f64::from_str(string).map_err(err_span(self.token.span))?;
+
+            if is_negative {
+                number = -number;
             }
-            token::NumberLiteral::Octal => {
-                i64::from_str_radix(&string[2..], 8).map_err(err_span(self.token.span))?
-            }
-            token::NumberLiteral::Hex => {
-                i64::from_str_radix(&string[2..], 16).map_err(err_span(self.token.span))?
-            }
-            token::NumberLiteral::Decimal => {
-                i64::from_str_radix(string, 10).map_err(err_span(self.token.span))?
-            }
+
+            return Ok(Number::Float(number));
+        }
+
+        let (s, radix) = match self.number {
+            token::NumberLiteral::Binary => (2, 2),
+            token::NumberLiteral::Octal => (2, 8),
+            token::NumberLiteral::Hex => (2, 16),
+            token::NumberLiteral::Decimal => (0, 10),
         };
+
+        let mut number =
+            i64::from_str_radix(&string[s..], radix).map_err(err_span(self.token.span))?;
+
+        if is_negative {
+            number = -number;
+        }
 
         return Ok(Number::Integer(number));
 
@@ -536,18 +565,27 @@ pub enum BinOp {
         /// Token associated with operator.
         token: Token,
     },
+    /// The instanceof test..
+    Is {
+        /// Token associated with operator.
+        token: Token,
+    },
 }
 
 impl BinOp {
     /// Get the precedence for the current operator.
     fn precedence(self) -> usize {
         match self {
-            Self::Add { .. } | Self::Sub { .. } => 0,
-            Self::Div { .. } | Self::Mul { .. } => 10,
-            Self::Eq { .. } | Self::Neq { .. } => 20,
-            Self::Gt { .. } | Self::Lt { .. } => 30,
-            Self::Gte { .. } | Self::Lte { .. } => 30,
-            Self::Dot { .. } => 40,
+            // `is` has lowest precedence.
+            Self::Is { .. } => 0,
+            Self::Add { .. } | Self::Sub { .. } => 10,
+            Self::Div { .. } | Self::Mul { .. } => 20,
+            Self::Eq { .. } | Self::Neq { .. } => 30,
+            Self::Gt { .. } => 40,
+            Self::Lt { .. } => 41,
+            Self::Gte { .. } => 42,
+            Self::Lte { .. } => 43,
+            Self::Dot { .. } => 60,
         }
     }
 
@@ -605,6 +643,9 @@ impl fmt::Display for BinOp {
             }
             BinOp::Dot { .. } => {
                 write!(fmt, ".")?;
+            }
+            BinOp::Is { .. } => {
+                write!(fmt, "is")?;
             }
         }
 
@@ -891,95 +932,109 @@ impl Expr {
         }
     }
 
+    /// Parse indexing operation.
+    pub fn parse_indexing_op(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let index_get = IndexGet {
+            target: Box::new(Self::parse_primary(parser, NoIndex(true))?),
+            open: parser.parse()?,
+            index: Box::new(parser.parse()?),
+            close: parser.parse()?,
+        };
+
+        Ok(if parser.peek::<Eq>()? {
+            Self::IndexSet(IndexSet {
+                target: index_get.target,
+                open: index_get.open,
+                index: index_get.index,
+                close: index_get.close,
+                eq: parser.parse()?,
+                value: Box::new(parser.parse()?),
+            })
+        } else {
+            Self::IndexGet(index_get)
+        })
+    }
+
     /// Parse a single expression value.
-    pub fn parse_primary(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse_primary(parser: &mut Parser<'_>, no_index: NoIndex) -> Result<Self, ParseError> {
         let token = parser.token_peek_eof()?;
 
-        match token.kind {
-            Kind::While => {
-                return Ok(Self::While(parser.parse()?));
-            }
-            Kind::Let => {
-                return Ok(Self::Let(parser.parse()?));
-            }
-            Kind::If => {
-                return Ok(Self::ExprIf(parser.parse()?));
-            }
-            Kind::NumberLiteral { .. } => {
-                return Ok(Self::NumberLiteral(parser.parse()?));
-            }
-            Kind::CharLiteral { .. } => {
-                return Ok(Self::CharLiteral(parser.parse()?));
-            }
-            Kind::StringLiteral { .. } => {
-                return Ok(Self::StringLiteral(parser.parse()?));
-            }
+        let expr = match token.kind {
+            Kind::While => Self::While(parser.parse()?),
+            Kind::Let => Self::Let(parser.parse()?),
+            Kind::If => Self::ExprIf(parser.parse()?),
+            Kind::NumberLiteral { .. } => Self::NumberLiteral(parser.parse()?),
+            Kind::CharLiteral { .. } => Self::CharLiteral(parser.parse()?),
+            Kind::StringLiteral { .. } => Self::StringLiteral(parser.parse()?),
             Kind::Open {
                 delimiter: Delimiter::Parenthesis,
             } => {
                 if parser.peek::<UnitLiteral>()? {
-                    return Ok(Self::UnitLiteral(parser.parse()?));
+                    Self::UnitLiteral(parser.parse()?)
+                } else {
+                    Self::ExprGroup(parser.parse()?)
                 }
-
-                return Ok(Self::ExprGroup(parser.parse()?));
             }
             Kind::Open {
                 delimiter: Delimiter::Bracket,
-            } => {
-                return Ok(Self::ArrayLiteral(parser.parse()?));
-            }
+            } => Self::ArrayLiteral(parser.parse()?),
             Kind::Open {
                 delimiter: Delimiter::Brace,
-            } => {
-                return Ok(Self::ObjectLiteral(parser.parse()?));
-            }
-            Kind::True | Kind::False => {
-                return Ok(Self::BoolLiteral(parser.parse()?));
-            }
+            } => Self::ObjectLiteral(parser.parse()?),
+            Kind::True | Kind::False => Self::BoolLiteral(parser.parse()?),
             Kind::Ident => match parser.token_peek2()?.map(|t| t.kind) {
                 Some(kind) => match kind {
                     Kind::Open {
                         delimiter: Delimiter::Bracket,
-                    } => {
-                        let index_get: IndexGet = parser.parse()?;
-
-                        return Ok(if parser.peek::<Eq>()? {
-                            Self::IndexSet(IndexSet {
-                                target: index_get.target,
-                                open_bracket: index_get.open_bracket,
-                                index: index_get.index,
-                                close_bracket: index_get.close_bracket,
-                                eq: parser.parse()?,
-                                value: Box::new(parser.parse()?),
-                            })
-                        } else {
-                            Self::IndexGet(index_get)
-                        });
-                    }
-                    Kind::Eq => {
-                        return Ok(Self::Update(parser.parse()?));
-                    }
+                    } if !no_index.0 => Self::parse_indexing_op(parser)?,
+                    Kind::Eq => Self::Update(parser.parse()?),
                     Kind::Open {
                         delimiter: Delimiter::Parenthesis,
                     }
-                    | Kind::Scope => {
-                        return Ok(Self::CallFn(parser.parse()?));
-                    }
-                    _ => {
-                        return Ok(Self::Ident(parser.parse()?));
-                    }
+                    | Kind::Scope => Self::CallFn(parser.parse()?),
+                    _ => Self::Ident(parser.parse()?),
                 },
-                None => {
-                    return Ok(Self::Ident(parser.parse()?));
-                }
+                None => Self::Ident(parser.parse()?),
             },
-            _ => (),
+            _ => {
+                return Err(ParseError::ExpectedExprError {
+                    actual: token.kind,
+                    span: token.span,
+                })
+            }
+        };
+
+        Ok(Self::parse_expr_chain(parser, expr, no_index)?)
+    }
+
+    /// Parse an expression chain.
+    fn parse_expr_chain(
+        parser: &mut Parser<'_>,
+        mut expr: Self,
+        no_index: NoIndex,
+    ) -> Result<Self, ParseError> {
+        loop {
+            let token = match parser.token_peek()? {
+                Some(token) => token,
+                None => break,
+            };
+
+            match token.kind {
+                Kind::Open {
+                    delimiter: Delimiter::Bracket,
+                } if !no_index.0 => {
+                    expr = Expr::IndexGet(IndexGet {
+                        target: Box::new(expr),
+                        open: parser.parse()?,
+                        index: Box::new(parser.parse()?),
+                        close: parser.parse()?,
+                    });
+                }
+                _ => break,
+            }
         }
 
-        Err(ParseError::ExpectedExprError {
-            actual: token.kind,
-            span: token.span,
-        })
+        Ok(expr)
     }
 
     /// Parse a binary expression.
@@ -997,7 +1052,7 @@ impl Expr {
             };
 
             parser.token_next()?;
-            let mut rhs = Self::parse_primary(parser)?;
+            let mut rhs = Self::parse_primary(parser, NoIndex(false))?;
 
             lookahead = parser.token_peek()?.and_then(BinOp::from_token);
 
@@ -1190,12 +1245,14 @@ impl Peek for BoolLiteral {
 ///
 /// // Chained function calls.
 /// parse_all::<ast::Expr>("foo.bar.baz()").unwrap();
+/// parse_all::<ast::Expr>("foo[0][1][2]").unwrap();
+/// parse_all::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
 /// # }
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let lhs = Self::parse_primary(parser)?;
-        Self::parse_expr_binary(parser, lhs, 0)
+        let lhs = Self::parse_primary(parser, NoIndex(false))?;
+        Ok(Self::parse_expr_binary(parser, lhs, 0)?)
     }
 }
 
@@ -1348,13 +1405,13 @@ impl Parse for Update {
 #[derive(Debug, Clone)]
 pub struct IndexSet {
     /// The target of the index set.
-    pub target: Ident,
+    pub target: Box<Expr>,
     /// The opening bracket.
-    pub open_bracket: OpenBracket,
+    pub open: OpenBracket,
     /// The indexing expression.
     pub index: Box<Expr>,
     /// The closening bracket.
-    pub close_bracket: CloseBracket,
+    pub close: CloseBracket,
     /// The equals sign.
     pub eq: Eq,
     /// The value expression we are assigning.
@@ -1364,7 +1421,7 @@ pub struct IndexSet {
 impl IndexSet {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
-        self.target.token.span.join(self.value.span())
+        self.target.span().join(self.value.span())
     }
 }
 
@@ -1372,42 +1429,19 @@ impl IndexSet {
 #[derive(Debug, Clone)]
 pub struct IndexGet {
     /// The target of the index set.
-    pub target: Ident,
+    pub target: Box<Expr>,
     /// The opening bracket.
-    pub open_bracket: OpenBracket,
+    pub open: OpenBracket,
     /// The indexing expression.
     pub index: Box<Expr>,
     /// The closening bracket.
-    pub close_bracket: CloseBracket,
+    pub close: CloseBracket,
 }
 
 impl IndexGet {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
-        self.target.span().join(self.close_bracket.span())
-    }
-}
-
-/// Parsing an index get expression.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::IndexGet>("var[\"foo\"]")?;
-/// # Ok(())
-/// # }
-/// ```
-impl Parse for IndexGet {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(IndexGet {
-            target: parser.parse()?,
-            open_bracket: parser.parse()?,
-            index: Box::new(parser.parse()?),
-            close_bracket: parser.parse()?,
-        })
+        self.target.span().join(self.close.span())
     }
 }
 
@@ -1678,12 +1712,12 @@ impl<T> FunctionArgs<T> {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast};
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::FunctionArgs<ast::Expr>>("(1, \"two\")")?;
-/// let _ = parse_all::<ast::FunctionArgs<ast::Expr>>("(1, 2,)")?;
-/// let _ = parse_all::<ast::FunctionArgs<ast::Expr>>("(1, 2, foo())")?;
+/// parse_all::<ast::FunctionArgs<ast::Expr>>("(1, \"two\")")?;
+/// parse_all::<ast::FunctionArgs<ast::Expr>>("(1, 2,)")?;
+/// parse_all::<ast::FunctionArgs<ast::Expr>>("(1, 2, foo())")?;
 /// # Ok(())
 /// # }
 /// ```

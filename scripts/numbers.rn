@@ -1,0 +1,8 @@
+fn main() {
+    dbg(0.223e2 + (2).to_float());
+    dbg((0.223e2).to_integer() + 2);
+
+    if a is int {
+        dbg("a is an integer");
+    }
+}

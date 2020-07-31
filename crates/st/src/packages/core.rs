@@ -10,6 +10,8 @@ use crate::value::ValuePtr;
 pub fn module() -> Result<Module, RegisterError> {
     let mut module = Module::new(&["core"]);
 
+    module.register_type::<i64>("int")?;
+
     module.raw_fn("dbg", |vm, args| {
         for n in 0..args {
             match vm.managed_pop() {

@@ -112,6 +112,16 @@ pub enum StackError {
         /// Number type we tried to convert to.
         to: &'static str,
     },
+    /// We encountered a corrupted stack frame.
+    #[error("stack size `{stack_size}` starts before the current stack frame `{frame_at}` with args `{frame_args}`")]
+    CorruptedStackFrame {
+        /// The size of the stack.
+        stack_size: usize,
+        /// The location of the stack frame.
+        frame_at: usize,
+        /// The number of arguments.
+        frame_args: usize,
+    },
 }
 
 /// Guard for a value borrowed from a slot in the virtual machine.
@@ -403,6 +413,20 @@ pub enum VmError {
         /// The index to get.
         index_type: ValueTypeInfo,
     },
+    /// An is operation is not supported.
+    #[error("`{value_type} is {test_type}` is not supported")]
+    UnsupportedIs {
+        /// The argument that is not supported.
+        value_type: ValueTypeInfo,
+        /// The type that is not supported.
+        test_type: ValueTypeInfo,
+    },
+    /// Missing type.
+    #[error("no type matching hash `{hash}`")]
+    MissingType {
+        /// Hash of the type missing.
+        hash: Hash,
+    },
 }
 
 /// Pop and type check a value off the stack.
@@ -692,6 +716,28 @@ pub enum Inst {
         /// The static string slot to load the string from.
         slot: usize,
     },
+    /// Test if the top of the stack is an instance of the second item on the
+    /// stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// <type>
+    /// => <boolean>
+    /// ```
+    Is,
+    /// Push the type with the given hash as a value on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <value>
+    /// ```
+    Type {
+        /// The hash of the type.
+        hash: Hash,
+    },
 }
 
 impl Inst {
@@ -886,6 +932,9 @@ impl Inst {
                 let value = vm.object_allocate(object);
                 vm.managed_push(value)?;
             }
+            Self::Type { hash } => {
+                vm.unmanaged_push(ValuePtr::Type(hash));
+            }
             Self::Char { c } => {
                 vm.unmanaged_push(ValuePtr::Char(c));
             }
@@ -896,6 +945,31 @@ impl Inst {
                 // TODO: do something sneaky to only allocate the static string once.
                 let value = vm.string_allocate(string.to_owned());
                 vm.managed_push(value)?;
+            }
+            Self::Is => {
+                let b = vm.managed_pop()?;
+                let a = vm.managed_pop()?;
+
+                match (a, b) {
+                    (a, ValuePtr::Type(hash)) => {
+                        let a = a.value_type(vm)?;
+
+                        let type_info = functions
+                            .lookup_type(hash)
+                            .ok_or_else(|| VmError::MissingType { hash })?;
+
+                        vm.unmanaged_push(ValuePtr::Bool(a == type_info.value_type));
+                    }
+                    (a, b) => {
+                        let a = a.type_info(vm)?;
+                        let b = b.type_info(vm)?;
+
+                        return Err(VmError::UnsupportedIs {
+                            value_type: a,
+                            test_type: b,
+                        });
+                    }
+                }
             }
         }
 
@@ -1006,6 +1080,12 @@ impl fmt::Display for Inst {
             }
             Inst::Char { c } => {
                 write!(fmt, "char {:?}", c)?;
+            }
+            Inst::Is => {
+                write!(fmt, "is")?;
+            }
+            Inst::Type { hash } => {
+                write!(fmt, "type {}", hash)?;
             }
         }
 
@@ -1726,18 +1806,13 @@ impl Vm {
             .pop()
             .ok_or_else(|| StackError::StackFramesEmpty)?;
 
-        let mut args = frame.args;
-
-        // Pop all values associated with the call frame.
-        while self.stack.len() > self.frame_top {
-            let popped = self.managed_pop()?;
-
-            if args == 0 {
-                log::warn!("popped garbage: {:?}", popped);
-            } else {
-                log::trace!("popped argument: {:?}", popped);
-                args -= 1;
-            }
+        // Assert that the stack has been restored to the current stack top.
+        if self.stack.len() != self.frame_top {
+            return Err(StackError::CorruptedStackFrame {
+                stack_size: self.stack.len(),
+                frame_at: self.frame_top,
+                frame_args: frame.args,
+            });
         }
 
         self.frame_top = frame.old_frame_top;
@@ -2043,6 +2118,7 @@ impl Vm {
                 }
                 (Managed::External, slot) => Value::External(self.external_take_dyn(slot)?),
             },
+            ValuePtr::Type(ty) => Value::Type(ty),
         });
 
         /// Convert into an owned array.
@@ -2091,6 +2167,7 @@ impl Vm {
                 }
                 (Managed::External, slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             },
+            ValuePtr::Type(ty) => ValueRef::Type(ty),
         });
     }
 

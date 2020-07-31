@@ -1,5 +1,6 @@
 use crate::collections::HashMap;
 use crate::external::External;
+use crate::hash::Hash;
 use crate::vm::Ref;
 
 #[derive(Debug)]
@@ -23,4 +24,6 @@ pub enum ValueRef<'vm> {
     Char(char),
     /// Reference to an external type.
     External(Ref<'vm, dyn External>),
+    /// Reference to a value type.
+    Type(Hash),
 }

@@ -21,6 +21,8 @@ pub enum ValueType {
     Char,
     /// Reference to a foreign type.
     External(TypeId),
+    /// The type of type values.
+    Type,
 }
 
 #[cfg(test)]

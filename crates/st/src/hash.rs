@@ -12,6 +12,7 @@ impl Hash {
     pub const GLOBAL_MODULE: Hash = Hash(0);
 
     const SEP: usize = 0x7f;
+    const TYPE: usize = 1;
     const FUNCTION: usize = 2;
     const INSTANCE_FUNCTION: usize = 3;
 
@@ -37,6 +38,15 @@ impl Hash {
         }
 
         Self(hasher.finish())
+    }
+
+    /// Get the hash of a type.
+    pub fn of_type<I>(path: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        Self::path(Self::TYPE, path)
     }
 
     /// Construct a hash for a function in the given path.
