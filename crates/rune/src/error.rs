@@ -21,9 +21,9 @@ pub enum Error {
     /// Source parse error.
     #[error("parse error")]
     ParseError(#[from] ParseError),
-    /// Source encode error.
-    #[error("encode error")]
-    EncodeError(#[from] EncodeError),
+    /// Compiler error.
+    #[error("compile error")]
+    CompileError(#[from] CompileError),
 }
 
 impl SpannedError for Error {
@@ -31,7 +31,7 @@ impl SpannedError for Error {
         match self {
             Self::ResolveError(e) => e.span(),
             Self::ParseError(e) => e.span(),
-            Self::EncodeError(e) => e.span(),
+            Self::CompileError(e) => e.span(),
         }
     }
 }
@@ -230,7 +230,7 @@ impl SpannedError for ParseError {
 
 /// Error when encoding AST.
 #[derive(Debug, Error)]
-pub enum EncodeError {
+pub enum CompileError {
     /// An internal encoder invariant was broken.
     #[error("internal compiler error: {msg}")]
     Internal {
@@ -321,9 +321,20 @@ pub enum EncodeError {
         /// The span of the illegal break.
         span: Span,
     },
+    /// An error raised when attempting to return locally created references
+    /// from a function.
+    #[error("cannot return locally created references")]
+    ReturnLocalReferences {
+        /// The span which we try to return from.
+        block: Span,
+        /// The span at which we tried to return.
+        span: Span,
+        /// The references we tried to return.
+        references_at: Vec<Span>,
+    },
 }
 
-impl EncodeError {
+impl CompileError {
     /// Construct an internal error.
     ///
     /// This should be used for programming invariants of the encoder which are
@@ -333,7 +344,7 @@ impl EncodeError {
     }
 }
 
-impl SpannedError for EncodeError {
+impl SpannedError for CompileError {
     fn span(&self) -> Span {
         match *self {
             Self::UnitError { .. } => Span::default(),
@@ -348,6 +359,7 @@ impl SpannedError for EncodeError {
             Self::UnsupportedAssignExpr { span, .. } => span,
             Self::BreakDoesNotProduceValue { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,
+            Self::ReturnLocalReferences { span, .. } => span,
         }
     }
 }

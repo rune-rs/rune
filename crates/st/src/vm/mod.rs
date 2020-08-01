@@ -573,13 +573,20 @@ impl Vm {
     {
         let hash = Hash::function(name);
 
-        let fn_address = unit
+        let function = unit
             .lookup(hash)
             .ok_or_else(|| VmError::MissingFunction { hash })?;
 
+        if function.signature.args != A::count() {
+            return Err(VmError::ArgumentCountMismatch {
+                actual: A::count(),
+                expected: function.signature.args,
+            });
+        }
+
         args.into_args(self)?;
 
-        self.ip = fn_address;
+        self.ip = function.offset;
         self.frame_top = 0;
 
         Ok(Task {
@@ -1612,7 +1619,7 @@ impl Vm {
                 self.unmanaged_push(numeric_ops!(self, a * b));
             }
             Inst::Call { hash, args } => {
-                match unit.lookup(*hash) {
+                match unit.lookup_offset(*hash) {
                     Some(loc) => {
                         self.push_frame(loc, *args)?;
                         update_ip = false;
@@ -1641,7 +1648,7 @@ impl Vm {
 
                 let hash = Hash::instance_function(ty, *hash);
 
-                match unit.lookup(hash) {
+                match unit.lookup_offset(hash) {
                     Some(loc) => {
                         self.push_frame(loc, *args)?;
                         update_ip = false;

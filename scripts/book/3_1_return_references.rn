@@ -1,0 +1,5 @@
+fn function(n) {
+    let a = &n;
+    let b = 5;
+    [a, &b]
+}

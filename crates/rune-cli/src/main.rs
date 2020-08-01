@@ -8,7 +8,7 @@ use rune::SpannedError as _;
 
 fn compile(source: &str) -> rune::Result<st::Unit> {
     let unit = rune::parse_all::<rune::ast::File>(&source)?;
-    Ok(unit.encode()?)
+    Ok(unit.compile()?)
 }
 
 #[tokio::main]
@@ -89,7 +89,7 @@ async fn main() -> Result<()> {
     let unit = match compile(&source) {
         Ok(unit) => unit,
         Err(e) => {
-            emit_diagnostics("compiler error", &path, &source, e.span(), &e)?;
+            emit_diagnostics("compile error", &path, &source, e.span(), &e)?;
             return Ok(());
         }
     };
@@ -338,7 +338,7 @@ fn emit_diagnostics(
     path: &Path,
     source: &str,
     span: st::unit::Span,
-    error: &dyn Error,
+    error: &(dyn Error + 'static),
 ) -> Result<()> {
     use codespan_reporting::diagnostic::{Diagnostic, Label};
     use codespan_reporting::files::SimpleFiles;
@@ -349,17 +349,41 @@ fn emit_diagnostics(
 
     let source_file = files.add(path.display().to_string(), source);
 
-    let mut current = error;
+    let mut current = Some(error);
     let mut labels = Vec::new();
 
-    labels
-        .push(Label::primary(source_file, span.start..span.end).with_message(current.to_string()));
+    while let Some(e) = current {
+        labels.push(Label::primary(source_file, span.start..span.end).with_message(e.to_string()));
 
-    while let Some(source) = current.source() {
-        labels.push(
-            Label::primary(source_file, span.start..span.end).with_message(source.to_string()),
-        );
-        current = source;
+        if let Some(cast) = e.downcast_ref::<rune::CompileError>() {
+            match cast {
+                rune::CompileError::ReturnLocalReferences {
+                    block,
+                    references_at,
+                    span,
+                    ..
+                } => {
+                    for ref_span in references_at {
+                        if span.overlaps(*ref_span) {
+                            continue;
+                        }
+
+                        labels.push(
+                            Label::secondary(source_file, ref_span.start..ref_span.end)
+                                .with_message("reference created here"),
+                        );
+                    }
+
+                    labels.push(
+                        Label::secondary(source_file, block.start..block.end)
+                            .with_message("block returned from"),
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        current = e.source();
     }
 
     let diagnostic = Diagnostic::error().with_message(what).with_labels(labels);

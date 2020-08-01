@@ -73,6 +73,11 @@ impl Span {
         Self { start, end }
     }
 
+    /// Check if current span completely overlaps with another.
+    pub fn overlaps(self, other: Span) -> bool {
+        self.start <= other.start && self.end >= other.end
+    }
+
     /// An empty span.
     pub const fn empty() -> Self {
         Self { start: 0, end: 0 }
@@ -120,8 +125,10 @@ pub struct UnitFnInfo {
 /// A description of a function signature.
 #[derive(Debug)]
 pub struct UnitFnSignature {
-    path: Item,
-    args: usize,
+    /// The path of the function.
+    pub path: Item,
+    /// The number of arguments expected in the function.
+    pub args: usize,
 }
 
 impl UnitFnSignature {
@@ -323,8 +330,13 @@ impl Unit {
         Ok(new_slot)
     }
 
+    /// Lookup information of a function.
+    pub fn lookup(&self, hash: Hash) -> Option<&UnitFnInfo> {
+        self.functions.get(&hash)
+    }
+
     /// Lookup the location of a dynamic function.
-    pub fn lookup(&self, hash: Hash) -> Option<usize> {
+    pub fn lookup_offset(&self, hash: Hash) -> Option<usize> {
         Some(self.functions.get(&hash)?.offset)
     }
 

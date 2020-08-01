@@ -1,0 +1,6 @@
+[book]
+authors = ["John-John Tedro"]
+language = "en"
+multilingual = false
+src = "src"
+title = "The Rune Programming Language"

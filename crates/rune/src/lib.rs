@@ -3,7 +3,7 @@
 #![deny(missing_docs)]
 
 pub mod ast;
-mod encoder;
+mod compiler;
 mod error;
 mod lexer;
 mod parser;
@@ -11,7 +11,7 @@ mod source;
 mod token;
 mod traits;
 
-pub use crate::error::{EncodeError, Error, ParseError, ResolveError, Result, SpannedError};
+pub use crate::error::{CompileError, Error, ParseError, ResolveError, Result, SpannedError};
 pub use crate::lexer::Lexer;
 pub use crate::parser::Parser;
 pub use crate::source::Source;
@@ -22,7 +22,7 @@ pub use st::unit::Span;
 /// Helper function to compile the given source.
 pub fn compile(source: &str) -> Result<st::Unit> {
     let unit = parse_all::<ast::File>(&source)?;
-    let unit = unit.encode()?;
+    let unit = unit.compile()?;
     Ok(unit)
 }
 

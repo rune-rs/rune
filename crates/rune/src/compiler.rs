@@ -1,13 +1,13 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::error::EncodeError;
+use crate::error::CompileError;
 use crate::source::Source;
 use crate::token::Token;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use st::unit::Span;
 
-type Result<T, E = EncodeError> = std::result::Result<T, E>;
+type Result<T, E = CompileError> = std::result::Result<T, E>;
 
 /// Flag to indicate if the expression should produce a value or not.
 #[derive(Debug, Clone, Copy)]
@@ -15,7 +15,7 @@ struct NeedsValue(bool);
 
 impl<'a> crate::ParseAll<'a, ast::File> {
     /// Encode the given object into a collection of instructions.
-    pub fn encode(self) -> Result<st::Unit> {
+    pub fn compile(self) -> Result<st::Unit> {
         let ParseAll { source, item: file } = self;
 
         let mut unit = st::Unit::with_default_prelude();
@@ -38,6 +38,8 @@ impl<'a> crate::ParseAll<'a, ast::File> {
                 locals: Locals::new(),
                 source,
                 loops: Vec::new(),
+                references_at: Vec::new(),
+                current_block: Span::empty(),
             };
 
             encoder.encode_fn_decl(f)?;
@@ -56,6 +58,10 @@ struct Encoder<'a> {
     source: Source<'a>,
     /// The nesting of loop we are currently in.
     loops: Vec<Loop>,
+    /// The current block that we are in.
+    current_block: Span,
+    /// Indicates that a reference was taken at the given spans.
+    references_at: Vec<Span>,
 }
 
 impl<'a> Encoder<'a> {
@@ -64,7 +70,7 @@ impl<'a> Encoder<'a> {
 
         for arg in fn_decl.args.items.iter().rev() {
             let name = arg.resolve(self.source)?;
-            self.locals.new_local(name, arg.token)?;
+            self.locals.new_local(name, arg.token, Vec::new())?;
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
@@ -77,7 +83,17 @@ impl<'a> Encoder<'a> {
         }
 
         if let Some(expr) = &fn_decl.body.trailing_expr {
+            self.references_at.clear();
             self.encode_expr(expr, NeedsValue(true))?;
+
+            if !self.references_at.is_empty() {
+                return Err(CompileError::ReturnLocalReferences {
+                    block: fn_decl.body.span(),
+                    span: expr.span(),
+                    references_at: self.references_at.clone(),
+                });
+            }
+
             self.clean_up_locals(self.locals.var_count, span);
             self.instructions.push(st::Inst::Return, span);
         } else {
@@ -121,7 +137,9 @@ impl<'a> Encoder<'a> {
     /// an item in them which does.
     fn encode_block(&mut self, block: &ast::Block, needs_value: NeedsValue) -> Result<()> {
         log::trace!("{:?}", block);
+
         let span = block.span();
+        self.current_block = span;
 
         let open_var_count = self.locals.var_count;
 
@@ -134,7 +152,16 @@ impl<'a> Encoder<'a> {
         }
 
         if let Some(expr) = &block.trailing_expr {
+            self.references_at.clear();
             self.encode_expr(expr, needs_value)?;
+
+            if needs_value.0 && !self.references_at.is_empty() {
+                return Err(CompileError::ReturnLocalReferences {
+                    block: self.current_block,
+                    span: expr.span(),
+                    references_at: self.references_at.clone(),
+                });
+            }
         }
 
         let var_count = self.locals.var_count - open_var_count;
@@ -148,12 +175,12 @@ impl<'a> Encoder<'a> {
         let parent = match self.parents.pop() {
             Some(parent) => parent,
             None => {
-                return Err(EncodeError::internal("missing parent scope", span));
+                return Err(CompileError::internal("missing parent scope", span));
             }
         };
 
         if self.parents.len() != parent_count {
-            return Err(EncodeError::internal(
+            return Err(CompileError::internal(
                 "parent scope mismatch at end of block",
                 span,
             ));
@@ -372,11 +399,14 @@ impl<'a> Encoder<'a> {
         }
 
         if self.loops.pop().is_none() {
-            return Err(EncodeError::internal("missing parent loop", span));
+            return Err(CompileError::internal("missing parent loop", span));
         }
 
         if loop_count != self.loops.len() {
-            return Err(EncodeError::internal("loop count mismatch on return", span));
+            return Err(CompileError::internal(
+                "loop count mismatch on return",
+                span,
+            ));
         }
 
         Ok(())
@@ -388,9 +418,14 @@ impl<'a> Encoder<'a> {
         let span = let_.span();
 
         let name = let_.name.resolve(self.source)?;
+
+        self.references_at.clear();
         self.encode_expr(&*let_.expr, NeedsValue(true))?;
 
-        if let Err(offset) = self.locals.decl_var(name, let_.name.token) {
+        if let Err(offset) = self
+            .locals
+            .decl_var(name, let_.name.token, self.references_at.clone())
+        {
             // We are overloading an existing variable, so just replace it.
             self.instructions.push(st::Inst::Replace { offset }, span);
         }
@@ -425,7 +460,7 @@ impl<'a> Encoder<'a> {
             _ => (),
         }
 
-        Err(EncodeError::UnsupportedAssignExpr { span: expr.span() })
+        Err(CompileError::UnsupportedAssignExpr { span: expr.span() })
     }
 
     fn encode_assign(
@@ -442,16 +477,27 @@ impl<'a> Encoder<'a> {
             ast::Expr::Ident(ident) => {
                 let name = ident.resolve(self.source)?;
 
-                let offset =
+                self.references_at.clear();
+                self.encode_expr(rhs, NeedsValue(true))?;
+
+                let local =
                     self.locals
-                        .get_offset(name)
-                        .ok_or_else(|| EncodeError::MissingLocal {
+                        .get_mut(name)
+                        .ok_or_else(|| CompileError::MissingLocal {
                             name: name.to_owned(),
                             span,
                         })?;
 
-                self.encode_expr(rhs, NeedsValue(true))?;
-                self.instructions.push(st::Inst::Replace { offset }, span);
+                local
+                    .references_at
+                    .extend(self.references_at.iter().copied());
+
+                self.instructions.push(
+                    st::Inst::Replace {
+                        offset: local.offset,
+                    },
+                    span,
+                );
             }
             lhs => {
                 self.encode_expr(rhs, NeedsValue(true))?;
@@ -493,13 +539,13 @@ impl<'a> Encoder<'a> {
         let span = b.span();
 
         if needs_value.0 {
-            return Err(EncodeError::BreakDoesNotProduceValue { span });
+            return Err(CompileError::BreakDoesNotProduceValue { span });
         }
 
         let last_loop = match self.loops.last().copied() {
             Some(last_loop) => last_loop,
             None => {
-                return Err(EncodeError::BreakOutsideOfLoop { span });
+                return Err(CompileError::BreakOutsideOfLoop { span });
             }
         };
 
@@ -507,7 +553,7 @@ impl<'a> Encoder<'a> {
             .locals
             .var_count
             .checked_sub(last_loop.var_count)
-            .ok_or_else(|| EncodeError::internal("var count should be larger", span))?;
+            .ok_or_else(|| CompileError::internal("var count should be larger", span))?;
 
         self.pop_locals(vars, span);
         self.instructions.jump(last_loop.end_label, span);
@@ -547,7 +593,7 @@ impl<'a> Encoder<'a> {
 
         let target = ident.resolve(self.source)?;
 
-        let offset = match self.locals.get_offset(target) {
+        let local = match self.locals.get(target) {
             Some(offset) => offset,
             None => {
                 // Something imported is automatically a type.
@@ -558,15 +604,21 @@ impl<'a> Encoder<'a> {
                     return Ok(());
                 }
 
-                return Err(EncodeError::MissingLocal {
+                return Err(CompileError::MissingLocal {
                     name: target.to_owned(),
                     span: ident.token.span,
                 });
             }
         };
 
-        self.instructions
-            .push(st::Inst::Copy { offset }, ident.span());
+        self.references_at
+            .extend(local.references_at.iter().copied());
+        self.instructions.push(
+            st::Inst::Copy {
+                offset: local.offset,
+            },
+            ident.span(),
+        );
         Ok(())
     }
 
@@ -672,17 +724,16 @@ impl<'a> Encoder<'a> {
         needs_value: NeedsValue,
     ) -> Result<()> {
         log::trace!("{:?}", expr_unary);
+        let span = expr_unary.span();
 
         // NB: special unary expressions.
         match expr_unary.op {
             ast::UnaryOp::Ref { .. } => {
-                self.encode_ref(&*expr_unary.expr)?;
+                self.encode_ref(&*expr_unary.expr, expr_unary.span())?;
                 return Ok(());
             }
             _ => (),
         }
-
-        let span = expr_unary.span();
 
         self.encode_expr(&*expr_unary.expr, NeedsValue(true))?;
 
@@ -694,7 +745,7 @@ impl<'a> Encoder<'a> {
                 self.instructions.push(st::Inst::Deref, span);
             }
             op => {
-                return Err(EncodeError::UnsupportedUnaryOp { span, op });
+                return Err(CompileError::UnsupportedUnaryOp { span, op });
             }
         }
 
@@ -708,26 +759,31 @@ impl<'a> Encoder<'a> {
     }
 
     /// Encode a ref `&<expr>` value.
-    fn encode_ref(&mut self, expr: &ast::Expr) -> Result<()> {
+    fn encode_ref(&mut self, expr: &ast::Expr, span: Span) -> Result<()> {
         match expr {
             ast::Expr::Ident(ident) => {
                 let target = ident.resolve(self.source)?;
 
-                let offset = match self.locals.get_offset(target) {
+                let local = match self.locals.get(target) {
                     Some(offset) => offset,
                     None => {
-                        return Err(EncodeError::MissingLocal {
+                        return Err(CompileError::MissingLocal {
                             name: target.to_owned(),
                             span: ident.token.span,
                         });
                     }
                 };
 
-                self.instructions
-                    .push(st::Inst::Ptr { offset }, expr.span());
+                self.references_at.push(span);
+                self.instructions.push(
+                    st::Inst::Ptr {
+                        offset: local.offset,
+                    },
+                    span,
+                );
             }
-            expr => {
-                return Err(EncodeError::UnsupportedRef { span: expr.span() });
+            _ => {
+                return Err(CompileError::UnsupportedRef { span });
             }
         }
 
@@ -790,7 +846,7 @@ impl<'a> Encoder<'a> {
                 self.instructions.push(st::Inst::Is, span);
             }
             op => {
-                return Err(EncodeError::UnsupportedBinaryOp { span, op });
+                return Err(CompileError::UnsupportedBinaryOp { span, op });
             }
         }
 
@@ -887,6 +943,8 @@ struct Local {
     name: String,
     /// Token assocaited with the variable.
     token: Token,
+    /// Local references used by local expression.
+    references_at: Vec<Span>,
 }
 
 #[derive(Debug, Clone)]
@@ -905,17 +963,18 @@ impl Locals {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub fn new_local(&mut self, name: &str, token: Token) -> Result<()> {
+    pub fn new_local(&mut self, name: &str, token: Token, references_at: Vec<Span>) -> Result<()> {
         let local = Local {
             offset: self.var_count,
             name: name.to_owned(),
             token,
+            references_at,
         };
 
         self.var_count += 1;
 
         if let Some(old) = self.locals.insert(name.to_owned(), local) {
-            return Err(EncodeError::VariableConflict {
+            return Err(CompileError::VariableConflict {
                 name: name.to_owned(),
                 span: token.span,
                 existing_span: old.token.span,
@@ -926,7 +985,12 @@ impl Locals {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub fn decl_var(&mut self, name: &str, token: Token) -> Result<(), usize> {
+    pub fn decl_var(
+        &mut self,
+        name: &str,
+        token: Token,
+        references_at: Vec<Span>,
+    ) -> Result<(), usize> {
         if let Some(old) = self.locals.get(name) {
             return Err(old.offset);
         }
@@ -937,6 +1001,7 @@ impl Locals {
                 offset: self.var_count,
                 name: name.to_owned(),
                 token,
+                references_at,
             },
         );
 
@@ -945,9 +1010,18 @@ impl Locals {
     }
 
     /// Access the local with the given name.
-    pub fn get_offset(&self, name: &str) -> Option<usize> {
+    pub fn get(&self, name: &str) -> Option<&Local> {
         if let Some(local) = self.locals.get(name) {
-            return Some(local.offset);
+            return Some(local);
+        }
+
+        None
+    }
+
+    /// Access the local with the given name.
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut Local> {
+        if let Some(local) = self.locals.get_mut(name) {
+            return Some(local);
         }
 
         None
