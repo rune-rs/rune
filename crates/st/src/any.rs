@@ -4,7 +4,7 @@ use std::fmt;
 /// Trait for types stored in the VM.
 ///
 /// We extend [std::any::Any] to assert that they implement [Debug].
-pub trait Any: any::Any + Send + Sync + fmt::Debug + private::Sealed {
+pub trait Any: 'static + any::Any + Send + Sync + fmt::Debug + private::Sealed {
     /// Coerce into a reference Any.
     fn as_any(&self) -> &dyn any::Any;
 

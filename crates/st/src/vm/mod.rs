@@ -55,7 +55,7 @@ pub enum StackError {
         slot: Slot,
     },
     /// Error raised when we expect a specific external type but got another.
-    #[error("expected external `{expected}`, but was `{actual}`")]
+    #[error("expected `{expected}`, but was `{actual}`")]
     BadSlotType {
         /// The type that was expected.
         expected: &'static str,
@@ -938,7 +938,7 @@ impl Vm {
 
         // Safety: Caller needs to ensure that they safely call disarm.
         unsafe {
-            let value = match (&*value.get()).as_ptr(TypeId::of::<T>()) {
+            let value = match (*value.get()).as_ptr(TypeId::of::<T>()) {
                 Some(value) => value,
                 None => {
                     // NB: Immediately unshare because the cast failed and we
@@ -966,7 +966,7 @@ impl Vm {
     ///
     /// Mark the given value as mutably used, preventing it from being used
     /// again.
-    pub fn external_mut<'out, T: Any>(&self, slot: Slot) -> Result<Mut<'_, T>, StackError> {
+    pub fn external_mut<T: Any>(&self, slot: Slot) -> Result<Mut<'_, T>, StackError> {
         let holder = self
             .slots
             .get(slot.into_usize())
@@ -984,12 +984,12 @@ impl Vm {
 
         // Safety: Caller needs to ensure that they safely call disarm.
         unsafe {
-            let value = match (&*value.get()).as_mut_ptr(TypeId::of::<T>()) {
+            let value = match (*value.get()).as_mut_ptr(TypeId::of::<T>()) {
                 Some(value) => value,
                 None => {
                     // NB: Immediately unshare because the cast failed and we
                     // won't be maintaining access to the type.
-                    holder.access.release_shared();
+                    holder.access.release_exclusive();
 
                     return Err(StackError::BadSlotType {
                         expected: type_name::<T>(),
@@ -1049,7 +1049,7 @@ impl Vm {
         unsafe {
             let value = Box::into_raw(value);
 
-            if let Some(ptr) = (&mut *(*value).get()).as_mut_ptr(TypeId::of::<T>()) {
+            if let Some(ptr) = (*(*value).get()).as_mut_ptr(TypeId::of::<T>()) {
                 return Ok(*Box::from_raw(ptr as *mut T));
             }
 
