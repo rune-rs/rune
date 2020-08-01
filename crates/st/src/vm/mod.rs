@@ -1588,266 +1588,281 @@ impl Vm {
     }
 
     /// Evaluate a single instruction.
-    pub async fn eval(
+    pub async fn run_for(
         &mut self,
-        inst: &Inst,
         context: &Context,
         unit: &Unit,
+        mut limit: Option<usize>,
     ) -> Result<(), VmError> {
-        let mut update_ip = true;
+        while !self.exited {
+            let inst = unit
+                .instruction_at(self.ip)
+                .ok_or_else(|| VmError::IpOutOfBounds)?;
 
-        match inst {
-            Inst::Not => {
-                self.op_not()?;
-            }
-            Inst::Add => {
-                self.op_add()?;
-            }
-            Inst::Sub => {
-                let b = self.managed_pop()?;
-                let a = self.managed_pop()?;
-                self.unmanaged_push(numeric_ops!(self, a - b));
-            }
-            Inst::Div => {
-                let b = self.managed_pop()?;
-                let a = self.managed_pop()?;
-                self.unmanaged_push(numeric_ops!(self, a / b));
-            }
-            Inst::Mul => {
-                let b = self.managed_pop()?;
-                let a = self.managed_pop()?;
-                self.unmanaged_push(numeric_ops!(self, a * b));
-            }
-            Inst::Call { hash, args } => {
-                match unit.lookup_offset(*hash) {
-                    Some(loc) => {
-                        self.push_frame(loc, *args)?;
+            let mut update_ip = true;
+
+            match inst {
+                Inst::Not => {
+                    self.op_not()?;
+                }
+                Inst::Add => {
+                    self.op_add()?;
+                }
+                Inst::Sub => {
+                    let b = self.managed_pop()?;
+                    let a = self.managed_pop()?;
+                    self.unmanaged_push(numeric_ops!(self, a - b));
+                }
+                Inst::Div => {
+                    let b = self.managed_pop()?;
+                    let a = self.managed_pop()?;
+                    self.unmanaged_push(numeric_ops!(self, a / b));
+                }
+                Inst::Mul => {
+                    let b = self.managed_pop()?;
+                    let a = self.managed_pop()?;
+                    self.unmanaged_push(numeric_ops!(self, a * b));
+                }
+                Inst::Call { hash, args } => {
+                    match unit.lookup_offset(*hash) {
+                        Some(loc) => {
+                            self.push_frame(loc, *args)?;
+                            update_ip = false;
+                        }
+                        None => {
+                            let handler = context
+                                .lookup(*hash)
+                                .ok_or_else(|| VmError::MissingFunction { hash: *hash })?;
+
+                            let result = handler(self, *args).await;
+
+                            // Safety: We have exclusive access to the VM and
+                            // everything that was borrowed during the call can now
+                            // be cleared since it's only used in the handler.
+                            unsafe {
+                                self.disarm();
+                            }
+
+                            result?;
+                        }
+                    }
+                }
+                Inst::CallInstance { hash, args } => {
+                    let instance = self.peek()?;
+                    let ty = instance.value_type(self)?;
+
+                    let hash = Hash::instance_function(ty, *hash);
+
+                    match unit.lookup_offset(hash) {
+                        Some(loc) => {
+                            self.push_frame(loc, *args)?;
+                            update_ip = false;
+                        }
+                        None => {
+                            let handler = context
+                                .lookup(hash)
+                                .ok_or_else(|| VmError::MissingFunction { hash: hash })?;
+
+                            let result = handler(self, *args).await;
+
+                            // Safety: We have exclusive access to the VM and
+                            // everything that was borrowed during the call can
+                            // now be cleared since it's only used in the
+                            // handler.
+                            unsafe {
+                                self.disarm();
+                            }
+
+                            result?;
+                        }
+                    }
+                }
+                Inst::IndexGet => {
+                    let target = self.managed_pop()?;
+                    let index = self.managed_pop()?;
+                    self.op_index_get(target, index)?;
+                }
+                Inst::IndexSet => {
+                    let target = self.managed_pop()?;
+                    let index = self.managed_pop()?;
+                    let value = self.managed_pop()?;
+                    self.op_index_set(target, index, value)?;
+                }
+                Inst::Return => {
+                    // NB: unmanaged because we're effectively moving the value.
+                    let return_value = self.unmanaged_pop()?;
+                    self.exited = self.pop_frame()?;
+                    self.unmanaged_push(return_value);
+                }
+                Inst::ReturnUnit => {
+                    self.exited = self.pop_frame()?;
+                    self.managed_push(ValuePtr::Unit)?;
+                }
+                Inst::Pop => {
+                    self.managed_pop()?;
+                }
+                Inst::PopN { count } => {
+                    self.managed_popn(*count)?;
+                }
+                Inst::Clean { count } => {
+                    let value = self.unmanaged_pop()?;
+                    self.managed_popn(*count)?;
+                    self.unmanaged_push(value);
+                }
+                Inst::Integer { number } => {
+                    self.managed_push(ValuePtr::Integer(*number))?;
+                }
+                Inst::Float { number } => {
+                    self.managed_push(ValuePtr::Float(*number))?;
+                }
+                Inst::Copy { offset } => {
+                    self.do_copy(*offset)?;
+                }
+                Inst::Replace { offset } => {
+                    self.do_replace(*offset)?;
+                }
+                Inst::ReplaceDeref => {
+                    self.op_replace_deref()?;
+                }
+                Inst::Gt => {
+                    let b = self.managed_pop()?;
+                    let a = self.managed_pop()?;
+                    self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a > b)));
+                }
+                Inst::Gte => {
+                    let b = self.managed_pop()?;
+                    let a = self.managed_pop()?;
+                    self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a >= b)));
+                }
+                Inst::Lt => {
+                    let b = self.managed_pop()?;
+                    let a = self.managed_pop()?;
+                    self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a < b)));
+                }
+                Inst::Lte => {
+                    let b = self.managed_pop()?;
+                    let a = self.managed_pop()?;
+                    self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a <= b)));
+                }
+                Inst::Eq => {
+                    self.op_eq()?;
+                }
+                Inst::Neq => {
+                    self.op_neq()?;
+                }
+                Inst::Jump { offset } => {
+                    self.op_jump(*offset, &mut update_ip)?;
+                }
+                Inst::JumpIf { offset } => {
+                    if pop!(self, Bool) {
+                        self.modify_ip(*offset)?;
                         update_ip = false;
                     }
-                    None => {
-                        let handler = context
-                            .lookup(*hash)
-                            .ok_or_else(|| VmError::MissingFunction { hash: *hash })?;
-
-                        let result = handler(self, *args).await;
-
-                        // Safety: We have exclusive access to the VM and
-                        // everything that was borrowed during the call can now
-                        // be cleared since it's only used in the handler.
-                        unsafe {
-                            self.disarm();
-                        }
-
-                        result?;
-                    }
                 }
-            }
-            Inst::CallInstance { hash, args } => {
-                let instance = self.peek()?;
-                let ty = instance.value_type(self)?;
-
-                let hash = Hash::instance_function(ty, *hash);
-
-                match unit.lookup_offset(hash) {
-                    Some(loc) => {
-                        self.push_frame(loc, *args)?;
+                Inst::JumpIfNot { offset } => {
+                    if !pop!(self, Bool) {
+                        self.modify_ip(*offset)?;
                         update_ip = false;
                     }
-                    None => {
-                        let handler = context
-                            .lookup(hash)
-                            .ok_or_else(|| VmError::MissingFunction { hash: hash })?;
+                }
+                Inst::Unit => {
+                    self.managed_push(ValuePtr::Unit)?;
+                }
+                Inst::Bool { value } => {
+                    self.managed_push(ValuePtr::Bool(*value))?;
+                }
+                Inst::Array { count } => {
+                    let mut array = Vec::with_capacity(*count);
 
-                        let result = handler(self, *args).await;
+                    for _ in 0..*count {
+                        array.push(self.stack.pop().ok_or_else(|| StackError::StackEmpty)?);
+                    }
 
-                        // Safety: We have exclusive access to the VM and
-                        // everything that was borrowed during the call can
-                        // now be cleared since it's only used in the
-                        // handler.
-                        unsafe {
-                            self.disarm();
+                    let value = self.array_allocate(array);
+                    self.managed_push(value)?;
+                }
+                Inst::Object { count } => {
+                    let mut object = HashMap::with_capacity(*count);
+
+                    for _ in 0..*count {
+                        let key = self.pop_decode()?;
+                        let value = self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
+                        object.insert(key, value);
+                    }
+
+                    let value = self.object_allocate(object);
+                    self.managed_push(value)?;
+                }
+                Inst::Type { hash } => {
+                    self.unmanaged_push(ValuePtr::Type(*hash));
+                }
+                Inst::Char { c } => {
+                    self.unmanaged_push(ValuePtr::Char(*c));
+                }
+                Inst::String { slot } => {
+                    let string = unit
+                        .lookup_string(*slot)
+                        .ok_or_else(|| VmError::MissingStaticString { slot: *slot })?;
+                    // TODO: do something sneaky to only allocate the static string once.
+                    let value = self.string_allocate(string.to_owned());
+                    self.managed_push(value)?;
+                }
+                Inst::Is => {
+                    let b = self.managed_pop()?;
+                    let a = self.managed_pop()?;
+
+                    match (a, b) {
+                        (a, ValuePtr::Type(hash)) => {
+                            let a = a.value_type(self)?;
+
+                            let type_info = context
+                                .lookup_type(hash)
+                                .ok_or_else(|| VmError::MissingType { hash })?;
+
+                            self.unmanaged_push(ValuePtr::Bool(a == type_info.value_type));
                         }
+                        (a, b) => {
+                            let a = a.type_info(self)?;
+                            let b = b.type_info(self)?;
 
-                        result?;
+                            return Err(VmError::UnsupportedIs {
+                                value_type: a,
+                                test_type: b,
+                            });
+                        }
                     }
                 }
-            }
-            Inst::IndexGet => {
-                let target = self.managed_pop()?;
-                let index = self.managed_pop()?;
-                self.op_index_get(target, index)?;
-            }
-            Inst::IndexSet => {
-                let target = self.managed_pop()?;
-                let index = self.managed_pop()?;
-                let value = self.managed_pop()?;
-                self.op_index_set(target, index, value)?;
-            }
-            Inst::Return => {
-                // NB: unmanaged because we're effectively moving the value.
-                let return_value = self.unmanaged_pop()?;
-                self.exited = self.pop_frame()?;
-                self.unmanaged_push(return_value);
-            }
-            Inst::ReturnUnit => {
-                self.exited = self.pop_frame()?;
-                self.managed_push(ValuePtr::Unit)?;
-            }
-            Inst::Pop => {
-                self.managed_pop()?;
-            }
-            Inst::PopN { count } => {
-                self.managed_popn(*count)?;
-            }
-            Inst::Clean { count } => {
-                let value = self.unmanaged_pop()?;
-                self.managed_popn(*count)?;
-                self.unmanaged_push(value);
-            }
-            Inst::Integer { number } => {
-                self.managed_push(ValuePtr::Integer(*number))?;
-            }
-            Inst::Float { number } => {
-                self.managed_push(ValuePtr::Float(*number))?;
-            }
-            Inst::Copy { offset } => {
-                self.do_copy(*offset)?;
-            }
-            Inst::Replace { offset } => {
-                self.do_replace(*offset)?;
-            }
-            Inst::ReplaceDeref => {
-                self.op_replace_deref()?;
-            }
-            Inst::Gt => {
-                let b = self.managed_pop()?;
-                let a = self.managed_pop()?;
-                self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a > b)));
-            }
-            Inst::Gte => {
-                let b = self.managed_pop()?;
-                let a = self.managed_pop()?;
-                self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a >= b)));
-            }
-            Inst::Lt => {
-                let b = self.managed_pop()?;
-                let a = self.managed_pop()?;
-                self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a < b)));
-            }
-            Inst::Lte => {
-                let b = self.managed_pop()?;
-                let a = self.managed_pop()?;
-                self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a <= b)));
-            }
-            Inst::Eq => {
-                self.op_eq()?;
-            }
-            Inst::Neq => {
-                self.op_neq()?;
-            }
-            Inst::Jump { offset } => {
-                self.op_jump(*offset, &mut update_ip)?;
-            }
-            Inst::JumpIf { offset } => {
-                if pop!(self, Bool) {
-                    self.modify_ip(*offset)?;
-                    update_ip = false;
+                Inst::IsUnit => {
+                    let value = self.managed_pop()?;
+
+                    self.unmanaged_push(ValuePtr::Bool(match value {
+                        ValuePtr::Unit => true,
+                        _ => false,
+                    }));
+                }
+                Inst::Ptr { offset } => {
+                    self.op_ptr(*offset)?;
+                }
+                Inst::Deref => {
+                    self.op_deref()?;
                 }
             }
-            Inst::JumpIfNot { offset } => {
-                if !pop!(self, Bool) {
-                    self.modify_ip(*offset)?;
-                    update_ip = false;
-                }
-            }
-            Inst::Unit => {
-                self.managed_push(ValuePtr::Unit)?;
-            }
-            Inst::Bool { value } => {
-                self.managed_push(ValuePtr::Bool(*value))?;
-            }
-            Inst::Array { count } => {
-                let mut array = Vec::with_capacity(*count);
 
-                for _ in 0..*count {
-                    array.push(self.stack.pop().ok_or_else(|| StackError::StackEmpty)?);
+            if update_ip {
+                self.ip += 1;
+            }
+
+            self.reap()?;
+
+            if let Some(limit) = &mut limit {
+                if *limit <= 1 {
+                    break;
                 }
 
-                let value = self.array_allocate(array);
-                self.managed_push(value)?;
-            }
-            Inst::Object { count } => {
-                let mut object = HashMap::with_capacity(*count);
-
-                for _ in 0..*count {
-                    let key = self.pop_decode()?;
-                    let value = self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
-                    object.insert(key, value);
-                }
-
-                let value = self.object_allocate(object);
-                self.managed_push(value)?;
-            }
-            Inst::Type { hash } => {
-                self.unmanaged_push(ValuePtr::Type(*hash));
-            }
-            Inst::Char { c } => {
-                self.unmanaged_push(ValuePtr::Char(*c));
-            }
-            Inst::String { slot } => {
-                let string = unit
-                    .lookup_string(*slot)
-                    .ok_or_else(|| VmError::MissingStaticString { slot: *slot })?;
-                // TODO: do something sneaky to only allocate the static string once.
-                let value = self.string_allocate(string.to_owned());
-                self.managed_push(value)?;
-            }
-            Inst::Is => {
-                let b = self.managed_pop()?;
-                let a = self.managed_pop()?;
-
-                match (a, b) {
-                    (a, ValuePtr::Type(hash)) => {
-                        let a = a.value_type(self)?;
-
-                        let type_info = context
-                            .lookup_type(hash)
-                            .ok_or_else(|| VmError::MissingType { hash })?;
-
-                        self.unmanaged_push(ValuePtr::Bool(a == type_info.value_type));
-                    }
-                    (a, b) => {
-                        let a = a.type_info(self)?;
-                        let b = b.type_info(self)?;
-
-                        return Err(VmError::UnsupportedIs {
-                            value_type: a,
-                            test_type: b,
-                        });
-                    }
-                }
-            }
-            Inst::IsUnit => {
-                let value = self.managed_pop()?;
-
-                self.unmanaged_push(ValuePtr::Bool(match value {
-                    ValuePtr::Unit => true,
-                    _ => false,
-                }));
-            }
-            Inst::Ptr { offset } => {
-                self.op_ptr(*offset)?;
-            }
-            Inst::Deref => {
-                self.op_deref()?;
+                *limit -= 1;
             }
         }
 
-        if update_ip {
-            self.ip += 1;
-        }
-
-        self.reap()?;
         Ok(())
     }
 }
@@ -1896,12 +1911,7 @@ where
     /// Run the given task to completion.
     pub async fn run_to_completion(self) -> Result<T, VmError> {
         while !self.vm.exited {
-            let inst = self
-                .unit
-                .instruction_at(self.vm.ip())
-                .ok_or_else(|| VmError::IpOutOfBounds)?;
-
-            self.vm.eval(inst, self.context, self.unit).await?;
+            self.vm.run_for(self.context, self.unit, None).await?;
         }
 
         let value = self.vm.pop_decode()?;
@@ -1911,12 +1921,7 @@ where
 
     /// Step the given task until the return value is available.
     pub async fn step(&mut self) -> Result<Option<T>, VmError> {
-        let inst = self
-            .unit
-            .instruction_at(self.vm.ip())
-            .ok_or_else(|| VmError::IpOutOfBounds)?;
-
-        self.vm.eval(inst, self.context, self.unit).await?;
+        self.vm.run_for(self.context, self.unit, Some(1)).await?;
 
         if self.vm.exited {
             let value = self.vm.pop_decode()?;
