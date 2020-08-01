@@ -120,7 +120,7 @@ impl<'a> crate::ReflectValueType for &'a [u8] {
 
 /// Get the module for the bytes package.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std"]);
+    let mut module = Module::new(&["std", "bytes"]);
 
     module.ty(&["Bytes"]).build::<Bytes>()?;
     module.function(&["Bytes", "new"], Bytes::new)?;

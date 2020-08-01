@@ -122,6 +122,8 @@ pub enum Kind {
     Slash,
     /// A star literal `*`.
     Star,
+    /// An ampersand literal `&`.
+    Ampersand,
     /// An equals sign `=`.
     Eq,
     /// Two equals sign `==`.
@@ -168,6 +170,7 @@ impl fmt::Display for Kind {
             Self::Minus => write!(fmt, "-"),
             Self::Slash => write!(fmt, "/"),
             Self::Star => write!(fmt, "*"),
+            Self::Ampersand => write!(fmt, "&"),
             Self::Eq => write!(fmt, "="),
             Self::EqEq => write!(fmt, "=="),
             Self::Neq => write!(fmt, "!="),

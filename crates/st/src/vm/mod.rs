@@ -242,12 +242,6 @@ pub enum VmError {
     /// Attempt to access out-of-bounds stack item.
     #[error("tried to access an out-of-bounds stack entry")]
     StackOutOfBounds,
-    /// Attempt to access out-of-bounds slot.
-    #[error("tried to access a slot which is out of bounds")]
-    SlotOutOfBounds,
-    /// Attempt to access out-of-bounds frame.
-    #[error("tried to access an out-of-bounds frame")]
-    FrameOutOfBounds,
     /// Indicates that a static string is missing for the given slot.
     #[error("static string slot `{slot}` does not exist")]
     MissingStaticString {
@@ -331,11 +325,35 @@ pub enum VmError {
         /// The type that is not supported.
         test_type: ValueTypeInfo,
     },
+    /// Encountered a value that could not be dereferenced.
+    #[error("replace deref `*{target_type} = {value_type}` is not supported")]
+    UnsupportedReplaceDeref {
+        /// The type we try to assign to.
+        target_type: ValueTypeInfo,
+        /// The type we try to assign.
+        value_type: ValueTypeInfo,
+    },
+    /// Encountered a value that could not be dereferenced.
+    #[error("`*{actual_type}` is not supported")]
+    UnsupportedDeref {
+        /// The type that could not be de-referenced.
+        actual_type: ValueTypeInfo,
+    },
     /// Missing type.
     #[error("no type matching hash `{hash}`")]
     MissingType {
         /// Hash of the type missing.
         hash: Hash,
+    },
+    /// Attempting to assign an illegal pointer.
+    #[error(
+        "pointer cannot be changed to point to a lower stack address `{value_ptr} > {target_ptr}`"
+    )]
+    IllegalPtrReplace {
+        /// The target ptr being assigned to.
+        target_ptr: usize,
+        /// The value ptr we are trying to assign.
+        value_ptr: usize,
     },
 }
 
@@ -725,7 +743,7 @@ impl Vm {
 
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
-    fn stack_copy(&mut self, offset: usize) -> Result<(), VmError> {
+    fn do_copy(&mut self, offset: usize) -> Result<(), VmError> {
         let value = self
             .frame_top
             .checked_add(offset)
@@ -742,7 +760,7 @@ impl Vm {
 
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
-    fn stack_replace(&mut self, offset: usize) -> Result<(), VmError> {
+    fn do_replace(&mut self, offset: usize) -> Result<(), VmError> {
         let mut value = self.stack.pop().ok_or_else(|| VmError::StackOutOfBounds)?;
 
         let stack_value = self
@@ -1159,6 +1177,7 @@ impl Vm {
                 Managed::External => Value::External(self.external_take_dyn(slot)?),
             },
             ValuePtr::Type(ty) => Value::Type(ty),
+            ValuePtr::Ptr(ptr) => Value::Ptr(ptr),
         });
 
         /// Convert into an owned array.
@@ -1208,6 +1227,7 @@ impl Vm {
                 Managed::External => ValueRef::External(self.external_ref_dyn(slot)?),
             },
             ValuePtr::Type(ty) => ValueRef::Type(ty),
+            ValuePtr::Ptr(ptr) => ValueRef::Ptr(ptr),
         });
     }
 
@@ -1326,7 +1346,8 @@ impl Vm {
     }
 
     /// Optimized equality implementation.
-    fn eq(&mut self) -> Result<(), VmError> {
+    #[inline]
+    fn op_eq(&mut self) -> Result<(), VmError> {
         let b = self.managed_pop()?;
         let a = self.managed_pop()?;
         self.unmanaged_push(ValuePtr::Bool(self.value_ptr_eq(a, b)?));
@@ -1334,14 +1355,24 @@ impl Vm {
     }
 
     /// Optimized inequality implementation.
-    fn neq(&mut self) -> Result<(), VmError> {
+    #[inline]
+    fn op_neq(&mut self) -> Result<(), VmError> {
         let b = self.managed_pop()?;
         let a = self.managed_pop()?;
         self.unmanaged_push(ValuePtr::Bool(!self.value_ptr_eq(a, b)?));
         Ok(())
     }
 
-    fn not(&mut self) -> Result<(), VmError> {
+    /// Perform a jump operation.
+    #[inline]
+    fn op_jump(&mut self, offset: isize, update_ip: &mut bool) -> Result<(), VmError> {
+        self.modify_ip(offset)?;
+        *update_ip = false;
+        Ok(())
+    }
+
+    #[inline]
+    fn op_not(&mut self) -> Result<(), VmError> {
         let value = self.unmanaged_pop()?;
 
         let value = match value {
@@ -1357,7 +1388,8 @@ impl Vm {
     }
 
     /// Implementation of the add operation.
-    fn add(&mut self) -> Result<(), VmError> {
+    #[inline]
+    fn op_add(&mut self) -> Result<(), VmError> {
         let b = self.managed_pop()?;
         let a = self.managed_pop()?;
 
@@ -1400,7 +1432,8 @@ impl Vm {
     }
 
     /// Perform an index get operation.
-    fn index_get(&mut self, target: ValuePtr, index: ValuePtr) -> Result<(), VmError> {
+    #[inline]
+    fn op_index_get(&mut self, target: ValuePtr, index: ValuePtr) -> Result<(), VmError> {
         match (target, index) {
             (ValuePtr::Managed(target), ValuePtr::Managed(index)) => {
                 match (target.into_managed(), index.into_managed()) {
@@ -1430,7 +1463,8 @@ impl Vm {
     }
 
     /// Perform an index set operation.
-    fn index_set(
+    #[inline]
+    fn op_index_set(
         &mut self,
         target: ValuePtr,
         index: ValuePtr,
@@ -1462,6 +1496,90 @@ impl Vm {
         })
     }
 
+    /// Implementation of the `replace-ref` instruction.
+    #[inline]
+    fn op_replace_deref(&mut self) -> Result<(), VmError> {
+        let target = self.managed_pop()?;
+        let value = self.managed_pop()?;
+
+        let target_ptr = match target {
+            ValuePtr::Ptr(ptr) => ptr,
+            _ => {
+                let target_type = target.type_info(self)?;
+                let value_type = value.type_info(self)?;
+
+                return Err(VmError::UnsupportedReplaceDeref {
+                    target_type,
+                    value_type,
+                });
+            }
+        };
+
+        // NB: Validate the value being assigned. This is the only instruction
+        // allowed to reassign pointer.
+        //
+        // At creation time it is guaranteed to only point to a lower location,
+        // making sure that a pointer is always popped before the value it
+        // points to.
+        //
+        // Therefore, a pointer type cannot be reassigned to a location on the
+        // stack that to a higher memory location to guarantee that it points to
+        // valid data.
+        match value {
+            ValuePtr::Ptr(value_ptr) => {
+                if value_ptr > target_ptr {
+                    return Err(VmError::IllegalPtrReplace {
+                        target_ptr,
+                        value_ptr,
+                    });
+                }
+            }
+            _ => (),
+        }
+
+        let replace = self
+            .stack
+            .get_mut(target_ptr)
+            .ok_or_else(|| VmError::StackOutOfBounds)?;
+
+        *replace = value;
+        Ok(())
+    }
+
+    #[inline]
+    fn op_ptr(&mut self, offset: usize) -> Result<(), VmError> {
+        let ptr = self
+            .frame_top
+            .checked_add(offset)
+            .ok_or_else(|| VmError::StackOutOfBounds)?;
+
+        self.unmanaged_push(ValuePtr::Ptr(ptr));
+        Ok(())
+    }
+
+    /// Deref the value on the stack and push it.
+    #[inline]
+    fn op_deref(&mut self) -> Result<(), VmError> {
+        let target = self.managed_pop()?;
+
+        let ptr = match target {
+            ValuePtr::Ptr(ptr) => ptr,
+            actual => {
+                let actual_type = actual.type_info(self)?;
+                return Err(VmError::UnsupportedDeref { actual_type });
+            }
+        };
+
+        let value = self
+            .stack
+            .get(ptr)
+            .copied()
+            .ok_or_else(|| VmError::StackOutOfBounds)?;
+
+        self.managed_push(value)?;
+        Ok(())
+    }
+
     /// Evaluate a single instruction.
     pub async fn eval(
         &mut self,
@@ -1473,10 +1591,10 @@ impl Vm {
 
         match inst {
             Inst::Not => {
-                self.not()?;
+                self.op_not()?;
             }
             Inst::Add => {
-                self.add()?;
+                self.op_add()?;
             }
             Inst::Sub => {
                 let b = self.managed_pop()?;
@@ -1550,13 +1668,13 @@ impl Vm {
             Inst::IndexGet => {
                 let target = self.managed_pop()?;
                 let index = self.managed_pop()?;
-                self.index_get(target, index)?;
+                self.op_index_get(target, index)?;
             }
             Inst::IndexSet => {
                 let target = self.managed_pop()?;
                 let index = self.managed_pop()?;
                 let value = self.managed_pop()?;
-                self.index_set(target, index, value)?;
+                self.op_index_set(target, index, value)?;
             }
             Inst::Return => {
                 // NB: unmanaged because we're effectively moving the value.
@@ -1586,10 +1704,13 @@ impl Vm {
                 self.managed_push(ValuePtr::Float(*number))?;
             }
             Inst::Copy { offset } => {
-                self.stack_copy(*offset)?;
+                self.do_copy(*offset)?;
             }
             Inst::Replace { offset } => {
-                self.stack_replace(*offset)?;
+                self.do_replace(*offset)?;
+            }
+            Inst::ReplaceDeref => {
+                self.op_replace_deref()?;
             }
             Inst::Gt => {
                 let b = self.managed_pop()?;
@@ -1612,14 +1733,13 @@ impl Vm {
                 self.unmanaged_push(ValuePtr::Bool(primitive_ops!(self, a <= b)));
             }
             Inst::Eq => {
-                self.eq()?;
+                self.op_eq()?;
             }
             Inst::Neq => {
-                self.neq()?;
+                self.op_neq()?;
             }
             Inst::Jump { offset } => {
-                self.modify_ip(*offset)?;
-                update_ip = false;
+                self.op_jump(*offset, &mut update_ip)?;
             }
             Inst::JumpIf { offset } => {
                 if pop!(self, Bool) {
@@ -1699,6 +1819,12 @@ impl Vm {
                         });
                     }
                 }
+            }
+            Inst::Ptr { offset } => {
+                self.op_ptr(*offset)?;
+            }
+            Inst::Deref => {
+                self.op_deref()?;
             }
         }
 

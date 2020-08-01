@@ -331,6 +331,7 @@ impl<'a> Lexer<'a> {
                     '-' => Kind::Minus,
                     '/' => Kind::Slash,
                     '*' => Kind::Star,
+                    '&' => Kind::Ampersand,
                     '>' => Kind::Gt,
                     '<' => Kind::Lt,
                     '!' => Kind::Not,

@@ -67,6 +67,9 @@ impl ser::Serialize for ValuePtr {
                     return Err(ser::Error::custom("cannot serialize external objects"));
                 }
             },
+            ValuePtr::Ptr(..) => {
+                return Err(ser::Error::custom("cannot serialize pointers"));
+            }
             ValuePtr::Type(..) => {
                 return Err(ser::Error::custom("cannot serialize type objects"));
             }

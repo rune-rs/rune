@@ -62,7 +62,7 @@ impl<'a> Encoder<'a> {
     fn encode_fn_decl(&mut self, fn_decl: ast::FnDecl) -> Result<()> {
         let span = fn_decl.span();
 
-        for arg in fn_decl.args.items.into_iter() {
+        for arg in fn_decl.args.items.iter().rev() {
             let name = arg.resolve(self.source)?;
             self.locals.new_local(name, arg.token)?;
         }
@@ -174,9 +174,6 @@ impl<'a> Encoder<'a> {
             ast::Expr::Let(let_) => {
                 self.encode_let(let_, needs_value)?;
             }
-            ast::Expr::Update(let_) => {
-                self.encode_update(let_, needs_value)?;
-            }
             ast::Expr::IndexSet(index_set) => {
                 self.encode_index_set(index_set, needs_value)?;
             }
@@ -196,10 +193,10 @@ impl<'a> Encoder<'a> {
                 self.encode_call_instance_fn(call_instance_fn, needs_value)?;
             }
             ast::Expr::ExprUnary(expr_unary) => {
-                self.encode_expr_unary(expr_unary)?;
+                self.encode_expr_unary(expr_unary, needs_value)?;
             }
             ast::Expr::ExprBinary(expr_binary) => {
-                self.encode_expr_binary(expr_binary)?;
+                self.encode_expr_binary(expr_binary, needs_value)?;
             }
             ast::Expr::ExprIf(expr_if) => {
                 self.encode_expr_if(expr_if, needs_value)?;
@@ -406,24 +403,62 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_update(&mut self, update: &ast::Update, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", update);
+    /// Push reference on the stack for replacement.
+    fn encode_assign_target(&mut self, expr: &ast::Expr, first_level: bool) -> Result<()> {
+        match expr {
+            ast::Expr::Ident(ident) => {
+                self.encode_ident(ident, NeedsValue(true))?;
+                return Ok(());
+            }
+            ast::Expr::ExprUnary(unary) => match unary.op {
+                ast::UnaryOp::Deref { token } => {
+                    self.encode_assign_target(&*unary.expr, false)?;
 
-        let span = update.span();
+                    if !first_level {
+                        self.instructions.push(st::Inst::Deref, token.span);
+                    }
 
-        let token = update.name.token;
-        let name = update.name.resolve(self.source)?;
-        self.encode_expr(&*update.expr, NeedsValue(true))?;
+                    return Ok(());
+                }
+                _ => (),
+            },
+            _ => (),
+        }
 
-        let offset = self
-            .locals
-            .get_offset(name)
-            .ok_or_else(|| EncodeError::MissingLocal {
-                name: name.to_owned(),
-                span: token.span,
-            })?;
+        Err(EncodeError::UnsupportedAssignExpr { span: expr.span() })
+    }
 
-        self.instructions.push(st::Inst::Replace { offset }, span);
+    fn encode_assign(
+        &mut self,
+        lhs: &ast::Expr,
+        rhs: &ast::Expr,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        log::trace!("{:?} = {:?}", lhs, rhs);
+
+        let span = lhs.span().join(rhs.span());
+
+        match lhs {
+            ast::Expr::Ident(ident) => {
+                let name = ident.resolve(self.source)?;
+
+                let offset =
+                    self.locals
+                        .get_offset(name)
+                        .ok_or_else(|| EncodeError::MissingLocal {
+                            name: name.to_owned(),
+                            span,
+                        })?;
+
+                self.encode_expr(rhs, NeedsValue(true))?;
+                self.instructions.push(st::Inst::Replace { offset }, span);
+            }
+            lhs => {
+                self.encode_expr(rhs, NeedsValue(true))?;
+                self.encode_assign_target(lhs, true)?;
+                self.instructions.push(st::Inst::ReplaceDeref, span);
+            }
+        }
 
         if needs_value.0 {
             self.instructions.push(st::Inst::Unit, span);
@@ -631,8 +666,21 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_expr_unary(&mut self, expr_unary: &ast::ExprUnary) -> Result<()> {
+    fn encode_expr_unary(
+        &mut self,
+        expr_unary: &ast::ExprUnary,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
         log::trace!("{:?}", expr_unary);
+
+        // NB: special unary expressions.
+        match expr_unary.op {
+            ast::UnaryOp::Ref { .. } => {
+                self.encode_ref(&*expr_unary.expr)?;
+                return Ok(());
+            }
+            _ => (),
+        }
 
         let span = expr_unary.span();
 
@@ -642,13 +690,65 @@ impl<'a> Encoder<'a> {
             ast::UnaryOp::Not { .. } => {
                 self.instructions.push(st::Inst::Not, span);
             }
+            ast::UnaryOp::Deref { .. } => {
+                self.instructions.push(st::Inst::Deref, span);
+            }
+            op => {
+                return Err(EncodeError::UnsupportedUnaryOp { span, op });
+            }
+        }
+
+        // NB: we put it here to preserve the call in case it has side effects.
+        // But if we don't need the value, then pop it from the stack.
+        if !needs_value.0 {
+            self.instructions.push(st::Inst::Pop, span);
         }
 
         Ok(())
     }
 
-    fn encode_expr_binary(&mut self, expr_binary: &ast::ExprBinary) -> Result<()> {
+    /// Encode a ref `&<expr>` value.
+    fn encode_ref(&mut self, expr: &ast::Expr) -> Result<()> {
+        match expr {
+            ast::Expr::Ident(ident) => {
+                let target = ident.resolve(self.source)?;
+
+                let offset = match self.locals.get_offset(target) {
+                    Some(offset) => offset,
+                    None => {
+                        return Err(EncodeError::MissingLocal {
+                            name: target.to_owned(),
+                            span: ident.token.span,
+                        });
+                    }
+                };
+
+                self.instructions
+                    .push(st::Inst::Ptr { offset }, expr.span());
+            }
+            expr => {
+                return Err(EncodeError::UnsupportedRef { span: expr.span() });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn encode_expr_binary(
+        &mut self,
+        expr_binary: &ast::ExprBinary,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
         log::trace!("{:?}", expr_binary);
+
+        // Special expressions which operates on the stack in special ways.
+        match expr_binary.op {
+            ast::BinOp::Assign { .. } => {
+                self.encode_assign(&*expr_binary.lhs, &*expr_binary.rhs, needs_value)?;
+                return Ok(());
+            }
+            _ => (),
+        }
 
         let span = expr_binary.span();
 
@@ -692,6 +792,12 @@ impl<'a> Encoder<'a> {
             op => {
                 return Err(EncodeError::UnsupportedBinaryOp { span, op });
             }
+        }
+
+        // NB: we put it here to preserve the call in case it has side effects.
+        // But if we don't need the value, then pop it from the stack.
+        if !needs_value.0 {
+            self.instructions.push(st::Inst::Pop, span);
         }
 
         Ok(())

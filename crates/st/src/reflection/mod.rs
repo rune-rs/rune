@@ -2,11 +2,12 @@ use crate::any::Any;
 use crate::value::{Value, ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{StackError, Vm};
 
+mod array;
 mod hash_map;
+mod object;
 mod option;
 mod primitive;
 mod string;
-mod vec;
 
 /// Trait for converting arguments into values.
 pub trait IntoArgs {

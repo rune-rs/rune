@@ -25,4 +25,6 @@ pub enum Value {
     External(Box<dyn Any>),
     /// A type to a different value.
     Type(Hash),
+    /// A pointer to a value on the stack.
+    Ptr(usize),
 }

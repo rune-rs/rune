@@ -23,6 +23,8 @@ pub enum ValueType {
     External(TypeId),
     /// The type of type values.
     Type,
+    /// A pointer to a value on the stack.
+    Ptr,
 }
 
 #[cfg(test)]

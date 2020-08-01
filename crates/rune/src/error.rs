@@ -287,6 +287,27 @@ pub enum EncodeError {
         /// The operator.
         op: ast::BinOp,
     },
+    /// Encountered a unary operator we can't encode.
+    #[error("unsupported unary operator `{op}`")]
+    UnsupportedUnaryOp {
+        /// The span of the illegal operator use.
+        span: Span,
+        /// The operator.
+        op: ast::UnaryOp,
+    },
+    /// When we encounter an expression that cannot be assigned to.
+    #[error("cannot assign to expression")]
+    UnsupportedAssignExpr {
+        /// The thing being assigned to.
+        span: Span,
+    },
+    /// When we encounter an expression that doesn't have a stack location and
+    /// can't be referenced.
+    #[error("cannot take reference of expression")]
+    UnsupportedRef {
+        /// The thing we are taking the reference of.
+        span: Span,
+    },
     /// Error raised when trying to use a break expression in a context which
     /// does not produce a value.
     #[error("break expressions cannot be used as a value")]
@@ -321,7 +342,10 @@ impl SpannedError for EncodeError {
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
             Self::MissingModule { span, .. } => span,
+            Self::UnsupportedRef { span, .. } => span,
+            Self::UnsupportedUnaryOp { span, .. } => span,
             Self::UnsupportedBinaryOp { span, .. } => span,
+            Self::UnsupportedAssignExpr { span, .. } => span,
             Self::BreakDoesNotProduceValue { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,
         }

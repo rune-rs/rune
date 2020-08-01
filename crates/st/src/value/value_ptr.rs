@@ -21,6 +21,10 @@ pub enum ValuePtr {
     Managed(Slot),
     /// A type.
     Type(Hash),
+    /// A pointer to an absolute stack location.
+    ///
+    /// A pointer is only allowed to point to a lower stack location.
+    Ptr(usize),
 }
 
 impl ValuePtr {
@@ -41,6 +45,11 @@ impl ValuePtr {
     /// Try to coerce value reference into an array.
     pub fn into_array(self, vm: &Vm) -> Result<Slot, StackError> {
         self.into_slot::<slot::ArraySlot>(vm)
+    }
+
+    /// Try to coerce value reference into an object.
+    pub fn into_object(self, vm: &Vm) -> Result<Slot, StackError> {
+        self.into_slot::<slot::ObjectSlot>(vm)
     }
 
     /// Try to coerce value reference into an array.
@@ -66,6 +75,7 @@ impl ValuePtr {
                 }
             },
             Self::Type(..) => ValueType::Type,
+            Self::Ptr(..) => ValueType::Ptr,
         })
     }
 
@@ -87,6 +97,7 @@ impl ValuePtr {
                 }
             },
             Self::Type(..) => ValueTypeInfo::Type,
+            Self::Ptr(..) => ValueTypeInfo::Ptr,
         })
     }
 }

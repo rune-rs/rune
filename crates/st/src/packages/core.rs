@@ -4,7 +4,7 @@
 //! * `dbg` to debug print to stdout.
 
 use crate::context::{ContextError, Module};
-use crate::value::{Array, Object, Value, ValuePtr};
+use crate::value::ValuePtr;
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
@@ -13,14 +13,12 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty(&["unit"]).build::<()>()?;
     module.ty(&["bool"]).build::<bool>()?;
     module.ty(&["char"]).build::<char>()?;
-    module.ty(&["Array"]).build::<Array<Value>>()?;
-    module.ty(&["Object"]).build::<Object<Value>>()?;
 
     module.raw_fn(&["dbg"], |vm, args| {
         for n in 0..args {
-            match vm.managed_pop() {
+            match vm.managed_pop().and_then(|v| vm.value_ref(v)) {
                 Ok(value) => {
-                    println!("{} = {:?}", n, vm.value_ref(value));
+                    println!("{} = {:?}", n, value);
                 }
                 Err(e) => {
                     println!("{} = {}", n, e);

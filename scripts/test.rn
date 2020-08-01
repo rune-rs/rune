@@ -1,15 +1,14 @@
+fn foo(n, u) {
+    // trying to replace a n with a pointer that is outside of the
+    // current stack frame.
+    let v = 5;
+    *n = u;
+}
+
 fn main() {
-    let n = 0;
-
-    while true {
-        let out = n + 1;
-
-        if out > 10 {
-            break;
-        }
-
-        n = out;
-    }
-
-    dbg("done", n)
+    let u = 5;
+    let v = 0;
+    let n = &v;
+    foo(n, &u);
+    n
 }

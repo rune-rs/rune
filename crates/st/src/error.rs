@@ -44,4 +44,12 @@ impl Error {
             error: anyhow::Error::msg(message),
         }
     }
+
+    /// Downcast the error.
+    pub fn downcast_ref<T>(&self) -> Option<&T>
+    where
+        T: 'static + std::error::Error + Send + Sync,
+    {
+        self.error.downcast_ref()
+    }
 }

@@ -19,7 +19,7 @@ fn char_at(s: &str, index: usize) -> Result<Option<char>, Error> {
 
 /// Get the module for the string package.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std"]);
+    let mut module = Module::new(&["std", "string"]);
 
     module.ty(&["String"]).build::<String>()?;
 

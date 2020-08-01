@@ -510,8 +510,18 @@ impl Parse for StringLiteral {
 /// A unary operation.
 #[derive(Debug, Clone, Copy)]
 pub enum UnaryOp {
-    /// Not `!`.
+    /// Not `!<thing>`.
     Not {
+        /// Token associated with operator.
+        token: Token,
+    },
+    /// Reference `&<thing>`.
+    Ref {
+        /// Token associated with operator.
+        token: Token,
+    },
+    /// Dereference `*<thing>`.
+    Deref {
         /// Token associated with operator.
         token: Token,
     },
@@ -522,6 +532,8 @@ impl UnaryOp {
     pub fn span(&self) -> Span {
         match self {
             Self::Not { token } => token.span,
+            Self::Ref { token } => token.span,
+            Self::Deref { token } => token.span,
         }
     }
 }
@@ -532,6 +544,8 @@ impl Parse for UnaryOp {
 
         Ok(match token.kind {
             Kind::Not => Self::Not { token },
+            Kind::Ampersand => Self::Ref { token },
+            Kind::Star => Self::Deref { token },
             actual => {
                 return Err(ParseError::ExpectedUnaryOperator {
                     span: token.span,
@@ -539,6 +553,18 @@ impl Parse for UnaryOp {
                 })
             }
         })
+    }
+}
+
+impl fmt::Display for UnaryOp {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Not { .. } => write!(fmt, "!")?,
+            Self::Ref { .. } => write!(fmt, "&")?,
+            Self::Deref { .. } => write!(fmt, "*")?,
+        }
+
+        Ok(())
     }
 }
 
@@ -600,8 +626,13 @@ pub enum BinOp {
         /// Token associated with operator.
         token: Token,
     },
-    /// The instanceof test..
+    /// The instanceof test.
     Is {
+        /// Token associated with operator.
+        token: Token,
+    },
+    /// Assign operation.
+    Assign {
         /// Token associated with operator.
         token: Token,
     },
@@ -612,7 +643,8 @@ impl BinOp {
     fn precedence(self) -> usize {
         match self {
             // `is` has lowest precedence.
-            Self::Is { .. } => 0,
+            Self::Assign { .. } => 0,
+            Self::Is { .. } => 5,
             Self::Add { .. } | Self::Sub { .. } => 10,
             Self::Div { .. } | Self::Mul { .. } => 20,
             Self::Eq { .. } | Self::Neq { .. } => 30,
@@ -639,6 +671,7 @@ impl BinOp {
             Kind::Gte => Self::Gte { token },
             Kind::Dot => Self::Dot { token },
             Kind::Is => Self::Is { token },
+            Kind::Eq => Self::Assign { token },
             _ => return None,
         })
     }
@@ -682,6 +715,9 @@ impl fmt::Display for BinOp {
             }
             BinOp::Is { .. } => {
                 write!(fmt, "is")?;
+            }
+            BinOp::Assign { .. } => {
+                write!(fmt, "=")?;
             }
         }
 
@@ -740,6 +776,15 @@ pub struct ExprBinary {
 }
 
 impl ExprBinary {
+    /// If the expression is empty.
+    pub fn produces_value(&self) -> bool {
+        match self.op {
+            // Assignments do not produce a value.
+            BinOp::Assign { .. } => false,
+            _ => true,
+        }
+    }
+
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.lhs.span().join(self.rhs.span())
@@ -766,7 +811,7 @@ impl Parse for ExprUnary {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(Self {
             op: parser.parse()?,
-            expr: Box::new(parser.parse()?),
+            expr: Box::new(Expr::parse_primary(parser, NoIndex(false))?),
         })
     }
 }
@@ -855,7 +900,7 @@ impl ExprIf {
     }
 
     /// An if statement evaluates to empty if it does not have an else branch.
-    pub fn is_empty(&self) -> bool {
+    pub fn produces_value(&self) -> bool {
         self.expr_else.is_none()
     }
 }
@@ -908,8 +953,6 @@ pub enum Expr {
     While(While),
     /// A let expression.
     Let(Let),
-    /// Update a local variable.
-    Update(Update),
     /// An index set operation.
     IndexSet(IndexSet),
     /// An if expression.
@@ -950,15 +993,15 @@ pub enum Expr {
 
 impl Expr {
     /// Test if the expression implicitly evaluates to unit.
-    pub fn is_empty(&self) -> bool {
+    pub fn produces_value(&self) -> bool {
         match self {
             Self::While(..) => true,
-            Self::Update(..) => true,
             Self::Let(..) => true,
             Self::IndexSet(..) => true,
-            Self::ExprIf(expr_if) => expr_if.is_empty(),
-            Self::ExprGroup(expr_group) => expr_group.is_empty(),
+            Self::ExprIf(expr_if) => expr_if.produces_value(),
+            Self::ExprGroup(expr_group) => expr_group.produces_value(),
             Self::Break(..) => true,
+            Self::ExprBinary(expr) => expr.produces_value(),
             _ => false,
         }
     }
@@ -968,7 +1011,6 @@ impl Expr {
         match self {
             Self::While(expr) => expr.span(),
             Self::Let(expr) => expr.span(),
-            Self::Update(expr) => expr.span(),
             Self::IndexSet(expr) => expr.span(),
             Self::ExprIf(expr) => expr.span(),
             Self::Ident(expr) => expr.span(),
@@ -1050,7 +1092,7 @@ impl Expr {
         let token = parser.token_peek_eof()?;
 
         let expr = match token.kind {
-            Kind::Not => Self::ExprUnary(parser.parse()?),
+            Kind::Not | Kind::Ampersand | Kind::Star => Self::ExprUnary(parser.parse()?),
             Kind::While => Self::While(parser.parse()?),
             Kind::Let => Self::Let(parser.parse()?),
             Kind::If => Self::ExprIf(parser.parse()?),
@@ -1078,7 +1120,6 @@ impl Expr {
                     Kind::Open {
                         delimiter: Delimiter::Bracket,
                     } if !no_index.0 => Self::parse_indexing_op(parser)?,
-                    Kind::Eq => Self::Update(parser.parse()?),
                     _ => Self::parse_ident_start(parser)?,
                 },
                 None => Self::parse_ident_start(parser)?,
@@ -1436,34 +1477,6 @@ impl Parse for While {
     }
 }
 
-/// A let expression `<name> = <expr>;`
-#[derive(Debug, Clone)]
-pub struct Update {
-    /// The name of the binding.
-    pub name: Ident,
-    /// The equality keyword.
-    pub eq: Eq,
-    /// The expression the binding is assigned to.
-    pub expr: Box<Expr>,
-}
-
-impl Update {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.name.token.span.join(self.expr.span())
-    }
-}
-
-impl Parse for Update {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Update {
-            name: parser.parse()?,
-            eq: parser.parse()?,
-            expr: Box::new(parser.parse()?),
-        })
-    }
-}
-
 /// An index set operation `<target>[<index>] = <value>`.
 #[derive(Debug, Clone)]
 pub struct IndexSet {
@@ -1655,9 +1668,9 @@ impl Block {
     }
 
     /// Test if the block is empty.
-    pub fn is_empty(&self) -> bool {
+    pub fn produces_value(&self) -> bool {
         match &self.trailing_expr {
-            Some(trailing) => trailing.is_empty(),
+            Some(trailing) => trailing.produces_value(),
             None => true,
         }
     }
@@ -1722,7 +1735,7 @@ impl Parse for Block {
                     continue;
                 }
                 Expr::ExprIf(expr_if) => {
-                    if expr_if.is_empty() {
+                    if expr_if.produces_value() {
                         exprs.push((expr, None));
                     } else {
                         last_expr_with_value = true;
@@ -1827,8 +1840,8 @@ impl ExprGroup {
     }
 
     /// Check if expression is empty.
-    pub fn is_empty(&self) -> bool {
-        self.expr.is_empty()
+    pub fn produces_value(&self) -> bool {
+        self.expr.produces_value()
     }
 }
 
@@ -1912,6 +1925,7 @@ decl_tokens! {
     (Scope, Kind::Scope),
     (WhileToken, Kind::While),
     (Break, Kind::Break),
+    (Star, Kind::Star),
 }
 
 impl<'a> Resolve<'a> for Ident {

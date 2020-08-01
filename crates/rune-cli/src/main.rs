@@ -224,7 +224,11 @@ async fn main() -> Result<()> {
         println!("# stack dump after completion");
 
         for (n, (slot, value)) in vm.iter_stack_debug().enumerate() {
-            println!("{} = {:?} ({:?})", n, slot, value);
+            if let st::ValuePtr::Managed(..) = slot {
+                println!("{} = {:?} => {:?}", n, slot, value);
+            } else {
+                println!("{} = {:?}", n, slot);
+            }
         }
 
         println!("---");
@@ -276,7 +280,11 @@ where
             println!("# stack dump");
 
             for (n, (slot, value)) in task.vm.iter_stack_debug().enumerate() {
-                println!("{} = {:?} ({:?})", n, slot, value);
+                if let st::ValuePtr::Managed(..) = slot {
+                    println!("{} = {:?} => {:?}", n, slot, value);
+                } else {
+                    println!("{} = {:?}", n, slot);
+                }
             }
 
             println!("---");

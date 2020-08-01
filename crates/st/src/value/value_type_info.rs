@@ -24,6 +24,8 @@ pub enum ValueTypeInfo {
     External(&'static str),
     /// The type of a value.
     Type,
+    /// A pointer to the stack.
+    Ptr,
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -58,6 +60,9 @@ impl fmt::Display for ValueTypeInfo {
             }
             ValueTypeInfo::Type => {
                 write!(fmt, "type")?;
+            }
+            ValueTypeInfo::Ptr => {
+                write!(fmt, "ptr")?;
             }
         }
 

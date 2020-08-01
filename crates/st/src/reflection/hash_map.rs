@@ -50,4 +50,3 @@ macro_rules! impl_map {
 }
 
 impl_map!(std::collections::HashMap);
-impl_map!(crate::collections::HashMap);

@@ -222,10 +222,12 @@ impl Unit {
             .insert(String::from("int"), Item::of(&["std", "int"]));
         this.imports
             .insert(String::from("float"), Item::of(&["std", "float"]));
+        this.imports.insert(
+            String::from("Object"),
+            Item::of(&["std", "object", "Object"]),
+        );
         this.imports
-            .insert(String::from("Object"), Item::of(&["std", "Object"]));
-        this.imports
-            .insert(String::from("Array"), Item::of(&["std", "Array"]));
+            .insert(String::from("Array"), Item::of(&["std", "array", "Array"]));
         this.imports.insert(
             String::from("String"),
             Item::of(&["std", "string", "String"]),

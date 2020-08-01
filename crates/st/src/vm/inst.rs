@@ -124,6 +124,17 @@ pub enum Inst {
         /// Offset to swap value from.
         offset: usize,
     },
+    /// Pop a reference from the stack and replace what it points to with the
+    /// value on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <ptr>
+    /// <value>
+    /// => *noop*
+    /// ```
+    ReplaceDeref,
     /// Pop the current stack frame and restore the instruction pointer from it.
     ///
     /// The stack frame will be cleared, and the value on the top of the stack
@@ -272,6 +283,27 @@ pub enum Inst {
         /// The hash of the type.
         hash: Hash,
     },
+    /// Construct a ptr to the given stack location relative to the current
+    /// frame and push it on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <value>
+    /// ```
+    Ptr {
+        /// The offset to construct a pointer out of in the current stack frame.
+        offset: usize,
+    },
+    /// Derefence the top of the stack. Dereferenced value must be a reference.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <value>
+    /// ```
+    Deref,
 }
 
 impl fmt::Display for Inst {
@@ -324,6 +356,9 @@ impl fmt::Display for Inst {
             }
             Inst::Replace { offset } => {
                 write!(fmt, "replace {}", offset)?;
+            }
+            Inst::ReplaceDeref => {
+                write!(fmt, "replace-deref")?;
             }
             Inst::Return => {
                 write!(fmt, "return")?;
@@ -381,6 +416,12 @@ impl fmt::Display for Inst {
             }
             Inst::Type { hash } => {
                 write!(fmt, "type {}", hash)?;
+            }
+            Inst::Ptr { offset } => {
+                write!(fmt, "ptr {}", offset)?;
+            }
+            Inst::Deref => {
+                write!(fmt, "deref")?;
             }
         }
 
