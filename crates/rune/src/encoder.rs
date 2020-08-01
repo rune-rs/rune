@@ -7,13 +7,15 @@ use crate::traits::Resolve as _;
 use crate::ParseAll;
 use st::unit::Span;
 
+type Result<T, E = EncodeError> = std::result::Result<T, E>;
+
 /// Flag to indicate if the expression should produce a value or not.
 #[derive(Debug, Clone, Copy)]
 struct NeedsValue(bool);
 
 impl<'a> crate::ParseAll<'a, ast::File> {
     /// Encode the given object into a collection of instructions.
-    pub fn encode(self) -> Result<st::Unit, EncodeError> {
+    pub fn encode(self) -> Result<st::Unit> {
         let ParseAll { source, item: file } = self;
 
         let mut unit = st::Unit::with_default_prelude();
@@ -35,6 +37,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
                 parents: Vec::new(),
                 locals: Locals::new(),
                 source,
+                loops: Vec::new(),
             };
 
             encoder.encode_fn_decl(f)?;
@@ -51,10 +54,12 @@ struct Encoder<'a> {
     parents: Vec<Locals>,
     locals: Locals,
     source: Source<'a>,
+    /// The nesting of loop we are currently in.
+    loops: Vec<Loop>,
 }
 
 impl<'a> Encoder<'a> {
-    fn encode_fn_decl(&mut self, fn_decl: ast::FnDecl) -> Result<(), EncodeError> {
+    fn encode_fn_decl(&mut self, fn_decl: ast::FnDecl) -> Result<()> {
         let span = fn_decl.span();
 
         for arg in fn_decl.args.items.into_iter() {
@@ -114,15 +119,13 @@ impl<'a> Encoder<'a> {
     ///
     /// Blocks are special in that they do not produce a value unless there is
     /// an item in them which does.
-    fn encode_block(
-        &mut self,
-        block: &ast::Block,
-        needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    fn encode_block(&mut self, block: &ast::Block, needs_value: NeedsValue) -> Result<()> {
         log::trace!("{:?}", block);
         let span = block.span();
 
         let open_var_count = self.locals.var_count;
+
+        let parent_count = self.parents.len();
         self.parents.push(self.locals.clone());
 
         for (expr, _) in &block.exprs {
@@ -142,21 +145,26 @@ impl<'a> Encoder<'a> {
             self.pop_locals(var_count, span);
         }
 
-        let parent = self
-            .parents
-            .pop()
-            .ok_or_else(|| EncodeError::MissingParentScope { span })?;
+        let parent = match self.parents.pop() {
+            Some(parent) => parent,
+            None => {
+                return Err(EncodeError::internal("missing parent scope", span));
+            }
+        };
+
+        if self.parents.len() != parent_count {
+            return Err(EncodeError::internal(
+                "parent scope mismatch at end of block",
+                span,
+            ));
+        }
 
         self.locals = parent;
         Ok(())
     }
 
     /// Encode an expression.
-    fn encode_expr(
-        &mut self,
-        expr: &ast::Expr,
-        needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    fn encode_expr(&mut self, expr: &ast::Expr, needs_value: NeedsValue) -> Result<()> {
         log::trace!("{:?}", expr);
 
         match expr {
@@ -220,6 +228,9 @@ impl<'a> Encoder<'a> {
             ast::Expr::IndexGet(index_get) => {
                 self.encode_index_get(index_get, needs_value)?;
             }
+            ast::Expr::Break(b) => {
+                self.encode_break(b, needs_value)?;
+            }
         }
 
         Ok(())
@@ -229,7 +240,7 @@ impl<'a> Encoder<'a> {
         &mut self,
         array_literal: &ast::ArrayLiteral,
         needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    ) -> Result<()> {
         if !needs_value.0 && array_literal.is_all_literal() {
             // Don't encode unecessary literals.
             return Ok(());
@@ -250,7 +261,7 @@ impl<'a> Encoder<'a> {
         &mut self,
         object_literal: &ast::ObjectLiteral,
         needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    ) -> Result<()> {
         if !needs_value.0 {
             // Don't encode unecessary literals.
             return Ok(());
@@ -269,11 +280,7 @@ impl<'a> Encoder<'a> {
     }
 
     /// Encode a char literal, like `'a'`.
-    fn encode_char_literal(
-        &mut self,
-        c: &ast::CharLiteral,
-        needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    fn encode_char_literal(&mut self, c: &ast::CharLiteral, needs_value: NeedsValue) -> Result<()> {
         // NB: Elide the entire literal if it's not needed.
         if !needs_value.0 {
             return Ok(());
@@ -290,7 +297,7 @@ impl<'a> Encoder<'a> {
         &mut self,
         string: &ast::StringLiteral,
         needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    ) -> Result<()> {
         // NB: Elide the entire literal if it's not needed.
         if !needs_value.0 {
             return Ok(());
@@ -303,12 +310,12 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_unit_literal(&mut self, literal: &ast::UnitLiteral) -> Result<(), EncodeError> {
+    fn encode_unit_literal(&mut self, literal: &ast::UnitLiteral) -> Result<()> {
         self.instructions.push(st::Inst::Unit, literal.span());
         Ok(())
     }
 
-    fn encode_bool_literal(&mut self, b: &ast::BoolLiteral) -> Result<(), EncodeError> {
+    fn encode_bool_literal(&mut self, b: &ast::BoolLiteral) -> Result<()> {
         self.instructions
             .push(st::Inst::Bool { value: b.value }, b.span());
         Ok(())
@@ -318,7 +325,7 @@ impl<'a> Encoder<'a> {
         &mut self,
         number: &ast::NumberLiteral,
         needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    ) -> Result<()> {
         if !needs_value.0 {
             // NB: don't encode unecessary literal.
             return Ok(());
@@ -339,17 +346,20 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_while(
-        &mut self,
-        while_: &ast::While,
-        needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    fn encode_while(&mut self, while_: &ast::While, needs_value: NeedsValue) -> Result<()> {
         log::trace!("{:?}", while_);
 
         let span = while_.span();
 
         let start_label = self.instructions.new_label("while_test");
         let end_label = self.instructions.new_label("while_end");
+
+        let loop_count = self.loops.len();
+
+        self.loops.push(Loop {
+            end_label,
+            var_count: self.locals.var_count,
+        });
 
         self.instructions.label(start_label)?;
         self.encode_expr(&*while_.condition, NeedsValue(true))?;
@@ -364,10 +374,18 @@ impl<'a> Encoder<'a> {
             self.instructions.push(st::Inst::Unit, span);
         }
 
+        if self.loops.pop().is_none() {
+            return Err(EncodeError::internal("missing parent loop", span));
+        }
+
+        if loop_count != self.loops.len() {
+            return Err(EncodeError::internal("loop count mismatch on return", span));
+        }
+
         Ok(())
     }
 
-    fn encode_let(&mut self, let_: &ast::Let, needs_value: NeedsValue) -> Result<(), EncodeError> {
+    fn encode_let(&mut self, let_: &ast::Let, needs_value: NeedsValue) -> Result<()> {
         log::trace!("{:?}", let_);
 
         let span = let_.span();
@@ -388,11 +406,7 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_update(
-        &mut self,
-        update: &ast::Update,
-        needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    fn encode_update(&mut self, update: &ast::Update, needs_value: NeedsValue) -> Result<()> {
         log::trace!("{:?}", update);
 
         let span = update.span();
@@ -422,7 +436,7 @@ impl<'a> Encoder<'a> {
         &mut self,
         index_get: &ast::IndexGet,
         needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    ) -> Result<()> {
         log::trace!("{:?}", index_get);
         let span = index_get.span();
 
@@ -439,11 +453,38 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
+    /// Encode a `break` expression.
+    fn encode_break(&mut self, b: &ast::Break, needs_value: NeedsValue) -> Result<()> {
+        let span = b.span();
+
+        if needs_value.0 {
+            return Err(EncodeError::BreakDoesNotProduceValue { span });
+        }
+
+        let last_loop = match self.loops.last().copied() {
+            Some(last_loop) => last_loop,
+            None => {
+                return Err(EncodeError::BreakOutsideOfLoop { span });
+            }
+        };
+
+        let vars = self
+            .locals
+            .var_count
+            .checked_sub(last_loop.var_count)
+            .ok_or_else(|| EncodeError::internal("var count should be larger", span))?;
+
+        self.pop_locals(vars, span);
+        self.instructions.jump(last_loop.end_label, span);
+        // NB: loops are expected to produce a value at the end of their expression.
+        Ok(())
+    }
+
     fn encode_index_set(
         &mut self,
         index_set: &ast::IndexSet,
         needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    ) -> Result<()> {
         log::trace!("{:?}", index_set);
         let span = index_set.span();
 
@@ -461,11 +502,7 @@ impl<'a> Encoder<'a> {
     }
 
     /// Encode a local copy.
-    fn encode_ident(
-        &mut self,
-        ident: &ast::Ident,
-        needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    fn encode_ident(&mut self, ident: &ast::Ident, needs_value: NeedsValue) -> Result<()> {
         log::trace!("encode local: {:?}", ident);
 
         // NB: avoid the encode completely if it is not needed.
@@ -499,7 +536,7 @@ impl<'a> Encoder<'a> {
     }
 
     /// Decode a path into a call destination based on its hashes.
-    fn decode_call_dest(&self, path: &ast::Path) -> Result<st::Hash, EncodeError> {
+    fn decode_call_dest(&self, path: &ast::Path) -> Result<st::Hash> {
         let local = path.first.resolve(self.source)?;
 
         let imported = match self.unit.lookup_import_by_name(local).cloned() {
@@ -522,11 +559,7 @@ impl<'a> Encoder<'a> {
     }
 
     /// Encode the given type.
-    fn encode_type(
-        &mut self,
-        path: &ast::Path,
-        needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    fn encode_type(&mut self, path: &ast::Path, needs_value: NeedsValue) -> Result<()> {
         log::trace!("{:?}", path);
 
         // NB: do nothing if we don't need a value.
@@ -546,11 +579,7 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_call_fn(
-        &mut self,
-        call_fn: &ast::CallFn,
-        needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    fn encode_call_fn(&mut self, call_fn: &ast::CallFn, needs_value: NeedsValue) -> Result<()> {
         log::trace!("{:?}", call_fn);
 
         let span = call_fn.span();
@@ -576,7 +605,7 @@ impl<'a> Encoder<'a> {
         &mut self,
         call_instance_fn: &ast::CallInstanceFn,
         needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    ) -> Result<()> {
         log::trace!("{:?}", call_instance_fn);
 
         let span = call_instance_fn.span();
@@ -602,7 +631,7 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_expr_unary(&mut self, expr_unary: &ast::ExprUnary) -> Result<(), EncodeError> {
+    fn encode_expr_unary(&mut self, expr_unary: &ast::ExprUnary) -> Result<()> {
         log::trace!("{:?}", expr_unary);
 
         let span = expr_unary.span();
@@ -618,7 +647,7 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_expr_binary(&mut self, expr_binary: &ast::ExprBinary) -> Result<(), EncodeError> {
+    fn encode_expr_binary(&mut self, expr_binary: &ast::ExprBinary) -> Result<()> {
         log::trace!("{:?}", expr_binary);
 
         let span = expr_binary.span();
@@ -668,11 +697,7 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn encode_expr_if(
-        &mut self,
-        expr_if: &ast::ExprIf,
-        needs_value: NeedsValue,
-    ) -> Result<(), EncodeError> {
+    fn encode_expr_if(&mut self, expr_if: &ast::ExprIf, needs_value: NeedsValue) -> Result<()> {
         let span = expr_if.span();
 
         log::trace!("{:?}", expr_if);
@@ -735,7 +760,7 @@ impl<'a> Encoder<'a> {
 }
 
 /// Decode the specified path.
-fn resolve_path<'a>(path: ast::Path, source: Source<'a>) -> Result<Vec<&'a str>, EncodeError> {
+fn resolve_path<'a>(path: ast::Path, source: Source<'a>) -> Result<Vec<&'a str>> {
     let mut output = Vec::new();
 
     output.push(path.first.resolve(source)?);
@@ -774,7 +799,7 @@ impl Locals {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub fn new_local(&mut self, name: &str, token: Token) -> Result<(), EncodeError> {
+    pub fn new_local(&mut self, name: &str, token: Token) -> Result<()> {
         let local = Local {
             offset: self.var_count,
             name: name.to_owned(),
@@ -821,4 +846,13 @@ impl Locals {
 
         None
     }
+}
+
+/// Loops we are inside.
+#[derive(Clone, Copy)]
+struct Loop {
+    /// The end label of the loop.
+    end_label: st::unit::Label,
+    /// The number of variables observed at the start of the loop.
+    var_count: usize,
 }

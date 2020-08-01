@@ -68,6 +68,16 @@ pub struct Span {
 }
 
 impl Span {
+    /// Construct a new span.
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+
+    /// An empty span.
+    pub const fn empty() -> Self {
+        Self { start: 0, end: 0 }
+    }
+
     /// Get the length of the span.
     pub fn len(self) -> usize {
         self.end.saturating_sub(self.start)

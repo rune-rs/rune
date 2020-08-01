@@ -231,6 +231,14 @@ impl SpannedError for ParseError {
 /// Error when encoding AST.
 #[derive(Debug, Error)]
 pub enum EncodeError {
+    /// An internal encoder invariant was broken.
+    #[error("internal compiler error: {msg}")]
+    Internal {
+        /// The message of the variant.
+        msg: &'static str,
+        /// Where the invariant was broken.
+        span: Span,
+    },
     /// Unit error from ST encoding.
     #[error("unit construction error")]
     UnitError {
@@ -244,12 +252,6 @@ pub enum EncodeError {
         /// Source error.
         #[from]
         error: ResolveError,
-    },
-    /// Missing parent scope.
-    #[error("missing parent scope")]
-    MissingParentScope {
-        /// The span that is missing a parent scope.
-        span: Span,
     },
     /// Error for variable conflicts.
     #[error("variable `{name}` conflicts")]
@@ -277,12 +279,6 @@ pub enum EncodeError {
         /// The name of the missing module.
         module: st::Item,
     },
-    /// Encountered expression that must be closed.
-    #[error("expression must be closed")]
-    ExprNotClosed {
-        /// Span of the expression that was not closed.
-        span: Span,
-    },
     /// Encountered a binary operator we can't encode.
     #[error("unsupported binary operator `{op}`")]
     UnsupportedBinaryOp {
@@ -291,19 +287,43 @@ pub enum EncodeError {
         /// The operator.
         op: ast::BinOp,
     },
+    /// Error raised when trying to use a break expression in a context which
+    /// does not produce a value.
+    #[error("break expressions cannot be used as a value")]
+    BreakDoesNotProduceValue {
+        /// The span of the illegal break.
+        span: Span,
+    },
+    /// Error raised when trying to use a break outside of a loop.
+    #[error("break expressions cannot be used as a value")]
+    BreakOutsideOfLoop {
+        /// The span of the illegal break.
+        span: Span,
+    },
+}
+
+impl EncodeError {
+    /// Construct an internal error.
+    ///
+    /// This should be used for programming invariants of the encoder which are
+    /// broken for some reason.
+    pub fn internal(msg: &'static str, span: Span) -> Self {
+        Self::Internal { msg, span }
+    }
 }
 
 impl SpannedError for EncodeError {
     fn span(&self) -> Span {
         match *self {
             Self::UnitError { .. } => Span::default(),
-            Self::MissingParentScope { span, .. } => span,
+            Self::Internal { span, .. } => span,
             Self::ResolveError { error, .. } => error.span(),
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
             Self::MissingModule { span, .. } => span,
-            Self::ExprNotClosed { span, .. } => span,
             Self::UnsupportedBinaryOp { span, .. } => span,
+            Self::BreakDoesNotProduceValue { span, .. } => span,
+            Self::BreakOutsideOfLoop { span, .. } => span,
         }
     }
 }

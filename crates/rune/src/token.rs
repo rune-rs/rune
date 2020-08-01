@@ -76,6 +76,8 @@ pub enum Kind {
     True,
     /// The `false` literal.
     False,
+    /// A `break` token.
+    Break,
     /// An identifier.
     Ident,
     /// A number literal, like `42` or `3.14` or `0xff`.
@@ -150,6 +152,7 @@ impl fmt::Display for Kind {
             Self::While => write!(fmt, "while"),
             Self::True => write!(fmt, "true"),
             Self::False => write!(fmt, "false"),
+            Self::Break => write!(fmt, "break"),
             Self::Ident => write!(fmt, "ident"),
             Self::NumberLiteral { .. } => write!(fmt, "number"),
             Self::StringLiteral { .. } => write!(fmt, "string"),

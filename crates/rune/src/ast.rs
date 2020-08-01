@@ -944,6 +944,8 @@ pub enum Expr {
     IndexGet(IndexGet),
     /// A unit expression.
     UnitLiteral(UnitLiteral),
+    /// A break expression.
+    Break(Break),
 }
 
 impl Expr {
@@ -956,6 +958,7 @@ impl Expr {
             Self::IndexSet(..) => true,
             Self::ExprIf(expr_if) => expr_if.is_empty(),
             Self::ExprGroup(expr_group) => expr_group.is_empty(),
+            Self::Break(..) => true,
             _ => false,
         }
     }
@@ -983,6 +986,7 @@ impl Expr {
             Self::IndexGet(expr) => expr.span(),
             Self::UnitLiteral(unit) => unit.span(),
             Self::BoolLiteral(b) => b.span(),
+            Self::Break(b) => b.span(),
         }
     }
 
@@ -1079,6 +1083,7 @@ impl Expr {
                 },
                 None => Self::parse_ident_start(parser)?,
             },
+            Kind::Break => Self::Break(parser.parse()?),
             _ => {
                 return Err(ParseError::ExpectedExprError {
                     actual: token.kind,
@@ -1313,12 +1318,7 @@ impl Peek for BoolLiteral {
 /// parse_all::<ast::Expr>("var = 42").unwrap();
 ///
 /// let expr = parse_all::<ast::Expr>(r#"
-///     if 1 {
-///     } else {
-///         if 2 {
-///         } else {
-///         }
-///     }
+///     if 1 { } else { if 2 { } else { } }
 /// "#).unwrap();
 ///
 /// if let ast::Expr::ExprIf(..) = expr.item {
@@ -1911,6 +1911,7 @@ decl_tokens! {
     (Import, Kind::Import),
     (Scope, Kind::Scope),
     (WhileToken, Kind::While),
+    (Break, Kind::Break),
 }
 
 impl<'a> Resolve<'a> for Ident {

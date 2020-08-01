@@ -1,8 +1,14 @@
 fn main() {
     let n = 0;
 
-    while n < 1000000 {
-        n = n + 1;
+    while true {
+        let out = n + 1;
+
+        if out > 10 {
+            break;
+        }
+
+        n = out;
     }
 
     dbg("done", n)
