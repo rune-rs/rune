@@ -1,5 +1,5 @@
+use crate::any::Any;
 use crate::collections::HashMap;
-use crate::external::External;
 use crate::hash::Hash;
 
 #[derive(Debug)]
@@ -22,7 +22,7 @@ pub enum Value {
     /// A character.
     Char(char),
     /// Reference to an external type.
-    External(Box<dyn External>),
+    External(Box<dyn Any>),
     /// A type to a different value.
     Type(Hash),
 }

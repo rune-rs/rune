@@ -12,15 +12,19 @@ impl Slot {
     const OBJECT: u64 = 2;
     const EXTERNAL: u64 = 3;
 
-    /// Convert into its managed variant.
-    pub fn into_managed(self) -> (Managed, usize) {
-        let slot = (self.0 >> 2) as usize;
+    /// Get the slot as an usize.
+    pub fn into_usize(self) -> usize {
+        (self.0 >> 2) as usize
+    }
 
+    /// Convert into its managed variant.
+    pub fn into_managed(self) -> Managed {
         match self.0 & 0b11 {
-            Self::STRING => (Managed::String, slot),
-            Self::ARRAY => (Managed::Array, slot),
-            Self::OBJECT => (Managed::Object, slot),
-            _ => (Managed::External, slot),
+            Self::STRING => Managed::String,
+            Self::ARRAY => Managed::Array,
+            Self::OBJECT => Managed::Object,
+            Self::EXTERNAL => Managed::External,
+            other => panic!("impossible slot: {}", other),
         }
     }
 
@@ -47,8 +51,15 @@ impl Slot {
 
 impl fmt::Debug for Slot {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (managed, slot) = self.into_managed();
-        write!(fmt, "{}({})", managed, slot)
+        let managed = self.into_managed();
+        write!(fmt, "{:?}({:?})", managed, self.into_usize())
+    }
+}
+
+impl fmt::Display for Slot {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let managed = self.into_managed();
+        write!(fmt, "{}({})", managed, self.into_usize())
     }
 }
 
@@ -58,17 +69,17 @@ macro_rules! decl_managed {
         pub(super) struct $name(());
 
         impl IntoSlot for $name {
-            fn into_slot(value: ValuePtr, vm: &Vm) -> Result<usize, StackError> {
-                let Slot(slot) = match value {
-                    ValuePtr::Managed(managed) => managed,
+            fn into_slot(value: ValuePtr, vm: &Vm) -> Result<Slot, StackError> {
+                let slot = match value {
+                    ValuePtr::Managed(slot) => slot,
                     actual => {
                         let actual = actual.type_info(vm)?;
                         return Err(StackError::$expected { actual });
                     }
                 };
 
-                if slot & 0b11 == Slot::$constant {
-                    Ok((slot >> 2) as usize)
+                if slot.0 & 0b11 == Slot::$constant {
+                    Ok(slot)
                 } else {
                     Err(StackError::IncompatibleSlot)
                 }
@@ -85,27 +96,23 @@ decl_managed!(ExternalSlot, EXTERNAL, ExpectedExternal);
 /// Trait for converting into managed slots.
 pub(super) trait IntoSlot {
     /// Convert thing into a managed slot.
-    fn into_slot(value: ValuePtr, vm: &Vm) -> Result<usize, StackError>;
+    fn into_slot(value: ValuePtr, vm: &Vm) -> Result<Slot, StackError>;
 }
 
 #[cfg(test)]
 mod tests {
     use super::Slot;
+    use crate::value::Managed;
 
     #[test]
     fn test_slot() {
-        assert_eq!(
-            Slot::string(77).into_managed(),
-            (crate::Managed::String, 77)
-        );
-        assert_eq!(Slot::array(78).into_managed(), (crate::Managed::Array, 78));
-        assert_eq!(
-            Slot::object(79).into_managed(),
-            (crate::Managed::Object, 79)
-        );
-        assert_eq!(
-            Slot::external(80).into_managed(),
-            (crate::Managed::External, 80)
-        );
+        assert_eq!(Slot::string(77).into_managed(), Managed::String);
+        assert_eq!(Slot::string(77).into_usize(), 77);
+        assert_eq!(Slot::array(78).into_managed(), Managed::Array);
+        assert_eq!(Slot::array(78).into_usize(), 78);
+        assert_eq!(Slot::object(79).into_managed(), Managed::Object);
+        assert_eq!(Slot::object(79).into_usize(), 79);
+        assert_eq!(Slot::external(80).into_managed(), Managed::External);
+        assert_eq!(Slot::external(80).into_usize(), 80);
     }
 }

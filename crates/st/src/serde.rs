@@ -38,12 +38,12 @@ impl ser::Serialize for ValuePtr {
             ValuePtr::Char(c) => serializer.serialize_char(c),
             ValuePtr::Integer(integer) => serializer.serialize_i64(integer),
             ValuePtr::Float(float) => serializer.serialize_f64(float),
-            ValuePtr::Managed(managed) => match managed.into_managed() {
-                (Managed::String, slot) => tls::with_vm(|vm| {
+            ValuePtr::Managed(slot) => match slot.into_managed() {
+                Managed::String => tls::with_vm(|vm| {
                     let string = vm.string_ref(slot).map_err(ser::Error::custom)?;
                     serializer.serialize_str(&*string)
                 }),
-                (Managed::Array, slot) => tls::with_vm(|vm| {
+                Managed::Array => tls::with_vm(|vm| {
                     let array = vm.array_ref(slot).map_err(ser::Error::custom)?;
                     let mut serializer = serializer.serialize_seq(Some(array.len()))?;
 
@@ -53,7 +53,7 @@ impl ser::Serialize for ValuePtr {
 
                     serializer.end()
                 }),
-                (Managed::Object, slot) => tls::with_vm(|vm| {
+                Managed::Object => tls::with_vm(|vm| {
                     let object = vm.object_ref(slot).map_err(ser::Error::custom)?;
                     let mut serializer = serializer.serialize_map(Some(object.len()))?;
 
@@ -63,7 +63,7 @@ impl ser::Serialize for ValuePtr {
 
                     serializer.end()
                 }),
-                (Managed::External, ..) => {
+                Managed::External => {
                     return Err(ser::Error::custom("cannot serialize external objects"));
                 }
             },

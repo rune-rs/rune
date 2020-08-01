@@ -1,4 +1,4 @@
-use crate::external::External;
+use crate::any::Any;
 use crate::value::{Value, ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{StackError, Vm};
 
@@ -76,7 +76,7 @@ impl FromValue for Value {
     }
 }
 
-impl FromValue for Box<dyn External> {
+impl FromValue for Box<dyn Any> {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_external(vm)?;
         vm.external_take_dyn(slot)

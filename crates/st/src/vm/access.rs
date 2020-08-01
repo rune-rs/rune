@@ -1,11 +1,9 @@
-use crate::value::Managed;
+use crate::value::Slot;
 use crate::vm::StackError;
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
 use std::mem;
 use std::ops;
-
-pub type Guard = (Managed, usize);
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct Access(Cell<isize>);
@@ -19,11 +17,11 @@ impl Access {
 
     /// Test if we have shared access without modifying the internal count.
     #[inline]
-    pub(super) fn test_shared(&self, managed: Managed, slot: usize) -> Result<(), StackError> {
+    pub(super) fn test_shared(&self, slot: Slot) -> Result<(), StackError> {
         let b = self.0.get().wrapping_sub(1);
 
         if b >= 0 {
-            return Err(StackError::SlotInaccessibleShared { managed, slot });
+            return Err(StackError::SlotInaccessibleShared { slot });
         }
 
         Ok(())
@@ -31,11 +29,11 @@ impl Access {
 
     /// Mark that we want shared access to the given access token.
     #[inline]
-    pub(super) fn shared(&self, managed: Managed, slot: usize) -> Result<(), StackError> {
+    pub(super) fn shared(&self, slot: Slot) -> Result<(), StackError> {
         let b = self.0.get().wrapping_sub(1);
 
         if b >= 0 {
-            return Err(StackError::SlotInaccessibleShared { managed, slot });
+            return Err(StackError::SlotInaccessibleShared { slot });
         }
 
         self.0.set(b);
@@ -60,11 +58,11 @@ impl Access {
 
     /// Mark that we want exclusive access to the given access token.
     #[inline]
-    pub(super) fn exclusive(&self, managed: Managed, slot: usize) -> Result<(), StackError> {
+    pub(super) fn exclusive(&self, slot: Slot) -> Result<(), StackError> {
         let b = self.0.get().wrapping_add(1);
 
         if b != 1 {
-            return Err(StackError::SlotInaccessibleExclusive { managed, slot });
+            return Err(StackError::SlotInaccessibleExclusive { slot });
         }
 
         self.0.set(b);
@@ -84,8 +82,8 @@ impl Access {
 pub struct Ref<'a, T: ?Sized + 'a> {
     pub(super) value: &'a T,
     pub(super) access: &'a Access,
-    pub(super) guard: Guard,
-    pub(super) guards: &'a UnsafeCell<Vec<Guard>>,
+    pub(super) slot: Slot,
+    pub(super) guards: &'a UnsafeCell<Vec<Slot>>,
 }
 
 impl<'a, T: ?Sized> Ref<'a, T> {
@@ -97,7 +95,7 @@ impl<'a, T: ?Sized> Ref<'a, T> {
     /// Calling [disarm][Vm::disarm] must not be done until all referenced
     /// produced through these methods are no longer live.
     pub unsafe fn unsafe_into_ref<'out>(this: Self) -> &'out T {
-        (*this.guards.get()).push(this.guard);
+        (*this.guards.get()).push(this.slot);
         let value = &*(this.value as *const _);
         mem::forget(this);
         value
@@ -139,8 +137,8 @@ where
 pub struct Mut<'a, T: ?Sized> {
     pub(super) value: &'a mut T,
     pub(super) access: &'a Access,
-    pub(super) guard: Guard,
-    pub(super) guards: &'a UnsafeCell<Vec<Guard>>,
+    pub(super) slot: Slot,
+    pub(super) guards: &'a UnsafeCell<Vec<Slot>>,
 }
 
 impl<T: ?Sized> Mut<'_, T> {
@@ -152,7 +150,7 @@ impl<T: ?Sized> Mut<'_, T> {
     /// Calling [disarm][Vm::disarm] must not be done until all referenced
     /// produced through these methods are no longer live.
     pub unsafe fn unsafe_into_mut<'out>(this: Self) -> &'out mut T {
-        (*this.guards.get()).push(this.guard);
+        (*this.guards.get()).push(this.slot);
         let value = &mut *(this.value as *mut _);
         mem::forget(this);
         value

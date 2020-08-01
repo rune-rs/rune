@@ -24,31 +24,9 @@ pub enum ValuePtr {
 }
 
 impl ValuePtr {
-    /// Convert value into a managed.
-    #[inline]
-    pub fn into_managed(self, vm: &Vm) -> Result<(Managed, usize), StackError> {
-        match self {
-            Self::Managed(slot) => Ok(slot.into_managed()),
-            actual => {
-                let actual = actual.type_info(vm)?;
-                Err(StackError::ExpectedManaged { actual })
-            }
-        }
-    }
-
-    /// Try to convert into managed.
-    #[inline]
-    pub fn try_into_managed(self) -> Option<(Managed, usize)> {
-        if let Self::Managed(slot) = self {
-            Some(slot.into_managed())
-        } else {
-            None
-        }
-    }
-
     /// Convert value into a managed slot.
     #[inline]
-    fn into_slot<T>(self, vm: &Vm) -> Result<usize, StackError>
+    fn into_slot<T>(self, vm: &Vm) -> Result<Slot, StackError>
     where
         T: IntoSlot,
     {
@@ -56,17 +34,17 @@ impl ValuePtr {
     }
 
     /// Try to coerce value reference into an external.
-    pub fn into_external(self, vm: &Vm) -> Result<usize, StackError> {
+    pub fn into_external(self, vm: &Vm) -> Result<Slot, StackError> {
         self.into_slot::<slot::ExternalSlot>(vm)
     }
 
     /// Try to coerce value reference into an array.
-    pub fn into_array(self, vm: &Vm) -> Result<usize, StackError> {
+    pub fn into_array(self, vm: &Vm) -> Result<Slot, StackError> {
         self.into_slot::<slot::ArraySlot>(vm)
     }
 
     /// Try to coerce value reference into an array.
-    pub fn into_string(self, vm: &Vm) -> Result<usize, StackError> {
+    pub fn into_string(self, vm: &Vm) -> Result<Slot, StackError> {
         self.into_slot::<slot::StringSlot>(vm)
     }
 
@@ -79,12 +57,11 @@ impl ValuePtr {
             Self::Bool(..) => ValueType::Bool,
             Self::Char(..) => ValueType::Char,
             Self::Managed(slot) => match slot.into_managed() {
-                (Managed::String, ..) => ValueType::String,
-                (Managed::Array, _) => ValueType::Array,
-                (Managed::Object, _) => ValueType::Object,
-                (Managed::External, slot) => {
+                Managed::String => ValueType::String,
+                Managed::Array => ValueType::Array,
+                Managed::Object => ValueType::Object,
+                Managed::External => {
                     let (_, type_hash) = vm.external_type(slot)?;
-
                     ValueType::External(type_hash)
                 }
             },
@@ -101,10 +78,10 @@ impl ValuePtr {
             Self::Bool(..) => ValueTypeInfo::Bool,
             Self::Char(..) => ValueTypeInfo::Char,
             Self::Managed(slot) => match slot.into_managed() {
-                (Managed::String, _) => ValueTypeInfo::String,
-                (Managed::Array, _) => ValueTypeInfo::Array,
-                (Managed::Object, _) => ValueTypeInfo::Object,
-                (Managed::External, slot) => {
+                Managed::String => ValueTypeInfo::String,
+                Managed::Array => ValueTypeInfo::Array,
+                Managed::Object => ValueTypeInfo::Object,
+                Managed::External => {
                     let (type_name, _) = vm.external_type(slot)?;
                     ValueTypeInfo::External(type_name)
                 }
