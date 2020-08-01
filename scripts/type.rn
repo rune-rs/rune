@@ -1,4 +1,4 @@
-import test::assert;
+use test::assert;
 
 fn main() {
     assert(() is unit, "units should be units");

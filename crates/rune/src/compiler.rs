@@ -2,10 +2,12 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileError;
 use crate::source::Source;
-use crate::token::Token;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use st::unit::Span;
+
+/// Instance function to use for iteration.
+const ITERATOR_NEXT: &str = "next";
 
 type Result<T, E = CompileError> = std::result::Result<T, E>;
 
@@ -68,7 +70,7 @@ impl<'a> Encoder<'a> {
 
         for arg in fn_decl.args.items.iter().rev() {
             let name = arg.resolve(self.source)?;
-            self.new_var(name, arg.token, Vec::new())?;
+            self.new_var(name, arg.span(), Vec::new())?;
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
@@ -105,10 +107,10 @@ impl<'a> Encoder<'a> {
     }
 
     /// Declare a new variable.
-    fn new_var(&mut self, name: &str, token: Token, references_at: Vec<Span>) -> Result<()> {
+    fn new_var(&mut self, name: &str, span: Span, references_at: Vec<Span>) -> Result<()> {
         Ok(self
-            .last_scope_mut(token.span)?
-            .new_var(name, token, references_at)?)
+            .last_scope_mut(span)?
+            .new_var(name, span, references_at)?)
     }
 
     /// Get the local with the given name.
@@ -142,16 +144,17 @@ impl<'a> Encoder<'a> {
     }
 
     /// Get the local with the given name.
-    fn get_local_mut(&mut self, name: &str, span: Span) -> Result<&mut Var> {
-        let locals = self.last_scope_mut(span)?;
-
-        match locals.get_mut(name) {
-            Some(var) => Ok(var),
-            None => Err(CompileError::MissingLocal {
-                name: name.to_owned(),
-                span,
-            }),
+    fn get_var_mut(&mut self, name: &str, span: Span) -> Result<&mut Var> {
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(var) = scope.get_mut(name) {
+                return Ok(var);
+            }
         }
+
+        Err(CompileError::MissingLocal {
+            name: name.to_owned(),
+            span,
+        })
     }
 
     /// Pop locals by simply popping them.
@@ -244,6 +247,12 @@ impl<'a> Encoder<'a> {
         match expr {
             ast::Expr::While(while_) => {
                 self.encode_while(while_, needs_value)?;
+            }
+            ast::Expr::For(for_) => {
+                self.encode_for(for_, needs_value)?;
+            }
+            ast::Expr::Loop(loop_) => {
+                self.encode_loop(loop_, needs_value)?;
             }
             ast::Expr::Let(let_) => {
                 self.encode_let(let_, needs_value)?;
@@ -462,6 +471,146 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
+    fn encode_for(&mut self, for_: &ast::For, needs_value: NeedsValue) -> Result<()> {
+        log::trace!("{:?}", for_);
+
+        let span = for_.span();
+
+        let start_label = self.instructions.new_label("for_start");
+        let end_label = self.instructions.new_label("for_end");
+
+        let loop_count = self.loops.len();
+        let scopes_count = self.scopes.len();
+
+        let new_scope = self.last_scope(span)?.new_scope();
+        self.scopes.push(new_scope);
+
+        let open_var_count = self.last_scope(span)?.var_count;
+
+        self.references_at.clear();
+        self.encode_expr(&*for_.iter, NeedsValue(true))?;
+        let references_at = self.references_at.clone();
+
+        let iterator_name = for_.var.resolve(self.source)?;
+        let iterator_offset = self.last_scope_mut(span)?.decl_anon(for_.iter.span());
+
+        self.instructions.push(st::Inst::Unit, for_.iter.span());
+
+        let binding_offset =
+            self.last_scope_mut(span)?
+                .decl_var(iterator_name, for_.var.span(), references_at);
+
+        self.loops.push(Loop {
+            end_label,
+            var_count: self.last_scope(span)?.var_count,
+        });
+
+        self.instructions.label(start_label)?;
+
+        // call the `next` function to get the next level of iteration, bind the
+        // result to the variable binding in the loop.
+        self.instructions.push(
+            st::Inst::Copy {
+                offset: iterator_offset,
+            },
+            for_.iter.span(),
+        );
+        let hash = st::Hash::of(ITERATOR_NEXT);
+        self.instructions
+            .push(st::Inst::CallInstance { hash, args: 0 }, span);
+        self.instructions.push(
+            st::Inst::Replace {
+                offset: binding_offset,
+            },
+            for_.var.span(),
+        );
+
+        // test loop condition.
+        self.instructions.push(
+            st::Inst::Copy {
+                offset: binding_offset,
+            },
+            for_.var.span(),
+        );
+        self.instructions.push(st::Inst::IsUnit, for_.span());
+        self.instructions.jump_if(end_label, for_.span());
+
+        self.encode_block(&*for_.body, NeedsValue(false))?;
+        self.instructions.jump(start_label, span);
+        self.instructions.label(end_label)?;
+
+        let var_count = self.last_scope(span)?.var_count - open_var_count;
+        self.pop_locals(var_count, span);
+
+        // NB: If a value is needed from a for loop, encode it as a unit.
+        if needs_value.0 {
+            self.instructions.push(st::Inst::Unit, span);
+        }
+
+        if self.loops.pop().is_none() {
+            return Err(CompileError::internal("missing parent loop", span));
+        }
+
+        if loop_count != self.loops.len() {
+            return Err(CompileError::internal(
+                "loop count mismatch on return",
+                span,
+            ));
+        }
+
+        if self.scopes.pop().is_none() {
+            return Err(CompileError::internal("scopes are imbalanced", span));
+        }
+
+        if scopes_count != self.scopes.len() {
+            return Err(CompileError::internal(
+                "scope count mismatch on return",
+                span,
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn encode_loop(&mut self, loop_: &ast::Loop, needs_value: NeedsValue) -> Result<()> {
+        log::trace!("{:?}", loop_);
+
+        let span = loop_.span();
+
+        let start_label = self.instructions.new_label("loop_start");
+        let end_label = self.instructions.new_label("loop_end");
+
+        let loop_count = self.loops.len();
+
+        self.loops.push(Loop {
+            end_label,
+            var_count: self.last_scope(span)?.var_count,
+        });
+
+        self.instructions.label(start_label)?;
+        self.encode_block(&*loop_.body, NeedsValue(false))?;
+        self.instructions.jump(start_label, span);
+        self.instructions.label(end_label)?;
+
+        // NB: If a value is needed from a while loop, encode it as a unit.
+        if needs_value.0 {
+            self.instructions.push(st::Inst::Unit, span);
+        }
+
+        if self.loops.pop().is_none() {
+            return Err(CompileError::internal("missing parent loop", span));
+        }
+
+        if loop_count != self.loops.len() {
+            return Err(CompileError::internal(
+                "loop count mismatch on return",
+                span,
+            ));
+        }
+
+        Ok(())
+    }
+
     fn encode_let(&mut self, let_: &ast::Let, needs_value: NeedsValue) -> Result<()> {
         log::trace!("{:?}", let_);
 
@@ -474,7 +623,7 @@ impl<'a> Encoder<'a> {
         let references_at = self.references_at.clone();
 
         self.last_scope_mut(span)?
-            .decl_var(name, let_.name.token, references_at);
+            .decl_var(name, let_.name.span(), references_at);
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if needs_value.0 {
@@ -528,7 +677,7 @@ impl<'a> Encoder<'a> {
 
                 let references_at = self.references_at.clone().into_iter();
 
-                let var = self.get_local_mut(name, span)?;
+                let var = self.get_var_mut(name, ident.span())?;
                 var.references_at.extend(references_at);
                 let offset = var.offset;
 
@@ -962,14 +1111,27 @@ struct Var {
     /// Name of the variable.
     name: String,
     /// Token assocaited with the variable.
-    token: Token,
+    span: Span,
     /// Var references used by local expression.
     references_at: Vec<Span>,
 }
 
+/// A locally declared variable.
+#[derive(Debug, Clone)]
+struct AnonVar {
+    /// Slot offset from the current stack frame.
+    offset: usize,
+    /// Span associated with the anonymous variable.
+    span: Span,
+}
+
 #[derive(Debug, Clone)]
 struct Scope {
+    /// Named variables.
     locals: HashMap<String, Var>,
+    /// Anonymous variables.
+    anon: Vec<AnonVar>,
+    /// The number of variables.
     var_count: usize,
 }
 
@@ -978,6 +1140,7 @@ impl Scope {
     pub fn new() -> Scope {
         Self {
             locals: HashMap::new(),
+            anon: Vec::new(),
             var_count: 0,
         }
     }
@@ -986,16 +1149,17 @@ impl Scope {
     pub fn new_scope(&self) -> Self {
         Self {
             locals: HashMap::new(),
+            anon: Vec::new(),
             var_count: self.var_count,
         }
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub fn new_var(&mut self, name: &str, token: Token, references_at: Vec<Span>) -> Result<()> {
+    pub fn new_var(&mut self, name: &str, span: Span, references_at: Vec<Span>) -> Result<()> {
         let local = Var {
             offset: self.var_count,
             name: name.to_owned(),
-            token,
+            span,
             references_at,
         };
 
@@ -1004,8 +1168,8 @@ impl Scope {
         if let Some(old) = self.locals.insert(name.to_owned(), local) {
             return Err(CompileError::VariableConflict {
                 name: name.to_owned(),
-                span: token.span,
-                existing_span: old.token.span,
+                span,
+                existing_span: old.span,
             });
         }
 
@@ -1013,18 +1177,32 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub fn decl_var(&mut self, name: &str, token: Token, references_at: Vec<Span>) {
+    pub fn decl_var(&mut self, name: &str, span: Span, references_at: Vec<Span>) -> usize {
+        let offset = self.var_count;
+
         self.locals.insert(
             name.to_owned(),
             Var {
-                offset: self.var_count,
+                offset,
                 name: name.to_owned(),
-                token,
+                span,
                 references_at,
             },
         );
 
         self.var_count += 1;
+        offset
+    }
+
+    /// Insert a new local, and return the old one if there's a conflict.
+    #[allow(unused)]
+    fn decl_anon(&mut self, span: Span) -> usize {
+        let offset = self.var_count;
+
+        self.anon.push(AnonVar { offset, span });
+
+        self.var_count += 1;
+        offset
     }
 
     /// Access the local with the given name.

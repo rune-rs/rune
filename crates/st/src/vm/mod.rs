@@ -1827,6 +1827,14 @@ impl Vm {
                     }
                 }
             }
+            Inst::IsUnit => {
+                let value = self.managed_pop()?;
+
+                self.unmanaged_push(ValuePtr::Bool(match value {
+                    ValuePtr::Unit => true,
+                    _ => false,
+                }));
+            }
             Inst::Ptr { offset } => {
                 self.op_ptr(*offset)?;
             }

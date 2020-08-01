@@ -23,7 +23,7 @@ impl Hash {
         Self(hasher.finish())
     }
 
-    /// Construct a hash for an import.
+    /// Construct a hash for an use.
     fn path<I>(kind: usize, path: I) -> Self
     where
         I: IntoIterator,

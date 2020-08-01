@@ -15,7 +15,7 @@ struct NoIndex(bool);
 /// A parsed file.
 pub struct File {
     /// Imports for the current file.
-    pub imports: Vec<ImportDecl>,
+    pub imports: Vec<UseDecl>,
     /// All function declarations in the file.
     pub functions: Vec<FnDecl>,
 }
@@ -29,13 +29,13 @@ pub struct File {
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::File>(r#"
-/// import foo;
+/// use foo;
 ///
 /// fn foo() {
 ///     42
 /// }
 ///
-/// import bar;
+/// use bar;
 ///
 /// fn bar(a, b) {
 ///     a
@@ -52,7 +52,7 @@ pub struct File {
 ///
 /// # fn main() -> anyhow::Result<()> {
 /// let _ = parse_all::<ast::File>(r#"
-/// import http;
+/// use http;
 ///
 /// fn main() {
 ///     let client = http::client();
@@ -70,7 +70,7 @@ impl Parse for File {
 
         while !parser.is_eof()? {
             match parser.token_peek()?.map(|t| t.kind) {
-                Some(Kind::Import) => {
+                Some(Kind::Use) => {
                     imports.push(parser.parse()?);
                 }
                 _ => {
@@ -777,7 +777,7 @@ pub struct ExprBinary {
 
 impl ExprBinary {
     /// If the expression is empty.
-    pub fn produces_value(&self) -> bool {
+    pub fn produces_nothing(&self) -> bool {
         match self.op {
             // Assignments do not produce a value.
             BinOp::Assign { .. } => false,
@@ -900,7 +900,7 @@ impl ExprIf {
     }
 
     /// An if statement evaluates to empty if it does not have an else branch.
-    pub fn produces_value(&self) -> bool {
+    pub fn produces_nothing(&self) -> bool {
         self.expr_else.is_none()
     }
 }
@@ -951,6 +951,10 @@ impl Parse for ExprIf {
 pub enum Expr {
     /// A while loop.
     While(While),
+    /// An unconditional loop.
+    Loop(Loop),
+    /// An for loop.
+    For(For),
     /// A let expression.
     Let(Let),
     /// An index set operation.
@@ -994,17 +998,19 @@ pub enum Expr {
 }
 
 impl Expr {
-    /// Test if the expression implicitly evaluates to unit.
-    pub fn produces_value(&self) -> bool {
+    /// Test if the expression implicitly evaluates to nothing.
+    pub fn produces_nothing(&self) -> bool {
         match self {
             Self::While(..) => true,
+            Self::Loop(..) => true,
+            Self::For(..) => true,
             Self::Let(..) => true,
             Self::IndexSet(..) => true,
-            Self::ExprIf(expr_if) => expr_if.produces_value(),
-            Self::ExprGroup(expr_group) => expr_group.produces_value(),
+            Self::ExprIf(expr_if) => expr_if.produces_nothing(),
+            Self::ExprGroup(expr_group) => expr_group.produces_nothing(),
             Self::Break(..) => true,
-            Self::ExprBinary(expr) => expr.produces_value(),
-            Self::Block(b) => b.produces_value(),
+            Self::ExprBinary(expr) => expr.produces_nothing(),
+            Self::Block(b) => b.produces_nothing(),
             _ => false,
         }
     }
@@ -1013,6 +1019,8 @@ impl Expr {
     pub fn span(&self) -> Span {
         match self {
             Self::While(expr) => expr.span(),
+            Self::Loop(expr) => expr.span(),
+            Self::For(expr) => expr.span(),
             Self::Let(expr) => expr.span(),
             Self::IndexSet(expr) => expr.span(),
             Self::ExprIf(expr) => expr.span(),
@@ -1100,6 +1108,8 @@ impl Expr {
             Kind::StartObject => Self::ObjectLiteral(parser.parse()?),
             Kind::Not | Kind::Ampersand | Kind::Star => Self::ExprUnary(parser.parse()?),
             Kind::While => Self::While(parser.parse()?),
+            Kind::Loop => Self::Loop(parser.parse()?),
+            Kind::For => Self::For(parser.parse()?),
             Kind::Let => Self::Let(parser.parse()?),
             Kind::If => Self::ExprIf(parser.parse()?),
             Kind::NumberLiteral { .. } => Self::NumberLiteral(parser.parse()?),
@@ -1483,6 +1493,66 @@ impl Parse for While {
     }
 }
 
+/// A let expression `let <name> = <expr>;`
+#[derive(Debug, Clone)]
+pub struct Loop {
+    /// The `loop` keyword.
+    pub loop_: LoopToken,
+    /// The body of the loop.
+    pub body: Box<Block>,
+}
+
+impl Loop {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.loop_.token.span.join(self.body.span())
+    }
+}
+
+impl Parse for Loop {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(Loop {
+            loop_: parser.parse()?,
+            body: Box::new(parser.parse()?),
+        })
+    }
+}
+
+/// A let expression `let <name> = <expr>;`
+#[derive(Debug, Clone)]
+pub struct For {
+    /// The `for` keyword.
+    pub for_: ForToken,
+    /// The variable binding.
+    /// TODO: should be a pattern when that is supported.
+    pub var: Ident,
+    /// The `in` keyword.
+    pub in_: InToken,
+    /// Expression producing the iterator.
+    pub iter: Box<Expr>,
+    /// The body of the loop.
+    pub body: Box<Block>,
+}
+
+impl For {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.for_.token.span.join(self.body.span())
+    }
+}
+
+impl Parse for For {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(Self {
+            for_: parser.parse()?,
+            var: parser.parse()?,
+            in_: parser.parse()?,
+            iter: Box::new(parser.parse()?),
+            body: Box::new(parser.parse()?),
+        })
+    }
+}
+
 /// An index set operation `<target>[<index>] = <value>`.
 #[derive(Debug, Clone)]
 pub struct IndexSet {
@@ -1529,16 +1599,16 @@ impl IndexGet {
 
 /// An imported declaration.
 #[derive(Debug, Clone)]
-pub struct ImportDecl {
-    /// The import token.
-    pub import_: Import,
+pub struct UseDecl {
+    /// The use token.
+    pub use_: Use,
     /// The name of the imported module.
     pub path: Path,
     /// Trailing semi-colon.
     pub semi_colon: SemiColon,
 }
 
-/// Parsing an import declaration.
+/// Parsing an use declaration.
 ///
 /// # Examples
 ///
@@ -1546,16 +1616,16 @@ pub struct ImportDecl {
 /// use rune::{parse_all, ast};
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// parse_all::<ast::ImportDecl>("import foo;")?;
-/// parse_all::<ast::ImportDecl>("import foo::bar;")?;
-/// parse_all::<ast::ImportDecl>("import foo::bar::baz;")?;
+/// parse_all::<ast::UseDecl>("use foo;")?;
+/// parse_all::<ast::UseDecl>("use foo::bar;")?;
+/// parse_all::<ast::UseDecl>("use foo::bar::baz;")?;
 /// # Ok(())
 /// # }
 /// ```
-impl Parse for ImportDecl {
+impl Parse for UseDecl {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(Self {
-            import_: parser.parse()?,
+            use_: parser.parse()?,
             path: parser.parse()?,
             semi_colon: parser.parse()?,
         })
@@ -1674,9 +1744,9 @@ impl Block {
     }
 
     /// Test if the block is empty.
-    pub fn produces_value(&self) -> bool {
+    pub fn produces_nothing(&self) -> bool {
         match &self.trailing_expr {
-            Some(trailing) => trailing.produces_value(),
+            Some(trailing) => trailing.produces_nothing(),
             None => true,
         }
     }
@@ -1748,8 +1818,16 @@ impl Parse for Block {
                     exprs.push((expr, None));
                     continue;
                 }
+                Expr::Loop(..) => {
+                    exprs.push((expr, None));
+                    continue;
+                }
+                Expr::For(..) => {
+                    exprs.push((expr, None));
+                    continue;
+                }
                 Expr::ExprIf(expr_if) => {
-                    if expr_if.produces_value() {
+                    if expr_if.produces_nothing() {
                         exprs.push((expr, None));
                     } else {
                         last_expr_with_value = true;
@@ -1854,8 +1932,8 @@ impl ExprGroup {
     }
 
     /// Check if expression is empty.
-    pub fn produces_value(&self) -> bool {
-        self.expr.produces_value()
+    pub fn produces_nothing(&self) -> bool {
+        self.expr.produces_nothing()
     }
 }
 
@@ -1935,9 +2013,12 @@ decl_tokens! {
     (Dot, Kind::Dot),
     (SemiColon, Kind::SemiColon),
     (Eq, Kind::Eq),
-    (Import, Kind::Import),
+    (Use, Kind::Use),
     (Scope, Kind::Scope),
     (WhileToken, Kind::While),
+    (LoopToken, Kind::Loop),
+    (ForToken, Kind::For),
+    (InToken, Kind::In),
     (Break, Kind::Break),
     (Star, Kind::Star),
     (StartObject, Kind::StartObject),

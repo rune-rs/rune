@@ -272,6 +272,15 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     Is,
+    /// Test if the top of the stack is a unit.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    IsUnit,
     /// Push the type with the given hash as a value on the stack.
     ///
     /// # Operation
@@ -413,6 +422,9 @@ impl fmt::Display for Inst {
             }
             Inst::Is => {
                 write!(fmt, "is")?;
+            }
+            Inst::IsUnit => {
+                write!(fmt, "is-unit")?;
             }
             Inst::Type { hash } => {
                 write!(fmt, "type {}", hash)?;

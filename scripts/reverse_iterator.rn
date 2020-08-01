@@ -1,0 +1,8 @@
+use std::iter::range;
+
+fn main() {
+    // NB: provisinal syntax until we have proper ranges.
+    for v in range(0, 10).rev() {
+        dbg(v);
+    }
+}

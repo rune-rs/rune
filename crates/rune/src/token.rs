@@ -68,10 +68,16 @@ pub enum Kind {
     If,
     /// An `else` token.
     Else,
-    /// An `import` token.
-    Import,
+    /// An `use` token.
+    Use,
     /// A `while` token.
     While,
+    /// A `loop` token.
+    Loop,
+    /// A `for` token.
+    For,
+    /// An `in` token.
+    In,
     /// The `true` literal.
     True,
     /// The `false` literal.
@@ -152,8 +158,11 @@ impl fmt::Display for Kind {
             Self::Let => write!(fmt, "let")?,
             Self::If => write!(fmt, "if")?,
             Self::Else => write!(fmt, "else")?,
-            Self::Import => write!(fmt, "import")?,
+            Self::Use => write!(fmt, "use")?,
             Self::While => write!(fmt, "while")?,
+            Self::Loop => write!(fmt, "loop")?,
+            Self::For => write!(fmt, "for")?,
+            Self::In => write!(fmt, "in")?,
             Self::True => write!(fmt, "true")?,
             Self::False => write!(fmt, "false")?,
             Self::Break => write!(fmt, "break")?,

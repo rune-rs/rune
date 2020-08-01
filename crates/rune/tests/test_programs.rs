@@ -178,3 +178,61 @@ async fn test_arrays() {
         (),
     };
 }
+
+#[tokio::test]
+async fn test_while() {
+    assert_eq! {
+        test!(i64 => r#"
+        fn main() {
+            let a = 0;
+
+            while a < 10 {
+                a = a + 1;
+            }
+
+            a
+        }"#),
+        10,
+    };
+}
+
+#[tokio::test]
+async fn test_loop() {
+    assert_eq! {
+        test!(i64 => r#"
+        fn main() {
+            let a = 0;
+
+            loop {
+                if a >= 10 {
+                    break;
+                }
+
+                a = a + 1;
+            }
+
+            a
+        }"#),
+        10,
+    };
+}
+
+#[tokio::test]
+async fn test_for() {
+    assert_eq! {
+        test!(i64 => r#"
+        use std::iter::range;
+
+        fn main() {
+            let a = 0;
+            let it = range(0, 10);
+
+            for v in it {
+                a = a + 1;
+            }
+
+            a
+        }"#),
+        10,
+    };
+}

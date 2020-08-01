@@ -1,4 +1,4 @@
-import string;
+use string;
 
 fn main() {
     let a = "foo";

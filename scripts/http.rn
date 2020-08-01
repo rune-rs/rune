@@ -1,5 +1,5 @@
-import http;
-import json;
+use http;
+use json;
 
 fn main() {
     let client = http::Client::new();

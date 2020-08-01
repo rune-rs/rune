@@ -20,10 +20,10 @@ pub enum UnitError {
         /// The signature of an already existing function.
         existing: UnitFnSignature,
     },
-    /// Tried to add an import that conflicts with an existing one.
-    #[error("conflicting import already exists `{existing}`")]
+    /// Tried to add an use that conflicts with an existing one.
+    #[error("conflicting use already exists `{existing}`")]
     ImportConflict {
-        /// The signature of the old import.
+        /// The signature of the old use.
         existing: Item,
     },
     /// A static string was missing for the given hash and slot.
@@ -340,12 +340,12 @@ impl Unit {
         Some(self.functions.get(&hash)?.offset)
     }
 
-    /// Look up an import by name.
+    /// Look up an use by name.
     pub fn lookup_import_by_name(&self, name: &str) -> Option<&Item> {
         self.imports.get(name)
     }
 
-    /// Declare a new import.
+    /// Declare a new use.
     pub fn new_import<I>(&mut self, path: I) -> Result<(), UnitError>
     where
         I: Copy + IntoIterator,

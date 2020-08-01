@@ -188,6 +188,7 @@ impl Context {
         this.install(crate::packages::int::module()?)?;
         this.install(crate::packages::float::module()?)?;
         this.install(crate::packages::test::module()?)?;
+        this.install(crate::packages::iter::module()?)?;
         Ok(this)
     }
 
