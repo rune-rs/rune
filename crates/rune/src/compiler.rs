@@ -34,8 +34,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
             let mut encoder = Encoder {
                 unit: &mut unit,
                 instructions: &mut assembly,
-                parents: Vec::new(),
-                locals: Locals::new(),
+                scopes: vec![Scope::new()],
                 source,
                 loops: Vec::new(),
                 references_at: Vec::new(),
@@ -53,8 +52,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
 struct Encoder<'a> {
     unit: &'a mut st::Unit,
     instructions: &'a mut st::unit::Assembly,
-    parents: Vec<Locals>,
-    locals: Locals,
+    scopes: Vec<Scope>,
     source: Source<'a>,
     /// The nesting of loop we are currently in.
     loops: Vec<Loop>,
@@ -70,7 +68,7 @@ impl<'a> Encoder<'a> {
 
         for arg in fn_decl.args.items.iter().rev() {
             let name = arg.resolve(self.source)?;
-            self.locals.new_local(name, arg.token, Vec::new())?;
+            self.new_var(name, arg.token, Vec::new())?;
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
@@ -94,14 +92,66 @@ impl<'a> Encoder<'a> {
                 });
             }
 
-            self.clean_up_locals(self.locals.var_count, span);
+            let var_count = self.last_scope(span)?.var_count;
+            self.clean_up_locals(var_count, span);
             self.instructions.push(st::Inst::Return, span);
         } else {
-            self.pop_locals(self.locals.var_count, span);
+            let var_count = self.last_scope(span)?.var_count;
+            self.pop_locals(var_count, span);
             self.instructions.push(st::Inst::ReturnUnit, span);
         }
 
         Ok(())
+    }
+
+    /// Declare a new variable.
+    fn new_var(&mut self, name: &str, token: Token, references_at: Vec<Span>) -> Result<()> {
+        Ok(self
+            .last_scope_mut(token.span)?
+            .new_var(name, token, references_at)?)
+    }
+
+    /// Get the local with the given name.
+    fn last_scope(&self, span: Span) -> Result<&Scope> {
+        Ok(self
+            .scopes
+            .last()
+            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
+    }
+
+    /// Get the local with the given name.
+    fn get_var(&self, name: &str, span: Span) -> Result<&Var> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(var) = scope.get(name) {
+                return Ok(var);
+            }
+        }
+
+        Err(CompileError::MissingLocal {
+            name: name.to_owned(),
+            span,
+        })
+    }
+
+    /// Get the last locals scope.
+    fn last_scope_mut(&mut self, span: Span) -> Result<&mut Scope> {
+        Ok(self
+            .scopes
+            .last_mut()
+            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
+    }
+
+    /// Get the local with the given name.
+    fn get_local_mut(&mut self, name: &str, span: Span) -> Result<&mut Var> {
+        let locals = self.last_scope_mut(span)?;
+
+        match locals.get_mut(name) {
+            Some(var) => Ok(var),
+            None => Err(CompileError::MissingLocal {
+                name: name.to_owned(),
+                span,
+            }),
+        }
     }
 
     /// Pop locals by simply popping them.
@@ -141,10 +191,11 @@ impl<'a> Encoder<'a> {
         let span = block.span();
         self.current_block = span;
 
-        let open_var_count = self.locals.var_count;
+        let open_var_count = self.last_scope(span)?.var_count;
 
-        let parent_count = self.parents.len();
-        self.parents.push(self.locals.clone());
+        let parent_count = self.scopes.len();
+        let new_scope = self.last_scope(span)?.new_scope();
+        self.scopes.push(new_scope);
 
         for (expr, _) in &block.exprs {
             // NB: terminated expressions do not need to produce a value.
@@ -164,7 +215,7 @@ impl<'a> Encoder<'a> {
             }
         }
 
-        let var_count = self.locals.var_count - open_var_count;
+        let var_count = self.last_scope(span)?.var_count - open_var_count;
 
         if needs_value.0 {
             self.clean_up_locals(var_count, span);
@@ -172,21 +223,17 @@ impl<'a> Encoder<'a> {
             self.pop_locals(var_count, span);
         }
 
-        let parent = match self.parents.pop() {
-            Some(parent) => parent,
-            None => {
-                return Err(CompileError::internal("missing parent scope", span));
-            }
-        };
+        if self.scopes.pop().is_none() {
+            return Err(CompileError::internal("missing parent scope", span));
+        }
 
-        if self.parents.len() != parent_count {
+        if self.scopes.len() != parent_count {
             return Err(CompileError::internal(
                 "parent scope mismatch at end of block",
                 span,
             ));
         }
 
-        self.locals = parent;
         Ok(())
     }
 
@@ -254,6 +301,9 @@ impl<'a> Encoder<'a> {
             }
             ast::Expr::Break(b) => {
                 self.encode_break(b, needs_value)?;
+            }
+            ast::Expr::Block(b) => {
+                self.encode_block(b, needs_value)?;
             }
         }
 
@@ -382,7 +432,7 @@ impl<'a> Encoder<'a> {
 
         self.loops.push(Loop {
             end_label,
-            var_count: self.locals.var_count,
+            var_count: self.last_scope(span)?.var_count,
         });
 
         self.instructions.label(start_label)?;
@@ -421,14 +471,10 @@ impl<'a> Encoder<'a> {
 
         self.references_at.clear();
         self.encode_expr(&*let_.expr, NeedsValue(true))?;
+        let references_at = self.references_at.clone();
 
-        if let Err(offset) = self
-            .locals
-            .decl_var(name, let_.name.token, self.references_at.clone())
-        {
-            // We are overloading an existing variable, so just replace it.
-            self.instructions.push(st::Inst::Replace { offset }, span);
-        }
+        self.last_scope_mut(span)?
+            .decl_var(name, let_.name.token, references_at);
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if needs_value.0 {
@@ -480,24 +526,13 @@ impl<'a> Encoder<'a> {
                 self.references_at.clear();
                 self.encode_expr(rhs, NeedsValue(true))?;
 
-                let local =
-                    self.locals
-                        .get_mut(name)
-                        .ok_or_else(|| CompileError::MissingLocal {
-                            name: name.to_owned(),
-                            span,
-                        })?;
+                let references_at = self.references_at.clone().into_iter();
 
-                local
-                    .references_at
-                    .extend(self.references_at.iter().copied());
+                let var = self.get_local_mut(name, span)?;
+                var.references_at.extend(references_at);
+                let offset = var.offset;
 
-                self.instructions.push(
-                    st::Inst::Replace {
-                        offset: local.offset,
-                    },
-                    span,
-                );
+                self.instructions.push(st::Inst::Replace { offset }, span);
             }
             lhs => {
                 self.encode_expr(rhs, NeedsValue(true))?;
@@ -549,8 +584,9 @@ impl<'a> Encoder<'a> {
             }
         };
 
-        let vars = self
-            .locals
+        let locals = self.last_scope(span)?;
+
+        let vars = locals
             .var_count
             .checked_sub(last_loop.var_count)
             .ok_or_else(|| CompileError::internal("var count should be larger", span))?;
@@ -592,10 +628,9 @@ impl<'a> Encoder<'a> {
         }
 
         let target = ident.resolve(self.source)?;
-
-        let local = match self.locals.get(target) {
-            Some(offset) => offset,
-            None => {
+        let var = match self.get_var(target, ident.token.span) {
+            Ok(var) => var,
+            Err(..) => {
                 // Something imported is automatically a type.
                 if let Some(path) = self.unit.lookup_import_by_name(target) {
                     let hash = st::Hash::of_type(path);
@@ -611,14 +646,12 @@ impl<'a> Encoder<'a> {
             }
         };
 
-        self.references_at
-            .extend(local.references_at.iter().copied());
-        self.instructions.push(
-            st::Inst::Copy {
-                offset: local.offset,
-            },
-            ident.span(),
-        );
+        let references_at = var.references_at.clone().into_iter();
+        let offset = var.offset;
+
+        self.references_at.extend(references_at);
+        self.instructions
+            .push(st::Inst::Copy { offset }, ident.span());
         Ok(())
     }
 
@@ -764,23 +797,10 @@ impl<'a> Encoder<'a> {
             ast::Expr::Ident(ident) => {
                 let target = ident.resolve(self.source)?;
 
-                let local = match self.locals.get(target) {
-                    Some(offset) => offset,
-                    None => {
-                        return Err(CompileError::MissingLocal {
-                            name: target.to_owned(),
-                            span: ident.token.span,
-                        });
-                    }
-                };
+                let offset = self.get_var(target, ident.token.span)?.offset;
 
                 self.references_at.push(span);
-                self.instructions.push(
-                    st::Inst::Ptr {
-                        offset: local.offset,
-                    },
-                    span,
-                );
+                self.instructions.push(st::Inst::Ptr { offset }, span);
             }
             _ => {
                 return Err(CompileError::UnsupportedRef { span });
@@ -936,35 +956,43 @@ fn resolve_path<'a>(path: ast::Path, source: Source<'a>) -> Result<Vec<&'a str>>
 
 /// A locally declared variable.
 #[derive(Debug, Clone)]
-struct Local {
+struct Var {
     /// Slot offset from the current stack frame.
     offset: usize,
     /// Name of the variable.
     name: String,
     /// Token assocaited with the variable.
     token: Token,
-    /// Local references used by local expression.
+    /// Var references used by local expression.
     references_at: Vec<Span>,
 }
 
 #[derive(Debug, Clone)]
-struct Locals {
-    locals: HashMap<String, Local>,
+struct Scope {
+    locals: HashMap<String, Var>,
     var_count: usize,
 }
 
-impl Locals {
+impl Scope {
     /// Construct a new locals handlers.
-    pub fn new() -> Locals {
+    pub fn new() -> Scope {
         Self {
             locals: HashMap::new(),
             var_count: 0,
         }
     }
 
+    /// Construct a new scope.
+    pub fn new_scope(&self) -> Self {
+        Self {
+            locals: HashMap::new(),
+            var_count: self.var_count,
+        }
+    }
+
     /// Insert a new local, and return the old one if there's a conflict.
-    pub fn new_local(&mut self, name: &str, token: Token, references_at: Vec<Span>) -> Result<()> {
-        let local = Local {
+    pub fn new_var(&mut self, name: &str, token: Token, references_at: Vec<Span>) -> Result<()> {
+        let local = Var {
             offset: self.var_count,
             name: name.to_owned(),
             token,
@@ -985,19 +1013,10 @@ impl Locals {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub fn decl_var(
-        &mut self,
-        name: &str,
-        token: Token,
-        references_at: Vec<Span>,
-    ) -> Result<(), usize> {
-        if let Some(old) = self.locals.get(name) {
-            return Err(old.offset);
-        }
-
+    pub fn decl_var(&mut self, name: &str, token: Token, references_at: Vec<Span>) {
         self.locals.insert(
             name.to_owned(),
-            Local {
+            Var {
                 offset: self.var_count,
                 name: name.to_owned(),
                 token,
@@ -1006,11 +1025,10 @@ impl Locals {
         );
 
         self.var_count += 1;
-        Ok(())
     }
 
     /// Access the local with the given name.
-    pub fn get(&self, name: &str) -> Option<&Local> {
+    pub fn get(&self, name: &str) -> Option<&Var> {
         if let Some(local) = self.locals.get(name) {
             return Some(local);
         }
@@ -1019,7 +1037,7 @@ impl Locals {
     }
 
     /// Access the local with the given name.
-    pub fn get_mut(&mut self, name: &str) -> Option<&mut Local> {
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut Var> {
         if let Some(local) = self.locals.get_mut(name) {
             return Some(local);
         }

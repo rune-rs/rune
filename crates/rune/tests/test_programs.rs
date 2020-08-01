@@ -141,6 +141,37 @@ async fn test_if() {
 }
 
 #[tokio::test]
+async fn test_block() {
+    assert_eq! {
+        test!(i64 => r#"
+        fn main() {
+            let b = 10;
+
+            let n = {
+                let a = 10;
+                a + b
+            };
+
+            n + 1
+        }"#),
+        21,
+    };
+}
+
+#[tokio::test]
+async fn test_shadowing() {
+    assert_eq! {
+        test!(i64 => r#"
+        fn main() {
+            let a = 10;
+            let a = a;
+            a
+        }"#),
+        10,
+    };
+}
+
+#[tokio::test]
 async fn test_arrays() {
     assert_eq! {
         test!(() => "fn main() { let v = [1, 2, 3, 4, 5]; }"),

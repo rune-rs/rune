@@ -296,6 +296,10 @@ impl<'a> Lexer<'a> {
                             it.next();
                             break Kind::Neq;
                         }
+                        ('#', '{') => {
+                            it.next();
+                            break Kind::StartObject;
+                        }
                         ('-', '0'..='9') => {
                             return self.next_number_literal(&mut it, start);
                         }

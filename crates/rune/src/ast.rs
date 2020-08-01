@@ -153,7 +153,7 @@ impl Parse for ArrayLiteral {
 #[derive(Debug, Clone)]
 pub struct ObjectLiteral {
     /// The open bracket.
-    pub open: OpenBrace,
+    pub open: StartObject,
     /// Items in the object declaration.
     pub items: Vec<(StringLiteral, Colon, Expr)>,
     /// The close bracket.
@@ -177,11 +177,11 @@ impl ObjectLiteral {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast};
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let _ = parse_all::<ast::ObjectLiteral>("{\"foo\": 42}")?;
-/// let _ = parse_all::<ast::ObjectLiteral>("{\"foo\": 42,}")?;
+/// parse_all::<ast::ObjectLiteral>("#{\"foo\": 42}")?;
+/// parse_all::<ast::ObjectLiteral>("#{\"foo\": 42,}")?;
 /// # Ok(())
 /// # }
 /// ```
@@ -989,6 +989,8 @@ pub enum Expr {
     UnitLiteral(UnitLiteral),
     /// A break expression.
     Break(Break),
+    /// A block as an expression.
+    Block(Block),
 }
 
 impl Expr {
@@ -1002,6 +1004,7 @@ impl Expr {
             Self::ExprGroup(expr_group) => expr_group.produces_value(),
             Self::Break(..) => true,
             Self::ExprBinary(expr) => expr.produces_value(),
+            Self::Block(b) => b.produces_value(),
             _ => false,
         }
     }
@@ -1029,6 +1032,7 @@ impl Expr {
             Self::UnitLiteral(unit) => unit.span(),
             Self::BoolLiteral(b) => b.span(),
             Self::Break(b) => b.span(),
+            Self::Block(b) => b.span(),
         }
     }
 
@@ -1042,6 +1046,7 @@ impl Expr {
             Expr::StringLiteral(..) => true,
             Expr::ArrayLiteral(array) => array.is_all_literal(),
             Expr::ObjectLiteral(object) => object.is_all_literal(),
+            Expr::Block(b) => b.is_all_literal(),
             _ => false,
         }
     }
@@ -1092,6 +1097,7 @@ impl Expr {
         let token = parser.token_peek_eof()?;
 
         let expr = match token.kind {
+            Kind::StartObject => Self::ObjectLiteral(parser.parse()?),
             Kind::Not | Kind::Ampersand | Kind::Star => Self::ExprUnary(parser.parse()?),
             Kind::While => Self::While(parser.parse()?),
             Kind::Let => Self::Let(parser.parse()?),
@@ -1113,7 +1119,7 @@ impl Expr {
             } => Self::ArrayLiteral(parser.parse()?),
             Kind::Open {
                 delimiter: Delimiter::Brace,
-            } => Self::ObjectLiteral(parser.parse()?),
+            } => Self::Block(parser.parse()?),
             Kind::True | Kind::False => Self::BoolLiteral(parser.parse()?),
             Kind::Ident => match parser.token_peek2()?.map(|t| t.kind) {
                 Some(kind) => match kind {
@@ -1656,7 +1662,7 @@ pub struct Block {
     /// Expressions in the block.
     pub exprs: Vec<(Expr, Option<SemiColon>)>,
     /// Test if the expression is trailing.
-    pub trailing_expr: Option<Expr>,
+    pub trailing_expr: Option<Box<Expr>>,
     /// The close brace.
     pub close: CloseBrace,
 }
@@ -1672,6 +1678,14 @@ impl Block {
         match &self.trailing_expr {
             Some(trailing) => trailing.produces_value(),
             None => true,
+        }
+    }
+
+    /// Block is literal if a trailing expression exists and is all literal.
+    pub fn is_all_literal(&self) -> bool {
+        match &self.trailing_expr {
+            Some(trailing) => trailing.is_all_literal(),
+            None => false,
         }
     }
 }
@@ -1747,12 +1761,12 @@ impl Parse for Block {
                 _ => (),
             }
 
-            trailing_expr = Some(expr);
+            trailing_expr = Some(Box::new(expr));
             break;
         }
 
         if last_expr_with_value {
-            trailing_expr = exprs.pop().map(|(expr, _)| expr);
+            trailing_expr = exprs.pop().map(|(expr, _)| Box::new(expr));
         }
 
         let close = parser.parse()?;
@@ -1926,6 +1940,7 @@ decl_tokens! {
     (WhileToken, Kind::While),
     (Break, Kind::Break),
     (Star, Kind::Star),
+    (StartObject, Kind::StartObject),
 }
 
 impl<'a> Resolve<'a> for Ident {
