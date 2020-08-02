@@ -11,6 +11,7 @@ mod source;
 mod token;
 mod traits;
 
+pub use crate::compiler::Options;
 pub use crate::error::{CompileError, Error, ParseError, ResolveError, Result, SpannedError};
 pub use crate::lexer::Lexer;
 pub use crate::parser::Parser;

@@ -6,9 +6,9 @@ use std::path::{Path, PathBuf};
 
 use rune::SpannedError as _;
 
-fn compile(source: &str) -> rune::Result<st::Unit> {
+fn compile(source: &str, options: rune::Options) -> rune::Result<st::Unit> {
     let unit = rune::parse_all::<rune::ast::File>(&source)?;
-    Ok(unit.compile()?)
+    Ok(unit.compile_with_options(options)?)
 }
 
 #[tokio::main]
@@ -26,7 +26,9 @@ async fn main() -> Result<()> {
     let mut dump_types = false;
     let mut help = false;
 
-    for arg in args {
+    let mut options = rune::Options::default();
+
+    while let Some(arg) = args.next() {
         match arg.as_str() {
             "--" => continue,
             "--trace" => {
@@ -50,7 +52,18 @@ async fn main() -> Result<()> {
             "--dump-types" => {
                 dump_types = true;
             }
-            "--help" => {
+            "-O" => {
+                let opt = match args.next() {
+                    Some(opt) => opt,
+                    None => {
+                        println!("expected optimization option to `-O`");
+                        return Ok(());
+                    }
+                };
+
+                options.optimizations.parse_option(&opt)?;
+            }
+            "--help" | "-h" => {
                 help = true;
             }
             other if !other.starts_with("-") => {
@@ -68,12 +81,19 @@ async fn main() -> Result<()> {
     if help {
         println!("Usage: {}", USAGE);
         println!();
-        println!("  --trace          - Provide detailed tracing for each instruction executed.");
-        println!("  --dump           - Dump all forms of diagnostic.");
-        println!("  --dump-unit      - Dump diagnostics on the unit generated from the file.");
-        println!("  --dump-vm        - Dump diagnostics on VM state. If combined with `--trace`, does so afte each instruction.");
-        println!("  --dump-functions - Dump available functions.");
-        println!("  --dump-types     - Dump available types.");
+        println!("  --help, -h         - Show this help.");
+        println!("  --trace           - Provide detailed tracing for each instruction executed.");
+        println!("  --dump            - Dump all forms of diagnostic.");
+        println!("  --dump-unit       - Dump diagnostics on the unit generated from the file.");
+        println!("  --dump-vm         - Dump diagnostics on VM state. If combined with `--trace`, does so afte each instruction.");
+        println!("  --dump-functions  - Dump available functions.");
+        println!("  --dump-types      - Dump available types.");
+        println!();
+        println!("Compiler options:");
+        println!("  -O <optimization> - Update the given optimization option.");
+        println!();
+        println!("Available <optimization> arguments:");
+        println!("  memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.");
         return Ok(());
     }
 
@@ -86,7 +106,7 @@ async fn main() -> Result<()> {
 
     let source = fs::read_to_string(&path)?;
 
-    let unit = match compile(&source) {
+    let unit = match compile(&source, options) {
         Ok(unit) => unit,
         Err(e) => {
             emit_diagnostics("compile error", &path, &source, e.span(), &e)?;

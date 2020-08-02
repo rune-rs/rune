@@ -24,6 +24,9 @@ pub enum Error {
     /// Compiler error.
     #[error("compile error")]
     CompileError(#[from] CompileError),
+    /// Configuration error.
+    #[error("configuration error")]
+    ConfigurationError(#[from] ConfigurationError),
 }
 
 impl SpannedError for Error {
@@ -32,8 +35,19 @@ impl SpannedError for Error {
             Self::ResolveError(e) => e.span(),
             Self::ParseError(e) => e.span(),
             Self::CompileError(e) => e.span(),
+            Self::ConfigurationError(..) => Span::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, Error)]
+pub enum ConfigurationError {
+    /// Tried to configure the compiler with an unsupported optimzation option.
+    #[error("unsupported optimization option `{option}`")]
+    UnsupportedOptimizationOption {
+        /// The unsupported option.
+        option: String,
+    },
 }
 
 /// Error raised when resolving a value.

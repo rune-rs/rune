@@ -1690,7 +1690,7 @@ impl Vm {
                     call_fn!(self, hash, *args, context, unit, update_ip);
                 }
                 Inst::LoadInstanceFn { hash } => {
-                    let instance = self.peek()?;
+                    let instance = self.managed_pop()?;
                     let ty = instance.value_type(self)?;
                     let hash = Hash::instance_function(ty, *hash);
                     self.unmanaged_push(ValuePtr::Fn(hash));

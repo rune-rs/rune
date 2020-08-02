@@ -1,10 +1,58 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::error::CompileError;
+use crate::error::{CompileError, ConfigurationError};
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use st::unit::Span;
+
+/// Compiler options.
+pub struct Options {
+    ///Enabled optimizations.
+    pub optimizations: Optimizations,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            optimizations: Default::default(),
+        }
+    }
+}
+
+/// Optimizations enabled in the compiler.
+pub struct Optimizations {
+    /// Memoize the instance function in a loop.
+    memoize_instance_fn: bool,
+}
+
+impl Optimizations {
+    /// Parse the given option.
+    pub fn parse_option(&mut self, option: &str) -> Result<(), ConfigurationError> {
+        let mut it = option.split('=');
+
+        match it.next() {
+            Some("memoize-instance-fn") => {
+                self.memoize_instance_fn = it.next() != Some("false");
+            }
+            _ => {
+                return Err(ConfigurationError::UnsupportedOptimizationOption {
+                    option: option.to_owned(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for Optimizations {
+    fn default() -> Self {
+        Self {
+            memoize_instance_fn: true,
+        }
+    }
+}
 
 /// Instance function to use for iteration.
 const ITERATOR_NEXT: &str = "next";
@@ -16,8 +64,13 @@ type Result<T, E = CompileError> = std::result::Result<T, E>;
 struct NeedsValue(bool);
 
 impl<'a> crate::ParseAll<'a, ast::File> {
-    /// Encode the given object into a collection of instructions.
+    /// Compile the parse with default options.
     pub fn compile(self) -> Result<st::Unit> {
+        self.compile_with_options(Default::default())
+    }
+
+    /// Encode the given object into a collection of instructions.
+    pub fn compile_with_options(self, options: Options) -> Result<st::Unit> {
         let ParseAll { source, item: file } = self;
 
         let mut unit = st::Unit::with_default_prelude();
@@ -33,7 +86,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
 
             let mut assembly = unit.new_assembly();
 
-            let mut encoder = Encoder {
+            let mut encoder = Compiler {
                 unit: &mut unit,
                 instructions: &mut assembly,
                 scopes: vec![Scope::new()],
@@ -41,6 +94,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
                 loops: Vec::new(),
                 references_at: Vec::new(),
                 current_block: Span::empty(),
+                optimizations: &options.optimizations,
             };
 
             encoder.encode_fn_decl(f)?;
@@ -51,7 +105,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
     }
 }
 
-struct Encoder<'a> {
+struct Compiler<'a> {
     unit: &'a mut st::Unit,
     instructions: &'a mut st::unit::Assembly,
     scopes: Vec<Scope>,
@@ -62,9 +116,11 @@ struct Encoder<'a> {
     current_block: Span,
     /// Indicates that a reference was taken at the given spans.
     references_at: Vec<Span>,
+    /// Enabled optimizations.
+    optimizations: &'a Optimizations,
 }
 
-impl<'a> Encoder<'a> {
+impl<'a> Compiler<'a> {
     fn encode_fn_decl(&mut self, fn_decl: ast::FnDecl) -> Result<()> {
         let span = fn_decl.span();
 
@@ -484,21 +540,42 @@ impl<'a> Encoder<'a> {
 
         let new_scope = self.last_scope(span)?.new_scope();
         self.scopes.push(new_scope);
-
         let open_var_count = self.last_scope(span)?.var_count;
 
         self.references_at.clear();
         self.encode_expr(&*for_.iter, NeedsValue(true))?;
         let references_at = self.references_at.clone();
 
-        let iterator_name = for_.var.resolve(self.source)?;
+        // Declare storage for the hidden iterator variable.
         let iterator_offset = self.last_scope_mut(span)?.decl_anon(for_.iter.span());
 
-        self.instructions.push(st::Inst::Unit, for_.iter.span());
-
-        let binding_offset =
+        // Declare named loop variable.
+        let binding_offset = {
+            self.instructions.push(st::Inst::Unit, for_.iter.span());
+            let name = for_.var.resolve(self.source)?;
             self.last_scope_mut(span)?
-                .decl_var(iterator_name, for_.var.span(), references_at);
+                .decl_var(name, for_.var.span(), references_at)
+        };
+
+        // Declare storage for memoized `next` instance fn.
+        let next_offset = if self.optimizations.memoize_instance_fn {
+            let offset = self.last_scope_mut(span)?.decl_anon(for_.iter.span());
+            let hash = st::Hash::of(ITERATOR_NEXT);
+
+            // Declare the named loop variable and put it in the scope.
+            self.instructions.push(
+                st::Inst::Copy {
+                    offset: iterator_offset,
+                },
+                for_.iter.span(),
+            );
+
+            self.instructions
+                .push(st::Inst::LoadInstanceFn { hash }, for_.iter.span());
+            Some(offset)
+        } else {
+            None
+        };
 
         self.loops.push(Loop {
             end_label,
@@ -507,33 +584,62 @@ impl<'a> Encoder<'a> {
 
         self.instructions.label(start_label)?;
 
-        // call the `next` function to get the next level of iteration, bind the
-        // result to the variable binding in the loop.
-        self.instructions.push(
-            st::Inst::Copy {
-                offset: iterator_offset,
-            },
-            for_.iter.span(),
-        );
-        let hash = st::Hash::of(ITERATOR_NEXT);
-        self.instructions
-            .push(st::Inst::CallInstance { hash, args: 0 }, span);
-        self.instructions.push(
-            st::Inst::Replace {
-                offset: binding_offset,
-            },
-            for_.var.span(),
-        );
+        // Use the memoized loop variable.
+        if let Some(next_offset) = next_offset {
+            self.instructions.push(
+                st::Inst::Copy {
+                    offset: iterator_offset,
+                },
+                for_.iter.span(),
+            );
+
+            self.instructions.push(
+                st::Inst::Copy {
+                    offset: next_offset,
+                },
+                for_.iter.span(),
+            );
+
+            self.instructions.push(st::Inst::CallFn { args: 0 }, span);
+
+            self.instructions.push(
+                st::Inst::Replace {
+                    offset: binding_offset,
+                },
+                for_.var.span(),
+            );
+        } else {
+            // call the `next` function to get the next level of iteration, bind the
+            // result to the loop variable in the loop.
+            self.instructions.push(
+                st::Inst::Copy {
+                    offset: iterator_offset,
+                },
+                for_.iter.span(),
+            );
+
+            let hash = st::Hash::of(ITERATOR_NEXT);
+            self.instructions
+                .push(st::Inst::CallInstance { hash, args: 0 }, span);
+            self.instructions.push(
+                st::Inst::Replace {
+                    offset: binding_offset,
+                },
+                for_.var.span(),
+            );
+        }
 
         // test loop condition.
-        self.instructions.push(
-            st::Inst::Copy {
-                offset: binding_offset,
-            },
-            for_.var.span(),
-        );
-        self.instructions.push(st::Inst::IsUnit, for_.span());
-        self.instructions.jump_if(end_label, for_.span());
+        {
+            self.instructions.push(
+                st::Inst::Copy {
+                    offset: binding_offset,
+                },
+                for_.var.span(),
+            );
+            self.instructions.push(st::Inst::IsUnit, for_.span());
+            self.instructions.jump_if(end_label, for_.span());
+        }
 
         self.encode_block(&*for_.body, NeedsValue(false))?;
         self.instructions.jump(start_label, span);
