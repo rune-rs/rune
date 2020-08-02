@@ -412,22 +412,16 @@ macro_rules! numeric_ops {
 }
 
 /// The holde of an external value.
+#[derive(Debug)]
 struct Holder {
+    /// The generation this holder was created for.
+    generation: usize,
     /// How the external is accessed (if it is accessed).
     /// This only happens during function calls, and the function callee is
     /// responsible for unwinding the access.
     access: Access,
     /// The value being held.
-    value: Option<Box<UnsafeCell<dyn Any>>>,
-}
-
-impl fmt::Debug for Holder {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("external")
-            .field("access", &self.access)
-            .field("value", &self.value)
-            .finish()
-    }
+    value: Box<UnsafeCell<dyn Any>>,
 }
 
 /// A stack frame.
@@ -483,7 +477,11 @@ macro_rules! impl_slot_functions {
         /// pushed on the stack using [push], rather than
         /// [push.
         pub fn $allocate_fn(&mut self, value: $ty) -> ValuePtr {
-            ValuePtr::Managed(Slot::$slot(self.internal_allocate(value)))
+            let generation = self.generation();
+            ValuePtr::Managed(Slot::$slot(
+                generation,
+                self.internal_allocate(generation, value),
+            ))
         }
 
         /// Get a reference of the value at the given slot.
@@ -524,6 +522,8 @@ pub struct Vm {
     frames: Vec<Frame>,
     /// Slots with external values.
     slots: Slab<Holder>,
+    /// Generation used for allocated objects.
+    generation: usize,
 }
 
 impl Vm {
@@ -536,7 +536,19 @@ impl Vm {
             stack: Vec::new(),
             frames: Vec::new(),
             slots: Slab::new(),
+            generation: 0,
         }
+    }
+
+    /// Reset this virtual machine, freeing all memory used.
+    pub fn clear(&mut self) {
+        self.ip = 0;
+        self.frame_top = 0;
+        self.exited = false;
+        self.stack.clear();
+        self.frames.clear();
+        self.slots.clear();
+        self.generation = 0;
     }
 
     /// Access the current instruction pointer.
@@ -731,11 +743,18 @@ impl Vm {
         Ok(false)
     }
 
-    fn internal_allocate<T: Any>(&mut self, value: T) -> usize {
+    fn internal_allocate<T: Any>(&mut self, generation: usize, value: T) -> usize {
         self.slots.insert(Holder {
+            generation,
             access: Access::default(),
-            value: Some(Box::new(UnsafeCell::new(value))),
+            value: Box::new(UnsafeCell::new(value)),
         })
+    }
+
+    fn generation(&mut self) -> usize {
+        let g = self.generation;
+        self.generation += 1;
+        g
     }
 
     /// Allocate and insert an external and return its reference.
@@ -743,7 +762,11 @@ impl Vm {
     /// This will leak memory unless the reference is pushed onto the stack to
     /// be managed.
     pub fn external_allocate<T: Any>(&mut self, value: T) -> ValuePtr {
-        ValuePtr::Managed(Slot::external(self.internal_allocate(value)))
+        let generation = self.generation();
+        ValuePtr::Managed(Slot::external(
+            generation,
+            self.internal_allocate(generation, value),
+        ))
     }
 
     impl_slot_functions! {
@@ -782,26 +805,19 @@ impl Vm {
         let holder = self
             .slots
             .get(slot.into_usize())
+            .filter(|h| h.generation == slot.into_generation())
             .ok_or_else(|| StackError::SlotMissing { slot })?;
 
         holder.access.shared(slot)?;
-
-        let value = match &holder.value {
-            Some(value) => value,
-            None => {
-                holder.access.release_shared();
-                return Err(StackError::SlotMissing { slot });
-            }
-        };
 
         // Safety: We have the necessary level of ownership to guarantee that
         // the reference cast is safe, and we wrap the return value in a
         // guard which ensures the needed access level.
         unsafe {
-            let value = match (*value.get()).as_ptr(TypeId::of::<T>()) {
+            let value = match (*holder.value.get()).as_ptr(TypeId::of::<T>()) {
                 Some(value) => value,
                 None => {
-                    let actual = (*value.get()).type_name();
+                    let actual = (*holder.value.get()).type_name();
 
                     // NB: Immediately unshare because the cast failed and we
                     // won't be maintaining access to the type.
@@ -832,26 +848,19 @@ impl Vm {
         let holder = self
             .slots
             .get(slot.into_usize())
+            .filter(|h| h.generation == slot.into_generation())
             .ok_or_else(|| StackError::SlotMissing { slot })?;
 
         holder.access.exclusive(slot)?;
-
-        let value = match &holder.value {
-            Some(value) => value,
-            None => {
-                holder.access.release_exclusive();
-                return Err(StackError::SlotMissing { slot });
-            }
-        };
 
         // Safety: We have the necessary level of ownership to guarantee that
         // the reference cast is safe, and we wrap the return value in a
         // guard which ensures the needed access level.
         unsafe {
-            let value = match (*value.get()).as_mut_ptr(TypeId::of::<T>()) {
+            let value = match (*holder.value.get()).as_mut_ptr(TypeId::of::<T>()) {
                 Some(value) => value,
                 None => {
-                    let actual = (*value.get()).type_name();
+                    let actual = (*holder.value.get()).type_name();
 
                     // NB: Immediately unshare because the cast failed and we
                     // won't be maintaining access to the type.
@@ -875,28 +884,24 @@ impl Vm {
 
     /// Get a clone of the given external.
     pub fn external_clone<T: Clone + Any>(&self, slot: Slot) -> Result<T, StackError> {
-        let holder = match self.slots.get(slot.into_usize()) {
-            Some(holder) => holder,
-            None => return Err(StackError::SlotMissing { slot }),
-        };
+        let holder = self
+            .slots
+            .get(slot.into_usize())
+            .filter(|h| h.generation == slot.into_generation())
+            .ok_or_else(|| StackError::SlotMissing { slot })?;
 
-        // This is safe since we can rely on the typical reference guarantees of
-        // VM.
+        // NB: we don't need a guard here since we're only using the reference
+        // for the duration of this function.
         holder.access.test_shared(slot)?;
-
-        let value = match &holder.value {
-            Some(value) => value,
-            None => return Err(StackError::SlotMissing { slot }),
-        };
 
         // Safety: We have the necessary level of ownership to guarantee that
         // the reference cast is safe, and we wrap the return value in a
         // guard which ensures the needed access level.
         unsafe {
-            let value = match (*value.get()).as_ptr(TypeId::of::<T>()) {
+            let value = match (*holder.value.get()).as_ptr(TypeId::of::<T>()) {
                 Some(value) => &*(value as *const T),
                 None => {
-                    let actual = (*value.get()).type_name();
+                    let actual = (*holder.value.get()).type_name();
 
                     return Err(StackError::UnexpectedSlotType {
                         expected: type_name::<T>(),
@@ -937,17 +942,24 @@ impl Vm {
     where
         T: Any,
     {
+        let pos = slot.into_usize();
+
         // NB: don't need to perform a runtime check because this function
         // requires exclusive access to the virtual machine, at which point it's
         // impossible for live references to slots to be out unless unsafe
         // functions have been used in an unsound manner.
-        let value = self
+        if self
             .slots
-            .get_mut(slot.into_usize())
-            .and_then(|h| h.value.take())
-            .ok_or_else(|| StackError::SlotMissing { slot })?;
+            .get(slot.into_usize())
+            .filter(|h| h.generation == slot.into_generation())
+            .is_none()
+        {
+            return Err(StackError::SlotMissing { slot });
+        }
 
-        match Self::convert_value(value) {
+        let holder = self.slots.remove(pos);
+
+        match Self::convert_value(holder.value) {
             Ok(value) => return Ok(value),
             Err(value) => {
                 let actual = unsafe { (*value.get()).type_name() };
@@ -967,21 +979,15 @@ impl Vm {
         let holder = self
             .slots
             .get(slot.into_usize())
+            .filter(|h| h.generation == slot.into_generation())
             .ok_or_else(|| StackError::SlotMissing { slot })?;
 
         holder.access.test_shared(slot)?;
 
-        let value = match &holder.value {
-            Some(value) => value,
-            None => {
-                return Err(StackError::SlotMissing { slot });
-            }
-        };
-
         // Safety: We have the necessary level of ownership to guarantee that
         // the reference cast is safe, and we wrap the return value in a
         // guard which ensures the needed access level.
-        Ok(f(unsafe { &*value.get() }))
+        Ok(f(unsafe { &*holder.value.get() }))
     }
 
     /// Get a reference of the external value of the given type and the given
@@ -990,23 +996,16 @@ impl Vm {
         let holder = self
             .slots
             .get(slot.into_usize())
+            .filter(|h| h.generation == slot.into_generation())
             .ok_or_else(|| StackError::SlotMissing { slot })?;
 
         holder.access.shared(slot)?;
-
-        let value = match &holder.value {
-            Some(value) => value,
-            None => {
-                holder.access.release_shared();
-                return Err(StackError::SlotMissing { slot });
-            }
-        };
 
         // Safety: We have the necessary level of ownership to guarantee that
         // the reference cast is safe, and we wrap the return value in a
         // guard which ensures the needed access level.
         Ok(Ref {
-            value: unsafe { &*value.get() },
+            value: unsafe { &*holder.value.get() },
             raw: RawRefGuard {
                 access: &holder.access,
             },
@@ -1015,26 +1014,24 @@ impl Vm {
 
     /// Take an external value by dyn, assuming you have exlusive access to it.
     pub fn external_take_dyn(&mut self, slot: Slot) -> Result<Box<dyn Any>, StackError> {
-        let holder = self
+        let pos = slot.into_usize();
+
+        if self
             .slots
-            .get_mut(slot.into_usize())
-            .ok_or_else(|| StackError::SlotMissing { slot })?;
+            .get(pos)
+            .filter(|h| h.generation == slot.into_generation())
+            .is_none()
+        {
+            return Err(StackError::SlotMissing { slot });
+        }
 
-        holder.access.exclusive(slot)?;
-
-        let value = match holder.value.take() {
-            Some(value) => value,
-            None => {
-                holder.access.release_exclusive();
-                return Err(StackError::SlotMissing { slot });
-            }
-        };
+        let holder = self.slots.remove(pos);
 
         // Safety: We have the necessary level of ownership to guarantee that
         // the reference cast is safe, and we wrap the return value in a
         // guard which ensures the needed access level.
         unsafe {
-            let value = Box::into_raw(value);
+            let value = Box::into_raw(holder.value);
             return Ok(Box::from_raw((*value).get()));
         }
     }
@@ -1680,7 +1677,7 @@ impl Vm {
 
                     for _ in 0..*count {
                         let key = self.pop_decode()?;
-                        let value = self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
+                        let value = self.pop()?;
                         object.insert(key, value);
                     }
 
