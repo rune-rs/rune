@@ -1,6 +1,6 @@
 use crate::any::Any;
 use crate::collections::HashMap;
-use crate::context::Context;
+use crate::context::{Context, Handler};
 use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::unit::Unit;
@@ -1634,7 +1634,10 @@ impl Vm {
                                 .lookup(*hash)
                                 .ok_or_else(|| VmError::MissingFunction { hash: *hash })?;
 
-                            let result = handler(self, *args).await;
+                            let result = match handler {
+                                Handler::Async(handler) => handler(self, *args).await,
+                                Handler::Regular(handler) => handler(self, *args),
+                            };
 
                             // Safety: We have exclusive access to the VM and
                             // everything that was borrowed during the call can now
@@ -1663,7 +1666,10 @@ impl Vm {
                                 .lookup(hash)
                                 .ok_or_else(|| VmError::MissingFunction { hash: hash })?;
 
-                            let result = handler(self, *args).await;
+                            let result = match handler {
+                                Handler::Async(handler) => handler(self, *args).await,
+                                Handler::Regular(handler) => handler(self, *args),
+                            };
 
                             // Safety: We have exclusive access to the VM and
                             // everything that was borrowed during the call can

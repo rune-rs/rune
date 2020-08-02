@@ -65,11 +65,14 @@ pub enum ContextError {
     },
 }
 
-/// The handler of a function.
-type Handler = dyn for<'vm> Fn(&'vm mut Vm, usize) -> BoxFuture<'vm, Result<(), VmError>> + Sync;
-
 /// Helper alias for boxed futures.
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+
+/// A function handler.
+pub(crate) enum Handler {
+    Async(Box<dyn for<'vm> Fn(&'vm mut Vm, usize) -> BoxFuture<'vm, Result<(), VmError>>>),
+    Regular(Box<dyn Fn(&mut Vm, usize) -> Result<(), VmError>>),
+}
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
@@ -166,7 +169,7 @@ impl fmt::Display for FnSignature {
 #[derive(Default)]
 pub struct Context {
     /// Free functions.
-    functions: HashMap<Hash, Box<Handler>>,
+    functions: HashMap<Hash, Handler>,
     /// Information on functions.
     functions_info: HashMap<Hash, FnSignature>,
     /// Registered types.
@@ -210,17 +213,6 @@ impl Context {
             let (hash, ty) = it.next()?;
             Some((*hash, ty))
         })
-    }
-
-    /// Lookup the given function.
-    pub fn lookup(&self, hash: Hash) -> Option<&Handler> {
-        let handler = self.functions.get(&hash)?;
-        Some(&*handler)
-    }
-
-    /// Lookup a type by hash.
-    pub fn lookup_type(&self, hash: Hash) -> Option<&TypeInfo> {
-        self.types.get(&hash)
     }
 
     /// Install the specified module.
@@ -271,5 +263,16 @@ impl Context {
         }
 
         Ok(())
+    }
+
+    /// Lookup the given function.
+    pub(crate) fn lookup(&self, hash: Hash) -> Option<&Handler> {
+        let handler = self.functions.get(&hash)?;
+        Some(&*handler)
+    }
+
+    /// Lookup a type by hash.
+    pub(crate) fn lookup_type(&self, hash: Hash) -> Option<&TypeInfo> {
+        self.types.get(&hash)
     }
 }

@@ -16,9 +16,9 @@ pub struct Module {
     /// The name of the module.
     pub(super) path: Item,
     /// Free functions.
-    pub(super) functions: HashMap<Item, (Box<Handler>, FnSignature)>,
+    pub(super) functions: HashMap<Item, (Handler, FnSignature)>,
     /// Instance functions.
-    pub(super) instance_functions: HashMap<(ValueType, String), (Box<Handler>, FnSignature)>,
+    pub(super) instance_functions: HashMap<(ValueType, String), (Handler, FnSignature)>,
     /// Registered types.
     pub(super) types: HashMap<ValueType, (ValueTypeInfo, Item)>,
 }
@@ -94,7 +94,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler = Handler::Regular(Box::new(move |vm, args| f.vm_call(vm, args)));
         let signature = FnSignature::new_free(self.path.join(&name), Func::args());
         self.functions.insert(name, (handler, signature));
         Ok(())
@@ -127,7 +127,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler = Handler::Async(Box::new(move |vm, args| f.vm_call(vm, args)));
         let signature = FnSignature::new_free(self.path.join(&name), Func::args());
         self.functions.insert(name, (handler, signature));
         Ok(())
@@ -149,7 +149,7 @@ impl Module {
             });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| Box::pin(async move { f(vm, args) }));
+        let handler = Handler::Regular(Box::new(move |vm, args| f(vm, args)));
         let signature = FnSignature::new_raw(self.path.join(&name));
         self.functions.insert(name.to_owned(), (handler, signature));
         Ok(())
@@ -170,8 +170,9 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Box<Handler> =
-            Box::new(move |vm, args| Box::pin(async move { f(vm, args).await }));
+        let handler = Handler::Async(Box::new(move |vm, args| {
+            Box::pin(async move { f(vm, args).await })
+        }));
         let signature = FnSignature::new_raw(self.path.join(&name));
         self.functions.insert(name, (handler, signature));
         Ok(())
@@ -224,7 +225,7 @@ impl Module {
             });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler = Handler::Regular(Box::new(move |vm, args| f.vm_call(vm, args)));
         let signature = FnSignature::new_inst(type_info, name, Func::args());
 
         self.instance_functions
@@ -277,7 +278,7 @@ impl Module {
             });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler = Handler::Async(Box::new(move |vm, args| f.vm_call(vm, args)));
         let signature = FnSignature::new_inst(type_info, name, Func::args());
 
         self.instance_functions
@@ -359,7 +360,7 @@ pub trait Function<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_function][Context::async_function] function.
@@ -383,7 +384,7 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     fn instance_value_type_info() -> ValueTypeInfo;
 
     /// Perform the vm call.
-    fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_inst_fn][Context::async_inst_fn] function.
@@ -423,30 +424,28 @@ macro_rules! impl_register {
                 $count
             }
 
-            fn vm_call<'vm>(
+            fn vm_call(
                 self,
-                vm: &'vm mut Vm,
+                vm: &mut Vm,
                 args: usize
-            ) -> BoxFuture<'vm, Result<(), VmError>> {
-                Box::pin(async move {
-                    impl_register!{@args $count, args}
+            ) -> Result<(), VmError> {
+                impl_register!{@args $count, args}
 
-                    $(let $var = vm.managed_pop()?;)*
+                $(let $var = vm.managed_pop()?;)*
 
-                    // Safety: We hold a reference to the Vm, so we can
-                    // guarantee that it won't be modified.
-                    //
-                    // The scope is also necessary, since we mutably access `vm`
-                    // when we return below.
-                    #[allow(unused_unsafe)]
-                    let ret = unsafe {
-                        impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                        tls::inject_vm(vm, || self($($var,)*)).into_vm_result()?
-                    };
+                // Safety: We hold a reference to the Vm, so we can
+                // guarantee that it won't be modified.
+                //
+                // The scope is also necessary, since we mutably access `vm`
+                // when we return below.
+                #[allow(unused_unsafe)]
+                let ret = unsafe {
+                    impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
+                    tls::inject_vm(vm, || self($($var,)*)).into_vm_result()?
+                };
 
-                    impl_register!{@return vm, ret, Ret}
-                    Ok(())
-                })
+                impl_register!{@return vm, ret, Ret}
+                Ok(())
             }
         }
 
@@ -507,27 +506,25 @@ macro_rules! impl_register {
                 Inst::value_type_info()
             }
 
-            fn vm_call<'vm>(self, vm: &'vm mut Vm, args: usize) -> BoxFuture<'vm, Result<(), VmError>> {
-                Box::pin(async move {
-                    impl_register!{@args $count, args}
+            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
+                impl_register!{@args $count, args}
 
-                    let inst = vm.managed_pop()?;
-                    $(let $var = vm.managed_pop()?;)*
+                let inst = vm.managed_pop()?;
+                $(let $var = vm.managed_pop()?;)*
 
-                    // Safety: We hold a reference to the Vm, so we can
-                    // guarantee that it won't be modified.
-                    //
-                    // The scope is also necessary, since we mutably access `vm`
-                    // when we return below.
-                    #[allow(unused_unsafe)]
-                    let ret = unsafe {
-                        impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                        tls::inject_vm(vm, || self(inst, $($var,)*)).into_vm_result()?
-                    };
+                // Safety: We hold a reference to the Vm, so we can
+                // guarantee that it won't be modified.
+                //
+                // The scope is also necessary, since we mutably access `vm`
+                // when we return below.
+                #[allow(unused_unsafe)]
+                let ret = unsafe {
+                    impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
+                    tls::inject_vm(vm, || self(inst, $($var,)*)).into_vm_result()?
+                };
 
-                    impl_register!{@return vm, ret, Ret}
-                    Ok(())
-                })
+                impl_register!{@return vm, ret, Ret}
+                Ok(())
             }
         }
 
