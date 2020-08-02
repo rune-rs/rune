@@ -1,3 +1,4 @@
+use crate::hash::Hash;
 use std::fmt;
 
 /// Type information about a value, that can be printed for human consumption
@@ -26,6 +27,8 @@ pub enum ValueTypeInfo {
     Type,
     /// A pointer to the stack.
     Ptr,
+    /// A function.
+    Fn(Hash),
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -63,6 +66,9 @@ impl fmt::Display for ValueTypeInfo {
             }
             ValueTypeInfo::Ptr => {
                 write!(fmt, "ptr")?;
+            }
+            ValueTypeInfo::Fn(hash) => {
+                write!(fmt, "fn({})", hash)?;
             }
         }
 

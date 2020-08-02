@@ -25,6 +25,8 @@ pub enum ValuePtr {
     ///
     /// A pointer is only allowed to point to a lower stack location.
     Ptr(usize),
+    /// A function pointer.
+    Fn(Hash),
 }
 
 impl ValuePtr {
@@ -76,6 +78,7 @@ impl ValuePtr {
             },
             Self::Type(..) => ValueType::Type,
             Self::Ptr(..) => ValueType::Ptr,
+            Self::Fn(hash) => ValueType::Fn(hash),
         })
     }
 
@@ -98,6 +101,7 @@ impl ValuePtr {
             },
             Self::Type(..) => ValueTypeInfo::Type,
             Self::Ptr(..) => ValueTypeInfo::Ptr,
+            Self::Fn(hash) => ValueTypeInfo::Fn(hash),
         })
     }
 }

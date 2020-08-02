@@ -73,6 +73,9 @@ impl ser::Serialize for ValuePtr {
             ValuePtr::Type(..) => {
                 return Err(ser::Error::custom("cannot serialize type objects"));
             }
+            ValuePtr::Fn(..) => {
+                return Err(ser::Error::custom("cannot serialize fn objects"));
+            }
         }
     }
 }

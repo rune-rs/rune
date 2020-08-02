@@ -355,6 +355,12 @@ pub enum VmError {
         /// The value ptr we are trying to assign.
         value_ptr: usize,
     },
+    /// Encountered a value that could not be called as a function
+    #[error("`{actual_type}` cannot be called since it's not a function")]
+    UnsupportedCallFn {
+        /// The type that could not be called.
+        actual_type: ValueTypeInfo,
+    },
 }
 
 /// Pop and type check a value off the stack.
@@ -440,6 +446,39 @@ struct Frame {
     ip: usize,
     /// The stored offset.
     frame_top: usize,
+}
+
+macro_rules! call_fn {
+    ($s:expr, $hash:expr, $args:expr, $context:expr, $unit:expr, $update_ip:ident) => {
+        let hash = $hash;
+
+        match $unit.lookup_offset(hash) {
+            Some(loc) => {
+                $s.push_frame(loc, $args)?;
+                $update_ip = false;
+            }
+            None => {
+                let handler = $context
+                    .lookup(hash)
+                    .ok_or_else(|| VmError::MissingFunction { hash })?;
+
+                let result = match handler {
+                    Handler::Async(handler) => handler($s, $args).await,
+                    Handler::Regular(handler) => handler($s, $args),
+                };
+
+                // Safety: We have exclusive access to the VM and
+                // everything that was borrowed during the call can
+                // now be cleared since it's only used in the
+                // handler.
+                unsafe {
+                    $s.disarm();
+                }
+
+                result?;
+            }
+        }
+    };
 }
 
 macro_rules! impl_slot_functions {
@@ -1185,6 +1224,7 @@ impl Vm {
             },
             ValuePtr::Type(ty) => Value::Type(ty),
             ValuePtr::Ptr(ptr) => Value::Ptr(ptr),
+            ValuePtr::Fn(hash) => Value::Fn(hash),
         });
 
         /// Convert into an owned array.
@@ -1235,6 +1275,7 @@ impl Vm {
             },
             ValuePtr::Type(ty) => ValueRef::Type(ty),
             ValuePtr::Ptr(ptr) => ValueRef::Ptr(ptr),
+            ValuePtr::Fn(hash) => ValueRef::Fn(hash),
         });
     }
 
@@ -1623,65 +1664,36 @@ impl Vm {
                     let a = self.managed_pop()?;
                     self.unmanaged_push(numeric_ops!(self, a * b));
                 }
+                // NB: we inline function calls because it helps Rust optimize
+                // the async plumbing.
                 Inst::Call { hash, args } => {
-                    match unit.lookup_offset(*hash) {
-                        Some(loc) => {
-                            self.push_frame(loc, *args)?;
-                            update_ip = false;
-                        }
-                        None => {
-                            let handler = context
-                                .lookup(*hash)
-                                .ok_or_else(|| VmError::MissingFunction { hash: *hash })?;
-
-                            let result = match handler {
-                                Handler::Async(handler) => handler(self, *args).await,
-                                Handler::Regular(handler) => handler(self, *args),
-                            };
-
-                            // Safety: We have exclusive access to the VM and
-                            // everything that was borrowed during the call can now
-                            // be cleared since it's only used in the handler.
-                            unsafe {
-                                self.disarm();
-                            }
-
-                            result?;
-                        }
-                    }
+                    call_fn!(self, *hash, *args, context, unit, update_ip);
                 }
                 Inst::CallInstance { hash, args } => {
                     let instance = self.peek()?;
                     let ty = instance.value_type(self)?;
-
                     let hash = Hash::instance_function(ty, *hash);
 
-                    match unit.lookup_offset(hash) {
-                        Some(loc) => {
-                            self.push_frame(loc, *args)?;
-                            update_ip = false;
+                    call_fn!(self, hash, *args, context, unit, update_ip);
+                }
+                Inst::CallFn { args } => {
+                    let function = self.managed_pop()?;
+
+                    let hash = match function {
+                        ValuePtr::Fn(hash) => hash,
+                        actual => {
+                            let actual_type = actual.type_info(self)?;
+                            return Err(VmError::UnsupportedCallFn { actual_type });
                         }
-                        None => {
-                            let handler = context
-                                .lookup(hash)
-                                .ok_or_else(|| VmError::MissingFunction { hash: hash })?;
+                    };
 
-                            let result = match handler {
-                                Handler::Async(handler) => handler(self, *args).await,
-                                Handler::Regular(handler) => handler(self, *args),
-                            };
-
-                            // Safety: We have exclusive access to the VM and
-                            // everything that was borrowed during the call can
-                            // now be cleared since it's only used in the
-                            // handler.
-                            unsafe {
-                                self.disarm();
-                            }
-
-                            result?;
-                        }
-                    }
+                    call_fn!(self, hash, *args, context, unit, update_ip);
+                }
+                Inst::LoadInstanceFn { hash } => {
+                    let instance = self.peek()?;
+                    let ty = instance.value_type(self)?;
+                    let hash = Hash::instance_function(ty, *hash);
+                    self.unmanaged_push(ValuePtr::Fn(hash));
                 }
                 Inst::IndexGet => {
                     let target = self.managed_pop()?;

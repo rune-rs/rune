@@ -50,6 +50,37 @@ pub enum Inst {
         /// The number of arguments expected on the stack for this call.
         args: usize,
     },
+    /// Lookup the specified instance function and put it on the stack.
+    /// This might help in cases where a single instance function is called many
+    /// times (like in a loop) since it avoids calculating its full hash on
+    /// every iteration.
+    ///
+    /// Note that this does not resolve that the instance function exists, only
+    /// that the instance does.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <fn>
+    /// ```
+    LoadInstanceFn {
+        /// The name hash of the instance function.
+        hash: Hash,
+    },
+    /// Perform a function call on a function pointer stored on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <fn>
+    /// <args...>
+    /// => <ret>
+    /// ```
+    CallFn {
+        /// The number of arguments expected on the stack for this call.
+        args: usize,
+    },
     /// Perform an index get operation. Pushing the result on the stack.
     ///
     /// # Operation
@@ -338,6 +369,12 @@ impl fmt::Display for Inst {
             }
             Inst::CallInstance { hash, args } => {
                 write!(fmt, "call-instance {}, {}", hash, args)?;
+            }
+            Inst::CallFn { args } => {
+                write!(fmt, "call-fn {}", args)?;
+            }
+            Inst::LoadInstanceFn { hash } => {
+                write!(fmt, "load-instance-fn {}", hash)?;
             }
             Inst::IndexGet => {
                 write!(fmt, "index-get")?;

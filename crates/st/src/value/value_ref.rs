@@ -28,4 +28,6 @@ pub enum ValueRef<'vm> {
     Type(Hash),
     /// A pointer to a value on the stack.
     Ptr(usize),
+    /// A function.
+    Fn(Hash),
 }

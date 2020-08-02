@@ -1,3 +1,4 @@
+use crate::hash::Hash;
 use std::any::TypeId;
 
 /// The type of an entry.
@@ -25,6 +26,8 @@ pub enum ValueType {
     Type,
     /// A pointer to a value on the stack.
     Ptr,
+    /// A function pointer.
+    Fn(Hash),
 }
 
 #[cfg(test)]
