@@ -7,6 +7,8 @@ mod compiler;
 mod error;
 mod lexer;
 mod parser;
+#[cfg(feature = "runtime")]
+mod runtime;
 mod source;
 mod token;
 mod traits;
@@ -15,6 +17,8 @@ pub use crate::compiler::Options;
 pub use crate::error::{CompileError, Error, ParseError, ResolveError, Result, SpannedError};
 pub use crate::lexer::Lexer;
 pub use crate::parser::Parser;
+#[cfg(feature = "runtime")]
+pub use crate::runtime::{termcolor, Runtime};
 pub use crate::source::Source;
 pub use crate::token::{Kind, Token};
 pub use crate::traits::Resolve;

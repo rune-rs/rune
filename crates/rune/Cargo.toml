@@ -7,10 +7,16 @@ description = """
 Rune is a simple dynamic language for the ST virtual machine.
 """
 
+[features]
+default = ["runtime"]
+runtime = ["codespan-reporting"]
+
 [dependencies]
 st = {version = "0.0.0", path = "../st"}
 thiserror = "1.0.20"
 log = "0.4.11"
+codespan-reporting = {version = "0.9.5", optional = true}
+slab = "0.4.2"
 
 [dev-dependencies]
 tokio = {version = "0.2", features = ["full"]}

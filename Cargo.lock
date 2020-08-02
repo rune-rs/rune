@@ -766,7 +766,9 @@ name = "rune"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "codespan-reporting",
  "log",
+ "slab",
  "st",
  "thiserror",
  "tokio",

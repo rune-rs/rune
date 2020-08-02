@@ -66,11 +66,11 @@ struct NeedsValue(bool);
 impl<'a> crate::ParseAll<'a, ast::File> {
     /// Compile the parse with default options.
     pub fn compile(self) -> Result<st::Unit> {
-        self.compile_with_options(Default::default())
+        self.compile_with_options(&Default::default())
     }
 
     /// Encode the given object into a collection of instructions.
-    pub fn compile_with_options(self, options: Options) -> Result<st::Unit> {
+    pub fn compile_with_options(self, options: &Options) -> Result<st::Unit> {
         let ParseAll { source, item: file } = self;
 
         let mut unit = st::Unit::with_default_prelude();

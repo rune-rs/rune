@@ -581,6 +581,7 @@ impl Assembly {
 }
 
 /// An error raised during linking.
+#[derive(Debug)]
 pub enum LinkerError {
     /// Missing a function with the given hash.
     MissingFunction {
@@ -592,6 +593,7 @@ pub enum LinkerError {
 }
 
 /// Linker errors.
+#[derive(Debug)]
 pub struct LinkerErrors {
     errors: Vec<LinkerError>,
 }
@@ -610,5 +612,14 @@ impl LinkerErrors {
     /// Return an iterator over all linker errors.
     pub fn errors(self) -> impl Iterator<Item = LinkerError> {
         self.errors.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a LinkerErrors {
+    type IntoIter = std::slice::Iter<'a, LinkerError>;
+    type Item = <Self::IntoIter as Iterator>::Item;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.errors.iter()
     }
 }
