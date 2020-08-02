@@ -5,3 +5,4 @@
 - [Concepts](./3_concepts.md)
   - [Variables](./3_1_variables.md)
   - [Control Flow](./3_2_control_flow.md)
+- [Types](./4_types.md)

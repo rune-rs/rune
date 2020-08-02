@@ -1,0 +1,5 @@
+use std::test::assert;
+
+fn main() {
+    assert(["hello", "world"] is String, "arrays should be strings");
+}

@@ -1,0 +1,15 @@
+fn dynamic_type(n) {
+    if n is String {
+        dbg("n is a string");
+    } else if n is Array {
+        dbg("n is an array");
+    } else {
+        dbg("I don't know n");
+    }
+}
+
+fn main() {
+    dynamic_type("Hello");
+    dynamic_type([1, 2, 3, 4]);
+    dynamic_type(42);
+}

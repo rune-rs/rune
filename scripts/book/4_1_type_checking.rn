@@ -1,0 +1,12 @@
+use std::test::assert;
+
+fn main() {
+    assert(() is unit, "units should be units");
+    assert(true is bool, "bools should be bools");
+    assert('a' is char, "chars should be chars");
+    assert(42 is int, "integers should be integers");
+    assert(42.1 is float, "floats should be floats");
+    assert("hello" is String, "strings should be strings");
+    assert(#{"hello": "world"} is Object, "objects should be objects");
+    assert(["hello", "world"] is Array, "arrays should be arrays");
+}
