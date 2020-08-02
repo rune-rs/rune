@@ -71,10 +71,7 @@ impl ValuePtr {
                 Managed::String => ValueType::String,
                 Managed::Array => ValueType::Array,
                 Managed::Object => ValueType::Object,
-                Managed::External => {
-                    let (_, type_hash) = vm.external_type(slot)?;
-                    ValueType::External(type_hash)
-                }
+                Managed::External => ValueType::External(vm.slot_type_id(slot)?),
             },
             Self::Type(..) => ValueType::Type,
             Self::Ptr(..) => ValueType::Ptr,
@@ -94,10 +91,7 @@ impl ValuePtr {
                 Managed::String => ValueTypeInfo::String,
                 Managed::Array => ValueTypeInfo::Array,
                 Managed::Object => ValueTypeInfo::Object,
-                Managed::External => {
-                    let (type_name, _) = vm.external_type(slot)?;
-                    ValueTypeInfo::External(type_name)
-                }
+                Managed::External => ValueTypeInfo::External(vm.slot_type_name(slot)?),
             },
             Self::Type(..) => ValueTypeInfo::Type,
             Self::Ptr(..) => ValueTypeInfo::Ptr,

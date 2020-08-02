@@ -17,6 +17,9 @@ pub trait Any: 'static + any::Any + Send + Sync + fmt::Debug + private::Sealed {
     /// Coerce this external into a mutable pointer iff it matches the expected
     /// type.
     fn as_mut_ptr(&mut self, expected_type: any::TypeId) -> Option<*mut ()>;
+
+    /// Get the name of the type being stored.
+    fn type_name(&self) -> &'static str;
 }
 
 impl<T> Any for T
@@ -45,6 +48,10 @@ where
         } else {
             None
         }
+    }
+
+    fn type_name(&self) -> &'static str {
+        any::type_name::<Self>()
     }
 }
 

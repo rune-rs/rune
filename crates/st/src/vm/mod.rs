@@ -413,10 +413,6 @@ macro_rules! numeric_ops {
 
 /// The holde of an external value.
 struct Holder {
-    /// The name of the stored value.
-    type_name: &'static str,
-    /// The type id of the stored value.
-    type_id: TypeId,
     /// How the external is accessed (if it is accessed).
     /// This only happens during function calls, and the function callee is
     /// responsible for unwinding the access.
@@ -428,8 +424,6 @@ struct Holder {
 impl fmt::Debug for Holder {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("external")
-            .field("type_name", &self.type_name)
-            .field("type_id", &self.type_id)
             .field("access", &self.access)
             .field("value", &self.value)
             .finish()
@@ -739,8 +733,6 @@ impl Vm {
 
     fn internal_allocate<T: Any>(&mut self, value: T) -> usize {
         self.slots.insert(Holder {
-            type_name: type_name::<T>(),
-            type_id: TypeId::of::<T>(),
             access: Access::default(),
             value: Some(Box::new(UnsafeCell::new(value))),
         })
@@ -809,13 +801,15 @@ impl Vm {
             let value = match (*value.get()).as_ptr(TypeId::of::<T>()) {
                 Some(value) => value,
                 None => {
+                    let actual = (*value.get()).type_name();
+
                     // NB: Immediately unshare because the cast failed and we
                     // won't be maintaining access to the type.
                     holder.access.release_shared();
 
                     return Err(StackError::BadSlotType {
                         expected: type_name::<T>(),
-                        actual: holder.type_name,
+                        actual,
                     });
                 }
             };
@@ -857,13 +851,15 @@ impl Vm {
             let value = match (*value.get()).as_mut_ptr(TypeId::of::<T>()) {
                 Some(value) => value,
                 None => {
+                    let actual = (*value.get()).type_name();
+
                     // NB: Immediately unshare because the cast failed and we
                     // won't be maintaining access to the type.
                     holder.access.release_exclusive();
 
                     return Err(StackError::BadSlotType {
                         expected: type_name::<T>(),
-                        actual: holder.type_name,
+                        actual,
                     });
                 }
             };
@@ -900,9 +896,11 @@ impl Vm {
             let value = match (*value.get()).as_ptr(TypeId::of::<T>()) {
                 Some(value) => &*(value as *const T),
                 None => {
+                    let actual = (*value.get()).type_name();
+
                     return Err(StackError::BadSlotType {
                         expected: type_name::<T>(),
-                        actual: holder.type_name,
+                        actual,
                     });
                 }
             };
@@ -956,7 +954,7 @@ impl Vm {
         match Self::convert_value(value) {
             Ok(value) => return Ok(value),
             Err(value) => {
-                let actual = holder.type_name;
+                let actual = unsafe { (*value.get()).type_name() };
 
                 holder.value = Some(value);
 
@@ -966,6 +964,30 @@ impl Vm {
                 })
             }
         }
+    }
+
+    fn external_with_dyn<F, T>(&self, slot: Slot, f: F) -> Result<T, StackError>
+    where
+        F: FnOnce(&dyn Any) -> T,
+    {
+        let holder = self
+            .slots
+            .get(slot.into_usize())
+            .ok_or_else(|| StackError::SlotMissing { slot })?;
+
+        holder.access.test_shared(slot)?;
+
+        let value = match &holder.value {
+            Some(value) => value,
+            None => {
+                return Err(StackError::SlotMissing { slot });
+            }
+        };
+
+        // Safety: We have the necessary level of ownership to guarantee that
+        // the reference cast is safe, and we wrap the return value in a
+        // guard which ensures the needed access level.
+        Ok(f(unsafe { &*value.get() }))
     }
 
     /// Get a reference of the external value of the given type and the given
@@ -1023,13 +1045,14 @@ impl Vm {
         }
     }
 
-    /// Access information about an external type, if available.
-    pub fn external_type(&self, slot: Slot) -> Result<(&'static str, TypeId), StackError> {
-        if let Some(holder) = self.slots.get(slot.into_usize()) {
-            return Ok((holder.type_name, holder.type_id));
-        }
+    /// Access the type name of the slot.
+    pub fn slot_type_name(&self, slot: Slot) -> Result<&'static str, StackError> {
+        self.external_with_dyn(slot, |e| e.type_name())
+    }
 
-        Err(StackError::SlotMissing { slot })
+    /// Access the type id of the slot.
+    pub fn slot_type_id(&self, slot: Slot) -> Result<TypeId, StackError> {
+        self.external_with_dyn(slot, |e| e.type_id())
     }
 
     /// Convert a value reference into an owned value.
