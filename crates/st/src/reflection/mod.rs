@@ -120,7 +120,7 @@ macro_rules! impl_into_args {
             fn into_args(self, vm: &mut Vm) -> Result<(), StackError> {
                 let ($($var,)*) = self;
                 $(let $var = $var.to_value(vm)?;)*
-                $(vm.unmanaged_push($var);)*
+                $(vm.push($var);)*
                 Ok(())
             }
 

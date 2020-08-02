@@ -416,7 +416,7 @@ macro_rules! impl_register {
             ) -> Result<(), VmError> {
                 impl_register!{@args $count, args}
 
-                $(let $var = vm.managed_pop()?;)*
+                $(let $var = vm.pop()?;)*
 
                 // Safety: We hold a reference to the Vm, so we can
                 // guarantee that it won't be modified.
@@ -453,7 +453,7 @@ macro_rules! impl_register {
                 Box::pin(async move {
                     impl_register!{@args $count, args}
 
-                    $(let $var = vm.managed_pop()?;)*
+                    $(let $var = vm.pop()?;)*
 
                     // Safety: We hold a reference to the Vm, so we can
                     // guarantee that it won't be modified.
@@ -494,8 +494,8 @@ macro_rules! impl_register {
             fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
                 impl_register!{@args $count, args}
 
-                let inst = vm.managed_pop()?;
-                $(let $var = vm.managed_pop()?;)*
+                let inst = vm.pop()?;
+                $(let $var = vm.pop()?;)*
 
                 // Safety: We hold a reference to the Vm, so we can
                 // guarantee that it won't be modified.
@@ -537,8 +537,8 @@ macro_rules! impl_register {
                 Box::pin(async move {
                     impl_register!{@args $count, args}
 
-                    let inst = vm.managed_pop()?;
-                    $(let $var = vm.managed_pop()?;)*
+                    let inst = vm.pop()?;
+                    $(let $var = vm.pop()?;)*
 
                     // Safety: We hold a reference to the Vm, so we can
                     // guarantee that it won't be modified.
@@ -569,7 +569,7 @@ macro_rules! impl_register {
             }
         };
 
-        $vm.unmanaged_push($ret);
+        $vm.push($ret);
     };
 
     // Expand to function variable bindings.
