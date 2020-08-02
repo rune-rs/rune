@@ -41,21 +41,38 @@ pub trait FromValue: Sized {
 
 /// A potentially unsafe conversion for value conversion.
 pub trait UnsafeFromValue: Sized {
+    /// The raw guard returned.
+    ///
+    /// Must only be dropped *after* the value returned from this function is
+    /// no longer live.
+    type Guard;
+
     /// Convert the given reference using unsafe assumptions to a value.
     ///
     /// # Safety
     ///
     /// The return value of this function may only be used while a virtual
     /// machine is not being modified.
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError>;
+    ///
+    /// You must also make sure that the returned value does not outlive the
+    /// guard.
+    unsafe fn unsafe_from_value(
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self, Self::Guard), StackError>;
 }
 
 impl<T> UnsafeFromValue for T
 where
     T: FromValue,
 {
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
-        T::from_value(value, vm)
+    type Guard = ();
+
+    unsafe fn unsafe_from_value(
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self, Self::Guard), StackError> {
+        Ok((T::from_value(value, vm)?, ()))
     }
 }
 

@@ -441,7 +441,7 @@ macro_rules! impl_register {
                 #[allow(unused_unsafe)]
                 let ret = unsafe {
                     impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self($($var,)*)).into_vm_result()?
+                    tls::inject_vm(vm, || self($($var.0,)*)).into_vm_result()?
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -478,7 +478,7 @@ macro_rules! impl_register {
                     #[allow(unused_unsafe)]
                     let ret = unsafe {
                         impl_register!{@vars vm, $count, $($ty, $var, $num,)*}
-                        tls::InjectVm::new(vm, self($($var,)*)).await.into_vm_result()?
+                        tls::InjectVm::new(vm, self($($var.0,)*)).await.into_vm_result()?
                     };
 
                     impl_register!{@return vm, ret, Ret}
@@ -520,7 +520,7 @@ macro_rules! impl_register {
                 #[allow(unused_unsafe)]
                 let ret = unsafe {
                     impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self(inst, $($var,)*)).into_vm_result()?
+                    tls::inject_vm(vm, || self(inst.0, $($var.0,)*)).into_vm_result()?
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -563,7 +563,7 @@ macro_rules! impl_register {
                     #[allow(unused_unsafe)]
                     let ret = unsafe {
                         impl_register!{@unsafeinstancevars inst, vm, $count, $($ty, $var, $num,)*}
-                        tls::InjectVm::new(vm, self(inst, $($var,)*)).await.into_vm_result()?
+                        tls::InjectVm::new(vm, self(inst.0, $($var.0,)*)).await.into_vm_result()?
                     };
 
                     impl_register!{@return vm, ret, Ret}

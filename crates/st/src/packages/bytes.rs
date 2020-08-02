@@ -2,6 +2,7 @@
 
 use crate::context::{ContextError, Module};
 use crate::value::{ValueType, ValueTypeInfo};
+use crate::vm::RawRefGuard;
 use std::any::{type_name, TypeId};
 use std::fmt;
 use std::ops;
@@ -98,13 +99,15 @@ impl Bytes {
 decl_external!(Bytes);
 
 impl<'a> crate::UnsafeFromValue for &'a [u8] {
+    type Guard = RawRefGuard;
+
     unsafe fn unsafe_from_value(
         value: crate::ValuePtr,
         vm: &mut crate::Vm,
-    ) -> Result<Self, crate::StackError> {
+    ) -> Result<(Self, Self::Guard), crate::StackError> {
         let slot = value.into_external(vm)?;
-        let value = crate::Ref::unsafe_into_ref(vm.external_ref::<Bytes>(slot)?);
-        Ok(value.bytes.as_slice())
+        let (value, guard) = crate::Ref::unsafe_into_ref(vm.external_ref::<Bytes>(slot)?);
+        Ok((value.bytes.as_slice(), guard))
     }
 }
 

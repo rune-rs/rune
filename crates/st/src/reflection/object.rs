@@ -1,6 +1,6 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::value::{Object, ValuePtr, ValueType, ValueTypeInfo};
-use crate::vm::{Ref, StackError, Vm};
+use crate::vm::{RawRefGuard, Ref, StackError, Vm};
 
 impl<T> ReflectValueType for Object<T> {
     fn value_type() -> ValueType {
@@ -50,7 +50,12 @@ where
 }
 
 impl<'a> UnsafeFromValue for &'a Object<ValuePtr> {
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    type Guard = RawRefGuard;
+
+    unsafe fn unsafe_from_value(
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self, Self::Guard), StackError> {
         let slot = value.into_object(vm)?;
         Ok(Ref::unsafe_into_ref(vm.object_ref(slot)?))
     }

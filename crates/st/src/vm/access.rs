@@ -1,20 +1,13 @@
 use crate::value::Slot;
 use crate::vm::StackError;
-use std::cell::{Cell, UnsafeCell};
+use std::cell::Cell;
 use std::fmt;
-use std::mem;
 use std::ops;
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct Access(Cell<isize>);
 
 impl Access {
-    /// Clear the given access token.
-    #[inline]
-    pub(super) fn clear(&self) {
-        self.0.set(0);
-    }
-
     /// Test if we have shared access without modifying the internal count.
     #[inline]
     pub(super) fn test_shared(&self, slot: Slot) -> Result<(), StackError> {
@@ -56,6 +49,18 @@ impl Access {
         self.0.set(b);
     }
 
+    /// Test if we have exclusive access without modifying the internal count.
+    #[inline]
+    pub(super) fn test_exclusive(&self, slot: Slot) -> Result<(), StackError> {
+        let b = self.0.get().wrapping_add(1);
+
+        if b != 1 {
+            return Err(StackError::SlotInaccessibleExclusive { slot });
+        }
+
+        Ok(())
+    }
+
     /// Mark that we want exclusive access to the given access token.
     #[inline]
     pub(super) fn exclusive(&self, slot: Slot) -> Result<(), StackError> {
@@ -70,6 +75,17 @@ impl Access {
     }
 }
 
+/// A raw reference guard.
+pub struct RawRefGuard {
+    pub(super) access: *const Access,
+}
+
+impl Drop for RawRefGuard {
+    fn drop(&mut self) {
+        unsafe { (*self.access).release_shared() };
+    }
+}
+
 /// Guard for a value borrowed from a slot in the virtual machine.
 ///
 /// These guards are necessary, since we need to guarantee certain forms of
@@ -81,9 +97,7 @@ impl Access {
 /// See [disarm][Vm::disarm] for more information.
 pub struct Ref<'a, T: ?Sized + 'a> {
     pub(super) value: &'a T,
-    pub(super) access: &'a Access,
-    pub(super) slot: Slot,
-    pub(super) guards: &'a UnsafeCell<Vec<Slot>>,
+    pub(super) raw: RawRefGuard,
 }
 
 impl<'a, T: ?Sized> Ref<'a, T> {
@@ -94,11 +108,9 @@ impl<'a, T: ?Sized> Ref<'a, T> {
     /// The returned reference must not outlive the VM that produced it.
     /// Calling [disarm][Vm::disarm] must not be done until all referenced
     /// produced through these methods are no longer live.
-    pub unsafe fn unsafe_into_ref<'out>(this: Self) -> &'out T {
-        (*this.guards.get()).push(this.slot);
+    pub unsafe fn unsafe_into_ref<'out>(this: Self) -> (&'out T, RawRefGuard) {
         let value = &*(this.value as *const _);
-        mem::forget(this);
-        value
+        (value, this.raw)
     }
 }
 
@@ -110,18 +122,23 @@ impl<T: ?Sized> ops::Deref for Ref<'_, T> {
     }
 }
 
-impl<T: ?Sized> Drop for Ref<'_, T> {
-    fn drop(&mut self) {
-        self.access.release_shared();
-    }
-}
-
 impl<T: ?Sized> fmt::Debug for Ref<'_, T>
 where
     T: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self.value, fmt)
+    }
+}
+
+/// A raw mutable guard.
+pub struct RawMutGuard {
+    pub(super) access: *const Access,
+}
+
+impl Drop for RawMutGuard {
+    fn drop(&mut self) {
+        unsafe { (*self.access).release_exclusive() }
     }
 }
 
@@ -136,12 +153,10 @@ where
 /// See [disarm][Vm::disarm] for more information.
 pub struct Mut<'a, T: ?Sized> {
     pub(super) value: &'a mut T,
-    pub(super) access: &'a Access,
-    pub(super) slot: Slot,
-    pub(super) guards: &'a UnsafeCell<Vec<Slot>>,
+    pub(super) raw: RawMutGuard,
 }
 
-impl<T: ?Sized> Mut<'_, T> {
+impl<'a, T: ?Sized> Mut<'a, T> {
     /// Convert into a reference with an unbounded lifetime.
     ///
     /// # Safety
@@ -149,11 +164,9 @@ impl<T: ?Sized> Mut<'_, T> {
     /// The returned reference must not outlive the VM that produced it.
     /// Calling [disarm][Vm::disarm] must not be done until all referenced
     /// produced through these methods are no longer live.
-    pub unsafe fn unsafe_into_mut<'out>(this: Self) -> &'out mut T {
-        (*this.guards.get()).push(this.slot);
+    pub unsafe fn unsafe_into_mut<'out>(this: Self) -> (&'out mut T, RawMutGuard) {
         let value = &mut *(this.value as *mut _);
-        mem::forget(this);
-        value
+        (value, this.raw)
     }
 }
 
@@ -168,11 +181,5 @@ impl<T: ?Sized> ops::Deref for Mut<'_, T> {
 impl<T: ?Sized> ops::DerefMut for Mut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.value
-    }
-}
-
-impl<T: ?Sized> Drop for Mut<'_, T> {
-    fn drop(&mut self) {
-        self.access.release_exclusive();
     }
 }

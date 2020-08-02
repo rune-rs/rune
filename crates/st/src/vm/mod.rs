@@ -18,7 +18,7 @@ mod access;
 mod inst;
 
 use self::access::Access;
-pub use self::access::{Mut, Ref};
+pub use self::access::{Mut, RawMutGuard, RawRefGuard, Ref};
 pub use self::inst::Inst;
 
 /// An error raised when interacting with types on the stack.
@@ -467,14 +467,6 @@ macro_rules! call_fn {
                     Handler::Regular(handler) => handler($s, $args),
                 };
 
-                // Safety: We have exclusive access to the VM and
-                // everything that was borrowed during the call can
-                // now be cleared since it's only used in the
-                // handler.
-                unsafe {
-                    $s.disarm();
-                }
-
                 result?;
             }
         }
@@ -545,8 +537,6 @@ pub struct Vm {
     reap_work: Vec<Slot>,
     /// Slots with external values.
     slots: Slab<Holder>,
-    /// Slots that needs to be disarmed next time we call `disarm`.
-    guards: UnsafeCell<Vec<Slot>>,
 }
 
 impl Vm {
@@ -561,7 +551,6 @@ impl Vm {
             reap_queue: Vec::new(),
             reap_work: Vec::new(),
             slots: Slab::new(),
-            guards: UnsafeCell::new(Vec::new()),
         }
     }
 
@@ -905,35 +894,6 @@ impl Vm {
         Ok(())
     }
 
-    /// Disarm all collected guards.
-    ///
-    /// Borrows are "armed" if they are unsafely converted into an inner unbound
-    /// reference through either [unsafe_into_ref][Ref::unsafe_into_ref] or
-    /// [unsafe_into_mut][Mut::unsafe_into_mut].
-    ///
-    /// After this happens, the slot is permanently marked as used (either
-    /// exclusively or shared) until this disarm function is called.
-    ///
-    /// However, the caller of this function **must** provide some safety
-    /// guarantees documented below.
-    ///
-    /// # Safety
-    ///
-    /// This may only be called once all references fetched through the various
-    /// `*_mut` and `*_ref` methods are no longer live.
-    ///
-    /// Otherwise, this could permit aliasing of slot values.
-    pub unsafe fn disarm(&mut self) {
-        // Safety: We have exclusive access to the guards field.
-        for slot in (*self.guards.get()).drain(..) {
-            log::trace!("clearing access: {}", slot);
-
-            if let Some(holder) = self.slots.get(slot.into_usize()) {
-                holder.access.clear();
-            }
-        }
-    }
-
     impl_slot_functions! {
         String,
         string,
@@ -982,7 +942,9 @@ impl Vm {
             }
         };
 
-        // Safety: Caller needs to ensure that they safely call disarm.
+        // Safety: We have the necessary level of ownership to guarantee that
+        // the reference cast is safe, and we wrap the return value in a
+        // guard which ensures the needed access level.
         unsafe {
             let value = match (*value.get()).as_ptr(TypeId::of::<T>()) {
                 Some(value) => value,
@@ -1000,9 +962,9 @@ impl Vm {
 
             Ok(Ref {
                 value: &*(value as *const T),
-                access: &holder.access,
-                slot,
-                guards: &self.guards,
+                raw: RawRefGuard {
+                    access: &holder.access,
+                },
             })
         }
     }
@@ -1028,7 +990,9 @@ impl Vm {
             }
         };
 
-        // Safety: Caller needs to ensure that they safely call disarm.
+        // Safety: We have the necessary level of ownership to guarantee that
+        // the reference cast is safe, and we wrap the return value in a
+        // guard which ensures the needed access level.
         unsafe {
             let value = match (*value.get()).as_mut_ptr(TypeId::of::<T>()) {
                 Some(value) => value,
@@ -1046,9 +1010,9 @@ impl Vm {
 
             Ok(Mut {
                 value: &mut *(value as *mut T),
-                access: &holder.access,
-                slot,
-                guards: &self.guards,
+                raw: RawMutGuard {
+                    access: &holder.access,
+                },
             })
         }
     }
@@ -1069,7 +1033,9 @@ impl Vm {
             None => return Err(StackError::SlotMissing { slot }),
         };
 
-        // Safety: Caller needs to ensure that they safely call disarm.
+        // Safety: We have the necessary level of ownership to guarantee that
+        // the reference cast is safe, and we wrap the return value in a
+        // guard which ensures the needed access level.
         unsafe {
             let value = match (*value.get()).as_ptr(TypeId::of::<T>()) {
                 Some(value) => &*(value as *const T),
@@ -1092,6 +1058,11 @@ impl Vm {
     where
         T: 'static,
     {
+        // Safety: The conversion is fully checked through the invariants
+        // provided by our custom `Any` implementaiton.
+        //
+        // `as_mut_ptr` ensures that the type of the boxed value matches the
+        // expected type.
         unsafe {
             let value = Box::into_raw(value);
 
@@ -1113,26 +1084,21 @@ impl Vm {
             .get_mut(slot.into_usize())
             .ok_or_else(|| StackError::SlotMissing { slot })?;
 
-        holder.access.exclusive(slot)?;
+        holder.access.test_exclusive(slot)?;
 
         let value = match holder.value.take() {
             Some(value) => value,
             None => {
-                holder.access.release_exclusive();
                 return Err(StackError::SlotMissing { slot });
             }
         };
 
-        holder.access.release_exclusive();
-
-        // Safety: Caller needs to ensure that they safely call disarm.
         match Self::convert_value(value) {
             Ok(value) => return Ok(value),
             Err(value) => {
                 let actual = holder.type_name;
 
                 holder.value = Some(value);
-                holder.access.clear();
 
                 Err(StackError::BadSlotType {
                     expected: type_name::<T>(),
@@ -1160,12 +1126,14 @@ impl Vm {
             }
         };
 
-        // Safety: Caller needs to ensure that they safely call disarm.
+        // Safety: We have the necessary level of ownership to guarantee that
+        // the reference cast is safe, and we wrap the return value in a
+        // guard which ensures the needed access level.
         Ok(Ref {
             value: unsafe { &*value.get() },
-            access: &holder.access,
-            slot,
-            guards: &self.guards,
+            raw: RawRefGuard {
+                access: &holder.access,
+            },
         })
     }
 
@@ -1186,7 +1154,9 @@ impl Vm {
             }
         };
 
-        // Safety: Caller needs to ensure that they safely call disarm.
+        // Safety: We have the necessary level of ownership to guarantee that
+        // the reference cast is safe, and we wrap the return value in a
+        // guard which ensures the needed access level.
         unsafe {
             let value = Box::into_raw(value);
             return Ok(Box::from_raw((*value).get()));

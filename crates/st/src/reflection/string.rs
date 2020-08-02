@@ -2,7 +2,7 @@
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
-use crate::vm::{Mut, Ref, StackError, Vm};
+use crate::vm::{Mut, RawMutGuard, RawRefGuard, Ref, StackError, Vm};
 
 impl ReflectValueType for String {
     fn value_type() -> ValueType {
@@ -62,14 +62,25 @@ impl FromValue for Box<str> {
 }
 
 impl<'a> UnsafeFromValue for &'a str {
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    type Guard = RawRefGuard;
+
+    unsafe fn unsafe_from_value(
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self, Self::Guard), StackError> {
         let slot = value.into_string(vm)?;
-        Ok(Ref::unsafe_into_ref(vm.string_ref(slot)?).as_str())
+        let (s, guard) = Ref::unsafe_into_ref(vm.string_ref(slot)?);
+        Ok((s.as_str(), guard))
     }
 }
 
 impl<'a> UnsafeFromValue for &'a String {
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    type Guard = RawRefGuard;
+
+    unsafe fn unsafe_from_value(
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self, Self::Guard), StackError> {
         let slot = value.into_string(vm)?;
         Ok(Ref::unsafe_into_ref(vm.string_ref(slot)?))
     }
@@ -86,7 +97,12 @@ impl<'a> ReflectValueType for &'a String {
 }
 
 impl<'a> UnsafeFromValue for &'a mut String {
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    type Guard = RawMutGuard;
+
+    unsafe fn unsafe_from_value(
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self, Self::Guard), StackError> {
         let slot = value.into_string(vm)?;
         Ok(Mut::unsafe_into_mut(vm.string_mut(slot)?))
     }

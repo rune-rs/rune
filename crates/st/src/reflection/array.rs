@@ -1,6 +1,6 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::value::{Array, ValuePtr, ValueType, ValueTypeInfo};
-use crate::vm::{Ref, StackError, Vm};
+use crate::vm::{RawRefGuard, Ref, StackError, Vm};
 
 impl<T> ReflectValueType for Array<T> {
     fn value_type() -> ValueType {
@@ -51,7 +51,12 @@ where
 }
 
 impl<'a> UnsafeFromValue for &'a Array<ValuePtr> {
-    unsafe fn unsafe_from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    type Guard = RawRefGuard;
+
+    unsafe fn unsafe_from_value(
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self, Self::Guard), StackError> {
         let slot = value.into_array(vm)?;
         Ok(Ref::unsafe_into_ref(vm.array_ref(slot)?))
     }
