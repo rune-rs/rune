@@ -89,6 +89,7 @@ impl<'a> Lexer<'a> {
             "false" => Kind::False,
             "is" => Kind::Is,
             "break" => Kind::Break,
+            "return" => Kind::Return,
             _ => Kind::Ident,
         };
 

@@ -277,7 +277,12 @@ impl<'a> Compiler<'a> {
         let var_count = self.last_scope(span)?.var_count - open_var_count;
 
         if needs_value.0 {
-            self.clean_up_locals(var_count, span);
+            if block.trailing_expr.is_none() {
+                self.pop_locals(var_count, span);
+                self.instructions.push(st::Inst::Unit, span);
+            } else {
+                self.clean_up_locals(var_count, span);
+            }
         } else {
             self.pop_locals(var_count, span);
         }
@@ -291,6 +296,30 @@ impl<'a> Compiler<'a> {
                 "parent scope mismatch at end of block",
                 span,
             ));
+        }
+
+        Ok(())
+    }
+
+    /// Encode a return.
+    fn encode_return(&mut self, return_: &ast::Return, needs_value: NeedsValue) -> Result<()> {
+        let span = return_.span();
+        let var_count = self.last_scope(span)?.var_count;
+
+        if needs_value.0 {
+            return Err(CompileError::ReturnDoesNotProduceValue {
+                block: self.current_block,
+                span,
+            });
+        }
+
+        if let Some(expr) = &return_.expr {
+            self.encode_expr(&*expr, NeedsValue(true))?;
+            self.clean_up_locals(var_count, span);
+            self.instructions.push(st::Inst::Return, span);
+        } else {
+            self.pop_locals(var_count, span);
+            self.instructions.push(st::Inst::ReturnUnit, span);
         }
 
         Ok(())
@@ -369,6 +398,9 @@ impl<'a> Compiler<'a> {
             }
             ast::Expr::Block(b) => {
                 self.encode_block(b, needs_value)?;
+            }
+            ast::Expr::Return(return_) => {
+                self.encode_return(return_, needs_value)?;
             }
         }
 

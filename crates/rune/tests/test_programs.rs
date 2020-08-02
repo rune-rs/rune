@@ -236,3 +236,71 @@ async fn test_for() {
         10,
     };
 }
+
+#[tokio::test]
+async fn test_return() {
+    assert_eq! {
+        test!(i64 => r#"
+        use std::iter::range;
+
+        fn main() {
+            for v in range(0, 20) {
+                if v == 10 {
+                    return v;
+                }
+            }
+
+            0
+        }"#),
+        10,
+    };
+}
+
+#[tokio::test]
+async fn test_is() {
+    assert_eq! {
+        test!(bool => r#"
+        fn main() {
+            {} is Object
+        }"#),
+        false,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { #{} is Object }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { () is unit }"#),
+        true,
+    };
+    assert_eq! {
+        test!(bool => r#"fn main() { true is bool }"#),
+        true,
+    };
+    assert_eq! {
+        test!(bool => r#"fn main() { 'a' is char }"#),
+        true,
+    };
+    assert_eq! {
+        test!(bool => r#"fn main() { 42 is int }"#),
+        true,
+    };
+    assert_eq! {
+        test!(bool => r#"fn main() { 42.1 is float }"#),
+        true,
+    };
+    assert_eq! {
+        test!(bool => r#"fn main() { "hello" is String }"#),
+        true,
+    };
+    assert_eq! {
+        test!(bool => r#"fn main() { #{"hello": "world"} is Object }"#),
+        true,
+    };
+    assert_eq! {
+        test!(bool => r#"fn main() { ["hello", "world"] is Array }"#),
+        true,
+    };
+}

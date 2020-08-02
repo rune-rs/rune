@@ -995,6 +995,8 @@ pub enum Expr {
     Break(Break),
     /// A block as an expression.
     Block(Block),
+    /// A return statement.
+    Return(Return),
 }
 
 impl Expr {
@@ -1011,6 +1013,7 @@ impl Expr {
             Self::Break(..) => true,
             Self::ExprBinary(expr) => expr.produces_nothing(),
             Self::Block(b) => b.produces_nothing(),
+            Self::Return(..) => true,
             _ => false,
         }
     }
@@ -1041,6 +1044,7 @@ impl Expr {
             Self::BoolLiteral(b) => b.span(),
             Self::Break(b) => b.span(),
             Self::Block(b) => b.span(),
+            Self::Return(ret) => ret.span(),
         }
     }
 
@@ -1141,6 +1145,7 @@ impl Expr {
                 None => Self::parse_ident_start(parser)?,
             },
             Kind::Break => Self::Break(parser.parse()?),
+            Kind::Return => Self::Return(parser.parse()?),
             _ => {
                 return Err(ParseError::ExpectedExprError {
                     actual: token.kind,
@@ -1395,6 +1400,42 @@ impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let lhs = Self::parse_primary(parser, NoIndex(false))?;
         Ok(Self::parse_expr_binary(parser, lhs, 0)?)
+    }
+}
+
+impl Peek for Expr {
+    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
+        let t1 = match t1 {
+            Some(t1) => t1,
+            None => return false,
+        };
+
+        match t1.kind {
+            Kind::StartObject => true,
+            Kind::Not | Kind::Ampersand | Kind::Star => true,
+            Kind::While => true,
+            Kind::Loop => true,
+            Kind::For => true,
+            Kind::Let => true,
+            Kind::If => true,
+            Kind::NumberLiteral { .. } => true,
+            Kind::CharLiteral { .. } => true,
+            Kind::StringLiteral { .. } => true,
+            Kind::Open {
+                delimiter: Delimiter::Parenthesis,
+            } => true,
+            Kind::Open {
+                delimiter: Delimiter::Bracket,
+            } => true,
+            Kind::Open {
+                delimiter: Delimiter::Brace,
+            } => true,
+            Kind::True | Kind::False => true,
+            Kind::Ident => true,
+            Kind::Break => true,
+            Kind::Return => true,
+            _ => false,
+        }
     }
 }
 
@@ -1914,7 +1955,7 @@ where
     }
 }
 
-/// Something parenthesized and comma separated `(<T,>*)`.
+/// A prioritized expression group `(<expr>)`.
 #[derive(Debug, Clone)]
 pub struct ExprGroup {
     /// The open parenthesis.
@@ -1944,6 +1985,40 @@ impl Parse for ExprGroup {
             expr: Box::new(parser.parse()?),
             close: parser.parse()?,
         })
+    }
+}
+
+/// A return statement `return [expr]`.
+#[derive(Debug, Clone)]
+pub struct Return {
+    /// The return token.
+    pub return_: ReturnToken,
+    /// An optional expression to return.
+    pub expr: Option<Box<Expr>>,
+}
+
+impl Return {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        if let Some(expr) = &self.expr {
+            self.return_.span().join(expr.span())
+        } else {
+            self.return_.span()
+        }
+    }
+}
+
+impl Parse for Return {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let return_ = parser.parse()?;
+
+        let expr = if parser.peek::<Expr>()? {
+            Some(Box::new(parser.parse()?))
+        } else {
+            None
+        };
+
+        Ok(Self { return_, expr })
     }
 }
 
@@ -2020,6 +2095,7 @@ decl_tokens! {
     (ForToken, Kind::For),
     (InToken, Kind::In),
     (Break, Kind::Break),
+    (ReturnToken, Kind::Return),
     (Star, Kind::Star),
     (StartObject, Kind::StartObject),
 }

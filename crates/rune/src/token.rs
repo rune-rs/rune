@@ -84,6 +84,8 @@ pub enum Kind {
     False,
     /// A `break` token.
     Break,
+    /// A `return` token.
+    Return,
     /// An identifier.
     Ident,
     /// A number literal, like `42` or `3.14` or `0xff`.
@@ -166,6 +168,7 @@ impl fmt::Display for Kind {
             Self::True => write!(fmt, "true")?,
             Self::False => write!(fmt, "false")?,
             Self::Break => write!(fmt, "break")?,
+            Self::Return => write!(fmt, "return")?,
             Self::Ident => write!(fmt, "ident")?,
             Self::NumberLiteral { .. } => write!(fmt, "number")?,
             Self::StringLiteral { .. } => write!(fmt, "string")?,

@@ -1,5 +1,4 @@
 use crate::collections::HashMap;
-use crate::hash::Hash;
 use crate::reflection::{ReflectValueType, ToValue, UnsafeFromValue};
 use crate::tls;
 use crate::value::{ValueType, ValueTypeInfo};
@@ -8,7 +7,7 @@ use std::any::type_name;
 use std::future::Future;
 
 use crate::context::item::Item;
-use crate::context::{BoxFuture, ContextError, FnSignature, Handler};
+use crate::context::{BoxFuture, ContextError, Handler};
 
 /// A collection of functions that can be looked up by type.
 #[derive(Default)]
@@ -16,9 +15,10 @@ pub struct Module {
     /// The name of the module.
     pub(super) path: Item,
     /// Free functions.
-    pub(super) functions: HashMap<Item, (Handler, FnSignature)>,
+    pub(super) functions: HashMap<Item, (Handler, Option<usize>)>,
     /// Instance functions.
-    pub(super) instance_functions: HashMap<(ValueType, String), (Handler, FnSignature)>,
+    pub(super) instance_functions:
+        HashMap<(ValueType, String), (Handler, Option<usize>, ValueTypeInfo)>,
     /// Registered types.
     pub(super) types: HashMap<ValueType, (ValueTypeInfo, Item)>,
 }
@@ -49,7 +49,6 @@ impl Module {
     {
         TypeBuilder {
             name,
-            path: &self.path,
             types: &mut self.types,
         }
     }
@@ -88,15 +87,14 @@ impl Module {
         N: IntoIterator,
         N::Item: AsRef<str>,
     {
-        let name = self.path.join(name);
+        let name = Item::of(name);
 
         if self.functions.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
         let handler = Handler::Regular(Box::new(move |vm, args| f.vm_call(vm, args)));
-        let signature = FnSignature::new_free(self.path.join(&name), Func::args());
-        self.functions.insert(name, (handler, signature));
+        self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
 
@@ -121,15 +119,14 @@ impl Module {
         N: IntoIterator,
         N::Item: AsRef<str>,
     {
-        let name = self.path.join(name);
+        let name = Item::of(name);
 
         if self.functions.contains_key(&name) {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
         let handler = Handler::Async(Box::new(move |vm, args| f.vm_call(vm, args)));
-        let signature = FnSignature::new_free(self.path.join(&name), Func::args());
-        self.functions.insert(name, (handler, signature));
+        self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
 
@@ -141,17 +138,14 @@ impl Module {
         N: IntoIterator,
         N::Item: AsRef<str>,
     {
-        let name = self.path.join(name);
+        let name = Item::of(name);
 
         if self.functions.contains_key(&name) {
-            return Err(ContextError::ConflictingFunctionName {
-                name: name.to_owned(),
-            });
+            return Err(ContextError::ConflictingFunctionName { name });
         }
 
         let handler = Handler::Regular(Box::new(move |vm, args| f(vm, args)));
-        let signature = FnSignature::new_raw(self.path.join(&name));
-        self.functions.insert(name.to_owned(), (handler, signature));
+        self.functions.insert(name, (handler, None));
         Ok(())
     }
 
@@ -173,8 +167,8 @@ impl Module {
         let handler = Handler::Async(Box::new(move |vm, args| {
             Box::pin(async move { f(vm, args).await })
         }));
-        let signature = FnSignature::new_raw(self.path.join(&name));
-        self.functions.insert(name, (handler, signature));
+
+        self.functions.insert(name, (handler, None));
         Ok(())
     }
 
@@ -226,10 +220,9 @@ impl Module {
         }
 
         let handler = Handler::Regular(Box::new(move |vm, args| f.vm_call(vm, args)));
-        let signature = FnSignature::new_inst(type_info, name, Func::args());
 
         self.instance_functions
-            .insert(key.clone(), (handler, signature));
+            .insert(key.clone(), (handler, Some(Func::args()), type_info));
         Ok(())
     }
 
@@ -279,10 +272,9 @@ impl Module {
         }
 
         let handler = Handler::Async(Box::new(move |vm, args| f.vm_call(vm, args)));
-        let signature = FnSignature::new_inst(type_info, name, Func::args());
 
         self.instance_functions
-            .insert(key.clone(), (handler, signature));
+            .insert(key.clone(), (handler, Some(Func::args()), type_info));
         Ok(())
     }
 }
@@ -291,7 +283,6 @@ impl Module {
 #[must_use = "must be consumed with build::<T>() to construct a type"]
 pub struct TypeBuilder<'a, N> {
     name: N,
-    path: &'a Item,
     types: &'a mut HashMap<ValueType, (ValueTypeInfo, Item)>,
 }
 
@@ -305,18 +296,12 @@ where
     where
         T: ReflectValueType,
     {
-        let name = self.path.join(self.name);
+        let name = Item::of(self.name);
         let value_type = T::value_type();
         let type_info = T::value_type_info();
 
         if let Some((existing, _)) = self.types.insert(value_type, (type_info, name.clone())) {
-            let hash = Hash::of_type(&name);
-
-            return Err(ContextError::ConflictingType {
-                name,
-                hash,
-                existing,
-            });
+            return Err(ContextError::ConflictingType { name, existing });
         }
 
         Ok(())

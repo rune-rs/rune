@@ -47,12 +47,10 @@ pub enum ContextError {
         hash: Hash,
     },
     /// Raised when we try to register a conflicting type.
-    #[error("type with name `{name}` ({hash}) already exists with `{existing}`")]
+    #[error("type with name `{name}` already exists `{existing}`")]
     ConflictingType {
         /// The name we tried to register.
         name: Item,
-        /// The hash of the conflicting type.
-        hash: Hash,
         /// The type information for the type that already existed.
         existing: ValueTypeInfo,
     },
@@ -96,66 +94,88 @@ impl fmt::Display for TypeInfo {
 #[derive(Debug, Clone)]
 pub enum FnSignature {
     Free {
+        /// Path to the function.
         path: Item,
+        /// Arguments.
         args: Option<usize>,
     },
     Instance {
-        instance: ValueTypeInfo,
+        /// Path to the instance function.
+        path: Item,
+        /// Name of the instance function.
         name: String,
+        /// Arguments.
         args: Option<usize>,
+        /// Information on the self type.
+        self_type_info: ValueTypeInfo,
     },
 }
 
 impl FnSignature {
-    /// Construct a new function signature.
-    pub fn new_inst(instance: ValueTypeInfo, name: &str, args: usize) -> Self {
-        Self::Instance {
-            instance,
-            name: name.to_owned(),
-            args: Some(args),
-        }
-    }
-
-    /// Construct a new raw signature.
-    pub fn new_raw(path: Item) -> Self {
-        Self::Free { path, args: None }
-    }
-
     /// Construct a new global function signature.
-    pub fn new_free(path: Item, args: usize) -> Self {
-        Self::Free {
+    pub fn new_free(path: Item, args: Option<usize>) -> Self {
+        Self::Free { path, args }
+    }
+
+    /// Construct a new function signature.
+    pub fn new_inst(
+        path: Item,
+        name: String,
+        args: Option<usize>,
+        self_type_info: ValueTypeInfo,
+    ) -> Self {
+        Self::Instance {
             path,
-            args: Some(args),
+            name,
+            args,
+            self_type_info,
         }
     }
 }
 
 impl fmt::Display for FnSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let args = match self {
+        match self {
             Self::Free { path, args } => {
                 write!(fmt, "{}(", path)?;
-                *args
+
+                if let Some(args) = args {
+                    let mut it = 0..*args;
+                    let last = it.next_back();
+
+                    for n in it {
+                        write!(fmt, "#{}, ", n)?;
+                    }
+
+                    if let Some(n) = last {
+                        write!(fmt, "#{}", n)?;
+                    }
+                } else {
+                    write!(fmt, "...")?;
+                }
+
+                write!(fmt, ")")?;
             }
             Self::Instance {
-                instance,
+                path,
                 name,
+                self_type_info,
                 args,
             } => {
-                write!(fmt, "<{}>::{}(self", instance, name)?;
-                *args
-            }
-        };
+                write!(fmt, "{}::{}(self: {}", path, name, self_type_info)?;
 
-        if let Some(args) = args {
-            for n in 0..args {
-                write!(fmt, ", #{}", n)?;
+                if let Some(args) = args {
+                    for n in 0..*args {
+                        write!(fmt, ", #{}", n)?;
+                    }
+                } else {
+                    write!(fmt, ", ...")?;
+                }
+
+                write!(fmt, ")")?;
             }
-        } else {
-            write!(fmt, ", ...")?;
         }
 
-        write!(fmt, ")")?;
         Ok(())
     }
 }
@@ -174,6 +194,8 @@ pub struct Context {
     functions_info: HashMap<Hash, FnSignature>,
     /// Registered types.
     types: HashMap<Hash, TypeInfo>,
+    /// Reverse lookup for types.
+    types_rev: HashMap<ValueType, Hash>,
 }
 
 impl Context {
@@ -192,6 +214,8 @@ impl Context {
         this.install(crate::packages::float::module()?)?;
         this.install(crate::packages::test::module()?)?;
         this.install(crate::packages::iter::module()?)?;
+        this.install(crate::packages::array::module()?)?;
+        this.install(crate::packages::object::module()?)?;
         Ok(this)
     }
 
@@ -217,32 +241,6 @@ impl Context {
 
     /// Install the specified module.
     pub fn install(&mut self, module: Module) -> Result<(), ContextError> {
-        for (name, (handler, signature)) in module.functions.into_iter() {
-            let hash = Hash::function(&name);
-
-            if let Some(old) = self.functions_info.insert(hash, signature) {
-                return Err(ContextError::ConflictingFunction {
-                    signature: old,
-                    hash,
-                });
-            }
-
-            self.functions.insert(hash, handler);
-        }
-
-        for ((ty, name), (handler, signature)) in module.instance_functions.into_iter() {
-            let hash = Hash::instance_function(ty, Hash::of(name));
-
-            if let Some(old) = self.functions_info.insert(hash, signature) {
-                return Err(ContextError::ConflictingFunction {
-                    signature: old,
-                    hash,
-                });
-            }
-
-            self.functions.insert(hash, handler);
-        }
-
         for (value_type, (type_info, name)) in module.types.into_iter() {
             let name = module.path.join(&name);
             let hash = Hash::of_type(&name);
@@ -256,10 +254,54 @@ impl Context {
             if let Some(existing) = self.types.insert(hash, type_info) {
                 return Err(ContextError::ConflictingType {
                     name: existing.name,
-                    hash,
                     existing: existing.type_info,
                 });
             }
+
+            // reverse lookup for types.
+            self.types_rev.insert(value_type, hash);
+        }
+
+        for (name, (handler, args)) in module.functions.into_iter() {
+            let name = module.path.join(&name);
+            let hash = Hash::function(&name);
+            let signature = FnSignature::new_free(name, args);
+
+            if let Some(old) = self.functions_info.insert(hash, signature) {
+                return Err(ContextError::ConflictingFunction {
+                    signature: old,
+                    hash,
+                });
+            }
+
+            self.functions.insert(hash, handler);
+        }
+
+        for ((ty, name), (handler, args, instance_type)) in module.instance_functions.into_iter() {
+            let type_info = match self
+                .types_rev
+                .get(&ty)
+                .and_then(|hash| self.types.get(&hash))
+            {
+                Some(type_info) => type_info,
+                None => {
+                    return Err(ContextError::MissingInstance { instance_type });
+                }
+            };
+
+            let hash = Hash::instance_function(ty, Hash::of(&name));
+
+            let signature =
+                FnSignature::new_inst(type_info.name.clone(), name, args, type_info.type_info);
+
+            if let Some(old) = self.functions_info.insert(hash, signature) {
+                return Err(ContextError::ConflictingFunction {
+                    signature: old,
+                    hash,
+                });
+            }
+
+            self.functions.insert(hash, handler);
         }
 
         Ok(())

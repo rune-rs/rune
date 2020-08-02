@@ -66,6 +66,7 @@ pub enum RuntimeError {
     #[error("virtual machine error")]
     VmError {
         /// The source error.
+        #[source]
         error: st::VmError,
         /// The span at which the error occured.
         span: Span,
@@ -297,6 +298,14 @@ impl Runtime {
                             );
                         }
 
+                        labels.push(
+                            Label::secondary(source_file, block.start..block.end)
+                                .with_message("block returned from"),
+                        );
+
+                        *span
+                    }
+                    CompileError::ReturnDoesNotProduceValue { block, span, .. } => {
                         labels.push(
                             Label::secondary(source_file, block.start..block.end)
                                 .with_message("block returned from"),

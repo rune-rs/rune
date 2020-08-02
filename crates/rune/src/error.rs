@@ -346,6 +346,14 @@ pub enum CompileError {
         /// The references we tried to return.
         references_at: Vec<Span>,
     },
+    /// Attempt to assign a value to return.
+    #[error("a return does not produce a value that can be used")]
+    ReturnDoesNotProduceValue {
+        /// The block in which it was used.
+        block: Span,
+        /// The span in which it was used.
+        span: Span,
+    },
 }
 
 impl CompileError {
@@ -374,6 +382,7 @@ impl SpannedError for CompileError {
             Self::BreakDoesNotProduceValue { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,
             Self::ReturnLocalReferences { span, .. } => span,
+            Self::ReturnDoesNotProduceValue { span, .. } => span,
         }
     }
 }

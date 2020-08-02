@@ -1565,6 +1565,35 @@ impl Vm {
     }
 
     #[inline]
+    fn op_is(&mut self, context: &Context) -> Result<(), VmError> {
+        let b = self.managed_pop()?;
+        let a = self.managed_pop()?;
+
+        match (a, b) {
+            (a, ValuePtr::Type(hash)) => {
+                let a = a.value_type(self)?;
+
+                let type_info = context
+                    .lookup_type(hash)
+                    .ok_or_else(|| VmError::MissingType { hash })?;
+
+                self.unmanaged_push(ValuePtr::Bool(a == type_info.value_type));
+            }
+            (a, b) => {
+                let a = a.type_info(self)?;
+                let b = b.type_info(self)?;
+
+                return Err(VmError::UnsupportedIs {
+                    value_type: a,
+                    test_type: b,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    #[inline]
     fn op_ptr(&mut self, offset: usize) -> Result<(), VmError> {
         let ptr = self
             .frame_top
@@ -1796,29 +1825,7 @@ impl Vm {
                     self.managed_push(value)?;
                 }
                 Inst::Is => {
-                    let b = self.managed_pop()?;
-                    let a = self.managed_pop()?;
-
-                    match (a, b) {
-                        (a, ValuePtr::Type(hash)) => {
-                            let a = a.value_type(self)?;
-
-                            let type_info = context
-                                .lookup_type(hash)
-                                .ok_or_else(|| VmError::MissingType { hash })?;
-
-                            self.unmanaged_push(ValuePtr::Bool(a == type_info.value_type));
-                        }
-                        (a, b) => {
-                            let a = a.type_info(self)?;
-                            let b = b.type_info(self)?;
-
-                            return Err(VmError::UnsupportedIs {
-                                value_type: a,
-                                test_type: b,
-                            });
-                        }
-                    }
+                    self.op_is(context)?;
                 }
                 Inst::IsUnit => {
                     let value = self.managed_pop()?;

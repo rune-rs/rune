@@ -4,31 +4,31 @@ use crate::vm::{RawRefGuard, Ref, StackError, Vm};
 
 impl<T> ReflectValueType for Object<T> {
     fn value_type() -> ValueType {
-        ValueType::Array
+        ValueType::Object
     }
 
     fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Array
+        ValueTypeInfo::Object
     }
 }
 
 impl<'a, T> ReflectValueType for &'a Object<T> {
     fn value_type() -> ValueType {
-        ValueType::Array
+        ValueType::Object
     }
 
     fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Array
+        ValueTypeInfo::Object
     }
 }
 
 impl<'a, T> ReflectValueType for &'a mut Object<T> {
     fn value_type() -> ValueType {
-        ValueType::Array
+        ValueType::Object
     }
 
     fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Array
+        ValueTypeInfo::Object
     }
 }
 
