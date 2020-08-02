@@ -55,8 +55,8 @@ pub enum StackError {
         slot: Slot,
     },
     /// Error raised when we expect a specific external type but got another.
-    #[error("expected `{expected}`, but was `{actual}`")]
-    BadSlotType {
+    #[error("expected slot `{expected}`, but was `{actual}`")]
+    UnexpectedSlotType {
         /// The type that was expected.
         expected: &'static str,
         /// The type that was found.
@@ -807,7 +807,7 @@ impl Vm {
                     // won't be maintaining access to the type.
                     holder.access.release_shared();
 
-                    return Err(StackError::BadSlotType {
+                    return Err(StackError::UnexpectedSlotType {
                         expected: type_name::<T>(),
                         actual,
                     });
@@ -857,7 +857,7 @@ impl Vm {
                     // won't be maintaining access to the type.
                     holder.access.release_exclusive();
 
-                    return Err(StackError::BadSlotType {
+                    return Err(StackError::UnexpectedSlotType {
                         expected: type_name::<T>(),
                         actual,
                     });
@@ -898,7 +898,7 @@ impl Vm {
                 None => {
                     let actual = (*value.get()).type_name();
 
-                    return Err(StackError::BadSlotType {
+                    return Err(StackError::UnexpectedSlotType {
                         expected: type_name::<T>(),
                         actual,
                     });
@@ -932,33 +932,27 @@ impl Vm {
         }
     }
 
-    /// Take an external value by dyn, assuming you have exlusive access to it.
+    /// Take an external value from the virtual machine by its slot.
     pub fn external_take<T>(&mut self, slot: Slot) -> Result<T, StackError>
     where
         T: Any,
     {
-        let holder = self
+        // NB: don't need to perform a runtime check because this function
+        // requires exclusive access to the virtual machine, at which point it's
+        // impossible for live references to slots to be out unless unsafe
+        // functions have been used in an unsound manner.
+        let value = self
             .slots
             .get_mut(slot.into_usize())
+            .and_then(|h| h.value.take())
             .ok_or_else(|| StackError::SlotMissing { slot })?;
-
-        holder.access.test_exclusive(slot)?;
-
-        let value = match holder.value.take() {
-            Some(value) => value,
-            None => {
-                return Err(StackError::SlotMissing { slot });
-            }
-        };
 
         match Self::convert_value(value) {
             Ok(value) => return Ok(value),
             Err(value) => {
                 let actual = unsafe { (*value.get()).type_name() };
 
-                holder.value = Some(value);
-
-                Err(StackError::BadSlotType {
+                Err(StackError::UnexpectedSlotType {
                     expected: type_name::<T>(),
                     actual,
                 })

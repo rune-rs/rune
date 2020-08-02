@@ -49,18 +49,6 @@ impl Access {
         self.0.set(b);
     }
 
-    /// Test if we have exclusive access without modifying the internal count.
-    #[inline]
-    pub(super) fn test_exclusive(&self, slot: Slot) -> Result<(), StackError> {
-        let b = self.0.get().wrapping_add(1);
-
-        if b != 1 {
-            return Err(StackError::SlotInaccessibleExclusive { slot });
-        }
-
-        Ok(())
-    }
-
     /// Mark that we want exclusive access to the given access token.
     #[inline]
     pub(super) fn exclusive(&self, slot: Slot) -> Result<(), StackError> {
