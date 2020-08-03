@@ -1303,10 +1303,9 @@ impl<'a> Compiler<'a> {
 
         while let Some(((branch, _), (label, scope))) = it.next() {
             self.instructions.label(*label)?;
+
             self.scopes.push(scope.clone());
-
             self.encode_expr(&*branch.body, needs_value)?;
-
             let scope = self.pop_scope(branch.span())?;
 
             if needs_value.0 {
@@ -1453,13 +1452,13 @@ impl<'a> Compiler<'a> {
         self.instructions.jump(false_label, span);
         self.instructions.label(length_true)?;
 
-        for ((_, _, pat, _), slot) in object.items.iter().zip(&string_slots) {
+        for ((_, _, pat, _), slot) in object.items.iter().zip(string_slots) {
             let span = pat.span();
 
             // load the given array index and declare it as a local variable.
             self.instructions.push(st::Inst::Copy { offset }, span);
             self.instructions
-                .push(st::Inst::ObjectSlotIndexGet { slot: *slot }, span);
+                .push(st::Inst::ObjectSlotIndexGet { slot }, span);
             let offset = scope.decl_anon(span);
 
             self.encode_pat(scope, &*pat, offset, false_label)?;
@@ -1489,25 +1488,27 @@ impl<'a> Compiler<'a> {
         match pat {
             ast::Pat::BindingPat(binding) => {
                 let name = binding.resolve(self.source)?;
-                self.last_scope_mut(span)?
-                    .name_var_at(offset, name, span, Vec::new());
+                scope.name_var_at(offset, name, span, Vec::new());
                 return Ok(());
             }
             ast::Pat::IgnorePat(..) => {
                 return Ok(());
             }
             ast::Pat::UnitPat(unit) => {
+                let span = unit.span();
                 self.instructions.push(st::Inst::Copy { offset }, span);
-                self.instructions.push(st::Inst::IsUnit, unit.span());
-                self.instructions.jump_if(true_label, unit.span());
+                self.instructions.push(st::Inst::IsUnit, span);
+                self.instructions.jump_if(true_label, span);
             }
             ast::Pat::CharPat(char_literal) => {
+                let span = char_literal.span();
+
                 let character = char_literal.resolve(self.source)?;
 
                 self.instructions.push(st::Inst::Copy { offset }, span);
                 self.instructions
-                    .push(st::Inst::EqCharacter { character }, char_literal.span());
-                self.instructions.jump_if(true_label, char_literal.span());
+                    .push(st::Inst::EqCharacter { character }, span);
+                self.instructions.jump_if(true_label, span);
             }
             ast::Pat::NumberPat(number_literal) => {
                 let span = number_literal.span();
@@ -1645,6 +1646,7 @@ impl Scope {
         };
 
         self.total_var_count += 1;
+        self.local_var_count += 1;
 
         if let Some(old) = self.locals.insert(name.to_owned(), local) {
             return Err(CompileError::VariableConflict {
