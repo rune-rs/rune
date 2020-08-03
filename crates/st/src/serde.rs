@@ -2,7 +2,7 @@ use crate::collections::HashMap;
 use crate::error;
 use crate::packages::bytes::Bytes;
 use crate::tls;
-use crate::value::{Managed, ValuePtr};
+use crate::value::ValuePtr;
 use crate::vm::VmError;
 use serde::{de, ser};
 use std::fmt;
@@ -38,35 +38,33 @@ impl ser::Serialize for ValuePtr {
             ValuePtr::Char(c) => serializer.serialize_char(c),
             ValuePtr::Integer(integer) => serializer.serialize_i64(integer),
             ValuePtr::Float(float) => serializer.serialize_f64(float),
-            ValuePtr::Managed(slot) => match slot.into_managed() {
-                Managed::String => tls::with_vm(|vm| {
-                    let string = vm.string_ref(slot).map_err(ser::Error::custom)?;
-                    serializer.serialize_str(&*string)
-                }),
-                Managed::Array => tls::with_vm(|vm| {
-                    let array = vm.array_ref(slot).map_err(ser::Error::custom)?;
-                    let mut serializer = serializer.serialize_seq(Some(array.len()))?;
+            ValuePtr::String(slot) => tls::with_vm(|vm| {
+                let string = vm.string_ref(slot).map_err(ser::Error::custom)?;
+                serializer.serialize_str(&*string)
+            }),
+            ValuePtr::Array(slot) => tls::with_vm(|vm| {
+                let array = vm.array_ref(slot).map_err(ser::Error::custom)?;
+                let mut serializer = serializer.serialize_seq(Some(array.len()))?;
 
-                    for value in &*array {
-                        serializer.serialize_element(value)?;
-                    }
-
-                    serializer.end()
-                }),
-                Managed::Object => tls::with_vm(|vm| {
-                    let object = vm.object_ref(slot).map_err(ser::Error::custom)?;
-                    let mut serializer = serializer.serialize_map(Some(object.len()))?;
-
-                    for (key, value) in &*object {
-                        serializer.serialize_entry(key, value)?;
-                    }
-
-                    serializer.end()
-                }),
-                Managed::External => {
-                    return Err(ser::Error::custom("cannot serialize external objects"));
+                for value in &*array {
+                    serializer.serialize_element(value)?;
                 }
-            },
+
+                serializer.end()
+            }),
+            ValuePtr::Object(slot) => tls::with_vm(|vm| {
+                let object = vm.object_ref(slot).map_err(ser::Error::custom)?;
+                let mut serializer = serializer.serialize_map(Some(object.len()))?;
+
+                for (key, value) in &*object {
+                    serializer.serialize_entry(key, value)?;
+                }
+
+                serializer.end()
+            }),
+            ValuePtr::External(..) => {
+                return Err(ser::Error::custom("cannot serialize external objects"));
+            }
             ValuePtr::Ptr(..) => {
                 return Err(ser::Error::custom("cannot serialize pointers"));
             }

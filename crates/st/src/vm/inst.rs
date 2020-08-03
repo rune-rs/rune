@@ -420,7 +420,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    EqObjectMinLen {
+    EqObjectMinKeys {
         /// The length to test for.
         len: usize,
     },
@@ -434,7 +434,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    EqObjectExactLen {
+    EqObjectExactKeys {
         /// The length to test for.
         len: usize,
     },
@@ -618,11 +618,11 @@ impl fmt::Display for Inst {
             Self::EqArrayMinLen { len } => {
                 write!(fmt, "eq-array-min-len {}", len)?;
             }
-            Self::EqObjectExactLen { len } => {
-                write!(fmt, "eq-object-exact-len {}", len)?;
+            Self::EqObjectExactKeys { len } => {
+                write!(fmt, "eq-object-exact-keys {}", len)?;
             }
-            Self::EqObjectMinLen { len } => {
-                write!(fmt, "eq-object-min-len {}", len)?;
+            Self::EqObjectMinKeys { len } => {
+                write!(fmt, "eq-object-min-keys {}", len)?;
             }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;

@@ -1,7 +1,6 @@
 use crate::hash::Hash;
-use crate::value::slot;
-use crate::value::slot::{IntoSlot, Slot};
-use crate::value::{Managed, ValueType, ValueTypeInfo};
+use crate::value::slot::Slot;
+use crate::value::{ValueType, ValueTypeInfo};
 use crate::vm::{StackError, Vm};
 
 /// An entry on the stack.
@@ -17,8 +16,14 @@ pub enum ValuePtr {
     Integer(i64),
     /// A float.
     Float(f64),
-    /// A managed reference.
-    Managed(Slot),
+    /// A String.
+    String(Slot),
+    /// An array.
+    Array(Slot),
+    /// An object.
+    Object(Slot),
+    /// An external value.
+    External(Slot),
     /// A type.
     Type(Hash),
     /// A pointer to an absolute stack location.
@@ -30,33 +35,48 @@ pub enum ValuePtr {
 }
 
 impl ValuePtr {
-    /// Convert value into a managed slot.
+    /// Try to coerce value reference into an array.
     #[inline]
-    fn into_slot<T>(self, vm: &Vm) -> Result<Slot, StackError>
-    where
-        T: IntoSlot,
-    {
-        T::into_slot(self, vm)
-    }
-
-    /// Try to coerce value reference into an external.
-    pub fn into_external(self, vm: &Vm) -> Result<Slot, StackError> {
-        self.into_slot::<slot::ExternalSlot>(vm)
+    pub fn into_string(self, vm: &Vm) -> Result<Slot, StackError> {
+        match self {
+            Self::String(slot) => Ok(slot),
+            actual => Err(StackError::ExpectedArray {
+                actual: actual.type_info(vm)?,
+            }),
+        }
     }
 
     /// Try to coerce value reference into an array.
+    #[inline]
     pub fn into_array(self, vm: &Vm) -> Result<Slot, StackError> {
-        self.into_slot::<slot::ArraySlot>(vm)
+        match self {
+            Self::Array(slot) => Ok(slot),
+            actual => Err(StackError::ExpectedArray {
+                actual: actual.type_info(vm)?,
+            }),
+        }
     }
 
     /// Try to coerce value reference into an object.
+    #[inline]
     pub fn into_object(self, vm: &Vm) -> Result<Slot, StackError> {
-        self.into_slot::<slot::ObjectSlot>(vm)
+        match self {
+            Self::Object(slot) => Ok(slot),
+            actual => Err(StackError::ExpectedArray {
+                actual: actual.type_info(vm)?,
+            }),
+        }
     }
 
-    /// Try to coerce value reference into an array.
-    pub fn into_string(self, vm: &Vm) -> Result<Slot, StackError> {
-        self.into_slot::<slot::StringSlot>(vm)
+    /// Try to coerce value reference into an external.
+    #[inline]
+    pub fn into_external(self, vm: &Vm) -> Result<Slot, StackError> {
+        match self {
+            Self::External(slot) => Ok(slot),
+            actual => Err(StackError::ExpectedExternal {
+                actual: actual.type_info(vm)?,
+            }),
+        }
     }
 
     /// Get the type information for the current value.
@@ -67,12 +87,10 @@ impl ValuePtr {
             Self::Float(..) => ValueType::Float,
             Self::Bool(..) => ValueType::Bool,
             Self::Char(..) => ValueType::Char,
-            Self::Managed(slot) => match slot.into_managed() {
-                Managed::String => ValueType::String,
-                Managed::Array => ValueType::Array,
-                Managed::Object => ValueType::Object,
-                Managed::External => ValueType::External(vm.slot_type_id(slot)?),
-            },
+            Self::String(..) => ValueType::String,
+            Self::Array(..) => ValueType::Array,
+            Self::Object(..) => ValueType::Object,
+            Self::External(slot) => ValueType::External(vm.slot_type_id(slot)?),
             Self::Type(..) => ValueType::Type,
             Self::Ptr(..) => ValueType::Ptr,
             Self::Fn(hash) => ValueType::Fn(hash),
@@ -87,12 +105,10 @@ impl ValuePtr {
             Self::Float(..) => ValueTypeInfo::Float,
             Self::Bool(..) => ValueTypeInfo::Bool,
             Self::Char(..) => ValueTypeInfo::Char,
-            Self::Managed(slot) => match slot.into_managed() {
-                Managed::String => ValueTypeInfo::String,
-                Managed::Array => ValueTypeInfo::Array,
-                Managed::Object => ValueTypeInfo::Object,
-                Managed::External => ValueTypeInfo::External(vm.slot_type_name(slot)?),
-            },
+            Self::String(..) => ValueTypeInfo::String,
+            Self::Array(..) => ValueTypeInfo::Array,
+            Self::Object(..) => ValueTypeInfo::Object,
+            Self::External(slot) => ValueTypeInfo::External(vm.slot_type_name(slot)?),
             Self::Type(..) => ValueTypeInfo::Type,
             Self::Ptr(..) => ValueTypeInfo::Ptr,
             Self::Fn(hash) => ValueTypeInfo::Fn(hash),

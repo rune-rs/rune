@@ -1402,14 +1402,14 @@ impl<'a> Compiler<'a> {
 
             if object.open_pattern.is_some() {
                 self.instructions.push(
-                    st::Inst::EqObjectMinLen {
+                    st::Inst::EqObjectMinKeys {
                         len: object.items.len(),
                     },
                     span,
                 );
             } else {
                 self.instructions.push(
-                    st::Inst::EqObjectExactLen {
+                    st::Inst::EqObjectExactKeys {
                         len: object.items.len(),
                     },
                     span,

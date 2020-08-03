@@ -339,7 +339,7 @@ async fn test_match() {
 }
 
 #[tokio::test]
-async fn test_nested_match() {
+async fn test_array_match() {
     assert_eq! {
         test!(() => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
         (),
@@ -397,6 +397,29 @@ async fn test_nested_match() {
 
     assert_eq! {
         test!(bool => r#"fn main() { match [1, [2, 4]] { [1, [2, 3]] => true, _ => false } }"#),
+        false,
+    };
+}
+
+#[tokio::test]
+async fn test_object_match() {
+    assert_eq! {
+        test!(() => r#"fn main() { match #{} { #{..} => true } }"#),
+        (),
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match #{} { #{..} => true, _ => false } }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v, ..} => v == 10, _ => false } }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v} => v == 10, _ => false } }"#),
         false,
     };
 }

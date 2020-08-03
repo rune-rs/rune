@@ -4,7 +4,7 @@ use crate::context::{Context, Handler};
 use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::unit::Unit;
-use crate::value::{Managed, Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
+use crate::value::{Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
 use anyhow::Result;
 use slab::Slab;
 use std::any::{type_name, TypeId};
@@ -244,6 +244,12 @@ pub enum VmError {
         op: &'static str,
         /// Operand.
         operand: ValueTypeInfo,
+    },
+    /// Unsupported argument to object-exact-keys.
+    #[error("unsupported object key `{actual}`")]
+    UnsupportedObjectKey {
+        /// The encountered argument.
+        actual: ValueTypeInfo,
     },
     /// Attempt to access out-of-bounds stack item.
     #[error("tried to access an out-of-bounds stack entry")]
@@ -508,7 +514,7 @@ macro_rules! impl_slot_functions {
         /// [push.
         pub fn $allocate_fn(&mut self, value: $ty) -> ValuePtr {
             let generation = self.generation();
-            ValuePtr::Managed(Slot::$slot(
+            ValuePtr::$slot(Slot::new(
                 generation,
                 self.internal_allocate(generation, value),
             ))
@@ -554,6 +560,8 @@ pub struct Vm {
     slots: Slab<Holder>,
     /// Generation used for allocated objects.
     generation: usize,
+    /// A temporary buffer to hold values.
+    temp: Vec<ValuePtr>,
 }
 
 impl Vm {
@@ -567,6 +575,7 @@ impl Vm {
             frames: Vec::new(),
             slots: Slab::new(),
             generation: 0,
+            temp: Vec::with_capacity(16),
         }
     }
 
@@ -801,7 +810,7 @@ impl Vm {
     /// be managed.
     pub fn external_allocate<T: Any>(&mut self, value: T) -> ValuePtr {
         let generation = self.generation();
-        ValuePtr::Managed(Slot::external(
+        ValuePtr::External(Slot::new(
             generation,
             self.internal_allocate(generation, value),
         ))
@@ -809,7 +818,7 @@ impl Vm {
 
     impl_slot_functions! {
         String,
-        string,
+        String,
         string_allocate,
         string_ref,
         string_mut,
@@ -819,7 +828,7 @@ impl Vm {
 
     impl_slot_functions! {
         Vec<ValuePtr>,
-        array,
+        Array,
         array_allocate,
         array_ref,
         array_mut,
@@ -829,7 +838,7 @@ impl Vm {
 
     impl_slot_functions! {
         HashMap<String, ValuePtr>,
-        object,
+        Object,
         object_allocate,
         object_ref,
         object_mut,
@@ -1092,18 +1101,16 @@ impl Vm {
             ValuePtr::Float(float) => Value::Float(float),
             ValuePtr::Bool(boolean) => Value::Bool(boolean),
             ValuePtr::Char(c) => Value::Char(c),
-            ValuePtr::Managed(slot) => match slot.into_managed() {
-                Managed::String => Value::String(self.string_take(slot)?),
-                Managed::Array => {
-                    let array = self.array_take(slot)?;
-                    Value::Array(value_take_array(self, array)?)
-                }
-                Managed::Object => {
-                    let object = self.object_take(slot)?;
-                    Value::Object(value_take_object(self, object)?)
-                }
-                Managed::External => Value::External(self.external_take_dyn(slot)?),
-            },
+            ValuePtr::String(slot) => Value::String(self.string_take(slot)?),
+            ValuePtr::Array(slot) => {
+                let array = self.array_take(slot)?;
+                Value::Array(value_take_array(self, array)?)
+            }
+            ValuePtr::Object(slot) => {
+                let object = self.object_take(slot)?;
+                Value::Object(value_take_object(self, object)?)
+            }
+            ValuePtr::External(slot) => Value::External(self.external_take_dyn(slot)?),
             ValuePtr::Type(ty) => Value::Type(ty),
             ValuePtr::Ptr(ptr) => Value::Ptr(ptr),
             ValuePtr::Fn(hash) => Value::Fn(hash),
@@ -1143,18 +1150,16 @@ impl Vm {
             ValuePtr::Float(float) => ValueRef::Float(float),
             ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
             ValuePtr::Char(c) => ValueRef::Char(c),
-            ValuePtr::Managed(slot) => match slot.into_managed() {
-                Managed::String => ValueRef::String(self.string_ref(slot)?),
-                Managed::Array => {
-                    let array = self.array_ref(slot)?;
-                    ValueRef::Array(self.value_array_ref(&*array)?)
-                }
-                Managed::Object => {
-                    let object = self.object_ref(slot)?;
-                    ValueRef::Object(self.value_object_ref(&*object)?)
-                }
-                Managed::External => ValueRef::External(self.external_ref_dyn(slot)?),
-            },
+            ValuePtr::String(slot) => ValueRef::String(self.string_ref(slot)?),
+            ValuePtr::Array(slot) => {
+                let array = self.array_ref(slot)?;
+                ValueRef::Array(self.value_array_ref(&*array)?)
+            }
+            ValuePtr::Object(slot) => {
+                let object = self.object_ref(slot)?;
+                ValueRef::Object(self.value_object_ref(&*object)?)
+            }
+            ValuePtr::External(slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             ValuePtr::Type(ty) => ValueRef::Type(ty),
             ValuePtr::Ptr(ptr) => ValueRef::Ptr(ptr),
             ValuePtr::Fn(hash) => ValueRef::Fn(hash),
@@ -1223,54 +1228,49 @@ impl Vm {
             (ValuePtr::Bool(a), ValuePtr::Bool(b)) => a == b,
             (ValuePtr::Integer(a), ValuePtr::Integer(b)) => a == b,
             (ValuePtr::Float(a), ValuePtr::Float(b)) => a == b,
-            (ValuePtr::Managed(a), ValuePtr::Managed(b)) => {
-                match (a.into_managed(), b.into_managed()) {
-                    (Managed::Array, Managed::Array) => {
-                        let a = self.array_ref(a)?;
-                        let b = self.array_ref(b)?;
+            (ValuePtr::Array(a), ValuePtr::Array(b)) => {
+                let a = self.array_ref(a)?;
+                let b = self.array_ref(b)?;
 
-                        if a.len() != b.len() {
-                            return Ok(false);
-                        }
-
-                        for (a, b) in a.iter().copied().zip(b.iter().copied()) {
-                            if !self.value_ptr_eq(a, b)? {
-                                return Ok(false);
-                            }
-                        }
-
-                        true
-                    }
-                    (Managed::Object, Managed::Object) => {
-                        let a = self.object_ref(a)?;
-                        let b = self.object_ref(b)?;
-
-                        if a.len() != b.len() {
-                            return Ok(false);
-                        }
-
-                        for (key, a) in a.iter() {
-                            let b = match b.get(key) {
-                                Some(b) => b,
-                                None => return Ok(false),
-                            };
-
-                            if !self.value_ptr_eq(*a, *b)? {
-                                return Ok(false);
-                            }
-                        }
-
-                        true
-                    }
-                    (Managed::String, Managed::String) => {
-                        let a = self.string_ref(a)?;
-                        let b = self.string_ref(b)?;
-                        *a == *b
-                    }
-                    (Managed::External, Managed::External) => a == b,
-                    _ => false,
+                if a.len() != b.len() {
+                    return Ok(false);
                 }
+
+                for (a, b) in a.iter().copied().zip(b.iter().copied()) {
+                    if !self.value_ptr_eq(a, b)? {
+                        return Ok(false);
+                    }
+                }
+
+                true
             }
+            (ValuePtr::Object(a), ValuePtr::Object(b)) => {
+                let a = self.object_ref(a)?;
+                let b = self.object_ref(b)?;
+
+                if a.len() != b.len() {
+                    return Ok(false);
+                }
+
+                for (key, a) in a.iter() {
+                    let b = match b.get(key) {
+                        Some(b) => b,
+                        None => return Ok(false),
+                    };
+
+                    if !self.value_ptr_eq(*a, *b)? {
+                        return Ok(false);
+                    }
+                }
+
+                true
+            }
+            (ValuePtr::String(a), ValuePtr::String(b)) => {
+                let a = self.string_ref(a)?;
+                let b = self.string_ref(b)?;
+                *a == *b
+            }
+            (ValuePtr::External(a), ValuePtr::External(b)) => a == b,
             _ => false,
         })
     }
@@ -1332,24 +1332,19 @@ impl Vm {
                 self.push(ValuePtr::Integer(a + b));
                 return Ok(());
             }
-            (ValuePtr::Managed(a), ValuePtr::Managed(b)) => {
-                match (a.into_managed(), b.into_managed()) {
-                    (Managed::String, Managed::String) => {
-                        let string = {
-                            let a = self.string_ref(a)?;
-                            let b = self.string_ref(b)?;
-                            let mut string = String::with_capacity(a.len() + b.len());
-                            string.push_str(a.as_str());
-                            string.push_str(b.as_str());
-                            string
-                        };
+            (ValuePtr::String(a), ValuePtr::String(b)) => {
+                let string = {
+                    let a = self.string_ref(a)?;
+                    let b = self.string_ref(b)?;
+                    let mut string = String::with_capacity(a.len() + b.len());
+                    string.push_str(a.as_str());
+                    string.push_str(b.as_str());
+                    string
+                };
 
-                        let value = self.string_allocate(string);
-                        self.push(value);
-                        return Ok(());
-                    }
-                    _ => (),
-                }
+                let value = self.string_allocate(string);
+                self.push(value);
+                return Ok(());
             }
             _ => (),
         };
@@ -1392,20 +1387,15 @@ impl Vm {
         let index = self.pop()?;
 
         match (target, index) {
-            (ValuePtr::Managed(target), ValuePtr::Managed(index)) => {
-                match (target.into_managed(), index.into_managed()) {
-                    (Managed::Object, Managed::String) => {
-                        let value = {
-                            let object = self.object_ref(target)?;
-                            let index = self.string_ref(index)?;
-                            object.get(&*index).copied().unwrap_or_default()
-                        };
+            (ValuePtr::Object(target), ValuePtr::String(index)) => {
+                let value = {
+                    let object = self.object_ref(target)?;
+                    let index = self.string_ref(index)?;
+                    object.get(&*index).copied().unwrap_or_default()
+                };
 
-                        self.push(value);
-                        return Ok(());
-                    }
-                    _ => (),
-                }
+                self.push(value);
+                return Ok(());
             }
             _ => (),
         }
@@ -1425,8 +1415,8 @@ impl Vm {
         let target = self.pop()?;
 
         let value = match target {
-            ValuePtr::Managed(target) => {
-                let array = self.array_ref(target)?;
+            ValuePtr::Array(slot) => {
+                let array = self.array_ref(slot)?;
 
                 match array.get(index).copied() {
                     Some(value) => value,
@@ -1447,21 +1437,21 @@ impl Vm {
 
     /// Perform a specialized index get operation on an object.
     #[inline]
-    fn op_object_slot_index_get(&mut self, slot: usize, unit: &Unit) -> Result<(), VmError> {
+    fn op_object_slot_index_get(&mut self, string_slot: usize, unit: &Unit) -> Result<(), VmError> {
         let target = self.pop()?;
 
         let value = match target {
-            ValuePtr::Managed(target) => {
+            ValuePtr::Object(slot) => {
                 let index = unit
-                    .lookup_string(slot)
-                    .ok_or_else(|| VmError::MissingStaticString { slot })?;
+                    .lookup_string(string_slot)
+                    .ok_or_else(|| VmError::MissingStaticString { slot: string_slot })?;
 
-                let array = self.object_ref(target)?;
+                let array = self.object_ref(slot)?;
 
                 match array.get(index).copied() {
                     Some(value) => value,
                     None => {
-                        return Err(VmError::ObjectIndexMissing { slot });
+                        return Err(VmError::ObjectIndexMissing { slot: string_slot });
                     }
                 }
             }
@@ -1483,16 +1473,11 @@ impl Vm {
         let value = self.pop()?;
 
         match (target, index) {
-            (ValuePtr::Managed(target), ValuePtr::Managed(index)) => {
-                match (target.into_managed(), index.into_managed()) {
-                    (Managed::Object, Managed::String) => {
-                        let index = self.string_take(index)?;
-                        let mut object = self.object_mut(target)?;
-                        object.insert(index, value);
-                        return Ok(());
-                    }
-                    _ => (),
-                }
+            (ValuePtr::Object(target), ValuePtr::String(index)) => {
+                let index = self.string_take(index)?;
+                let mut object = self.object_mut(target)?;
+                object.insert(index, value);
+                return Ok(());
             }
             _ => (),
         }
@@ -1596,13 +1581,10 @@ impl Vm {
         let value = self.pop()?;
 
         self.push(ValuePtr::Bool(match value {
-            ValuePtr::Managed(slot) => match slot.into_managed() {
-                Managed::String => {
-                    let actual = self.string_ref(slot)?;
-                    *actual == string
-                }
-                _ => false,
-            },
+            ValuePtr::String(slot) => {
+                let actual = self.string_ref(slot)?;
+                *actual == string
+            }
             _ => false,
         }));
 
@@ -1614,10 +1596,7 @@ impl Vm {
         let value = self.pop()?;
 
         self.push(ValuePtr::Bool(match value {
-            ValuePtr::Managed(slot) => match slot.into_managed() {
-                Managed::Array => self.array_ref(slot)?.len() == len,
-                _ => false,
-            },
+            ValuePtr::Array(slot) => self.array_ref(slot)?.len() == len,
             _ => false,
         }));
 
@@ -1629,10 +1608,7 @@ impl Vm {
         let value = self.pop()?;
 
         self.push(ValuePtr::Bool(match value {
-            ValuePtr::Managed(slot) => match slot.into_managed() {
-                Managed::Array => self.array_ref(slot)?.len() >= len,
-                _ => false,
-            },
+            ValuePtr::Array(slot) => self.array_ref(slot)?.len() >= len,
             _ => false,
         }));
 
@@ -1640,54 +1616,61 @@ impl Vm {
     }
 
     #[inline]
-    fn op_eq_object_exact_len(&mut self, len: usize) -> Result<(), VmError> {
+    fn object_checks_keys<F>(&mut self, len: usize, f: F) -> Result<(), VmError>
+    where
+        F: FnOnce(&HashMap<String, ValuePtr>) -> bool,
+    {
         let value = self.pop()?;
 
+        self.temp.clear();
+
+        for _ in 0..len {
+            let value = self.pop()?;
+            self.temp.push(value);
+        }
+
         let object = match value {
-            ValuePtr::Managed(slot) => match slot.into_managed() {
-                Managed::Object => self.object_ref(slot)?,
-                _ => {
-                    self.push(ValuePtr::Bool(false));
-                    return Ok(());
-                }
-            },
+            ValuePtr::Object(slot) => self.object_ref(slot)?,
             _ => {
                 self.push(ValuePtr::Bool(false));
                 return Ok(());
             }
         };
 
-        for _ in 0..len {
-            let _ = self.pop()?;
+        if !f(&*object) {
+            self.push(ValuePtr::Bool(false));
+            return Ok(());
         }
 
-        self.push(ValuePtr::Bool(false));
+        let mut is_match = true;
+
+        for value in self.temp.iter().copied() {
+            let string = match value {
+                ValuePtr::String(slot) => self.string_ref(slot)?,
+                actual => {
+                    let actual = actual.type_info(self)?;
+                    return Err(VmError::UnsupportedObjectKey { actual });
+                }
+            };
+
+            if !object.contains_key(&*string) {
+                is_match = false;
+                break;
+            }
+        }
+
+        self.push(ValuePtr::Bool(is_match));
         Ok(())
     }
 
     #[inline]
-    fn op_eq_object_min_len(&mut self, len: usize) -> Result<(), VmError> {
-        let value = self.pop()?;
+    fn op_eq_object_exact_keys(&mut self, len: usize) -> Result<(), VmError> {
+        self.object_checks_keys(len, |object| object.len() == len)
+    }
 
-        let object = match value {
-            ValuePtr::Managed(slot) => match slot.into_managed() {
-                Managed::Object => self.object_ref(slot)?,
-                _ => {
-                    self.push(ValuePtr::Bool(false));
-                    return Ok(());
-                }
-            },
-            _ => {
-                self.push(ValuePtr::Bool(false));
-                return Ok(());
-            }
-        };
-
-        for _ in 0..len {
-            let _ = self.pop()?;
-        }
-
-        Ok(())
+    #[inline]
+    fn op_eq_object_min_keys(&mut self, len: usize) -> Result<(), VmError> {
+        self.object_checks_keys(len, |object| object.len() >= len)
     }
 
     #[inline]
@@ -1949,11 +1932,11 @@ impl Vm {
                 Inst::EqArrayMinLen { len } => {
                     self.op_eq_array_min_len(*len)?;
                 }
-                Inst::EqObjectExactLen { len } => {
-                    self.op_eq_object_exact_len(*len)?;
+                Inst::EqObjectExactKeys { len } => {
+                    self.op_eq_object_exact_keys(*len)?;
                 }
-                Inst::EqObjectMinLen { len } => {
-                    self.op_eq_object_min_len(*len)?;
+                Inst::EqObjectMinKeys { len } => {
+                    self.op_eq_object_min_keys(*len)?;
                 }
                 Inst::Ptr { offset } => {
                     self.op_ptr(*offset)?;

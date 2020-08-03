@@ -242,12 +242,8 @@ async fn main() -> Result<()> {
     if dump_vm {
         println!("# stack dump after completion");
 
-        for (n, (slot, value)) in runtime.vm().iter_stack_debug().enumerate() {
-            if let st::ValuePtr::Managed(..) = slot {
-                println!("{} = {:?} => {:?}", n, slot, value);
-            } else {
-                println!("{} = {:?}", n, slot);
-            }
+        for (n, (_, value)) in runtime.vm().iter_stack_debug().enumerate() {
+            println!("{} = {:?}", n, value);
         }
 
         println!("---");
@@ -319,12 +315,8 @@ where
         if dump_vm {
             writeln!(out, "# stack dump")?;
 
-            for (n, (slot, value)) in task.vm.iter_stack_debug().enumerate() {
-                if let st::ValuePtr::Managed(..) = slot {
-                    writeln!(out, "{} = {:?} => {:?}", n, slot, value)?;
-                } else {
-                    writeln!(out, "{} = {:?}", n, slot)?;
-                }
+            for (n, (_, value)) in task.vm.iter_stack_debug().enumerate() {
+                writeln!(out, "{} = {:?}", n, value)?;
             }
 
             writeln!(out, "---")?;
