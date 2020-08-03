@@ -108,6 +108,26 @@ pub enum Inst {
         /// The index to fetch.
         index: usize,
     },
+    /// Get the given index out of an object on the top of the stack. Errors if
+    /// the item doesn't exist or the item at the top of the stack is not an
+    /// array.
+    ///
+    /// The index is identifier by a static string slot, which is provided as an
+    /// argument.
+    ///
+    /// Note: this is a specialized variant of `IndexGet` where we know that the
+    /// top of the stack is supposed to be an array.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <object>
+    /// => <value>
+    /// ```
+    ObjectSlotIndexGet {
+        /// The static string slot corresponding to the index to fetch.
+        slot: usize,
+    },
     /// Perform an index set operation.
     ///
     /// # Operation
@@ -467,6 +487,9 @@ impl fmt::Display for Inst {
             }
             Self::ArrayIndexGet { index } => {
                 write!(fmt, "array-index-get {}", index)?;
+            }
+            Self::ObjectSlotIndexGet { slot } => {
+                write!(fmt, "object-slot-index-get {}", slot)?;
             }
             Self::IndexSet => {
                 write!(fmt, "index-set")?;

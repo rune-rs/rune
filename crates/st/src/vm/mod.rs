@@ -329,6 +329,12 @@ pub enum VmError {
         /// The target type we tried to perform the array indexing on.
         target_type: ValueTypeInfo,
     },
+    /// An object slot index get operation that is not supported.
+    #[error("the object slot index get operation on `{target_type}` is not supported")]
+    UnsupportedObjectSlotIndexGet {
+        /// The target type we tried to perform the object indexing on.
+        target_type: ValueTypeInfo,
+    },
     /// An is operation is not supported.
     #[error("`{value_type} is {test_type}` is not supported")]
     UnsupportedIs {
@@ -378,6 +384,12 @@ pub enum VmError {
     ArrayIndexMissing {
         /// The missing index.
         index: usize,
+    },
+    /// Tried to fetch an index in an object that doesn't exist.
+    #[error("missing index by static string slot `{slot}` in object")]
+    ObjectIndexMissing {
+        /// The static string slot corresponding to the index that is missing.
+        slot: usize,
     },
 }
 
@@ -671,9 +683,8 @@ impl Vm {
         self.stack.pop().ok_or_else(|| StackError::StackEmpty)
     }
 
-    /// Pop a number of values from the stack, freeing them if they are no
-    /// longer in use.
-    fn managed_popn(&mut self, n: usize) -> Result<(), StackError> {
+    /// Pop a number of values from the stack.
+    fn op_popn(&mut self, n: usize) -> Result<(), StackError> {
         if self.stack.len().saturating_sub(self.frame_top) < n {
             return Err(StackError::PopOutOfBounds {
                 frame: self.frame_top,
@@ -684,6 +695,15 @@ impl Vm {
             self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
         }
 
+        Ok(())
+    }
+
+    /// Pop a number of values from the stack, while preserving the top of the
+    /// stack.
+    fn op_clean(&mut self, n: usize) -> Result<(), StackError> {
+        let value = self.pop()?;
+        self.op_popn(n)?;
+        self.push(value);
         Ok(())
     }
 
@@ -1341,6 +1361,30 @@ impl Vm {
         })
     }
 
+    #[inline]
+    fn op_sub(&mut self) -> Result<(), VmError> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        self.push(numeric_ops!(self, a - b));
+        Ok(())
+    }
+
+    #[inline]
+    fn op_div(&mut self) -> Result<(), VmError> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        self.push(numeric_ops!(self, a / b));
+        Ok(())
+    }
+
+    #[inline]
+    fn op_mul(&mut self) -> Result<(), VmError> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        self.push(numeric_ops!(self, a * b));
+        Ok(())
+    }
+
     /// Perform an index get operation.
     #[inline]
     fn op_index_get(&mut self) -> Result<(), VmError> {
@@ -1401,14 +1445,43 @@ impl Vm {
         Ok(())
     }
 
+    /// Perform a specialized index get operation on an object.
+    #[inline]
+    fn op_object_slot_index_get(&mut self, slot: usize, unit: &Unit) -> Result<(), VmError> {
+        let target = self.pop()?;
+
+        let value = match target {
+            ValuePtr::Managed(target) => {
+                let index = unit
+                    .lookup_string(slot)
+                    .ok_or_else(|| VmError::MissingStaticString { slot })?;
+
+                let array = self.object_ref(target)?;
+
+                match array.get(index).copied() {
+                    Some(value) => value,
+                    None => {
+                        return Err(VmError::ObjectIndexMissing { slot });
+                    }
+                }
+            }
+            target_type => {
+                let target_type = target_type.type_info(self)?;
+                return Err(VmError::UnsupportedObjectSlotIndexGet { target_type });
+            }
+        };
+
+        self.push(value);
+        Ok(())
+    }
+
     /// Perform an index set operation.
     #[inline]
-    fn op_index_set(
-        &mut self,
-        target: ValuePtr,
-        index: ValuePtr,
-        value: ValuePtr,
-    ) -> Result<(), VmError> {
+    fn op_index_set(&mut self) -> Result<(), VmError> {
+        let target = self.pop()?;
+        let index = self.pop()?;
+        let value = self.pop()?;
+
         match (target, index) {
             (ValuePtr::Managed(target), ValuePtr::Managed(index)) => {
                 match (target.into_managed(), index.into_managed()) {
@@ -1515,6 +1588,58 @@ impl Vm {
     }
 
     #[inline]
+    fn op_eq_static_string(&mut self, slot: usize, unit: &Unit) -> Result<(), VmError> {
+        let string = unit
+            .lookup_string(slot)
+            .ok_or_else(|| VmError::MissingStaticString { slot })?;
+
+        let value = self.pop()?;
+
+        self.push(ValuePtr::Bool(match value {
+            ValuePtr::Managed(slot) => match slot.into_managed() {
+                Managed::String => {
+                    let actual = self.string_ref(slot)?;
+                    *actual == string
+                }
+                _ => false,
+            },
+            _ => false,
+        }));
+
+        Ok(())
+    }
+
+    #[inline]
+    fn op_eq_array_exact_len(&mut self, len: usize) -> Result<(), VmError> {
+        let value = self.pop()?;
+
+        self.push(ValuePtr::Bool(match value {
+            ValuePtr::Managed(slot) => match slot.into_managed() {
+                Managed::Array => self.array_ref(slot)?.len() == len,
+                _ => false,
+            },
+            _ => false,
+        }));
+
+        Ok(())
+    }
+
+    #[inline]
+    fn op_eq_array_min_len(&mut self, len: usize) -> Result<(), VmError> {
+        let value = self.pop()?;
+
+        self.push(ValuePtr::Bool(match value {
+            ValuePtr::Managed(slot) => match slot.into_managed() {
+                Managed::Array => self.array_ref(slot)?.len() >= len,
+                _ => false,
+            },
+            _ => false,
+        }));
+
+        Ok(())
+    }
+
+    #[inline]
     fn op_ptr(&mut self, offset: usize) -> Result<(), VmError> {
         let ptr = self
             .frame_top
@@ -1570,19 +1695,13 @@ impl Vm {
                     self.op_add()?;
                 }
                 Inst::Sub => {
-                    let b = self.pop()?;
-                    let a = self.pop()?;
-                    self.push(numeric_ops!(self, a - b));
+                    self.op_sub()?;
                 }
                 Inst::Div => {
-                    let b = self.pop()?;
-                    let a = self.pop()?;
-                    self.push(numeric_ops!(self, a / b));
+                    self.op_div()?;
                 }
                 Inst::Mul => {
-                    let b = self.pop()?;
-                    let a = self.pop()?;
-                    self.push(numeric_ops!(self, a * b));
+                    self.op_mul()?;
                 }
                 // NB: we inline function calls because it helps Rust optimize
                 // the async plumbing.
@@ -1621,14 +1740,13 @@ impl Vm {
                 Inst::ArrayIndexGet { index } => {
                     self.op_array_index_get(*index)?;
                 }
+                Inst::ObjectSlotIndexGet { slot } => {
+                    self.op_object_slot_index_get(*slot, unit)?;
+                }
                 Inst::IndexSet => {
-                    let target = self.pop()?;
-                    let index = self.pop()?;
-                    let value = self.pop()?;
-                    self.op_index_set(target, index, value)?;
+                    self.op_index_set()?;
                 }
                 Inst::Return => {
-                    // NB: unmanaged because we're effectively moving the value.
                     let return_value = self.pop()?;
                     self.exited = self.pop_frame()?;
                     self.push(return_value);
@@ -1641,12 +1759,10 @@ impl Vm {
                     self.pop()?;
                 }
                 Inst::PopN { count } => {
-                    self.managed_popn(*count)?;
+                    self.op_popn(*count)?;
                 }
                 Inst::Clean { count } => {
-                    let value = self.pop()?;
-                    self.managed_popn(*count)?;
-                    self.push(value);
+                    self.op_clean(*count)?;
                 }
                 Inst::Integer { number } => {
                     self.push(ValuePtr::Integer(*number));
@@ -1774,50 +1890,13 @@ impl Vm {
                     }));
                 }
                 Inst::EqStaticString { slot } => {
-                    let string = unit
-                        .lookup_string(*slot)
-                        .ok_or_else(|| VmError::MissingStaticString { slot: *slot })?;
-
-                    let value = self.pop()?;
-
-                    self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Managed(slot) => match slot.into_managed() {
-                            Managed::String => {
-                                let actual = self.string_ref(slot)?;
-                                *actual == string
-                            }
-                            _ => false,
-                        },
-                        _ => false,
-                    }));
+                    self.op_eq_static_string(*slot, unit)?;
                 }
                 Inst::EqArrayExactLen { len } => {
-                    let value = self.pop()?;
-
-                    self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Managed(slot) => match slot.into_managed() {
-                            Managed::Array => {
-                                let actual = self.array_ref(slot)?;
-                                actual.len() == *len
-                            }
-                            _ => false,
-                        },
-                        _ => false,
-                    }));
+                    self.op_eq_array_exact_len(*len)?;
                 }
                 Inst::EqArrayMinLen { len } => {
-                    let value = self.pop()?;
-
-                    self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Managed(slot) => match slot.into_managed() {
-                            Managed::Array => {
-                                let actual = self.array_ref(slot)?;
-                                actual.len() >= *len
-                            }
-                            _ => false,
-                        },
-                        _ => false,
-                    }));
+                    self.op_eq_array_min_len(*len)?;
                 }
                 Inst::Ptr { offset } => {
                     self.op_ptr(*offset)?;
