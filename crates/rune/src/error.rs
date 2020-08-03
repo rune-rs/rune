@@ -388,12 +388,14 @@ pub enum CompileError {
         span: Span,
     },
     /// Attempting to create an object with a duplicate object key.
-    #[error("object containing duplicate key")]
+    #[error("duplicate key in literal object")]
     DuplicateObjectKey {
-        /// Where the key was defined.
+        /// Where the key was re-defined.
         span: Span,
         /// Where the object key exists previously.
         existing: Span,
+        /// The object being defined.
+        object: Span,
     },
 }
 

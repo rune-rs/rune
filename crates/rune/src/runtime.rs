@@ -313,23 +313,32 @@ impl Runtime {
 
                         *span
                     }
+                    CompileError::DuplicateObjectKey {
+                        span,
+                        existing,
+                        object,
+                    } => {
+                        labels.push(
+                            Label::secondary(source_file, existing.start..existing.end)
+                                .with_message("previously defined here"),
+                        );
+
+                        labels.push(
+                            Label::secondary(source_file, object.start..object.end)
+                                .with_message("object being defined here"),
+                        );
+
+                        *span
+                    }
                     error => error.span(),
                 },
                 RuntimeError::ParseError { error } => error.span(),
             };
 
-            labels.push(
-                Label::primary(source_file, span.start..span.end).with_message(error.to_string()),
-            );
-
-            let mut current = error.source();
-
-            while let Some(e) = current {
+            if let Some(e) = error.source() {
                 labels.push(
                     Label::primary(source_file, span.start..span.end).with_message(e.to_string()),
                 );
-
-                current = e.source();
             }
 
             let diagnostic = Diagnostic::error()

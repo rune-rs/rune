@@ -437,7 +437,7 @@ impl<'a> Compiler<'a> {
 
     fn encode_object_literal(
         &mut self,
-        object_literal: &ast::ObjectLiteral,
+        object: &ast::ObjectLiteral,
         needs_value: NeedsValue,
     ) -> Result<()> {
         if !needs_value.0 {
@@ -445,15 +445,30 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        let count = object_literal.items.len();
+        let mut keys_dup = HashMap::new();
 
-        for (key, _, value) in object_literal.items.iter().rev() {
+        let count = object.items.len();
+
+        for (key, _, value) in &object.items {
             self.encode_expr(value, NeedsValue(true))?;
-            self.encode_string_literal(key, NeedsValue(true))?;
+
+            let span = key.span();
+            let key = key.resolve(self.source)?;
+            let slot = self.unit.new_static_string(&*key)?;
+
+            if let Some(existing) = keys_dup.insert(key, span) {
+                return Err(CompileError::DuplicateObjectKey {
+                    span,
+                    existing,
+                    object: object.span(),
+                });
+            }
+
+            self.instructions.push(st::Inst::String { slot }, span);
         }
 
         self.instructions
-            .push(st::Inst::Object { count }, object_literal.span());
+            .push(st::Inst::Object { count }, object.span());
         Ok(())
     }
 
@@ -1396,7 +1411,11 @@ impl<'a> Compiler<'a> {
             keys.push(string.to_string());
 
             if let Some(existing) = keys_dup.insert(string, span) {
-                return Err(CompileError::DuplicateObjectKey { span, existing });
+                return Err(CompileError::DuplicateObjectKey {
+                    span,
+                    existing,
+                    object: object.span(),
+                });
             }
         }
 
