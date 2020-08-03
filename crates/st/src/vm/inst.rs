@@ -401,19 +401,18 @@ pub enum Inst {
         /// `false`.
         exact: bool,
     },
-    /// Test that the top of the stack is an object with the given length
-    /// requirement, where the keys specified on the stack exists.
+    /// Test that the top of the stack is an object matching the given slot of
+    /// object keys.
     ///
     /// # Operation
     ///
     /// ```text
-    /// <key..>
-    /// <value>
+    /// <object>
     /// => <boolean>
     /// ```
     MatchObject {
-        /// The length to test for.
-        len: usize,
+        /// The slot of object keys to use.
+        slot: usize,
         /// Whether the operation should check exact `true` or minimum length
         /// `false`.
         exact: bool,
@@ -595,8 +594,8 @@ impl fmt::Display for Inst {
             Self::MatchArray { len, exact } => {
                 write!(fmt, "match-array {}, {}", len, exact)?;
             }
-            Self::MatchObject { len, exact } => {
-                write!(fmt, "match-object {}, {}", len, exact)?;
+            Self::MatchObject { slot, exact } => {
+                write!(fmt, "match-object {}, {}", slot, exact)?;
             }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;

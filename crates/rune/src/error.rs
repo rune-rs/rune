@@ -387,6 +387,14 @@ pub enum CompileError {
         /// Where the float was used.
         span: Span,
     },
+    /// Attempting to create an object with a duplicate object key.
+    #[error("object containing duplicate key")]
+    DuplicateObjectKey {
+        /// Where the key was defined.
+        span: Span,
+        /// Where the object key exists previously.
+        existing: Span,
+    },
 }
 
 impl CompileError {
@@ -417,6 +425,7 @@ impl SpannedError for CompileError {
             Self::ReturnLocalReferences { span, .. } => span,
             Self::ReturnDoesNotProduceValue { span, .. } => span,
             Self::MatchFloatInPattern { span, .. } => span,
+            Self::DuplicateObjectKey { span, .. } => span,
         }
     }
 }

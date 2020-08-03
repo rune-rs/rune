@@ -260,6 +260,12 @@ pub enum VmError {
         /// Slot which is missing a static string.
         slot: usize,
     },
+    /// Indicates that a static object keys is missing for the given slot.
+    #[error("static object keys slot `{slot}` does not exist")]
+    MissingStaticObjectKeys {
+        /// Slot which is missing a static object keys.
+        slot: usize,
+    },
     /// Saw an unexpected stack value.
     #[error("unexpected stack value, expected `{expected}` but was `{actual}`")]
     StackTopTypeError {
@@ -560,8 +566,6 @@ pub struct Vm {
     slots: Slab<Holder>,
     /// Generation used for allocated objects.
     generation: usize,
-    /// A temporary buffer to hold values.
-    temp: Vec<ValuePtr>,
 }
 
 impl Vm {
@@ -575,7 +579,6 @@ impl Vm {
             frames: Vec::new(),
             slots: Slab::new(),
             generation: 0,
-            temp: Vec::with_capacity(16),
         }
     }
 
@@ -1607,18 +1610,15 @@ impl Vm {
     }
 
     #[inline]
-    fn match_object<F>(&mut self, len: usize, f: F) -> Result<(), VmError>
+    fn match_object<F>(&mut self, slot: usize, unit: &Unit, f: F) -> Result<(), VmError>
     where
-        F: FnOnce(&HashMap<String, ValuePtr>) -> bool,
+        F: FnOnce(&HashMap<String, ValuePtr>, usize) -> bool,
     {
         let value = self.pop()?;
 
-        self.temp.clear();
-
-        for _ in 0..len {
-            let value = self.pop()?;
-            self.temp.push(value);
-        }
+        let keys = unit
+            .lookup_object_keys(slot)
+            .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
         let object = match value {
             ValuePtr::Object(slot) => self.object_ref(slot)?,
@@ -1628,23 +1628,15 @@ impl Vm {
             }
         };
 
-        if !f(&*object) {
+        if !f(&*object, keys.len()) {
             self.push(ValuePtr::Bool(false));
             return Ok(());
         }
 
         let mut is_match = true;
 
-        for value in self.temp.iter().copied() {
-            let string = match value {
-                ValuePtr::String(slot) => self.string_ref(slot)?,
-                actual => {
-                    let actual = actual.type_info(self)?;
-                    return Err(VmError::UnsupportedObjectKey { actual });
-                }
-            };
-
-            if !object.contains_key(&*string) {
+        for key in keys {
+            if !object.contains_key(key) {
                 is_match = false;
                 break;
             }
@@ -1916,13 +1908,13 @@ impl Vm {
                         self.match_array(|array| array.len() >= len)?;
                     }
                 }
-                Inst::MatchObject { len, exact } => {
-                    let len = *len;
+                Inst::MatchObject { slot, exact } => {
+                    let slot = *slot;
 
                     if *exact {
-                        self.match_object(len, |object| object.len() == len)?;
+                        self.match_object(slot, unit, |object, len| object.len() == len)?;
                     } else {
-                        self.match_object(len, |object| object.len() >= len)?;
+                        self.match_object(slot, unit, |object, len| object.len() >= len)?;
                     }
                 }
                 Inst::Ptr { offset } => {

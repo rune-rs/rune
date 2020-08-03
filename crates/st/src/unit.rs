@@ -35,14 +35,36 @@ pub enum UnitError {
         slot: usize,
     },
     /// A static string was missing for the given hash and slot.
-    #[error("conflicting static string for hash `{hash}` between `{existing}` and `{string}`")]
+    #[error(
+        "conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`"
+    )]
     StaticStringHashConflict {
         /// The hash of the string.
         hash: Hash,
         /// The static string that was inserted.
-        string: String,
+        current: String,
         /// The existing static string that conflicted.
         existing: String,
+    },
+    /// A static object keys was missing for the given hash and slot.
+    #[error("missing static object keys for hash `{hash}` and slot `{slot}`")]
+    StaticObjectKeysMissing {
+        /// The hash of the object keys.
+        hash: Hash,
+        /// The slot of the object keys.
+        slot: usize,
+    },
+    /// A static object keys was missing for the given hash and slot.
+    #[error(
+        "conflicting static object keys for hash `{hash}` between `{existing:?}` and `{current:?}`"
+    )]
+    StaticObjectKeysHashConflict {
+        /// The hash of the object keys.
+        hash: Hash,
+        /// The static object keys that was inserted.
+        current: Box<[String]>,
+        /// The existing static object keys that conflicted.
+        existing: Box<[String]>,
     },
     /// Tried to add a duplicate label.
     #[error("duplicate label `{label}`")]
@@ -190,6 +212,15 @@ pub struct Unit {
     static_strings: Vec<String>,
     /// Reverse lookup for static strings.
     static_string_rev: HashMap<Hash, usize>,
+    /// Slots used for object keys.
+    ///
+    /// This is used when an object is used in a pattern match, to avoid having
+    /// to send the collection of keys to the virtual machine.
+    ///
+    /// All keys are sorted with the default string sort.
+    static_object_keys: Vec<Box<[String]>>,
+    /// Used to detect duplicates in the collection of static object keys.
+    static_object_keys_rev: HashMap<Hash, usize>,
     /// Debug info for each line.
     debug: Vec<DebugInfo>,
     /// The current label count.
@@ -208,6 +239,8 @@ impl Unit {
             functions_rev: HashMap::new(),
             static_strings: Vec::new(),
             static_string_rev: HashMap::new(),
+            static_object_keys: Vec::new(),
+            static_object_keys_rev: HashMap::new(),
             debug: Vec::new(),
             label_count: 0,
             required_functions: HashMap::new(),
@@ -298,36 +331,78 @@ impl Unit {
         self.static_strings.get(slot).map(String::as_str)
     }
 
+    /// Lookup the static object keys by slot, if it exists.
+    pub fn lookup_object_keys(&self, slot: usize) -> Option<&[String]> {
+        self.static_object_keys.get(slot).map(|keys| &keys[..])
+    }
+
     /// Insert a static string and return its associated slot that can later be
     /// looked up through [lookup_string][Self::lookup_string].
     ///
     /// Only uses up space if the static string is unique.
-    pub fn static_string(&mut self, string: &str) -> Result<usize, UnitError> {
-        let hash = Hash::of(string);
+    pub fn new_static_string(&mut self, current: &str) -> Result<usize, UnitError> {
+        let hash = Hash::of(&current);
 
-        if let Some(existing) = self.static_string_rev.get(&hash).copied() {
-            let existing_string = self.static_strings.get(existing).ok_or_else(|| {
+        if let Some(existing_slot) = self.static_string_rev.get(&hash).copied() {
+            let existing = self.static_strings.get(existing_slot).ok_or_else(|| {
                 UnitError::StaticStringMissing {
                     hash,
-                    slot: existing,
+                    slot: existing_slot,
                 }
             })?;
 
-            if existing_string != string {
+            if existing != current {
                 return Err(UnitError::StaticStringHashConflict {
                     hash,
-                    string: string.to_owned(),
-                    existing: existing_string.clone(),
+                    current: current.to_owned(),
+                    existing: existing.clone(),
                 });
             }
 
-            return Ok(existing);
+            return Ok(existing_slot);
         }
 
         let new_slot = self.static_strings.len();
-        self.static_strings.push(string.to_owned());
+        self.static_strings.push(current.to_owned());
         self.static_string_rev.insert(hash, new_slot);
         Ok(new_slot)
+    }
+
+    /// Insert a new collection of static object keys, or return one already
+    /// existing.
+    pub fn new_static_object_keys(&mut self, current: &[String]) -> Result<usize, UnitError> {
+        let current = sort_key(current);
+        let hash = Hash::object_keys(&current[..]);
+
+        if let Some(existing_slot) = self.static_object_keys_rev.get(&hash).copied() {
+            let existing = self.static_object_keys.get(existing_slot).ok_or_else(|| {
+                UnitError::StaticObjectKeysMissing {
+                    hash,
+                    slot: existing_slot,
+                }
+            })?;
+
+            if *existing != current {
+                return Err(UnitError::StaticObjectKeysHashConflict {
+                    hash,
+                    current,
+                    existing: existing.clone(),
+                });
+            }
+
+            return Ok(existing_slot);
+        }
+
+        let new_slot = self.static_object_keys.len();
+        self.static_object_keys.push(current);
+        self.static_object_keys_rev.insert(hash, new_slot);
+        return Ok(new_slot);
+
+        fn sort_key(key: &[String]) -> Box<[String]> {
+            let mut key = key.to_vec();
+            key.sort();
+            key.into_boxed_slice()
+        }
     }
 
     /// Lookup information of a function.

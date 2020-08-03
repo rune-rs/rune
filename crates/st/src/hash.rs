@@ -15,11 +15,29 @@ impl Hash {
     const TYPE: usize = 1;
     const FUNCTION: usize = 2;
     const INSTANCE_FUNCTION: usize = 3;
+    const OBJECT_KEYS: usize = 4;
 
     /// Construct a simple hash from something that is hashable.
     pub fn of<T: std::hash::Hash>(thing: T) -> Self {
         let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
         thing.hash(&mut hasher);
+        Self(hasher.finish())
+    }
+
+    /// Hash the given iterator of object keys.
+    pub fn object_keys<I>(keys: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
+        Self::OBJECT_KEYS.hash(&mut hasher);
+
+        for key in keys {
+            Self::SEP.hash(&mut hasher);
+            key.as_ref().hash(&mut hasher);
+        }
+
         Self(hasher.finish())
     }
 

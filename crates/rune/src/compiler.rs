@@ -483,7 +483,7 @@ impl<'a> Compiler<'a> {
 
         let span = string.span();
         let string = string.resolve(self.source)?;
-        let slot = self.unit.static_string(&*string)?;
+        let slot = self.unit.new_static_string(&*string)?;
         self.instructions.push(st::Inst::String { slot }, span);
         Ok(())
     }
@@ -1382,30 +1382,35 @@ impl<'a> Compiler<'a> {
         offset: usize,
         false_label: Label,
     ) -> Result<()> {
+        let mut string_slots = Vec::new();
         let span = object.span();
 
-        let mut slots = Vec::new();
+        let mut keys_dup = HashMap::new();
+        let mut keys = Vec::new();
 
         for (string, _, _, _) in &object.items {
+            let span = string.span();
+
             let string = string.resolve(self.source)?;
-            let slot = self.unit.static_string(&*string)?;
-            slots.push(slot);
+            string_slots.push(self.unit.new_static_string(&*string)?);
+            keys.push(string.to_string());
+
+            if let Some(existing) = keys_dup.insert(string, span) {
+                return Err(CompileError::DuplicateObjectKey { span, existing });
+            }
         }
+
+        let keys = self.unit.new_static_object_keys(&keys[..])?;
 
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed an array.
         {
-            for slot in &slots {
-                self.instructions
-                    .push(st::Inst::String { slot: *slot }, span);
-            }
-
             self.instructions.push(st::Inst::Copy { offset }, span);
 
             if object.open_pattern.is_some() {
                 self.instructions.push(
                     st::Inst::MatchObject {
-                        len: object.items.len(),
+                        slot: keys,
                         exact: false,
                     },
                     span,
@@ -1413,7 +1418,7 @@ impl<'a> Compiler<'a> {
             } else {
                 self.instructions.push(
                     st::Inst::MatchObject {
-                        len: object.items.len(),
+                        slot: keys,
                         exact: true,
                     },
                     span,
@@ -1428,7 +1433,7 @@ impl<'a> Compiler<'a> {
         self.instructions.jump(false_label, span);
         self.instructions.label(length_true)?;
 
-        for ((_, _, pat, _), slot) in object.items.iter().zip(&slots) {
+        for ((_, _, pat, _), slot) in object.items.iter().zip(&string_slots) {
             let span = pat.span();
 
             // load the given array index and declare it as a local variable.
@@ -1506,7 +1511,7 @@ impl<'a> Compiler<'a> {
                 let span = string.span();
 
                 let string = string.resolve(self.source)?;
-                let slot = self.unit.static_string(&*string)?;
+                let slot = self.unit.new_static_string(&*string)?;
 
                 self.instructions.push(st::Inst::Copy { offset }, span);
                 self.instructions
