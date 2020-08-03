@@ -91,6 +91,23 @@ pub enum Inst {
     /// => <value>
     /// ```
     IndexGet,
+    /// Get the given index out of an array on the top of the stack. Errors if
+    /// the item doesn't exist or the item at the top of the stack is not an
+    /// array.
+    ///
+    /// Note: this is a specialized variant of `IndexGet` where we know that the
+    /// top of the stack is supposed to be an array.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <array>
+    /// => <value>
+    /// ```
+    ArrayIndexGet {
+        /// The index to fetch.
+        index: usize,
+    },
     /// Perform an index set operation.
     ///
     /// # Operation
@@ -348,6 +365,31 @@ pub enum Inst {
         /// The slot to test against.
         slot: usize,
     },
+    /// Test that the top of the stack is an array with the given minimum
+    /// length.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqArrayMinLen {
+        /// The minimum length to test for.
+        len: usize,
+    },
+    /// Test that the top of the stack is an array with the given length.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqArrayExactLen {
+        /// The length to test for.
+        len: usize,
+    },
     /// Push the type with the given hash as a value on the stack.
     ///
     /// # Operation
@@ -380,6 +422,14 @@ pub enum Inst {
     /// => <value>
     /// ```
     Deref,
+    /// Cause the VM to panic and error out without a reason.
+    ///
+    /// This should only be used during testing or extreme scenarios that are
+    /// completely unrecoverable.
+    Panic {
+        /// The mark of the panic.
+        mark: usize,
+    },
 }
 
 impl fmt::Display for Inst {
@@ -414,6 +464,9 @@ impl fmt::Display for Inst {
             }
             Self::IndexGet => {
                 write!(fmt, "index-get")?;
+            }
+            Self::ArrayIndexGet { index } => {
+                write!(fmt, "array-index-get {}", index)?;
             }
             Self::IndexSet => {
                 write!(fmt, "index-set")?;
@@ -508,6 +561,12 @@ impl fmt::Display for Inst {
             Self::EqStaticString { slot } => {
                 write!(fmt, "eq-static-string {}", slot)?;
             }
+            Self::EqArrayExactLen { len } => {
+                write!(fmt, "eq-array-exact-length {}", len)?;
+            }
+            Self::EqArrayMinLen { len } => {
+                write!(fmt, "eq-array-min-len {}", len)?;
+            }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;
             }
@@ -516,6 +575,9 @@ impl fmt::Display for Inst {
             }
             Self::Deref => {
                 write!(fmt, "deref")?;
+            }
+            Self::Panic { mark } => {
+                write!(fmt, "panic {}", mark)?;
             }
         }
 

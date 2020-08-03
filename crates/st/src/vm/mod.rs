@@ -184,6 +184,12 @@ impl fmt::Display for Integer {
 /// Errors raised by the execution of the virtual machine.
 #[derive(Debug, Error)]
 pub enum VmError {
+    /// The virtual machine panicked for no specific reason.
+    #[error("panicked `{mark}`")]
+    Panic {
+        /// Mark of the panic.
+        mark: usize,
+    },
     /// Error raised in a user-defined function.
     #[error("error in user-defined function")]
     UserError {
@@ -317,6 +323,12 @@ pub enum VmError {
         /// The index to get.
         index_type: ValueTypeInfo,
     },
+    /// An array index get operation that is not supported.
+    #[error("the array index get operation on `{target_type}` is not supported")]
+    UnsupportedArrayIndexGet {
+        /// The target type we tried to perform the array indexing on.
+        target_type: ValueTypeInfo,
+    },
     /// An is operation is not supported.
     #[error("`{value_type} is {test_type}` is not supported")]
     UnsupportedIs {
@@ -360,6 +372,12 @@ pub enum VmError {
     UnsupportedCallFn {
         /// The type that could not be called.
         actual_type: ValueTypeInfo,
+    },
+    /// Tried to fetch an index in an array that doesn't exist.
+    #[error("missing index `{index}` in array")]
+    ArrayIndexMissing {
+        /// The missing index.
+        index: usize,
     },
 }
 
@@ -1325,7 +1343,10 @@ impl Vm {
 
     /// Perform an index get operation.
     #[inline]
-    fn op_index_get(&mut self, target: ValuePtr, index: ValuePtr) -> Result<(), VmError> {
+    fn op_index_get(&mut self) -> Result<(), VmError> {
+        let target = self.pop()?;
+        let index = self.pop()?;
+
         match (target, index) {
             (ValuePtr::Managed(target), ValuePtr::Managed(index)) => {
                 match (target.into_managed(), index.into_managed()) {
@@ -1352,6 +1373,32 @@ impl Vm {
             target_type,
             index_type,
         })
+    }
+
+    /// Perform an index get operation.
+    #[inline]
+    fn op_array_index_get(&mut self, index: usize) -> Result<(), VmError> {
+        let target = self.pop()?;
+
+        let value = match target {
+            ValuePtr::Managed(target) => {
+                let array = self.array_ref(target)?;
+
+                match array.get(index).copied() {
+                    Some(value) => value,
+                    None => {
+                        return Err(VmError::ArrayIndexMissing { index });
+                    }
+                }
+            }
+            target_type => {
+                let target_type = target_type.type_info(self)?;
+                return Err(VmError::UnsupportedArrayIndexGet { target_type });
+            }
+        };
+
+        self.push(value);
+        Ok(())
     }
 
     /// Perform an index set operation.
@@ -1569,9 +1616,10 @@ impl Vm {
                     self.push(ValuePtr::Fn(hash));
                 }
                 Inst::IndexGet => {
-                    let target = self.pop()?;
-                    let index = self.pop()?;
-                    self.op_index_get(target, index)?;
+                    self.op_index_get()?;
+                }
+                Inst::ArrayIndexGet { index } => {
+                    self.op_array_index_get(*index)?;
                 }
                 Inst::IndexSet => {
                     let target = self.pop()?;
@@ -1743,11 +1791,42 @@ impl Vm {
                         _ => false,
                     }));
                 }
+                Inst::EqArrayExactLen { len } => {
+                    let value = self.pop()?;
+
+                    self.push(ValuePtr::Bool(match value {
+                        ValuePtr::Managed(slot) => match slot.into_managed() {
+                            Managed::Array => {
+                                let actual = self.array_ref(slot)?;
+                                actual.len() == *len
+                            }
+                            _ => false,
+                        },
+                        _ => false,
+                    }));
+                }
+                Inst::EqArrayMinLen { len } => {
+                    let value = self.pop()?;
+
+                    self.push(ValuePtr::Bool(match value {
+                        ValuePtr::Managed(slot) => match slot.into_managed() {
+                            Managed::Array => {
+                                let actual = self.array_ref(slot)?;
+                                actual.len() >= *len
+                            }
+                            _ => false,
+                        },
+                        _ => false,
+                    }));
+                }
                 Inst::Ptr { offset } => {
                     self.op_ptr(*offset)?;
                 }
                 Inst::Deref => {
                     self.op_deref()?;
+                }
+                Inst::Panic { mark } => {
+                    return Err(VmError::Panic { mark: *mark });
                 }
             }
 

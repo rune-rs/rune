@@ -4,7 +4,7 @@ use crate::error::{CompileError, ConfigurationError};
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
-use st::unit::Span;
+use st::unit::{Label, Span};
 
 /// Compiler options.
 pub struct Options {
@@ -1254,30 +1254,33 @@ impl<'a> Compiler<'a> {
         let new_scope = self.last_scope(span)?.new_scope();
         self.scopes.push(new_scope);
 
-        let expr_offset = self.last_scope_mut(span)?.decl_anon(expr_match.expr.span());
         self.encode_expr(&*expr_match.expr, NeedsValue(true))?;
+        let expr_offset = self.last_scope_mut(span)?.decl_anon(expr_match.expr.span());
 
         let end_label = self.instructions.new_label("match_end");
         let mut branches = Vec::new();
 
         for (branch, _) in &expr_match.branches {
-            // NB: each branch requires a scope since they have local bindings.
-            let new_scope = self.last_scope(span)?.new_scope();
-            self.scopes.push(new_scope);
+            let span = branch.span();
+            let branch_label = self.instructions.new_label("match_branch");
+            let match_false = self.instructions.new_label("match_false");
 
-            let label = self.instructions.new_label("match_branch");
+            let mut scope = self.last_scope(span)?.new_scope();
+            self.encode_pat(&mut scope, &branch.pat, expr_offset, match_false)?;
+            self.instructions.jump(branch_label, span);
+            self.instructions.label(match_false)?;
 
-            if self.encode_pat(&branch.pat, expr_offset)? {
-                self.instructions.jump(label, branch.span());
-            } else {
-                self.instructions.jump_if(label, branch.span());
+            branches.push((branch_label, scope));
+        }
+
+        // what to do in case nothing matches and the pattern doesn't have any
+        // default match branch.
+        if !expr_match.has_default {
+            if needs_value.0 {
+                self.instructions.push(st::Inst::Unit, span);
             }
 
-            let scope = self.pop_scope(branch.span())?;
-            // need to clean up locals if we fall through to a different branch.
-            self.pop_locals(scope.local_var_count, branch.span());
-
-            branches.push((label, scope));
+            self.instructions.jump(end_label, span);
         }
 
         let mut it = expr_match.branches.iter().zip(&branches).peekable();
@@ -1315,72 +1318,160 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
+    /// Encode an array pattern match.
+    fn encode_array_pat(
+        &mut self,
+        scope: &mut Scope,
+        array: &ast::ArrayPat,
+        offset: usize,
+        false_label: Label,
+    ) -> Result<()> {
+        let span = array.span();
+
+        // Copy the temporary and check that its length matches the pattern and
+        // that it is indeed an array.
+        {
+            self.instructions.push(st::Inst::Copy { offset }, span);
+
+            if array.open_pattern.is_some() {
+                self.instructions.push(
+                    st::Inst::EqArrayMinLen {
+                        len: array.items.len(),
+                    },
+                    span,
+                );
+            } else {
+                self.instructions.push(
+                    st::Inst::EqArrayExactLen {
+                        len: array.items.len(),
+                    },
+                    span,
+                );
+            }
+        }
+
+        let length_true = self.instructions.new_label("pat_array_length_true");
+
+        self.instructions.jump_if(length_true, span);
+        self.pop_locals(scope.local_var_count, span);
+        self.instructions.jump(false_label, span);
+        self.instructions.label(length_true)?;
+
+        for (index, (pat, _)) in array.items.iter().enumerate() {
+            let span = pat.span();
+
+            // load the given array index and declare it as a local variable.
+            self.instructions.push(st::Inst::Copy { offset }, span);
+            self.instructions
+                .push(st::Inst::ArrayIndexGet { index }, span);
+            let offset = scope.decl_anon(span);
+
+            self.encode_pat(scope, &*pat, offset, false_label)?;
+        }
+
+        Ok(())
+    }
+
+    /// Encode an object pattern match.
+    fn encode_object_pat(
+        &mut self,
+        _scope: &mut Scope,
+        object: &ast::ObjectPat,
+        _offset: usize,
+        _false_label: Label,
+    ) -> Result<()> {
+        return Err(CompileError::internal(
+            "object patterns are not implemented yet",
+            object.span(),
+        ));
+    }
+
     /// Encode a pattern.
     ///
-    /// Pushes a boolean to the stack unless the branch is unconditional.
-    /// If the pattern is unconditional, return `true`.
-    fn encode_pat(&mut self, pat: &ast::Pat, offset: usize) -> Result<bool> {
+    /// Patterns will clean up their own locals and execute a jump to
+    /// `false_label` in case the pattern does not match.
+    ///
+    /// This label is typically a fallthrough to the next pattern.
+    fn encode_pat(
+        &mut self,
+        scope: &mut Scope,
+        pat: &ast::Pat,
+        offset: usize,
+        false_label: Label,
+    ) -> Result<()> {
         log::trace!("{:?}", pat);
         let span = pat.span();
 
-        // Copy the expression to the top of the stack for comparison.
-        self.instructions.push(st::Inst::Copy { offset }, span);
+        let true_label = self.instructions.new_label("pat_true");
 
         match pat {
             ast::Pat::BindingPat(binding) => {
                 let name = binding.resolve(self.source)?;
-                self.last_scope_mut(span)?.decl_var(name, span, Vec::new());
-                Ok(true)
+                self.last_scope_mut(span)?
+                    .name_var_at(offset, name, span, Vec::new());
+                return Ok(());
             }
-            ast::Pat::IgnorePat(..) => Ok(true),
+            ast::Pat::IgnorePat(..) => {
+                return Ok(());
+            }
             ast::Pat::UnitPat(unit) => {
+                self.instructions.push(st::Inst::Copy { offset }, span);
                 self.instructions.push(st::Inst::IsUnit, unit.span());
-                Ok(false)
+                self.instructions.jump_if(true_label, unit.span());
             }
             ast::Pat::CharPat(char_literal) => {
                 let character = char_literal.resolve(self.source)?;
+
+                self.instructions.push(st::Inst::Copy { offset }, span);
                 self.instructions
                     .push(st::Inst::EqCharacter { character }, char_literal.span());
-                Ok(false)
+                self.instructions.jump_if(true_label, char_literal.span());
             }
             ast::Pat::NumberPat(number_literal) => {
+                let span = number_literal.span();
+
                 let number = number_literal.resolve(self.source)?;
 
                 let integer = match number {
                     ast::Number::Integer(integer) => integer,
                     ast::Number::Float(..) => {
-                        return Err(CompileError::MatchFloatInPattern {
-                            span: number_literal.span(),
-                        });
+                        return Err(CompileError::MatchFloatInPattern { span });
                     }
                 };
 
+                self.instructions.push(st::Inst::Copy { offset }, span);
                 self.instructions
-                    .push(st::Inst::EqInteger { integer }, number_literal.span());
-                Ok(false)
+                    .push(st::Inst::EqInteger { integer }, span);
+
+                self.instructions.jump_if(true_label, span);
             }
             ast::Pat::StringPat(string) => {
                 let span = string.span();
+
                 let string = string.resolve(self.source)?;
                 let slot = self.unit.static_string(&*string)?;
 
+                self.instructions.push(st::Inst::Copy { offset }, span);
                 self.instructions
                     .push(st::Inst::EqStaticString { slot }, span);
-                Ok(false)
+
+                self.instructions.jump_if(true_label, span);
             }
             ast::Pat::ArrayPat(array) => {
-                return Err(CompileError::internal(
-                    "array patterns are not implemented yet",
-                    array.span(),
-                ));
+                return self.encode_array_pat(scope, array, offset, false_label);
             }
             ast::Pat::ObjectPat(object) => {
-                return Err(CompileError::internal(
-                    "object patterns are not implemented yet",
-                    object.span(),
-                ));
+                return self.encode_object_pat(scope, object, offset, false_label);
             }
         }
+
+        // default method of cleaning up locals.
+        let count = scope.local_var_count;
+        self.pop_locals(count, span);
+        self.instructions.jump(false_label, span);
+        self.instructions.label(true_label)?;
+
+        Ok(())
     }
 
     /// Pop the last scope.
@@ -1503,8 +1594,20 @@ impl Scope {
         offset
     }
 
+    /// Name the last anonymous variable.
+    pub fn name_var_at(&mut self, offset: usize, name: &str, span: Span, references_at: Vec<Span>) {
+        self.locals.insert(
+            name.to_owned(),
+            Var {
+                offset,
+                name: name.to_owned(),
+                span,
+                references_at,
+            },
+        );
+    }
+
     /// Insert a new local, and return the old one if there's a conflict.
-    #[allow(unused)]
     fn decl_anon(&mut self, span: Span) -> usize {
         let offset = self.total_var_count;
 
@@ -1538,7 +1641,7 @@ impl Scope {
 #[derive(Clone, Copy)]
 struct Loop {
     /// The end label of the loop.
-    end_label: st::unit::Label,
+    end_label: Label,
     /// The number of variables observed at the start of the loop.
     total_var_count: usize,
 }

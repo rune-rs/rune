@@ -337,3 +337,66 @@ async fn test_match() {
         "hello john",
     };
 }
+
+#[tokio::test]
+async fn test_nested_match() {
+    assert_eq! {
+        test!(() => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
+        (),
+    };
+
+    assert_eq! {
+        test!(() => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
+        (),
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b, _ => false } }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, 2] { [a, b, ..] => a + 1 == b, _ => false } }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, 2] { [1, ..] => true, _ => false } }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, 2] { [] => true, _ => false } }"#),
+        false,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, 2] { [1, 2] => true, _ => false } }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, 2] { [1] => true, _ => false } }"#),
+        false,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, [2, 3]] { [1, [2, ..]] => true, _ => false } }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, []] { [1, [2, ..]] => true, _ => false } }"#),
+        false,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, [2, 3]] { [1, [2, 3]] => true, _ => false } }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [1, [2, 4]] { [1, [2, 3]] => true, _ => false } }"#),
+        false,
+    };
+}

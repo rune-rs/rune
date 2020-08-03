@@ -409,30 +409,26 @@ impl Unit {
             let mut comment = None;
             let label = assembly.labels_rev.get(&pos).copied();
 
-            self.instructions.push(match inst {
+            match inst {
                 AssemblyInst::Jump { label } => {
                     comment = Some(format!("label:{}", label).into_boxed_str());
-
-                    Inst::Jump {
-                        offset: translate_offset(pos, label, &assembly.labels)?,
-                    }
+                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    self.instructions.push(Inst::Jump { offset });
                 }
                 AssemblyInst::JumpIf { label } => {
                     comment = Some(format!("label:{}", label).into_boxed_str());
-
-                    Inst::JumpIf {
-                        offset: translate_offset(pos, label, &assembly.labels)?,
-                    }
+                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    self.instructions.push(Inst::JumpIf { offset });
                 }
                 AssemblyInst::JumpIfNot { label } => {
                     comment = Some(format!("label:{}", label).into_boxed_str());
-
-                    Inst::JumpIfNot {
-                        offset: translate_offset(pos, label, &assembly.labels)?,
-                    }
+                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    self.instructions.push(Inst::JumpIfNot { offset });
                 }
-                AssemblyInst::Raw { raw } => raw,
-            });
+                AssemblyInst::Raw { raw } => {
+                    self.instructions.push(raw);
+                }
+            }
 
             self.debug.push(DebugInfo {
                 span,

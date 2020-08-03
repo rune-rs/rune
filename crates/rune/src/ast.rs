@@ -645,9 +645,9 @@ impl BinOp {
             // `is` has lowest precedence.
             Self::Assign { .. } => 0,
             Self::Is { .. } => 5,
-            Self::Add { .. } | Self::Sub { .. } => 10,
-            Self::Div { .. } | Self::Mul { .. } => 20,
-            Self::Eq { .. } | Self::Neq { .. } => 30,
+            Self::Eq { .. } | Self::Neq { .. } => 10,
+            Self::Add { .. } | Self::Sub { .. } => 20,
+            Self::Div { .. } | Self::Mul { .. } => 30,
             Self::Gt { .. } => 40,
             Self::Lt { .. } => 41,
             Self::Gte { .. } => 42,
