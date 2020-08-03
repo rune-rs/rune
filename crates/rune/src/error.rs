@@ -138,8 +138,16 @@ pub enum ParseError {
         /// The kind of the actual token we saw.
         actual: Kind,
     },
+    /// Expected a pattern but got something else.
+    #[error("expected start of pattern but got `{actual}`")]
+    ExpectedPatError {
+        /// Span that caused the error.
+        span: Span,
+        /// The kind of the actual token we saw.
+        actual: Kind,
+    },
     /// Expected an expression but got something else.
-    #[error("expected expression but got `{actual}`")]
+    #[error("expected start of expression but got `{actual}`")]
     ExpectedExprError {
         /// Span that caused the error.
         span: Span,
@@ -216,6 +224,22 @@ pub enum ParseError {
         /// The actual token.
         actual: Kind,
     },
+    /// Trying to define multiple fallback branches.
+    #[error("multiple distinct fallback branches are defined")]
+    MatchMultipleFallbackBranches {
+        /// The current branch we are trying to define.
+        span: Span,
+        /// The existing branch we have already defined.
+        existing: Span,
+    },
+    /// A match branch that will never be reached.
+    #[error("match branch will never be reached")]
+    MatchNeverReached {
+        /// The span of the branch.
+        span: Span,
+        /// The span of the existing branch.
+        existing: Span,
+    },
 }
 
 impl SpannedError for ParseError {
@@ -228,6 +252,7 @@ impl SpannedError for ParseError {
             Self::ExpectedStringClose { span, .. } => span,
             Self::ExpectedCharClose { span, .. } => span,
             Self::TokenMismatch { span, .. } => span,
+            Self::ExpectedPatError { span, .. } => span,
             Self::ExpectedExprError { span, .. } => span,
             Self::ExpectedBlockExprError { span, .. } => span,
             Self::UnexpectedChar { span, .. } => span,
@@ -238,6 +263,8 @@ impl SpannedError for ParseError {
             Self::ExpectedBoolError { span, .. } => span,
             Self::PathCallInstanceError { span, .. } => span,
             Self::ExpectedUnaryOperator { span, .. } => span,
+            Self::MatchMultipleFallbackBranches { span, .. } => span,
+            Self::MatchNeverReached { span, .. } => span,
         }
     }
 }
@@ -354,6 +381,12 @@ pub enum CompileError {
         /// The span in which it was used.
         span: Span,
     },
+    /// Attempting to use a float in a match pattern.
+    #[error("floating point numbers cannot be used in patterns")]
+    MatchFloatInPattern {
+        /// Where the float was used.
+        span: Span,
+    },
 }
 
 impl CompileError {
@@ -383,6 +416,7 @@ impl SpannedError for CompileError {
             Self::BreakOutsideOfLoop { span, .. } => span,
             Self::ReturnLocalReferences { span, .. } => span,
             Self::ReturnDoesNotProduceValue { span, .. } => span,
+            Self::MatchFloatInPattern { span, .. } => span,
         }
     }
 }

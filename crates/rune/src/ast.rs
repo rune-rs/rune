@@ -820,9 +820,9 @@ impl Parse for ExprUnary {
 #[derive(Debug, Clone)]
 pub struct ExprElseIf {
     /// The `else` token.
-    pub else_: ElseToken,
+    pub else_: Else,
     /// The `if` token.
-    pub if_: IfToken,
+    pub if_: If,
     /// The condition for the branch.
     pub condition: Box<Expr>,
     /// The body of the else statement.
@@ -851,7 +851,7 @@ impl Parse for ExprElseIf {
 #[derive(Debug, Clone)]
 pub struct ExprElse {
     /// The `else` token.
-    pub else_: ElseToken,
+    pub else_: Else,
     /// The body of the else statement.
     pub block: Box<Block>,
 }
@@ -876,7 +876,7 @@ impl Parse for ExprElse {
 #[derive(Debug, Clone)]
 pub struct ExprIf {
     /// The `if` token.
-    pub if_: IfToken,
+    pub if_: If,
     /// The condition to the if statement.
     pub condition: Box<Expr>,
     /// The body of the if statement.
@@ -927,8 +927,8 @@ impl Parse for ExprIf {
         let mut expr_else_ifs = Vec::new();
         let mut expr_else = None;
 
-        while parser.peek::<ElseToken>()? {
-            if parser.peek2::<IfToken>()? {
+        while parser.peek::<Else>()? {
+            if parser.peek2::<If>()? {
                 expr_else_ifs.push(parser.parse()?);
                 continue;
             }
@@ -946,21 +946,398 @@ impl Parse for ExprIf {
     }
 }
 
+/// A match branch.
+#[derive(Debug, Clone)]
+pub struct MatchBranch {
+    /// The pattern to match.
+    pub pat: Pat,
+    /// The rocket token.
+    pub rocket: Rocket,
+    /// The body of the match.
+    pub body: Box<Expr>,
+}
+
+impl MatchBranch {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.pat.span().join(self.body.span())
+    }
+
+    /// Test if the branch produces nothing.
+    pub fn produces_nothing(&self) -> bool {
+        self.body.produces_nothing()
+    }
+}
+
+/// Parse a match statement.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{ParseAll, parse_all, ast};
+///
+/// # fn main() -> anyhow::Result<()> {
+/// parse_all::<ast::MatchBranch>("1 => { foo }")?;
+/// # Ok(())
+/// # }
+/// ```
+impl Parse for MatchBranch {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(Self {
+            pat: parser.parse()?,
+            rocket: parser.parse()?,
+            body: Box::new(parser.parse()?),
+        })
+    }
+}
+
+/// A match expression.
+#[derive(Debug, Clone)]
+pub struct ExprMatch {
+    /// The `match` token.
+    pub match_: Match,
+    /// The expression who's result we match over.
+    pub expr: Box<Expr>,
+    /// The open brace of the match.
+    pub open: OpenBrace,
+    /// Branches.
+    pub branches: Vec<(MatchBranch, Option<Comma>)>,
+    /// The close brace of the match.
+    pub close: CloseBrace,
+    /// Test if expression has a default branch.
+    pub has_default: bool,
+}
+
+impl ExprMatch {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.match_.span().join(self.close.span())
+    }
+
+    /// An if statement evaluates to empty if it does not have an else branch.
+    pub fn produces_nothing(&self) -> bool {
+        !self.has_default
+    }
+}
+
+/// Parse a match statement.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{ParseAll, parse_all, ast};
+///
+/// # fn main() -> anyhow::Result<()> {
+/// parse_all::<ast::ExprMatch>("match 0 { _ => 1, }")?;
+/// # Ok(())
+/// # }
+/// ```
+impl Parse for ExprMatch {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let match_ = parser.parse()?;
+        let expr = Box::new(parser.parse()?);
+
+        let open = parser.parse()?;
+
+        let mut branches = Vec::new();
+        let mut default_branch = None::<Span>;
+
+        while !parser.peek::<CloseBrace>()? {
+            let branch = parser.parse::<MatchBranch>()?;
+
+            let comma = if parser.peek::<Comma>()? {
+                Some(parser.parse()?)
+            } else {
+                None
+            };
+
+            let fallback = match &branch.pat {
+                Pat::IgnorePat(..) | Pat::BindingPat(..) => Some(branch.span()),
+                _ => None,
+            };
+
+            default_branch = match (fallback, default_branch) {
+                (Some(span), Some(existing)) => {
+                    return Err(ParseError::MatchMultipleFallbackBranches { span, existing });
+                }
+                (None, Some(existing)) => {
+                    return Err(ParseError::MatchNeverReached {
+                        span: branch.span(),
+                        existing,
+                    });
+                }
+                (Some(fallback), None) => Some(fallback),
+                (_, default_branch) => default_branch,
+            };
+
+            let is_end = match (&*branch.body, &comma) {
+                (Expr::Block(..), _) => false,
+                (Expr::ExprFor(..), _) => false,
+                (Expr::ExprWhile(..), _) => false,
+                (Expr::ExprIf(..), _) => false,
+                (Expr::ExprMatch(..), _) => false,
+                (_, Some(..)) => false,
+                (_, None) => true,
+            };
+
+            branches.push((branch, comma));
+
+            if is_end {
+                break;
+            }
+        }
+
+        let close = parser.parse()?;
+
+        Ok(ExprMatch {
+            match_,
+            expr,
+            open,
+            branches,
+            close,
+            has_default: default_branch.is_some(),
+        })
+    }
+}
+
+/// An array pattern.
+#[derive(Debug, Clone)]
+pub struct ArrayPat {
+    /// The open bracket.
+    pub open: OpenBracket,
+    /// The numbers matched against.
+    pub items: Vec<(Box<Pat>, Option<Comma>)>,
+    /// Indicates if the pattern is open or not.
+    pub open_pattern: Option<DotDot>,
+    /// The close bracket.
+    pub close: CloseBracket,
+}
+
+impl ArrayPat {
+    /// Get the span of the pattern.
+    pub fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
+}
+
+impl Parse for ArrayPat {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let open = parser.parse()?;
+        let mut items = Vec::new();
+
+        let mut is_open = true;
+
+        while !parser.peek::<CloseBracket>()? && !parser.peek::<DotDot>()? {
+            let pat = parser.parse()?;
+
+            is_open = parser.peek::<Comma>()?;
+
+            if !is_open {
+                items.push((Box::new(pat), None));
+                break;
+            }
+
+            items.push((Box::new(pat), Some(parser.parse()?)));
+        }
+
+        let open_pattern = if is_open && parser.peek::<DotDot>()? {
+            Some(parser.parse()?)
+        } else {
+            None
+        };
+
+        let close = parser.parse()?;
+
+        Ok(Self {
+            open,
+            items,
+            open_pattern,
+            close,
+        })
+    }
+}
+
+/// An array pattern.
+#[derive(Debug, Clone)]
+pub struct ObjectPat {
+    /// The open object marker.
+    pub open: StartObject,
+    /// The items matched against.
+    pub items: Vec<(StringLiteral, Colon, Box<Pat>, Option<Comma>)>,
+    /// Indicates if the pattern is open or not.
+    pub open_pattern: Option<DotDot>,
+    /// The close brace.
+    pub close: CloseBrace,
+}
+
+impl ObjectPat {
+    /// Get the span of the pattern.
+    pub fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
+}
+
+impl Parse for ObjectPat {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let open = parser.parse()?;
+        let mut items = Vec::new();
+
+        let mut is_open = true;
+
+        while !parser.peek::<CloseBrace>()? && !parser.peek::<DotDot>()? {
+            let key = parser.parse()?;
+            let colon = parser.parse()?;
+            let pat = parser.parse()?;
+
+            is_open = parser.peek::<Comma>()?;
+
+            if !is_open {
+                items.push((key, colon, Box::new(pat), None));
+                break;
+            }
+
+            items.push((key, colon, Box::new(pat), Some(parser.parse()?)));
+        }
+
+        let open_pattern = if is_open && parser.peek::<DotDot>()? {
+            Some(parser.parse()?)
+        } else {
+            None
+        };
+
+        let close = parser.parse()?;
+
+        Ok(Self {
+            open,
+            items,
+            close,
+            open_pattern,
+        })
+    }
+}
+
+/// A pattern match.
+#[derive(Debug, Clone)]
+pub enum Pat {
+    /// An ignored binding `_`.
+    IgnorePat(Underscore),
+    /// A variable binding `n`.
+    BindingPat(Ident),
+    /// A literal unit.
+    UnitPat(UnitLiteral),
+    /// A literal character.
+    CharPat(CharLiteral),
+    /// A literal number.
+    NumberPat(NumberLiteral),
+    /// A literal string.
+    StringPat(StringLiteral),
+    /// An array pattern.
+    ArrayPat(ArrayPat),
+    /// An object pattern.
+    ObjectPat(ObjectPat),
+}
+
+impl Pat {
+    /// Get the span of the pattern.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::UnitPat(expr) => expr.span(),
+            Self::CharPat(expr) => expr.span(),
+            Self::NumberPat(expr) => expr.span(),
+            Self::StringPat(expr) => expr.span(),
+            Self::BindingPat(expr) => expr.span(),
+            Self::IgnorePat(expr) => expr.span(),
+            Self::ArrayPat(expr) => expr.span(),
+            Self::ObjectPat(expr) => expr.span(),
+        }
+    }
+}
+
+/// Parsing a block expression.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// # fn main() {
+/// parse_all::<ast::Pat>("()").unwrap();
+/// parse_all::<ast::Pat>("1").unwrap();
+/// parse_all::<ast::Pat>("'a'").unwrap();
+/// parse_all::<ast::Pat>("\"hello world\"").unwrap();
+/// parse_all::<ast::Pat>("var").unwrap();
+/// parse_all::<ast::Pat>("_").unwrap();
+/// # }
+/// ```
+impl Parse for Pat {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let token = parser.token_peek_eof()?;
+
+        Ok(match token.kind {
+            Kind::Open {
+                delimiter: Delimiter::Parenthesis,
+            } => Self::UnitPat(parser.parse()?),
+            Kind::Open {
+                delimiter: Delimiter::Bracket,
+            } => Self::ArrayPat(parser.parse()?),
+            Kind::StartObject => Self::ObjectPat(parser.parse()?),
+            Kind::CharLiteral { .. } => Self::CharPat(parser.parse()?),
+            Kind::NumberLiteral { .. } => Self::NumberPat(parser.parse()?),
+            Kind::StringLiteral { .. } => Self::StringPat(parser.parse()?),
+            Kind::Underscore => Self::IgnorePat(parser.parse()?),
+            Kind::Ident => Self::BindingPat(parser.parse()?),
+            _ => {
+                return Err(ParseError::ExpectedPatError {
+                    span: token.span,
+                    actual: token.kind,
+                })
+            }
+        })
+    }
+}
+
+impl Peek for Pat {
+    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
+        let t1 = match t1 {
+            Some(t1) => t1,
+            None => return false,
+        };
+
+        match t1.kind {
+            Kind::Open {
+                delimiter: Delimiter::Parenthesis,
+            } => true,
+            Kind::Open {
+                delimiter: Delimiter::Bracket,
+            } => true,
+            Kind::StartObject => true,
+            Kind::CharLiteral { .. } => true,
+            Kind::NumberLiteral { .. } => true,
+            Kind::StringLiteral { .. } => true,
+            Kind::Underscore => true,
+            Kind::Ident => true,
+            _ => false,
+        }
+    }
+}
+
 /// A rune expression.
 #[derive(Debug, Clone)]
 pub enum Expr {
     /// A while loop.
-    While(While),
+    ExprWhile(ExprWhile),
     /// An unconditional loop.
-    Loop(Loop),
+    ExprLoop(ExprLoop),
     /// An for loop.
-    For(For),
+    ExprFor(ExprFor),
     /// A let expression.
-    Let(Let),
+    ExprLet(ExprLet),
     /// An index set operation.
     IndexSet(IndexSet),
     /// An if expression.
     ExprIf(ExprIf),
+    /// An match expression.
+    ExprMatch(ExprMatch),
     /// An empty expression.
     Ident(Ident),
     /// An path expression.
@@ -1003,12 +1380,13 @@ impl Expr {
     /// Test if the expression implicitly evaluates to nothing.
     pub fn produces_nothing(&self) -> bool {
         match self {
-            Self::While(..) => true,
-            Self::Loop(..) => true,
-            Self::For(..) => true,
-            Self::Let(..) => true,
+            Self::ExprWhile(..) => true,
+            Self::ExprLoop(..) => true,
+            Self::ExprFor(..) => true,
+            Self::ExprLet(..) => true,
             Self::IndexSet(..) => true,
             Self::ExprIf(expr_if) => expr_if.produces_nothing(),
+            Self::ExprMatch(expr_match) => expr_match.produces_nothing(),
             Self::ExprGroup(expr_group) => expr_group.produces_nothing(),
             Self::Break(..) => true,
             Self::ExprBinary(expr) => expr.produces_nothing(),
@@ -1021,12 +1399,13 @@ impl Expr {
     /// Get the span of the expression.
     pub fn span(&self) -> Span {
         match self {
-            Self::While(expr) => expr.span(),
-            Self::Loop(expr) => expr.span(),
-            Self::For(expr) => expr.span(),
-            Self::Let(expr) => expr.span(),
+            Self::ExprWhile(expr) => expr.span(),
+            Self::ExprLoop(expr) => expr.span(),
+            Self::ExprFor(expr) => expr.span(),
+            Self::ExprLet(expr) => expr.span(),
             Self::IndexSet(expr) => expr.span(),
             Self::ExprIf(expr) => expr.span(),
+            Self::ExprMatch(expr) => expr.span(),
             Self::Ident(expr) => expr.span(),
             Self::Path(path) => path.span(),
             Self::CallFn(expr) => expr.span(),
@@ -1111,11 +1490,12 @@ impl Expr {
         let expr = match token.kind {
             Kind::StartObject => Self::ObjectLiteral(parser.parse()?),
             Kind::Not | Kind::Ampersand | Kind::Star => Self::ExprUnary(parser.parse()?),
-            Kind::While => Self::While(parser.parse()?),
-            Kind::Loop => Self::Loop(parser.parse()?),
-            Kind::For => Self::For(parser.parse()?),
-            Kind::Let => Self::Let(parser.parse()?),
+            Kind::While => Self::ExprWhile(parser.parse()?),
+            Kind::Loop => Self::ExprLoop(parser.parse()?),
+            Kind::For => Self::ExprFor(parser.parse()?),
+            Kind::Let => Self::ExprLet(parser.parse()?),
             Kind::If => Self::ExprIf(parser.parse()?),
+            Kind::Match => Self::ExprMatch(parser.parse()?),
             Kind::NumberLiteral { .. } => Self::NumberLiteral(parser.parse()?),
             Kind::CharLiteral { .. } => Self::CharLiteral(parser.parse()?),
             Kind::StringLiteral { .. } => Self::StringLiteral(parser.parse()?),
@@ -1239,6 +1619,87 @@ impl Expr {
     }
 }
 
+/// Parsing a block expression.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// # fn main() {
+/// parse_all::<ast::Expr>("foo[\"foo\"]").unwrap();
+/// parse_all::<ast::Expr>("foo.bar()").unwrap();
+/// parse_all::<ast::Expr>("var()").unwrap();
+/// parse_all::<ast::Expr>("var").unwrap();
+/// parse_all::<ast::Expr>("42").unwrap();
+/// parse_all::<ast::Expr>("1 + 2 / 3 - 4 * 1").unwrap();
+/// parse_all::<ast::Expr>("foo[\"bar\"]").unwrap();
+/// parse_all::<ast::Expr>("let var = 42").unwrap();
+/// parse_all::<ast::Expr>("let var = \"foo bar\"").unwrap();
+/// parse_all::<ast::Expr>("var[\"foo\"] = \"bar\"").unwrap();
+/// parse_all::<ast::Expr>("let var = objects[\"foo\"] + 1").unwrap();
+/// parse_all::<ast::Expr>("var = 42").unwrap();
+///
+/// let expr = parse_all::<ast::Expr>(r#"
+///     if 1 { } else { if 2 { } else { } }
+/// "#).unwrap();
+///
+/// if let ast::Expr::ExprIf(..) = expr.item {
+/// } else {
+///     panic!("not an if statement");
+/// }
+///
+/// // Chained function calls.
+/// parse_all::<ast::Expr>("foo.bar.baz()").unwrap();
+/// parse_all::<ast::Expr>("foo[0][1][2]").unwrap();
+/// parse_all::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
+///
+/// parse_all::<ast::Expr>("42 is int::int").unwrap();
+/// # }
+/// ```
+impl Parse for Expr {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let lhs = Self::parse_primary(parser, NoIndex(false))?;
+        Ok(Self::parse_expr_binary(parser, lhs, 0)?)
+    }
+}
+
+impl Peek for Expr {
+    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
+        let t1 = match t1 {
+            Some(t1) => t1,
+            None => return false,
+        };
+
+        match t1.kind {
+            Kind::StartObject => true,
+            Kind::Not | Kind::Ampersand | Kind::Star => true,
+            Kind::While => true,
+            Kind::Loop => true,
+            Kind::For => true,
+            Kind::Let => true,
+            Kind::If => true,
+            Kind::NumberLiteral { .. } => true,
+            Kind::CharLiteral { .. } => true,
+            Kind::StringLiteral { .. } => true,
+            Kind::Open {
+                delimiter: Delimiter::Parenthesis,
+            } => true,
+            Kind::Open {
+                delimiter: Delimiter::Bracket,
+            } => true,
+            Kind::Open {
+                delimiter: Delimiter::Brace,
+            } => true,
+            Kind::True | Kind::False => true,
+            Kind::Ident => true,
+            Kind::Break => true,
+            Kind::Return => true,
+            _ => false,
+        }
+    }
+}
+
 /// The unit literal `()`.
 #[derive(Debug, Clone)]
 pub struct UnitLiteral {
@@ -1358,87 +1819,6 @@ impl Peek for BoolLiteral {
     }
 }
 
-/// Parsing a block expression.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// # fn main() {
-/// parse_all::<ast::Expr>("foo[\"foo\"]").unwrap();
-/// parse_all::<ast::Expr>("foo.bar()").unwrap();
-/// parse_all::<ast::Expr>("var()").unwrap();
-/// parse_all::<ast::Expr>("var").unwrap();
-/// parse_all::<ast::Expr>("42").unwrap();
-/// parse_all::<ast::Expr>("1 + 2 / 3 - 4 * 1").unwrap();
-/// parse_all::<ast::Expr>("foo[\"bar\"]").unwrap();
-/// parse_all::<ast::Expr>("let var = 42").unwrap();
-/// parse_all::<ast::Expr>("let var = \"foo bar\"").unwrap();
-/// parse_all::<ast::Expr>("var[\"foo\"] = \"bar\"").unwrap();
-/// parse_all::<ast::Expr>("let var = objects[\"foo\"] + 1").unwrap();
-/// parse_all::<ast::Expr>("var = 42").unwrap();
-///
-/// let expr = parse_all::<ast::Expr>(r#"
-///     if 1 { } else { if 2 { } else { } }
-/// "#).unwrap();
-///
-/// if let ast::Expr::ExprIf(..) = expr.item {
-/// } else {
-///     panic!("not an if statement");
-/// }
-///
-/// // Chained function calls.
-/// parse_all::<ast::Expr>("foo.bar.baz()").unwrap();
-/// parse_all::<ast::Expr>("foo[0][1][2]").unwrap();
-/// parse_all::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
-///
-/// parse_all::<ast::Expr>("42 is int::int").unwrap();
-/// # }
-/// ```
-impl Parse for Expr {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let lhs = Self::parse_primary(parser, NoIndex(false))?;
-        Ok(Self::parse_expr_binary(parser, lhs, 0)?)
-    }
-}
-
-impl Peek for Expr {
-    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
-        let t1 = match t1 {
-            Some(t1) => t1,
-            None => return false,
-        };
-
-        match t1.kind {
-            Kind::StartObject => true,
-            Kind::Not | Kind::Ampersand | Kind::Star => true,
-            Kind::While => true,
-            Kind::Loop => true,
-            Kind::For => true,
-            Kind::Let => true,
-            Kind::If => true,
-            Kind::NumberLiteral { .. } => true,
-            Kind::CharLiteral { .. } => true,
-            Kind::StringLiteral { .. } => true,
-            Kind::Open {
-                delimiter: Delimiter::Parenthesis,
-            } => true,
-            Kind::Open {
-                delimiter: Delimiter::Bracket,
-            } => true,
-            Kind::Open {
-                delimiter: Delimiter::Brace,
-            } => true,
-            Kind::True | Kind::False => true,
-            Kind::Ident => true,
-            Kind::Break => true,
-            Kind::Return => true,
-            _ => false,
-        }
-    }
-}
-
 /// A function call `<name>(<args>)`.
 #[derive(Debug, Clone)]
 pub struct CallFn {
@@ -1477,9 +1857,9 @@ impl CallInstanceFn {
 
 /// A let expression `let <name> = <expr>;`
 #[derive(Debug, Clone)]
-pub struct Let {
+pub struct ExprLet {
     /// The `let` keyword.
-    pub let_: LetToken,
+    pub let_: Let,
     /// The name of the binding.
     pub name: Ident,
     /// The equality keyword.
@@ -1488,14 +1868,14 @@ pub struct Let {
     pub expr: Box<Expr>,
 }
 
-impl Let {
+impl ExprLet {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.let_.token.span.join(self.expr.span())
     }
 }
 
-impl Parse for Let {
+impl Parse for ExprLet {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(Self {
             let_: parser.parse()?,
@@ -1508,25 +1888,25 @@ impl Parse for Let {
 
 /// A let expression `let <name> = <expr>;`
 #[derive(Debug, Clone)]
-pub struct While {
+pub struct ExprWhile {
     /// The `while` keyword.
-    pub while_: WhileToken,
+    pub while_: While,
     /// The name of the binding.
     pub condition: Box<Expr>,
     /// The body of the while loop.
     pub body: Box<Block>,
 }
 
-impl While {
+impl ExprWhile {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.while_.token.span.join(self.body.span())
     }
 }
 
-impl Parse for While {
+impl Parse for ExprWhile {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(While {
+        Ok(ExprWhile {
             while_: parser.parse()?,
             condition: Box::new(parser.parse()?),
             body: Box::new(parser.parse()?),
@@ -1536,23 +1916,23 @@ impl Parse for While {
 
 /// A let expression `let <name> = <expr>;`
 #[derive(Debug, Clone)]
-pub struct Loop {
+pub struct ExprLoop {
     /// The `loop` keyword.
-    pub loop_: LoopToken,
+    pub loop_: Loop,
     /// The body of the loop.
     pub body: Box<Block>,
 }
 
-impl Loop {
+impl ExprLoop {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.loop_.token.span.join(self.body.span())
     }
 }
 
-impl Parse for Loop {
+impl Parse for ExprLoop {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Loop {
+        Ok(ExprLoop {
             loop_: parser.parse()?,
             body: Box::new(parser.parse()?),
         })
@@ -1561,9 +1941,9 @@ impl Parse for Loop {
 
 /// A let expression `let <name> = <expr>;`
 #[derive(Debug, Clone)]
-pub struct For {
+pub struct ExprFor {
     /// The `for` keyword.
-    pub for_: ForToken,
+    pub for_: For,
     /// The variable binding.
     /// TODO: should be a pattern when that is supported.
     pub var: Ident,
@@ -1575,14 +1955,14 @@ pub struct For {
     pub body: Box<Block>,
 }
 
-impl For {
+impl ExprFor {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.for_.token.span.join(self.body.span())
     }
 }
 
-impl Parse for For {
+impl Parse for ExprFor {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         Ok(Self {
             for_: parser.parse()?,
@@ -1855,20 +2235,22 @@ impl Parse for Block {
             // expressions where it's allowed not to have a trailing
             // semi-colon.
             match &expr {
-                Expr::While(..) => {
-                    exprs.push((expr, None));
-                    continue;
-                }
-                Expr::Loop(..) => {
-                    exprs.push((expr, None));
-                    continue;
-                }
-                Expr::For(..) => {
+                Expr::ExprWhile(..) | Expr::ExprLoop(..) | Expr::ExprFor(..) => {
                     exprs.push((expr, None));
                     continue;
                 }
                 Expr::ExprIf(expr_if) => {
                     if expr_if.produces_nothing() {
+                        exprs.push((expr, None));
+                    } else {
+                        last_expr_with_value = true;
+                        exprs.push((expr, None));
+                    }
+
+                    continue;
+                }
+                Expr::ExprMatch(expr_match) => {
+                    if expr_match.produces_nothing() {
                         exprs.push((expr, None));
                     } else {
                         last_expr_with_value = true;
@@ -1889,6 +2271,7 @@ impl Parse for Block {
         }
 
         let close = parser.parse()?;
+
         Ok(Block {
             open,
             exprs,
@@ -2073,9 +2456,10 @@ macro_rules! decl_tokens {
 
 decl_tokens! {
     (FnToken, Kind::Fn),
-    (IfToken, Kind::If),
-    (ElseToken, Kind::Else),
-    (LetToken, Kind::Let),
+    (If, Kind::If),
+    (Match, Kind::Match),
+    (Else, Kind::Else),
+    (Let, Kind::Let),
     (Ident, Kind::Ident),
     (OpenParen, Kind::Open { delimiter: Delimiter::Parenthesis }),
     (CloseParen, Kind::Close { delimiter: Delimiter::Parenthesis }),
@@ -2083,6 +2467,7 @@ decl_tokens! {
     (CloseBrace, Kind::Close { delimiter: Delimiter::Brace }),
     (OpenBracket, Kind::Open { delimiter: Delimiter::Bracket }),
     (CloseBracket, Kind::Close { delimiter: Delimiter::Bracket }),
+    (Underscore, Kind::Underscore),
     (Comma, Kind::Comma),
     (Colon, Kind::Colon),
     (Dot, Kind::Dot),
@@ -2090,14 +2475,16 @@ decl_tokens! {
     (Eq, Kind::Eq),
     (Use, Kind::Use),
     (Scope, Kind::Scope),
-    (WhileToken, Kind::While),
-    (LoopToken, Kind::Loop),
-    (ForToken, Kind::For),
+    (While, Kind::While),
+    (Loop, Kind::Loop),
+    (For, Kind::For),
     (InToken, Kind::In),
     (Break, Kind::Break),
     (ReturnToken, Kind::Return),
     (Star, Kind::Star),
+    (Rocket, Kind::Rocket),
     (StartObject, Kind::StartObject),
+    (DotDot, Kind::DotDot),
 }
 
 impl<'a> Resolve<'a> for Ident {

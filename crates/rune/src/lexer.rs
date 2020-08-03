@@ -79,6 +79,7 @@ impl<'a> Lexer<'a> {
             "fn" => Kind::Fn,
             "let" => Kind::Let,
             "if" => Kind::If,
+            "match" => Kind::Match,
             "else" => Kind::Else,
             "use" => Kind::Use,
             "while" => Kind::While,
@@ -304,6 +305,14 @@ impl<'a> Lexer<'a> {
                             it.next();
                             break Kind::StartObject;
                         }
+                        ('.', '.') => {
+                            it.next();
+                            break Kind::DotDot;
+                        }
+                        ('=', '>') => {
+                            it.next();
+                            break Kind::Rocket;
+                        }
                         ('-', '0'..='9') => {
                             return self.next_number_literal(&mut it, start);
                         }
@@ -330,6 +339,7 @@ impl<'a> Lexer<'a> {
                     ']' => Kind::Close {
                         delimiter: Delimiter::Bracket,
                     },
+                    '_' => Kind::Underscore,
                     ',' => Kind::Comma,
                     ':' => Kind::Colon,
                     '.' => Kind::Dot,

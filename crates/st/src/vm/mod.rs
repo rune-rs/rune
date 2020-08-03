@@ -1709,6 +1709,40 @@ impl Vm {
                         _ => false,
                     }));
                 }
+                Inst::EqCharacter { character } => {
+                    let value = self.pop()?;
+
+                    self.push(ValuePtr::Bool(match value {
+                        ValuePtr::Char(actual) => actual == *character,
+                        _ => false,
+                    }));
+                }
+                Inst::EqInteger { integer } => {
+                    let value = self.pop()?;
+
+                    self.push(ValuePtr::Bool(match value {
+                        ValuePtr::Integer(actual) => actual == *integer,
+                        _ => false,
+                    }));
+                }
+                Inst::EqStaticString { slot } => {
+                    let string = unit
+                        .lookup_string(*slot)
+                        .ok_or_else(|| VmError::MissingStaticString { slot: *slot })?;
+
+                    let value = self.pop()?;
+
+                    self.push(ValuePtr::Bool(match value {
+                        ValuePtr::Managed(slot) => match slot.into_managed() {
+                            Managed::String => {
+                                let actual = self.string_ref(slot)?;
+                                *actual == string
+                            }
+                            _ => false,
+                        },
+                        _ => false,
+                    }));
+                }
                 Inst::Ptr { offset } => {
                     self.op_ptr(*offset)?;
                 }

@@ -66,6 +66,8 @@ pub enum Kind {
     Let,
     /// An `if` token.
     If,
+    /// A `match` token.
+    Match,
     /// An `else` token.
     Else,
     /// An `use` token.
@@ -116,6 +118,8 @@ pub enum Kind {
     Dot,
     /// A scope `::`.
     Scope,
+    /// An underscore `_`.
+    Underscore,
     /// A comma `,`.
     Comma,
     /// A colon `:`.
@@ -138,6 +142,8 @@ pub enum Kind {
     EqEq,
     /// Not equals `!=`.
     Neq,
+    /// The rocket token `=>`.
+    Rocket,
     /// Less than comparison `<`.
     Lt,
     /// Greater than comparison `>`.
@@ -150,6 +156,8 @@ pub enum Kind {
     Not,
     /// A start object indicator `#{`.
     StartObject,
+    /// Double dots `..`.
+    DotDot,
 }
 
 impl fmt::Display for Kind {
@@ -159,6 +167,7 @@ impl fmt::Display for Kind {
             Self::Is => write!(fmt, "is")?,
             Self::Let => write!(fmt, "let")?,
             Self::If => write!(fmt, "if")?,
+            Self::Match => write!(fmt, "match")?,
             Self::Else => write!(fmt, "else")?,
             Self::Use => write!(fmt, "use")?,
             Self::While => write!(fmt, "while")?,
@@ -175,6 +184,7 @@ impl fmt::Display for Kind {
             Self::CharLiteral { .. } => write!(fmt, "char")?,
             Self::Open { delimiter } => write!(fmt, "{}", delimiter.open())?,
             Self::Close { delimiter } => write!(fmt, "{}", delimiter.close())?,
+            Self::Underscore => write!(fmt, "_")?,
             Self::Comma => write!(fmt, ",")?,
             Self::Colon => write!(fmt, ":")?,
             Self::Dot => write!(fmt, ".")?,
@@ -188,12 +198,14 @@ impl fmt::Display for Kind {
             Self::Eq => write!(fmt, "=")?,
             Self::EqEq => write!(fmt, "==")?,
             Self::Neq => write!(fmt, "!=")?,
+            Self::Rocket => write!(fmt, "=>")?,
             Self::Lt => write!(fmt, "<")?,
             Self::Gt => write!(fmt, ">")?,
             Self::Lte => write!(fmt, "<=")?,
             Self::Gte => write!(fmt, ">=")?,
             Self::Not => write!(fmt, "!")?,
             Self::StartObject => write!(fmt, "#{{")?,
+            Self::DotDot => write!(fmt, "..")?,
         }
 
         Ok(())

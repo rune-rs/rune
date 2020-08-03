@@ -1,3 +1,4 @@
 [alias]
 update-readme = "readme -r crates/st -o ../../README.md"
-rune-cli = "run --bin rune-cli --release --"
+rune-cli = "run --bin rune-cli --"
+rune-cli-releast = "run --bin rune-cli --release --"

@@ -312,6 +312,42 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     IsUnit,
+    /// Test if the top of the stack is a specific character.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqCharacter {
+        /// The character to test against.
+        character: char,
+    },
+    /// Test if the top of the stack is a specific integer.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqInteger {
+        /// The integer to test against.
+        integer: i64,
+    },
+    /// Compare the top of the stack against a static string slot.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqStaticString {
+        /// The slot to test against.
+        slot: usize,
+    },
     /// Push the type with the given hash as a value on the stack.
     ///
     /// # Operation
@@ -349,127 +385,136 @@ pub enum Inst {
 impl fmt::Display for Inst {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Inst::Not => {
+            Self::Not => {
                 write!(fmt, "not")?;
             }
-            Inst::Add => {
+            Self::Add => {
                 write!(fmt, "add")?;
             }
-            Inst::Sub => {
+            Self::Sub => {
                 write!(fmt, "sub")?;
             }
-            Inst::Div => {
+            Self::Div => {
                 write!(fmt, "div")?;
             }
-            Inst::Mul => {
+            Self::Mul => {
                 write!(fmt, "mul")?;
             }
-            Inst::Call { hash, args } => {
+            Self::Call { hash, args } => {
                 write!(fmt, "call {}, {}", hash, args)?;
             }
-            Inst::CallInstance { hash, args } => {
+            Self::CallInstance { hash, args } => {
                 write!(fmt, "call-instance {}, {}", hash, args)?;
             }
-            Inst::CallFn { args } => {
+            Self::CallFn { args } => {
                 write!(fmt, "call-fn {}", args)?;
             }
-            Inst::LoadInstanceFn { hash } => {
+            Self::LoadInstanceFn { hash } => {
                 write!(fmt, "load-instance-fn {}", hash)?;
             }
-            Inst::IndexGet => {
+            Self::IndexGet => {
                 write!(fmt, "index-get")?;
             }
-            Inst::IndexSet => {
+            Self::IndexSet => {
                 write!(fmt, "index-set")?;
             }
-            Inst::Integer { number } => {
+            Self::Integer { number } => {
                 write!(fmt, "integer {}", number)?;
             }
-            Inst::Float { number } => {
+            Self::Float { number } => {
                 write!(fmt, "float {}", number)?;
             }
-            Inst::Pop => {
+            Self::Pop => {
                 write!(fmt, "pop")?;
             }
-            Inst::PopN { count } => {
+            Self::PopN { count } => {
                 write!(fmt, "pop-n {}", count)?;
             }
-            Inst::Clean { count } => {
+            Self::Clean { count } => {
                 write!(fmt, "clean {}", count)?;
             }
-            Inst::Copy { offset } => {
+            Self::Copy { offset } => {
                 write!(fmt, "copy {}", offset)?;
             }
-            Inst::Replace { offset } => {
+            Self::Replace { offset } => {
                 write!(fmt, "replace {}", offset)?;
             }
-            Inst::ReplaceDeref => {
+            Self::ReplaceDeref => {
                 write!(fmt, "replace-deref")?;
             }
-            Inst::Return => {
+            Self::Return => {
                 write!(fmt, "return")?;
             }
-            Inst::ReturnUnit => {
+            Self::ReturnUnit => {
                 write!(fmt, "return-unit")?;
             }
-            Inst::Lt => {
+            Self::Lt => {
                 write!(fmt, "lt")?;
             }
-            Inst::Gt => {
+            Self::Gt => {
                 write!(fmt, "gt")?;
             }
-            Inst::Lte => {
+            Self::Lte => {
                 write!(fmt, "lte")?;
             }
-            Inst::Gte => {
+            Self::Gte => {
                 write!(fmt, "gte")?;
             }
-            Inst::Eq => {
+            Self::Eq => {
                 write!(fmt, "eq")?;
             }
-            Inst::Neq => {
+            Self::Neq => {
                 write!(fmt, "neq")?;
             }
-            Inst::Jump { offset } => {
+            Self::Jump { offset } => {
                 write!(fmt, "jump {}", offset)?;
             }
-            Inst::JumpIf { offset } => {
+            Self::JumpIf { offset } => {
                 write!(fmt, "jump-if {}", offset)?;
             }
-            Inst::JumpIfNot { offset } => {
+            Self::JumpIfNot { offset } => {
                 write!(fmt, "jump-if-not {}", offset)?;
             }
-            Inst::Unit => {
+            Self::Unit => {
                 write!(fmt, "unit")?;
             }
-            Inst::Bool { value } => {
+            Self::Bool { value } => {
                 write!(fmt, "bool {}", value)?;
             }
-            Inst::Array { count } => {
+            Self::Array { count } => {
                 write!(fmt, "array {}", count)?;
             }
-            Inst::Object { count } => {
+            Self::Object { count } => {
                 write!(fmt, "object {}", count)?;
             }
-            Inst::String { slot } => {
+            Self::String { slot } => {
                 write!(fmt, "string {}", slot)?;
             }
-            Inst::Char { c } => {
+            Self::Char { c } => {
                 write!(fmt, "char {:?}", c)?;
             }
-            Inst::Is => {
+            Self::Is => {
                 write!(fmt, "is")?;
             }
-            Inst::IsUnit => {
+            Self::IsUnit => {
                 write!(fmt, "is-unit")?;
             }
-            Inst::Type { hash } => {
+            Self::EqCharacter { character } => {
+                write!(fmt, "eq-character {}", character)?;
+            }
+            Self::EqInteger { integer } => {
+                write!(fmt, "eq-integer {}", integer)?;
+            }
+            Self::EqStaticString { slot } => {
+                write!(fmt, "eq-static-string {}", slot)?;
+            }
+            Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;
             }
-            Inst::Ptr { offset } => {
+            Self::Ptr { offset } => {
                 write!(fmt, "ptr {}", offset)?;
             }
-            Inst::Deref => {
+            Self::Deref => {
                 write!(fmt, "deref")?;
             }
         }

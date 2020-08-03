@@ -122,6 +122,7 @@ struct Compiler<'a> {
 
 impl<'a> Compiler<'a> {
     fn encode_fn_decl(&mut self, fn_decl: ast::FnDecl) -> Result<()> {
+        let scopes_count = self.scopes.len();
         let span = fn_decl.span();
 
         for arg in fn_decl.args.items.iter().rev() {
@@ -150,13 +151,20 @@ impl<'a> Compiler<'a> {
                 });
             }
 
-            let var_count = self.last_scope(span)?.var_count;
-            self.clean_up_locals(var_count, span);
+            let total_var_count = self.last_scope(span)?.total_var_count;
+            self.clean_up_locals(total_var_count, span);
             self.instructions.push(st::Inst::Return, span);
         } else {
-            let var_count = self.last_scope(span)?.var_count;
-            self.pop_locals(var_count, span);
+            let total_var_count = self.last_scope(span)?.total_var_count;
+            self.pop_locals(total_var_count, span);
             self.instructions.push(st::Inst::ReturnUnit, span);
+        }
+
+        if self.scopes.len() != scopes_count {
+            return Err(CompileError::internal(
+                "number of scopes does not match at end of function",
+                span,
+            ));
         }
 
         Ok(())
@@ -214,8 +222,8 @@ impl<'a> Compiler<'a> {
     }
 
     /// Pop locals by simply popping them.
-    fn pop_locals(&mut self, var_count: usize, span: Span) {
-        match var_count {
+    fn pop_locals(&mut self, total_var_count: usize, span: Span) {
+        match total_var_count {
             0 => (),
             1 => {
                 self.instructions.push(st::Inst::Pop, span);
@@ -231,8 +239,8 @@ impl<'a> Compiler<'a> {
     ///
     /// The clean operation will preserve the value that is on top of the stack,
     /// and pop the values under it.
-    fn clean_up_locals(&mut self, var_count: usize, span: Span) {
-        match var_count {
+    fn clean_up_locals(&mut self, total_var_count: usize, span: Span) {
+        match total_var_count {
             0 => (),
             count => {
                 self.instructions.push(st::Inst::Clean { count }, span);
@@ -250,9 +258,7 @@ impl<'a> Compiler<'a> {
         let span = block.span();
         self.current_block = span;
 
-        let open_var_count = self.last_scope(span)?.var_count;
-
-        let parent_count = self.scopes.len();
+        let scopes_count = self.scopes.len();
         let new_scope = self.last_scope(span)?.new_scope();
         self.scopes.push(new_scope);
 
@@ -274,24 +280,20 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        let var_count = self.last_scope(span)?.var_count - open_var_count;
+        let scope = self.pop_scope(span)?;
 
         if needs_value.0 {
             if block.trailing_expr.is_none() {
-                self.pop_locals(var_count, span);
+                self.pop_locals(scope.local_var_count, span);
                 self.instructions.push(st::Inst::Unit, span);
             } else {
-                self.clean_up_locals(var_count, span);
+                self.clean_up_locals(scope.local_var_count, span);
             }
         } else {
-            self.pop_locals(var_count, span);
+            self.pop_locals(scope.local_var_count, span);
         }
 
-        if self.scopes.pop().is_none() {
-            return Err(CompileError::internal("missing parent scope", span));
-        }
-
-        if self.scopes.len() != parent_count {
+        if self.scopes.len() != scopes_count {
             return Err(CompileError::internal(
                 "parent scope mismatch at end of block",
                 span,
@@ -304,7 +306,9 @@ impl<'a> Compiler<'a> {
     /// Encode a return.
     fn encode_return(&mut self, return_: &ast::Return, needs_value: NeedsValue) -> Result<()> {
         let span = return_.span();
-        let var_count = self.last_scope(span)?.var_count;
+        // NB: we actually want total_var_count here since we need to clean up _every_
+        // variable declared until we reached the current return.
+        let total_var_count = self.last_scope(span)?.total_var_count;
 
         if needs_value.0 {
             return Err(CompileError::ReturnDoesNotProduceValue {
@@ -315,10 +319,10 @@ impl<'a> Compiler<'a> {
 
         if let Some(expr) = &return_.expr {
             self.encode_expr(&*expr, NeedsValue(true))?;
-            self.clean_up_locals(var_count, span);
+            self.clean_up_locals(total_var_count, span);
             self.instructions.push(st::Inst::Return, span);
         } else {
-            self.pop_locals(var_count, span);
+            self.pop_locals(total_var_count, span);
             self.instructions.push(st::Inst::ReturnUnit, span);
         }
 
@@ -330,17 +334,17 @@ impl<'a> Compiler<'a> {
         log::trace!("{:?}", expr);
 
         match expr {
-            ast::Expr::While(while_) => {
-                self.encode_while(while_, needs_value)?;
+            ast::Expr::ExprWhile(expr_while) => {
+                self.encode_expr_while(expr_while, needs_value)?;
             }
-            ast::Expr::For(for_) => {
-                self.encode_for(for_, needs_value)?;
+            ast::Expr::ExprFor(expr_for) => {
+                self.encode_expr_for(expr_for, needs_value)?;
             }
-            ast::Expr::Loop(loop_) => {
-                self.encode_loop(loop_, needs_value)?;
+            ast::Expr::ExprLoop(expr_loop) => {
+                self.encode_expr_loop(expr_loop, needs_value)?;
             }
-            ast::Expr::Let(let_) => {
-                self.encode_let(let_, needs_value)?;
+            ast::Expr::ExprLet(expr_let) => {
+                self.encode_expr_let(expr_let, needs_value)?;
             }
             ast::Expr::IndexSet(index_set) => {
                 self.encode_index_set(index_set, needs_value)?;
@@ -401,6 +405,9 @@ impl<'a> Compiler<'a> {
             }
             ast::Expr::Return(return_) => {
                 self.encode_return(return_, needs_value)?;
+            }
+            ast::Expr::ExprMatch(expr_match) => {
+                self.encode_expr_match(expr_match, needs_value)?;
             }
         }
 
@@ -517,10 +524,14 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn encode_while(&mut self, while_: &ast::While, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", while_);
+    fn encode_expr_while(
+        &mut self,
+        expr_while: &ast::ExprWhile,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        log::trace!("{:?}", expr_while);
 
-        let span = while_.span();
+        let span = expr_while.span();
 
         let start_label = self.instructions.new_label("while_test");
         let end_label = self.instructions.new_label("while_end");
@@ -529,13 +540,13 @@ impl<'a> Compiler<'a> {
 
         self.loops.push(Loop {
             end_label,
-            var_count: self.last_scope(span)?.var_count,
+            total_var_count: self.last_scope(span)?.total_var_count,
         });
 
         self.instructions.label(start_label)?;
-        self.encode_expr(&*while_.condition, NeedsValue(true))?;
+        self.encode_expr(&*expr_while.condition, NeedsValue(true))?;
         self.instructions.jump_if_not(end_label, span);
-        self.encode_block(&*while_.body, NeedsValue(false))?;
+        self.encode_block(&*expr_while.body, NeedsValue(false))?;
 
         self.instructions.jump(start_label, span);
         self.instructions.label(end_label)?;
@@ -546,12 +557,12 @@ impl<'a> Compiler<'a> {
         }
 
         if self.loops.pop().is_none() {
-            return Err(CompileError::internal("missing parent loop", span));
+            return Err(CompileError::internal("while: missing parent loop", span));
         }
 
         if loop_count != self.loops.len() {
             return Err(CompileError::internal(
-                "loop count mismatch on return",
+                "while: loop count mismatch on return",
                 span,
             ));
         }
@@ -559,10 +570,10 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn encode_for(&mut self, for_: &ast::For, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", for_);
+    fn encode_expr_for(&mut self, expr_for: &ast::ExprFor, needs_value: NeedsValue) -> Result<()> {
+        log::trace!("{:?}", expr_for);
 
-        let span = for_.span();
+        let span = expr_for.span();
 
         let start_label = self.instructions.new_label("for_start");
         let end_label = self.instructions.new_label("for_end");
@@ -572,26 +583,25 @@ impl<'a> Compiler<'a> {
 
         let new_scope = self.last_scope(span)?.new_scope();
         self.scopes.push(new_scope);
-        let open_var_count = self.last_scope(span)?.var_count;
 
         self.references_at.clear();
-        self.encode_expr(&*for_.iter, NeedsValue(true))?;
+        self.encode_expr(&*expr_for.iter, NeedsValue(true))?;
         let references_at = self.references_at.clone();
 
         // Declare storage for the hidden iterator variable.
-        let iterator_offset = self.last_scope_mut(span)?.decl_anon(for_.iter.span());
+        let iterator_offset = self.last_scope_mut(span)?.decl_anon(expr_for.iter.span());
 
         // Declare named loop variable.
         let binding_offset = {
-            self.instructions.push(st::Inst::Unit, for_.iter.span());
-            let name = for_.var.resolve(self.source)?;
+            self.instructions.push(st::Inst::Unit, expr_for.iter.span());
+            let name = expr_for.var.resolve(self.source)?;
             self.last_scope_mut(span)?
-                .decl_var(name, for_.var.span(), references_at)
+                .decl_var(name, expr_for.var.span(), references_at)
         };
 
         // Declare storage for memoized `next` instance fn.
         let next_offset = if self.optimizations.memoize_instance_fn {
-            let offset = self.last_scope_mut(span)?.decl_anon(for_.iter.span());
+            let offset = self.last_scope_mut(span)?.decl_anon(expr_for.iter.span());
             let hash = st::Hash::of(ITERATOR_NEXT);
 
             // Declare the named loop variable and put it in the scope.
@@ -599,11 +609,11 @@ impl<'a> Compiler<'a> {
                 st::Inst::Copy {
                     offset: iterator_offset,
                 },
-                for_.iter.span(),
+                expr_for.iter.span(),
             );
 
             self.instructions
-                .push(st::Inst::LoadInstanceFn { hash }, for_.iter.span());
+                .push(st::Inst::LoadInstanceFn { hash }, expr_for.iter.span());
             Some(offset)
         } else {
             None
@@ -611,7 +621,7 @@ impl<'a> Compiler<'a> {
 
         self.loops.push(Loop {
             end_label,
-            var_count: self.last_scope(span)?.var_count,
+            total_var_count: self.last_scope(span)?.total_var_count,
         });
 
         self.instructions.label(start_label)?;
@@ -622,14 +632,14 @@ impl<'a> Compiler<'a> {
                 st::Inst::Copy {
                     offset: iterator_offset,
                 },
-                for_.iter.span(),
+                expr_for.iter.span(),
             );
 
             self.instructions.push(
                 st::Inst::Copy {
                     offset: next_offset,
                 },
-                for_.iter.span(),
+                expr_for.iter.span(),
             );
 
             self.instructions.push(st::Inst::CallFn { args: 0 }, span);
@@ -638,7 +648,7 @@ impl<'a> Compiler<'a> {
                 st::Inst::Replace {
                     offset: binding_offset,
                 },
-                for_.var.span(),
+                expr_for.var.span(),
             );
         } else {
             // call the `next` function to get the next level of iteration, bind the
@@ -647,7 +657,7 @@ impl<'a> Compiler<'a> {
                 st::Inst::Copy {
                     offset: iterator_offset,
                 },
-                for_.iter.span(),
+                expr_for.iter.span(),
             );
 
             let hash = st::Hash::of(ITERATOR_NEXT);
@@ -657,7 +667,7 @@ impl<'a> Compiler<'a> {
                 st::Inst::Replace {
                     offset: binding_offset,
                 },
-                for_.var.span(),
+                expr_for.var.span(),
             );
         }
 
@@ -667,18 +677,24 @@ impl<'a> Compiler<'a> {
                 st::Inst::Copy {
                     offset: binding_offset,
                 },
-                for_.var.span(),
+                expr_for.var.span(),
             );
-            self.instructions.push(st::Inst::IsUnit, for_.span());
-            self.instructions.jump_if(end_label, for_.span());
+            self.instructions.push(st::Inst::IsUnit, expr_for.span());
+            self.instructions.jump_if(end_label, expr_for.span());
         }
 
-        self.encode_block(&*for_.body, NeedsValue(false))?;
+        self.encode_block(&*expr_for.body, NeedsValue(false))?;
         self.instructions.jump(start_label, span);
         self.instructions.label(end_label)?;
 
-        let var_count = self.last_scope(span)?.var_count - open_var_count;
-        self.pop_locals(var_count, span);
+        let total_var_count = match self.scopes.pop() {
+            Some(scope) => scope.local_var_count,
+            None => {
+                return Err(CompileError::internal("scopes are imbalanced", span));
+            }
+        };
+
+        self.pop_locals(total_var_count, span);
 
         // NB: If a value is needed from a for loop, encode it as a unit.
         if needs_value.0 {
@@ -686,18 +702,14 @@ impl<'a> Compiler<'a> {
         }
 
         if self.loops.pop().is_none() {
-            return Err(CompileError::internal("missing parent loop", span));
+            return Err(CompileError::internal("for: missing parent loop", span));
         }
 
         if loop_count != self.loops.len() {
             return Err(CompileError::internal(
-                "loop count mismatch on return",
+                "for: loop count mismatch on return",
                 span,
             ));
-        }
-
-        if self.scopes.pop().is_none() {
-            return Err(CompileError::internal("scopes are imbalanced", span));
         }
 
         if scopes_count != self.scopes.len() {
@@ -710,10 +722,14 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn encode_loop(&mut self, loop_: &ast::Loop, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", loop_);
+    fn encode_expr_loop(
+        &mut self,
+        expr_loop: &ast::ExprLoop,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        log::trace!("{:?}", expr_loop);
 
-        let span = loop_.span();
+        let span = expr_loop.span();
 
         let start_label = self.instructions.new_label("loop_start");
         let end_label = self.instructions.new_label("loop_end");
@@ -722,11 +738,11 @@ impl<'a> Compiler<'a> {
 
         self.loops.push(Loop {
             end_label,
-            var_count: self.last_scope(span)?.var_count,
+            total_var_count: self.last_scope(span)?.total_var_count,
         });
 
         self.instructions.label(start_label)?;
-        self.encode_block(&*loop_.body, NeedsValue(false))?;
+        self.encode_block(&*expr_loop.body, NeedsValue(false))?;
         self.instructions.jump(start_label, span);
         self.instructions.label(end_label)?;
 
@@ -736,12 +752,12 @@ impl<'a> Compiler<'a> {
         }
 
         if self.loops.pop().is_none() {
-            return Err(CompileError::internal("missing parent loop", span));
+            return Err(CompileError::internal("loop: missing parent loop", span));
         }
 
         if loop_count != self.loops.len() {
             return Err(CompileError::internal(
-                "loop count mismatch on return",
+                "loop: loop count mismatch on return",
                 span,
             ));
         }
@@ -749,19 +765,19 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn encode_let(&mut self, let_: &ast::Let, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", let_);
+    fn encode_expr_let(&mut self, expr_let: &ast::ExprLet, needs_value: NeedsValue) -> Result<()> {
+        log::trace!("{:?}", expr_let);
 
-        let span = let_.span();
+        let span = expr_let.span();
 
-        let name = let_.name.resolve(self.source)?;
+        let name = expr_let.name.resolve(self.source)?;
 
         self.references_at.clear();
-        self.encode_expr(&*let_.expr, NeedsValue(true))?;
+        self.encode_expr(&*expr_let.expr, NeedsValue(true))?;
         let references_at = self.references_at.clone();
 
         self.last_scope_mut(span)?
-            .decl_var(name, let_.name.span(), references_at);
+            .decl_var(name, expr_let.name.span(), references_at);
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if needs_value.0 {
@@ -874,8 +890,8 @@ impl<'a> Compiler<'a> {
         let locals = self.last_scope(span)?;
 
         let vars = locals
-            .var_count
-            .checked_sub(last_loop.var_count)
+            .total_var_count
+            .checked_sub(last_loop.total_var_count)
             .ok_or_else(|| CompileError::internal("var count should be larger", span))?;
 
         self.pop_locals(vars, span);
@@ -1226,6 +1242,156 @@ impl<'a> Compiler<'a> {
         self.instructions.label(end_label)?;
         Ok(())
     }
+
+    fn encode_expr_match(
+        &mut self,
+        expr_match: &ast::ExprMatch,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        log::trace!("{:?}", expr_match);
+        let span = expr_match.span();
+
+        let new_scope = self.last_scope(span)?.new_scope();
+        self.scopes.push(new_scope);
+
+        let expr_offset = self.last_scope_mut(span)?.decl_anon(expr_match.expr.span());
+        self.encode_expr(&*expr_match.expr, NeedsValue(true))?;
+
+        let end_label = self.instructions.new_label("match_end");
+        let mut branches = Vec::new();
+
+        for (branch, _) in &expr_match.branches {
+            // NB: each branch requires a scope since they have local bindings.
+            let new_scope = self.last_scope(span)?.new_scope();
+            self.scopes.push(new_scope);
+
+            let label = self.instructions.new_label("match_branch");
+
+            if self.encode_pat(&branch.pat, expr_offset)? {
+                self.instructions.jump(label, branch.span());
+            } else {
+                self.instructions.jump_if(label, branch.span());
+            }
+
+            let scope = self.pop_scope(branch.span())?;
+            // need to clean up locals if we fall through to a different branch.
+            self.pop_locals(scope.local_var_count, branch.span());
+
+            branches.push((label, scope));
+        }
+
+        let mut it = expr_match.branches.iter().zip(&branches).peekable();
+
+        while let Some(((branch, _), (label, scope))) = it.next() {
+            self.instructions.label(*label)?;
+            self.scopes.push(scope.clone());
+
+            self.encode_expr(&*branch.body, needs_value)?;
+
+            let scope = self.pop_scope(branch.span())?;
+
+            if needs_value.0 {
+                self.clean_up_locals(scope.local_var_count, branch.span());
+            } else {
+                self.pop_locals(scope.local_var_count, branch.span());
+            }
+
+            if it.peek().is_some() {
+                self.instructions.jump(end_label, branch.span());
+            }
+        }
+
+        self.instructions.label(end_label)?;
+
+        // pop the implicit scope where we store the anonymous match variable.
+        let scope = self.pop_scope(span)?;
+
+        if needs_value.0 {
+            self.clean_up_locals(scope.local_var_count, span);
+        } else {
+            self.pop_locals(scope.local_var_count, span);
+        }
+
+        Ok(())
+    }
+
+    /// Encode a pattern.
+    ///
+    /// Pushes a boolean to the stack unless the branch is unconditional.
+    /// If the pattern is unconditional, return `true`.
+    fn encode_pat(&mut self, pat: &ast::Pat, offset: usize) -> Result<bool> {
+        log::trace!("{:?}", pat);
+        let span = pat.span();
+
+        // Copy the expression to the top of the stack for comparison.
+        self.instructions.push(st::Inst::Copy { offset }, span);
+
+        match pat {
+            ast::Pat::BindingPat(binding) => {
+                let name = binding.resolve(self.source)?;
+                self.last_scope_mut(span)?.decl_var(name, span, Vec::new());
+                Ok(true)
+            }
+            ast::Pat::IgnorePat(..) => Ok(true),
+            ast::Pat::UnitPat(unit) => {
+                self.instructions.push(st::Inst::IsUnit, unit.span());
+                Ok(false)
+            }
+            ast::Pat::CharPat(char_literal) => {
+                let character = char_literal.resolve(self.source)?;
+                self.instructions
+                    .push(st::Inst::EqCharacter { character }, char_literal.span());
+                Ok(false)
+            }
+            ast::Pat::NumberPat(number_literal) => {
+                let number = number_literal.resolve(self.source)?;
+
+                let integer = match number {
+                    ast::Number::Integer(integer) => integer,
+                    ast::Number::Float(..) => {
+                        return Err(CompileError::MatchFloatInPattern {
+                            span: number_literal.span(),
+                        });
+                    }
+                };
+
+                self.instructions
+                    .push(st::Inst::EqInteger { integer }, number_literal.span());
+                Ok(false)
+            }
+            ast::Pat::StringPat(string) => {
+                let span = string.span();
+                let string = string.resolve(self.source)?;
+                let slot = self.unit.static_string(&*string)?;
+
+                self.instructions
+                    .push(st::Inst::EqStaticString { slot }, span);
+                Ok(false)
+            }
+            ast::Pat::ArrayPat(array) => {
+                return Err(CompileError::internal(
+                    "array patterns are not implemented yet",
+                    array.span(),
+                ));
+            }
+            ast::Pat::ObjectPat(object) => {
+                return Err(CompileError::internal(
+                    "object patterns are not implemented yet",
+                    object.span(),
+                ));
+            }
+        }
+    }
+
+    /// Pop the last scope.
+    fn pop_scope(&mut self, span: Span) -> Result<Scope> {
+        match self.scopes.pop() {
+            Some(scope) => Ok(scope),
+            None => {
+                return Err(CompileError::internal("missing parent scope", span));
+            }
+        }
+    }
 }
 
 /// Decode the specified path.
@@ -1270,7 +1436,9 @@ struct Scope {
     /// Anonymous variables.
     anon: Vec<AnonVar>,
     /// The number of variables.
-    var_count: usize,
+    total_var_count: usize,
+    /// The number of variables local to this scope.
+    local_var_count: usize,
 }
 
 impl Scope {
@@ -1279,7 +1447,8 @@ impl Scope {
         Self {
             locals: HashMap::new(),
             anon: Vec::new(),
-            var_count: 0,
+            total_var_count: 0,
+            local_var_count: 0,
         }
     }
 
@@ -1288,20 +1457,21 @@ impl Scope {
         Self {
             locals: HashMap::new(),
             anon: Vec::new(),
-            var_count: self.var_count,
+            total_var_count: self.total_var_count,
+            local_var_count: 0,
         }
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
     pub fn new_var(&mut self, name: &str, span: Span, references_at: Vec<Span>) -> Result<()> {
         let local = Var {
-            offset: self.var_count,
+            offset: self.total_var_count,
             name: name.to_owned(),
             span,
             references_at,
         };
 
-        self.var_count += 1;
+        self.total_var_count += 1;
 
         if let Some(old) = self.locals.insert(name.to_owned(), local) {
             return Err(CompileError::VariableConflict {
@@ -1316,7 +1486,7 @@ impl Scope {
 
     /// Insert a new local, and return the old one if there's a conflict.
     pub fn decl_var(&mut self, name: &str, span: Span, references_at: Vec<Span>) -> usize {
-        let offset = self.var_count;
+        let offset = self.total_var_count;
 
         self.locals.insert(
             name.to_owned(),
@@ -1328,18 +1498,20 @@ impl Scope {
             },
         );
 
-        self.var_count += 1;
+        self.total_var_count += 1;
+        self.local_var_count += 1;
         offset
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
     #[allow(unused)]
     fn decl_anon(&mut self, span: Span) -> usize {
-        let offset = self.var_count;
+        let offset = self.total_var_count;
 
         self.anon.push(AnonVar { offset, span });
 
-        self.var_count += 1;
+        self.total_var_count += 1;
+        self.local_var_count += 1;
         offset
     }
 
@@ -1368,5 +1540,5 @@ struct Loop {
     /// The end label of the loop.
     end_label: st::unit::Label,
     /// The number of variables observed at the start of the loop.
-    var_count: usize,
+    total_var_count: usize,
 }

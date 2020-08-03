@@ -1,4 +1,5 @@
 use rune::CompileError::*;
+use rune::ParseError::*;
 use st::unit::Span;
 
 macro_rules! test_encode {
@@ -7,7 +8,7 @@ macro_rules! test_encode {
     }};
 }
 
-macro_rules! test_err {
+macro_rules! test_compile_err {
     ($pat:pat => $cond:expr, $source:expr) => {{
         let err = rune::compile($source).unwrap_err();
 
@@ -20,9 +21,22 @@ macro_rules! test_err {
     }};
 }
 
+macro_rules! test_parse_err {
+    ($pat:pat => $cond:expr, $source:expr) => {{
+        let err = rune::compile($source).unwrap_err();
+
+        match err {
+            rune::Error::ParseError($pat) => ($cond),
+            _ => {
+                panic!("expected error `{}` but was `{:?}`", stringify!($pat), err);
+            }
+        }
+    }};
+}
+
 #[test]
 fn break_outside_of_loop() {
-    test_err! {
+    test_compile_err! {
         BreakOutsideOfLoop { span } => assert_eq!(span, Span::new(41, 46)),
         r#"
             fn main() {
@@ -34,7 +48,7 @@ fn break_outside_of_loop() {
 
 #[test]
 fn test_break_as_value() {
-    test_err! {
+    test_compile_err! {
         BreakDoesNotProduceValue { span } => assert_eq!(span, Span::new(41, 46)),
         r#"
             fn main() {
@@ -57,7 +71,7 @@ fn test_assign_exprs() {
         "#
     };
 
-    test_err! {
+    test_compile_err! {
         UnsupportedAssignExpr { span } => assert_eq!(span, Span::new(41, 46)),
         r#"
             fn main() {
@@ -69,7 +83,7 @@ fn test_assign_exprs() {
 
 #[test]
 fn test_return_local_reference() {
-    test_err! {
+    test_compile_err! {
         ReturnLocalReferences { span, references_at, block } => {
             assert_eq!(span, Span::new(79, 91));
             assert_eq!(references_at, vec![Span::new(88, 90), Span::new(84, 86), Span::new(80, 82)]);
@@ -80,6 +94,39 @@ fn test_return_local_reference() {
             let v = 5;
             let u = 6;
             [&v, &n, &u]
+        }
+        "#
+    };
+}
+
+#[test]
+fn test_match() {
+    test_parse_err! {
+        MatchMultipleFallbackBranches { span, existing } => {
+            assert_eq!(span, Span::new(84, 90));
+            assert_eq!(existing, Span::new(60, 66));
+        },
+        r#"
+        fn main(n) {
+            match n {
+                _ => 1,
+                _ => 2,
+            }
+        }
+        "#
+    };
+
+    test_parse_err! {
+        MatchNeverReached { span, existing } => {
+            assert_eq!(span, Span::new(84, 90));
+            assert_eq!(existing, Span::new(60, 66));
+        },
+        r#"
+        fn main(n) {
+            match n {
+                _ => 1,
+                5 => 2,
+            }
         }
         "#
     };

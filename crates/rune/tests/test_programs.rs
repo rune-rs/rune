@@ -304,3 +304,36 @@ async fn test_is() {
         true,
     };
 }
+
+#[tokio::test]
+async fn test_match() {
+    assert_eq! {
+        test!(i64 => r#"fn main() { match 1 { _ => 10 } }"#),
+        10,
+    };
+
+    assert_eq! {
+        test!(i64 => r#"fn main() { match 10 { n => 10 } }"#),
+        10,
+    };
+
+    assert_eq! {
+        test!(char => r#"fn main() { match 'a' { 'a' => 'b', n => n } }"#),
+        'b',
+    };
+
+    assert_eq! {
+        test!(i64 => r#"fn main() { match 10 { n => n } }"#),
+        10,
+    };
+
+    assert_eq! {
+        test!(i64 => r#"fn main() { match 10 { 10 => 5, n => n } }"#),
+        5,
+    };
+
+    assert_eq! {
+        test!(String => r#"fn main() { match "hello world" { "hello world" => "hello john", n => n } }"#),
+        "hello john",
+    };
+}

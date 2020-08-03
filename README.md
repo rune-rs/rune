@@ -4,6 +4,14 @@
 
 ST, a really simple stack-based virtual machine.
 
+## Contributing
+
+If you want to help out, there's a number of optimization tasks available in
+[FUTURE_OPTIMIZATIONS.md].
+
+Create an issue about the optimization you want to work on and communicate that
+you are working on it.
+
 ## Features of st
 
 * [Clean Rust FFI][rust-ffi].
