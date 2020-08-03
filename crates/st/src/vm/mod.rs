@@ -1640,6 +1640,57 @@ impl Vm {
     }
 
     #[inline]
+    fn op_eq_object_exact_len(&mut self, len: usize) -> Result<(), VmError> {
+        let value = self.pop()?;
+
+        let object = match value {
+            ValuePtr::Managed(slot) => match slot.into_managed() {
+                Managed::Object => self.object_ref(slot)?,
+                _ => {
+                    self.push(ValuePtr::Bool(false));
+                    return Ok(());
+                }
+            },
+            _ => {
+                self.push(ValuePtr::Bool(false));
+                return Ok(());
+            }
+        };
+
+        for _ in 0..len {
+            let _ = self.pop()?;
+        }
+
+        self.push(ValuePtr::Bool(false));
+        Ok(())
+    }
+
+    #[inline]
+    fn op_eq_object_min_len(&mut self, len: usize) -> Result<(), VmError> {
+        let value = self.pop()?;
+
+        let object = match value {
+            ValuePtr::Managed(slot) => match slot.into_managed() {
+                Managed::Object => self.object_ref(slot)?,
+                _ => {
+                    self.push(ValuePtr::Bool(false));
+                    return Ok(());
+                }
+            },
+            _ => {
+                self.push(ValuePtr::Bool(false));
+                return Ok(());
+            }
+        };
+
+        for _ in 0..len {
+            let _ = self.pop()?;
+        }
+
+        Ok(())
+    }
+
+    #[inline]
     fn op_ptr(&mut self, offset: usize) -> Result<(), VmError> {
         let ptr = self
             .frame_top
@@ -1897,6 +1948,12 @@ impl Vm {
                 }
                 Inst::EqArrayMinLen { len } => {
                     self.op_eq_array_min_len(*len)?;
+                }
+                Inst::EqObjectExactLen { len } => {
+                    self.op_eq_object_exact_len(*len)?;
+                }
+                Inst::EqObjectMinLen { len } => {
+                    self.op_eq_object_min_len(*len)?;
                 }
                 Inst::Ptr { offset } => {
                     self.op_ptr(*offset)?;

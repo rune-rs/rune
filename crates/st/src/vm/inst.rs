@@ -410,6 +410,34 @@ pub enum Inst {
         /// The length to test for.
         len: usize,
     },
+    /// Test that the top of the stack is an object with the given minimum
+    /// length, where the keys specified on the stack exists.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <key..>
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqObjectMinLen {
+        /// The length to test for.
+        len: usize,
+    },
+    /// Test that the top of the stack is an object with the given length, where
+    /// the keys specified on the stack exists.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <key..>
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqObjectExactLen {
+        /// The length to test for.
+        len: usize,
+    },
     /// Push the type with the given hash as a value on the stack.
     ///
     /// # Operation
@@ -585,10 +613,16 @@ impl fmt::Display for Inst {
                 write!(fmt, "eq-static-string {}", slot)?;
             }
             Self::EqArrayExactLen { len } => {
-                write!(fmt, "eq-array-exact-length {}", len)?;
+                write!(fmt, "eq-array-exact-len {}", len)?;
             }
             Self::EqArrayMinLen { len } => {
                 write!(fmt, "eq-array-min-len {}", len)?;
+            }
+            Self::EqObjectExactLen { len } => {
+                write!(fmt, "eq-object-exact-len {}", len)?;
+            }
+            Self::EqObjectMinLen { len } => {
+                write!(fmt, "eq-object-min-len {}", len)?;
             }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;

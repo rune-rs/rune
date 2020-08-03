@@ -1375,15 +1375,68 @@ impl<'a> Compiler<'a> {
     /// Encode an object pattern match.
     fn encode_object_pat(
         &mut self,
-        _scope: &mut Scope,
+        scope: &mut Scope,
         object: &ast::ObjectPat,
-        _offset: usize,
-        _false_label: Label,
+        offset: usize,
+        false_label: Label,
     ) -> Result<()> {
-        return Err(CompileError::internal(
-            "object patterns are not implemented yet",
-            object.span(),
-        ));
+        let span = object.span();
+
+        let mut slots = Vec::new();
+
+        for (string, _, _, _) in &object.items {
+            let string = string.resolve(self.source)?;
+            let slot = self.unit.static_string(&*string)?;
+            slots.push(slot);
+        }
+
+        // Copy the temporary and check that its length matches the pattern and
+        // that it is indeed an array.
+        {
+            for slot in &slots {
+                self.instructions
+                    .push(st::Inst::String { slot: *slot }, span);
+            }
+
+            self.instructions.push(st::Inst::Copy { offset }, span);
+
+            if object.open_pattern.is_some() {
+                self.instructions.push(
+                    st::Inst::EqObjectMinLen {
+                        len: object.items.len(),
+                    },
+                    span,
+                );
+            } else {
+                self.instructions.push(
+                    st::Inst::EqObjectExactLen {
+                        len: object.items.len(),
+                    },
+                    span,
+                );
+            }
+        }
+
+        let length_true = self.instructions.new_label("pat_array_length_true");
+
+        self.instructions.jump_if(length_true, span);
+        self.pop_locals(scope.local_var_count, span);
+        self.instructions.jump(false_label, span);
+        self.instructions.label(length_true)?;
+
+        for ((_, _, pat, _), slot) in object.items.iter().zip(&slots) {
+            let span = pat.span();
+
+            // load the given array index and declare it as a local variable.
+            self.instructions.push(st::Inst::Copy { offset }, span);
+            self.instructions
+                .push(st::Inst::ObjectSlotIndexGet { slot: *slot }, span);
+            let offset = scope.decl_anon(span);
+
+            self.encode_pat(scope, &*pat, offset, false_label)?;
+        }
+
+        Ok(())
     }
 
     /// Encode a pattern.
