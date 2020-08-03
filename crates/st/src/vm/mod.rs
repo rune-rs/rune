@@ -1546,6 +1546,25 @@ impl Vm {
         Ok(())
     }
 
+    /// Operation to allocate an object.
+    #[inline]
+    fn op_object(&mut self, slot: usize, unit: &Unit) -> Result<(), VmError> {
+        let keys = unit
+            .lookup_object_keys(slot)
+            .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
+
+        let mut object = HashMap::with_capacity(keys.len());
+
+        for key in keys {
+            let value = self.pop()?;
+            object.insert(key.clone(), value);
+        }
+
+        let value = self.object_allocate(object);
+        self.push(value);
+        Ok(())
+    }
+
     #[inline]
     fn op_is(&mut self, context: &Context) -> Result<(), VmError> {
         let b = self.pop()?;
@@ -1843,17 +1862,8 @@ impl Vm {
                     let value = self.array_allocate(array);
                     self.push(value);
                 }
-                Inst::Object { count } => {
-                    let mut object = HashMap::with_capacity(*count);
-
-                    for _ in 0..*count {
-                        let key = self.pop_decode()?;
-                        let value = self.pop()?;
-                        object.insert(key, value);
-                    }
-
-                    let value = self.object_allocate(object);
-                    self.push(value);
+                Inst::Object { slot } => {
+                    self.op_object(*slot, unit)?;
                 }
                 Inst::Type { hash } => {
                     self.push(ValuePtr::Type(*hash));

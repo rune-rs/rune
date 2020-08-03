@@ -191,6 +191,12 @@ async fn main() -> Result<()> {
             println!("{} = {:?}", hash, string);
         }
 
+        println!("# object keys:");
+
+        for (hash, keys) in unit.iter_static_object_keys() {
+            println!("{} = {:?}", hash, keys);
+        }
+
         println!("---");
     }
 

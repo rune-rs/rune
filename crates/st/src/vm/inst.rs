@@ -312,12 +312,20 @@ pub enum Inst {
         count: usize,
     },
     /// Construct a push an object onto the stack. The number of elements
-    /// in the object are determined by `count` and are popped from the stack.
+    /// in the object are determined the slot of the object keys `slot` and are
+    /// popped from the stack.
     ///
-    /// For each element, a key and a value is popped.
+    /// For each element, a value is popped corresponding to the object key.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value..>
+    /// => <object>
+    /// ```
     Object {
-        /// The size of the object.
-        count: usize,
+        /// The static slot of the object keys.
+        slot: usize,
     },
     /// Load a literal character.
     Char {
@@ -567,8 +575,8 @@ impl fmt::Display for Inst {
             Self::Array { count } => {
                 write!(fmt, "array {}", count)?;
             }
-            Self::Object { count } => {
-                write!(fmt, "object {}", count)?;
+            Self::Object { slot } => {
+                write!(fmt, "object {}", slot)?;
             }
             Self::String { slot } => {
                 write!(fmt, "string {}", slot)?;

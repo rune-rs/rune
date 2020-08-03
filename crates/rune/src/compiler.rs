@@ -445,16 +445,13 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
+        let mut keys = Vec::new();
         let mut keys_dup = HashMap::new();
 
-        let count = object.items.len();
-
-        for (key, _, value) in &object.items {
-            self.encode_expr(value, NeedsValue(true))?;
-
+        for (key, _, _) in &object.items {
             let span = key.span();
             let key = key.resolve(self.source)?;
-            let slot = self.unit.new_static_string(&*key)?;
+            keys.push(key.to_string());
 
             if let Some(existing) = keys_dup.insert(key, span) {
                 return Err(CompileError::DuplicateObjectKey {
@@ -463,12 +460,16 @@ impl<'a> Compiler<'a> {
                     object: object.span(),
                 });
             }
-
-            self.instructions.push(st::Inst::String { slot }, span);
         }
 
+        for (_, _, value) in object.items.iter().rev() {
+            self.encode_expr(value, NeedsValue(true))?;
+        }
+
+        let slot = self.unit.new_static_object_keys(&keys)?;
+
         self.instructions
-            .push(st::Inst::Object { count }, object.span());
+            .push(st::Inst::Object { slot }, object.span());
         Ok(())
     }
 

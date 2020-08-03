@@ -301,6 +301,16 @@ impl Unit {
         })
     }
 
+    /// Iterate over all static object keys in the unit.
+    pub fn iter_static_object_keys(&self) -> impl Iterator<Item = (Hash, &[String])> + '_ {
+        let mut it = self.static_object_keys.iter();
+
+        std::iter::from_fn(move || {
+            let s = it.next()?;
+            Some((Hash::object_keys(&s[..]), &s[..]))
+        })
+    }
+
     /// Iterate over all instructions in order.
     pub fn iter_instructions(&self) -> impl Iterator<Item = Inst> + '_ {
         self.instructions.iter().copied()
@@ -371,7 +381,7 @@ impl Unit {
     /// Insert a new collection of static object keys, or return one already
     /// existing.
     pub fn new_static_object_keys(&mut self, current: &[String]) -> Result<usize, UnitError> {
-        let current = sort_key(current);
+        let current = current.to_vec().into_boxed_slice();
         let hash = Hash::object_keys(&current[..]);
 
         if let Some(existing_slot) = self.static_object_keys_rev.get(&hash).copied() {
@@ -396,13 +406,7 @@ impl Unit {
         let new_slot = self.static_object_keys.len();
         self.static_object_keys.push(current);
         self.static_object_keys_rev.insert(hash, new_slot);
-        return Ok(new_slot);
-
-        fn sort_key(key: &[String]) -> Box<[String]> {
-            let mut key = key.to_vec();
-            key.sort();
-            key.into_boxed_slice()
-        }
+        Ok(new_slot)
     }
 
     /// Lookup information of a function.
