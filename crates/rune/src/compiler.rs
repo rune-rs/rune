@@ -1335,15 +1335,17 @@ impl<'a> Compiler<'a> {
 
             if array.open_pattern.is_some() {
                 self.instructions.push(
-                    st::Inst::EqArrayMinLen {
+                    st::Inst::MatchArray {
                         len: array.items.len(),
+                        exact: false,
                     },
                     span,
                 );
             } else {
                 self.instructions.push(
-                    st::Inst::EqArrayExactLen {
+                    st::Inst::MatchArray {
                         len: array.items.len(),
+                        exact: true,
                     },
                     span,
                 );
@@ -1402,15 +1404,17 @@ impl<'a> Compiler<'a> {
 
             if object.open_pattern.is_some() {
                 self.instructions.push(
-                    st::Inst::EqObjectMinKeys {
+                    st::Inst::MatchObject {
                         len: object.items.len(),
+                        exact: false,
                     },
                     span,
                 );
             } else {
                 self.instructions.push(
-                    st::Inst::EqObjectExactKeys {
+                    st::Inst::MatchObject {
                         len: object.items.len(),
+                        exact: true,
                     },
                     span,
                 );

@@ -385,8 +385,8 @@ pub enum Inst {
         /// The slot to test against.
         slot: usize,
     },
-    /// Test that the top of the stack is an array with the given minimum
-    /// length.
+    /// Test that the top of the stack is an array with the given length
+    /// requirements.
     ///
     /// # Operation
     ///
@@ -394,24 +394,15 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    EqArrayMinLen {
+    MatchArray {
         /// The minimum length to test for.
         len: usize,
+        /// Whether the operation should check exact `true` or minimum length
+        /// `false`.
+        exact: bool,
     },
-    /// Test that the top of the stack is an array with the given length.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
-    EqArrayExactLen {
-        /// The length to test for.
-        len: usize,
-    },
-    /// Test that the top of the stack is an object with the given minimum
-    /// length, where the keys specified on the stack exists.
+    /// Test that the top of the stack is an object with the given length
+    /// requirement, where the keys specified on the stack exists.
     ///
     /// # Operation
     ///
@@ -420,23 +411,12 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    EqObjectMinKeys {
+    MatchObject {
         /// The length to test for.
         len: usize,
-    },
-    /// Test that the top of the stack is an object with the given length, where
-    /// the keys specified on the stack exists.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <key..>
-    /// <value>
-    /// => <boolean>
-    /// ```
-    EqObjectExactKeys {
-        /// The length to test for.
-        len: usize,
+        /// Whether the operation should check exact `true` or minimum length
+        /// `false`.
+        exact: bool,
     },
     /// Push the type with the given hash as a value on the stack.
     ///
@@ -612,17 +592,11 @@ impl fmt::Display for Inst {
             Self::EqStaticString { slot } => {
                 write!(fmt, "eq-static-string {}", slot)?;
             }
-            Self::EqArrayExactLen { len } => {
-                write!(fmt, "eq-array-exact-len {}", len)?;
+            Self::MatchArray { len, exact } => {
+                write!(fmt, "match-array {}, {}", len, exact)?;
             }
-            Self::EqArrayMinLen { len } => {
-                write!(fmt, "eq-array-min-len {}", len)?;
-            }
-            Self::EqObjectExactKeys { len } => {
-                write!(fmt, "eq-object-exact-keys {}", len)?;
-            }
-            Self::EqObjectMinKeys { len } => {
-                write!(fmt, "eq-object-min-keys {}", len)?;
+            Self::MatchObject { len, exact } => {
+                write!(fmt, "match-object {}, {}", len, exact)?;
             }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;

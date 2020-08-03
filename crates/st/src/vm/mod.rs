@@ -1592,11 +1592,14 @@ impl Vm {
     }
 
     #[inline]
-    fn op_eq_array_exact_len(&mut self, len: usize) -> Result<(), VmError> {
+    fn match_array<F>(&mut self, f: F) -> Result<(), VmError>
+    where
+        F: FnOnce(&Vec<ValuePtr>) -> bool,
+    {
         let value = self.pop()?;
 
         self.push(ValuePtr::Bool(match value {
-            ValuePtr::Array(slot) => self.array_ref(slot)?.len() == len,
+            ValuePtr::Array(slot) => f(&*self.array_ref(slot)?),
             _ => false,
         }));
 
@@ -1604,19 +1607,7 @@ impl Vm {
     }
 
     #[inline]
-    fn op_eq_array_min_len(&mut self, len: usize) -> Result<(), VmError> {
-        let value = self.pop()?;
-
-        self.push(ValuePtr::Bool(match value {
-            ValuePtr::Array(slot) => self.array_ref(slot)?.len() >= len,
-            _ => false,
-        }));
-
-        Ok(())
-    }
-
-    #[inline]
-    fn object_checks_keys<F>(&mut self, len: usize, f: F) -> Result<(), VmError>
+    fn match_object<F>(&mut self, len: usize, f: F) -> Result<(), VmError>
     where
         F: FnOnce(&HashMap<String, ValuePtr>) -> bool,
     {
@@ -1661,16 +1652,6 @@ impl Vm {
 
         self.push(ValuePtr::Bool(is_match));
         Ok(())
-    }
-
-    #[inline]
-    fn op_eq_object_exact_keys(&mut self, len: usize) -> Result<(), VmError> {
-        self.object_checks_keys(len, |object| object.len() == len)
-    }
-
-    #[inline]
-    fn op_eq_object_min_keys(&mut self, len: usize) -> Result<(), VmError> {
-        self.object_checks_keys(len, |object| object.len() >= len)
     }
 
     #[inline]
@@ -1926,17 +1907,23 @@ impl Vm {
                 Inst::EqStaticString { slot } => {
                     self.op_eq_static_string(*slot, unit)?;
                 }
-                Inst::EqArrayExactLen { len } => {
-                    self.op_eq_array_exact_len(*len)?;
+                Inst::MatchArray { len, exact } => {
+                    let len = *len;
+
+                    if *exact {
+                        self.match_array(|array| array.len() == len)?;
+                    } else {
+                        self.match_array(|array| array.len() >= len)?;
+                    }
                 }
-                Inst::EqArrayMinLen { len } => {
-                    self.op_eq_array_min_len(*len)?;
-                }
-                Inst::EqObjectExactKeys { len } => {
-                    self.op_eq_object_exact_keys(*len)?;
-                }
-                Inst::EqObjectMinKeys { len } => {
-                    self.op_eq_object_min_keys(*len)?;
+                Inst::MatchObject { len, exact } => {
+                    let len = *len;
+
+                    if *exact {
+                        self.match_object(len, |object| object.len() == len)?;
+                    } else {
+                        self.match_object(len, |object| object.len() >= len)?;
+                    }
                 }
                 Inst::Ptr { offset } => {
                     self.op_ptr(*offset)?;
