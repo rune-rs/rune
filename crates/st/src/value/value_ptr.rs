@@ -6,8 +6,8 @@ use crate::vm::{StackError, Vm};
 /// An entry on the stack.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ValuePtr {
-    /// An empty unit.
-    Unit,
+    /// An empty value indicating nothing.
+    None,
     /// A boolean.
     Bool(bool),
     /// A character.
@@ -78,7 +78,7 @@ impl ValuePtr {
     /// Get the type information for the current value.
     pub fn value_type(&self, vm: &Vm) -> Result<ValueType, StackError> {
         Ok(match *self {
-            Self::Unit => ValueType::Unit,
+            Self::None => ValueType::Unit,
             Self::Integer(..) => ValueType::Integer,
             Self::Float(..) => ValueType::Float,
             Self::Bool(..) => ValueType::Bool,
@@ -95,7 +95,7 @@ impl ValuePtr {
     /// Get the type information for the current value.
     pub fn type_info(&self, vm: &Vm) -> Result<ValueTypeInfo, StackError> {
         Ok(match *self {
-            Self::Unit => ValueTypeInfo::Unit,
+            Self::None => ValueTypeInfo::Unit,
             Self::Integer(..) => ValueTypeInfo::Integer,
             Self::Float(..) => ValueTypeInfo::Float,
             Self::Bool(..) => ValueTypeInfo::Bool,
@@ -112,7 +112,7 @@ impl ValuePtr {
 
 impl Default for ValuePtr {
     fn default() -> Self {
-        Self::Unit
+        Self::None
     }
 }
 

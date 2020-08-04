@@ -19,5 +19,9 @@ pub type Object<T> = crate::collections::HashMap<String, T>;
 pub type Array<T> = Vec<T>;
 
 /// The generation for which a value was allocated.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Generation(pub(crate) u32);
+
+/// The rust type corresponding to rune's `None` type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Unit;

@@ -13,7 +13,7 @@ use thiserror::Error;
 
 /// Errors raised when building a new unit.
 #[derive(Debug, Error)]
-pub enum UnitError {
+pub enum CompilationUnitError {
     /// Trying to register a conflicting function.
     #[error("conflicting function signature already exists `{existing}`")]
     FunctionConflict {
@@ -196,7 +196,7 @@ pub struct DebugInfo {
 
 /// Instructions from a single source file.
 #[derive(Debug)]
-pub struct Unit {
+pub struct CompilationUnit {
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
     /// All imports in the current unit.
@@ -229,7 +229,7 @@ pub struct Unit {
     required_functions: HashMap<Hash, Vec<Span>>,
 }
 
-impl Unit {
+impl CompilationUnit {
     /// Construct a new unit.
     pub fn new() -> Self {
         Self {
@@ -350,19 +350,19 @@ impl Unit {
     /// looked up through [lookup_string][Self::lookup_string].
     ///
     /// Only uses up space if the static string is unique.
-    pub fn new_static_string(&mut self, current: &str) -> Result<usize, UnitError> {
+    pub fn new_static_string(&mut self, current: &str) -> Result<usize, CompilationUnitError> {
         let hash = Hash::of(&current);
 
         if let Some(existing_slot) = self.static_string_rev.get(&hash).copied() {
             let existing = self.static_strings.get(existing_slot).ok_or_else(|| {
-                UnitError::StaticStringMissing {
+                CompilationUnitError::StaticStringMissing {
                     hash,
                     slot: existing_slot,
                 }
             })?;
 
             if existing != current {
-                return Err(UnitError::StaticStringHashConflict {
+                return Err(CompilationUnitError::StaticStringHashConflict {
                     hash,
                     current: current.to_owned(),
                     existing: existing.clone(),
@@ -380,20 +380,23 @@ impl Unit {
 
     /// Insert a new collection of static object keys, or return one already
     /// existing.
-    pub fn new_static_object_keys(&mut self, current: &[String]) -> Result<usize, UnitError> {
+    pub fn new_static_object_keys(
+        &mut self,
+        current: &[String],
+    ) -> Result<usize, CompilationUnitError> {
         let current = current.to_vec().into_boxed_slice();
         let hash = Hash::object_keys(&current[..]);
 
         if let Some(existing_slot) = self.static_object_keys_rev.get(&hash).copied() {
             let existing = self.static_object_keys.get(existing_slot).ok_or_else(|| {
-                UnitError::StaticObjectKeysMissing {
+                CompilationUnitError::StaticObjectKeysMissing {
                     hash,
                     slot: existing_slot,
                 }
             })?;
 
             if *existing != current {
-                return Err(UnitError::StaticObjectKeysHashConflict {
+                return Err(CompilationUnitError::StaticObjectKeysHashConflict {
                     hash,
                     current,
                     existing: existing.clone(),
@@ -425,7 +428,7 @@ impl Unit {
     }
 
     /// Declare a new use.
-    pub fn new_import<I>(&mut self, path: I) -> Result<(), UnitError>
+    pub fn new_import<I>(&mut self, path: I) -> Result<(), CompilationUnitError>
     where
         I: Copy + IntoIterator,
         I::Item: AsRef<str>,
@@ -434,7 +437,7 @@ impl Unit {
 
         if let Some(last) = path.last() {
             if let Some(old) = self.imports.insert(last.to_owned(), path) {
-                return Err(UnitError::ImportConflict { existing: old });
+                return Err(CompilationUnitError::ImportConflict { existing: old });
             }
         }
 
@@ -452,7 +455,7 @@ impl Unit {
         path: I,
         args: usize,
         assembly: Assembly,
-    ) -> Result<(), UnitError>
+    ) -> Result<(), CompilationUnitError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
@@ -469,7 +472,7 @@ impl Unit {
         };
 
         if let Some(old) = self.functions.insert(hash, info) {
-            return Err(UnitError::FunctionConflict {
+            return Err(CompilationUnitError::FunctionConflict {
                 existing: old.signature,
             });
         }
@@ -479,7 +482,7 @@ impl Unit {
     }
 
     /// Translate the given assembly into instructions.
-    fn add_assembly(&mut self, assembly: Assembly) -> Result<(), UnitError> {
+    fn add_assembly(&mut self, assembly: Assembly) -> Result<(), CompilationUnitError> {
         self.label_count = assembly.label_count;
 
         self.required_functions.extend(assembly.required_functions);
@@ -522,15 +525,16 @@ impl Unit {
             base: usize,
             label: Label,
             labels: &HashMap<Label, usize>,
-        ) -> Result<isize, UnitError> {
+        ) -> Result<isize, CompilationUnitError> {
             let base = base as isize;
 
-            let offset = labels
-                .get(&label)
-                .copied()
-                .ok_or_else(|| UnitError::MissingLabel {
-                    label: label.to_owned(),
-                })?;
+            let offset =
+                labels
+                    .get(&label)
+                    .copied()
+                    .ok_or_else(|| CompilationUnitError::MissingLabel {
+                        label: label.to_owned(),
+                    })?;
 
             Ok((offset as isize) - base)
         }
@@ -614,11 +618,11 @@ impl Assembly {
     }
 
     /// Apply the label at the current instruction offset.
-    pub fn label(&mut self, label: Label) -> Result<Label, UnitError> {
+    pub fn label(&mut self, label: Label) -> Result<Label, CompilationUnitError> {
         let offset = self.instructions.len();
 
         if let Some(_) = self.labels.insert(label, offset) {
-            return Err(UnitError::DuplicateLabel { label });
+            return Err(CompilationUnitError::DuplicateLabel { label });
         }
 
         self.labels_rev.insert(offset, label);

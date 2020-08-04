@@ -27,7 +27,7 @@ pub use st::unit::Span;
 /// Helper function to compile the given source.
 ///
 /// Discards any warnings produced.
-pub fn compile(source: &str) -> Result<st::Unit> {
+pub fn compile(source: &str) -> Result<st::CompilationUnit> {
     let unit = parse_all::<ast::File>(&source)?;
     let (unit, _) = unit.compile()?;
     Ok(unit)

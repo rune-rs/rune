@@ -3,7 +3,7 @@ use crate::collections::HashMap;
 use crate::context::{Context, Handler};
 use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
-use crate::unit::Unit;
+use crate::unit::CompilationUnit;
 use crate::value::{Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
 use anyhow::Result;
 use slab::Slab;
@@ -64,7 +64,7 @@ pub enum StackError {
     },
     /// Error raised when we expected a unit.
     #[error("expected unit, but found `{actual}`")]
-    ExpectedUnit {
+    ExpectedNone {
         /// The actual type found.
         actual: ValueTypeInfo,
     },
@@ -450,7 +450,7 @@ macro_rules! pop {
 macro_rules! primitive_ops {
     ($vm:expr, $a:ident $op:tt $b:ident) => {
         match ($a, $b) {
-            (ValuePtr::Unit, ValuePtr::Unit) => true,
+            (ValuePtr::None, ValuePtr::None) => true,
             (ValuePtr::Char($a), ValuePtr::Char($b)) => $a $op $b,
             (ValuePtr::Bool($a), ValuePtr::Bool($b)) => $a $op $b,
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => $a $op $b,
@@ -660,7 +660,7 @@ impl Vm {
     pub fn call_function<'a, A, T, I>(
         &'a mut self,
         context: &'a Context,
-        unit: &'a Unit,
+        unit: &'a CompilationUnit,
         name: I,
         args: A,
     ) -> Result<Task<'a, T>, VmError>
@@ -697,7 +697,7 @@ impl Vm {
     }
 
     /// Run the given program on the virtual machine.
-    pub fn run<'a, T>(&'a mut self, context: &'a Context, unit: &'a Unit) -> Task<'a, T>
+    pub fn run<'a, T>(&'a mut self, context: &'a Context, unit: &'a CompilationUnit) -> Task<'a, T>
     where
         T: FromValue,
     {
@@ -1144,7 +1144,7 @@ impl Vm {
     /// Convert a value reference into an owned value.
     pub fn value_take(&mut self, value: ValuePtr) -> Result<Value, StackError> {
         return Ok(match value {
-            ValuePtr::Unit => Value::Unit,
+            ValuePtr::None => Value::Unit,
             ValuePtr::Integer(integer) => Value::Integer(integer),
             ValuePtr::Float(float) => Value::Float(float),
             ValuePtr::Bool(boolean) => Value::Bool(boolean),
@@ -1192,7 +1192,7 @@ impl Vm {
     /// Convert the given ptr into a type-erase ValueRef.
     pub fn value_ref(&self, value: ValuePtr) -> Result<ValueRef<'_>, StackError> {
         return Ok(match value {
-            ValuePtr::Unit => ValueRef::Unit,
+            ValuePtr::None => ValueRef::Unit,
             ValuePtr::Integer(integer) => ValueRef::Integer(integer),
             ValuePtr::Float(float) => ValueRef::Float(float),
             ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
@@ -1269,7 +1269,7 @@ impl Vm {
     /// use a dynamically resolve equality function.
     fn value_ptr_eq(&self, a: ValuePtr, b: ValuePtr) -> Result<bool, VmError> {
         Ok(match (a, b) {
-            (ValuePtr::Unit, ValuePtr::Unit) => true,
+            (ValuePtr::None, ValuePtr::None) => true,
             (ValuePtr::Char(a), ValuePtr::Char(b)) => a == b,
             (ValuePtr::Bool(a), ValuePtr::Bool(b)) => a == b,
             (ValuePtr::Integer(a), ValuePtr::Integer(b)) => a == b,
@@ -1483,7 +1483,11 @@ impl Vm {
 
     /// Perform a specialized index get operation on an object.
     #[inline]
-    fn op_object_slot_index_get(&mut self, string_slot: usize, unit: &Unit) -> Result<(), VmError> {
+    fn op_object_slot_index_get(
+        &mut self,
+        string_slot: usize,
+        unit: &CompilationUnit,
+    ) -> Result<(), VmError> {
         let target = self.pop()?;
 
         let value = match target {
@@ -1541,7 +1545,7 @@ impl Vm {
 
     /// Operation to allocate an object.
     #[inline]
-    fn op_object(&mut self, slot: usize, unit: &Unit) -> Result<(), VmError> {
+    fn op_object(&mut self, slot: usize, unit: &CompilationUnit) -> Result<(), VmError> {
         let keys = unit
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
@@ -1588,7 +1592,7 @@ impl Vm {
     }
 
     #[inline]
-    fn op_eq_static_string(&mut self, slot: usize, unit: &Unit) -> Result<(), VmError> {
+    fn op_eq_static_string(&mut self, slot: usize, unit: &CompilationUnit) -> Result<(), VmError> {
         let string = unit
             .lookup_string(slot)
             .ok_or_else(|| VmError::MissingStaticString { slot })?;
@@ -1622,7 +1626,7 @@ impl Vm {
     }
 
     #[inline]
-    fn match_object<F>(&mut self, slot: usize, unit: &Unit, f: F) -> Result<(), VmError>
+    fn match_object<F>(&mut self, slot: usize, unit: &CompilationUnit, f: F) -> Result<(), VmError>
     where
         F: FnOnce(&HashMap<String, ValuePtr>, usize) -> bool,
     {
@@ -1662,7 +1666,7 @@ impl Vm {
     pub async fn run_for(
         &mut self,
         context: &Context,
-        unit: &Unit,
+        unit: &CompilationUnit,
         mut limit: Option<usize>,
     ) -> Result<(), VmError> {
         while !self.exited {
@@ -1738,7 +1742,7 @@ impl Vm {
                 }
                 Inst::ReturnUnit => {
                     self.exited = self.pop_call_frame()?;
-                    self.push(ValuePtr::Unit);
+                    self.push(ValuePtr::None);
                 }
                 Inst::Pop => {
                     self.pop()?;
@@ -1806,7 +1810,7 @@ impl Vm {
                     }
                 }
                 Inst::Unit => {
-                    self.push(ValuePtr::Unit);
+                    self.push(ValuePtr::None);
                 }
                 Inst::Bool { value } => {
                     self.push(ValuePtr::Bool(*value));
@@ -1845,7 +1849,7 @@ impl Vm {
                     let value = self.pop()?;
 
                     self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Unit => true,
+                        ValuePtr::None => true,
                         _ => false,
                     }));
                 }
@@ -1939,7 +1943,7 @@ pub struct Task<'a, T> {
     /// Functions collection associated with the task.
     pub context: &'a Context,
     /// The unit associated with the task.
-    pub unit: &'a Unit,
+    pub unit: &'a CompilationUnit,
     /// Hold the type of the task.
     _marker: PhantomData<T>,
 }

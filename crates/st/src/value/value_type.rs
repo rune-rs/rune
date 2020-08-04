@@ -4,7 +4,7 @@ use std::any::TypeId;
 /// The type of an entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ValueType {
-    /// An empty unit.
+    /// An value indicating nothing.
     Unit,
     /// A string.
     String,

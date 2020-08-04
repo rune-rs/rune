@@ -4,7 +4,7 @@ use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{Integer, StackError, Vm};
 
-impl ReflectValueType for () {
+impl ReflectValueType for crate::value::Unit {
     fn value_type() -> ValueType {
         ValueType::Unit
     }
@@ -14,20 +14,26 @@ impl ReflectValueType for () {
     }
 }
 
-impl ToValue for () {
+impl ToValue for crate::value::Unit {
     fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
-        Ok(ValuePtr::Unit)
+        Ok(ValuePtr::None)
     }
 }
 
-impl FromValue for () {
+impl FromValue for crate::value::Unit {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         match value {
-            ValuePtr::Unit => Ok(()),
-            actual => Err(StackError::ExpectedUnit {
+            ValuePtr::None => Ok(crate::value::Unit),
+            actual => Err(StackError::ExpectedNone {
                 actual: actual.type_info(vm)?,
             }),
         }
+    }
+}
+
+impl ToValue for () {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        Ok(ValuePtr::None)
     }
 }
 

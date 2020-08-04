@@ -125,17 +125,20 @@ impl std::ops::Deref for NeedsValue {
 
 impl<'a> crate::ParseAll<'a, ast::File> {
     /// Compile the parse with default options.
-    pub fn compile(self) -> Result<(st::Unit, Warnings)> {
+    pub fn compile(self) -> Result<(st::CompilationUnit, Warnings)> {
         self.compile_with_options(&Default::default())
     }
 
     /// Encode the given object into a collection of asm.
-    pub fn compile_with_options(self, options: &Options) -> Result<(st::Unit, Warnings)> {
+    pub fn compile_with_options(
+        self,
+        options: &Options,
+    ) -> Result<(st::CompilationUnit, Warnings)> {
         let ParseAll { source, item: file } = self;
 
         let mut warnings = Warnings::new();
 
-        let mut unit = st::Unit::with_default_prelude();
+        let mut unit = st::CompilationUnit::with_default_prelude();
 
         for import in file.imports {
             let name = resolve_path(import.path, source)?;
@@ -170,7 +173,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
 }
 
 struct Compiler<'a> {
-    unit: &'a mut st::Unit,
+    unit: &'a mut st::CompilationUnit,
     asm: &'a mut Assembly,
     scopes: Vec<Scope>,
     /// Context for which to emit warnings.
@@ -1407,8 +1410,6 @@ impl<'a> Compiler<'a> {
 
         // pop the implicit scope where we store the anonymous match variable.
         let scope = self.pop_scope(span)?;
-
-        println!("local var count: {}", scope.local_var_count);
 
         if *needs_value {
             self.locals_clean(scope.local_var_count, span);

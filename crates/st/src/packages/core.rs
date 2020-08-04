@@ -10,7 +10,7 @@ use crate::value::ValuePtr;
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.ty(&["unit"]).build::<()>()?;
+    module.ty(&["unit"]).build::<crate::value::Unit>()?;
     module.ty(&["bool"]).build::<bool>()?;
     module.ty(&["char"]).build::<char>()?;
 
@@ -26,7 +26,7 @@ pub fn module() -> Result<Module, ContextError> {
             }
         }
 
-        vm.push(ValuePtr::Unit);
+        vm.push(ValuePtr::None);
         Ok(())
     })?;
 

@@ -5,7 +5,7 @@ use std::fmt;
 /// through its [Display][fmt::Display] implementation.
 #[derive(Debug, Clone, Copy)]
 pub enum ValueTypeInfo {
-    /// An empty unit.
+    /// An empty value indicating nothing.
     Unit,
     /// A string.
     String,

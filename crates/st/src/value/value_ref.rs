@@ -6,7 +6,7 @@ use crate::vm::Ref;
 #[derive(Debug)]
 /// A value peeked out of the stack.
 pub enum ValueRef<'vm> {
-    /// An empty unit.
+    /// An empty value indicating nothing.
     Unit,
     /// A string.
     String(Ref<'vm, String>),

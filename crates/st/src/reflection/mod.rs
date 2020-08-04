@@ -144,6 +144,7 @@ impl_into_args!(
 
 macro_rules! impl_from_value_tuple {
     () => {
+        impl_from_value_tuple!{@impl 0,}
     };
 
     ({$ty:ident, $var:ident, $count:expr}, $({$l_ty:ident, $l_var:ident, $l_count:expr},)*) => {
@@ -175,6 +176,7 @@ macro_rules! impl_from_value_tuple {
                     });
                 }
 
+                #[allow(unused_mut, unused_variables)]
                 let mut it = array.iter();
 
                 $(

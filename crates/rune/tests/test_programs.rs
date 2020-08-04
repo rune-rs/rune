@@ -42,7 +42,7 @@ macro_rules! test_err {
 #[tokio::test]
 async fn test_small_programs() {
     assert_eq!(test!(u64 => r#"fn main() { 42 }"#), 42u64);
-    assert_eq!(test!(() => r#"fn main() {}"#), ());
+    assert_eq!(test!(st::Unit => r#"fn main() {}"#), st::Unit);
 
     assert_eq! {
         test!(i64 => r#"
@@ -124,8 +124,8 @@ async fn test_shadowing() {
 #[tokio::test]
 async fn test_arrays() {
     assert_eq! {
-        test!(() => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
-        (),
+        test!(st::Unit => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
+        st::Unit,
     };
 }
 
@@ -303,6 +303,17 @@ async fn test_is() {
         test!(bool => r#"fn main() { () is unit }"#),
         true,
     };
+
+    assert_eq! {
+        test!(bool => r#"fn foo() {} fn main() { foo() is unit }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { {} is unit }"#),
+        true,
+    };
+
     assert_eq! {
         test!(bool => r#"fn main() { true is bool }"#),
         true,
@@ -369,8 +380,8 @@ async fn test_match() {
 #[tokio::test]
 async fn test_array_match() {
     assert_eq! {
-        test!(() => r#"fn main() { match [] { [..] => true } }"#),
-        (),
+        test!(st::Unit => r#"fn main() { match [] { [..] => true } }"#),
+        st::Unit,
     };
 
     assert_eq! {
@@ -379,13 +390,13 @@ async fn test_array_match() {
     };
 
     assert_eq! {
-        test!(() => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
-        (),
+        test!(st::Unit => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
+        st::Unit,
     };
 
     assert_eq! {
-        test!(() => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
-        (),
+        test!(st::Unit => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
+        st::Unit,
     };
 
     assert_eq! {
@@ -442,8 +453,8 @@ async fn test_array_match() {
 #[tokio::test]
 async fn test_object_match() {
     assert_eq! {
-        test!(() => r#"fn main() { match #{} { #{..} => true } }"#),
-        (),
+        test!(st::Unit => r#"fn main() { match #{} { #{..} => true } }"#),
+        st::Unit,
     };
 
     assert_eq! {

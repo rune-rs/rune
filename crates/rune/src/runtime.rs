@@ -138,7 +138,7 @@ impl Runtime {
     }
 
     /// Get the unit associated with the given file id.
-    pub fn unit(&self, file_id: usize) -> Option<&st::Unit> {
+    pub fn unit(&self, file_id: usize) -> Option<&st::CompilationUnit> {
         self.files.get(file_id)?.unit.as_ref()
     }
 
@@ -397,7 +397,7 @@ impl Runtime {
 
 struct File {
     file: SimpleFile<String, String>,
-    unit: Option<st::Unit>,
+    unit: Option<st::CompilationUnit>,
 }
 
 struct SlabFiles {

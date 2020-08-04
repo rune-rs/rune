@@ -285,7 +285,7 @@ pub enum CompileError {
     UnitError {
         /// Source error.
         #[from]
-        error: st::UnitError,
+        error: st::CompilationUnitError,
     },
     /// Error for resolving values from source files.
     #[error("resolve error")]

@@ -24,7 +24,7 @@ where
     fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
         match self {
             Some(s) => s.to_value(vm),
-            None => Ok(ValuePtr::Unit),
+            None => Ok(ValuePtr::None),
         }
     }
 }
@@ -35,7 +35,7 @@ where
 {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         match value {
-            ValuePtr::Unit => Ok(None),
+            ValuePtr::None => Ok(None),
             _ => Ok(Some(T::from_value(value, vm)?)),
         }
     }

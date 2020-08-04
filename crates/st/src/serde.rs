@@ -33,7 +33,7 @@ impl ser::Serialize for ValuePtr {
         use serde::ser::SerializeSeq as _;
 
         match *self {
-            ValuePtr::Unit => serializer.serialize_unit(),
+            ValuePtr::None => serializer.serialize_unit(),
             ValuePtr::Bool(b) => serializer.serialize_bool(b),
             ValuePtr::Char(c) => serializer.serialize_char(c),
             ValuePtr::Integer(integer) => serializer.serialize_i64(integer),
@@ -220,7 +220,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Unit)
+        Ok(ValuePtr::None)
     }
 
     #[inline]
@@ -228,7 +228,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Unit)
+        Ok(ValuePtr::None)
     }
 
     #[inline]
