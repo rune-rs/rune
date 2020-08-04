@@ -1374,6 +1374,14 @@ impl<'a> Compiler<'a> {
 
             self.encode_pat(&mut scope, &branch.pat, match_false, &load)?;
 
+            if let Some((_, condition)) = &branch.condition {
+                let span = condition.span();
+                self.encode_expr(&*condition, NeedsValue(true))?;
+                self.asm.jump_if(branch_label, span);
+                self.locals_pop(scope.local_var_count, span);
+                self.asm.jump(match_false, span);
+            }
+
             self.asm.jump(branch_label, span);
             self.asm.label(match_false)?;
 

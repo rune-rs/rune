@@ -6,3 +6,5 @@ members = [
     "crates/rune",
     "crates/rune-cli",
 ]
+
+default-members = ["crates/rune-cli"]

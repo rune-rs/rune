@@ -2,60 +2,95 @@
 
 Rune supports your typical forms of control flow.
 
+## `return` Keyword
+
+The `return` keyword allows for returning from the current function.
+If specified without an argument, the function will return a unit `()`.
+
+The last statement in a function is known as an *implicit return*, and will be
+what the function returns by default unless a `return` is specified.
+
+```rust,noplaypen
+fn foo(n) {
+    if n < 1 {
+        return "less than one";
+    }
+
+    "something else"
+}
+
+fn main() {
+    dbg(foo(0)); // => outputs: "less than one"
+    dbg(foo(10)); // => outputs: "something else"
+}
+```
+
 ## `if` Expressions
 
-If expressions are conditionals that can have one or more branches preceded by a
-condition.
+If expressions allow you to provide a condition with one or more code branches.
+If the condition is `true`, the provided block of code will run.
 
-```rune
+```rust,noplaypen
 fn main() {
     let number = 3;
 
     if number < 5 {
-        dbg("condition was true");
+        dbg("the number is smaller than 5");
+    }
+}
+```
+
+Optionally, we can add another branch under `else`, which will execute in case
+the condition is false.
+
+```rust,noplaypen
+fn main() {
+    let number = 3;
+
+    if number < 5 {
+        dbg("the number is smaller than 5");
     } else {
-        dbg("condition was false");
+        dbg("the number is 5 or bigger");
     }
 }
 ```
 
-## Loops
+We can also add an arbitrary number of `else if` branches, which allow us to
+specify many different conditions.
 
-To repeat the execution of code Rune gives you `while`, `for` and `loop`.
-
-#### Repeating with `loop`
-
-```rune
+```rust,noplaypen
 fn main() {
-    loop {
-        dbg("forever");
+    let number = 3;
+
+    if number < 5 {
+        dbg("the number is smaller than 5");
+    } else if number == 5 {
+        dbg("the number is exactly 5");
+    } else {
+        dbg("the number is bigger than 5");
     }
 }
 ```
 
-#### Iterating loops with `for`
+Do note however that if you have *many* conditions, it might be cleaner to use
+a `match`.
 
-```rune
-use std::iter::range;
+This will be covered in a later section, but here is a sneak peek:
 
+```rust,noplaypen
 fn main() {
-    for n in range(0, 10) {
-        dbg(n);
-    }
-}
-```
+    let number = 3;
 
-#### Conditional loops with `while`
-
-```rune
-use std::iter::range;
-
-fn main() {
-    let n = 0;
-
-    while n < 10 {
-        dbg(n);
-        n = n + 1;
+    match number {
+        n if n < 5 => {
+            dbg("the number is smaller than 5");
+        }
+        5 => {
+            dbg("the number is exactly 5");
+        }
+        n => {
+            dbg("the number is bigger than 5");
+        }
     }
 }
 ```

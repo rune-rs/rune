@@ -970,6 +970,8 @@ impl Parse for ExprIf {
 pub struct MatchBranch {
     /// The pattern to match.
     pub pat: Pat,
+    /// The branch condition.
+    pub condition: Option<(If, Box<Expr>)>,
     /// The rocket token.
     pub rocket: Rocket,
     /// The body of the match.
@@ -1002,8 +1004,17 @@ impl MatchBranch {
 /// ```
 impl Parse for MatchBranch {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let pat = parser.parse()?;
+
+        let condition = if parser.peek::<If>()? {
+            Some((parser.parse()?, Box::new(parser.parse()?)))
+        } else {
+            None
+        };
+
         Ok(Self {
-            pat: parser.parse()?,
+            pat,
+            condition,
             rocket: parser.parse()?,
             body: Box::new(parser.parse()?),
         })
@@ -1071,7 +1082,9 @@ impl Parse for ExprMatch {
             };
 
             let fallback = match &branch.pat {
-                Pat::IgnorePat(..) | Pat::BindingPat(..) => Some(branch.span()),
+                Pat::IgnorePat(..) | Pat::BindingPat(..) if branch.condition.is_none() => {
+                    Some(branch.span())
+                }
                 _ => None,
             };
 

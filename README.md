@@ -26,13 +26,13 @@ ST comes with a simple scripting language called *Rune*.
 You can run example scripts through rune-cli:
 
 ```bash
-cargo rune-cli ./scripts/controls.rn
+cargo run -- ./scripts/controls.rn
 ```
 
 If you want to see diagnostics of your unit, you can do:
 
 ```bash
-cargo rune-cli ./scripts/controls.rn --dump-unit --trace
+cargo run -- ./scripts/controls.rn --dump-unit --trace
 ```
 
 [rust-ffi]: https://github.com/udoprog/st/blob/master/crates/st-http/src/lib.rs
