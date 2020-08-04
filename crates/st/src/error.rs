@@ -53,3 +53,9 @@ impl Error {
         self.error.downcast_ref()
     }
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.error, fmt)
+    }
+}

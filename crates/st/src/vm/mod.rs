@@ -30,12 +30,9 @@ pub enum StackError {
     /// Attempt to pop outside of current frame offset.
     #[error("attempted to pop beyond current stack frame `{frame}`")]
     PopOutOfBounds {
-        /// Frame offset that we tried to pop.
+        /// CallFrame offset that we tried to pop.
         frame: usize,
     },
-    /// No stack frames.
-    #[error("stack frames are empty")]
-    StackFramesEmpty,
     /// The given slot is missing.
     #[error("missing slot `{slot}`")]
     SlotMissing {
@@ -124,10 +121,10 @@ pub enum StackError {
         to: &'static str,
     },
     /// We encountered a corrupted stack frame.
-    #[error("stack size `{stack_size}` starts before the current stack frame `{frame_at}`")]
+    #[error("stack size `{stack_top}` starts before the current stack frame `{frame_at}`")]
     CorruptedStackFrame {
         /// The size of the stack.
-        stack_size: usize,
+        stack_top: usize,
         /// The location of the stack frame.
         frame_at: usize,
     },
@@ -191,14 +188,14 @@ pub enum VmError {
         mark: usize,
     },
     /// Error raised in a user-defined function.
-    #[error("error in user-defined function")]
+    #[error("error in user-defined function: {error}")]
     UserError {
         /// Source error.
         #[from]
         error: crate::error::Error,
     },
     /// Failure to interact with the stack.
-    #[error("failed to interact with the stack")]
+    #[error("failed to interact with the stack: {error}")]
     StackError {
         /// Source error.
         #[from]
@@ -466,13 +463,19 @@ struct Holder {
     value: Box<UnsafeCell<dyn Any>>,
 }
 
-/// A stack frame.
+/// A call frame.
+///
+/// This is used to store the return point after an instruction has been run.
 #[derive(Debug, Clone, Copy)]
-struct Frame {
+struct CallFrame {
     /// The stored instruction pointer.
     ip: usize,
-    /// The stored offset.
-    frame_top: usize,
+    /// The top of the stack at the time of the call to ensure stack isolation
+    /// across function calls.
+    ///
+    /// I.e. a function should not be able to manipulate the size of any other
+    /// stack than its own.
+    stack_top: usize,
 }
 
 macro_rules! call_fn {
@@ -481,7 +484,7 @@ macro_rules! call_fn {
 
         match $unit.lookup_offset(hash) {
             Some(loc) => {
-                $s.push_frame(loc, $args)?;
+                $s.push_call_frame(loc, $args)?;
                 $update_ip = false;
             }
             None => {
@@ -555,13 +558,13 @@ pub struct Vm {
     /// The current instruction pointer.
     ip: usize,
     /// The top of the current frame.
-    frame_top: usize,
+    stack_top: usize,
     /// We have exited from the last frame.
     exited: bool,
     /// The current stack of values.
     stack: Vec<ValuePtr>,
     /// Frames relative to the stack.
-    frames: Vec<Frame>,
+    call_frames: Vec<CallFrame>,
     /// Slots with external values.
     slots: Slab<Holder>,
     /// Generation used for allocated objects.
@@ -573,10 +576,10 @@ impl Vm {
     pub fn new() -> Self {
         Self {
             ip: 0,
-            frame_top: 0,
+            stack_top: 0,
             exited: false,
             stack: Vec::new(),
-            frames: Vec::new(),
+            call_frames: Vec::new(),
             slots: Slab::new(),
             generation: 0,
         }
@@ -585,10 +588,10 @@ impl Vm {
     /// Reset this virtual machine, freeing all memory used.
     pub fn clear(&mut self) {
         self.ip = 0;
-        self.frame_top = 0;
+        self.stack_top = 0;
         self.exited = false;
         self.stack.clear();
-        self.frames.clear();
+        self.call_frames.clear();
         self.slots.clear();
         self.generation = 0;
     }
@@ -654,7 +657,7 @@ impl Vm {
         args.into_args(self)?;
 
         self.ip = function.offset;
-        self.frame_top = 0;
+        self.stack_top = 0;
 
         Ok(Task {
             vm: self,
@@ -686,9 +689,9 @@ impl Vm {
 
     /// Pop a reference to a value from the stack.
     pub fn pop(&mut self) -> Result<ValuePtr, StackError> {
-        if self.stack.len() == self.frame_top {
+        if self.stack.len() == self.stack_top {
             return Err(StackError::PopOutOfBounds {
-                frame: self.frame_top,
+                frame: self.stack_top,
             });
         }
 
@@ -697,9 +700,9 @@ impl Vm {
 
     /// Pop a number of values from the stack.
     fn op_popn(&mut self, n: usize) -> Result<(), StackError> {
-        if self.stack.len().saturating_sub(self.frame_top) < n {
+        if self.stack.len().saturating_sub(self.stack_top) < n {
             return Err(StackError::PopOutOfBounds {
-                frame: self.frame_top,
+                frame: self.stack_top,
             });
         }
 
@@ -731,7 +734,7 @@ impl Vm {
     /// top of the stack.
     fn do_copy(&mut self, offset: usize) -> Result<(), VmError> {
         let value = self
-            .frame_top
+            .stack_top
             .checked_add(offset)
             .and_then(|n| self.stack.get(n).copied())
             .ok_or_else(|| VmError::StackOutOfBounds)?;
@@ -746,7 +749,7 @@ impl Vm {
         let mut value = self.stack.pop().ok_or_else(|| VmError::StackOutOfBounds)?;
 
         let stack_value = self
-            .frame_top
+            .stack_top
             .checked_add(offset)
             .and_then(|n| self.stack.get_mut(n))
             .ok_or_else(|| VmError::StackOutOfBounds)?;
@@ -756,39 +759,40 @@ impl Vm {
     }
 
     /// Push a new call frame.
-    fn push_frame(&mut self, new_ip: usize, args: usize) -> Result<(), VmError> {
+    fn push_call_frame(&mut self, new_ip: usize, args: usize) -> Result<(), VmError> {
         let offset = self
             .stack
             .len()
             .checked_sub(args)
             .ok_or_else(|| VmError::StackOutOfBounds)?;
 
-        self.frames.push(Frame {
+        self.call_frames.push(CallFrame {
             ip: self.ip,
-            frame_top: self.frame_top,
+            stack_top: self.stack_top,
         });
 
-        self.frame_top = offset;
+        self.stack_top = offset;
         self.ip = new_ip;
         Ok(())
     }
 
     /// Pop a call frame and return it.
-    fn pop_frame(&mut self) -> Result<bool, StackError> {
-        let frame = match self.frames.pop() {
+    fn pop_call_frame(&mut self) -> Result<bool, StackError> {
+        // Assert that the stack frame has been restored to the previous top
+        // at the point of return.
+        if self.stack.len() != self.stack_top {
+            return Err(StackError::CorruptedStackFrame {
+                stack_top: self.stack.len(),
+                frame_at: self.stack_top,
+            });
+        }
+
+        let frame = match self.call_frames.pop() {
             Some(frame) => frame,
             None => return Ok(true),
         };
 
-        // Assert that the stack has been restored to the current stack top.
-        if self.stack.len() != self.frame_top {
-            return Err(StackError::CorruptedStackFrame {
-                stack_size: self.stack.len(),
-                frame_at: self.frame_top,
-            });
-        }
-
-        self.frame_top = frame.frame_top;
+        self.stack_top = frame.stack_top;
         self.ip = frame.ip;
         Ok(false)
     }
@@ -1668,7 +1672,7 @@ impl Vm {
     #[inline]
     fn op_ptr(&mut self, offset: usize) -> Result<(), VmError> {
         let ptr = self
-            .frame_top
+            .stack_top
             .checked_add(offset)
             .ok_or_else(|| VmError::StackOutOfBounds)?;
 
@@ -1774,11 +1778,11 @@ impl Vm {
                 }
                 Inst::Return => {
                     let return_value = self.pop()?;
-                    self.exited = self.pop_frame()?;
+                    self.exited = self.pop_call_frame()?;
                     self.push(return_value);
                 }
                 Inst::ReturnUnit => {
-                    self.exited = self.pop_frame()?;
+                    self.exited = self.pop_call_frame()?;
                     self.push(ValuePtr::Unit);
                 }
                 Inst::Pop => {
@@ -1959,10 +1963,10 @@ impl fmt::Debug for Vm {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Vm")
             .field("ip", &self.ip)
-            .field("frame_top", &self.frame_top)
+            .field("stack_top", &self.stack_top)
             .field("exited", &self.exited)
             .field("stack", &self.stack)
-            .field("frames", &self.frames)
+            .field("call_frames", &self.call_frames)
             .field("slots", &DebugSlab(&self.slots))
             .finish()
     }
