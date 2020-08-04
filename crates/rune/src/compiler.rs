@@ -377,7 +377,7 @@ impl<'a> Compiler<'a> {
                 self.encode_unit_literal(unit)?;
             }
             ast::Expr::BoolLiteral(b) => {
-                self.encode_bool_literal(b)?;
+                self.encode_bool_literal(b, needs_value)?;
             }
             ast::Expr::NumberLiteral(number) => {
                 self.encode_number_literal(number, needs_value)?;
@@ -508,7 +508,12 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn encode_bool_literal(&mut self, b: &ast::BoolLiteral) -> Result<()> {
+    fn encode_bool_literal(&mut self, b: &ast::BoolLiteral, needs_value: NeedsValue) -> Result<()> {
+        // If the value is not needed, no need to encode it.
+        if !needs_value.0 {
+            return Ok(());
+        }
+
         self.asm.push(st::Inst::Bool { value: b.value }, b.span());
         Ok(())
     }
@@ -1284,7 +1289,7 @@ impl<'a> Compiler<'a> {
                 asm.push(st::Inst::Copy { offset }, span);
             });
 
-            self.encode_pat(&mut scope, &branch.pat, match_false, load)?;
+            self.encode_pat(&mut scope, &branch.pat, match_false, &*load)?;
 
             self.asm.jump(branch_label, span);
             self.asm.label(match_false)?;
@@ -1305,20 +1310,22 @@ impl<'a> Compiler<'a> {
         let mut it = expr_match.branches.iter().zip(&branches).peekable();
 
         while let Some(((branch, _), (label, scope))) = it.next() {
+            let span = branch.span();
+
             self.asm.label(*label)?;
 
             self.scopes.push(scope.clone());
             self.encode_expr(&*branch.body, needs_value)?;
-            let scope = self.pop_scope(branch.span())?;
+            let scope = self.pop_scope(span)?;
 
             if needs_value.0 {
-                self.clean_up_locals(scope.local_var_count, branch.span());
+                self.clean_up_locals(scope.local_var_count, span);
             } else {
-                self.pop_locals(scope.local_var_count, branch.span());
+                self.pop_locals(scope.local_var_count, span);
             }
 
             if it.peek().is_some() {
-                self.asm.jump(end_label, branch.span());
+                self.asm.jump(end_label, span);
             }
         }
 
@@ -1326,6 +1333,8 @@ impl<'a> Compiler<'a> {
 
         // pop the implicit scope where we store the anonymous match variable.
         let scope = self.pop_scope(span)?;
+
+        println!("local var count: {}", scope.local_var_count);
 
         if needs_value.0 {
             self.clean_up_locals(scope.local_var_count, span);
@@ -1337,16 +1346,13 @@ impl<'a> Compiler<'a> {
     }
 
     /// Encode an array pattern match.
-    fn encode_array_pat<Load>(
+    fn encode_array_pat(
         &mut self,
         scope: &mut Scope,
         array: &ast::ArrayPat,
         false_label: Label,
-        load: Load,
-    ) -> Result<bool>
-    where
-        Load: 'static + Copy + Fn(&mut Assembly),
-    {
+        load: &dyn Fn(&mut Assembly),
+    ) -> Result<()> {
         let span = array.span();
 
         // Copy the temporary and check that its length matches the pattern and
@@ -1380,8 +1386,6 @@ impl<'a> Compiler<'a> {
         self.asm.jump(false_label, span);
         self.asm.label(length_true)?;
 
-        let mut has_binding = false;
-
         for (index, (pat, _)) in array.items.iter().enumerate() {
             let span = pat.span();
 
@@ -1390,25 +1394,20 @@ impl<'a> Compiler<'a> {
                 asm.push(st::Inst::ArrayIndexGet { index }, span);
             });
 
-            if self.encode_pat(scope, &*pat, false_label, load)? {
-                has_binding = true;
-            }
+            self.encode_pat(scope, &*pat, false_label, &*load)?;
         }
 
-        Ok(has_binding)
+        Ok(())
     }
 
     /// Encode an object pattern match.
-    fn encode_object_pat<Load>(
+    fn encode_object_pat(
         &mut self,
         scope: &mut Scope,
         object: &ast::ObjectPat,
         false_label: Label,
-        load: Load,
-    ) -> Result<bool>
-    where
-        Load: 'static + Copy + Fn(&mut Assembly),
-    {
+        load: &dyn Fn(&mut Assembly),
+    ) -> Result<()> {
         let mut string_slots = Vec::new();
         let span = object.span();
 
@@ -1464,8 +1463,6 @@ impl<'a> Compiler<'a> {
         self.asm.jump(false_label, span);
         self.asm.label(length_true)?;
 
-        let mut has_binding = false;
-
         for ((_, _, pat, _), slot) in object.items.iter().zip(string_slots) {
             let span = pat.span();
 
@@ -1475,12 +1472,10 @@ impl<'a> Compiler<'a> {
             });
 
             // load the given array index and declare it as a local variable.
-            if self.encode_pat(scope, &*pat, false_label, load)? {
-                has_binding = true;
-            }
+            self.encode_pat(scope, &*pat, false_label, &*load)?;
         }
 
-        Ok(has_binding)
+        Ok(())
     }
 
     /// Encode a pattern.
@@ -1494,8 +1489,8 @@ impl<'a> Compiler<'a> {
         scope: &mut Scope,
         pat: &ast::Pat,
         false_label: Label,
-        load: Box<dyn Fn(&mut Assembly) + 'static>,
-    ) -> Result<bool> {
+        load: &dyn Fn(&mut Assembly),
+    ) -> Result<()> {
         log::trace!("{:?}", pat);
         let span = pat.span();
 
@@ -1506,10 +1501,10 @@ impl<'a> Compiler<'a> {
                 load(&mut self.asm);
                 let name = binding.resolve(self.source)?;
                 scope.new_var(name, span, Vec::new())?;
-                return Ok(true);
+                return Ok(());
             }
             ast::Pat::IgnorePat(..) => {
-                return Ok(false);
+                return Ok(());
             }
             ast::Pat::UnitPat(unit) => {
                 let span = unit.span();
@@ -1556,42 +1551,12 @@ impl<'a> Compiler<'a> {
                 self.asm.jump_if(true_label, span);
             }
             ast::Pat::ArrayPat(array) => {
-                let span = array.span();
-
-                let offset = scope.decl_anon(span);
-                load(&mut self.asm);
-
-                let load = move |asm: &mut Assembly| {
-                    asm.push(st::Inst::Copy { offset }, span);
-                };
-
-                let has_binding = self.encode_array_pat(scope, array, false_label, load)?;
-
-                if !has_binding {
-                    self.asm.push(st::Inst::Pop, span);
-                    scope.undecl_anon(span)?;
-                }
-
-                return Ok(has_binding);
+                self.encode_array_pat(scope, array, false_label, load)?;
+                return Ok(());
             }
             ast::Pat::ObjectPat(object) => {
-                let span = object.span();
-
-                let offset = scope.decl_anon(span);
-                load(&mut self.asm);
-
-                let load = move |asm: &mut Assembly| {
-                    asm.push(st::Inst::Copy { offset }, span);
-                };
-
-                let has_binding = self.encode_object_pat(scope, object, false_label, load)?;
-
-                if !has_binding {
-                    self.asm.push(st::Inst::Pop, span);
-                    scope.undecl_anon(span)?;
-                }
-
-                return Ok(has_binding);
+                self.encode_object_pat(scope, object, false_label, load)?;
+                return Ok(());
             }
         }
 
@@ -1601,7 +1566,7 @@ impl<'a> Compiler<'a> {
         self.asm.jump(false_label, span);
         self.asm.label(true_label)?;
 
-        Ok(false)
+        Ok(())
     }
 
     /// Pop the last scope.
@@ -1734,16 +1699,6 @@ impl Scope {
         self.total_var_count += 1;
         self.local_var_count += 1;
         offset
-    }
-
-    /// Undeclare the last anonymous variable.
-    fn undecl_anon(&mut self, span: Span) -> Result<(), CompileError> {
-        self.anon
-            .pop()
-            .ok_or_else(|| CompileError::internal("no anonymous variables to undeclare", span))?;
-        self.total_var_count -= 1;
-        self.local_var_count -= 1;
-        Ok(())
     }
 
     /// Access the local with the given name.

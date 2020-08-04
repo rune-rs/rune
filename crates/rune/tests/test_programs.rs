@@ -341,7 +341,12 @@ async fn test_match() {
 #[tokio::test]
 async fn test_array_match() {
     assert_eq! {
-        test!(bool => r#"fn main() { match [] { [..] => true } }"#),
+        test!(() => r#"fn main() { match [] { [..] => true } }"#),
+        (),
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { match [] { [..] => true, _ => false } }"#),
         true,
     };
 
