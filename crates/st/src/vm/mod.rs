@@ -24,6 +24,9 @@ pub use self::inst::{Inst, Panic};
 /// An error raised when interacting with types on the stack.
 #[derive(Debug, Error)]
 pub enum StackError {
+    /// Internal error that happens when we run out of items in a list.
+    #[error("unexpectedly ran out of items to iterate over")]
+    IterationError,
     /// stack is empty
     #[error("stack is empty")]
     StackEmpty,
@@ -52,25 +55,43 @@ pub enum StackError {
         slot: Slot,
     },
     /// Error raised when we expect a specific external type but got another.
-    #[error("expected slot `{expected}`, but was `{actual}`")]
+    #[error("expected slot `{expected}`, but found `{actual}`")]
     UnexpectedSlotType {
         /// The type that was expected.
         expected: &'static str,
         /// The type that was found.
         actual: &'static str,
     },
+    /// Error raised when we expected a unit.
+    #[error("expected unit, but found `{actual}`")]
+    ExpectedUnit {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
     /// Error raised when we expected a boolean value.
-    #[error("expected boolean value")]
-    ExpectedBoolean,
+    #[error("expected booleant, but found `{actual}`")]
+    ExpectedBoolean {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
     /// Error raised when we expected a char value.
-    #[error("expected char value")]
-    ExpectedChar,
+    #[error("expected char, but found `{actual}`")]
+    ExpectedChar {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
     /// Error raised when an integer value was expected.
-    #[error("expected integer value")]
-    ExpectedInteger,
+    #[error("expected integer, but found `{actual}`")]
+    ExpectedInteger {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
     /// Error raised when we expected a float value.
-    #[error("expected float value")]
-    ExpectedFloat,
+    #[error("expected float, but found `{actual}`")]
+    ExpectedFloat {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
     /// Error raised when we expected a string.
     #[error("expected a string but found `{actual}`")]
     ExpectedString {
@@ -82,6 +103,14 @@ pub enum StackError {
     ExpectedArray {
         /// The actual type observed instead.
         actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected an array of the given length.
+    #[error("expected a array of length `{expected}`, but found one with length `{actual}`")]
+    ExpectedArrayLength {
+        /// The actual length observed.
+        actual: usize,
+        /// The expected array length.
+        expected: usize,
     },
     /// Error raised when we expected a object.
     #[error("expected a object but found `{actual}`")]

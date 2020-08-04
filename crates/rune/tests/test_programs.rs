@@ -167,21 +167,21 @@ async fn test_while() {
 #[tokio::test]
 async fn test_loop() {
     assert_eq! {
-        test!(i64 => r#"
+        test!((i64, bool) => r#"
         fn main() {
             let a = 0;
 
-            loop {
+            let value = loop {
                 if a >= 10 {
                     break;
                 }
 
                 a = a + 1;
-            }
+            };
 
-            a
+            [a, value is unit]
         }"#),
-        10,
+        (10, true),
     };
 
     assert_eq! {
@@ -241,6 +241,27 @@ async fn test_for() {
             a
         }"#),
         10,
+    };
+
+    assert_eq! {
+        test!(bool => r#"
+        use std::iter::range;
+
+        fn main() {
+            let a = 0;
+            let it = range(0, 100);
+
+            let a = for v in it {
+                if a >= 10 {
+                    break;
+                }
+
+                a = a + 1;
+            };
+
+            a is unit
+        }"#),
+        true,
     };
 }
 

@@ -141,3 +141,64 @@ impl_into_args!(
     {B, b, 2},
     {A, a, 1},
 );
+
+macro_rules! impl_from_value_tuple {
+    () => {
+    };
+
+    ({$ty:ident, $var:ident, $count:expr}, $({$l_ty:ident, $l_var:ident, $l_count:expr},)*) => {
+        impl_from_value_tuple!{@impl $count, {$ty, $var, $count}, $({$l_ty, $l_var, $l_count},)*}
+        impl_from_value_tuple!{$({$l_ty, $l_var, $l_count},)*}
+    };
+
+    (@impl $count:expr, $({$ty:ident, $var:ident, $ignore_count:expr},)*) => {
+        impl<$($ty,)*> FromValue for ($($ty,)*)
+        where
+            $($ty: FromValue,)*
+        {
+            fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+                let array = match value {
+                    ValuePtr::Array(slot) => Clone::clone(&*vm.array_ref(slot)?),
+                    actual => {
+                        let actual = actual.type_info(vm)?;
+
+                        return Err(StackError::ExpectedArray {
+                            actual,
+                        });
+                    }
+                };
+
+                if array.len() != $count {
+                    return Err(StackError::ExpectedArrayLength {
+                        actual: array.len(),
+                        expected: $count,
+                    });
+                }
+
+                let mut it = array.iter();
+
+                $(
+                    let $var: $ty = match it.next() {
+                        Some(value) => <$ty>::from_value(*value, vm)?,
+                        None => {
+                            return Err(StackError::IterationError);
+                        },
+                    };
+                )*
+
+                Ok(($($var,)*))
+            }
+        }
+    };
+}
+
+impl_from_value_tuple!(
+    {H, h, 8},
+    {G, g, 7},
+    {F, f, 6},
+    {E, e, 5},
+    {D, d, 4},
+    {C, c, 3},
+    {B, b, 2},
+    {A, a, 1},
+);

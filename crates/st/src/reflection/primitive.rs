@@ -21,8 +21,13 @@ impl ToValue for () {
 }
 
 impl FromValue for () {
-    fn from_value(_: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
-        Ok(())
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+        match value {
+            ValuePtr::Unit => Ok(()),
+            actual => Err(StackError::ExpectedUnit {
+                actual: actual.type_info(vm)?,
+            }),
+        }
     }
 }
 
@@ -43,10 +48,12 @@ impl ToValue for bool {
 }
 
 impl FromValue for bool {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         match value {
             ValuePtr::Bool(value) => Ok(value),
-            _ => Err(StackError::ExpectedBoolean),
+            actual => Err(StackError::ExpectedBoolean {
+                actual: actual.type_info(vm)?,
+            }),
         }
     }
 }
@@ -68,36 +75,12 @@ impl ToValue for char {
 }
 
 impl FromValue for char {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         match value {
             ValuePtr::Char(value) => Ok(value),
-            _ => Err(StackError::ExpectedChar),
-        }
-    }
-}
-
-/// Convert a number into a value type.
-impl ReflectValueType for i64 {
-    fn value_type() -> ValueType {
-        ValueType::Integer
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Integer
-    }
-}
-
-impl ToValue for i64 {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
-        Ok(ValuePtr::Integer(self))
-    }
-}
-
-impl FromValue for i64 {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
-        match value {
-            ValuePtr::Integer(number) => Ok(number),
-            _ => Err(StackError::ExpectedInteger),
+            actual => Err(StackError::ExpectedChar {
+                actual: actual.type_info(vm)?,
+            }),
         }
     }
 }
@@ -130,7 +113,7 @@ macro_rules! number_value_trait {
         }
 
         impl FromValue for $ty {
-            fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
+            fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
                 use std::convert::TryInto as _;
 
                 match value {
@@ -141,7 +124,9 @@ macro_rules! number_value_trait {
                             to: std::any::type_name::<Self>(),
                         }),
                     },
-                    _ => Err(StackError::ExpectedInteger),
+                    actual => Err(StackError::ExpectedInteger {
+                        actual: actual.type_info(vm)?,
+                    }),
                 }
             }
         }
@@ -153,9 +138,9 @@ number_value_trait!(u32, U32);
 number_value_trait!(u64, U64);
 number_value_trait!(u128, U128);
 number_value_trait!(usize, Usize);
-
 number_value_trait!(i8, I8);
 number_value_trait!(i32, I32);
+number_value_trait!(i64, I64);
 number_value_trait!(i128, I128);
 number_value_trait!(isize, Isize);
 
@@ -177,10 +162,12 @@ impl ToValue for f64 {
 }
 
 impl FromValue for f64 {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         match value {
             ValuePtr::Float(number) => Ok(number),
-            _ => Err(StackError::ExpectedFloat),
+            actual => Err(StackError::ExpectedFloat {
+                actual: actual.type_info(vm)?,
+            }),
         }
     }
 }
@@ -203,10 +190,12 @@ impl ToValue for f32 {
 }
 
 impl FromValue for f32 {
-    fn from_value(value: ValuePtr, _vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         match value {
             ValuePtr::Float(number) => Ok(number as f32),
-            _ => Err(StackError::ExpectedFloat),
+            actual => Err(StackError::ExpectedFloat {
+                actual: actual.type_info(vm)?,
+            }),
         }
     }
 }

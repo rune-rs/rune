@@ -822,14 +822,8 @@ impl<'a> Compiler<'a> {
         self.asm.jump(start_label, span);
         self.asm.label(end_label)?;
 
-        let total_var_count = match self.scopes.pop() {
-            Some(scope) => scope.local_var_count,
-            None => {
-                return Err(CompileError::internal("scopes are imbalanced", span));
-            }
-        };
-
-        self.locals_pop(total_var_count, span);
+        let scope = self.pop_scope(span)?;
+        self.locals_pop(scope.local_var_count, span);
 
         // NB: If a value is needed from a for loop, encode it as a unit.
         if *needs_value {
@@ -1025,8 +1019,8 @@ impl<'a> Compiler<'a> {
 
         if *last_loop.needs_value {
             if expr_break.expr.is_none() {
-                self.asm.push(st::Inst::Unit, span);
                 self.locals_pop(vars, span);
+                self.asm.push(st::Inst::Unit, span);
             } else {
                 self.locals_clean(vars, span);
             }
