@@ -40,56 +40,6 @@ macro_rules! test_err {
 }
 
 #[tokio::test]
-async fn test_pointers() {
-    assert_eq! {
-        test!(i64 => r#"
-        fn foo(n) {
-            *n = 1;
-        }
-
-        fn main() {
-            let n = 0;
-            foo(&n);
-            n
-        }"#),
-        1
-    };
-
-    assert_eq! {
-        test!(i64 => r#"
-        fn foo(n, u, v) {
-            *n = *v;
-        }
-
-        fn main() {
-            let n = 0;
-            let u = 1;
-            let v = 2;
-            foo(&n, &u, &v);
-            n
-        }"#),
-        2
-    };
-
-    test_err! {
-        IllegalPtrReplace { target_ptr: 0, value_ptr: 2 } => (),
-        r#"
-        fn foo(n) {
-            // trying to replace a n with a pointer that points to a later
-            // stack location.
-            let v = 5;
-            *n = &v;
-        }
-
-        fn main() {
-            let n = 0;
-            foo(&n);
-        }
-        "#
-    };
-}
-
-#[tokio::test]
 async fn test_small_programs() {
     assert_eq!(test!(u64 => r#"fn main() { 42 }"#), 42u64);
     assert_eq!(test!(() => r#"fn main() {}"#), ());
@@ -445,14 +395,30 @@ async fn test_object_match() {
 }
 
 #[tokio::test]
-async fn test_references() {
-    assert_eq! {
-        test!(() => r#"
+async fn test_bad_pattern() {
+    // Attempting to assign to an unmatched pattern leads to a panic.
+    test_err!(
+        Panic { reason: st::Panic::UnmatchedPattern } => {},
+        r#"
         fn main() {
-            let value = 10;
-            &value;
+            let [] = [1, 2, 3];
         }
-        "#),
-        (),
-    }
+        "#
+    );
+}
+
+#[tokio::test]
+async fn test_destructuring() {
+    assert_eq! {
+        test!(i64 => r#"
+        fn foo(n) {
+            [n, n + 1]
+        }
+
+        fn main() {
+            let [a, b] = foo(3);
+            a + b
+        }"#),
+        7,
+    };
 }

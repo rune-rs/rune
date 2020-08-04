@@ -1,18 +1,19 @@
+use crate::value::Generation;
 use std::fmt;
 
 /// Compact information on typed slot.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Slot(u32, u32);
+pub struct Slot(Generation, u32);
 
 impl Slot {
     pub(crate) fn new(generation: usize, loc: usize) -> Self {
-        Self(generation as u32, loc as u32)
+        Self(Generation(generation as u32), loc as u32)
     }
 
     /// Get the generation of the slot.
     #[inline]
     pub fn into_generation(self) -> usize {
-        self.0 as usize
+        (self.0).0 as usize
     }
 
     /// Get the slot as an usize.

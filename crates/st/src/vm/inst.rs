@@ -1,6 +1,32 @@
 use crate::hash::Hash;
 use std::fmt;
 
+/// The reason why a panic was invoked in the virtual machine.
+#[derive(Debug, Clone, Copy)]
+pub enum Panic {
+    /// A pattern didn't match where it unconditionally has to.
+    UnmatchedPattern,
+}
+
+impl Panic {
+    /// The identifier of the panic.
+    fn ident(&self) -> &'static str {
+        match *self {
+            Self::UnmatchedPattern => "unmatched-pattern",
+        }
+    }
+}
+
+impl fmt::Display for Panic {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::UnmatchedPattern => write!(fmt, "pattern did not match")?,
+        }
+
+        Ok(())
+    }
+}
+
 /// An operation in the stack-based virtual machine.
 #[derive(Debug, Clone, Copy)]
 pub enum Inst {
@@ -186,23 +212,20 @@ pub enum Inst {
         /// Offset to copy value from.
         offset: usize,
     },
+    /// Duplicate the value at the top of the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <value>
+    /// ```
+    Dup,
     /// Replace a value at the offset relative from the top of the stack, with
     /// the top of the stack.
     Replace {
         /// Offset to swap value from.
         offset: usize,
     },
-    /// Pop a reference from the stack and replace what it points to with the
-    /// value on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <ptr>
-    /// <value>
-    /// => *noop*
-    /// ```
-    ReplaceDeref,
     /// Pop the current stack frame and restore the instruction pointer from it.
     ///
     /// The stack frame will be cleared, and the value on the top of the stack
@@ -436,34 +459,13 @@ pub enum Inst {
         /// The hash of the type.
         hash: Hash,
     },
-    /// Construct a ptr to the given stack location relative to the current
-    /// frame and push it on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <value>
-    /// ```
-    Ptr {
-        /// The offset to construct a pointer out of in the current stack frame.
-        offset: usize,
-    },
-    /// Derefence the top of the stack. Dereferenced value must be a reference.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <value>
-    /// ```
-    Deref,
     /// Cause the VM to panic and error out without a reason.
     ///
     /// This should only be used during testing or extreme scenarios that are
     /// completely unrecoverable.
     Panic {
         /// The mark of the panic.
-        mark: usize,
+        reason: Panic,
     },
 }
 
@@ -527,11 +529,11 @@ impl fmt::Display for Inst {
             Self::Copy { offset } => {
                 write!(fmt, "copy {}", offset)?;
             }
+            Self::Dup => {
+                write!(fmt, "dup")?;
+            }
             Self::Replace { offset } => {
                 write!(fmt, "replace {}", offset)?;
-            }
-            Self::ReplaceDeref => {
-                write!(fmt, "replace-deref")?;
             }
             Self::Return => {
                 write!(fmt, "return")?;
@@ -608,14 +610,8 @@ impl fmt::Display for Inst {
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;
             }
-            Self::Ptr { offset } => {
-                write!(fmt, "ptr {}", offset)?;
-            }
-            Self::Deref => {
-                write!(fmt, "deref")?;
-            }
-            Self::Panic { mark } => {
-                write!(fmt, "panic {}", mark)?;
+            Self::Panic { reason } => {
+                write!(fmt, "panic {}", reason.ident())?;
             }
         }
 

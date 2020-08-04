@@ -32,7 +32,9 @@ pub use crate::hash::Hash;
 pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
 pub use crate::unit::{Unit, UnitError};
 pub use crate::value::{Array, Object, Slot, Value, ValuePtr, ValueRef, ValueType, ValueTypeInfo};
-pub use crate::vm::{Inst, Mut, RawMutGuard, RawRefGuard, Ref, StackError, Task, Vm, VmError};
+pub use crate::vm::{
+    Inst, Mut, Panic, RawMutGuard, RawRefGuard, Ref, StackError, Task, Vm, VmError,
+};
 
 mod collections {
     pub use hashbrown::HashMap;

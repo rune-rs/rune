@@ -19,7 +19,7 @@ mod inst;
 
 use self::access::Access;
 pub use self::access::{Mut, RawMutGuard, RawRefGuard, Ref};
-pub use self::inst::Inst;
+pub use self::inst::{Inst, Panic};
 
 /// An error raised when interacting with types on the stack.
 #[derive(Debug, Error)]
@@ -182,10 +182,10 @@ impl fmt::Display for Integer {
 #[derive(Debug, Error)]
 pub enum VmError {
     /// The virtual machine panicked for no specific reason.
-    #[error("panicked `{mark}`")]
+    #[error("panicked `{reason}`")]
     Panic {
-        /// Mark of the panic.
-        mark: usize,
+        /// The reason for the panic.
+        reason: Panic,
     },
     /// Error raised in a user-defined function.
     #[error("error in user-defined function: {error}")]
@@ -743,6 +743,18 @@ impl Vm {
         Ok(())
     }
 
+    /// Duplicate the value at the top of the stack.
+    fn do_dup(&mut self) -> Result<(), VmError> {
+        let value = self
+            .stack
+            .last()
+            .copied()
+            .ok_or_else(|| VmError::StackOutOfBounds)?;
+
+        self.stack.push(value);
+        Ok(())
+    }
+
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
     fn do_replace(&mut self, offset: usize) -> Result<(), VmError> {
@@ -1119,7 +1131,6 @@ impl Vm {
             }
             ValuePtr::External(slot) => Value::External(self.external_take_dyn(slot)?),
             ValuePtr::Type(ty) => Value::Type(ty),
-            ValuePtr::Ptr(ptr) => Value::Ptr(ptr),
             ValuePtr::Fn(hash) => Value::Fn(hash),
         });
 
@@ -1168,7 +1179,6 @@ impl Vm {
             }
             ValuePtr::External(slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             ValuePtr::Type(ty) => ValueRef::Type(ty),
-            ValuePtr::Ptr(ptr) => ValueRef::Ptr(ptr),
             ValuePtr::Fn(hash) => ValueRef::Fn(hash),
         });
     }
@@ -1500,56 +1510,6 @@ impl Vm {
         })
     }
 
-    /// Implementation of the `replace-ref` instruction.
-    #[inline]
-    fn op_replace_deref(&mut self) -> Result<(), VmError> {
-        let target = self.pop()?;
-        let value = self.pop()?;
-
-        let target_ptr = match target {
-            ValuePtr::Ptr(ptr) => ptr,
-            _ => {
-                let target_type = target.type_info(self)?;
-                let value_type = value.type_info(self)?;
-
-                return Err(VmError::UnsupportedReplaceDeref {
-                    target_type,
-                    value_type,
-                });
-            }
-        };
-
-        // NB: Validate the value being assigned. This is the only instruction
-        // allowed to reassign pointer.
-        //
-        // At creation time it is guaranteed to only point to a lower location,
-        // making sure that a pointer is always popped before the value it
-        // points to.
-        //
-        // Therefore, a pointer type cannot be reassigned to a location on the
-        // stack that to a higher memory location to guarantee that it points to
-        // valid data.
-        match value {
-            ValuePtr::Ptr(value_ptr) => {
-                if value_ptr > target_ptr {
-                    return Err(VmError::IllegalPtrReplace {
-                        target_ptr,
-                        value_ptr,
-                    });
-                }
-            }
-            _ => (),
-        }
-
-        let replace = self
-            .stack
-            .get_mut(target_ptr)
-            .ok_or_else(|| VmError::StackOutOfBounds)?;
-
-        *replace = value;
-        Ok(())
-    }
-
     /// Operation to allocate an object.
     #[inline]
     fn op_object(&mut self, slot: usize, unit: &Unit) -> Result<(), VmError> {
@@ -1669,40 +1629,6 @@ impl Vm {
         Ok(())
     }
 
-    #[inline]
-    fn op_ptr(&mut self, offset: usize) -> Result<(), VmError> {
-        let ptr = self
-            .stack_top
-            .checked_add(offset)
-            .ok_or_else(|| VmError::StackOutOfBounds)?;
-
-        self.push(ValuePtr::Ptr(ptr));
-        Ok(())
-    }
-
-    /// Deref the value on the stack and push it.
-    #[inline]
-    fn op_deref(&mut self) -> Result<(), VmError> {
-        let target = self.pop()?;
-
-        let ptr = match target {
-            ValuePtr::Ptr(ptr) => ptr,
-            actual => {
-                let actual_type = actual.type_info(self)?;
-                return Err(VmError::UnsupportedDeref { actual_type });
-            }
-        };
-
-        let value = self
-            .stack
-            .get(ptr)
-            .copied()
-            .ok_or_else(|| VmError::StackOutOfBounds)?;
-
-        self.push(value);
-        Ok(())
-    }
-
     /// Evaluate a single instruction.
     pub async fn run_for(
         &mut self,
@@ -1803,11 +1729,11 @@ impl Vm {
                 Inst::Copy { offset } => {
                     self.do_copy(*offset)?;
                 }
+                Inst::Dup => {
+                    self.do_dup()?;
+                }
                 Inst::Replace { offset } => {
                     self.do_replace(*offset)?;
-                }
-                Inst::ReplaceDeref => {
-                    self.op_replace_deref()?;
                 }
                 Inst::Gt => {
                     let b = self.pop()?;
@@ -1931,14 +1857,8 @@ impl Vm {
                         self.match_object(slot, unit, |object, len| object.len() >= len)?;
                     }
                 }
-                Inst::Ptr { offset } => {
-                    self.op_ptr(*offset)?;
-                }
-                Inst::Deref => {
-                    self.op_deref()?;
-                }
-                Inst::Panic { mark } => {
-                    return Err(VmError::Panic { mark: *mark });
+                Inst::Panic { reason } => {
+                    return Err(VmError::Panic { reason: *reason });
                 }
             }
 

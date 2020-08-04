@@ -26,10 +26,6 @@ pub enum ValuePtr {
     External(Slot),
     /// A type.
     Type(Hash),
-    /// A pointer to an absolute stack location.
-    ///
-    /// A pointer is only allowed to point to a lower stack location.
-    Ptr(usize),
     /// A function pointer.
     Fn(Hash),
 }
@@ -40,7 +36,7 @@ impl ValuePtr {
     pub fn into_string(self, vm: &Vm) -> Result<Slot, StackError> {
         match self {
             Self::String(slot) => Ok(slot),
-            actual => Err(StackError::ExpectedArray {
+            actual => Err(StackError::ExpectedString {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -62,7 +58,7 @@ impl ValuePtr {
     pub fn into_object(self, vm: &Vm) -> Result<Slot, StackError> {
         match self {
             Self::Object(slot) => Ok(slot),
-            actual => Err(StackError::ExpectedArray {
+            actual => Err(StackError::ExpectedObject {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -92,7 +88,6 @@ impl ValuePtr {
             Self::Object(..) => ValueType::Object,
             Self::External(slot) => ValueType::External(vm.slot_type_id(slot)?),
             Self::Type(..) => ValueType::Type,
-            Self::Ptr(..) => ValueType::Ptr,
             Self::Fn(hash) => ValueType::Fn(hash),
         })
     }
@@ -110,7 +105,6 @@ impl ValuePtr {
             Self::Object(..) => ValueTypeInfo::Object,
             Self::External(slot) => ValueTypeInfo::External(vm.slot_type_name(slot)?),
             Self::Type(..) => ValueTypeInfo::Type,
-            Self::Ptr(..) => ValueTypeInfo::Ptr,
             Self::Fn(hash) => ValueTypeInfo::Fn(hash),
         })
     }

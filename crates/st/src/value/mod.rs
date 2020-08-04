@@ -17,3 +17,7 @@ pub type Object<T> = crate::collections::HashMap<String, T>;
 
 /// The type of an array.
 pub type Array<T> = Vec<T>;
+
+/// The generation for which a value was allocated.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Generation(pub(crate) u32);

@@ -26,8 +26,6 @@ pub enum ValueRef<'vm> {
     External(Ref<'vm, dyn Any>),
     /// Reference to a value type.
     Type(Hash),
-    /// A pointer to a value on the stack.
-    Ptr(usize),
     /// A function.
     Fn(Hash),
 }

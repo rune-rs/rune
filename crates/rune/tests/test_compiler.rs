@@ -65,14 +65,12 @@ fn test_assign_exprs() {
             fn main() {
                 let var = 1;
                 var = 42;
-                *var = 42;
-                **var = 42;
             }
         "#
     };
 
     test_compile_err! {
-        UnsupportedAssignExpr { span } => assert_eq!(span, Span::new(41, 46)),
+        UnsupportedAssignExpr { span } => assert_eq!(span, Span::new(41, 51)),
         r#"
             fn main() {
                 1 + 1 = 42;
@@ -109,6 +107,19 @@ fn test_match() {
                 _ => 1,
                 5 => 2,
             }
+        }
+        "#
+    };
+}
+
+#[tokio::test]
+async fn test_pointers() {
+    test_compile_err! {
+        UnsupportedRef { span } => assert_eq!(span, Span::new(61, 62)),
+        r#"
+        fn main() {
+            let n = 0;
+            foo(&n);
         }
         "#
     };

@@ -893,12 +893,30 @@ impl<'a> Compiler<'a> {
         let span = expr_let.span();
         log::trace!("ExprLet => {:?}", self.source.source(span)?);
 
-        let name = expr_let.name.resolve(self.source)?;
-
+        let false_label = self.asm.new_label("let_panic");
         self.encode_expr(&*expr_let.expr, NeedsValue(true))?;
 
-        self.last_scope_mut(span)?
-            .decl_var(name, expr_let.name.span());
+        let mut scope = self.pop_scope(span)?;
+        let offset = scope.decl_anon(span);
+
+        let load = |asm: &mut Assembly| {
+            asm.push(st::Inst::Copy { offset }, span);
+        };
+
+        if self.encode_pat(&mut scope, &expr_let.pat, false_label, &load)? {
+            let ok_label = self.asm.new_label("let_ok");
+            self.asm.jump(ok_label, span);
+            self.asm.label(false_label)?;
+            self.asm.push(
+                st::Inst::Panic {
+                    reason: st::Panic::UnmatchedPattern,
+                },
+                span,
+            );
+            self.asm.label(ok_label)?;
+        }
+
+        self.scopes.push(scope);
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if *needs_value {
@@ -906,31 +924,6 @@ impl<'a> Compiler<'a> {
         }
 
         Ok(())
-    }
-
-    /// Push reference on the stack for replacement.
-    fn encode_assign_target(&mut self, expr: &ast::Expr, first_level: bool) -> Result<()> {
-        match expr {
-            ast::Expr::Ident(ident) => {
-                self.encode_ident(ident, NeedsValue(true))?;
-                return Ok(());
-            }
-            ast::Expr::ExprUnary(unary) => match unary.op {
-                ast::UnaryOp::Deref { token } => {
-                    self.encode_assign_target(&*unary.expr, false)?;
-
-                    if !first_level {
-                        self.asm.push(st::Inst::Deref, token.span);
-                    }
-
-                    return Ok(());
-                }
-                _ => (),
-            },
-            _ => (),
-        }
-
-        Err(CompileError::UnsupportedAssignExpr { span: expr.span() })
     }
 
     fn encode_assign(
@@ -951,10 +944,8 @@ impl<'a> Compiler<'a> {
                 let offset = var.offset;
                 self.asm.push(st::Inst::Replace { offset }, span);
             }
-            lhs => {
-                self.encode_expr(rhs, NeedsValue(true))?;
-                self.encode_assign_target(lhs, true)?;
-                self.asm.push(st::Inst::ReplaceDeref, span);
+            _ => {
+                return Err(CompileError::UnsupportedAssignExpr { span });
             }
         }
 
@@ -1166,9 +1157,6 @@ impl<'a> Compiler<'a> {
             ast::UnaryOp::Not { .. } => {
                 self.asm.push(st::Inst::Not, span);
             }
-            ast::UnaryOp::Deref { .. } => {
-                self.asm.push(st::Inst::Deref, span);
-            }
             op => {
                 return Err(CompileError::UnsupportedUnaryOp { span, op });
             }
@@ -1184,26 +1172,9 @@ impl<'a> Compiler<'a> {
     }
 
     /// Encode a ref `&<expr>` value.
-    fn encode_ref(&mut self, expr: &ast::Expr, span: Span, needs_value: NeedsValue) -> Result<()> {
-        match expr {
-            ast::Expr::Ident(ident) => {
-                // Constructing a reference from an identifier has no side
-                // effects. If nobody needs it, don't construct it.
-                if !*needs_value {
-                    self.warnings.not_used(span, self.context());
-                    return Ok(());
-                }
-
-                let target = ident.resolve(self.source)?;
-                let offset = self.get_var(target, ident.token.span)?.offset;
-                self.asm.push(st::Inst::Ptr { offset }, span);
-            }
-            _ => {
-                return Err(CompileError::UnsupportedRef { span });
-            }
-        }
-
-        Ok(())
+    fn encode_ref(&mut self, expr: &ast::Expr, _: Span, _: NeedsValue) -> Result<()> {
+        // TODO: one day this might be supported in one way or another.
+        Err(CompileError::UnsupportedRef { span: expr.span() })
     }
 
     fn encode_expr_binary(
@@ -1561,14 +1532,14 @@ impl<'a> Compiler<'a> {
     /// Patterns will clean up their own locals and execute a jump to
     /// `false_label` in case the pattern does not match.
     ///
-    /// This label is typically a fallthrough to the next pattern.
+    /// Returns a boolean indicating if the label was used.
     fn encode_pat(
         &mut self,
         scope: &mut Scope,
         pat: &ast::Pat,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let span = pat.span();
         log::trace!("Pat => {:?}", self.source.source(span)?);
 
@@ -1578,11 +1549,11 @@ impl<'a> Compiler<'a> {
             ast::Pat::BindingPat(binding) => {
                 load(&mut self.asm);
                 let name = binding.resolve(self.source)?;
-                scope.new_var(name, span)?;
-                return Ok(());
+                scope.decl_var(name, span);
+                return Ok(false);
             }
             ast::Pat::IgnorePat(..) => {
-                return Ok(());
+                return Ok(false);
             }
             ast::Pat::UnitPat(unit) => {
                 let span = unit.span();
@@ -1630,11 +1601,11 @@ impl<'a> Compiler<'a> {
             }
             ast::Pat::ArrayPat(array) => {
                 self.encode_array_pat(scope, array, false_label, load)?;
-                return Ok(());
+                return Ok(true);
             }
             ast::Pat::ObjectPat(object) => {
                 self.encode_object_pat(scope, object, false_label, load)?;
-                return Ok(());
+                return Ok(true);
             }
         }
 
@@ -1644,7 +1615,7 @@ impl<'a> Compiler<'a> {
         self.asm.jump(false_label, span);
         self.asm.label(true_label)?;
 
-        Ok(())
+        Ok(true)
     }
 
     /// Pop the last scope.
