@@ -1285,11 +1285,11 @@ impl<'a> Compiler<'a> {
 
             let mut scope = self.last_scope(span)?.new_scope();
 
-            let load = Box::new(move |asm: &mut Assembly| {
+            let load = move |asm: &mut Assembly| {
                 asm.push(st::Inst::Copy { offset }, span);
-            });
+            };
 
-            self.encode_pat(&mut scope, &branch.pat, match_false, &*load)?;
+            self.encode_pat(&mut scope, &branch.pat, match_false, &load)?;
 
             self.asm.jump(branch_label, span);
             self.asm.label(match_false)?;
@@ -1389,12 +1389,12 @@ impl<'a> Compiler<'a> {
         for (index, (pat, _)) in array.items.iter().enumerate() {
             let span = pat.span();
 
-            let load = Box::new(move |asm: &mut Assembly| {
+            let load = move |asm: &mut Assembly| {
                 load(asm);
                 asm.push(st::Inst::ArrayIndexGet { index }, span);
-            });
+            };
 
-            self.encode_pat(scope, &*pat, false_label, &*load)?;
+            self.encode_pat(scope, &*pat, false_label, &load)?;
         }
 
         Ok(())
@@ -1466,13 +1466,13 @@ impl<'a> Compiler<'a> {
         for ((_, _, pat, _), slot) in object.items.iter().zip(string_slots) {
             let span = pat.span();
 
-            let load = Box::new(move |asm: &mut Assembly| {
+            let load = move |asm: &mut Assembly| {
                 load(asm);
                 asm.push(st::Inst::ObjectSlotIndexGet { slot }, span);
-            });
+            };
 
             // load the given array index and declare it as a local variable.
-            self.encode_pat(scope, &*pat, false_label, &*load)?;
+            self.encode_pat(scope, &*pat, false_label, &load)?;
         }
 
         Ok(())
