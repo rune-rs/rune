@@ -4,7 +4,7 @@ use crate::error::{CompileError, ConfigurationError};
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
-use st::unit::{Label, Span};
+use st::unit::{Assembly, Label, Span};
 
 /// Compiler options.
 pub struct Options {
@@ -69,7 +69,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
         self.compile_with_options(&Default::default())
     }
 
-    /// Encode the given object into a collection of instructions.
+    /// Encode the given object into a collection of asm.
     pub fn compile_with_options(self, options: &Options) -> Result<st::Unit> {
         let ParseAll { source, item: file } = self;
 
@@ -88,7 +88,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
 
             let mut encoder = Compiler {
                 unit: &mut unit,
-                instructions: &mut assembly,
+                asm: &mut assembly,
                 scopes: vec![Scope::new()],
                 source,
                 loops: Vec::new(),
@@ -107,7 +107,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
 
 struct Compiler<'a> {
     unit: &'a mut st::Unit,
-    instructions: &'a mut st::unit::Assembly,
+    asm: &'a mut Assembly,
     scopes: Vec<Scope>,
     source: Source<'a>,
     /// The nesting of loop we are currently in.
@@ -131,7 +131,7 @@ impl<'a> Compiler<'a> {
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
-            self.instructions.push(st::Inst::ReturnUnit, span);
+            self.asm.push(st::Inst::ReturnUnit, span);
             return Ok(());
         }
 
@@ -153,11 +153,11 @@ impl<'a> Compiler<'a> {
 
             let total_var_count = self.last_scope(span)?.total_var_count;
             self.clean_up_locals(total_var_count, span);
-            self.instructions.push(st::Inst::Return, span);
+            self.asm.push(st::Inst::Return, span);
         } else {
             let total_var_count = self.last_scope(span)?.total_var_count;
             self.pop_locals(total_var_count, span);
-            self.instructions.push(st::Inst::ReturnUnit, span);
+            self.asm.push(st::Inst::ReturnUnit, span);
         }
 
         if self.scopes.len() != scopes_count {
@@ -226,10 +226,10 @@ impl<'a> Compiler<'a> {
         match total_var_count {
             0 => (),
             1 => {
-                self.instructions.push(st::Inst::Pop, span);
+                self.asm.push(st::Inst::Pop, span);
             }
             count => {
-                self.instructions.push(st::Inst::PopN { count }, span);
+                self.asm.push(st::Inst::PopN { count }, span);
             }
         }
     }
@@ -243,7 +243,7 @@ impl<'a> Compiler<'a> {
         match total_var_count {
             0 => (),
             count => {
-                self.instructions.push(st::Inst::Clean { count }, span);
+                self.asm.push(st::Inst::Clean { count }, span);
             }
         }
     }
@@ -285,7 +285,7 @@ impl<'a> Compiler<'a> {
         if needs_value.0 {
             if block.trailing_expr.is_none() {
                 self.pop_locals(scope.local_var_count, span);
-                self.instructions.push(st::Inst::Unit, span);
+                self.asm.push(st::Inst::Unit, span);
             } else {
                 self.clean_up_locals(scope.local_var_count, span);
             }
@@ -320,10 +320,10 @@ impl<'a> Compiler<'a> {
         if let Some(expr) = &return_.expr {
             self.encode_expr(&*expr, NeedsValue(true))?;
             self.clean_up_locals(total_var_count, span);
-            self.instructions.push(st::Inst::Return, span);
+            self.asm.push(st::Inst::Return, span);
         } else {
             self.pop_locals(total_var_count, span);
-            self.instructions.push(st::Inst::ReturnUnit, span);
+            self.asm.push(st::Inst::ReturnUnit, span);
         }
 
         Ok(())
@@ -430,7 +430,7 @@ impl<'a> Compiler<'a> {
             self.encode_expr(expr, NeedsValue(true))?;
         }
 
-        self.instructions
+        self.asm
             .push(st::Inst::Array { count }, array_literal.span());
         Ok(())
     }
@@ -468,8 +468,7 @@ impl<'a> Compiler<'a> {
 
         let slot = self.unit.new_static_object_keys(&keys)?;
 
-        self.instructions
-            .push(st::Inst::Object { slot }, object.span());
+        self.asm.push(st::Inst::Object { slot }, object.span());
         Ok(())
     }
 
@@ -481,7 +480,7 @@ impl<'a> Compiler<'a> {
         }
 
         let resolved_char = c.resolve(self.source)?;
-        self.instructions
+        self.asm
             .push(st::Inst::Char { c: resolved_char }, c.token.span);
         Ok(())
     }
@@ -500,18 +499,17 @@ impl<'a> Compiler<'a> {
         let span = string.span();
         let string = string.resolve(self.source)?;
         let slot = self.unit.new_static_string(&*string)?;
-        self.instructions.push(st::Inst::String { slot }, span);
+        self.asm.push(st::Inst::String { slot }, span);
         Ok(())
     }
 
     fn encode_unit_literal(&mut self, literal: &ast::UnitLiteral) -> Result<()> {
-        self.instructions.push(st::Inst::Unit, literal.span());
+        self.asm.push(st::Inst::Unit, literal.span());
         Ok(())
     }
 
     fn encode_bool_literal(&mut self, b: &ast::BoolLiteral) -> Result<()> {
-        self.instructions
-            .push(st::Inst::Bool { value: b.value }, b.span());
+        self.asm.push(st::Inst::Bool { value: b.value }, b.span());
         Ok(())
     }
 
@@ -530,10 +528,10 @@ impl<'a> Compiler<'a> {
 
         match number {
             ast::Number::Float(number) => {
-                self.instructions.push(st::Inst::Float { number }, span);
+                self.asm.push(st::Inst::Float { number }, span);
             }
             ast::Number::Integer(number) => {
-                self.instructions.push(st::Inst::Integer { number }, span);
+                self.asm.push(st::Inst::Integer { number }, span);
             }
         }
 
@@ -549,8 +547,8 @@ impl<'a> Compiler<'a> {
 
         let span = expr_while.span();
 
-        let start_label = self.instructions.new_label("while_test");
-        let end_label = self.instructions.new_label("while_end");
+        let start_label = self.asm.new_label("while_test");
+        let end_label = self.asm.new_label("while_end");
 
         let loop_count = self.loops.len();
 
@@ -559,17 +557,17 @@ impl<'a> Compiler<'a> {
             total_var_count: self.last_scope(span)?.total_var_count,
         });
 
-        self.instructions.label(start_label)?;
+        self.asm.label(start_label)?;
         self.encode_expr(&*expr_while.condition, NeedsValue(true))?;
-        self.instructions.jump_if_not(end_label, span);
+        self.asm.jump_if_not(end_label, span);
         self.encode_block(&*expr_while.body, NeedsValue(false))?;
 
-        self.instructions.jump(start_label, span);
-        self.instructions.label(end_label)?;
+        self.asm.jump(start_label, span);
+        self.asm.label(end_label)?;
 
         // NB: If a value is needed from a while loop, encode it as a unit.
         if needs_value.0 {
-            self.instructions.push(st::Inst::Unit, span);
+            self.asm.push(st::Inst::Unit, span);
         }
 
         if self.loops.pop().is_none() {
@@ -591,8 +589,8 @@ impl<'a> Compiler<'a> {
 
         let span = expr_for.span();
 
-        let start_label = self.instructions.new_label("for_start");
-        let end_label = self.instructions.new_label("for_end");
+        let start_label = self.asm.new_label("for_start");
+        let end_label = self.asm.new_label("for_end");
 
         let loop_count = self.loops.len();
         let scopes_count = self.scopes.len();
@@ -609,7 +607,7 @@ impl<'a> Compiler<'a> {
 
         // Declare named loop variable.
         let binding_offset = {
-            self.instructions.push(st::Inst::Unit, expr_for.iter.span());
+            self.asm.push(st::Inst::Unit, expr_for.iter.span());
             let name = expr_for.var.resolve(self.source)?;
             self.last_scope_mut(span)?
                 .decl_var(name, expr_for.var.span(), references_at)
@@ -621,14 +619,14 @@ impl<'a> Compiler<'a> {
             let hash = st::Hash::of(ITERATOR_NEXT);
 
             // Declare the named loop variable and put it in the scope.
-            self.instructions.push(
+            self.asm.push(
                 st::Inst::Copy {
                     offset: iterator_offset,
                 },
                 expr_for.iter.span(),
             );
 
-            self.instructions
+            self.asm
                 .push(st::Inst::LoadInstanceFn { hash }, expr_for.iter.span());
             Some(offset)
         } else {
@@ -640,27 +638,27 @@ impl<'a> Compiler<'a> {
             total_var_count: self.last_scope(span)?.total_var_count,
         });
 
-        self.instructions.label(start_label)?;
+        self.asm.label(start_label)?;
 
         // Use the memoized loop variable.
         if let Some(next_offset) = next_offset {
-            self.instructions.push(
+            self.asm.push(
                 st::Inst::Copy {
                     offset: iterator_offset,
                 },
                 expr_for.iter.span(),
             );
 
-            self.instructions.push(
+            self.asm.push(
                 st::Inst::Copy {
                     offset: next_offset,
                 },
                 expr_for.iter.span(),
             );
 
-            self.instructions.push(st::Inst::CallFn { args: 0 }, span);
+            self.asm.push(st::Inst::CallFn { args: 0 }, span);
 
-            self.instructions.push(
+            self.asm.push(
                 st::Inst::Replace {
                     offset: binding_offset,
                 },
@@ -669,7 +667,7 @@ impl<'a> Compiler<'a> {
         } else {
             // call the `next` function to get the next level of iteration, bind the
             // result to the loop variable in the loop.
-            self.instructions.push(
+            self.asm.push(
                 st::Inst::Copy {
                     offset: iterator_offset,
                 },
@@ -677,9 +675,9 @@ impl<'a> Compiler<'a> {
             );
 
             let hash = st::Hash::of(ITERATOR_NEXT);
-            self.instructions
+            self.asm
                 .push(st::Inst::CallInstance { hash, args: 0 }, span);
-            self.instructions.push(
+            self.asm.push(
                 st::Inst::Replace {
                     offset: binding_offset,
                 },
@@ -689,19 +687,19 @@ impl<'a> Compiler<'a> {
 
         // test loop condition.
         {
-            self.instructions.push(
+            self.asm.push(
                 st::Inst::Copy {
                     offset: binding_offset,
                 },
                 expr_for.var.span(),
             );
-            self.instructions.push(st::Inst::IsUnit, expr_for.span());
-            self.instructions.jump_if(end_label, expr_for.span());
+            self.asm.push(st::Inst::IsUnit, expr_for.span());
+            self.asm.jump_if(end_label, expr_for.span());
         }
 
         self.encode_block(&*expr_for.body, NeedsValue(false))?;
-        self.instructions.jump(start_label, span);
-        self.instructions.label(end_label)?;
+        self.asm.jump(start_label, span);
+        self.asm.label(end_label)?;
 
         let total_var_count = match self.scopes.pop() {
             Some(scope) => scope.local_var_count,
@@ -714,7 +712,7 @@ impl<'a> Compiler<'a> {
 
         // NB: If a value is needed from a for loop, encode it as a unit.
         if needs_value.0 {
-            self.instructions.push(st::Inst::Unit, span);
+            self.asm.push(st::Inst::Unit, span);
         }
 
         if self.loops.pop().is_none() {
@@ -747,8 +745,8 @@ impl<'a> Compiler<'a> {
 
         let span = expr_loop.span();
 
-        let start_label = self.instructions.new_label("loop_start");
-        let end_label = self.instructions.new_label("loop_end");
+        let start_label = self.asm.new_label("loop_start");
+        let end_label = self.asm.new_label("loop_end");
 
         let loop_count = self.loops.len();
 
@@ -757,14 +755,14 @@ impl<'a> Compiler<'a> {
             total_var_count: self.last_scope(span)?.total_var_count,
         });
 
-        self.instructions.label(start_label)?;
+        self.asm.label(start_label)?;
         self.encode_block(&*expr_loop.body, NeedsValue(false))?;
-        self.instructions.jump(start_label, span);
-        self.instructions.label(end_label)?;
+        self.asm.jump(start_label, span);
+        self.asm.label(end_label)?;
 
         // NB: If a value is needed from a while loop, encode it as a unit.
         if needs_value.0 {
-            self.instructions.push(st::Inst::Unit, span);
+            self.asm.push(st::Inst::Unit, span);
         }
 
         if self.loops.pop().is_none() {
@@ -797,7 +795,7 @@ impl<'a> Compiler<'a> {
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if needs_value.0 {
-            self.instructions.push(st::Inst::Unit, span);
+            self.asm.push(st::Inst::Unit, span);
         }
 
         Ok(())
@@ -815,7 +813,7 @@ impl<'a> Compiler<'a> {
                     self.encode_assign_target(&*unary.expr, false)?;
 
                     if !first_level {
-                        self.instructions.push(st::Inst::Deref, token.span);
+                        self.asm.push(st::Inst::Deref, token.span);
                     }
 
                     return Ok(());
@@ -851,17 +849,17 @@ impl<'a> Compiler<'a> {
                 var.references_at.extend(references_at);
                 let offset = var.offset;
 
-                self.instructions.push(st::Inst::Replace { offset }, span);
+                self.asm.push(st::Inst::Replace { offset }, span);
             }
             lhs => {
                 self.encode_expr(rhs, NeedsValue(true))?;
                 self.encode_assign_target(lhs, true)?;
-                self.instructions.push(st::Inst::ReplaceDeref, span);
+                self.asm.push(st::Inst::ReplaceDeref, span);
             }
         }
 
         if needs_value.0 {
-            self.instructions.push(st::Inst::Unit, span);
+            self.asm.push(st::Inst::Unit, span);
         }
 
         Ok(())
@@ -877,12 +875,12 @@ impl<'a> Compiler<'a> {
 
         self.encode_expr(&*index_get.index, NeedsValue(true))?;
         self.encode_expr(&*index_get.target, NeedsValue(true))?;
-        self.instructions.push(st::Inst::IndexGet, span);
+        self.asm.push(st::Inst::IndexGet, span);
 
         // NB: we still need to perform the operation since it might have side
         // effects, but pop the result in case a value is not needed.
         if !needs_value.0 {
-            self.instructions.push(st::Inst::Pop, span);
+            self.asm.push(st::Inst::Pop, span);
         }
 
         Ok(())
@@ -911,7 +909,7 @@ impl<'a> Compiler<'a> {
             .ok_or_else(|| CompileError::internal("var count should be larger", span))?;
 
         self.pop_locals(vars, span);
-        self.instructions.jump(last_loop.end_label, span);
+        self.asm.jump(last_loop.end_label, span);
         // NB: loops are expected to produce a value at the end of their expression.
         Ok(())
     }
@@ -927,11 +925,11 @@ impl<'a> Compiler<'a> {
         self.encode_expr(&*index_set.value, NeedsValue(true))?;
         self.encode_expr(&*index_set.index, NeedsValue(true))?;
         self.encode_expr(&*index_set.target, NeedsValue(true))?;
-        self.instructions.push(st::Inst::IndexSet, span);
+        self.asm.push(st::Inst::IndexSet, span);
 
         // Encode a unit in case a value is needed.
         if needs_value.0 {
-            self.instructions.push(st::Inst::Unit, span);
+            self.asm.push(st::Inst::Unit, span);
         }
 
         Ok(())
@@ -953,8 +951,7 @@ impl<'a> Compiler<'a> {
                 // Something imported is automatically a type.
                 if let Some(path) = self.unit.lookup_import_by_name(target) {
                     let hash = st::Hash::of_type(path);
-                    self.instructions
-                        .push(st::Inst::Type { hash }, ident.span());
+                    self.asm.push(st::Inst::Type { hash }, ident.span());
                     return Ok(());
                 }
 
@@ -969,8 +966,7 @@ impl<'a> Compiler<'a> {
         let offset = var.offset;
 
         self.references_at.extend(references_at);
-        self.instructions
-            .push(st::Inst::Copy { offset }, ident.span());
+        self.asm.push(st::Inst::Copy { offset }, ident.span());
         Ok(())
     }
 
@@ -1014,7 +1010,7 @@ impl<'a> Compiler<'a> {
         }
 
         let hash = st::Hash::of_type(&parts);
-        self.instructions.push(st::Inst::Type { hash }, path.span());
+        self.asm.push(st::Inst::Type { hash }, path.span());
         Ok(())
     }
 
@@ -1029,12 +1025,12 @@ impl<'a> Compiler<'a> {
         }
 
         let hash = self.decode_call_dest(&call_fn.name)?;
-        self.instructions.push(st::Inst::Call { hash, args }, span);
+        self.asm.push(st::Inst::Call { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !needs_value.0 {
-            self.instructions.push(st::Inst::Pop, span);
+            self.asm.push(st::Inst::Pop, span);
         }
 
         Ok(())
@@ -1058,13 +1054,12 @@ impl<'a> Compiler<'a> {
 
         let name = call_instance_fn.name.resolve(self.source)?;
         let hash = st::Hash::of(name);
-        self.instructions
-            .push(st::Inst::CallInstance { hash, args }, span);
+        self.asm.push(st::Inst::CallInstance { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !needs_value.0 {
-            self.instructions.push(st::Inst::Pop, span);
+            self.asm.push(st::Inst::Pop, span);
         }
 
         Ok(())
@@ -1091,10 +1086,10 @@ impl<'a> Compiler<'a> {
 
         match expr_unary.op {
             ast::UnaryOp::Not { .. } => {
-                self.instructions.push(st::Inst::Not, span);
+                self.asm.push(st::Inst::Not, span);
             }
             ast::UnaryOp::Deref { .. } => {
-                self.instructions.push(st::Inst::Deref, span);
+                self.asm.push(st::Inst::Deref, span);
             }
             op => {
                 return Err(CompileError::UnsupportedUnaryOp { span, op });
@@ -1104,7 +1099,7 @@ impl<'a> Compiler<'a> {
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !needs_value.0 {
-            self.instructions.push(st::Inst::Pop, span);
+            self.asm.push(st::Inst::Pop, span);
         }
 
         Ok(())
@@ -1119,7 +1114,7 @@ impl<'a> Compiler<'a> {
                 let offset = self.get_var(target, ident.token.span)?.offset;
 
                 self.references_at.push(span);
-                self.instructions.push(st::Inst::Ptr { offset }, span);
+                self.asm.push(st::Inst::Ptr { offset }, span);
             }
             _ => {
                 return Err(CompileError::UnsupportedRef { span });
@@ -1152,37 +1147,37 @@ impl<'a> Compiler<'a> {
 
         match expr_binary.op {
             ast::BinOp::Add { .. } => {
-                self.instructions.push(st::Inst::Add, span);
+                self.asm.push(st::Inst::Add, span);
             }
             ast::BinOp::Sub { .. } => {
-                self.instructions.push(st::Inst::Sub, span);
+                self.asm.push(st::Inst::Sub, span);
             }
             ast::BinOp::Div { .. } => {
-                self.instructions.push(st::Inst::Div, span);
+                self.asm.push(st::Inst::Div, span);
             }
             ast::BinOp::Mul { .. } => {
-                self.instructions.push(st::Inst::Mul, span);
+                self.asm.push(st::Inst::Mul, span);
             }
             ast::BinOp::Eq { .. } => {
-                self.instructions.push(st::Inst::Eq, span);
+                self.asm.push(st::Inst::Eq, span);
             }
             ast::BinOp::Neq { .. } => {
-                self.instructions.push(st::Inst::Neq, span);
+                self.asm.push(st::Inst::Neq, span);
             }
             ast::BinOp::Lt { .. } => {
-                self.instructions.push(st::Inst::Lt, span);
+                self.asm.push(st::Inst::Lt, span);
             }
             ast::BinOp::Gt { .. } => {
-                self.instructions.push(st::Inst::Gt, span);
+                self.asm.push(st::Inst::Gt, span);
             }
             ast::BinOp::Lte { .. } => {
-                self.instructions.push(st::Inst::Lte, span);
+                self.asm.push(st::Inst::Lte, span);
             }
             ast::BinOp::Gte { .. } => {
-                self.instructions.push(st::Inst::Gte, span);
+                self.asm.push(st::Inst::Gte, span);
             }
             ast::BinOp::Is { .. } => {
-                self.instructions.push(st::Inst::Is, span);
+                self.asm.push(st::Inst::Is, span);
             }
             op => {
                 return Err(CompileError::UnsupportedBinaryOp { span, op });
@@ -1192,7 +1187,7 @@ impl<'a> Compiler<'a> {
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !needs_value.0 {
-            self.instructions.push(st::Inst::Pop, span);
+            self.asm.push(st::Inst::Pop, span);
         }
 
         Ok(())
@@ -1203,20 +1198,20 @@ impl<'a> Compiler<'a> {
 
         log::trace!("{:?}", expr_if);
 
-        let then_label = self.instructions.new_label("if_then");
-        let end_label = self.instructions.new_label("if_end");
+        let then_label = self.asm.new_label("if_then");
+        let end_label = self.asm.new_label("if_end");
 
         let mut branch_labels = Vec::new();
 
         self.encode_expr(&*expr_if.condition, NeedsValue(true))?;
-        self.instructions.jump_if(then_label, span);
+        self.asm.jump_if(then_label, span);
 
         for branch in &expr_if.expr_else_ifs {
-            let label = self.instructions.new_label("if_branch");
+            let label = self.asm.new_label("if_branch");
             branch_labels.push(label);
 
             self.encode_expr(&*branch.condition, needs_value)?;
-            self.instructions.jump_if(label, branch.span());
+            self.asm.jump_if(label, branch.span());
         }
 
         // use fallback as fall through.
@@ -1226,17 +1221,17 @@ impl<'a> Compiler<'a> {
             // NB: if we must produce a value and there is no fallback branch,
             // encode the result of the statement as a unit.
             if needs_value.0 {
-                self.instructions.push(st::Inst::Unit, span);
+                self.asm.push(st::Inst::Unit, span);
             }
         }
 
-        self.instructions.jump(end_label, span);
+        self.asm.jump(end_label, span);
 
-        self.instructions.label(then_label)?;
+        self.asm.label(then_label)?;
         self.encode_block(&*expr_if.block, needs_value)?;
 
         if !expr_if.expr_else_ifs.is_empty() {
-            self.instructions.jump(end_label, span);
+            self.asm.jump(end_label, span);
         }
 
         let mut it = expr_if
@@ -1247,15 +1242,15 @@ impl<'a> Compiler<'a> {
 
         if let Some((branch, label)) = it.next() {
             let span = branch.span();
-            self.instructions.label(label)?;
+            self.asm.label(label)?;
             self.encode_block(&*branch.block, needs_value)?;
 
             if it.peek().is_some() {
-                self.instructions.jump(end_label, span);
+                self.asm.jump(end_label, span);
             }
         }
 
-        self.instructions.label(end_label)?;
+        self.asm.label(end_label)?;
         Ok(())
     }
 
@@ -1273,31 +1268,29 @@ impl<'a> Compiler<'a> {
         self.encode_expr(&*expr_match.expr, NeedsValue(true))?;
         let expr_offset = self.last_scope_mut(span)?.decl_anon(expr_match.expr.span());
 
-        let end_label = self.instructions.new_label("match_end");
+        let end_label = self.asm.new_label("match_end");
         let mut branches = Vec::new();
 
         for (branch, _) in &expr_match.branches {
             let span = branch.span();
 
-            let branch_label = self.instructions.new_label("match_branch");
-            let match_false = self.instructions.new_label("match_false");
+            let branch_label = self.asm.new_label("match_branch");
+            let match_false = self.asm.new_label("match_false");
 
             let mut scope = self.last_scope(span)?.new_scope();
-            self.encode_pat(
-                &mut scope,
-                &branch.pat,
-                match_false,
-                Box::new(move |inst| {
-                    inst.push(
-                        st::Inst::Copy {
-                            offset: expr_offset,
-                        },
-                        span,
-                    );
-                }),
-            )?;
-            self.instructions.jump(branch_label, span);
-            self.instructions.label(match_false)?;
+
+            let load = Box::new(move |asm: &mut Assembly| {
+                asm.push(
+                    st::Inst::Copy {
+                        offset: expr_offset,
+                    },
+                    span,
+                );
+            });
+
+            self.encode_pat(&mut scope, &branch.pat, match_false, load)?;
+            self.asm.jump(branch_label, span);
+            self.asm.label(match_false)?;
 
             branches.push((branch_label, scope));
         }
@@ -1306,16 +1299,16 @@ impl<'a> Compiler<'a> {
         // default match branch.
         if !expr_match.has_default {
             if needs_value.0 {
-                self.instructions.push(st::Inst::Unit, span);
+                self.asm.push(st::Inst::Unit, span);
             }
 
-            self.instructions.jump(end_label, span);
+            self.asm.jump(end_label, span);
         }
 
         let mut it = expr_match.branches.iter().zip(&branches).peekable();
 
         while let Some(((branch, _), (label, scope))) = it.next() {
-            self.instructions.label(*label)?;
+            self.asm.label(*label)?;
 
             self.scopes.push(scope.clone());
             self.encode_expr(&*branch.body, needs_value)?;
@@ -1328,11 +1321,11 @@ impl<'a> Compiler<'a> {
             }
 
             if it.peek().is_some() {
-                self.instructions.jump(end_label, branch.span());
+                self.asm.jump(end_label, branch.span());
             }
         }
 
-        self.instructions.label(end_label)?;
+        self.asm.label(end_label)?;
 
         // pop the implicit scope where we store the anonymous match variable.
         let scope = self.pop_scope(span)?;
@@ -1355,17 +1348,17 @@ impl<'a> Compiler<'a> {
         load: Load,
     ) -> Result<()>
     where
-        Load: 'static + Copy + Fn(&mut st::unit::Assembly),
+        Load: 'static + Copy + Fn(&mut Assembly),
     {
         let span = array.span();
 
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed an array.
         {
-            load(&mut self.instructions);
+            load(&mut self.asm);
 
             if array.open_pattern.is_some() {
-                self.instructions.push(
+                self.asm.push(
                     st::Inst::MatchArray {
                         len: array.items.len(),
                         exact: false,
@@ -1373,7 +1366,7 @@ impl<'a> Compiler<'a> {
                     span,
                 );
             } else {
-                self.instructions.push(
+                self.asm.push(
                     st::Inst::MatchArray {
                         len: array.items.len(),
                         exact: true,
@@ -1383,25 +1376,22 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        let length_true = self.instructions.new_label("pat_array_length_true");
+        let length_true = self.asm.new_label("pat_array_length_true");
 
-        self.instructions.jump_if(length_true, span);
+        self.asm.jump_if(length_true, span);
         self.pop_locals(scope.local_var_count, span);
-        self.instructions.jump(false_label, span);
-        self.instructions.label(length_true)?;
+        self.asm.jump(false_label, span);
+        self.asm.label(length_true)?;
 
         for (index, (pat, _)) in array.items.iter().enumerate() {
             let span = pat.span();
 
-            self.encode_pat(
-                scope,
-                &*pat,
-                false_label,
-                Box::new(move |inst| {
-                    load(inst);
-                    inst.push(st::Inst::ArrayIndexGet { index }, span);
-                }),
-            )?;
+            let load = Box::new(move |asm: &mut Assembly| {
+                load(asm);
+                asm.push(st::Inst::ArrayIndexGet { index }, span);
+            });
+
+            self.encode_pat(scope, &*pat, false_label, load)?;
         }
 
         Ok(())
@@ -1416,7 +1406,7 @@ impl<'a> Compiler<'a> {
         load: Load,
     ) -> Result<()>
     where
-        Load: 'static + Copy + Fn(&mut st::unit::Assembly),
+        Load: 'static + Copy + Fn(&mut Assembly),
     {
         let mut string_slots = Vec::new();
         let span = object.span();
@@ -1445,10 +1435,10 @@ impl<'a> Compiler<'a> {
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed an array.
         {
-            load(&mut self.instructions);
+            load(&mut self.asm);
 
             if object.open_pattern.is_some() {
-                self.instructions.push(
+                self.asm.push(
                     st::Inst::MatchObject {
                         slot: keys,
                         exact: false,
@@ -1456,7 +1446,7 @@ impl<'a> Compiler<'a> {
                     span,
                 );
             } else {
-                self.instructions.push(
+                self.asm.push(
                     st::Inst::MatchObject {
                         slot: keys,
                         exact: true,
@@ -1466,26 +1456,23 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        let length_true = self.instructions.new_label("pat_array_length_true");
+        let length_true = self.asm.new_label("pat_array_length_true");
 
-        self.instructions.jump_if(length_true, span);
+        self.asm.jump_if(length_true, span);
         self.pop_locals(scope.local_var_count, span);
-        self.instructions.jump(false_label, span);
-        self.instructions.label(length_true)?;
+        self.asm.jump(false_label, span);
+        self.asm.label(length_true)?;
 
         for ((_, _, pat, _), slot) in object.items.iter().zip(string_slots) {
             let span = pat.span();
 
+            let load = Box::new(move |asm: &mut Assembly| {
+                load(asm);
+                asm.push(st::Inst::ObjectSlotIndexGet { slot }, span);
+            });
+
             // load the given array index and declare it as a local variable.
-            self.encode_pat(
-                scope,
-                &*pat,
-                false_label,
-                Box::new(move |inst| {
-                    load(inst);
-                    inst.push(st::Inst::ObjectSlotIndexGet { slot }, span);
-                }),
-            )?;
+            self.encode_pat(scope, &*pat, false_label, load)?;
         }
 
         Ok(())
@@ -1502,16 +1489,16 @@ impl<'a> Compiler<'a> {
         scope: &mut Scope,
         pat: &ast::Pat,
         false_label: Label,
-        load: Box<dyn Fn(&mut st::unit::Assembly) + 'static>,
+        load: Box<dyn Fn(&mut Assembly) + 'static>,
     ) -> Result<()> {
         log::trace!("{:?}", pat);
         let span = pat.span();
 
-        let true_label = self.instructions.new_label("pat_true");
+        let true_label = self.asm.new_label("pat_true");
 
         match pat {
             ast::Pat::BindingPat(binding) => {
-                load(&mut self.instructions);
+                load(&mut self.asm);
                 let name = binding.resolve(self.source)?;
                 scope.new_var(name, span, Vec::new())?;
                 return Ok(());
@@ -1522,19 +1509,18 @@ impl<'a> Compiler<'a> {
             ast::Pat::UnitPat(unit) => {
                 let span = unit.span();
 
-                load(&mut self.instructions);
-                self.instructions.push(st::Inst::IsUnit, span);
-                self.instructions.jump_if(true_label, span);
+                load(&mut self.asm);
+                self.asm.push(st::Inst::IsUnit, span);
+                self.asm.jump_if(true_label, span);
             }
             ast::Pat::CharPat(char_literal) => {
                 let span = char_literal.span();
 
                 let character = char_literal.resolve(self.source)?;
 
-                load(&mut self.instructions);
-                self.instructions
-                    .push(st::Inst::EqCharacter { character }, span);
-                self.instructions.jump_if(true_label, span);
+                load(&mut self.asm);
+                self.asm.push(st::Inst::EqCharacter { character }, span);
+                self.asm.jump_if(true_label, span);
             }
             ast::Pat::NumberPat(number_literal) => {
                 let span = number_literal.span();
@@ -1548,11 +1534,10 @@ impl<'a> Compiler<'a> {
                     }
                 };
 
-                load(&mut self.instructions);
-                self.instructions
-                    .push(st::Inst::EqInteger { integer }, span);
+                load(&mut self.asm);
+                self.asm.push(st::Inst::EqInteger { integer }, span);
 
-                self.instructions.jump_if(true_label, span);
+                self.asm.jump_if(true_label, span);
             }
             ast::Pat::StringPat(string) => {
                 let span = string.span();
@@ -1560,37 +1545,42 @@ impl<'a> Compiler<'a> {
                 let string = string.resolve(self.source)?;
                 let slot = self.unit.new_static_string(&*string)?;
 
-                load(&mut self.instructions);
-                self.instructions
-                    .push(st::Inst::EqStaticString { slot }, span);
+                load(&mut self.asm);
+                self.asm.push(st::Inst::EqStaticString { slot }, span);
 
-                self.instructions.jump_if(true_label, span);
+                self.asm.jump_if(true_label, span);
             }
             ast::Pat::ArrayPat(array) => {
                 let span = array.span();
-                let offset = scope.decl_anon(span);
-                load(&mut self.instructions);
 
-                return self.encode_array_pat(scope, array, false_label, move |inst| {
-                    inst.push(st::Inst::Copy { offset }, span);
-                });
+                let offset = scope.decl_anon(span);
+                load(&mut self.asm);
+
+                self.encode_array_pat(scope, array, false_label, move |asm| {
+                    asm.push(st::Inst::Copy { offset }, span);
+                })?;
+
+                return Ok(());
             }
             ast::Pat::ObjectPat(object) => {
                 let span = object.span();
-                let offset = scope.decl_anon(span);
-                load(&mut self.instructions);
 
-                return self.encode_object_pat(scope, object, false_label, move |inst| {
-                    inst.push(st::Inst::Copy { offset }, span);
-                });
+                let offset = scope.decl_anon(span);
+                load(&mut self.asm);
+
+                self.encode_object_pat(scope, object, false_label, move |asm| {
+                    asm.push(st::Inst::Copy { offset }, span);
+                })?;
+
+                return Ok(());
             }
         }
 
         // default method of cleaning up locals.
         let count = scope.local_var_count;
         self.pop_locals(count, span);
-        self.instructions.jump(false_label, span);
-        self.instructions.label(true_label)?;
+        self.asm.jump(false_label, span);
+        self.asm.label(true_label)?;
 
         Ok(())
     }
