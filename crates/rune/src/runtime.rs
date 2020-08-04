@@ -1,3 +1,4 @@
+use crate::compiler::{Options, Warning, Warnings};
 use crate::error::{CompileError, ConfigurationError, ParseError, SpannedError as _};
 use slab::Slab;
 use st::unit::{LinkerError, LinkerErrors, Span};
@@ -97,14 +98,21 @@ pub struct Runtime {
     vm: st::Vm,
     context: st::Context,
     files: SlabFiles,
-    options: crate::Options,
+    options: Options,
     errors: Vec<(usize, RuntimeError)>,
+    warnings: Vec<(usize, Warnings)>,
 }
 
 impl Runtime {
     /// Construct a new runtime with the default context.
     pub fn new() -> Result<Self, st::ContextError> {
         Ok(Self::with_context(st::Context::with_default_packages()?))
+    }
+
+    /// Indicate that the runtime has issues it can report with
+    /// [emit_diagnostics][Self::emit_diagnostics].
+    pub fn has_issues(&self) -> bool {
+        self.errors.is_empty() && !self.warnings.is_empty()
     }
 
     /// Construct a new runtime with a custom context.
@@ -115,6 +123,7 @@ impl Runtime {
             files: SlabFiles::new(),
             options: crate::Options::default(),
             errors: Vec::new(),
+            warnings: Default::default(),
         }
     }
 
@@ -222,13 +231,17 @@ impl Runtime {
             }
         };
 
-        let unit = match unit.compile_with_options(&self.options) {
+        let (unit, warnings) = match unit.compile_with_options(&self.options) {
             Ok(unit) => unit,
             Err(e) => {
                 self.errors.push((file_id, e.into()));
                 return Err(LoadError::CompileError);
             }
         };
+
+        if !warnings.is_empty() {
+            self.warnings.push((file_id, warnings));
+        }
 
         let mut errors = LinkerErrors::new();
 
@@ -343,6 +356,36 @@ impl Runtime {
 
             let diagnostic = Diagnostic::error()
                 .with_message(error.to_string())
+                .with_labels(labels);
+
+            term::emit(out, &config, &self.files, &diagnostic)?;
+        }
+
+        let warnings = std::mem::take(&mut self.warnings);
+
+        for (source_file, warnings) in warnings {
+            let mut labels = Vec::new();
+
+            for warning in warnings {
+                match warning {
+                    Warning::NotUsed { span, context } => {
+                        labels.push(
+                            Label::primary(source_file, span.start..span.end)
+                                .with_message("value not used"),
+                        );
+
+                        if let Some(context) = context {
+                            labels.push(
+                                Label::secondary(source_file, context.start..context.end)
+                                    .with_message("in this context"),
+                            );
+                        }
+                    }
+                }
+            }
+
+            let diagnostic = Diagnostic::warning()
+                .with_message("warnings during compilation")
                 .with_labels(labels);
 
             term::emit(out, &config, &self.files, &diagnostic)?;

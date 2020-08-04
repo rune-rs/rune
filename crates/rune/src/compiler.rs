@@ -6,6 +6,58 @@ use crate::traits::Resolve as _;
 use crate::ParseAll;
 use st::unit::{Assembly, Label, Span};
 
+/// Compilation warning.
+#[derive(Debug, Clone, Copy)]
+pub enum Warning {
+    /// Item identified by the span is not used.
+    NotUsed {
+        /// The span that is not used.
+        span: Span,
+        /// The context in which the value was not used.
+        context: Option<Span>,
+    },
+}
+
+/// Compilation warnings.
+#[derive(Debug, Clone, Default)]
+pub struct Warnings {
+    warnings: Vec<Warning>,
+}
+
+impl Warnings {
+    /// Construct a new collection of compilation warnings.
+    pub fn new() -> Self {
+        Self {
+            warnings: Vec::new(),
+        }
+    }
+
+    /// Indicate if there are warnings or not.
+    pub fn is_empty(&self) -> bool {
+        self.warnings.is_empty()
+    }
+
+    /// Construct a warning indicating that the item identified by the span is
+    /// not used.
+    fn not_used(&mut self, span: Span, context: Option<Span>) {
+        self.warnings.push(Warning::NotUsed { span, context });
+    }
+
+    /// Extend self with another collection of warnings.
+    pub fn extend(&mut self, other: Self) {
+        self.warnings.extend(other.warnings.into_iter());
+    }
+}
+
+impl IntoIterator for Warnings {
+    type IntoIter = std::vec::IntoIter<Warning>;
+    type Item = Warning;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.warnings.into_iter()
+    }
+}
+
 /// Compiler options.
 pub struct Options {
     ///Enabled optimizations.
@@ -73,13 +125,15 @@ impl std::ops::Deref for NeedsValue {
 
 impl<'a> crate::ParseAll<'a, ast::File> {
     /// Compile the parse with default options.
-    pub fn compile(self) -> Result<st::Unit> {
+    pub fn compile(self) -> Result<(st::Unit, Warnings)> {
         self.compile_with_options(&Default::default())
     }
 
     /// Encode the given object into a collection of asm.
-    pub fn compile_with_options(self, options: &Options) -> Result<st::Unit> {
+    pub fn compile_with_options(self, options: &Options) -> Result<(st::Unit, Warnings)> {
         let ParseAll { source, item: file } = self;
+
+        let mut warnings = Warnings::new();
 
         let mut unit = st::Unit::with_default_prelude();
 
@@ -89,6 +143,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
         }
 
         for f in file.functions {
+            let span = f.span();
             let name = f.name.resolve(source)?;
             let count = f.args.items.len();
 
@@ -98,17 +153,19 @@ impl<'a> crate::ParseAll<'a, ast::File> {
                 unit: &mut unit,
                 asm: &mut assembly,
                 scopes: vec![Scope::new()],
+                contexts: vec![span],
                 source,
                 loops: Vec::new(),
                 current_block: Span::empty(),
                 optimizations: &options.optimizations,
+                warnings: &mut warnings,
             };
 
             encoder.encode_fn_decl(f)?;
             unit.new_function(&[name], count, assembly)?;
         }
 
-        Ok(unit)
+        Ok((unit, warnings))
     }
 }
 
@@ -116,6 +173,8 @@ struct Compiler<'a> {
     unit: &'a mut st::Unit,
     asm: &'a mut Assembly,
     scopes: Vec<Scope>,
+    /// Context for which to emit warnings.
+    contexts: Vec<Span>,
     source: Source<'a>,
     /// The nesting of loop we are currently in.
     loops: Vec<Loop>,
@@ -123,6 +182,8 @@ struct Compiler<'a> {
     current_block: Span,
     /// Enabled optimizations.
     optimizations: &'a Optimizations,
+    /// Compilation warnings.
+    warnings: &'a mut Warnings,
 }
 
 impl<'a> Compiler<'a> {
@@ -247,6 +308,8 @@ impl<'a> Compiler<'a> {
         let span = block.span();
         log::trace!("Block => {:?}", self.source.source(span)?);
 
+        self.contexts.push(span);
+
         let span = block.span();
         self.current_block = span;
 
@@ -283,6 +346,9 @@ impl<'a> Compiler<'a> {
             ));
         }
 
+        self.contexts
+            .pop()
+            .ok_or_else(|| CompileError::internal("missing parent context", span))?;
         Ok(())
     }
 
@@ -427,6 +493,7 @@ impl<'a> Compiler<'a> {
 
         // No need to create an array if it's not needed.
         if !*needs_value {
+            self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
@@ -476,6 +543,7 @@ impl<'a> Compiler<'a> {
 
         // No need to encode an object since the value is not needed.
         if !*needs_value {
+            self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
@@ -496,6 +564,7 @@ impl<'a> Compiler<'a> {
 
         // NB: Elide the entire literal if it's not needed.
         if !*needs_value {
+            self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
@@ -515,6 +584,7 @@ impl<'a> Compiler<'a> {
 
         // NB: Elide the entire literal if it's not needed.
         if !*needs_value {
+            self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
@@ -534,6 +604,7 @@ impl<'a> Compiler<'a> {
 
         // If the value is not needed, no need to encode it.
         if !*needs_value {
+            self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
@@ -562,8 +633,9 @@ impl<'a> Compiler<'a> {
         let span = number.span();
         log::trace!("NumberLiteral => {:?}", self.source.source(span)?);
 
+        // NB: don't encode unecessary literal.
         if !*needs_value {
-            // NB: don't encode unecessary literal.
+            self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
@@ -966,10 +1038,11 @@ impl<'a> Compiler<'a> {
     /// Encode a local copy.
     fn encode_ident(&mut self, ident: &ast::Ident, needs_value: NeedsValue) -> Result<()> {
         let span = ident.span();
-        log::trace!("ident => {:?}", self.source.source(span)?);
+        log::trace!("Ident => {:?}", self.source.source(span)?);
 
         // NB: avoid the encode completely if it is not needed.
         if !*needs_value {
+            self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
@@ -996,29 +1069,6 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    /// Decode a path into a call destination based on its hashes.
-    fn decode_call_dest(&self, path: &ast::Path) -> Result<st::Hash> {
-        let local = path.first.resolve(self.source)?;
-
-        let imported = match self.unit.lookup_import_by_name(local).cloned() {
-            Some(path) => path,
-            None => st::Item::of(&[local]),
-        };
-
-        let mut rest = Vec::new();
-
-        for (_, part) in &path.rest {
-            rest.push(part.resolve(self.source)?);
-        }
-
-        let it = imported
-            .into_iter()
-            .map(String::as_str)
-            .chain(rest.into_iter());
-
-        Ok(st::Hash::function(it))
-    }
-
     /// Encode the given type.
     fn encode_type(&mut self, path: &ast::Path, needs_value: NeedsValue) -> Result<()> {
         let span = path.span();
@@ -1026,6 +1076,7 @@ impl<'a> Compiler<'a> {
 
         // NB: do nothing if we don't need a value.
         if !*needs_value {
+            self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
@@ -1051,7 +1102,7 @@ impl<'a> Compiler<'a> {
             self.encode_expr(expr, NeedsValue(true))?;
         }
 
-        let hash = self.decode_call_dest(&call_fn.name)?;
+        let hash = self.resolve_call_dest(&call_fn.name)?;
         self.asm.push(st::Inst::Call { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
@@ -1139,6 +1190,7 @@ impl<'a> Compiler<'a> {
                 // Constructing a reference from an identifier has no side
                 // effects. If nobody needs it, don't construct it.
                 if !*needs_value {
+                    self.warnings.not_used(span, self.context());
                     return Ok(());
                 }
 
@@ -1603,6 +1655,34 @@ impl<'a> Compiler<'a> {
                 return Err(CompileError::internal("missing parent scope", span));
             }
         }
+    }
+
+    /// Decode a path into a call destination based on its hashes.
+    fn resolve_call_dest(&self, path: &ast::Path) -> Result<st::Hash> {
+        let local = path.first.resolve(self.source)?;
+
+        let imported = match self.unit.lookup_import_by_name(local).cloned() {
+            Some(path) => path,
+            None => st::Item::of(&[local]),
+        };
+
+        let mut rest = Vec::new();
+
+        for (_, part) in &path.rest {
+            rest.push(part.resolve(self.source)?);
+        }
+
+        let it = imported
+            .into_iter()
+            .map(String::as_str)
+            .chain(rest.into_iter());
+
+        Ok(st::Hash::function(it))
+    }
+
+    /// Get the latest relevant warning context.
+    fn context(&self) -> Option<Span> {
+        self.contexts.last().copied()
     }
 }
 

@@ -112,6 +112,12 @@ async fn main() -> Result<()> {
         }
     };
 
+    if runtime.has_issues() {
+        use rune::termcolor;
+        let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
+        runtime.emit_diagnostics(&mut writer)?;
+    }
+
     if dump_functions {
         println!("# functions");
 

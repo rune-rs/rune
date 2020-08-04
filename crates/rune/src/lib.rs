@@ -13,7 +13,7 @@ mod source;
 mod token;
 mod traits;
 
-pub use crate::compiler::Options;
+pub use crate::compiler::{Options, Warning, Warnings};
 pub use crate::error::{CompileError, Error, ParseError, ResolveError, Result, SpannedError};
 pub use crate::lexer::Lexer;
 pub use crate::parser::Parser;
@@ -25,9 +25,11 @@ pub use crate::traits::Resolve;
 pub use st::unit::Span;
 
 /// Helper function to compile the given source.
+///
+/// Discards any warnings produced.
 pub fn compile(source: &str) -> Result<st::Unit> {
     let unit = parse_all::<ast::File>(&source)?;
-    let unit = unit.compile()?;
+    let (unit, _) = unit.compile()?;
     Ok(unit)
 }
 
