@@ -63,6 +63,14 @@ type Result<T, E = CompileError> = std::result::Result<T, E>;
 #[derive(Debug, Clone, Copy)]
 struct NeedsValue(bool);
 
+impl std::ops::Deref for NeedsValue {
+    type Target = bool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl<'a> crate::ParseAll<'a, ast::File> {
     /// Compile the parse with default options.
     pub fn compile(self) -> Result<st::Unit> {
@@ -257,7 +265,7 @@ impl<'a> Compiler<'a> {
 
         let scope = self.pop_scope(span)?;
 
-        if needs_value.0 {
+        if *needs_value {
             if block.trailing_expr.is_none() {
                 self.pop_locals(scope.local_var_count, span);
                 self.asm.push(st::Inst::Unit, span);
@@ -287,7 +295,7 @@ impl<'a> Compiler<'a> {
         // variable declared until we reached the current return.
         let total_var_count = self.last_scope(span)?.total_var_count;
 
-        if needs_value.0 {
+        if *needs_value {
             return Err(CompileError::ReturnDoesNotProduceValue {
                 block: self.current_block,
                 span,
@@ -400,7 +408,7 @@ impl<'a> Compiler<'a> {
         let span = array_literal.span();
         log::trace!("ArrayLiteral => {:?}", self.source.source(span)?);
 
-        if !needs_value.0 && array_literal.is_all_literal() {
+        if !*needs_value && array_literal.is_const() {
             // Don't encode unecessary literals.
             return Ok(());
         }
@@ -409,6 +417,17 @@ impl<'a> Compiler<'a> {
 
         for expr in array_literal.items.iter().rev() {
             self.encode_expr(expr, NeedsValue(true))?;
+
+            // Evaluate the expressions one by one, then pop them to cause any
+            // side effects (without creating an object).
+            if !*needs_value {
+                self.asm.push(st::Inst::Pop, span);
+            }
+        }
+
+        // No need to create an array if it's not needed.
+        if !*needs_value {
+            return Ok(());
         }
 
         self.asm.push(st::Inst::Array { count }, span);
@@ -423,7 +442,7 @@ impl<'a> Compiler<'a> {
         let span = object.span();
         log::trace!("ObjectLiteral => {:?}", self.source.source(span)?);
 
-        if !needs_value.0 && object.is_all_literal() {
+        if !*needs_value && object.is_const() {
             // Don't encode unecessary literals.
             return Ok(());
         }
@@ -447,6 +466,17 @@ impl<'a> Compiler<'a> {
 
         for (_, _, value) in object.items.iter().rev() {
             self.encode_expr(value, NeedsValue(true))?;
+
+            // Evaluate the expressions one by one, then pop them to cause any
+            // side effects (without creating an object).
+            if !*needs_value {
+                self.asm.push(st::Inst::Pop, span);
+            }
+        }
+
+        // No need to encode an object since the value is not needed.
+        if !*needs_value {
+            return Ok(());
         }
 
         let slot = self.unit.new_static_object_keys(&keys)?;
@@ -465,7 +495,7 @@ impl<'a> Compiler<'a> {
         log::trace!("CharLiteral => {:?}", self.source.source(span)?);
 
         // NB: Elide the entire literal if it's not needed.
-        if !needs_value.0 {
+        if !*needs_value {
             return Ok(());
         }
 
@@ -484,7 +514,7 @@ impl<'a> Compiler<'a> {
         log::trace!("StringLiteral => {:?}", self.source.source(span)?);
 
         // NB: Elide the entire literal if it's not needed.
-        if !needs_value.0 {
+        if !*needs_value {
             return Ok(());
         }
 
@@ -503,7 +533,7 @@ impl<'a> Compiler<'a> {
         log::trace!("UnitLiteral => {:?}", self.source.source(span)?);
 
         // If the value is not needed, no need to encode it.
-        if !needs_value.0 {
+        if !*needs_value {
             return Ok(());
         }
 
@@ -516,7 +546,7 @@ impl<'a> Compiler<'a> {
         log::trace!("BoolLiteral => {:?}", self.source.source(span)?);
 
         // If the value is not needed, no need to encode it.
-        if !needs_value.0 {
+        if !*needs_value {
             return Ok(());
         }
 
@@ -532,7 +562,7 @@ impl<'a> Compiler<'a> {
         let span = number.span();
         log::trace!("NumberLiteral => {:?}", self.source.source(span)?);
 
-        if !needs_value.0 {
+        if !*needs_value {
             // NB: don't encode unecessary literal.
             return Ok(());
         }
@@ -578,7 +608,7 @@ impl<'a> Compiler<'a> {
         self.asm.label(end_label)?;
 
         // NB: If a value is needed from a while loop, encode it as a unit.
-        if needs_value.0 {
+        if *needs_value {
             self.asm.push(st::Inst::Unit, span);
         }
 
@@ -720,7 +750,7 @@ impl<'a> Compiler<'a> {
         self.pop_locals(total_var_count, span);
 
         // NB: If a value is needed from a for loop, encode it as a unit.
-        if needs_value.0 {
+        if *needs_value {
             self.asm.push(st::Inst::Unit, span);
         }
 
@@ -769,7 +799,7 @@ impl<'a> Compiler<'a> {
         self.asm.label(end_label)?;
 
         // NB: If a value is needed from a while loop, encode it as a unit.
-        if needs_value.0 {
+        if *needs_value {
             self.asm.push(st::Inst::Unit, span);
         }
 
@@ -799,7 +829,7 @@ impl<'a> Compiler<'a> {
             .decl_var(name, expr_let.name.span());
 
         // If a value is needed for a let expression, it is evaluated as a unit.
-        if needs_value.0 {
+        if *needs_value {
             self.asm.push(st::Inst::Unit, span);
         }
 
@@ -856,7 +886,7 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        if needs_value.0 {
+        if *needs_value {
             self.asm.push(st::Inst::Unit, span);
         }
 
@@ -877,7 +907,7 @@ impl<'a> Compiler<'a> {
 
         // NB: we still need to perform the operation since it might have side
         // effects, but pop the result in case a value is not needed.
-        if !needs_value.0 {
+        if !*needs_value {
             self.asm.push(st::Inst::Pop, span);
         }
 
@@ -888,7 +918,7 @@ impl<'a> Compiler<'a> {
     fn encode_break(&mut self, b: &ast::Break, needs_value: NeedsValue) -> Result<()> {
         let span = b.span();
 
-        if needs_value.0 {
+        if *needs_value {
             return Err(CompileError::BreakDoesNotProduceValue { span });
         }
 
@@ -926,7 +956,7 @@ impl<'a> Compiler<'a> {
         self.asm.push(st::Inst::IndexSet, span);
 
         // Encode a unit in case a value is needed.
-        if needs_value.0 {
+        if *needs_value {
             self.asm.push(st::Inst::Unit, span);
         }
 
@@ -939,7 +969,7 @@ impl<'a> Compiler<'a> {
         log::trace!("ident => {:?}", self.source.source(span)?);
 
         // NB: avoid the encode completely if it is not needed.
-        if !needs_value.0 {
+        if !*needs_value {
             return Ok(());
         }
 
@@ -995,7 +1025,7 @@ impl<'a> Compiler<'a> {
         log::trace!("Path => {:?}", self.source.source(span)?);
 
         // NB: do nothing if we don't need a value.
-        if !needs_value.0 {
+        if !*needs_value {
             return Ok(());
         }
 
@@ -1026,7 +1056,7 @@ impl<'a> Compiler<'a> {
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
-        if !needs_value.0 {
+        if !*needs_value {
             self.asm.push(st::Inst::Pop, span);
         }
 
@@ -1055,7 +1085,7 @@ impl<'a> Compiler<'a> {
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
-        if !needs_value.0 {
+        if !*needs_value {
             self.asm.push(st::Inst::Pop, span);
         }
 
@@ -1095,7 +1125,7 @@ impl<'a> Compiler<'a> {
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
-        if !needs_value.0 {
+        if !*needs_value {
             self.asm.push(st::Inst::Pop, span);
         }
 
@@ -1108,7 +1138,7 @@ impl<'a> Compiler<'a> {
             ast::Expr::Ident(ident) => {
                 // Constructing a reference from an identifier has no side
                 // effects. If nobody needs it, don't construct it.
-                if !needs_value.0 {
+                if !*needs_value {
                     return Ok(());
                 }
 
@@ -1185,7 +1215,7 @@ impl<'a> Compiler<'a> {
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
-        if !needs_value.0 {
+        if !*needs_value {
             self.asm.push(st::Inst::Pop, span);
         }
 
@@ -1218,7 +1248,7 @@ impl<'a> Compiler<'a> {
         } else {
             // NB: if we must produce a value and there is no fallback branch,
             // encode the result of the statement as a unit.
-            if needs_value.0 {
+            if *needs_value {
                 self.asm.push(st::Inst::Unit, span);
             }
         }
@@ -1293,7 +1323,7 @@ impl<'a> Compiler<'a> {
         // what to do in case nothing matches and the pattern doesn't have any
         // default match branch.
         if !expr_match.has_default {
-            if needs_value.0 {
+            if *needs_value {
                 self.asm.push(st::Inst::Unit, span);
             }
 
@@ -1311,7 +1341,7 @@ impl<'a> Compiler<'a> {
             self.encode_expr(&*branch.body, needs_value)?;
             let scope = self.pop_scope(span)?;
 
-            if needs_value.0 {
+            if *needs_value {
                 self.clean_up_locals(scope.local_var_count, span);
             } else {
                 self.pop_locals(scope.local_var_count, span);
@@ -1329,7 +1359,7 @@ impl<'a> Compiler<'a> {
 
         println!("local var count: {}", scope.local_var_count);
 
-        if needs_value.0 {
+        if *needs_value {
             self.clean_up_locals(scope.local_var_count, span);
         } else {
             self.pop_locals(scope.local_var_count, span);

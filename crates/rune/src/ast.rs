@@ -100,6 +100,8 @@ pub struct ArrayLiteral {
     pub items: Vec<Expr>,
     /// The close bracket.
     pub close: CloseBracket,
+    /// If the entire array is constant.
+    is_const: bool,
 }
 
 impl ArrayLiteral {
@@ -108,9 +110,9 @@ impl ArrayLiteral {
         self.open.span().join(self.close.span())
     }
 
-    /// Test if the entire expression is literal.
-    pub fn is_all_literal(&self) -> bool {
-        self.items.iter().all(|e| e.is_all_literal())
+    /// Test if the entire expression is constant.
+    pub fn is_const(&self) -> bool {
+        self.is_const
     }
 }
 
@@ -133,9 +135,16 @@ impl Parse for ArrayLiteral {
         let open = parser.parse()?;
 
         let mut items = Vec::new();
+        let mut is_const = true;
 
         while !parser.peek::<CloseBracket>()? {
-            items.push(parser.parse()?);
+            let expr = parser.parse::<Expr>()?;
+
+            if !expr.is_const() {
+                is_const = false;
+            }
+
+            items.push(expr);
 
             if parser.peek::<Comma>()? {
                 parser.parse::<Comma>()?;
@@ -145,7 +154,12 @@ impl Parse for ArrayLiteral {
         }
 
         let close = parser.parse()?;
-        Ok(Self { open, items, close })
+        Ok(Self {
+            open,
+            items,
+            close,
+            is_const,
+        })
     }
 }
 
@@ -158,6 +172,9 @@ pub struct ObjectLiteral {
     pub items: Vec<(StringLiteral, Colon, Expr)>,
     /// The close bracket.
     pub close: CloseBrace,
+    /// Indicates if the object is completely literal and cannot have side
+    /// effects.
+    is_const: bool,
 }
 
 impl ObjectLiteral {
@@ -166,9 +183,9 @@ impl ObjectLiteral {
         self.open.span().join(self.close.span())
     }
 
-    /// Test if the entire expression is literal.
-    pub fn is_all_literal(&self) -> bool {
-        self.items.iter().all(|e| e.2.is_all_literal())
+    /// Test if the entire expression is constant.
+    pub fn is_const(&self) -> bool {
+        self.is_const
     }
 }
 
@@ -191,10 +208,17 @@ impl Parse for ObjectLiteral {
 
         let mut items = Vec::new();
 
+        let mut is_const = true;
+
         while !parser.peek::<CloseBrace>()? {
             let key = parser.parse()?;
             let colon = parser.parse()?;
-            let expr = parser.parse()?;
+            let expr = parser.parse::<Expr>()?;
+
+            if !expr.is_const() {
+                is_const = false;
+            }
+
             items.push((key, colon, expr));
 
             if parser.peek::<Comma>()? {
@@ -205,7 +229,12 @@ impl Parse for ObjectLiteral {
         }
 
         let close = parser.parse()?;
-        Ok(Self { open, items, close })
+        Ok(Self {
+            open,
+            items,
+            close,
+            is_const,
+        })
     }
 }
 
@@ -788,6 +817,11 @@ impl ExprBinary {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.lhs.span().join(self.rhs.span())
+    }
+
+    /// Test if the expression is a constant expression.
+    pub fn is_const(&self) -> bool {
+        self.lhs.is_const() && self.rhs.is_const()
     }
 }
 
@@ -1427,17 +1461,18 @@ impl Expr {
         }
     }
 
-    /// Test if the entire expression is literal.
-    pub fn is_all_literal(&self) -> bool {
+    /// Test if the entire expression is constant.
+    pub fn is_const(&self) -> bool {
         match self {
+            Expr::ExprBinary(binary) => binary.is_const(),
             Expr::UnitLiteral(..) => true,
             Expr::BoolLiteral(..) => true,
             Expr::CharLiteral(..) => true,
             Expr::NumberLiteral(..) => true,
             Expr::StringLiteral(..) => true,
-            Expr::ArrayLiteral(array) => array.is_all_literal(),
-            Expr::ObjectLiteral(object) => object.is_all_literal(),
-            Expr::Block(b) => b.is_all_literal(),
+            Expr::ArrayLiteral(array) => array.is_const(),
+            Expr::ObjectLiteral(object) => object.is_const(),
+            Expr::Block(b) => b.is_const(),
             _ => false,
         }
     }
@@ -2172,10 +2207,10 @@ impl Block {
         }
     }
 
-    /// Block is literal if a trailing expression exists and is all literal.
-    pub fn is_all_literal(&self) -> bool {
+    /// Block is constant if a trailing expression exists and is all literal.
+    pub fn is_const(&self) -> bool {
         match &self.trailing_expr {
-            Some(trailing) => trailing.is_all_literal(),
+            Some(trailing) => trailing.is_const(),
             None => false,
         }
     }
