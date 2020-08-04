@@ -82,24 +82,6 @@ fn test_assign_exprs() {
 }
 
 #[test]
-fn test_return_local_reference() {
-    test_compile_err! {
-        ReturnLocalReferences { span, references_at, block } => {
-            assert_eq!(span, Span::new(79, 91));
-            assert_eq!(references_at, vec![Span::new(88, 90), Span::new(84, 86), Span::new(80, 82)]);
-            assert_eq!(block, Span::new(19, 101));
-        },
-        r#"
-        fn foo(n) {
-            let v = 5;
-            let u = 6;
-            [&v, &n, &u]
-        }
-        "#
-    };
-}
-
-#[test]
 fn test_match() {
     test_parse_err! {
         MatchMultipleFallbackBranches { span, existing } => {

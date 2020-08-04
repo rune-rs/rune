@@ -92,7 +92,6 @@ impl<'a> crate::ParseAll<'a, ast::File> {
                 scopes: vec![Scope::new()],
                 source,
                 loops: Vec::new(),
-                references_at: Vec::new(),
                 current_block: Span::empty(),
                 optimizations: &options.optimizations,
             };
@@ -114,20 +113,20 @@ struct Compiler<'a> {
     loops: Vec<Loop>,
     /// The current block that we are in.
     current_block: Span,
-    /// Indicates that a reference was taken at the given spans.
-    references_at: Vec<Span>,
     /// Enabled optimizations.
     optimizations: &'a Optimizations,
 }
 
 impl<'a> Compiler<'a> {
     fn encode_fn_decl(&mut self, fn_decl: ast::FnDecl) -> Result<()> {
-        let scopes_count = self.scopes.len();
         let span = fn_decl.span();
+        log::trace!("FnDecl => {:?}", self.source.source(span)?);
+
+        let scopes_count = self.scopes.len();
 
         for arg in fn_decl.args.items.iter().rev() {
             let name = arg.resolve(self.source)?;
-            self.new_var(name, arg.span(), Vec::new())?;
+            self.last_scope_mut(span)?.new_var(name, arg.span())?;
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
@@ -140,16 +139,7 @@ impl<'a> Compiler<'a> {
         }
 
         if let Some(expr) = &fn_decl.body.trailing_expr {
-            self.references_at.clear();
             self.encode_expr(expr, NeedsValue(true))?;
-
-            if !self.references_at.is_empty() {
-                return Err(CompileError::ReturnLocalReferences {
-                    block: fn_decl.body.span(),
-                    span: expr.span(),
-                    references_at: self.references_at.clone(),
-                });
-            }
 
             let total_var_count = self.last_scope(span)?.total_var_count;
             self.clean_up_locals(total_var_count, span);
@@ -168,13 +158,6 @@ impl<'a> Compiler<'a> {
         }
 
         Ok(())
-    }
-
-    /// Declare a new variable.
-    fn new_var(&mut self, name: &str, span: Span, references_at: Vec<Span>) -> Result<()> {
-        Ok(self
-            .last_scope_mut(span)?
-            .new_var(name, span, references_at)?)
     }
 
     /// Get the local with the given name.
@@ -253,7 +236,8 @@ impl<'a> Compiler<'a> {
     /// Blocks are special in that they do not produce a value unless there is
     /// an item in them which does.
     fn encode_block(&mut self, block: &ast::Block, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", block);
+        let span = block.span();
+        log::trace!("Block => {:?}", self.source.source(span)?);
 
         let span = block.span();
         self.current_block = span;
@@ -268,16 +252,7 @@ impl<'a> Compiler<'a> {
         }
 
         if let Some(expr) = &block.trailing_expr {
-            self.references_at.clear();
             self.encode_expr(expr, needs_value)?;
-
-            if needs_value.0 && !self.references_at.is_empty() {
-                return Err(CompileError::ReturnLocalReferences {
-                    block: self.current_block,
-                    span: expr.span(),
-                    references_at: self.references_at.clone(),
-                });
-            }
         }
 
         let scope = self.pop_scope(span)?;
@@ -306,6 +281,8 @@ impl<'a> Compiler<'a> {
     /// Encode a return.
     fn encode_return(&mut self, return_: &ast::Return, needs_value: NeedsValue) -> Result<()> {
         let span = return_.span();
+        log::trace!("Return => {:?}", self.source.source(span)?);
+
         // NB: we actually want total_var_count here since we need to clean up _every_
         // variable declared until we reached the current return.
         let total_var_count = self.last_scope(span)?.total_var_count;
@@ -331,7 +308,8 @@ impl<'a> Compiler<'a> {
 
     /// Encode an expression.
     fn encode_expr(&mut self, expr: &ast::Expr, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", expr);
+        let span = expr.span();
+        log::trace!("Expr => {:?}", self.source.source(span)?);
 
         match expr {
             ast::Expr::ExprWhile(expr_while) => {
@@ -374,7 +352,7 @@ impl<'a> Compiler<'a> {
                 self.encode_expr_if(expr_if, needs_value)?;
             }
             ast::Expr::UnitLiteral(unit) => {
-                self.encode_unit_literal(unit)?;
+                self.encode_unit_literal(unit, needs_value)?;
             }
             ast::Expr::BoolLiteral(b) => {
                 self.encode_bool_literal(b, needs_value)?;
@@ -419,6 +397,9 @@ impl<'a> Compiler<'a> {
         array_literal: &ast::ArrayLiteral,
         needs_value: NeedsValue,
     ) -> Result<()> {
+        let span = array_literal.span();
+        log::trace!("ArrayLiteral => {:?}", self.source.source(span)?);
+
         if !needs_value.0 && array_literal.is_all_literal() {
             // Don't encode unecessary literals.
             return Ok(());
@@ -430,8 +411,7 @@ impl<'a> Compiler<'a> {
             self.encode_expr(expr, NeedsValue(true))?;
         }
 
-        self.asm
-            .push(st::Inst::Array { count }, array_literal.span());
+        self.asm.push(st::Inst::Array { count }, span);
         Ok(())
     }
 
@@ -440,7 +420,10 @@ impl<'a> Compiler<'a> {
         object: &ast::ObjectLiteral,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        if !needs_value.0 {
+        let span = object.span();
+        log::trace!("ObjectLiteral => {:?}", self.source.source(span)?);
+
+        if !needs_value.0 && object.is_all_literal() {
             // Don't encode unecessary literals.
             return Ok(());
         }
@@ -457,7 +440,7 @@ impl<'a> Compiler<'a> {
                 return Err(CompileError::DuplicateObjectKey {
                     span,
                     existing,
-                    object: object.span(),
+                    object: span,
                 });
             }
         }
@@ -468,20 +451,26 @@ impl<'a> Compiler<'a> {
 
         let slot = self.unit.new_static_object_keys(&keys)?;
 
-        self.asm.push(st::Inst::Object { slot }, object.span());
+        self.asm.push(st::Inst::Object { slot }, span);
         Ok(())
     }
 
     /// Encode a char literal, like `'a'`.
-    fn encode_char_literal(&mut self, c: &ast::CharLiteral, needs_value: NeedsValue) -> Result<()> {
+    fn encode_char_literal(
+        &mut self,
+        char_literal: &ast::CharLiteral,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = char_literal.span();
+        log::trace!("CharLiteral => {:?}", self.source.source(span)?);
+
         // NB: Elide the entire literal if it's not needed.
         if !needs_value.0 {
             return Ok(());
         }
 
-        let resolved_char = c.resolve(self.source)?;
-        self.asm
-            .push(st::Inst::Char { c: resolved_char }, c.token.span);
+        let resolved_char = char_literal.resolve(self.source)?;
+        self.asm.push(st::Inst::Char { c: resolved_char }, span);
         Ok(())
     }
 
@@ -491,30 +480,47 @@ impl<'a> Compiler<'a> {
         string: &ast::StringLiteral,
         needs_value: NeedsValue,
     ) -> Result<()> {
+        let span = string.span();
+        log::trace!("StringLiteral => {:?}", self.source.source(span)?);
+
         // NB: Elide the entire literal if it's not needed.
         if !needs_value.0 {
             return Ok(());
         }
 
-        let span = string.span();
         let string = string.resolve(self.source)?;
         let slot = self.unit.new_static_string(&*string)?;
         self.asm.push(st::Inst::String { slot }, span);
         Ok(())
     }
 
-    fn encode_unit_literal(&mut self, literal: &ast::UnitLiteral) -> Result<()> {
-        self.asm.push(st::Inst::Unit, literal.span());
-        Ok(())
-    }
+    fn encode_unit_literal(
+        &mut self,
+        literal: &ast::UnitLiteral,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = literal.span();
+        log::trace!("UnitLiteral => {:?}", self.source.source(span)?);
 
-    fn encode_bool_literal(&mut self, b: &ast::BoolLiteral, needs_value: NeedsValue) -> Result<()> {
         // If the value is not needed, no need to encode it.
         if !needs_value.0 {
             return Ok(());
         }
 
-        self.asm.push(st::Inst::Bool { value: b.value }, b.span());
+        self.asm.push(st::Inst::Unit, span);
+        Ok(())
+    }
+
+    fn encode_bool_literal(&mut self, b: &ast::BoolLiteral, needs_value: NeedsValue) -> Result<()> {
+        let span = b.span();
+        log::trace!("BoolLiteral => {:?}", self.source.source(span)?);
+
+        // If the value is not needed, no need to encode it.
+        if !needs_value.0 {
+            return Ok(());
+        }
+
+        self.asm.push(st::Inst::Bool { value: b.value }, span);
         Ok(())
     }
 
@@ -523,12 +529,14 @@ impl<'a> Compiler<'a> {
         number: &ast::NumberLiteral,
         needs_value: NeedsValue,
     ) -> Result<()> {
+        let span = number.span();
+        log::trace!("NumberLiteral => {:?}", self.source.source(span)?);
+
         if !needs_value.0 {
             // NB: don't encode unecessary literal.
             return Ok(());
         }
 
-        let span = number.span();
         let number = number.resolve(self.source)?;
 
         match number {
@@ -548,9 +556,8 @@ impl<'a> Compiler<'a> {
         expr_while: &ast::ExprWhile,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        log::trace!("{:?}", expr_while);
-
         let span = expr_while.span();
+        log::trace!("ExprWhile => {:?}", self.source.source(span)?);
 
         let start_label = self.asm.new_label("while_test");
         let end_label = self.asm.new_label("while_end");
@@ -590,9 +597,8 @@ impl<'a> Compiler<'a> {
     }
 
     fn encode_expr_for(&mut self, expr_for: &ast::ExprFor, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", expr_for);
-
         let span = expr_for.span();
+        log::trace!("ExprFor => {:?}", self.source.source(span)?);
 
         let start_label = self.asm.new_label("for_start");
         let end_label = self.asm.new_label("for_end");
@@ -603,9 +609,7 @@ impl<'a> Compiler<'a> {
         let new_scope = self.last_scope(span)?.new_scope();
         self.scopes.push(new_scope);
 
-        self.references_at.clear();
         self.encode_expr(&*expr_for.iter, NeedsValue(true))?;
-        let references_at = self.references_at.clone();
 
         // Declare storage for the hidden iterator variable.
         let iterator_offset = self.last_scope_mut(span)?.decl_anon(expr_for.iter.span());
@@ -615,7 +619,7 @@ impl<'a> Compiler<'a> {
             self.asm.push(st::Inst::Unit, expr_for.iter.span());
             let name = expr_for.var.resolve(self.source)?;
             self.last_scope_mut(span)?
-                .decl_var(name, expr_for.var.span(), references_at)
+                .decl_var(name, expr_for.var.span())
         };
 
         // Declare storage for memoized `next` instance fn.
@@ -746,9 +750,8 @@ impl<'a> Compiler<'a> {
         expr_loop: &ast::ExprLoop,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        log::trace!("{:?}", expr_loop);
-
         let span = expr_loop.span();
+        log::trace!("ExprLoop => {:?}", self.source.source(span)?);
 
         let start_label = self.asm.new_label("loop_start");
         let end_label = self.asm.new_label("loop_end");
@@ -785,18 +788,15 @@ impl<'a> Compiler<'a> {
     }
 
     fn encode_expr_let(&mut self, expr_let: &ast::ExprLet, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", expr_let);
-
         let span = expr_let.span();
+        log::trace!("ExprLet => {:?}", self.source.source(span)?);
 
         let name = expr_let.name.resolve(self.source)?;
 
-        self.references_at.clear();
         self.encode_expr(&*expr_let.expr, NeedsValue(true))?;
-        let references_at = self.references_at.clone();
 
         self.last_scope_mut(span)?
-            .decl_var(name, expr_let.name.span(), references_at);
+            .decl_var(name, expr_let.name.span());
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if needs_value.0 {
@@ -837,23 +837,16 @@ impl<'a> Compiler<'a> {
         rhs: &ast::Expr,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        log::trace!("{:?} = {:?}", lhs, rhs);
-
         let span = lhs.span().join(rhs.span());
 
         match lhs {
             ast::Expr::Ident(ident) => {
                 let name = ident.resolve(self.source)?;
 
-                self.references_at.clear();
                 self.encode_expr(rhs, NeedsValue(true))?;
 
-                let references_at = self.references_at.clone().into_iter();
-
                 let var = self.get_var_mut(name, ident.span())?;
-                var.references_at.extend(references_at);
                 let offset = var.offset;
-
                 self.asm.push(st::Inst::Replace { offset }, span);
             }
             lhs => {
@@ -875,8 +868,8 @@ impl<'a> Compiler<'a> {
         index_get: &ast::IndexGet,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        log::trace!("{:?}", index_get);
         let span = index_get.span();
+        log::trace!("IndexGet => {:?}", self.source.source(span)?);
 
         self.encode_expr(&*index_get.index, NeedsValue(true))?;
         self.encode_expr(&*index_get.target, NeedsValue(true))?;
@@ -924,8 +917,8 @@ impl<'a> Compiler<'a> {
         index_set: &ast::IndexSet,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        log::trace!("{:?}", index_set);
         let span = index_set.span();
+        log::trace!("IndexSet => {:?}", self.source.source(span)?);
 
         self.encode_expr(&*index_set.value, NeedsValue(true))?;
         self.encode_expr(&*index_set.index, NeedsValue(true))?;
@@ -942,7 +935,8 @@ impl<'a> Compiler<'a> {
 
     /// Encode a local copy.
     fn encode_ident(&mut self, ident: &ast::Ident, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("encode local: {:?}", ident);
+        let span = ident.span();
+        log::trace!("ident => {:?}", self.source.source(span)?);
 
         // NB: avoid the encode completely if it is not needed.
         if !needs_value.0 {
@@ -950,28 +944,25 @@ impl<'a> Compiler<'a> {
         }
 
         let target = ident.resolve(self.source)?;
-        let var = match self.get_var(target, ident.token.span) {
+        let var = match self.get_var(target, span) {
             Ok(var) => var,
             Err(..) => {
                 // Something imported is automatically a type.
                 if let Some(path) = self.unit.lookup_import_by_name(target) {
                     let hash = st::Hash::of_type(path);
-                    self.asm.push(st::Inst::Type { hash }, ident.span());
+                    self.asm.push(st::Inst::Type { hash }, span);
                     return Ok(());
                 }
 
                 return Err(CompileError::MissingLocal {
                     name: target.to_owned(),
-                    span: ident.token.span,
+                    span,
                 });
             }
         };
 
-        let references_at = var.references_at.clone().into_iter();
         let offset = var.offset;
-
-        self.references_at.extend(references_at);
-        self.asm.push(st::Inst::Copy { offset }, ident.span());
+        self.asm.push(st::Inst::Copy { offset }, span);
         Ok(())
     }
 
@@ -1000,7 +991,8 @@ impl<'a> Compiler<'a> {
 
     /// Encode the given type.
     fn encode_type(&mut self, path: &ast::Path, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", path);
+        let span = path.span();
+        log::trace!("Path => {:?}", self.source.source(span)?);
 
         // NB: do nothing if we don't need a value.
         if !needs_value.0 {
@@ -1015,14 +1007,14 @@ impl<'a> Compiler<'a> {
         }
 
         let hash = st::Hash::of_type(&parts);
-        self.asm.push(st::Inst::Type { hash }, path.span());
+        self.asm.push(st::Inst::Type { hash }, span);
         Ok(())
     }
 
     fn encode_call_fn(&mut self, call_fn: &ast::CallFn, needs_value: NeedsValue) -> Result<()> {
-        log::trace!("{:?}", call_fn);
-
         let span = call_fn.span();
+        log::trace!("CallFn => {:?}", self.source.source(span)?);
+
         let args = call_fn.args.items.len();
 
         for expr in call_fn.args.items.iter().rev() {
@@ -1046,9 +1038,9 @@ impl<'a> Compiler<'a> {
         call_instance_fn: &ast::CallInstanceFn,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        log::trace!("{:?}", call_instance_fn);
-
         let span = call_instance_fn.span();
+        log::trace!("CallInstanceFn => {:?}", self.source.source(span)?);
+
         let args = call_instance_fn.args.items.len();
 
         for expr in call_instance_fn.args.items.iter().rev() {
@@ -1075,13 +1067,13 @@ impl<'a> Compiler<'a> {
         expr_unary: &ast::ExprUnary,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        log::trace!("{:?}", expr_unary);
         let span = expr_unary.span();
+        log::trace!("ExprUnary => {:?}", self.source.source(span)?);
 
         // NB: special unary expressions.
         match expr_unary.op {
             ast::UnaryOp::Ref { .. } => {
-                self.encode_ref(&*expr_unary.expr, expr_unary.span())?;
+                self.encode_ref(&*expr_unary.expr, expr_unary.span(), needs_value)?;
                 return Ok(());
             }
             _ => (),
@@ -1111,14 +1103,17 @@ impl<'a> Compiler<'a> {
     }
 
     /// Encode a ref `&<expr>` value.
-    fn encode_ref(&mut self, expr: &ast::Expr, span: Span) -> Result<()> {
+    fn encode_ref(&mut self, expr: &ast::Expr, span: Span, needs_value: NeedsValue) -> Result<()> {
         match expr {
             ast::Expr::Ident(ident) => {
+                // Constructing a reference from an identifier has no side
+                // effects. If nobody needs it, don't construct it.
+                if !needs_value.0 {
+                    return Ok(());
+                }
+
                 let target = ident.resolve(self.source)?;
-
                 let offset = self.get_var(target, ident.token.span)?.offset;
-
-                self.references_at.push(span);
                 self.asm.push(st::Inst::Ptr { offset }, span);
             }
             _ => {
@@ -1134,7 +1129,8 @@ impl<'a> Compiler<'a> {
         expr_binary: &ast::ExprBinary,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        log::trace!("{:?}", expr_binary);
+        let span = expr_binary.span();
+        log::trace!("ExprBinary => {:?}", self.source.source(span)?);
 
         // Special expressions which operates on the stack in special ways.
         match expr_binary.op {
@@ -1144,8 +1140,6 @@ impl<'a> Compiler<'a> {
             }
             _ => (),
         }
-
-        let span = expr_binary.span();
 
         self.encode_expr(&*expr_binary.lhs, NeedsValue(true))?;
         self.encode_expr(&*expr_binary.rhs, NeedsValue(true))?;
@@ -1200,8 +1194,7 @@ impl<'a> Compiler<'a> {
 
     fn encode_expr_if(&mut self, expr_if: &ast::ExprIf, needs_value: NeedsValue) -> Result<()> {
         let span = expr_if.span();
-
-        log::trace!("{:?}", expr_if);
+        log::trace!("ExprIf => {:?}", self.source.source(span)?);
 
         let then_label = self.asm.new_label("if_then");
         let end_label = self.asm.new_label("if_end");
@@ -1264,8 +1257,8 @@ impl<'a> Compiler<'a> {
         expr_match: &ast::ExprMatch,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        log::trace!("{:?}", expr_match);
         let span = expr_match.span();
+        log::trace!("ExprMatch => {:?}", self.source.source(span)?);
 
         let new_scope = self.last_scope(span)?.new_scope();
         self.scopes.push(new_scope);
@@ -1354,6 +1347,7 @@ impl<'a> Compiler<'a> {
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
         let span = array.span();
+        log::trace!("ArrayPat => {:?}", self.source.source(span)?);
 
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed an array.
@@ -1408,8 +1402,10 @@ impl<'a> Compiler<'a> {
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
-        let mut string_slots = Vec::new();
         let span = object.span();
+        log::trace!("ObjectPat => {:?}", self.source.source(span)?);
+
+        let mut string_slots = Vec::new();
 
         let mut keys_dup = HashMap::new();
         let mut keys = Vec::new();
@@ -1491,8 +1487,8 @@ impl<'a> Compiler<'a> {
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
-        log::trace!("{:?}", pat);
         let span = pat.span();
+        log::trace!("Pat => {:?}", self.source.source(span)?);
 
         let true_label = self.asm.new_label("pat_true");
 
@@ -1500,7 +1496,7 @@ impl<'a> Compiler<'a> {
             ast::Pat::BindingPat(binding) => {
                 load(&mut self.asm);
                 let name = binding.resolve(self.source)?;
-                scope.new_var(name, span, Vec::new())?;
+                scope.new_var(name, span)?;
                 return Ok(());
             }
             ast::Pat::IgnorePat(..) => {
@@ -1602,8 +1598,6 @@ struct Var {
     name: String,
     /// Token assocaited with the variable.
     span: Span,
-    /// Var references used by local expression.
-    references_at: Vec<Span>,
 }
 
 /// A locally declared variable.
@@ -1649,12 +1643,11 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub fn new_var(&mut self, name: &str, span: Span, references_at: Vec<Span>) -> Result<()> {
+    pub fn new_var(&mut self, name: &str, span: Span) -> Result<()> {
         let local = Var {
             offset: self.total_var_count,
             name: name.to_owned(),
             span,
-            references_at,
         };
 
         self.total_var_count += 1;
@@ -1672,7 +1665,7 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub fn decl_var(&mut self, name: &str, span: Span, references_at: Vec<Span>) -> usize {
+    pub fn decl_var(&mut self, name: &str, span: Span) -> usize {
         let offset = self.total_var_count;
 
         self.locals.insert(
@@ -1681,7 +1674,6 @@ impl Scope {
                 offset,
                 name: name.to_owned(),
                 span,
-                references_at,
             },
         );
 

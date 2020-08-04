@@ -443,3 +443,16 @@ async fn test_object_match() {
         true,
     };
 }
+
+#[tokio::test]
+async fn test_references() {
+    assert_eq! {
+        test!(() => r#"
+        fn main() {
+            let value = 10;
+            &value;
+        }
+        "#),
+        (),
+    }
+}
