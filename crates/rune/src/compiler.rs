@@ -211,11 +211,11 @@ impl<'a> Compiler<'a> {
             self.encode_expr(expr, NeedsValue(true))?;
 
             let total_var_count = self.last_scope(span)?.total_var_count;
-            self.clean_up_locals(total_var_count, span);
+            self.locals_clean(total_var_count, span);
             self.asm.push(st::Inst::Return, span);
         } else {
             let total_var_count = self.last_scope(span)?.total_var_count;
-            self.pop_locals(total_var_count, span);
+            self.locals_pop(total_var_count, span);
             self.asm.push(st::Inst::ReturnUnit, span);
         }
 
@@ -274,7 +274,7 @@ impl<'a> Compiler<'a> {
     }
 
     /// Pop locals by simply popping them.
-    fn pop_locals(&mut self, total_var_count: usize, span: Span) {
+    fn locals_pop(&mut self, total_var_count: usize, span: Span) {
         match total_var_count {
             0 => (),
             1 => {
@@ -291,7 +291,7 @@ impl<'a> Compiler<'a> {
     ///
     /// The clean operation will preserve the value that is on top of the stack,
     /// and pop the values under it.
-    fn clean_up_locals(&mut self, total_var_count: usize, span: Span) {
+    fn locals_clean(&mut self, total_var_count: usize, span: Span) {
         match total_var_count {
             0 => (),
             count => {
@@ -330,13 +330,13 @@ impl<'a> Compiler<'a> {
 
         if *needs_value {
             if block.trailing_expr.is_none() {
-                self.pop_locals(scope.local_var_count, span);
+                self.locals_pop(scope.local_var_count, span);
                 self.asm.push(st::Inst::Unit, span);
             } else {
-                self.clean_up_locals(scope.local_var_count, span);
+                self.locals_clean(scope.local_var_count, span);
             }
         } else {
-            self.pop_locals(scope.local_var_count, span);
+            self.locals_pop(scope.local_var_count, span);
         }
 
         if self.scopes.len() != scopes_count {
@@ -361,10 +361,6 @@ impl<'a> Compiler<'a> {
         let span = return_expr.span();
         log::trace!("Return => {:?}", self.source.source(span)?);
 
-        // NB: we actually want total_var_count here since we need to clean up _every_
-        // variable declared until we reached the current return.
-        let total_var_count = self.last_scope(span)?.total_var_count;
-
         if *needs_value {
             return Err(CompileError::ReturnDoesNotProduceValue {
                 block: self.current_block,
@@ -372,12 +368,16 @@ impl<'a> Compiler<'a> {
             });
         }
 
+        // NB: we actually want total_var_count here since we need to clean up
+        // _every_ variable declared until we reached the current return.
+        let total_var_count = self.last_scope(span)?.total_var_count;
+
         if let Some(expr) = &return_expr.expr {
             self.encode_expr(&*expr, NeedsValue(true))?;
-            self.clean_up_locals(total_var_count, span);
+            self.locals_clean(total_var_count, span);
             self.asm.push(st::Inst::Return, span);
         } else {
-            self.pop_locals(total_var_count, span);
+            self.locals_pop(total_var_count, span);
             self.asm.push(st::Inst::ReturnUnit, span);
         }
 
@@ -667,12 +667,14 @@ impl<'a> Compiler<'a> {
 
         let start_label = self.asm.new_label("while_test");
         let end_label = self.asm.new_label("while_end");
+        let break_label = self.asm.new_label("while_break");
 
         let loop_count = self.loops.len();
 
         self.loops.push(Loop {
-            end_label,
+            break_label,
             total_var_count: self.last_scope(span)?.total_var_count,
+            needs_value,
         });
 
         self.asm.label(start_label)?;
@@ -683,10 +685,12 @@ impl<'a> Compiler<'a> {
         self.asm.jump(start_label, span);
         self.asm.label(end_label)?;
 
-        // NB: If a value is needed from a while loop, encode it as a unit.
         if *needs_value {
-            self.asm.push(st::Inst::Unit, span);
+            self.asm.push(st::Inst::Unit, expr_while.condition.span());
         }
+
+        // NB: breaks produce their own value.
+        self.asm.label(break_label)?;
 
         if self.loops.pop().is_none() {
             return Err(CompileError::internal("while: missing parent loop", span));
@@ -708,12 +712,19 @@ impl<'a> Compiler<'a> {
 
         let start_label = self.asm.new_label("for_start");
         let end_label = self.asm.new_label("for_end");
+        let break_label = self.asm.new_label("for_break");
 
         let loop_count = self.loops.len();
         let scopes_count = self.scopes.len();
 
         let new_scope = self.last_scope(span)?.new_scope();
         self.scopes.push(new_scope);
+
+        self.loops.push(Loop {
+            break_label,
+            total_var_count: self.last_scope(span)?.total_var_count,
+            needs_value,
+        });
 
         self.encode_expr(&*expr_for.iter, NeedsValue(true))?;
 
@@ -747,11 +758,6 @@ impl<'a> Compiler<'a> {
         } else {
             None
         };
-
-        self.loops.push(Loop {
-            end_label,
-            total_var_count: self.last_scope(span)?.total_var_count,
-        });
 
         self.asm.label(start_label)?;
 
@@ -823,12 +829,15 @@ impl<'a> Compiler<'a> {
             }
         };
 
-        self.pop_locals(total_var_count, span);
+        self.locals_pop(total_var_count, span);
 
         // NB: If a value is needed from a for loop, encode it as a unit.
         if *needs_value {
             self.asm.push(st::Inst::Unit, span);
         }
+
+        // NB: breaks produce their own value.
+        self.asm.label(break_label)?;
 
         if self.loops.pop().is_none() {
             return Err(CompileError::internal("for: missing parent loop", span));
@@ -861,12 +870,14 @@ impl<'a> Compiler<'a> {
 
         let start_label = self.asm.new_label("loop_start");
         let end_label = self.asm.new_label("loop_end");
+        let break_label = self.asm.new_label("loop_break");
 
         let loop_count = self.loops.len();
 
         self.loops.push(Loop {
-            end_label,
+            break_label,
             total_var_count: self.last_scope(span)?.total_var_count,
+            needs_value,
         });
 
         self.asm.label(start_label)?;
@@ -878,6 +889,8 @@ impl<'a> Compiler<'a> {
         if *needs_value {
             self.asm.push(st::Inst::Unit, span);
         }
+
+        self.asm.label(break_label)?;
 
         if self.loops.pop().is_none() {
             return Err(CompileError::internal("loop: missing parent loop", span));
@@ -1000,15 +1013,28 @@ impl<'a> Compiler<'a> {
             }
         };
 
-        let locals = self.last_scope(span)?;
+        if let Some(expr) = &expr_break.expr {
+            self.encode_expr(&*expr, last_loop.needs_value)?;
+        }
 
-        let vars = locals
+        let vars = self
+            .last_scope(span)?
             .total_var_count
             .checked_sub(last_loop.total_var_count)
             .ok_or_else(|| CompileError::internal("var count should be larger", span))?;
 
-        self.pop_locals(vars, span);
-        self.asm.jump(last_loop.end_label, span);
+        if *last_loop.needs_value {
+            if expr_break.expr.is_none() {
+                self.asm.push(st::Inst::Unit, span);
+                self.locals_pop(vars, span);
+            } else {
+                self.locals_clean(vars, span);
+            }
+        } else {
+            self.locals_pop(vars, span);
+        }
+
+        self.asm.jump(last_loop.break_label, span);
         // NB: loops are expected to produce a value at the end of their expression.
         Ok(())
     }
@@ -1373,9 +1399,9 @@ impl<'a> Compiler<'a> {
             let scope = self.pop_scope(span)?;
 
             if *needs_value {
-                self.clean_up_locals(scope.local_var_count, span);
+                self.locals_clean(scope.local_var_count, span);
             } else {
-                self.pop_locals(scope.local_var_count, span);
+                self.locals_pop(scope.local_var_count, span);
             }
 
             if it.peek().is_some() {
@@ -1391,9 +1417,9 @@ impl<'a> Compiler<'a> {
         println!("local var count: {}", scope.local_var_count);
 
         if *needs_value {
-            self.clean_up_locals(scope.local_var_count, span);
+            self.locals_clean(scope.local_var_count, span);
         } else {
-            self.pop_locals(scope.local_var_count, span);
+            self.locals_pop(scope.local_var_count, span);
         }
 
         Ok(())
@@ -1437,7 +1463,7 @@ impl<'a> Compiler<'a> {
         let length_true = self.asm.new_label("pat_array_len_true");
 
         self.asm.jump_if(length_true, span);
-        self.pop_locals(scope.local_var_count, span);
+        self.locals_pop(scope.local_var_count, span);
         self.asm.jump(false_label, span);
         self.asm.label(length_true)?;
 
@@ -1516,7 +1542,7 @@ impl<'a> Compiler<'a> {
         let length_true = self.asm.new_label("pat_object_len_true");
 
         self.asm.jump_if(length_true, span);
-        self.pop_locals(scope.local_var_count, span);
+        self.locals_pop(scope.local_var_count, span);
         self.asm.jump(false_label, span);
         self.asm.label(length_true)?;
 
@@ -1618,8 +1644,7 @@ impl<'a> Compiler<'a> {
         }
 
         // default method of cleaning up locals.
-        let count = scope.local_var_count;
-        self.pop_locals(count, span);
+        self.locals_pop(scope.local_var_count, span);
         self.asm.jump(false_label, span);
         self.asm.label(true_label)?;
 
@@ -1805,7 +1830,9 @@ impl Scope {
 #[derive(Clone, Copy)]
 struct Loop {
     /// The end label of the loop.
-    end_label: Label,
+    break_label: Label,
     /// The number of variables observed at the start of the loop.
     total_var_count: usize,
+    /// If the loop needs a value.
+    needs_value: NeedsValue,
 }

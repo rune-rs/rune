@@ -144,6 +144,24 @@ async fn test_while() {
         }"#),
         10,
     };
+
+    assert_eq! {
+        test!(i64 => r#"
+        fn main() {
+            let a = 0;
+
+            let a = while a >= 0 {
+                if a >= 10 {
+                    break a;
+                }
+
+                a = a + 1;
+            };
+
+            a
+        }"#),
+        10,
+    };
 }
 
 #[tokio::test]
@@ -165,6 +183,24 @@ async fn test_loop() {
         }"#),
         10,
     };
+
+    assert_eq! {
+        test!(i64 => r#"
+        fn main() {
+            let n = 0;
+
+            let n = loop {
+                if n >= 10 {
+                    break n;
+                }
+
+                n = n + 1;
+            };
+
+            n
+        }"#),
+        10,
+    };
 }
 
 #[tokio::test]
@@ -180,6 +216,27 @@ async fn test_for() {
             for v in it {
                 a = a + 1;
             }
+
+            a
+        }"#),
+        10,
+    };
+
+    assert_eq! {
+        test!(i64 => r#"
+        use std::iter::range;
+
+        fn main() {
+            let a = 0;
+            let it = range(0, 100);
+
+            let a = for v in it {
+                if a >= 10 {
+                    break a;
+                }
+
+                a = a + 1;
+            };
 
             a
         }"#),
