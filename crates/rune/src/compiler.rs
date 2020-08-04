@@ -304,9 +304,9 @@ impl<'a> Compiler<'a> {
     ///
     /// Blocks are special in that they do not produce a value unless there is
     /// an item in them which does.
-    fn encode_block(&mut self, block: &ast::Block, needs_value: NeedsValue) -> Result<()> {
+    fn encode_expr_block(&mut self, block: &ast::ExprBlock, needs_value: NeedsValue) -> Result<()> {
         let span = block.span();
-        log::trace!("Block => {:?}", self.source.source(span)?);
+        log::trace!("ExprBlock => {:?}", self.source.source(span)?);
 
         self.contexts.push(span);
 
@@ -353,8 +353,12 @@ impl<'a> Compiler<'a> {
     }
 
     /// Encode a return.
-    fn encode_return(&mut self, return_: &ast::Return, needs_value: NeedsValue) -> Result<()> {
-        let span = return_.span();
+    fn encode_expr_return(
+        &mut self,
+        return_expr: &ast::ExprReturn,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = return_expr.span();
         log::trace!("Return => {:?}", self.source.source(span)?);
 
         // NB: we actually want total_var_count here since we need to clean up _every_
@@ -368,7 +372,7 @@ impl<'a> Compiler<'a> {
             });
         }
 
-        if let Some(expr) = &return_.expr {
+        if let Some(expr) = &return_expr.expr {
             self.encode_expr(&*expr, NeedsValue(true))?;
             self.clean_up_locals(total_var_count, span);
             self.asm.push(st::Inst::Return, span);
@@ -398,11 +402,35 @@ impl<'a> Compiler<'a> {
             ast::Expr::ExprLet(expr_let) => {
                 self.encode_expr_let(expr_let, needs_value)?;
             }
-            ast::Expr::IndexSet(index_set) => {
-                self.encode_index_set(index_set, needs_value)?;
-            }
             ast::Expr::ExprGroup(expr) => {
                 self.encode_expr(&*expr.expr, needs_value)?;
+            }
+            ast::Expr::ExprUnary(expr_unary) => {
+                self.encode_expr_unary(expr_unary, needs_value)?;
+            }
+            ast::Expr::ExprBinary(expr_binary) => {
+                self.encode_expr_binary(expr_binary, needs_value)?;
+            }
+            ast::Expr::ExprIf(expr_if) => {
+                self.encode_expr_if(expr_if, needs_value)?;
+            }
+            ast::Expr::ExprIndexSet(expr_index_set) => {
+                self.encode_index_set(expr_index_set, needs_value)?;
+            }
+            ast::Expr::ExprIndexGet(expr_index_get) => {
+                self.encode_expr_index_get(expr_index_get, needs_value)?;
+            }
+            ast::Expr::ExprBreak(b) => {
+                self.encode_expr_break(b, needs_value)?;
+            }
+            ast::Expr::ExprBlock(b) => {
+                self.encode_expr_block(b, needs_value)?;
+            }
+            ast::Expr::ExprReturn(return_) => {
+                self.encode_expr_return(return_, needs_value)?;
+            }
+            ast::Expr::ExprMatch(expr_match) => {
+                self.encode_expr_match(expr_match, needs_value)?;
             }
             ast::Expr::Ident(ident) => {
                 self.encode_ident(ident, needs_value)?;
@@ -415,15 +443,6 @@ impl<'a> Compiler<'a> {
             }
             ast::Expr::CallInstanceFn(call_instance_fn) => {
                 self.encode_call_instance_fn(call_instance_fn, needs_value)?;
-            }
-            ast::Expr::ExprUnary(expr_unary) => {
-                self.encode_expr_unary(expr_unary, needs_value)?;
-            }
-            ast::Expr::ExprBinary(expr_binary) => {
-                self.encode_expr_binary(expr_binary, needs_value)?;
-            }
-            ast::Expr::ExprIf(expr_if) => {
-                self.encode_expr_if(expr_if, needs_value)?;
             }
             ast::Expr::UnitLiteral(unit) => {
                 self.encode_unit_literal(unit, needs_value)?;
@@ -445,21 +464,6 @@ impl<'a> Compiler<'a> {
             }
             ast::Expr::StringLiteral(string) => {
                 self.encode_string_literal(string, needs_value)?;
-            }
-            ast::Expr::IndexGet(index_get) => {
-                self.encode_index_get(index_get, needs_value)?;
-            }
-            ast::Expr::Break(b) => {
-                self.encode_break(b, needs_value)?;
-            }
-            ast::Expr::Block(b) => {
-                self.encode_block(b, needs_value)?;
-            }
-            ast::Expr::Return(return_) => {
-                self.encode_return(return_, needs_value)?;
-            }
-            ast::Expr::ExprMatch(expr_match) => {
-                self.encode_expr_match(expr_match, needs_value)?;
             }
         }
 
@@ -674,7 +678,7 @@ impl<'a> Compiler<'a> {
         self.asm.label(start_label)?;
         self.encode_expr(&*expr_while.condition, NeedsValue(true))?;
         self.asm.jump_if_not(end_label, span);
-        self.encode_block(&*expr_while.body, NeedsValue(false))?;
+        self.encode_expr_block(&*expr_while.body, NeedsValue(false))?;
 
         self.asm.jump(start_label, span);
         self.asm.label(end_label)?;
@@ -808,7 +812,7 @@ impl<'a> Compiler<'a> {
             self.asm.jump_if(end_label, expr_for.span());
         }
 
-        self.encode_block(&*expr_for.body, NeedsValue(false))?;
+        self.encode_expr_block(&*expr_for.body, NeedsValue(false))?;
         self.asm.jump(start_label, span);
         self.asm.label(end_label)?;
 
@@ -866,7 +870,7 @@ impl<'a> Compiler<'a> {
         });
 
         self.asm.label(start_label)?;
-        self.encode_block(&*expr_loop.body, NeedsValue(false))?;
+        self.encode_expr_block(&*expr_loop.body, NeedsValue(false))?;
         self.asm.jump(start_label, span);
         self.asm.label(end_label)?;
 
@@ -956,17 +960,17 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn encode_index_get(
+    fn encode_expr_index_get(
         &mut self,
-        index_get: &ast::IndexGet,
+        expr_index_get: &ast::ExprIndexGet,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        let span = index_get.span();
-        log::trace!("IndexGet => {:?}", self.source.source(span)?);
+        let span = expr_index_get.span();
+        log::trace!("ExprIndexGet => {:?}", self.source.source(span)?);
 
-        self.encode_expr(&*index_get.index, NeedsValue(true))?;
-        self.encode_expr(&*index_get.target, NeedsValue(true))?;
-        self.asm.push(st::Inst::IndexGet, span);
+        self.encode_expr(&*expr_index_get.index, NeedsValue(true))?;
+        self.encode_expr(&*expr_index_get.target, NeedsValue(true))?;
+        self.asm.push(st::Inst::ExprIndexGet, span);
 
         // NB: we still need to perform the operation since it might have side
         // effects, but pop the result in case a value is not needed.
@@ -978,8 +982,12 @@ impl<'a> Compiler<'a> {
     }
 
     /// Encode a `break` expression.
-    fn encode_break(&mut self, b: &ast::Break, needs_value: NeedsValue) -> Result<()> {
-        let span = b.span();
+    fn encode_expr_break(
+        &mut self,
+        expr_break: &ast::ExprBreak,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = expr_break.span();
 
         if *needs_value {
             return Err(CompileError::BreakDoesNotProduceValue { span });
@@ -1007,16 +1015,16 @@ impl<'a> Compiler<'a> {
 
     fn encode_index_set(
         &mut self,
-        index_set: &ast::IndexSet,
+        expr_index_set: &ast::ExprIndexSet,
         needs_value: NeedsValue,
     ) -> Result<()> {
-        let span = index_set.span();
-        log::trace!("IndexSet => {:?}", self.source.source(span)?);
+        let span = expr_index_set.span();
+        log::trace!("ExprIndexSet => {:?}", self.source.source(span)?);
 
-        self.encode_expr(&*index_set.value, NeedsValue(true))?;
-        self.encode_expr(&*index_set.index, NeedsValue(true))?;
-        self.encode_expr(&*index_set.target, NeedsValue(true))?;
-        self.asm.push(st::Inst::IndexSet, span);
+        self.encode_expr(&*expr_index_set.value, NeedsValue(true))?;
+        self.encode_expr(&*expr_index_set.index, NeedsValue(true))?;
+        self.encode_expr(&*expr_index_set.target, NeedsValue(true))?;
+        self.asm.push(st::Inst::ExprIndexSet, span);
 
         // Encode a unit in case a value is needed.
         if *needs_value {
@@ -1267,7 +1275,7 @@ impl<'a> Compiler<'a> {
 
         // use fallback as fall through.
         if let Some(fallback) = &expr_if.expr_else {
-            self.encode_block(&*fallback.block, needs_value)?;
+            self.encode_expr_block(&*fallback.block, needs_value)?;
         } else {
             // NB: if we must produce a value and there is no fallback branch,
             // encode the result of the statement as a unit.
@@ -1279,7 +1287,7 @@ impl<'a> Compiler<'a> {
         self.asm.jump(end_label, span);
 
         self.asm.label(then_label)?;
-        self.encode_block(&*expr_if.block, needs_value)?;
+        self.encode_expr_block(&*expr_if.block, needs_value)?;
 
         if !expr_if.expr_else_ifs.is_empty() {
             self.asm.jump(end_label, span);
@@ -1294,7 +1302,7 @@ impl<'a> Compiler<'a> {
         if let Some((branch, label)) = it.next() {
             let span = branch.span();
             self.asm.label(label)?;
-            self.encode_block(&*branch.block, needs_value)?;
+            self.encode_expr_block(&*branch.block, needs_value)?;
 
             if it.peek().is_some() {
                 self.asm.jump(end_label, span);

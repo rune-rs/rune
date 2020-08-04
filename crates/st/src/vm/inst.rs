@@ -116,12 +116,12 @@ pub enum Inst {
     /// <index>
     /// => <value>
     /// ```
-    IndexGet,
+    ExprIndexGet,
     /// Get the given index out of an array on the top of the stack. Errors if
     /// the item doesn't exist or the item at the top of the stack is not an
     /// array.
     ///
-    /// Note: this is a specialized variant of `IndexGet` where we know that the
+    /// Note: this is a specialized variant of `ExprIndexGet` where we know that the
     /// top of the stack is supposed to be an array.
     ///
     /// # Operation
@@ -141,7 +141,7 @@ pub enum Inst {
     /// The index is identifier by a static string slot, which is provided as an
     /// argument.
     ///
-    /// Note: this is a specialized variant of `IndexGet` where we know that the
+    /// Note: this is a specialized variant of `ExprIndexGet` where we know that the
     /// top of the stack is supposed to be an array.
     ///
     /// # Operation
@@ -164,7 +164,7 @@ pub enum Inst {
     /// <value>
     /// => *noop*
     /// ```
-    IndexSet,
+    ExprIndexSet,
     /// Push a literal integer.
     Integer {
         /// The number to push.
@@ -499,7 +499,7 @@ impl fmt::Display for Inst {
             Self::LoadInstanceFn { hash } => {
                 write!(fmt, "load-instance-fn {}", hash)?;
             }
-            Self::IndexGet => {
+            Self::ExprIndexGet => {
                 write!(fmt, "index-get")?;
             }
             Self::ArrayIndexGet { index } => {
@@ -508,7 +508,7 @@ impl fmt::Display for Inst {
             Self::ObjectSlotIndexGet { slot } => {
                 write!(fmt, "object-slot-index-get {}", slot)?;
             }
-            Self::IndexSet => {
+            Self::ExprIndexSet => {
                 write!(fmt, "index-set")?;
             }
             Self::Integer { number } => {

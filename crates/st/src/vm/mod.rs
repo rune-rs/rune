@@ -1690,7 +1690,7 @@ impl Vm {
                     let hash = Hash::instance_function(ty, *hash);
                     self.push(ValuePtr::Fn(hash));
                 }
-                Inst::IndexGet => {
+                Inst::ExprIndexGet => {
                     self.op_index_get()?;
                 }
                 Inst::ArrayIndexGet { index } => {
@@ -1699,7 +1699,7 @@ impl Vm {
                 Inst::ObjectSlotIndexGet { slot } => {
                     self.op_object_slot_index_get(*slot, unit)?;
                 }
-                Inst::IndexSet => {
+                Inst::ExprIndexSet => {
                     self.op_index_set()?;
                 }
                 Inst::Return => {

@@ -860,7 +860,7 @@ pub struct ExprElseIf {
     /// The condition for the branch.
     pub condition: Box<Expr>,
     /// The body of the else statement.
-    pub block: Box<Block>,
+    pub block: Box<ExprBlock>,
 }
 
 impl ExprElseIf {
@@ -887,7 +887,7 @@ pub struct ExprElse {
     /// The `else` token.
     pub else_: Else,
     /// The body of the else statement.
-    pub block: Box<Block>,
+    pub block: Box<ExprBlock>,
 }
 
 impl ExprElse {
@@ -914,7 +914,7 @@ pub struct ExprIf {
     /// The condition to the if statement.
     pub condition: Box<Expr>,
     /// The body of the if statement.
-    pub block: Box<Block>,
+    pub block: Box<ExprBlock>,
     /// Else if branches.
     pub expr_else_ifs: Vec<ExprElseIf>,
     /// The else part of the if expression.
@@ -1105,7 +1105,7 @@ impl Parse for ExprMatch {
             };
 
             let is_end = match (&*branch.body, &comma) {
-                (Expr::Block(..), _) => false,
+                (Expr::ExprBlock(..), _) => false,
                 (Expr::ExprFor(..), _) => false,
                 (Expr::ExprWhile(..), _) => false,
                 (Expr::ExprIf(..), _) => false,
@@ -1367,7 +1367,7 @@ pub enum Expr {
     /// A let expression.
     ExprLet(ExprLet),
     /// An index set operation.
-    IndexSet(IndexSet),
+    ExprIndexSet(ExprIndexSet),
     /// An if expression.
     ExprIf(ExprIf),
     /// An match expression.
@@ -1399,15 +1399,15 @@ pub enum Expr {
     /// A unary expression.
     ExprUnary(ExprUnary),
     /// An index set operation.
-    IndexGet(IndexGet),
+    ExprIndexGet(ExprIndexGet),
     /// A unit expression.
     UnitLiteral(UnitLiteral),
     /// A break expression.
-    Break(Break),
+    ExprBreak(ExprBreak),
     /// A block as an expression.
-    Block(Block),
+    ExprBlock(ExprBlock),
     /// A return statement.
-    Return(Return),
+    ExprReturn(ExprReturn),
 }
 
 impl Expr {
@@ -1418,14 +1418,14 @@ impl Expr {
             Self::ExprLoop(..) => true,
             Self::ExprFor(..) => true,
             Self::ExprLet(..) => true,
-            Self::IndexSet(..) => true,
+            Self::ExprIndexSet(..) => true,
             Self::ExprIf(expr_if) => expr_if.produces_nothing(),
             Self::ExprMatch(expr_match) => expr_match.produces_nothing(),
             Self::ExprGroup(expr_group) => expr_group.produces_nothing(),
-            Self::Break(..) => true,
+            Self::ExprBreak(..) => true,
             Self::ExprBinary(expr) => expr.produces_nothing(),
-            Self::Block(b) => b.produces_nothing(),
-            Self::Return(..) => true,
+            Self::ExprBlock(b) => b.produces_nothing(),
+            Self::ExprReturn(..) => true,
             _ => false,
         }
     }
@@ -1437,7 +1437,7 @@ impl Expr {
             Self::ExprLoop(expr) => expr.span(),
             Self::ExprFor(expr) => expr.span(),
             Self::ExprLet(expr) => expr.span(),
-            Self::IndexSet(expr) => expr.span(),
+            Self::ExprIndexSet(expr) => expr.span(),
             Self::ExprIf(expr) => expr.span(),
             Self::ExprMatch(expr) => expr.span(),
             Self::Ident(expr) => expr.span(),
@@ -1452,12 +1452,12 @@ impl Expr {
             Self::ExprGroup(expr) => expr.span(),
             Self::ExprUnary(expr) => expr.span(),
             Self::ExprBinary(expr) => expr.span(),
-            Self::IndexGet(expr) => expr.span(),
+            Self::ExprIndexGet(expr) => expr.span(),
             Self::UnitLiteral(unit) => unit.span(),
             Self::BoolLiteral(b) => b.span(),
-            Self::Break(b) => b.span(),
-            Self::Block(b) => b.span(),
-            Self::Return(ret) => ret.span(),
+            Self::ExprBreak(b) => b.span(),
+            Self::ExprBlock(b) => b.span(),
+            Self::ExprReturn(ret) => ret.span(),
         }
     }
 
@@ -1472,7 +1472,7 @@ impl Expr {
             Expr::StringLiteral(..) => true,
             Expr::ArrayLiteral(array) => array.is_const(),
             Expr::ObjectLiteral(object) => object.is_const(),
-            Expr::Block(b) => b.is_const(),
+            Expr::ExprBlock(b) => b.is_const(),
             _ => false,
         }
     }
@@ -1497,7 +1497,7 @@ impl Expr {
 
     /// Parse indexing operation.
     pub fn parse_indexing_op(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let index_get = IndexGet {
+        let index_get = ExprIndexGet {
             target: Box::new(Self::parse_primary(parser, NoIndex(true))?),
             open: parser.parse()?,
             index: Box::new(parser.parse()?),
@@ -1505,7 +1505,7 @@ impl Expr {
         };
 
         Ok(if parser.peek::<Eq>()? {
-            Self::IndexSet(IndexSet {
+            Self::ExprIndexSet(ExprIndexSet {
                 target: index_get.target,
                 open: index_get.open,
                 index: index_get.index,
@@ -1514,7 +1514,7 @@ impl Expr {
                 value: Box::new(parser.parse()?),
             })
         } else {
-            Self::IndexGet(index_get)
+            Self::ExprIndexGet(index_get)
         })
     }
 
@@ -1548,7 +1548,7 @@ impl Expr {
             } => Self::ArrayLiteral(parser.parse()?),
             Kind::Open {
                 delimiter: Delimiter::Brace,
-            } => Self::Block(parser.parse()?),
+            } => Self::ExprBlock(parser.parse()?),
             Kind::True | Kind::False => Self::BoolLiteral(parser.parse()?),
             Kind::Ident => match parser.token_peek2()?.map(|t| t.kind) {
                 Some(kind) => match kind {
@@ -1559,8 +1559,8 @@ impl Expr {
                 },
                 None => Self::parse_ident_start(parser)?,
             },
-            Kind::Break => Self::Break(parser.parse()?),
-            Kind::Return => Self::Return(parser.parse()?),
+            Kind::Break => Self::ExprBreak(parser.parse()?),
+            Kind::Return => Self::ExprReturn(parser.parse()?),
             _ => {
                 return Err(ParseError::ExpectedExprError {
                     actual: token.kind,
@@ -1588,7 +1588,7 @@ impl Expr {
                 Kind::Open {
                     delimiter: Delimiter::Bracket,
                 } if !no_index.0 => {
-                    expr = Expr::IndexGet(IndexGet {
+                    expr = Expr::ExprIndexGet(ExprIndexGet {
                         target: Box::new(expr),
                         open: parser.parse()?,
                         index: Box::new(parser.parse()?),
@@ -1929,7 +1929,7 @@ pub struct ExprWhile {
     /// The name of the binding.
     pub condition: Box<Expr>,
     /// The body of the while loop.
-    pub body: Box<Block>,
+    pub body: Box<ExprBlock>,
 }
 
 impl ExprWhile {
@@ -1955,7 +1955,7 @@ pub struct ExprLoop {
     /// The `loop` keyword.
     pub loop_: Loop,
     /// The body of the loop.
-    pub body: Box<Block>,
+    pub body: Box<ExprBlock>,
 }
 
 impl ExprLoop {
@@ -1987,7 +1987,7 @@ pub struct ExprFor {
     /// Expression producing the iterator.
     pub iter: Box<Expr>,
     /// The body of the loop.
-    pub body: Box<Block>,
+    pub body: Box<ExprBlock>,
 }
 
 impl ExprFor {
@@ -2011,7 +2011,7 @@ impl Parse for ExprFor {
 
 /// An index set operation `<target>[<index>] = <value>`.
 #[derive(Debug, Clone)]
-pub struct IndexSet {
+pub struct ExprIndexSet {
     /// The target of the index set.
     pub target: Box<Expr>,
     /// The opening bracket.
@@ -2026,7 +2026,7 @@ pub struct IndexSet {
     pub value: Box<Expr>,
 }
 
-impl IndexSet {
+impl ExprIndexSet {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.target.span().join(self.value.span())
@@ -2035,7 +2035,7 @@ impl IndexSet {
 
 /// An index get operation `<target>[<index>]`.
 #[derive(Debug, Clone)]
-pub struct IndexGet {
+pub struct ExprIndexGet {
     /// The target of the index set.
     pub target: Box<Expr>,
     /// The opening bracket.
@@ -2046,7 +2046,7 @@ pub struct IndexGet {
     pub close: CloseBracket,
 }
 
-impl IndexGet {
+impl ExprIndexGet {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.target.span().join(self.close.span())
@@ -2140,7 +2140,7 @@ pub struct FnDecl {
     /// The arguments of the function.
     pub args: FunctionArgs<Ident>,
     /// The body of the function.
-    pub body: Block,
+    pub body: ExprBlock,
 }
 
 impl FnDecl {
@@ -2182,7 +2182,7 @@ impl Parse for FnDecl {
 
 /// A block of expressions.
 #[derive(Debug, Clone)]
-pub struct Block {
+pub struct ExprBlock {
     /// The close brace.
     pub open: OpenBrace,
     /// Expressions in the block.
@@ -2193,7 +2193,7 @@ pub struct Block {
     pub close: CloseBrace,
 }
 
-impl Block {
+impl ExprBlock {
     /// Get the span of the block.
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
@@ -2207,7 +2207,7 @@ impl Block {
         }
     }
 
-    /// Block is constant if a trailing expression exists and is all literal.
+    /// ExprBlock is constant if a trailing expression exists and is all literal.
     pub fn is_const(&self) -> bool {
         match &self.trailing_expr {
             Some(trailing) => trailing.is_const(),
@@ -2224,19 +2224,19 @@ impl Block {
 /// use rune::{parse_all, ast};
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// let block = parse_all::<ast::Block>("{}")?.item;
+/// let block = parse_all::<ast::ExprBlock>("{}")?.item;
 /// assert_eq!(block.exprs.len(), 0);
 /// assert!(block.trailing_expr.is_none());
 ///
-/// let block = parse_all::<ast::Block>("{ foo }")?.item;
+/// let block = parse_all::<ast::ExprBlock>("{ foo }")?.item;
 /// assert_eq!(block.exprs.len(), 0);
 /// assert!(block.trailing_expr.is_some());
 ///
-/// let block = parse_all::<ast::Block>("{ foo; }")?.item;
+/// let block = parse_all::<ast::ExprBlock>("{ foo; }")?.item;
 /// assert_eq!(block.exprs.len(), 1);
 /// assert!(block.trailing_expr.is_none());
 ///
-/// let block = parse_all::<ast::Block>(r#"
+/// let block = parse_all::<ast::ExprBlock>(r#"
 ///     {
 ///         let foo = 42;
 ///         let bar = "string";
@@ -2248,7 +2248,7 @@ impl Block {
 /// # Ok(())
 /// # }
 /// ```
-impl Parse for Block {
+impl Parse for ExprBlock {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let mut exprs = Vec::new();
 
@@ -2307,7 +2307,7 @@ impl Parse for Block {
 
         let close = parser.parse()?;
 
-        Ok(Block {
+        Ok(ExprBlock {
             open,
             exprs,
             trailing_expr,
@@ -2406,16 +2406,50 @@ impl Parse for ExprGroup {
     }
 }
 
+/// A return statement `break [expr]`.
+#[derive(Debug, Clone)]
+pub struct ExprBreak {
+    /// The return token.
+    pub break_: Break,
+    /// An optional expression to break with.
+    pub expr: Option<Box<Expr>>,
+}
+
+impl ExprBreak {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        if let Some(expr) = &self.expr {
+            self.break_.span().join(expr.span())
+        } else {
+            self.break_.span()
+        }
+    }
+}
+
+impl Parse for ExprBreak {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let break_ = parser.parse()?;
+
+        let expr = if parser.peek::<Expr>()? {
+            Some(Box::new(parser.parse()?))
+        } else {
+            None
+        };
+
+        Ok(Self { break_, expr })
+    }
+}
+
 /// A return statement `return [expr]`.
 #[derive(Debug, Clone)]
-pub struct Return {
+pub struct ExprReturn {
     /// The return token.
-    pub return_: ReturnToken,
+    pub return_: Return,
     /// An optional expression to return.
     pub expr: Option<Box<Expr>>,
 }
 
-impl Return {
+impl ExprReturn {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         if let Some(expr) = &self.expr {
@@ -2426,7 +2460,7 @@ impl Return {
     }
 }
 
-impl Parse for Return {
+impl Parse for ExprReturn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let return_ = parser.parse()?;
 
@@ -2515,7 +2549,7 @@ decl_tokens! {
     (For, Kind::For),
     (InToken, Kind::In),
     (Break, Kind::Break),
-    (ReturnToken, Kind::Return),
+    (Return, Kind::Return),
     (Star, Kind::Star),
     (Rocket, Kind::Rocket),
     (StartObject, Kind::StartObject),
