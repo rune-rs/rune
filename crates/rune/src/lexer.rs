@@ -301,6 +301,14 @@ impl<'a> Lexer<'a> {
                             it.next();
                             break Kind::Neq;
                         }
+                        ('&', '&') => {
+                            it.next();
+                            break Kind::And;
+                        }
+                        ('|', '|') => {
+                            it.next();
+                            break Kind::Or;
+                        }
                         ('#', '{') => {
                             it.next();
                             break Kind::StartObject;

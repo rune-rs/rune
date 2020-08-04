@@ -2,7 +2,7 @@ use rune::CompileError::*;
 use rune::ParseError::*;
 use st::unit::Span;
 
-macro_rules! test_encode {
+macro_rules! test_parse {
     ($source:expr) => {{
         rune::compile($source).unwrap();
     }};
@@ -60,7 +60,7 @@ fn test_break_as_value() {
 
 #[test]
 fn test_assign_exprs() {
-    test_encode! {
+    test_parse! {
         r#"
             fn main() {
                 let var = 1;
@@ -70,10 +70,10 @@ fn test_assign_exprs() {
     };
 
     test_compile_err! {
-        UnsupportedAssignExpr { span } => assert_eq!(span, Span::new(41, 51)),
+        UnsupportedAssignExpr { span } => assert_eq!(span, Span::new(41, 47)),
         r#"
             fn main() {
-                1 + 1 = 42;
+                1 = 42;
             }
         "#
     };
@@ -123,4 +123,18 @@ async fn test_pointers() {
         }
         "#
     };
+}
+
+#[test]
+fn test_binary_exprs() {
+    test_parse_err! {
+        PrecedenceGroupRequired { span } => assert_eq!(span, Span::new(12, 18)),
+        r#"fn main() { 0 < 10 >= 10 }"#
+    };
+
+    // Test solving precedence with groups.
+    test_parse!(r#"fn main() { (0 < 10) >= 10 }"#);
+    test_parse!(r#"fn main() { 0 < (10 >= 10) }"#);
+    test_parse!(r#"fn main() { 0 < 10 && 10 > 0 }"#);
+    test_parse!(r#"fn main() { 0 < 10 && 10 > 0 || true }"#);
 }

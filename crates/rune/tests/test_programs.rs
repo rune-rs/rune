@@ -59,6 +59,49 @@ async fn test_small_programs() {
 }
 
 #[tokio::test]
+async fn test_boolean_ops() {
+    assert_eq! {
+        test!(bool => r#"fn main() { true && true }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { true && false }"#),
+        false,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { false && true }"#),
+        false,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { false && false }"#),
+        false,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { true || true }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { true || false }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { false || true }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool => r#"fn main() { false || false }"#),
+        false,
+    };
+}
+
+#[tokio::test]
 async fn test_if() {
     assert_eq! {
         test!(i64 => r#"

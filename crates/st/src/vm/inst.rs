@@ -371,6 +371,27 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     Is,
+    /// Pop two values from the stack and test if they are both boolean true.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <boolean>
+    /// <boolean>
+    /// => <boolean>
+    /// ```
+    And,
+    /// Pop two values from the stack and test if either of them are boolean
+    /// true.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <boolean>
+    /// <boolean>
+    /// => <boolean>
+    /// ```
+    Or,
     /// Test if the top of the stack is a unit.
     ///
     /// # Operation
@@ -588,6 +609,12 @@ impl fmt::Display for Inst {
             }
             Self::Is => {
                 write!(fmt, "is")?;
+            }
+            Self::And => {
+                write!(fmt, "and")?;
+            }
+            Self::Or => {
+                write!(fmt, "or")?;
             }
             Self::IsUnit => {
                 write!(fmt, "is-unit")?;

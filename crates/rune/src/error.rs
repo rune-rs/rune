@@ -88,7 +88,7 @@ impl SpannedError for ResolveError {
 /// Error when parsing.
 #[derive(Debug, Clone, Copy, Error)]
 pub enum ParseError {
-    /// Error raised when we encounter enf-of-file but we didn't expect it.
+    /// Error raised when we encounter end-of-file but we didn't expect it.
     #[error("unexpected end-of-file")]
     UnexpectedEof {
         /// Span that caused the error.
@@ -240,6 +240,12 @@ pub enum ParseError {
         /// The span of the existing branch.
         existing: Span,
     },
+    /// Expression group required to break precedence.
+    #[error("group required in expression to determine precedence")]
+    PrecedenceGroupRequired {
+        /// Span that caused the error.
+        span: Span,
+    },
 }
 
 impl SpannedError for ParseError {
@@ -265,6 +271,7 @@ impl SpannedError for ParseError {
             Self::ExpectedUnaryOperator { span, .. } => span,
             Self::MatchMultipleFallbackBranches { span, .. } => span,
             Self::MatchNeverReached { span, .. } => span,
+            Self::PrecedenceGroupRequired { span, .. } => span,
         }
     }
 }

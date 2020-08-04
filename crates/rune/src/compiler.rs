@@ -1262,6 +1262,12 @@ impl<'a> Compiler<'a> {
             ast::BinOp::Is { .. } => {
                 self.asm.push(st::Inst::Is, span);
             }
+            ast::BinOp::And { .. } => {
+                self.asm.push(st::Inst::And, span);
+            }
+            ast::BinOp::Or { .. } => {
+                self.asm.push(st::Inst::Or, span);
+            }
             op => {
                 return Err(CompileError::UnsupportedBinaryOp { span, op });
             }

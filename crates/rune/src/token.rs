@@ -158,6 +158,10 @@ pub enum Kind {
     StartObject,
     /// Double dots `..`.
     DotDot,
+    /// And operator.
+    And,
+    /// Or operator.
+    Or,
 }
 
 impl fmt::Display for Kind {
@@ -206,6 +210,8 @@ impl fmt::Display for Kind {
             Self::Not => write!(fmt, "!")?,
             Self::StartObject => write!(fmt, "#{{")?,
             Self::DotDot => write!(fmt, "..")?,
+            Self::And => write!(fmt, "&&")?,
+            Self::Or => write!(fmt, "||")?,
         }
 
         Ok(())

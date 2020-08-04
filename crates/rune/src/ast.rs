@@ -598,155 +598,140 @@ impl fmt::Display for UnaryOp {
 }
 
 /// A binary operation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BinOp {
     /// Addition.
-    Add {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Add,
     /// Subtraction.
-    Sub {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Sub,
     /// Division.
-    Div {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Div,
     /// Multiplication.
-    Mul {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Mul,
     /// Equality check.
-    Eq {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Eq,
     /// Inequality check.
-    Neq {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Neq,
     /// Greater-than check.
-    Gt {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Gt,
     /// Less-than check.
-    Lt {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Lt,
     /// Greater-than or equal check.
-    Gte {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Gte,
     /// Less-than or equal check.
-    Lte {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Lte,
     /// The dot operator.
-    Dot {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Dot,
     /// The instanceof test.
-    Is {
-        /// Token associated with operator.
-        token: Token,
-    },
-    /// Assign operation.
-    Assign {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Is,
+    /// Assign operator.
+    Assign,
+    /// And `&&` operator.
+    And,
+    /// Or `||` operator.
+    Or,
 }
 
 impl BinOp {
     /// Get the precedence for the current operator.
     fn precedence(self) -> usize {
         match self {
-            // `is` has lowest precedence.
-            Self::Assign { .. } => 0,
-            Self::Is { .. } => 5,
-            Self::Eq { .. } | Self::Neq { .. } => 10,
-            Self::Add { .. } | Self::Sub { .. } => 20,
-            Self::Div { .. } | Self::Mul { .. } => 30,
-            Self::Gt { .. } => 40,
-            Self::Lt { .. } => 41,
-            Self::Gte { .. } => 42,
-            Self::Lte { .. } => 43,
-            Self::Dot { .. } => 60,
+            Self::Assign => 1,
+            Self::Or => 2,
+            Self::And => 3,
+            Self::Eq | Self::Neq | Self::Gt | Self::Lt | Self::Gte | Self::Lte => 4,
+            Self::Add | Self::Sub => 5,
+            Self::Div | Self::Mul => 6,
+            Self::Is => 7,
+            Self::Dot => 8,
+        }
+    }
+
+    /// Test if two operators are associative and can be applied in any order
+    /// even if they have the same precedence.
+    fn is_assoc(self, other: Self) -> bool {
+        match (self, other) {
+            (Self::Mul, Self::Div) => true,
+            (Self::Div, Self::Mul) => true,
+            (Self::Add, Self::Sub) => true,
+            (Self::Sub, Self::Add) => true,
+            (Self::Dot, Self::Dot) => true,
+            _ => false,
         }
     }
 
     /// Convert from a token.
-    fn from_token(token: Token) -> Option<BinOp> {
-        Some(match token.kind {
-            Kind::Plus => Self::Add { token },
-            Kind::Minus => Self::Sub { token },
-            Kind::Slash => Self::Div { token },
-            Kind::Star => Self::Mul { token },
-            Kind::EqEq => Self::Eq { token },
-            Kind::Neq => Self::Neq { token },
-            Kind::Lt => Self::Lt { token },
-            Kind::Gt => Self::Gt { token },
-            Kind::Lte => Self::Lte { token },
-            Kind::Gte => Self::Gte { token },
-            Kind::Dot => Self::Dot { token },
-            Kind::Is => Self::Is { token },
-            Kind::Eq => Self::Assign { token },
+    fn from_token(token: Token) -> Option<(BinOp, Token)> {
+        let op = match token.kind {
+            Kind::Plus => Self::Add,
+            Kind::Minus => Self::Sub,
+            Kind::Slash => Self::Div,
+            Kind::Star => Self::Mul,
+            Kind::EqEq => Self::Eq,
+            Kind::Neq => Self::Neq,
+            Kind::Lt => Self::Lt,
+            Kind::Gt => Self::Gt,
+            Kind::Lte => Self::Lte,
+            Kind::Gte => Self::Gte,
+            Kind::Dot => Self::Dot,
+            Kind::Is => Self::Is,
+            Kind::Eq => Self::Assign,
+            Kind::And => Self::And,
+            Kind::Or => Self::Or,
             _ => return None,
-        })
+        };
+
+        Some((op, token))
     }
 }
 
 impl fmt::Display for BinOp {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            BinOp::Add { .. } => {
+            Self::Add => {
                 write!(fmt, "+")?;
             }
-            BinOp::Sub { .. } => {
+            Self::Sub => {
                 write!(fmt, "-")?;
             }
-            BinOp::Div { .. } => {
+            Self::Div => {
                 write!(fmt, "/")?;
             }
-            BinOp::Mul { .. } => {
+            Self::Mul => {
                 write!(fmt, "*")?;
             }
-            BinOp::Eq { .. } => {
+            Self::Eq => {
                 write!(fmt, "==")?;
             }
-            BinOp::Neq { .. } => {
+            Self::Neq => {
                 write!(fmt, "!=")?;
             }
-            BinOp::Gt { .. } => {
+            Self::Gt => {
                 write!(fmt, ">")?;
             }
-            BinOp::Lt { .. } => {
+            Self::Lt => {
                 write!(fmt, "<")?;
             }
-            BinOp::Gte { .. } => {
+            Self::Gte => {
                 write!(fmt, ">=")?;
             }
-            BinOp::Lte { .. } => {
+            Self::Lte => {
                 write!(fmt, "<=")?;
             }
-            BinOp::Dot { .. } => {
+            Self::Dot => {
                 write!(fmt, ".")?;
             }
-            BinOp::Is { .. } => {
+            Self::Is => {
                 write!(fmt, "is")?;
             }
-            BinOp::Assign { .. } => {
+            Self::Assign => {
                 write!(fmt, "=")?;
+            }
+            Self::And => {
+                write!(fmt, "&&")?;
+            }
+            Self::Or => {
+                write!(fmt, "||")?;
             }
         }
 
@@ -759,7 +744,7 @@ impl Parse for BinOp {
         let token = parser.token_next()?;
 
         Ok(match Self::from_token(token) {
-            Some(bin_op) => bin_op,
+            Some((op, _)) => op,
             None => {
                 return Err(ParseError::ExpectedOperatorError {
                     span: token.span,
@@ -1611,8 +1596,8 @@ impl Expr {
         let mut lookahead = parser.token_peek()?.and_then(BinOp::from_token);
 
         loop {
-            let op = match lookahead {
-                Some(op) if op.precedence() >= min_precedence => op,
+            let (op, token) = match lookahead {
+                Some((op, token)) if op.precedence() >= min_precedence => (op, token),
                 _ => break,
             };
 
@@ -1622,8 +1607,13 @@ impl Expr {
             lookahead = parser.token_peek()?.and_then(BinOp::from_token);
 
             loop {
-                let lh = match lookahead {
-                    Some(lh) if lh.precedence() > op.precedence() => lh,
+                let (lh, _) = match lookahead {
+                    Some((lh, _)) if lh.precedence() > op.precedence() => (lh, token),
+                    Some((lh, _)) if lh.precedence() == op.precedence() && !lh.is_assoc(op) => {
+                        return Err(ParseError::PrecedenceGroupRequired {
+                            span: lhs.span().join(rhs.span()),
+                        });
+                    }
                     _ => break,
                 };
 
@@ -1632,7 +1622,7 @@ impl Expr {
             }
 
             lhs = match (op, rhs) {
-                (BinOp::Dot { token }, Expr::CallFn(call_fn)) => {
+                (BinOp::Dot, Expr::CallFn(call_fn)) => {
                     let name = call_fn.name.into_instance_call_ident()?;
 
                     Expr::CallInstanceFn(CallInstanceFn {
@@ -2561,5 +2551,45 @@ impl<'a> Resolve<'a> for Ident {
 
     fn resolve(&self, source: Source<'a>) -> Result<&'a str, ResolveError> {
         source.source(self.token.span)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ast, parse_all};
+
+    #[test]
+    fn test_expr() {
+        parse_all::<ast::Expr>("foo[\"foo\"]").unwrap();
+        parse_all::<ast::Expr>("foo.bar()").unwrap();
+        parse_all::<ast::Expr>("var()").unwrap();
+        parse_all::<ast::Expr>("var").unwrap();
+        parse_all::<ast::Expr>("42").unwrap();
+        parse_all::<ast::Expr>("1 + 2 / 3 - 4 * 1").unwrap();
+        parse_all::<ast::Expr>("foo[\"bar\"]").unwrap();
+        parse_all::<ast::Expr>("let var = 42").unwrap();
+        parse_all::<ast::Expr>("let var = \"foo bar\"").unwrap();
+        parse_all::<ast::Expr>("var[\"foo\"] = \"bar\"").unwrap();
+        parse_all::<ast::Expr>("let var = objects[\"foo\"] + 1").unwrap();
+        parse_all::<ast::Expr>("var = 42").unwrap();
+
+        let expr = parse_all::<ast::Expr>(
+            r#"
+            if 1 { } else { if 2 { } else { } }
+        "#,
+        )
+        .unwrap();
+
+        if let ast::Expr::ExprIf(..) = expr.item {
+        } else {
+            panic!("not an if statement");
+        }
+
+        // Chained function calls.
+        parse_all::<ast::Expr>("foo.bar.baz()").unwrap();
+        parse_all::<ast::Expr>("foo[0][1][2]").unwrap();
+        parse_all::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
+
+        parse_all::<ast::Expr>("42 is int::int").unwrap();
     }
 }

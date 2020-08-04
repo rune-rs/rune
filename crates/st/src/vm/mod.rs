@@ -450,11 +450,24 @@ macro_rules! pop {
 macro_rules! primitive_ops {
     ($vm:expr, $a:ident $op:tt $b:ident) => {
         match ($a, $b) {
-            (ValuePtr::None, ValuePtr::None) => true,
             (ValuePtr::Char($a), ValuePtr::Char($b)) => $a $op $b,
             (ValuePtr::Bool($a), ValuePtr::Bool($b)) => $a $op $b,
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => $a $op $b,
             (ValuePtr::Float($a), ValuePtr::Float($b)) => $a $op $b,
+            (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
+                op: stringify!($op),
+                lhs: lhs.type_info($vm)?,
+                rhs: rhs.type_info($vm)?,
+            }),
+        }
+    }
+}
+
+/// Generate a boolean combination of operations.
+macro_rules! boolean_ops {
+    ($vm:expr, $a:ident $op:tt $b:ident) => {
+        match ($a, $b) {
+            (ValuePtr::Bool($a), ValuePtr::Bool($b)) => $a $op $b,
             (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
                 lhs: lhs.type_info($vm)?,
@@ -1591,6 +1604,28 @@ impl Vm {
         Ok(())
     }
 
+    /// Operation associated with `and` instruction.
+    #[inline]
+    fn op_and(&mut self) -> Result<(), VmError> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        let value = boolean_ops!(self, a && b);
+        self.push(ValuePtr::Bool(value));
+        Ok(())
+    }
+
+    /// Operation associated with `or` instruction.
+    #[inline]
+    fn op_or(&mut self) -> Result<(), VmError> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        let value = boolean_ops!(self, a || b);
+        self.push(ValuePtr::Bool(value));
+        Ok(())
+    }
+
+    /// Test if the top of stack is equal to the string at the given static
+    /// string location.
     #[inline]
     fn op_eq_static_string(&mut self, slot: usize, unit: &CompilationUnit) -> Result<(), VmError> {
         let string = unit
@@ -1852,6 +1887,12 @@ impl Vm {
                         ValuePtr::None => true,
                         _ => false,
                     }));
+                }
+                Inst::And => {
+                    self.op_and()?;
+                }
+                Inst::Or => {
+                    self.op_or()?;
                 }
                 Inst::EqCharacter { character } => {
                     let value = self.pop()?;
