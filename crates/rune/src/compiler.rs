@@ -1278,11 +1278,24 @@ impl<'a> Compiler<'a> {
 
         for (branch, _) in &expr_match.branches {
             let span = branch.span();
+
             let branch_label = self.instructions.new_label("match_branch");
             let match_false = self.instructions.new_label("match_false");
 
             let mut scope = self.last_scope(span)?.new_scope();
-            self.encode_pat(&mut scope, &branch.pat, expr_offset, match_false)?;
+            self.encode_pat(
+                &mut scope,
+                &branch.pat,
+                match_false,
+                Box::new(move |inst| {
+                    inst.push(
+                        st::Inst::Copy {
+                            offset: expr_offset,
+                        },
+                        span,
+                    );
+                }),
+            )?;
             self.instructions.jump(branch_label, span);
             self.instructions.label(match_false)?;
 
@@ -1334,19 +1347,22 @@ impl<'a> Compiler<'a> {
     }
 
     /// Encode an array pattern match.
-    fn encode_array_pat(
+    fn encode_array_pat<Load>(
         &mut self,
         scope: &mut Scope,
         array: &ast::ArrayPat,
-        offset: usize,
         false_label: Label,
-    ) -> Result<()> {
+        load: Load,
+    ) -> Result<()>
+    where
+        Load: 'static + Copy + Fn(&mut st::unit::Assembly),
+    {
         let span = array.span();
 
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed an array.
         {
-            self.instructions.push(st::Inst::Copy { offset }, span);
+            load(&mut self.instructions);
 
             if array.open_pattern.is_some() {
                 self.instructions.push(
@@ -1377,26 +1393,31 @@ impl<'a> Compiler<'a> {
         for (index, (pat, _)) in array.items.iter().enumerate() {
             let span = pat.span();
 
-            // load the given array index and declare it as a local variable.
-            self.instructions.push(st::Inst::Copy { offset }, span);
-            self.instructions
-                .push(st::Inst::ArrayIndexGet { index }, span);
-            let offset = scope.decl_anon(span);
-
-            self.encode_pat(scope, &*pat, offset, false_label)?;
+            self.encode_pat(
+                scope,
+                &*pat,
+                false_label,
+                Box::new(move |inst| {
+                    load(inst);
+                    inst.push(st::Inst::ArrayIndexGet { index }, span);
+                }),
+            )?;
         }
 
         Ok(())
     }
 
     /// Encode an object pattern match.
-    fn encode_object_pat(
+    fn encode_object_pat<Load>(
         &mut self,
         scope: &mut Scope,
         object: &ast::ObjectPat,
-        offset: usize,
         false_label: Label,
-    ) -> Result<()> {
+        load: Load,
+    ) -> Result<()>
+    where
+        Load: 'static + Copy + Fn(&mut st::unit::Assembly),
+    {
         let mut string_slots = Vec::new();
         let span = object.span();
 
@@ -1424,7 +1445,7 @@ impl<'a> Compiler<'a> {
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed an array.
         {
-            self.instructions.push(st::Inst::Copy { offset }, span);
+            load(&mut self.instructions);
 
             if object.open_pattern.is_some() {
                 self.instructions.push(
@@ -1456,12 +1477,15 @@ impl<'a> Compiler<'a> {
             let span = pat.span();
 
             // load the given array index and declare it as a local variable.
-            self.instructions.push(st::Inst::Copy { offset }, span);
-            self.instructions
-                .push(st::Inst::ObjectSlotIndexGet { slot }, span);
-            let offset = scope.decl_anon(span);
-
-            self.encode_pat(scope, &*pat, offset, false_label)?;
+            self.encode_pat(
+                scope,
+                &*pat,
+                false_label,
+                Box::new(move |inst| {
+                    load(inst);
+                    inst.push(st::Inst::ObjectSlotIndexGet { slot }, span);
+                }),
+            )?;
         }
 
         Ok(())
@@ -1477,8 +1501,8 @@ impl<'a> Compiler<'a> {
         &mut self,
         scope: &mut Scope,
         pat: &ast::Pat,
-        offset: usize,
         false_label: Label,
+        load: Box<dyn Fn(&mut st::unit::Assembly) + 'static>,
     ) -> Result<()> {
         log::trace!("{:?}", pat);
         let span = pat.span();
@@ -1487,8 +1511,9 @@ impl<'a> Compiler<'a> {
 
         match pat {
             ast::Pat::BindingPat(binding) => {
+                load(&mut self.instructions);
                 let name = binding.resolve(self.source)?;
-                scope.name_var_at(offset, name, span, Vec::new());
+                scope.new_var(name, span, Vec::new())?;
                 return Ok(());
             }
             ast::Pat::IgnorePat(..) => {
@@ -1496,7 +1521,8 @@ impl<'a> Compiler<'a> {
             }
             ast::Pat::UnitPat(unit) => {
                 let span = unit.span();
-                self.instructions.push(st::Inst::Copy { offset }, span);
+
+                load(&mut self.instructions);
                 self.instructions.push(st::Inst::IsUnit, span);
                 self.instructions.jump_if(true_label, span);
             }
@@ -1505,7 +1531,7 @@ impl<'a> Compiler<'a> {
 
                 let character = char_literal.resolve(self.source)?;
 
-                self.instructions.push(st::Inst::Copy { offset }, span);
+                load(&mut self.instructions);
                 self.instructions
                     .push(st::Inst::EqCharacter { character }, span);
                 self.instructions.jump_if(true_label, span);
@@ -1522,7 +1548,7 @@ impl<'a> Compiler<'a> {
                     }
                 };
 
-                self.instructions.push(st::Inst::Copy { offset }, span);
+                load(&mut self.instructions);
                 self.instructions
                     .push(st::Inst::EqInteger { integer }, span);
 
@@ -1534,17 +1560,29 @@ impl<'a> Compiler<'a> {
                 let string = string.resolve(self.source)?;
                 let slot = self.unit.new_static_string(&*string)?;
 
-                self.instructions.push(st::Inst::Copy { offset }, span);
+                load(&mut self.instructions);
                 self.instructions
                     .push(st::Inst::EqStaticString { slot }, span);
 
                 self.instructions.jump_if(true_label, span);
             }
             ast::Pat::ArrayPat(array) => {
-                return self.encode_array_pat(scope, array, offset, false_label);
+                let span = array.span();
+                let offset = scope.decl_anon(span);
+                load(&mut self.instructions);
+
+                return self.encode_array_pat(scope, array, false_label, move |inst| {
+                    inst.push(st::Inst::Copy { offset }, span);
+                });
             }
             ast::Pat::ObjectPat(object) => {
-                return self.encode_object_pat(scope, object, offset, false_label);
+                let span = object.span();
+                let offset = scope.decl_anon(span);
+                load(&mut self.instructions);
+
+                return self.encode_object_pat(scope, object, false_label, move |inst| {
+                    inst.push(st::Inst::Copy { offset }, span);
+                });
             }
         }
 
@@ -1676,19 +1714,6 @@ impl Scope {
         self.total_var_count += 1;
         self.local_var_count += 1;
         offset
-    }
-
-    /// Name the last anonymous variable.
-    pub fn name_var_at(&mut self, offset: usize, name: &str, span: Span, references_at: Vec<Span>) {
-        self.locals.insert(
-            name.to_owned(),
-            Var {
-                offset,
-                name: name.to_owned(),
-                span,
-                references_at,
-            },
-        );
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
