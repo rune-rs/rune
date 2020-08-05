@@ -18,6 +18,13 @@ pub enum Warning {
         /// The context in which it is used.
         context: Option<Span>,
     },
+    /// A break that does not produce a value.
+    BreakDoesNotProduceValue {
+        /// The span of the break.
+        span: Span,
+        /// The context in which it is used.
+        context: Option<Span>,
+    },
 }
 /// Compilation warnings.
 #[derive(Debug, Clone, Default)]
@@ -48,6 +55,12 @@ impl Warnings {
     pub(super) fn let_pattern_might_panic(&mut self, span: Span, context: Option<Span>) {
         self.warnings
             .push(Warning::LetPatternMightPanic { span, context });
+    }
+
+    /// Indicate that a break expression is being used in a value expression.
+    pub(super) fn break_does_not_produce_value(&mut self, span: Span, context: Option<Span>) {
+        self.warnings
+            .push(Warning::BreakDoesNotProduceValue { span, context });
     }
 }
 

@@ -370,19 +370,14 @@ impl Runtime {
             let mut notes = Vec::new();
 
             for warning in warnings {
-                match warning {
+                let context = match warning {
                     Warning::NotUsed { span, context } => {
                         labels.push(
                             Label::primary(source_file, span.start..span.end)
                                 .with_message("value not used"),
                         );
 
-                        if let Some(context) = context {
-                            labels.push(
-                                Label::secondary(source_file, context.start..context.end)
-                                    .with_message("in this context"),
-                            );
-                        }
+                        context
                     }
                     Warning::LetPatternMightPanic { span, context } => {
                         labels.push(
@@ -403,13 +398,22 @@ impl Runtime {
                             notes.push(note);
                         }
 
-                        if let Some(context) = context {
-                            labels.push(
-                                Label::secondary(source_file, context.start..context.end)
-                                    .with_message("in this context"),
-                            );
-                        }
+                        context
                     }
+                    Warning::BreakDoesNotProduceValue { span, context } => {
+                        labels.push(
+                            Label::primary(source_file, span.start..span.end)
+                                .with_message("break expressions do not produce a value"),
+                        );
+                        context
+                    }
+                };
+
+                if let Some(context) = context {
+                    labels.push(
+                        Label::secondary(source_file, context.start..context.end)
+                            .with_message("in this context"),
+                    );
                 }
             }
 

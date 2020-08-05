@@ -183,6 +183,10 @@ impl<'a> Compiler<'a> {
         }
 
         if let Some(expr) = &block.trailing_expr {
+            if !*needs_value {
+                self.warnings.not_used(expr.span(), self.context());
+            }
+
             self.encode_expr(expr, needs_value)?;
         }
 
@@ -523,6 +527,7 @@ impl<'a> Compiler<'a> {
         let break_label = self.asm.new_label("while_break");
 
         let loop_count = self.loops.push(Loop {
+            label: expr_while.label.map(|(label, _)| label),
             break_label,
             total_var_count: self.scopes.last(span)?.total_var_count,
             needs_value,
@@ -558,6 +563,7 @@ impl<'a> Compiler<'a> {
         let scopes_count = self.scopes.push(new_scope);
 
         let loop_count = self.loops.push(Loop {
+            label: expr_for.label.map(|(label, _)| label),
             break_label,
             total_var_count: self.scopes.last(span)?.total_var_count,
             needs_value,
@@ -687,6 +693,7 @@ impl<'a> Compiler<'a> {
         let break_label = self.asm.new_label("loop_break");
 
         let loop_count = self.loops.push(Loop {
+            label: expr_loop.label.map(|(label, _)| label),
             break_label,
             total_var_count: self.scopes.last(span)?.total_var_count,
             needs_value,
@@ -806,19 +813,31 @@ impl<'a> Compiler<'a> {
         let span = expr_break.span();
 
         if *needs_value {
-            return Err(CompileError::BreakDoesNotProduceValue { span });
+            self.warnings
+                .break_does_not_produce_value(span, self.context());
         }
 
-        let last_loop = match self.loops.last() {
-            Some(last_loop) => last_loop,
+        let current_loop = match self.loops.last() {
+            Some(current_loop) => current_loop,
             None => {
                 return Err(CompileError::BreakOutsideOfLoop { span });
             }
         };
 
-        if let Some(expr) = &expr_break.expr {
-            self.encode_expr(&*expr, last_loop.needs_value)?;
-        }
+        let (last_loop, has_value) = if let Some(expr) = &expr_break.expr {
+            match expr {
+                ast::ExprBreakValue::Expr(expr) => {
+                    self.encode_expr(&*expr, current_loop.needs_value)?;
+                    (current_loop, true)
+                }
+                ast::ExprBreakValue::Label(label) => {
+                    let last_loop = self.loops.walk_until_label(self.source, *label)?;
+                    (last_loop, false)
+                }
+            }
+        } else {
+            (current_loop, false)
+        };
 
         let vars = self
             .scopes
@@ -828,11 +847,11 @@ impl<'a> Compiler<'a> {
             .ok_or_else(|| CompileError::internal("var count should be larger", span))?;
 
         if *last_loop.needs_value {
-            if expr_break.expr.is_none() {
+            if has_value {
+                self.locals_clean(vars, span);
+            } else {
                 self.locals_pop(vars, span);
                 self.asm.push(st::Inst::Unit, span);
-            } else {
-                self.locals_clean(vars, span);
             }
         } else {
             self.locals_pop(vars, span);

@@ -133,6 +133,14 @@ impl Span {
             end: self.end.saturating_sub(amount),
         }
     }
+
+    /// Trim the start of the label by the given amount.
+    pub fn trim_start(self, amount: usize) -> Self {
+        Self {
+            start: usize::min(self.start.saturating_add(amount), self.end),
+            end: self.end,
+        }
+    }
 }
 
 impl fmt::Display for Span {

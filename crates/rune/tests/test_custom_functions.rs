@@ -4,7 +4,7 @@ async fn run_main<T>(functions: &st::Context, source: &str) -> Result<T>
 where
     T: st::FromValue,
 {
-    let unit = rune::compile(source)?;
+    let (unit, _) = rune::compile(source)?;
     let mut vm = st::Vm::new();
     let task: st::Task<T> = vm.call_function(functions, &unit, &["main"], ())?;
     let output = task.run_to_completion().await?;

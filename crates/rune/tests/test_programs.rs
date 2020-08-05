@@ -4,7 +4,7 @@ async fn run_main<T>(source: &str) -> st::Result<T>
 where
     T: st::FromValue,
 {
-    let unit = rune::compile(source)?;
+    let (unit, _) = rune::compile(source)?;
     let mut vm = st::Vm::new();
     let context = st::Context::with_default_packages()?;
     let task: st::Task<T> = vm.call_function(&context, &unit, &["main"], ())?;
@@ -15,12 +15,14 @@ where
 /// Run the given program as a test.
 macro_rules! test {
     ($ty:ty => $source:expr) => {
-        run_main::<$ty>($source).await.unwrap()
+        run_main::<$ty>($source)
+            .await
+            .expect("program to run successfully")
     };
 }
 
-macro_rules! test_err {
-    ($pat:pat => $cond:expr, $source:expr) => {{
+macro_rules! test_vm_error {
+    ($source:expr, $pat:pat => $cond:expr) => {{
         let e = run_main::<()>($source).await.unwrap_err();
 
         let e = match e.downcast_ref::<st::VmError>() {
@@ -31,7 +33,7 @@ macro_rules! test_err {
         };
 
         match e {
-            $pat => ($cond),
+            $pat => $cond,
             _ => {
                 panic!("expected error `{}` but was `{:?}`", stringify!($pat), e);
             }
@@ -45,15 +47,18 @@ async fn test_small_programs() {
     assert_eq!(test!(st::Unit => r#"fn main() {}"#), st::Unit);
 
     assert_eq! {
-        test!(i64 => r#"
-        fn main() {
-            let a = 1;
-            let b = 2;
-            let c = a + b;
-            let d = c * 2;
-            let e = d / 3;
-            e
-        }"#),
+        test! {
+            i64 => r#"
+            fn main() {
+                let a = 1;
+                let b = 2;
+                let c = a + b;
+                let d = c * 2;
+                let e = d / 3;
+                e
+            }
+            "#
+        },
         2,
     };
 }
@@ -104,31 +109,36 @@ async fn test_boolean_ops() {
 #[tokio::test]
 async fn test_if() {
     assert_eq! {
-        test!(i64 => r#"
-        fn main() {
-            let n = 2;
+        test! {
+            i64 => r#"
+            fn main() {
+                let n = 2;
 
-            if n > 5 {
-                10
-            } else {
-                0
+                if n > 5 {
+                    10
+                } else {
+                    0
+                }
             }
-        }"#),
+            "#
+        },
         0,
     };
 
     assert_eq! {
-        test!(i64 => r#"
-        fn main() {
-            let n = 6;
+        test!{
+            i64 => r#"
+            fn main() {
+                let n = 6;
 
-            if n > 5 {
-                10
-            } else {
-                0
+                if n > 5 {
+                    10
+                } else {
+                    0
+                }
             }
-        }
-        "#),
+            "#
+        },
         10,
     };
 }
@@ -136,17 +146,20 @@ async fn test_if() {
 #[tokio::test]
 async fn test_block() {
     assert_eq! {
-        test!(i64 => r#"
-        fn main() {
-            let b = 10;
+        test! {
+            i64 => r#"
+            fn main() {
+                let b = 10;
 
-            let n = {
-                let a = 10;
-                a + b
-            };
+                let n = {
+                    let a = 10;
+                    a + b
+                };
 
-            n + 1
-        }"#),
+                n + 1
+            }
+            "#
+        },
         21,
     };
 }
@@ -154,12 +167,15 @@ async fn test_block() {
 #[tokio::test]
 async fn test_shadowing() {
     assert_eq! {
-        test!(i64 => r#"
-        fn main() {
-            let a = 10;
-            let a = a;
-            a
-        }"#),
+        test! {
+            i64 => r#"
+            fn main() {
+                let a = 10;
+                let a = a;
+                a
+            }
+            "#
+        },
         10,
     };
 }
@@ -175,34 +191,40 @@ async fn test_arrays() {
 #[tokio::test]
 async fn test_while() {
     assert_eq! {
-        test!(i64 => r#"
-        fn main() {
-            let a = 0;
+        test!{
+            i64 => r#"
+            fn main() {
+                let a = 0;
 
-            while a < 10 {
-                a = a + 1;
+                while a < 10 {
+                    a = a + 1;
+                }
+
+                a
             }
-
-            a
-        }"#),
+            "#
+        },
         10,
     };
 
     assert_eq! {
-        test!(i64 => r#"
-        fn main() {
-            let a = 0;
+        test! {
+            i64 => r#"
+            fn main() {
+                let a = 0;
 
-            let a = while a >= 0 {
-                if a >= 10 {
-                    break a;
-                }
+                let a = while a >= 0 {
+                    if a >= 10 {
+                        break a;
+                    }
 
-                a = a + 1;
-            };
+                    a = a + 1;
+                };
 
-            a
-        }"#),
+                a
+            }
+            "#
+        },
         10,
     };
 }
@@ -210,38 +232,44 @@ async fn test_while() {
 #[tokio::test]
 async fn test_loop() {
     assert_eq! {
-        test!((i64, bool) => r#"
-        fn main() {
-            let a = 0;
+        test! {
+            (i64, bool) => r#"
+            fn main() {
+                let a = 0;
 
-            let value = loop {
-                if a >= 10 {
-                    break;
-                }
+                let value = loop {
+                    if a >= 10 {
+                        break;
+                    }
 
-                a = a + 1;
-            };
+                    a = a + 1;
+                };
 
-            [a, value is unit]
-        }"#),
+                [a, value is unit]
+            }
+            "#
+        },
         (10, true),
     };
 
     assert_eq! {
-        test!(i64 => r#"
-        fn main() {
-            let n = 0;
+        test! {
+            i64 => r#"
+            fn main() {
+                let n = 0;
 
-            let n = loop {
-                if n >= 10 {
-                    break n;
-                }
+                let n = loop {
+                    if n >= 10 {
+                        break n;
+                    }
 
-                n = n + 1;
-            };
+                    n = n + 1;
+                };
 
-            n
-        }"#),
+                n
+            }
+            "#
+        },
         10,
     };
 }
@@ -249,61 +277,70 @@ async fn test_loop() {
 #[tokio::test]
 async fn test_for() {
     assert_eq! {
-        test!(i64 => r#"
-        use std::iter::range;
+        test! {
+            i64 => r#"
+            use std::iter::range;
 
-        fn main() {
-            let a = 0;
-            let it = range(0, 10);
+            fn main() {
+                let a = 0;
+                let it = range(0, 10);
 
-            for v in it {
-                a = a + 1;
+                for v in it {
+                    a = a + 1;
+                }
+
+                a
             }
-
-            a
-        }"#),
+            "#
+        },
         10,
     };
 
     assert_eq! {
-        test!(i64 => r#"
-        use std::iter::range;
+        test! {
+            i64 => r#"
+            use std::iter::range;
 
-        fn main() {
-            let a = 0;
-            let it = range(0, 100);
+            fn main() {
+                let a = 0;
+                let it = range(0, 100);
 
-            let a = for v in it {
-                if a >= 10 {
-                    break a;
-                }
+                let a = for v in it {
+                    if a >= 10 {
+                        break a;
+                    }
 
-                a = a + 1;
-            };
+                    a = a + 1;
+                };
 
-            a
-        }"#),
+                a
+            }
+            "#
+        },
         10,
     };
 
     assert_eq! {
-        test!(bool => r#"
-        use std::iter::range;
+        test! {
+            bool => r#"
+            use std::iter::range;
 
-        fn main() {
-            let a = 0;
-            let it = range(0, 100);
+            fn main() {
+                let a = 0;
+                let it = range(0, 100);
 
-            let a = for v in it {
-                if a >= 10 {
-                    break;
-                }
+                let a = for v in it {
+                    if a >= 10 {
+                        break;
+                    }
 
-                a = a + 1;
-            };
+                    a = a + 1;
+                };
 
-            a is unit
-        }"#),
+                a is unit
+            }
+            "#
+        },
         true,
     };
 }
@@ -311,18 +348,21 @@ async fn test_for() {
 #[tokio::test]
 async fn test_return() {
     assert_eq! {
-        test!(i64 => r#"
-        use std::iter::range;
+        test! {
+            i64 => r#"
+            use std::iter::range;
 
-        fn main() {
-            for v in range(0, 20) {
-                if v == 10 {
-                    return v;
+            fn main() {
+                for v in range(0, 20) {
+                    if v == 10 {
+                        return v;
+                    }
                 }
-            }
 
-            0
-        }"#),
+                0
+            }
+            "#
+        },
         10,
     };
 }
@@ -529,28 +569,31 @@ async fn test_object_match() {
 #[tokio::test]
 async fn test_bad_pattern() {
     // Attempting to assign to an unmatched pattern leads to a panic.
-    test_err!(
-        Panic { reason: st::Panic::UnmatchedPattern } => {},
+    test_vm_error!(
         r#"
         fn main() {
             let [] = [1, 2, 3];
         }
-        "#
+        "#,
+        Panic { reason: st::Panic::UnmatchedPattern } => {}
     );
 }
 
 #[tokio::test]
 async fn test_destructuring() {
     assert_eq! {
-        test!(i64 => r#"
-        fn foo(n) {
-            [n, n + 1]
-        }
+        test! {
+            i64 => r#"
+            fn foo(n) {
+                [n, n + 1]
+            }
 
-        fn main() {
-            let [a, b] = foo(3);
-            a + b
-        }"#),
+            fn main() {
+                let [a, b] = foo(3);
+                a + b
+            }
+            "#
+        },
         7,
     };
 }
@@ -558,45 +601,86 @@ async fn test_destructuring() {
 #[tokio::test]
 async fn test_if_pattern() {
     assert_eq! {
-        test!(bool =>
-        r#"
-        fn main() {
-            if let [value] = [()] {
-                true
-            } else {
-                false
+        test! {
+            bool => r#"
+            fn main() {
+                if let [value] = [()] {
+                    true
+                } else {
+                    false
+                }
             }
-        }"#),
+            "#
+        },
         true,
     };
 
     assert_eq! {
-        test!(bool =>
-        r#"
-        fn main() {
-            if let [value] = [(), ()] {
-                true
-            } else {
-                false
+        test! {
+            bool => r#"
+            fn main() {
+                if let [value] = [(), ()] {
+                    true
+                } else {
+                    false
+                }
             }
-        }"#),
+            "#
+        },
         false,
     };
 
     assert_eq! {
-        test!(i64 =>
-        r#"
-        fn main() {
-            let value = [(), (), 2];
+        test! {
+            i64 => r#"
+            fn main() {
+                let value = [(), (), 2];
 
-            if let [(), ()] = value {
-                1
-            } else if let [(), (), c] = value {
-                c
-            } else {
-                3
+                if let [(), ()] = value {
+                    1
+                } else if let [(), (), c] = value {
+                    c
+                } else {
+                    3
+                }
             }
-        }"#),
+            "#
+        },
         2,
+    };
+}
+
+#[tokio::test]
+async fn test_break_label() {
+    assert_eq! {
+        test! {
+            i64 => r#"
+            use std::iter::range;
+
+            fn main() {
+                let it = range(0, 1000);
+                let tail = 77;
+
+                'label:
+                while true {
+                    let value = 10;
+
+                    for n in it {
+                        loop {
+                            let value2 = 20;
+                            break 'label;
+                        }
+
+                        tail = tail + 1;
+                    }
+
+                    tail = tail + 1;
+                }
+
+                tail
+            }
+            "#
+        },
+        77,
     };
 }

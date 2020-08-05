@@ -1,5 +1,6 @@
 use rune::CompileError::*;
 use rune::ParseError::*;
+use rune::Warning::*;
 use st::unit::Span;
 
 macro_rules! test_parse {
@@ -8,8 +9,8 @@ macro_rules! test_parse {
     }};
 }
 
-macro_rules! test_compile_err {
-    ($pat:pat => $cond:expr, $source:expr) => {{
+macro_rules! test_compile_error {
+    ($source:expr, $pat:pat => $cond:expr) => {{
         let err = rune::compile($source).unwrap_err();
 
         match err {
@@ -21,8 +22,30 @@ macro_rules! test_compile_err {
     }};
 }
 
-macro_rules! test_parse_err {
-    ($pat:pat => $cond:expr, $source:expr) => {{
+macro_rules! test_warnings {
+    ($source:expr $(, $pat:pat => $cond:expr)*) => {{
+        let (_, warnings) = rune::compile($source).expect("source should compile");
+        assert!(!warnings.is_empty(), "no warnings produced");
+
+        let mut it = warnings.into_iter();
+
+        $(
+            let warning = it.next().expect("expected a warning");
+
+            match warning {
+                $pat => ($cond),
+                warning => {
+                    panic!("expected warning `{}` but was `{:?}`", stringify!($pat), warning);
+                }
+            }
+        )*
+
+        assert!(it.next().is_none(), "there should be no more warnings");
+    }};
+}
+
+macro_rules! test_parse_error {
+    ($source:expr, $pat:pat => $cond:expr) => {{
         let err = rune::compile($source).unwrap_err();
 
         match err {
@@ -36,100 +59,79 @@ macro_rules! test_parse_err {
 
 #[test]
 fn break_outside_of_loop() {
-    test_compile_err! {
-        BreakOutsideOfLoop { span } => assert_eq!(span, Span::new(41, 46)),
-        r#"
-            fn main() {
-                break;
-            }
-        "#
+    test_compile_error! {
+        r#"fn main() { break; }"#,
+        BreakOutsideOfLoop { span } => {
+            assert_eq!(span, Span::new(12, 17));
+        }
     };
 }
 
 #[test]
 fn test_break_as_value() {
-    test_compile_err! {
-        BreakDoesNotProduceValue { span } => assert_eq!(span, Span::new(41, 46)),
-        r#"
-            fn main() {
-                break
-            }
-        "#
+    test_warnings! {
+        r#"fn main() { loop { let _ = break; } }"#,
+        BreakDoesNotProduceValue { span, .. } => {
+            assert_eq!(span, Span::new(27, 32));
+        }
+    };
+
+    test_warnings! {
+        r#"fn main() { loop { break } }"#,
+        NotUsed { span, .. } => {
+            assert_eq!(span, Span::new(19, 24));
+        }
     };
 }
 
 #[test]
 fn test_assign_exprs() {
-    test_parse! {
-        r#"
-            fn main() {
-                let var = 1;
-                var = 42;
-            }
-        "#
-    };
+    test_parse!(r#"fn main() { let var = 1; var = 42; }"#);
 
-    test_compile_err! {
-        UnsupportedAssignExpr { span } => assert_eq!(span, Span::new(41, 47)),
-        r#"
-            fn main() {
-                1 = 42;
-            }
-        "#
+    test_compile_error! {
+        r#"fn main() { 1 = 42; }"#,
+        UnsupportedAssignExpr { span } => {
+            assert_eq!(span, Span::new(12, 18));
+        }
     };
 }
 
 #[test]
 fn test_match() {
-    test_parse_err! {
+    test_parse_error! {
+        r#"fn main(n) { match n { _ => 1, _ => 2, } }"#,
         MatchMultipleFallbackBranches { span, existing } => {
-            assert_eq!(span, Span::new(84, 90));
-            assert_eq!(existing, Span::new(60, 66));
-        },
-        r#"
-        fn main(n) {
-            match n {
-                _ => 1,
-                _ => 2,
-            }
+            assert_eq!(span, Span::new(31, 37));
+            assert_eq!(existing, Span::new(23, 29));
         }
-        "#
     };
 
-    test_parse_err! {
+    test_parse_error! {
+        r#"fn main(n) { match n { _ => 1, 5 => 2, } }"#,
         MatchNeverReached { span, existing } => {
-            assert_eq!(span, Span::new(84, 90));
-            assert_eq!(existing, Span::new(60, 66));
-        },
-        r#"
-        fn main(n) {
-            match n {
-                _ => 1,
-                5 => 2,
-            }
+            assert_eq!(span, Span::new(31, 37));
+            assert_eq!(existing, Span::new(23, 29));
         }
-        "#
     };
 }
 
 #[tokio::test]
 async fn test_pointers() {
-    test_compile_err! {
-        UnsupportedRef { span } => assert_eq!(span, Span::new(61, 62)),
-        r#"
-        fn main() {
-            let n = 0;
-            foo(&n);
+    test_compile_error! {
+        r#"fn main() { let n = 0; foo(&n); }"#,
+        UnsupportedRef { span } => {
+            assert_eq!(span, Span::new(28, 29));
         }
-        "#
     };
 }
 
 #[test]
 fn test_binary_exprs() {
-    test_parse_err! {
-        PrecedenceGroupRequired { span } => assert_eq!(span, Span::new(12, 18)),
-        r#"fn main() { 0 < 10 >= 10 }"#
+    test_parse_error! {
+        r#"fn main() { 0 < 10 >= 10 }"#,
+        PrecedenceGroupRequired { span } => {
+            assert_eq!(span, Span::new(12, 18));
+        }
     };
 
     // Test solving precedence with groups.

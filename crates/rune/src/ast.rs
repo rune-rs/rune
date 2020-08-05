@@ -1565,6 +1565,22 @@ impl Expr {
         let token = parser.token_peek_eof()?;
 
         let expr = match token.kind {
+            Kind::Label => {
+                let label = Some((parser.parse::<Label>()?, parser.parse::<Colon>()?));
+                let token = parser.token_peek_eof()?;
+
+                return Ok(match token.kind {
+                    Kind::While => Self::ExprWhile(ExprWhile::parse_with_label(parser, label)?),
+                    Kind::Loop => Self::ExprLoop(ExprLoop::parse_with_label(parser, label)?),
+                    Kind::For => Self::ExprFor(ExprFor::parse_with_label(parser, label)?),
+                    _ => {
+                        return Err(ParseError::ExpectedLoopError {
+                            actual: token.kind,
+                            span: token.span,
+                        });
+                    }
+                });
+            }
             Kind::StartObject => Self::ObjectLiteral(parser.parse()?),
             Kind::Not | Kind::Ampersand | Kind::Star => Self::ExprUnary(parser.parse()?),
             Kind::While => Self::ExprWhile(parser.parse()?),
@@ -1747,13 +1763,17 @@ impl Parse for Expr {
 }
 
 impl Peek for Expr {
-    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
+    fn peek(t1: Option<Token>, t2: Option<Token>) -> bool {
         let t1 = match t1 {
             Some(t1) => t1,
             None => return false,
         };
 
         match t1.kind {
+            Kind::Label => match t2.map(|t| t.kind) {
+                Some(Kind::Colon) => true,
+                _ => false,
+            },
             Kind::StartObject => true,
             Kind::Not | Kind::Ampersand | Kind::Star => true,
             Kind::While => true,
@@ -1971,6 +1991,8 @@ impl Parse for ExprLet {
 /// A let expression `let <name> = <expr>;`
 #[derive(Debug, Clone)]
 pub struct ExprWhile {
+    /// A label for the while loop.
+    pub label: Option<(Label, Colon)>,
     /// The `while` keyword.
     pub while_: While,
     /// The name of the binding.
@@ -1984,15 +2006,30 @@ impl ExprWhile {
     pub fn span(&self) -> Span {
         self.while_.token.span.join(self.body.span())
     }
-}
 
-impl Parse for ExprWhile {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    /// Parse with the given label.
+    pub fn parse_with_label(
+        parser: &mut Parser<'_>,
+        label: Option<(Label, Colon)>,
+    ) -> Result<Self, ParseError> {
         Ok(ExprWhile {
+            label,
             while_: parser.parse()?,
             condition: Box::new(parser.parse()?),
             body: Box::new(parser.parse()?),
         })
+    }
+}
+
+impl Parse for ExprWhile {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let label = if parser.peek::<Label>()? {
+            Some((parser.parse()?, parser.parse()?))
+        } else {
+            None
+        };
+
+        Self::parse_with_label(parser, label)
     }
 }
 
@@ -2012,6 +2049,18 @@ impl ExprLoop {
     pub fn span(&self) -> Span {
         self.loop_.token.span.join(self.body.span())
     }
+
+    /// Parse with the given label.
+    pub fn parse_with_label(
+        parser: &mut Parser<'_>,
+        label: Option<(Label, Colon)>,
+    ) -> Result<Self, ParseError> {
+        Ok(ExprLoop {
+            label,
+            loop_: parser.parse()?,
+            body: Box::new(parser.parse()?),
+        })
+    }
 }
 
 impl Parse for ExprLoop {
@@ -2022,17 +2071,15 @@ impl Parse for ExprLoop {
             None
         };
 
-        Ok(ExprLoop {
-            label,
-            loop_: parser.parse()?,
-            body: Box::new(parser.parse()?),
-        })
+        Self::parse_with_label(parser, label)
     }
 }
 
 /// A let expression `let <name> = <expr>;`
 #[derive(Debug, Clone)]
 pub struct ExprFor {
+    /// The label of the loop.
+    pub label: Option<(Label, Colon)>,
     /// The `for` keyword.
     pub for_: For,
     /// The variable binding.
@@ -2051,17 +2098,32 @@ impl ExprFor {
     pub fn span(&self) -> Span {
         self.for_.token.span.join(self.body.span())
     }
-}
 
-impl Parse for ExprFor {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    /// Parse with the given label.
+    pub fn parse_with_label(
+        parser: &mut Parser<'_>,
+        label: Option<(Label, Colon)>,
+    ) -> Result<Self, ParseError> {
         Ok(Self {
+            label,
             for_: parser.parse()?,
             var: parser.parse()?,
             in_: parser.parse()?,
             iter: Box::new(parser.parse()?),
             body: Box::new(parser.parse()?),
         })
+    }
+}
+
+impl Parse for ExprFor {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let label = if parser.peek::<Label>()? {
+            Some((parser.parse()?, parser.parse()?))
+        } else {
+            None
+        };
+
+        Self::parse_with_label(parser, label)
     }
 }
 
@@ -2462,13 +2524,52 @@ impl Parse for ExprGroup {
     }
 }
 
+/// Things that we can break on.
+#[derive(Debug, Clone)]
+pub enum ExprBreakValue {
+    /// Breaking a value out of a loop.
+    Expr(Box<Expr>),
+    /// Break and jump to the given label.
+    Label(Label),
+}
+
+impl ExprBreakValue {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Expr(expr) => expr.span(),
+            Self::Label(label) => label.span(),
+        }
+    }
+}
+
+impl Parse for ExprBreakValue {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let token = parser.token_peek_eof()?;
+
+        Ok(match token.kind {
+            Kind::Label => Self::Label(parser.parse()?),
+            _ => Self::Expr(Box::new(parser.parse()?)),
+        })
+    }
+}
+
+impl Peek for ExprBreakValue {
+    fn peek(t1: Option<Token>, t2: Option<Token>) -> bool {
+        match t1.map(|t| t.kind) {
+            Some(Kind::Label) => true,
+            _ => Expr::peek(t1, t2),
+        }
+    }
+}
+
 /// A return statement `break [expr]`.
 #[derive(Debug, Clone)]
 pub struct ExprBreak {
     /// The return token.
     pub break_: Break,
     /// An optional expression to break with.
-    pub expr: Option<Box<Expr>>,
+    pub expr: Option<ExprBreakValue>,
 }
 
 impl ExprBreak {
@@ -2486,8 +2587,8 @@ impl Parse for ExprBreak {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let break_ = parser.parse()?;
 
-        let expr = if parser.peek::<Expr>()? {
-            Some(Box::new(parser.parse()?))
+        let expr = if parser.peek::<ExprBreakValue>()? {
+            Some(parser.parse()?)
         } else {
             None
         };
@@ -2618,6 +2719,14 @@ impl<'a> Resolve<'a> for Ident {
 
     fn resolve(&self, source: Source<'a>) -> Result<&'a str, ResolveError> {
         source.source(self.token.span)
+    }
+}
+
+impl<'a> Resolve<'a> for Label {
+    type Output = &'a str;
+
+    fn resolve(&self, source: Source<'a>) -> Result<&'a str, ResolveError> {
+        source.source(self.token.span.trim_start(1))
     }
 }
 

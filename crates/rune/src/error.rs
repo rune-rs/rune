@@ -161,6 +161,14 @@ pub enum ParseError {
         /// The kind of the actual token we saw.
         actual: Kind,
     },
+    /// When we expect to see a loop (typically after a label).
+    #[error("expected loop but got `{actual}")]
+    ExpectedLoopError {
+        /// Span that caused the error.
+        span: Span,
+        /// The kind of the actual token we saw.
+        actual: Kind,
+    },
     /// Expected a block expression but got something else.
     #[error("expected block expression but got `{actual}`")]
     ExpectedBlockExprError {
@@ -267,6 +275,7 @@ impl SpannedError for ParseError {
             Self::TokenMismatch { span, .. } => span,
             Self::ExpectedPatError { span, .. } => span,
             Self::ExpectedExprError { span, .. } => span,
+            Self::ExpectedLoopError { span, .. } => span,
             Self::ExpectedBlockExprError { span, .. } => span,
             Self::UnexpectedChar { span, .. } => span,
             Self::ExpectedNumberError { span, .. } => span,
@@ -334,6 +343,12 @@ pub enum CompileError {
         /// The name of the missing module.
         module: st::Item,
     },
+    /// A specific label is missing.
+    #[error("label not found in scope")]
+    MissingLabel {
+        /// The span of the missing label.
+        span: Span,
+    },
     /// Encountered a binary operator we can't encode.
     #[error("unsupported binary operator `{op}`")]
     UnsupportedBinaryOp {
@@ -361,13 +376,6 @@ pub enum CompileError {
     #[error("cannot take reference of expression")]
     UnsupportedRef {
         /// The thing we are taking the reference of.
-        span: Span,
-    },
-    /// Error raised when trying to use a break expression in a context which
-    /// does not produce a value.
-    #[error("break expressions cannot be used as a value")]
-    BreakDoesNotProduceValue {
-        /// The span of the illegal break.
         span: Span,
     },
     /// Error raised when trying to use a break outside of a loop.
@@ -432,11 +440,11 @@ impl SpannedError for CompileError {
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
             Self::MissingModule { span, .. } => span,
+            Self::MissingLabel { span, .. } => span,
             Self::UnsupportedRef { span, .. } => span,
             Self::UnsupportedUnaryOp { span, .. } => span,
             Self::UnsupportedBinaryOp { span, .. } => span,
             Self::UnsupportedAssignExpr { span, .. } => span,
-            Self::BreakDoesNotProduceValue { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,
             Self::ReturnLocalReferences { span, .. } => span,
             Self::ReturnDoesNotProduceValue { span, .. } => span,

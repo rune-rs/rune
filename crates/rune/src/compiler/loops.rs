@@ -1,5 +1,7 @@
+use crate::ast;
 use crate::compiler::{NeedsValue, Result};
 use crate::error::CompileError;
+use crate::source::Source;
 use st::unit::{Label, Span};
 
 #[must_use]
@@ -8,6 +10,8 @@ pub(super) struct LoopGuard(usize);
 /// Loops we are inside.
 #[derive(Clone, Copy)]
 pub(super) struct Loop {
+    /// The optional label of the loop.
+    pub(super) label: Option<ast::Label>,
     /// The end label of the loop.
     pub(super) break_label: Label,
     /// The number of variables observed at the start of the loop.
@@ -52,5 +56,32 @@ impl Loops {
         }
 
         Ok(())
+    }
+
+    /// Find the loop with the matching label.
+    pub(super) fn walk_until_label(
+        &self,
+        source: Source<'_>,
+        expected: ast::Label,
+    ) -> Result<Loop> {
+        use crate::traits::Resolve as _;
+
+        let span = expected.span();
+        let expected = expected.resolve(source)?;
+
+        for l in self.loops.iter().rev() {
+            let label = match l.label {
+                Some(label) => label,
+                None => continue,
+            };
+
+            let label = label.resolve(source)?;
+
+            if expected == label {
+                return Ok(*l);
+            }
+        }
+
+        Err(CompileError::MissingLabel { span })
     }
 }
