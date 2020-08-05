@@ -14,4 +14,9 @@ impl<'a> Source<'a> {
             .get(span.start..span.end)
             .ok_or_else(|| ResolveError::BadSlice { span })
     }
+
+    /// Get the end of the source.
+    pub fn end(&self) -> usize {
+        self.source.len()
+    }
 }

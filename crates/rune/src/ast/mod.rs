@@ -42,6 +42,7 @@ mod pat;
 mod pat_array;
 mod pat_object;
 mod path;
+mod utils;
 
 pub use self::call_fn::CallFn;
 pub use self::call_instance_fn::CallInstanceFn;

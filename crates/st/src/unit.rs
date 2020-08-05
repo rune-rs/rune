@@ -95,6 +95,22 @@ impl Span {
         Self { start, end }
     }
 
+    /// Return a span with a modified start position.
+    pub fn with_start(self, start: usize) -> Self {
+        Self {
+            start,
+            end: self.end,
+        }
+    }
+
+    /// Return a span with a modified end position.
+    pub fn with_end(self, end: usize) -> Self {
+        Self {
+            start: self.start,
+            end,
+        }
+    }
+
     /// Check if current span completely overlaps with another.
     pub fn overlaps(self, other: Span) -> bool {
         self.start <= other.start && self.end >= other.end

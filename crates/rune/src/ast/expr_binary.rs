@@ -114,9 +114,13 @@ impl BinOp {
     pub(super) fn from_token(token: Token) -> Option<(BinOp, Token)> {
         let op = match token.kind {
             Kind::Add => Self::Add,
+            Kind::AddAssign => Self::AddAssign,
             Kind::Sub => Self::Sub,
+            Kind::SubAssign => Self::SubAssign,
             Kind::Div => Self::Div,
+            Kind::DivAssign => Self::DivAssign,
             Kind::Mul => Self::Mul,
+            Kind::MulAssign => Self::MulAssign,
             Kind::EqEq => Self::Eq,
             Kind::Neq => Self::Neq,
             Kind::Lt => Self::Lt,

@@ -684,3 +684,11 @@ async fn test_break_label() {
         77,
     };
 }
+
+#[tokio::test]
+async fn test_literal() {
+    assert_eq! {
+        test!(char => r#"fn main() { '\u{1F4AF}' }"#),
+        '💯',
+    };
+}

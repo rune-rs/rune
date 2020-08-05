@@ -216,6 +216,15 @@ pub enum VmError {
         /// The reason for the panic.
         reason: Panic,
     },
+    /// The virtual machine encountered a numerical overflow.
+    #[error("numerical overflow")]
+    Overflow,
+    /// The virtual machine encountered a numerical underflow.
+    #[error("numerical underflow")]
+    Underflow,
+    /// The virtual machine encountered a divide-by-zero.
+    #[error("division by zero")]
+    DivideByZero,
     /// Error raised in a user-defined function.
     #[error("error in user-defined function: {error}")]
     UserError {
@@ -477,12 +486,29 @@ macro_rules! boolean_ops {
     }
 }
 
+macro_rules! check_float {
+    ($float:expr, $error:ident) => {
+        if !$float.is_finite() {
+            return Err(VmError::$error);
+        } else {
+            $float
+        }
+    };
+}
+
 /// Generate a primitive combination of operations.
 macro_rules! numeric_ops {
-    ($vm:expr, $a:ident $op:tt $b:ident) => {
+    ($vm:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
-            (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float($a $op $b),
-            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer($a $op $b),
+            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer({
+                match $a.$checked_op($b) {
+                    Some(value) => value,
+                    None => return Err(VmError::$error),
+                }
+            }),
+            (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float({
+                check_float!($a $op $b, $error)
+            }),
             (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
                 lhs: lhs.type_info($vm)?,
@@ -494,10 +520,17 @@ macro_rules! numeric_ops {
 
 /// Generate a primitive combination of operations.
 macro_rules! numeric_assign_ops {
-    ($vm:expr, $a:ident $op:tt $b:ident) => {
+    ($vm:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match (*$a, $b) {
-            (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float($a $op $b),
-            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer($a $op $b),
+            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer({
+                match $a.$checked_op($b) {
+                    Some(value) => value,
+                    None => return Err(VmError::$error),
+                }
+            }),
+            (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float({
+                check_float!($a $op $b, $error)
+            }),
             (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
                 lhs: lhs.type_info($vm)?,
@@ -1449,7 +1482,7 @@ impl Vm {
     fn op_add_assign(&mut self, offset: usize) -> Result<(), VmError> {
         let arg = self.pop()?;
         let value = self.value_at_mut(offset)?;
-        *value = numeric_assign_ops!(self, value + arg);
+        *value = numeric_assign_ops!(self, +, value.checked_add(arg), Overflow);
         Ok(())
     }
 
@@ -1457,7 +1490,7 @@ impl Vm {
     fn op_sub(&mut self) -> Result<(), VmError> {
         let b = self.pop()?;
         let a = self.pop()?;
-        self.push(numeric_ops!(self, a - b));
+        self.push(numeric_ops!(self, -, a.checked_sub(b), Underflow));
         Ok(())
     }
 
@@ -1465,7 +1498,7 @@ impl Vm {
     fn op_sub_assign(&mut self, offset: usize) -> Result<(), VmError> {
         let arg = self.pop()?;
         let value = self.value_at_mut(offset)?;
-        *value = numeric_assign_ops!(self, value - arg);
+        *value = numeric_assign_ops!(self, -, value.checked_sub(arg), Underflow);
         Ok(())
     }
 
@@ -1473,7 +1506,7 @@ impl Vm {
     fn op_mul(&mut self) -> Result<(), VmError> {
         let b = self.pop()?;
         let a = self.pop()?;
-        self.push(numeric_ops!(self, a * b));
+        self.push(numeric_ops!(self, *, a.checked_mul(b), Overflow));
         Ok(())
     }
 
@@ -1481,7 +1514,7 @@ impl Vm {
     fn op_mul_assign(&mut self, offset: usize) -> Result<(), VmError> {
         let arg = self.pop()?;
         let value = self.value_at_mut(offset)?;
-        *value = numeric_assign_ops!(self, value * arg);
+        *value = numeric_assign_ops!(self, *, value.checked_mul(arg), Overflow);
         Ok(())
     }
 
@@ -1489,7 +1522,7 @@ impl Vm {
     fn op_div(&mut self) -> Result<(), VmError> {
         let b = self.pop()?;
         let a = self.pop()?;
-        self.push(numeric_ops!(self, a / b));
+        self.push(numeric_ops!(self, /, a.checked_div(b), DivideByZero));
         Ok(())
     }
 
@@ -1497,7 +1530,7 @@ impl Vm {
     fn op_div_assign(&mut self, offset: usize) -> Result<(), VmError> {
         let arg = self.pop()?;
         let value = self.value_at_mut(offset)?;
-        *value = numeric_assign_ops!(self, value / arg);
+        *value = numeric_assign_ops!(self, /, value.checked_div(arg), DivideByZero);
         Ok(())
     }
 

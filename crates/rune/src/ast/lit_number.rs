@@ -54,6 +54,7 @@ impl Parse for LitNumber {
             Kind::LitNumber {
                 is_fractional,
                 number,
+                ..
             } => LitNumber {
                 is_fractional,
                 number,
@@ -79,7 +80,7 @@ impl<'a> Resolve<'a> for LitNumber {
         let mut is_negative = false;
 
         if string.starts_with('-') {
-            string = &string[..];
+            string = &string[1..];
             is_negative = true;
         }
 

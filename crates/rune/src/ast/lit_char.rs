@@ -1,3 +1,4 @@
+use crate::ast::utils;
 use crate::error::{ParseError, ResolveError};
 use crate::parser::Parser;
 use crate::source::Source;
@@ -51,49 +52,27 @@ impl Parse for LitChar {
     }
 }
 
-impl LitChar {
-    fn parse_escaped(
-        &self,
-        span: Span,
-        mut it: impl Iterator<Item = char>,
-    ) -> Result<char, ResolveError> {
-        let mut next = || {
-            it.next()
-                .ok_or_else(|| ResolveError::BadCharacterLiteral { span })
-        };
-
-        Ok(match next()? {
-            '\'' => '\'',
-            '0' => '\0',
-            'n' => '\n',
-            'r' => '\r',
-            // TODO: parse unicode literal.
-            _ => return Err(ResolveError::BadCharacterLiteral { span }),
-        })
-    }
-}
-
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
     fn resolve(&self, source: Source<'a>) -> Result<char, ResolveError> {
         let span = self.token.span;
         let string = source.source(span.narrow(1))?;
+        let mut it = string
+            .char_indices()
+            .map(|(n, c)| (span.start + n, c))
+            .peekable();
 
-        let mut it = string.chars();
+        let (n, c) = match it.next() {
+            Some(c) => c,
+            None => {
+                return Err(ResolveError::BadCharacterLiteral { span });
+            }
+        };
 
-        let c = loop {
-            let c = match it.next() {
-                Some(c) => c,
-                None => {
-                    return Err(ResolveError::BadCharacterLiteral { span });
-                }
-            };
-
-            break match c {
-                '\\' => self.parse_escaped(span, &mut it)?,
-                o => o,
-            };
+        let c = match c {
+            '\\' => utils::parse_escape(span.with_start(n), &mut it)?,
+            c => c,
         };
 
         // Too many characters in literal.

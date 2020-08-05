@@ -112,36 +112,61 @@ impl<'a> Lexer<'a> {
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
+        let mut is_negative = false;
         let mut is_fractional = false;
 
-        let number = match it.clone().next() {
-            Some((_, c)) => match c {
-                'x' => LitNumber::Hex,
-                'b' => LitNumber::Binary,
-                'o' => LitNumber::Octal,
-                _ => LitNumber::Decimal,
-            },
-            _ => LitNumber::Decimal,
+        if let Some((_, '-')) = it.clone().next() {
+            is_negative = true;
+            it.next();
+        }
+
+        let number = {
+            let mut sub = it.clone();
+
+            loop {
+                let m = match (sub.next(), sub.next()) {
+                    (Some((_, '0')), Some((_, m))) => m,
+                    _ => break LitNumber::Decimal,
+                };
+
+                let number = match m {
+                    'x' => LitNumber::Hex,
+                    'b' => LitNumber::Binary,
+                    'o' => LitNumber::Octal,
+                    _ => break LitNumber::Decimal,
+                };
+
+                // consume two character.
+                it.next();
+                it.next();
+                break number;
+            }
         };
 
         self.cursor = loop {
-            break match it.next() {
-                Some((n, c)) => match c {
-                    c if char::is_alphanumeric(c) => continue,
-                    '.' => {
-                        is_fractional = true;
-                        continue;
-                    }
-                    '-' => continue,
-                    _ => self.cursor + n,
-                },
-                None => self.source.len(),
+            let (n, c) = match it.next() {
+                Some((n, c)) => (n, c),
+                None => break self.source.len(),
             };
+
+            match c {
+                c if char::is_alphanumeric(c) => (),
+                '.' if !is_fractional => {
+                    is_fractional = true;
+
+                    // char immediately following a dot should be numerical.
+                    if !it.next().map(|(_, c)| c.is_numeric()).unwrap_or_default() {
+                        break self.cursor + n;
+                    }
+                }
+                _ => break self.cursor + n,
+            }
         };
 
         return Ok(Some(Token {
             kind: Kind::LitNumber {
                 is_fractional,
+                is_negative,
                 number,
             },
             span: Span {
@@ -163,27 +188,27 @@ impl<'a> Lexer<'a> {
         let mut is_char_literal = false;
 
         self.cursor = loop {
-            break match it.clone().next() {
-                Some((n, c)) => match c {
-                    'a'..='z' | 'A'..='Z' | '_' => {
-                        it.next();
-                        continue;
-                    }
-                    '\\' => {
-                        is_char_literal = true;
-                        it.next();
-                        it.next();
-                        continue;
-                    }
-                    '\'' => {
-                        is_char_literal = true;
-                        it.next();
-                        self.end_span(it)
-                    }
-                    _ => self.cursor + n,
-                },
-                None => self.source.len(),
+            let (n, c) = match it.clone().next() {
+                Some(c) => c,
+                None => break self.source.len(),
             };
+
+            match c {
+                '0'..='9' | 'a'..='z' | 'A'..='Z' | '_' | '{' | '}' => {
+                    it.next();
+                }
+                '\\' => {
+                    is_char_literal = true;
+                    it.next();
+                    it.next();
+                }
+                '\'' => {
+                    is_char_literal = true;
+                    it.next();
+                    break self.end_span(it);
+                }
+                _ => break self.cursor + n,
+            }
         };
 
         if is_char_literal {
@@ -425,11 +450,11 @@ impl<'a> Lexer<'a> {
 #[cfg(test)]
 mod tests {
     use super::Lexer;
-    use crate::token::{Kind, Token};
+    use crate::token::{Delimiter, Kind, LitNumber, Token};
     use st::unit::Span;
 
     macro_rules! test_lexer {
-        ($source:expr $(, $pat:expr)*) => {{
+        ($source:expr $(, $pat:expr)* $(,)?) => {{
             let mut it = Lexer::new($source);
             $(assert_eq!(it.next().unwrap(), Some($pat));)*
             assert_eq!(it.next().unwrap(), None);
@@ -442,6 +467,14 @@ mod tests {
             "'a'",
             Token {
                 span: Span::new(0, 3),
+                kind: Kind::LitChar,
+            }
+        };
+
+        test_lexer! {
+            "'\\u{abcd}'",
+            Token {
+                span: Span::new(0, 10),
                 kind: Kind::LitChar,
             }
         };
@@ -504,6 +537,41 @@ mod tests {
                 span: Span::new(17, 19),
                 kind: Kind::DivAssign,
             }
+        };
+    }
+
+    #[test]
+    fn test_idents() {
+        test_lexer! {
+            "a.checked_div(10)",
+            Token {
+                span: Span::new(0, 1),
+                kind: Kind::Ident,
+            },
+            Token {
+                span: Span::new(1, 2),
+                kind: Kind::Dot,
+            },
+            Token {
+                span: Span::new(2, 13),
+                kind: Kind::Ident,
+            },
+            Token {
+                span: Span::new(13, 14),
+                kind: Kind::Open { delimiter: Delimiter::Parenthesis },
+            },
+            Token {
+                span: Span::new(14, 16),
+                kind: Kind::LitNumber {
+                    is_fractional: false,
+                    is_negative: false,
+                    number: LitNumber::Decimal,
+                },
+            },
+            Token {
+                span: Span::new(16, 17),
+                kind: Kind::Close { delimiter: Delimiter::Parenthesis },
+            },
         };
     }
 }

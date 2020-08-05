@@ -96,6 +96,8 @@ pub enum Kind {
     LitNumber {
         /// Indicates if it's a decimal number.
         is_fractional: bool,
+        /// Indicates if the number is negative.
+        is_negative: bool,
         /// The number literal kind.
         number: LitNumber,
     },

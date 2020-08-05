@@ -755,26 +755,46 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn compile_assign(
+    fn compile_assign_binop(
         &mut self,
         lhs: &ast::Expr,
         rhs: &ast::Expr,
+        bin_op: ast::BinOp,
         needs_value: NeedsValue,
     ) -> Result<()> {
         let span = lhs.span().join(rhs.span());
 
-        match lhs {
+        let offset = match lhs {
             ast::Expr::Ident(ident) => {
                 let name = ident.resolve(self.source)?;
-
-                self.compile_expr(rhs, NeedsValue(true))?;
-
                 let var = self.scopes.get_var_mut(name, ident.span())?;
-                let offset = var.offset;
-                self.asm.push(st::Inst::Replace { offset }, span);
+                var.offset
             }
             _ => {
                 return Err(CompileError::UnsupportedAssignExpr { span });
+            }
+        };
+
+        self.compile_expr(rhs, NeedsValue(true))?;
+
+        match bin_op {
+            ast::BinOp::Assign => {
+                self.asm.push(st::Inst::Replace { offset }, span);
+            }
+            ast::BinOp::AddAssign => {
+                self.asm.push(st::Inst::AddAssign { offset }, span);
+            }
+            ast::BinOp::SubAssign => {
+                self.asm.push(st::Inst::SubAssign { offset }, span);
+            }
+            ast::BinOp::MulAssign => {
+                self.asm.push(st::Inst::MulAssign { offset }, span);
+            }
+            ast::BinOp::DivAssign => {
+                self.asm.push(st::Inst::DivAssign { offset }, span);
+            }
+            op => {
+                return Err(CompileError::UnsupportedAssignBinOp { span, op });
             }
         }
 
@@ -1045,8 +1065,17 @@ impl<'a> Compiler<'a> {
 
         // Special expressions which operates on the stack in special ways.
         match expr_binary.op {
-            ast::BinOp::Assign { .. } => {
-                self.compile_assign(&*expr_binary.lhs, &*expr_binary.rhs, needs_value)?;
+            ast::BinOp::Assign
+            | ast::BinOp::AddAssign
+            | ast::BinOp::SubAssign
+            | ast::BinOp::MulAssign
+            | ast::BinOp::DivAssign => {
+                self.compile_assign_binop(
+                    &*expr_binary.lhs,
+                    &*expr_binary.rhs,
+                    expr_binary.op,
+                    needs_value,
+                )?;
                 return Ok(());
             }
             _ => (),

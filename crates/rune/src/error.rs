@@ -60,12 +60,10 @@ pub enum ResolveError {
         span: Span,
     },
     /// Encountered a bad string escape sequence.
-    #[error("bad string escape sequence character `{c}`")]
-    BadStringEscapeSequence {
+    #[error("bad escape sequence")]
+    BadEscapeSequence {
         /// Span of the illegal escape sequence.
         span: Span,
-        /// The illegal character.
-        c: char,
     },
     /// Tried to resolve an illegal number literal.
     #[error("illegal number literal")]
@@ -79,15 +77,38 @@ pub enum ResolveError {
         /// Span containing the bad character literal.
         span: Span,
     },
+    /// Error when we encounter a bad unicode escape.
+    #[error("bad unicode escape")]
+    BadUnicodeEscape {
+        /// Where the bad escape is.
+        span: Span,
+    },
+    /// Error when we encounter a bad byte escape in bounds.
+    #[error(
+        "this form of character escape may only be used with characters in the range [\\x00-\\x7f]"
+    )]
+    BadByteEscapeBounds {
+        /// Where the bad escape is.
+        span: Span,
+    },
+    /// Error when we encounter a bad byte escape.
+    #[error("bad byte escape")]
+    BadByteEscape {
+        /// Where the bad escape is.
+        span: Span,
+    },
 }
 
 impl SpannedError for ResolveError {
     fn span(&self) -> Span {
         match *self {
             Self::BadSlice { span, .. } => span,
-            Self::BadStringEscapeSequence { span, .. } => span,
+            Self::BadEscapeSequence { span, .. } => span,
             Self::IllegalNumberLiteral { span, .. } => span,
             Self::BadCharacterLiteral { span, .. } => span,
+            Self::BadUnicodeEscape { span, .. } => span,
+            Self::BadByteEscapeBounds { span, .. } => span,
+            Self::BadByteEscape { span, .. } => span,
         }
     }
 }
@@ -304,14 +325,14 @@ pub enum CompileError {
         span: Span,
     },
     /// Unit error from ST encoding.
-    #[error("unit construction error")]
+    #[error("unit construction error: {error}")]
     UnitError {
         /// Source error.
         #[from]
         error: st::CompilationUnitError,
     },
     /// Error for resolving values from source files.
-    #[error("resolve error")]
+    #[error("resolve error: {error}")]
     ResolveError {
         /// Source error.
         #[from]
@@ -370,6 +391,14 @@ pub enum CompileError {
     UnsupportedAssignExpr {
         /// The thing being assigned to.
         span: Span,
+    },
+    /// Unsupported assignment operator.
+    #[error("unsupported operator `{op}` in assignment")]
+    UnsupportedAssignBinOp {
+        /// The assign expression.
+        span: Span,
+        /// The unsupported operator.
+        op: ast::BinOp,
     },
     /// When we encounter an expression that doesn't have a stack location and
     /// can't be referenced.
@@ -445,6 +474,7 @@ impl SpannedError for CompileError {
             Self::UnsupportedUnaryOp { span, .. } => span,
             Self::UnsupportedBinaryOp { span, .. } => span,
             Self::UnsupportedAssignExpr { span, .. } => span,
+            Self::UnsupportedAssignBinOp { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,
             Self::ReturnLocalReferences { span, .. } => span,
             Self::ReturnDoesNotProduceValue { span, .. } => span,

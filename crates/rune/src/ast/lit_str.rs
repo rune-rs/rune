@@ -1,3 +1,4 @@
+use crate::ast::utils;
 use crate::error::{ParseError, ResolveError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
@@ -23,38 +24,18 @@ impl LitStr {
 }
 
 impl LitStr {
-    fn parse_escaped(&self, source: &str) -> Result<String, ResolveError> {
+    fn parse_escaped(&self, span: Span, source: &str) -> Result<String, ResolveError> {
         let mut buffer = String::with_capacity(source.len());
-        let mut it = source.chars();
+        let mut it = source
+            .char_indices()
+            .map(|(n, c)| (span.start + n, c))
+            .peekable();
 
-        while let Some(c) = it.next() {
-            match (c, it.clone().next()) {
-                ('\\', Some('0')) => {
-                    buffer.push('\0');
-                    it.next();
-                }
-                ('\\', Some('n')) => {
-                    buffer.push('\n');
-                    it.next();
-                }
-                ('\\', Some('r')) => {
-                    buffer.push('\r');
-                    it.next();
-                }
-                ('\\', Some('"')) => {
-                    buffer.push('"');
-                    it.next();
-                }
-                ('\\', other) => {
-                    return Err(ResolveError::BadStringEscapeSequence {
-                        c: other.unwrap_or_default(),
-                        span: self.token.span,
-                    })
-                }
-                (c, _) => {
-                    buffer.push(c);
-                }
-            }
+        while let Some((n, c)) = it.next() {
+            buffer.push(match c {
+                '\\' => utils::parse_escape(span.with_start(n), &mut it)?,
+                c => c,
+            });
         }
 
         Ok(buffer)
@@ -65,10 +46,11 @@ impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
     fn resolve(&self, source: Source<'a>) -> Result<Cow<'a, str>, ResolveError> {
-        let string = source.source(self.token.span.narrow(1))?;
+        let span = self.token.span.narrow(1);
+        let string = source.source(span)?;
 
         Ok(if self.escaped {
-            Cow::Owned(self.parse_escaped(string)?)
+            Cow::Owned(self.parse_escaped(span, string)?)
         } else {
             Cow::Borrowed(string)
         })
