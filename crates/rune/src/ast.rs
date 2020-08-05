@@ -1999,6 +1999,8 @@ impl Parse for ExprWhile {
 /// A let expression `let <name> = <expr>;`
 #[derive(Debug, Clone)]
 pub struct ExprLoop {
+    /// A label followed by a colon.
+    pub label: Option<(Label, Colon)>,
     /// The `loop` keyword.
     pub loop_: Loop,
     /// The body of the loop.
@@ -2014,7 +2016,14 @@ impl ExprLoop {
 
 impl Parse for ExprLoop {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let label = if parser.peek::<Label>()? {
+            Some((parser.parse()?, parser.parse()?))
+        } else {
+            None
+        };
+
         Ok(ExprLoop {
+            label,
             loop_: parser.parse()?,
             body: Box::new(parser.parse()?),
         })
@@ -2577,6 +2586,7 @@ decl_tokens! {
     (Else, Kind::Else),
     (Let, Kind::Let),
     (Ident, Kind::Ident),
+    (Label, Kind::Label),
     (OpenParen, Kind::Open { delimiter: Delimiter::Parenthesis }),
     (CloseParen, Kind::Close { delimiter: Delimiter::Parenthesis }),
     (OpenBrace, Kind::Open { delimiter: Delimiter::Brace }),

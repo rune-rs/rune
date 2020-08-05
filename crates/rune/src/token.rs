@@ -90,6 +90,8 @@ pub enum Kind {
     Return,
     /// An identifier.
     Ident,
+    /// A label, like `'loop`.
+    Label,
     /// A number literal, like `42` or `3.14` or `0xff`.
     NumberLiteral {
         /// Indicates if it's a decimal number.
@@ -183,6 +185,7 @@ impl fmt::Display for Kind {
             Self::Break => write!(fmt, "break")?,
             Self::Return => write!(fmt, "return")?,
             Self::Ident => write!(fmt, "ident")?,
+            Self::Label => write!(fmt, "label")?,
             Self::NumberLiteral { .. } => write!(fmt, "number")?,
             Self::StringLiteral { .. } => write!(fmt, "string")?,
             Self::CharLiteral { .. } => write!(fmt, "char")?,

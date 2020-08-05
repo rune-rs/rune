@@ -152,7 +152,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a string literal.
-    fn next_char_literal<I>(
+    fn next_char_or_label<I>(
         &mut self,
         it: &mut I,
         start: usize,
@@ -160,43 +160,49 @@ impl<'a> Lexer<'a> {
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
+        let mut is_char_literal = false;
+
         self.cursor = loop {
-            break match it.next() {
-                Some((_, c)) => match c {
-                    '\'' => self.end_span(it),
-                    '\\' => match it.next() {
-                        Some(_) => {
-                            continue;
-                        }
-                        None => {
-                            return Err(ParseError::ExpectedCharEscape {
-                                span: Span {
-                                    start,
-                                    end: self.source.len(),
-                                },
-                            });
-                        }
-                    },
-                    _ => continue,
+            break match it.clone().next() {
+                Some((n, c)) => match c {
+                    'a'..='z' | 'A'..='Z' | '_' => {
+                        it.next();
+                        continue;
+                    }
+                    '\\' => {
+                        is_char_literal = true;
+                        it.next();
+                        it.next();
+                        continue;
+                    }
+                    '\'' => {
+                        is_char_literal = true;
+                        it.next();
+                        self.end_span(it)
+                    }
+                    _ => self.cursor + n,
                 },
-                None => {
-                    return Err(ParseError::ExpectedCharClose {
-                        span: Span {
-                            start,
-                            end: self.source.len(),
-                        },
-                    })
-                }
+                None => self.source.len(),
             };
         };
 
-        return Ok(Some(Token {
-            kind: Kind::CharLiteral,
+        if is_char_literal {
+            return Ok(Some(Token {
+                kind: Kind::CharLiteral,
+                span: Span {
+                    start,
+                    end: self.cursor,
+                },
+            }));
+        }
+
+        Ok(Some(Token {
+            kind: Kind::Label,
             span: Span {
                 start,
                 end: self.cursor,
             },
-        }));
+        }))
     }
 
     /// Consume a string literal.
@@ -371,7 +377,7 @@ impl<'a> Lexer<'a> {
                         return self.next_string_literal(&mut it, start);
                     }
                     '\'' => {
-                        return self.next_char_literal(&mut it, start);
+                        return self.next_char_or_label(&mut it, start);
                     }
                     _ => {
                         let span = Span {
@@ -397,5 +403,52 @@ impl<'a> Lexer<'a> {
 
         self.cursor = self.source.len();
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Lexer;
+    use crate::token::{Kind, Token};
+    use st::unit::Span;
+
+    macro_rules! test_lexer {
+        ($source:expr $(, $pat:expr)*) => {{
+            let mut it = Lexer::new($source);
+            $(assert_eq!(it.next().unwrap(), Some($pat));)*
+            assert_eq!(it.next().unwrap(), None);
+        }}
+    }
+
+    #[test]
+    fn test_char_literal() {
+        test_lexer! {
+            "'a'",
+            Token {
+                span: Span::new(0, 3),
+                kind: Kind::CharLiteral,
+            }
+        };
+    }
+
+    #[test]
+    fn test_label() {
+        test_lexer! {
+            "'asdf 'a' \"foo bar\"",
+            Token {
+                span: Span::new(0, 5),
+                kind: Kind::Label,
+            },
+            Token {
+                span: Span::new(6, 9),
+                kind: Kind::CharLiteral,
+            },
+            Token {
+                span: Span::new(10, 19),
+                kind: Kind::StringLiteral {
+                    escaped: false,
+                },
+            }
+        };
     }
 }
