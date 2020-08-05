@@ -10,10 +10,9 @@ use crate::traits::{Parse, Peek};
 /// ```rust
 /// use rune::{ast, Parser};
 ///
-/// # fn main() -> rune::Result<()> {
+/// # fn main() {
 /// let mut parser = Parser::new("fn foo() {}");
-/// parser.parse::<ast::FnDecl>()?;
-/// # Ok(())
+/// parser.parse::<ast::DeclFn>().unwrap();
 /// # }
 /// ```
 #[derive(Debug, Clone)]

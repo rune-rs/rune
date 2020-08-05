@@ -225,7 +225,7 @@ impl Runtime {
             }
         };
 
-        let unit = match crate::parse_all::<crate::ast::File>(file.file.source()) {
+        let unit = match crate::parse_all::<crate::ast::DeclFile>(file.file.source()) {
             Ok(unit) => unit,
             Err(e) => {
                 self.errors.push((file_id, e.into()));

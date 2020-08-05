@@ -28,7 +28,7 @@ pub use st::unit::Span;
 ///
 /// Discards any warnings produced.
 pub fn compile(source: &str) -> Result<(st::CompilationUnit, Warnings)> {
-    let unit = parse_all::<ast::File>(&source)?;
+    let unit = parse_all::<ast::DeclFile>(&source)?;
     let (unit, warnings) = unit.compile()?;
     Ok((unit, warnings))
 }

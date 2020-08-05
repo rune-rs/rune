@@ -3,7 +3,7 @@ use std::fmt;
 
 /// The kind of a number literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum NumberLiteral {
+pub enum LitNumber {
     /// A decimal number literal, like `3.14`.
     Decimal,
     /// A hex literal, like `0xffff`.
@@ -14,7 +14,7 @@ pub enum NumberLiteral {
     Binary,
 }
 
-impl fmt::Display for NumberLiteral {
+impl fmt::Display for LitNumber {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Decimal => write!(fmt, "decimal"),
@@ -93,16 +93,16 @@ pub enum Kind {
     /// A label, like `'loop`.
     Label,
     /// A number literal, like `42` or `3.14` or `0xff`.
-    NumberLiteral {
+    LitNumber {
         /// Indicates if it's a decimal number.
         is_fractional: bool,
         /// The number literal kind.
-        number: NumberLiteral,
+        number: LitNumber,
     },
     /// A characer literal.
-    CharLiteral,
+    LitChar,
     /// A string literal, including escape sequences. Like `"hello\nworld"`.
-    StringLiteral {
+    LitStr {
         /// If the string literal contains escapes.
         escaped: bool,
     },
@@ -186,9 +186,9 @@ impl fmt::Display for Kind {
             Self::Return => write!(fmt, "return")?,
             Self::Ident => write!(fmt, "ident")?,
             Self::Label => write!(fmt, "label")?,
-            Self::NumberLiteral { .. } => write!(fmt, "number")?,
-            Self::StringLiteral { .. } => write!(fmt, "string")?,
-            Self::CharLiteral { .. } => write!(fmt, "char")?,
+            Self::LitNumber { .. } => write!(fmt, "number")?,
+            Self::LitStr { .. } => write!(fmt, "string")?,
+            Self::LitChar { .. } => write!(fmt, "char")?,
             Self::Open { delimiter } => write!(fmt, "{}", delimiter.open())?,
             Self::Close { delimiter } => write!(fmt, "{}", delimiter.close())?,
             Self::Underscore => write!(fmt, "_")?,

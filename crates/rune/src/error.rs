@@ -75,7 +75,7 @@ pub enum ResolveError {
     },
     /// A bad character literal.
     #[error("bad character literal")]
-    BadCharLiteral {
+    BadCharacterLiteral {
         /// Span containing the bad character literal.
         span: Span,
     },
@@ -87,7 +87,7 @@ impl SpannedError for ResolveError {
             Self::BadSlice { span, .. } => span,
             Self::BadStringEscapeSequence { span, .. } => span,
             Self::IllegalNumberLiteral { span, .. } => span,
-            Self::BadCharLiteral { span, .. } => span,
+            Self::BadCharacterLiteral { span, .. } => span,
         }
     }
 }

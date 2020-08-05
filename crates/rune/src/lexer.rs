@@ -1,5 +1,5 @@
 use crate::error::{ParseError, Result};
-use crate::token::{Delimiter, Kind, NumberLiteral, Token};
+use crate::token::{Delimiter, Kind, LitNumber, Token};
 use st::unit::Span;
 
 /// Lexer for the rune language.
@@ -116,12 +116,12 @@ impl<'a> Lexer<'a> {
 
         let number = match it.clone().next() {
             Some((_, c)) => match c {
-                'x' => NumberLiteral::Hex,
-                'b' => NumberLiteral::Binary,
-                'o' => NumberLiteral::Octal,
-                _ => NumberLiteral::Decimal,
+                'x' => LitNumber::Hex,
+                'b' => LitNumber::Binary,
+                'o' => LitNumber::Octal,
+                _ => LitNumber::Decimal,
             },
-            _ => NumberLiteral::Decimal,
+            _ => LitNumber::Decimal,
         };
 
         self.cursor = loop {
@@ -140,7 +140,7 @@ impl<'a> Lexer<'a> {
         };
 
         return Ok(Some(Token {
-            kind: Kind::NumberLiteral {
+            kind: Kind::LitNumber {
                 is_fractional,
                 number,
             },
@@ -188,7 +188,7 @@ impl<'a> Lexer<'a> {
 
         if is_char_literal {
             return Ok(Some(Token {
-                kind: Kind::CharLiteral,
+                kind: Kind::LitChar,
                 span: Span {
                     start,
                     end: self.cursor,
@@ -248,7 +248,7 @@ impl<'a> Lexer<'a> {
         };
 
         return Ok(Some(Token {
-            kind: Kind::StringLiteral { escaped },
+            kind: Kind::LitStr { escaped },
             span: Span {
                 start,
                 end: self.cursor,
@@ -426,7 +426,7 @@ mod tests {
             "'a'",
             Token {
                 span: Span::new(0, 3),
-                kind: Kind::CharLiteral,
+                kind: Kind::LitChar,
             }
         };
     }
@@ -441,11 +441,11 @@ mod tests {
             },
             Token {
                 span: Span::new(6, 9),
-                kind: Kind::CharLiteral,
+                kind: Kind::LitChar,
             },
             Token {
                 span: Span::new(10, 19),
-                kind: Kind::StringLiteral {
+                kind: Kind::LitStr {
                     escaped: false,
                 },
             }
