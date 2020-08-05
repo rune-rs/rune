@@ -16,6 +16,14 @@ pub enum Warning {
         /// The context in which the value was not used.
         context: Option<Span>,
     },
+    /// Warning that an unconditional let pattern will panic if it doesn't
+    /// match.
+    LetPatternMightPanic {
+        /// The span of the pattern.
+        span: Span,
+        /// The context in which it is used.
+        context: Option<Span>,
+    },
 }
 
 /// Compilation warnings.
@@ -41,6 +49,12 @@ impl Warnings {
     /// not used.
     fn not_used(&mut self, span: Span, context: Option<Span>) {
         self.warnings.push(Warning::NotUsed { span, context });
+    }
+
+    /// Indicate that a pattern might panic.
+    fn let_pattern_might_panic(&mut self, span: Span, context: Option<Span>) {
+        self.warnings
+            .push(Warning::LetPatternMightPanic { span, context });
     }
 
     /// Extend self with another collection of warnings.
@@ -155,7 +169,7 @@ impl<'a> crate::ParseAll<'a, ast::File> {
             let mut encoder = Compiler {
                 unit: &mut unit,
                 asm: &mut assembly,
-                scopes: vec![Scope::new()],
+                scopes: Scopes::new(),
                 contexts: vec![span],
                 source,
                 loops: Vec::new(),
@@ -172,10 +186,105 @@ impl<'a> crate::ParseAll<'a, ast::File> {
     }
 }
 
+#[must_use]
+struct ScopeGuard(usize);
+
+struct Scopes {
+    scopes: Vec<Scope>,
+}
+
+impl Scopes {
+    /// Construct a new collection of scopes.
+    fn new() -> Self {
+        Self {
+            scopes: vec![Scope::new()],
+        }
+    }
+
+    /// Get the local with the given name.
+    fn get_var(&self, name: &str, span: Span) -> Result<&Var> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(var) = scope.get(name) {
+                return Ok(var);
+            }
+        }
+
+        Err(CompileError::MissingLocal {
+            name: name.to_owned(),
+            span,
+        })
+    }
+
+    /// Get the local with the given name.
+    fn get_var_mut(&mut self, name: &str, span: Span) -> Result<&mut Var> {
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(var) = scope.get_mut(name) {
+                return Ok(var);
+            }
+        }
+
+        Err(CompileError::MissingLocal {
+            name: name.to_owned(),
+            span,
+        })
+    }
+
+    /// Get the local with the given name.
+    fn last(&self, span: Span) -> Result<&Scope> {
+        Ok(self
+            .scopes
+            .last()
+            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
+    }
+
+    /// Get the last locals scope.
+    fn last_mut(&mut self, span: Span) -> Result<&mut Scope> {
+        Ok(self
+            .scopes
+            .last_mut()
+            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
+    }
+
+    /// Push a scope and return an index.
+    fn push(&mut self, scope: Scope) -> ScopeGuard {
+        self.scopes.push(scope);
+        ScopeGuard(self.scopes.len())
+    }
+
+    /// Pop the last scope and compare with the expected length.
+    fn pop(&mut self, span: Span, expected: ScopeGuard) -> Result<Scope> {
+        let ScopeGuard(expected) = expected;
+
+        if self.scopes.len() != expected {
+            return Err(CompileError::internal(
+                "the number of scopes do not match",
+                span,
+            ));
+        }
+
+        self.pop_unchecked(span)
+    }
+
+    /// Pop the last of the scope.
+    fn pop_last(&mut self, span: Span) -> Result<Scope> {
+        self.pop(span, ScopeGuard(1))
+    }
+
+    /// Pop the last scope and compare with the expected length.
+    fn pop_unchecked(&mut self, span: Span) -> Result<Scope> {
+        let scope = self
+            .scopes
+            .pop()
+            .ok_or_else(|| CompileError::internal("missing parent scope", span))?;
+
+        Ok(scope)
+    }
+}
+
 struct Compiler<'a> {
     unit: &'a mut st::CompilationUnit,
     asm: &'a mut Assembly,
-    scopes: Vec<Scope>,
+    scopes: Scopes,
     /// Context for which to emit warnings.
     contexts: Vec<Span>,
     source: Source<'a>,
@@ -194,11 +303,9 @@ impl<'a> Compiler<'a> {
         let span = fn_decl.span();
         log::trace!("FnDecl => {:?}", self.source.source(span)?);
 
-        let scopes_count = self.scopes.len();
-
         for arg in fn_decl.args.items.iter().rev() {
             let name = arg.resolve(self.source)?;
-            self.last_scope_mut(span)?.new_var(name, arg.span())?;
+            self.scopes.last_mut(span)?.new_var(name, arg.span())?;
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
@@ -213,67 +320,17 @@ impl<'a> Compiler<'a> {
         if let Some(expr) = &fn_decl.body.trailing_expr {
             self.encode_expr(expr, NeedsValue(true))?;
 
-            let total_var_count = self.last_scope(span)?.total_var_count;
+            let total_var_count = self.scopes.last(span)?.total_var_count;
             self.locals_clean(total_var_count, span);
             self.asm.push(st::Inst::Return, span);
         } else {
-            let total_var_count = self.last_scope(span)?.total_var_count;
+            let total_var_count = self.scopes.last(span)?.total_var_count;
             self.locals_pop(total_var_count, span);
             self.asm.push(st::Inst::ReturnUnit, span);
         }
 
-        if self.scopes.len() != scopes_count {
-            return Err(CompileError::internal(
-                "number of scopes does not match at end of function",
-                span,
-            ));
-        }
-
+        self.scopes.pop_last(span)?;
         Ok(())
-    }
-
-    /// Get the local with the given name.
-    fn last_scope(&self, span: Span) -> Result<&Scope> {
-        Ok(self
-            .scopes
-            .last()
-            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
-    }
-
-    /// Get the local with the given name.
-    fn get_var(&self, name: &str, span: Span) -> Result<&Var> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(var) = scope.get(name) {
-                return Ok(var);
-            }
-        }
-
-        Err(CompileError::MissingLocal {
-            name: name.to_owned(),
-            span,
-        })
-    }
-
-    /// Get the last locals scope.
-    fn last_scope_mut(&mut self, span: Span) -> Result<&mut Scope> {
-        Ok(self
-            .scopes
-            .last_mut()
-            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
-    }
-
-    /// Get the local with the given name.
-    fn get_var_mut(&mut self, name: &str, span: Span) -> Result<&mut Var> {
-        for scope in self.scopes.iter_mut().rev() {
-            if let Some(var) = scope.get_mut(name) {
-                return Ok(var);
-            }
-        }
-
-        Err(CompileError::MissingLocal {
-            name: name.to_owned(),
-            span,
-        })
     }
 
     /// Pop locals by simply popping them.
@@ -316,9 +373,8 @@ impl<'a> Compiler<'a> {
         let span = block.span();
         self.current_block = span;
 
-        let scopes_count = self.scopes.len();
-        let new_scope = self.last_scope(span)?.new_scope();
-        self.scopes.push(new_scope);
+        let new_scope = self.scopes.last(span)?.new_scope();
+        let scopes_count = self.scopes.push(new_scope);
 
         for (expr, _) in &block.exprs {
             // NB: terminated expressions do not need to produce a value.
@@ -329,7 +385,7 @@ impl<'a> Compiler<'a> {
             self.encode_expr(expr, needs_value)?;
         }
 
-        let scope = self.pop_scope(span)?;
+        let scope = self.scopes.pop(span, scopes_count)?;
 
         if *needs_value {
             if block.trailing_expr.is_none() {
@@ -340,13 +396,6 @@ impl<'a> Compiler<'a> {
             }
         } else {
             self.locals_pop(scope.local_var_count, span);
-        }
-
-        if self.scopes.len() != scopes_count {
-            return Err(CompileError::internal(
-                "parent scope mismatch at end of block",
-                span,
-            ));
         }
 
         self.contexts
@@ -373,7 +422,7 @@ impl<'a> Compiler<'a> {
 
         // NB: we actually want total_var_count here since we need to clean up
         // _every_ variable declared until we reached the current return.
-        let total_var_count = self.last_scope(span)?.total_var_count;
+        let total_var_count = self.scopes.last(span)?.total_var_count;
 
         if let Some(expr) = &return_expr.expr {
             self.encode_expr(&*expr, NeedsValue(true))?;
@@ -676,7 +725,7 @@ impl<'a> Compiler<'a> {
 
         self.loops.push(Loop {
             break_label,
-            total_var_count: self.last_scope(span)?.total_var_count,
+            total_var_count: self.scopes.last(span)?.total_var_count,
             needs_value,
         });
 
@@ -718,33 +767,33 @@ impl<'a> Compiler<'a> {
         let break_label = self.asm.new_label("for_break");
 
         let loop_count = self.loops.len();
-        let scopes_count = self.scopes.len();
 
-        let new_scope = self.last_scope(span)?.new_scope();
-        self.scopes.push(new_scope);
+        let new_scope = self.scopes.last(span)?.new_scope();
+        let scopes_count = self.scopes.push(new_scope);
 
         self.loops.push(Loop {
             break_label,
-            total_var_count: self.last_scope(span)?.total_var_count,
+            total_var_count: self.scopes.last(span)?.total_var_count,
             needs_value,
         });
 
         self.encode_expr(&*expr_for.iter, NeedsValue(true))?;
 
         // Declare storage for the hidden iterator variable.
-        let iterator_offset = self.last_scope_mut(span)?.decl_anon(expr_for.iter.span());
+        let iterator_offset = self.scopes.last_mut(span)?.decl_anon(expr_for.iter.span());
 
         // Declare named loop variable.
         let binding_offset = {
             self.asm.push(st::Inst::Unit, expr_for.iter.span());
             let name = expr_for.var.resolve(self.source)?;
-            self.last_scope_mut(span)?
+            self.scopes
+                .last_mut(span)?
                 .decl_var(name, expr_for.var.span())
         };
 
         // Declare storage for memoized `next` instance fn.
         let next_offset = if self.optimizations.memoize_instance_fn {
-            let offset = self.last_scope_mut(span)?.decl_anon(expr_for.iter.span());
+            let offset = self.scopes.last_mut(span)?.decl_anon(expr_for.iter.span());
             let hash = st::Hash::of(ITERATOR_NEXT);
 
             // Declare the named loop variable and put it in the scope.
@@ -825,8 +874,7 @@ impl<'a> Compiler<'a> {
         self.asm.jump(start_label, span);
         self.asm.label(end_label)?;
 
-        let scope = self.pop_scope(span)?;
-        self.locals_pop(scope.local_var_count, span);
+        self.clean_last_scope(span, scopes_count, NeedsValue(false))?;
 
         // NB: If a value is needed from a for loop, encode it as a unit.
         if *needs_value {
@@ -843,13 +891,6 @@ impl<'a> Compiler<'a> {
         if loop_count != self.loops.len() {
             return Err(CompileError::internal(
                 "for: loop count mismatch on return",
-                span,
-            ));
-        }
-
-        if scopes_count != self.scopes.len() {
-            return Err(CompileError::internal(
-                "scope count mismatch on return",
                 span,
             ));
         }
@@ -873,7 +914,7 @@ impl<'a> Compiler<'a> {
 
         self.loops.push(Loop {
             break_label,
-            total_var_count: self.last_scope(span)?.total_var_count,
+            total_var_count: self.scopes.last(span)?.total_var_count,
             needs_value,
         });
 
@@ -910,7 +951,7 @@ impl<'a> Compiler<'a> {
         let false_label = self.asm.new_label("let_panic");
         self.encode_expr(&*expr_let.expr, NeedsValue(true))?;
 
-        let mut scope = self.pop_scope(span)?;
+        let mut scope = self.scopes.pop_unchecked(span)?;
         let offset = scope.decl_anon(span);
 
         let load = |asm: &mut Assembly| {
@@ -918,6 +959,8 @@ impl<'a> Compiler<'a> {
         };
 
         if self.encode_pat(&mut scope, &expr_let.pat, false_label, &load)? {
+            self.warnings.let_pattern_might_panic(span, self.context());
+
             let ok_label = self.asm.new_label("let_ok");
             self.asm.jump(ok_label, span);
             self.asm.label(false_label)?;
@@ -930,7 +973,7 @@ impl<'a> Compiler<'a> {
             self.asm.label(ok_label)?;
         }
 
-        self.scopes.push(scope);
+        let _ = self.scopes.push(scope);
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if *needs_value {
@@ -954,7 +997,7 @@ impl<'a> Compiler<'a> {
 
                 self.encode_expr(rhs, NeedsValue(true))?;
 
-                let var = self.get_var_mut(name, ident.span())?;
+                let var = self.scopes.get_var_mut(name, ident.span())?;
                 let offset = var.offset;
                 self.asm.push(st::Inst::Replace { offset }, span);
             }
@@ -1015,7 +1058,8 @@ impl<'a> Compiler<'a> {
         }
 
         let vars = self
-            .last_scope(span)?
+            .scopes
+            .last(span)?
             .total_var_count
             .checked_sub(last_loop.total_var_count)
             .ok_or_else(|| CompileError::internal("var count should be larger", span))?;
@@ -1069,7 +1113,7 @@ impl<'a> Compiler<'a> {
         }
 
         let target = ident.resolve(self.source)?;
-        let var = match self.get_var(target, span) {
+        let var = match self.scopes.get_var(target, span) {
             Ok(var) => var,
             Err(..) => {
                 // Something imported is automatically a type.
@@ -1282,6 +1326,44 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
+    fn encode_condition(&mut self, condition: &ast::Condition, then_label: Label) -> Result<Scope> {
+        let span = condition.span();
+        log::trace!("Condition => {:?}", self.source.source(span)?);
+
+        match condition {
+            ast::Condition::Expr(expr) => {
+                let span = expr.span();
+
+                self.encode_expr(&*expr, NeedsValue(true))?;
+                self.asm.jump_if(then_label, span);
+
+                Ok(self.scopes.last(span)?.new_scope())
+            }
+            ast::Condition::ExprLet(expr_let) => {
+                let span = expr_let.span();
+
+                let false_label = self.asm.new_label("if_condition_false");
+
+                let mut scope = self.scopes.last(span)?.new_scope();
+                self.encode_expr(&*expr_let.expr, NeedsValue(true))?;
+                let offset = scope.decl_anon(span);
+
+                let load = |asm: &mut Assembly| {
+                    asm.push(st::Inst::Copy { offset }, span);
+                };
+
+                if self.encode_pat(&mut scope, &expr_let.pat, false_label, &load)? {
+                    self.asm.jump(then_label, span);
+                    self.asm.label(false_label)?;
+                } else {
+                    self.asm.jump(then_label, span);
+                };
+
+                Ok(scope)
+            }
+        }
+    }
+
     fn encode_expr_if(&mut self, expr_if: &ast::ExprIf, needs_value: NeedsValue) -> Result<()> {
         let span = expr_if.span();
         log::trace!("ExprIf => {:?}", self.source.source(span)?);
@@ -1289,17 +1371,13 @@ impl<'a> Compiler<'a> {
         let then_label = self.asm.new_label("if_then");
         let end_label = self.asm.new_label("if_end");
 
-        let mut branch_labels = Vec::new();
-
-        self.encode_expr(&*expr_if.condition, NeedsValue(true))?;
-        self.asm.jump_if(then_label, span);
+        let mut branches = Vec::new();
+        let then_scope = self.encode_condition(&expr_if.condition, then_label)?;
 
         for branch in &expr_if.expr_else_ifs {
             let label = self.asm.new_label("if_branch");
-            branch_labels.push(label);
-
-            self.encode_expr(&*branch.condition, needs_value)?;
-            self.asm.jump_if(label, branch.span());
+            let scope = self.encode_condition(&branch.condition, label)?;
+            branches.push((branch, label, scope));
         }
 
         // use fallback as fall through.
@@ -1316,22 +1394,25 @@ impl<'a> Compiler<'a> {
         self.asm.jump(end_label, span);
 
         self.asm.label(then_label)?;
+
+        let expected = self.scopes.push(then_scope);
         self.encode_expr_block(&*expr_if.block, needs_value)?;
+        self.clean_last_scope(span, expected, needs_value)?;
 
         if !expr_if.expr_else_ifs.is_empty() {
             self.asm.jump(end_label, span);
         }
 
-        let mut it = expr_if
-            .expr_else_ifs
-            .iter()
-            .zip(branch_labels.iter().copied())
-            .peekable();
+        let mut it = branches.into_iter().peekable();
 
-        if let Some((branch, label)) = it.next() {
+        if let Some((branch, label, scope)) = it.next() {
             let span = branch.span();
+
             self.asm.label(label)?;
+
+            let scopes = self.scopes.push(scope);
             self.encode_expr_block(&*branch.block, needs_value)?;
+            self.clean_last_scope(span, scopes, needs_value)?;
 
             if it.peek().is_some() {
                 self.asm.jump(end_label, span);
@@ -1350,12 +1431,15 @@ impl<'a> Compiler<'a> {
         let span = expr_match.span();
         log::trace!("ExprMatch => {:?}", self.source.source(span)?);
 
-        let new_scope = self.last_scope(span)?.new_scope();
-        self.scopes.push(new_scope);
+        let new_scope = self.scopes.last(span)?.new_scope();
+        let expected_scopes = self.scopes.push(new_scope);
 
         self.encode_expr(&*expr_match.expr, NeedsValue(true))?;
         // Offset of the expression.
-        let offset = self.last_scope_mut(span)?.decl_anon(expr_match.expr.span());
+        let offset = self
+            .scopes
+            .last_mut(span)?
+            .decl_anon(expr_match.expr.span());
 
         let end_label = self.asm.new_label("match_end");
         let mut branches = Vec::new();
@@ -1366,7 +1450,7 @@ impl<'a> Compiler<'a> {
             let branch_label = self.asm.new_label("match_branch");
             let match_false = self.asm.new_label("match_false");
 
-            let mut scope = self.last_scope(span)?.new_scope();
+            let mut scope = self.scopes.last(span)?.new_scope();
 
             let load = move |asm: &mut Assembly| {
                 asm.push(st::Inst::Copy { offset }, span);
@@ -1405,15 +1489,9 @@ impl<'a> Compiler<'a> {
 
             self.asm.label(*label)?;
 
-            self.scopes.push(scope.clone());
+            let expected = self.scopes.push(scope.clone());
             self.encode_expr(&*branch.body, needs_value)?;
-            let scope = self.pop_scope(span)?;
-
-            if *needs_value {
-                self.locals_clean(scope.local_var_count, span);
-            } else {
-                self.locals_pop(scope.local_var_count, span);
-            }
+            self.clean_last_scope(span, expected, needs_value)?;
 
             if it.peek().is_some() {
                 self.asm.jump(end_label, span);
@@ -1423,14 +1501,7 @@ impl<'a> Compiler<'a> {
         self.asm.label(end_label)?;
 
         // pop the implicit scope where we store the anonymous match variable.
-        let scope = self.pop_scope(span)?;
-
-        if *needs_value {
-            self.locals_clean(scope.local_var_count, span);
-        } else {
-            self.locals_pop(scope.local_var_count, span);
-        }
-
+        self.clean_last_scope(span, expected_scopes, needs_value)?;
         Ok(())
     }
 
@@ -1660,14 +1731,22 @@ impl<'a> Compiler<'a> {
         Ok(true)
     }
 
-    /// Pop the last scope.
-    fn pop_scope(&mut self, span: Span) -> Result<Scope> {
-        match self.scopes.pop() {
-            Some(scope) => Ok(scope),
-            None => {
-                return Err(CompileError::internal("missing parent scope", span));
-            }
+    /// Clean the last scope.
+    fn clean_last_scope(
+        &mut self,
+        span: Span,
+        expected: ScopeGuard,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        let scope = self.scopes.pop(span, expected)?;
+
+        if *needs_value {
+            self.locals_clean(scope.local_var_count, span);
+        } else {
+            self.locals_pop(scope.local_var_count, span);
         }
+
+        Ok(())
     }
 
     /// Decode a path into a call destination based on its hashes.

@@ -1,8 +1,10 @@
 use crate::compiler::{Options, Warning, Warnings};
 use crate::error::{CompileError, ConfigurationError, ParseError, SpannedError as _};
+use anyhow::Result;
 use slab::Slab;
 use st::unit::{LinkerError, LinkerErrors, Span};
 use std::error::Error as _;
+use std::fmt::Write as _;
 use std::fs;
 use std::io;
 use std::ops::Range;
@@ -257,7 +259,7 @@ impl Runtime {
     }
 
     /// Emit diagnostics about the last error we encountered.
-    pub fn emit_diagnostics<O>(&mut self, out: &mut O) -> io::Result<()>
+    pub fn emit_diagnostics<O>(&mut self, out: &mut O) -> Result<()>
     where
         O: WriteColor,
     {
@@ -365,6 +367,7 @@ impl Runtime {
 
         for (source_file, warnings) in warnings {
             let mut labels = Vec::new();
+            let mut notes = Vec::new();
 
             for warning in warnings {
                 match warning {
@@ -381,12 +384,39 @@ impl Runtime {
                             );
                         }
                     }
+                    Warning::LetPatternMightPanic { span, context } => {
+                        labels.push(
+                            Label::primary(source_file, span.start..span.end)
+                                .with_message("let binding might panic"),
+                        );
+
+                        if let Some(binding) = self
+                            .files
+                            .source(source_file)
+                            .and_then(|s| s.get(span.start..span.end))
+                        {
+                            let mut note = String::new();
+                            writeln!(note, "Consider rewriting it to:")?;
+                            writeln!(note, "if {} {{", binding)?;
+                            writeln!(note, "    // ..")?;
+                            writeln!(note, "}}")?;
+                            notes.push(note);
+                        }
+
+                        if let Some(context) = context {
+                            labels.push(
+                                Label::secondary(source_file, context.start..context.end)
+                                    .with_message("in this context"),
+                            );
+                        }
+                    }
                 }
             }
 
             let diagnostic = Diagnostic::warning()
-                .with_message("warnings during compilation")
-                .with_labels(labels);
+                .with_message("warning")
+                .with_labels(labels)
+                .with_notes(notes);
 
             term::emit(out, &config, &self.files, &diagnostic)?;
         }

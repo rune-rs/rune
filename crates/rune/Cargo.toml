@@ -17,6 +17,7 @@ thiserror = "1.0.20"
 log = "0.4.11"
 codespan-reporting = {version = "0.9.5", optional = true}
 slab = "0.4.2"
+anyhow = "1.0.32"
 
 [dev-dependencies]
 tokio = {version = "0.2", features = ["full"]}

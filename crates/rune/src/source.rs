@@ -10,6 +10,8 @@ pub struct Source<'a> {
 impl<'a> Source<'a> {
     /// Fetch source for the given span.
     pub fn source(&self, span: Span) -> Result<&'a str, ResolveError> {
-        Ok(&self.source[span.start..span.end])
+        self.source
+            .get(span.start..span.end)
+            .ok_or_else(|| ResolveError::BadSlice { span })
     }
 }

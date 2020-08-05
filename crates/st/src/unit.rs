@@ -135,6 +135,12 @@ impl Span {
     }
 }
 
+impl fmt::Display for Span {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "{}:{}", self.start, self.end)
+    }
+}
+
 /// Information about a registered function.
 #[derive(Debug)]
 pub struct UnitFnInfo {

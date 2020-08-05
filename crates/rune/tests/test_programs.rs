@@ -554,3 +554,49 @@ async fn test_destructuring() {
         7,
     };
 }
+
+#[tokio::test]
+async fn test_if_pattern() {
+    assert_eq! {
+        test!(bool =>
+        r#"
+        fn main() {
+            if let [value] = [()] {
+                true
+            } else {
+                false
+            }
+        }"#),
+        true,
+    };
+
+    assert_eq! {
+        test!(bool =>
+        r#"
+        fn main() {
+            if let [value] = [(), ()] {
+                true
+            } else {
+                false
+            }
+        }"#),
+        false,
+    };
+
+    assert_eq! {
+        test!(i64 =>
+        r#"
+        fn main() {
+            let value = [(), (), 2];
+
+            if let [(), ()] = value {
+                1
+            } else if let [(), (), c] = value {
+                c
+            } else {
+                3
+            }
+        }"#),
+        2,
+    };
+}

@@ -53,6 +53,12 @@ pub enum ConfigurationError {
 /// Error raised when resolving a value.
 #[derive(Debug, Clone, Copy, Error)]
 pub enum ResolveError {
+    /// Attempt to read a slice which doesn't exist.
+    #[error("tried to read bad slice from source `{span}`")]
+    BadSlice {
+        /// The slice we tried to read.
+        span: Span,
+    },
     /// Encountered a bad string escape sequence.
     #[error("bad string escape sequence character `{c}`")]
     BadStringEscapeSequence {
@@ -78,6 +84,7 @@ pub enum ResolveError {
 impl SpannedError for ResolveError {
     fn span(&self) -> Span {
         match *self {
+            Self::BadSlice { span, .. } => span,
             Self::BadStringEscapeSequence { span, .. } => span,
             Self::IllegalNumberLiteral { span, .. } => span,
             Self::BadCharLiteral { span, .. } => span,
