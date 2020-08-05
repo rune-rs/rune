@@ -144,7 +144,7 @@ pub enum Inst {
     /// <index>
     /// => <value>
     /// ```
-    ExprIndexGet,
+    IndexGet,
     /// Get the given index out of an array on the top of the stack. Errors if
     /// the item doesn't exist or the item at the top of the stack is not an
     /// array.
@@ -192,7 +192,7 @@ pub enum Inst {
     /// <value>
     /// => *noop*
     /// ```
-    ExprIndexSet,
+    IndexSet,
     /// Push a literal integer.
     Integer {
         /// The number to push.
@@ -560,7 +560,7 @@ impl fmt::Display for Inst {
             Self::LoadInstanceFn { hash } => {
                 write!(fmt, "load-instance-fn {}", hash)?;
             }
-            Self::ExprIndexGet => {
+            Self::IndexGet => {
                 write!(fmt, "index-get")?;
             }
             Self::ArrayIndexGet { index } => {
@@ -569,7 +569,7 @@ impl fmt::Display for Inst {
             Self::ObjectSlotIndexGet { slot } => {
                 write!(fmt, "object-slot-index-get {}", slot)?;
             }
-            Self::ExprIndexSet => {
+            Self::IndexSet => {
                 write!(fmt, "index-set")?;
             }
             Self::Integer { number } => {

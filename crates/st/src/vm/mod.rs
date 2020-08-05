@@ -498,7 +498,51 @@ macro_rules! check_float {
 
 /// Generate a primitive combination of operations.
 macro_rules! numeric_ops {
-    ($vm:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
+    ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
+        match ($a, $b) {
+            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => {
+                $vm.push(ValuePtr::Integer({
+                    match $a.$checked_op($b) {
+                        Some(value) => value,
+                        None => return Err(VmError::$error),
+                    }
+                }));
+            },
+            (ValuePtr::Float($a), ValuePtr::Float($b)) => {
+                $vm.push(ValuePtr::Float(check_float!($a $op $b, $error)));
+            },
+            (lhs, rhs) => {
+                let ty = lhs.value_type($vm)?;
+                let hash = Hash::instance_function(ty, *$fn);
+
+                let handler = match $context.lookup(hash) {
+                    Some(handler) => handler,
+                    None => {
+                        return Err(VmError::UnsupportedBinaryOperation {
+                            op: stringify!($op),
+                            lhs: lhs.type_info($vm)?,
+                            rhs: rhs.type_info($vm)?,
+                        });
+                    }
+                };
+
+                $vm.push(rhs);
+                $vm.push(lhs);
+
+                let result = match handler {
+                    Handler::Async(handler) => handler($vm, 1).await,
+                    Handler::Regular(handler) => handler($vm, 1),
+                };
+
+                result?;
+            },
+        }
+    }
+}
+
+/// Generate a primitive combination of operations.
+macro_rules! assign_ops {
+    ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer({
                 match $a.$checked_op($b) {
@@ -509,33 +553,32 @@ macro_rules! numeric_ops {
             (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float({
                 check_float!($a $op $b, $error)
             }),
-            (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
-                op: stringify!($op),
-                lhs: lhs.type_info($vm)?,
-                rhs: rhs.type_info($vm)?,
-            }),
-        }
-    }
-}
+            (lhs, rhs) => {
+                let ty = lhs.value_type($vm)?;
+                let hash = Hash::instance_function(ty, *$fn);
 
-/// Generate a primitive combination of operations.
-macro_rules! numeric_assign_ops {
-    ($vm:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
-        match (*$a, $b) {
-            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer({
-                match $a.$checked_op($b) {
-                    Some(value) => value,
-                    None => return Err(VmError::$error),
-                }
-            }),
-            (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float({
-                check_float!($a $op $b, $error)
-            }),
-            (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
-                op: stringify!($op),
-                lhs: lhs.type_info($vm)?,
-                rhs: rhs.type_info($vm)?,
-            }),
+                let handler = match $context.lookup(hash) {
+                    Some(handler) => handler,
+                    None => {
+                        return Err(VmError::UnsupportedBinaryOperation {
+                            op: stringify!($op),
+                            lhs: lhs.type_info($vm)?,
+                            rhs: rhs.type_info($vm)?,
+                        });
+                    }
+                };
+
+                $vm.push(rhs);
+                $vm.push(lhs);
+
+                match handler {
+                    Handler::Async(handler) => handler($vm, 1).await?,
+                    Handler::Regular(handler) => handler($vm, 1)?,
+                };
+
+                $vm.pop()?;
+                lhs
+            }
         }
     }
 }
@@ -1400,8 +1443,8 @@ impl Vm {
     /// Optimized equality implementation.
     #[inline]
     fn op_eq(&mut self) -> Result<(), VmError> {
-        let b = self.pop()?;
         let a = self.pop()?;
+        let b = self.pop()?;
         self.push(ValuePtr::Bool(self.value_ptr_eq(a, b)?));
         Ok(())
     }
@@ -1409,8 +1452,8 @@ impl Vm {
     /// Optimized inequality implementation.
     #[inline]
     fn op_neq(&mut self) -> Result<(), VmError> {
-        let b = self.pop()?;
         let a = self.pop()?;
+        let b = self.pop()?;
         self.push(ValuePtr::Bool(!self.value_ptr_eq(a, b)?));
         Ok(())
     }
@@ -1439,104 +1482,57 @@ impl Vm {
         Ok(())
     }
 
-    /// Implementation of the add operation.
+    /// Perform an index set operation.
     #[inline]
-    fn op_add(&mut self) -> Result<(), VmError> {
-        let b = self.pop()?;
-        let a = self.pop()?;
+    async fn op_index_set(&mut self, context: &Context) -> Result<(), VmError> {
+        let target = self.pop()?;
+        let index = self.pop()?;
+        let value = self.pop()?;
 
-        match (a, b) {
-            (ValuePtr::Float(a), ValuePtr::Float(b)) => {
-                self.push(ValuePtr::Float(a + b));
-                return Ok(());
-            }
-            (ValuePtr::Integer(a), ValuePtr::Integer(b)) => {
-                self.push(ValuePtr::Integer(a + b));
-                return Ok(());
-            }
-            (ValuePtr::String(a), ValuePtr::String(b)) => {
-                let string = {
-                    let a = self.string_ref(a)?;
-                    let b = self.string_ref(b)?;
-                    let mut string = String::with_capacity(a.len() + b.len());
-                    string.push_str(a.as_str());
-                    string.push_str(b.as_str());
-                    string
-                };
-
-                let value = self.string_allocate(string);
-                self.push(value);
+        match (target, index) {
+            (ValuePtr::Object(target), ValuePtr::String(index)) => {
+                let index = self.string_take(index)?;
+                let mut object = self.object_mut(target)?;
+                object.insert(index, value);
                 return Ok(());
             }
             _ => (),
+        }
+
+        let ty = target.value_type(self)?;
+        let hash = Hash::instance_function(ty, *crate::INDEX_SET);
+
+        let handler = match context.lookup(hash) {
+            Some(handler) => handler,
+            None => {
+                let target_type = target.type_info(self)?;
+                let index_type = index.type_info(self)?;
+                let value_type = value.type_info(self)?;
+
+                return Err(VmError::UnsupportedIndexSet {
+                    target_type,
+                    index_type,
+                    value_type,
+                });
+            }
         };
 
-        Err(VmError::UnsupportedBinaryOperation {
-            op: "+",
-            lhs: a.type_info(self)?,
-            rhs: b.type_info(self)?,
-        })
-    }
+        self.push(value);
+        self.push(index);
+        self.push(target);
 
-    #[inline]
-    fn op_add_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        let arg = self.pop()?;
-        let value = self.value_at_mut(offset)?;
-        *value = numeric_assign_ops!(self, +, value.checked_add(arg), Overflow);
-        Ok(())
-    }
+        let result = match handler {
+            Handler::Async(handler) => handler(self, 2).await,
+            Handler::Regular(handler) => handler(self, 2),
+        };
 
-    #[inline]
-    fn op_sub(&mut self) -> Result<(), VmError> {
-        let b = self.pop()?;
-        let a = self.pop()?;
-        self.push(numeric_ops!(self, -, a.checked_sub(b), Underflow));
-        Ok(())
-    }
-
-    #[inline]
-    fn op_sub_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        let arg = self.pop()?;
-        let value = self.value_at_mut(offset)?;
-        *value = numeric_assign_ops!(self, -, value.checked_sub(arg), Underflow);
-        Ok(())
-    }
-
-    #[inline]
-    fn op_mul(&mut self) -> Result<(), VmError> {
-        let b = self.pop()?;
-        let a = self.pop()?;
-        self.push(numeric_ops!(self, *, a.checked_mul(b), Overflow));
-        Ok(())
-    }
-
-    #[inline]
-    fn op_mul_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        let arg = self.pop()?;
-        let value = self.value_at_mut(offset)?;
-        *value = numeric_assign_ops!(self, *, value.checked_mul(arg), Overflow);
-        Ok(())
-    }
-
-    #[inline]
-    fn op_div(&mut self) -> Result<(), VmError> {
-        let b = self.pop()?;
-        let a = self.pop()?;
-        self.push(numeric_ops!(self, /, a.checked_div(b), DivideByZero));
-        Ok(())
-    }
-
-    #[inline]
-    fn op_div_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        let arg = self.pop()?;
-        let value = self.value_at_mut(offset)?;
-        *value = numeric_assign_ops!(self, /, value.checked_div(arg), DivideByZero);
+        result?;
         Ok(())
     }
 
     /// Perform an index get operation.
     #[inline]
-    fn op_index_get(&mut self) -> Result<(), VmError> {
+    async fn op_index_get(&mut self, context: &Context) -> Result<(), VmError> {
         let target = self.pop()?;
         let index = self.pop()?;
 
@@ -1554,13 +1550,32 @@ impl Vm {
             _ => (),
         }
 
-        let target_type = target.type_info(self)?;
-        let index_type = index.type_info(self)?;
+        let ty = target.value_type(self)?;
+        let hash = Hash::instance_function(ty, *crate::INDEX_GET);
 
-        Err(VmError::UnsupportedIndexGet {
-            target_type,
-            index_type,
-        })
+        let handler = match context.lookup(hash) {
+            Some(handler) => handler,
+            None => {
+                let target_type = target.type_info(self)?;
+                let index_type = index.type_info(self)?;
+
+                return Err(VmError::UnsupportedIndexGet {
+                    target_type,
+                    index_type,
+                });
+            }
+        };
+
+        self.push(index);
+        self.push(target);
+
+        let result = match handler {
+            Handler::Async(handler) => handler(self, 1).await,
+            Handler::Regular(handler) => handler(self, 1),
+        };
+
+        result?;
+        Ok(())
     }
 
     /// Perform an index get operation.
@@ -1623,34 +1638,6 @@ impl Vm {
         Ok(())
     }
 
-    /// Perform an index set operation.
-    #[inline]
-    fn op_index_set(&mut self) -> Result<(), VmError> {
-        let target = self.pop()?;
-        let index = self.pop()?;
-        let value = self.pop()?;
-
-        match (target, index) {
-            (ValuePtr::Object(target), ValuePtr::String(index)) => {
-                let index = self.string_take(index)?;
-                let mut object = self.object_mut(target)?;
-                object.insert(index, value);
-                return Ok(());
-            }
-            _ => (),
-        }
-
-        let target_type = target.type_info(self)?;
-        let index_type = index.type_info(self)?;
-        let value_type = value.type_info(self)?;
-
-        Err(VmError::UnsupportedIndexSet {
-            target_type,
-            index_type,
-            value_type,
-        })
-    }
-
     /// Operation to allocate an object.
     #[inline]
     fn op_object(&mut self, slot: usize, unit: &CompilationUnit) -> Result<(), VmError> {
@@ -1672,8 +1659,8 @@ impl Vm {
 
     #[inline]
     fn op_is(&mut self, context: &Context) -> Result<(), VmError> {
-        let b = self.pop()?;
         let a = self.pop()?;
+        let b = self.pop()?;
 
         match (a, b) {
             (a, ValuePtr::Type(hash)) => {
@@ -1702,8 +1689,8 @@ impl Vm {
     /// Operation associated with `and` instruction.
     #[inline]
     fn op_and(&mut self) -> Result<(), VmError> {
-        let b = self.pop()?;
         let a = self.pop()?;
+        let b = self.pop()?;
         let value = boolean_ops!(self, a && b);
         self.push(ValuePtr::Bool(value));
         Ok(())
@@ -1712,8 +1699,8 @@ impl Vm {
     /// Operation associated with `or` instruction.
     #[inline]
     fn op_or(&mut self) -> Result<(), VmError> {
-        let b = self.pop()?;
         let a = self.pop()?;
+        let b = self.pop()?;
         let value = boolean_ops!(self, a || b);
         self.push(ValuePtr::Bool(value));
         Ok(())
@@ -1811,28 +1798,57 @@ impl Vm {
                     self.op_not()?;
                 }
                 Inst::Add => {
-                    self.op_add()?;
+                    let a = self.pop()?;
+                    let b = self.pop()?;
+                    numeric_ops!(self, context, crate::ADD, +, a.checked_add(b), Overflow);
                 }
                 Inst::AddAssign { offset } => {
-                    self.op_add_assign(*offset)?;
+                    let arg = self.pop()?;
+                    let value = self.value_at(*offset)?;
+                    let value = assign_ops! {
+                        self, context, crate::ADD_ASSIGN, +, value.checked_add(arg), Overflow
+                    };
+
+                    *self.value_at_mut(*offset)? = value;
                 }
                 Inst::Sub => {
-                    self.op_sub()?;
+                    let a = self.pop()?;
+                    let b = self.pop()?;
+                    numeric_ops!(self, context, crate::SUB, -, a.checked_sub(b), Underflow);
                 }
                 Inst::SubAssign { offset } => {
-                    self.op_sub_assign(*offset)?;
+                    let arg = self.pop()?;
+                    let value = self.value_at(*offset)?;
+                    let value = assign_ops! {
+                        self, context, crate::SUB_ASSIGN, -, value.checked_sub(arg), Underflow
+                    };
+                    *self.value_at_mut(*offset)? = value;
                 }
                 Inst::Mul => {
-                    self.op_mul()?;
+                    let a = self.pop()?;
+                    let b = self.pop()?;
+                    numeric_ops!(self, context, crate::MUL, *, a.checked_mul(b), Overflow);
                 }
                 Inst::MulAssign { offset } => {
-                    self.op_mul_assign(*offset)?;
+                    let arg = self.pop()?;
+                    let value = self.value_at(*offset)?;
+                    let value = assign_ops! {
+                        self, context, crate::MUL_ASSIGN, *, value.checked_mul(arg), Overflow
+                    };
+                    *self.value_at_mut(*offset)? = value;
                 }
                 Inst::Div => {
-                    self.op_div()?;
+                    let a = self.pop()?;
+                    let b = self.pop()?;
+                    numeric_ops!(self, context, crate::DIV, /, a.checked_div(b), DivideByZero);
                 }
                 Inst::DivAssign { offset } => {
-                    self.op_div_assign(*offset)?;
+                    let arg = self.pop()?;
+                    let value = self.value_at(*offset)?;
+                    let value = assign_ops! {
+                        self, context, crate::DIV_ASSIGN, /, value.checked_div(arg), DivideByZero
+                    };
+                    *self.value_at_mut(*offset)? = value;
                 }
                 // NB: we inline function calls because it helps Rust optimize
                 // the async plumbing.
@@ -1865,8 +1881,8 @@ impl Vm {
                     let hash = Hash::instance_function(ty, *hash);
                     self.push(ValuePtr::Fn(hash));
                 }
-                Inst::ExprIndexGet => {
-                    self.op_index_get()?;
+                Inst::IndexGet => {
+                    self.op_index_get(context).await?;
                 }
                 Inst::ArrayIndexGet { index } => {
                     self.op_array_index_get(*index)?;
@@ -1874,8 +1890,8 @@ impl Vm {
                 Inst::ObjectSlotIndexGet { slot } => {
                     self.op_object_slot_index_get(*slot, unit)?;
                 }
-                Inst::ExprIndexSet => {
-                    self.op_index_set()?;
+                Inst::IndexSet => {
+                    self.op_index_set(context).await?;
                 }
                 Inst::Return => {
                     let return_value = self.pop()?;
@@ -1911,23 +1927,23 @@ impl Vm {
                     self.do_replace(*offset)?;
                 }
                 Inst::Gt => {
-                    let b = self.pop()?;
                     let a = self.pop()?;
+                    let b = self.pop()?;
                     self.push(ValuePtr::Bool(primitive_ops!(self, a > b)));
                 }
                 Inst::Gte => {
-                    let b = self.pop()?;
                     let a = self.pop()?;
+                    let b = self.pop()?;
                     self.push(ValuePtr::Bool(primitive_ops!(self, a >= b)));
                 }
                 Inst::Lt => {
-                    let b = self.pop()?;
                     let a = self.pop()?;
+                    let b = self.pop()?;
                     self.push(ValuePtr::Bool(primitive_ops!(self, a < b)));
                 }
                 Inst::Lte => {
-                    let b = self.pop()?;
                     let a = self.pop()?;
+                    let b = self.pop()?;
                     self.push(ValuePtr::Bool(primitive_ops!(self, a <= b)));
                 }
                 Inst::Eq => {

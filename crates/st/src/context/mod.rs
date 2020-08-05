@@ -277,7 +277,9 @@ impl Context {
             self.functions.insert(hash, handler);
         }
 
-        for ((ty, name), (handler, args, instance_type)) in module.instance_functions.into_iter() {
+        for ((ty, hash), (handler, args, instance_type, name)) in
+            module.instance_functions.into_iter()
+        {
             let type_info = match self
                 .types_rev
                 .get(&ty)
@@ -289,8 +291,7 @@ impl Context {
                 }
             };
 
-            let hash = Hash::instance_function(ty, Hash::of(&name));
-
+            let hash = Hash::instance_function(ty, hash);
             let signature =
                 FnSignature::new_inst(type_info.name.clone(), name, args, type_info.type_info);
 
@@ -318,3 +319,113 @@ impl Context {
         self.types.get(&hash)
     }
 }
+
+/// Trait used to determine what can be used as an instance function name.
+pub trait IntoInstFnHash: Copy {
+    /// Generate a locally unique hash to check for conflicts.
+    fn to_hash(self) -> Hash;
+
+    /// Get a human readable name for the function.
+    fn to_name(self) -> String;
+}
+
+impl<'a> IntoInstFnHash for &'a str {
+    fn to_hash(self) -> Hash {
+        Hash::of(self)
+    }
+
+    fn to_name(self) -> String {
+        self.to_owned()
+    }
+}
+
+/// The hash helper for a function.
+#[derive(Debug, Clone, Copy)]
+pub struct FnHash {
+    pub(crate) hash: Hash,
+    name: &'static str,
+}
+
+impl IntoInstFnHash for FnHash {
+    fn to_hash(self) -> Hash {
+        self.hash
+    }
+
+    fn to_name(self) -> String {
+        String::from(self.name)
+    }
+}
+
+impl std::ops::Deref for FnHash {
+    type Target = Hash;
+
+    fn deref(&self) -> &Self::Target {
+        &self.hash
+    }
+}
+
+/// The function to call to continue iteration.
+pub const NEXT: FnHash = FnHash {
+    name: "next",
+    hash: Hash(0xc3cde069de2ba320),
+};
+
+/// The function to access an index.
+pub const INDEX_GET: FnHash = FnHash {
+    name: "index_get",
+    hash: Hash(0xadb5b27e2a4d2dec),
+};
+
+/// The function to set an index.
+pub const INDEX_SET: FnHash = FnHash {
+    name: "index_set",
+    hash: Hash(0x162943f7bd03ad36),
+};
+
+/// The function to implement for the addition operation.
+pub const ADD: FnHash = FnHash {
+    name: "add",
+    hash: Hash(0xe4ecf51fa0bf1076),
+};
+
+/// The function to implement for the addition assign operation.
+pub const ADD_ASSIGN: FnHash = FnHash {
+    name: "add_assign",
+    hash: Hash(0x42451ccb0a2071a9),
+};
+
+/// The function to implement for the subtraction operation.
+pub const SUB: FnHash = FnHash {
+    name: "sub",
+    hash: Hash(0x6fa86a5f18d0bf71),
+};
+
+/// The function to implement for the subtraction assign operation.
+pub const SUB_ASSIGN: FnHash = FnHash {
+    name: "sub_assign",
+    hash: Hash(0x5939bb56a1415284),
+};
+
+/// The function to implement for the multiply operation.
+pub const MUL: FnHash = FnHash {
+    name: "mul",
+    hash: Hash(0xb09e99dc94091d1c),
+};
+
+/// The function to implement for the multiply assign operation.
+pub const MUL_ASSIGN: FnHash = FnHash {
+    name: "mul_assign",
+    hash: Hash(0x29a54b727f980ebf),
+};
+
+/// The function to implement for the division operation.
+pub const DIV: FnHash = FnHash {
+    name: "div",
+    hash: Hash(0xf26d6eea1afca6e8),
+};
+
+/// The function to implement for the division assign operation.
+pub const DIV_ASSIGN: FnHash = FnHash {
+    name: "div_assign",
+    hash: Hash(0x4dd087a8281c04e6),
+};

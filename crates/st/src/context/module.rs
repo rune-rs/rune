@@ -1,4 +1,5 @@
 use crate::collections::HashMap;
+use crate::hash::Hash;
 use crate::reflection::{ReflectValueType, ToValue, UnsafeFromValue};
 use crate::tls;
 use crate::value::{ValueType, ValueTypeInfo};
@@ -7,7 +8,7 @@ use std::any::type_name;
 use std::future::Future;
 
 use crate::context::item::Item;
-use crate::context::{BoxFuture, ContextError, Handler};
+use crate::context::{BoxFuture, ContextError, Handler, IntoInstFnHash};
 
 /// A collection of functions that can be looked up by type.
 #[derive(Default)]
@@ -18,7 +19,7 @@ pub struct Module {
     pub(super) functions: HashMap<Item, (Handler, Option<usize>)>,
     /// Instance functions.
     pub(super) instance_functions:
-        HashMap<(ValueType, String), (Handler, Option<usize>, ValueTypeInfo)>,
+        HashMap<(ValueType, Hash), (Handler, Option<usize>, ValueTypeInfo, String)>,
     /// Registered types.
     pub(super) types: HashMap<ValueType, (ValueTypeInfo, Item)>,
 }
@@ -203,26 +204,25 @@ impl Module {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn inst_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<(), ContextError>
+    pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
+        N: IntoInstFnHash,
         Func: InstFn<Args>,
     {
         let ty = Func::instance_value_type();
         let type_info = Func::instance_value_type_info();
 
-        let key = (ty, name.to_owned());
+        let key = (ty, name.to_hash());
+        let name = name.to_name();
 
         if self.instance_functions.contains_key(&key) {
-            return Err(ContextError::ConflictingInstanceFunction {
-                type_info,
-                name: name.to_owned(),
-            });
+            return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
         let handler = Handler::Regular(Box::new(move |vm, args| f.vm_call(vm, args)));
 
         self.instance_functions
-            .insert(key.clone(), (handler, Some(Func::args()), type_info));
+            .insert(key.clone(), (handler, Some(Func::args()), type_info, name));
         Ok(())
     }
 
@@ -255,26 +255,25 @@ impl Module {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn async_inst_fn<Func, Args>(&mut self, name: &str, f: Func) -> Result<(), ContextError>
+    pub fn async_inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
+        N: IntoInstFnHash,
         Func: AsyncInstFn<Args>,
     {
         let ty = Func::instance_value_type();
         let type_info = Func::instance_value_type_info();
 
-        let key = (ty, name.to_owned());
+        let key = (ty, name.to_hash());
+        let name = name.to_name();
 
         if self.instance_functions.contains_key(&key) {
-            return Err(ContextError::ConflictingInstanceFunction {
-                type_info,
-                name: name.to_owned(),
-            });
+            return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
         let handler = Handler::Async(Box::new(move |vm, args| f.vm_call(vm, args)));
 
         self.instance_functions
-            .insert(key.clone(), (handler, Some(Func::args()), type_info));
+            .insert(key.clone(), (handler, Some(Func::args()), type_info, name));
         Ok(())
     }
 }

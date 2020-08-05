@@ -66,7 +66,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty(&["Range"]).build::<Range>()?;
     module.ty(&["Rev"]).build::<Rev>()?;
     module.function(&["range"], Range::new)?;
-    module.inst_fn("next", Range::next)?;
+    module.inst_fn(crate::NEXT, Range::next)?;
     module.inst_fn("rev", Range::rev)?;
     module.inst_fn("next", Rev::next)?;
     Ok(module)

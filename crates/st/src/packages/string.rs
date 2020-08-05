@@ -17,6 +17,14 @@ fn char_at(s: &str, index: usize) -> Result<Option<char>, Error> {
     Ok(s[index..].chars().next())
 }
 
+/// The add operation for strings.
+fn add(a: &str, b: &str) -> String {
+    let mut string = String::with_capacity(a.len() + b.len());
+    string.push_str(a);
+    string.push_str(b);
+    string
+}
+
 /// Get the module for the string package.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "string"]);
@@ -37,5 +45,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("clone", String::clone)?;
     module.inst_fn("shrink_to_fit", String::shrink_to_fit)?;
     module.inst_fn("char_at", char_at)?;
+    module.inst_fn(crate::ADD, add)?;
+    module.inst_fn(crate::ADD_ASSIGN, String::push_str)?;
     Ok(module)
 }

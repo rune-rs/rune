@@ -5,7 +5,7 @@ use twox_hash::XxHash64;
 
 /// The hash of a primitive thing.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Hash(u64);
+pub struct Hash(pub(crate) u64);
 
 impl Hash {
     /// Hash corresponding to global function calls.

@@ -692,3 +692,19 @@ async fn test_literal() {
         '💯',
     };
 }
+
+#[tokio::test]
+async fn test_string_concat() {
+    assert_eq! {
+        test! {
+            String => r#"
+            fn main() {
+                let foo = "foo";
+                foo += "/bar" + "/baz";
+                foo
+            }
+            "#
+        },
+        "foo/bar/baz",
+    };
+}

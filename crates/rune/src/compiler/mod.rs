@@ -588,7 +588,7 @@ impl<'a> Compiler<'a> {
         // Declare storage for memoized `next` instance fn.
         let next_offset = if self.options.memoize_instance_fn {
             let offset = self.scopes.last_mut(span)?.decl_anon(expr_for.iter.span());
-            let hash = st::Hash::of(ITERATOR_NEXT);
+            let hash = *st::NEXT;
 
             // Declare the named loop variable and put it in the scope.
             self.asm.push(
@@ -724,11 +724,8 @@ impl<'a> Compiler<'a> {
         self.compile_expr(&*expr_let.expr, NeedsValue(true))?;
 
         let mut scope = self.scopes.pop_unchecked(span)?;
-        let offset = scope.decl_anon(span);
 
-        let load = |asm: &mut Assembly| {
-            asm.push(st::Inst::Copy { offset }, span);
-        };
+        let load = |_: &mut Assembly| {};
 
         if self.compile_pat(&mut scope, &expr_let.pat, false_label, &load)? {
             self.warnings.let_pattern_might_panic(span, self.context());
@@ -815,7 +812,7 @@ impl<'a> Compiler<'a> {
 
         self.compile_expr(&*expr_index_get.index, NeedsValue(true))?;
         self.compile_expr(&*expr_index_get.target, NeedsValue(true))?;
-        self.asm.push(st::Inst::ExprIndexGet, span);
+        self.asm.push(st::Inst::IndexGet, span);
 
         // NB: we still need to perform the operation since it might have side
         // effects, but pop the result in case a value is not needed.
@@ -895,7 +892,7 @@ impl<'a> Compiler<'a> {
         self.compile_expr(&*expr_index_set.value, NeedsValue(true))?;
         self.compile_expr(&*expr_index_set.index, NeedsValue(true))?;
         self.compile_expr(&*expr_index_set.target, NeedsValue(true))?;
-        self.asm.push(st::Inst::ExprIndexSet, span);
+        self.asm.push(st::Inst::IndexSet, span);
 
         // Encode a unit in case a value is needed.
         if *needs_value {
@@ -1081,8 +1078,8 @@ impl<'a> Compiler<'a> {
             _ => (),
         }
 
-        self.compile_expr(&*expr_binary.lhs, NeedsValue(true))?;
         self.compile_expr(&*expr_binary.rhs, NeedsValue(true))?;
+        self.compile_expr(&*expr_binary.lhs, NeedsValue(true))?;
 
         match expr_binary.op {
             ast::BinOp::Add { .. } => {
@@ -1162,11 +1159,8 @@ impl<'a> Compiler<'a> {
 
                 let mut scope = self.scopes.last(span)?.child();
                 self.compile_expr(&*expr_let.expr, NeedsValue(true))?;
-                let offset = scope.decl_anon(span);
 
-                let load = |asm: &mut Assembly| {
-                    asm.push(st::Inst::Copy { offset }, span);
-                };
+                let load = |_: &mut Assembly| {};
 
                 if self.compile_pat(&mut scope, &expr_let.pat, false_label, &load)? {
                     self.asm.jump(then_label, span);
@@ -1530,11 +1524,25 @@ impl<'a> Compiler<'a> {
                 self.asm.jump_if(true_label, span);
             }
             ast::Pat::PatArray(array) => {
-                self.compile_pat_array(scope, array, false_label, load)?;
+                let offset = scope.decl_anon(span);
+                load(&mut self.asm);
+
+                let load = |asm: &mut Assembly| {
+                    asm.push(st::Inst::Copy { offset }, span);
+                };
+
+                self.compile_pat_array(scope, array, false_label, &load)?;
                 return Ok(true);
             }
             ast::Pat::PatObject(object) => {
-                self.compile_pat_object(scope, object, false_label, load)?;
+                let offset = scope.decl_anon(span);
+                load(&mut self.asm);
+
+                let load = |asm: &mut Assembly| {
+                    asm.push(st::Inst::Copy { offset }, span);
+                };
+
+                self.compile_pat_object(scope, object, false_label, &load)?;
                 return Ok(true);
             }
         }
