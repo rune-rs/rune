@@ -1,124 +1,20 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::error::{CompileError, ConfigurationError};
+use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use st::unit::{Assembly, Label, Span};
 
-/// Compilation warning.
-#[derive(Debug, Clone, Copy)]
-pub enum Warning {
-    /// Item identified by the span is not used.
-    NotUsed {
-        /// The span that is not used.
-        span: Span,
-        /// The context in which the value was not used.
-        context: Option<Span>,
-    },
-    /// Warning that an unconditional let pattern will panic if it doesn't
-    /// match.
-    LetPatternMightPanic {
-        /// The span of the pattern.
-        span: Span,
-        /// The context in which it is used.
-        context: Option<Span>,
-    },
-}
+mod loops;
+mod options;
+mod scope;
+mod warning;
 
-/// Compilation warnings.
-#[derive(Debug, Clone, Default)]
-pub struct Warnings {
-    warnings: Vec<Warning>,
-}
-
-impl Warnings {
-    /// Construct a new collection of compilation warnings.
-    pub fn new() -> Self {
-        Self {
-            warnings: Vec::new(),
-        }
-    }
-
-    /// Indicate if there are warnings or not.
-    pub fn is_empty(&self) -> bool {
-        self.warnings.is_empty()
-    }
-
-    /// Construct a warning indicating that the item identified by the span is
-    /// not used.
-    fn not_used(&mut self, span: Span, context: Option<Span>) {
-        self.warnings.push(Warning::NotUsed { span, context });
-    }
-
-    /// Indicate that a pattern might panic.
-    fn let_pattern_might_panic(&mut self, span: Span, context: Option<Span>) {
-        self.warnings
-            .push(Warning::LetPatternMightPanic { span, context });
-    }
-
-    /// Extend self with another collection of warnings.
-    pub fn extend(&mut self, other: Self) {
-        self.warnings.extend(other.warnings.into_iter());
-    }
-}
-
-impl IntoIterator for Warnings {
-    type IntoIter = std::vec::IntoIter<Warning>;
-    type Item = Warning;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.warnings.into_iter()
-    }
-}
-
-/// Compiler options.
-pub struct Options {
-    ///Enabled optimizations.
-    pub optimizations: Optimizations,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            optimizations: Default::default(),
-        }
-    }
-}
-
-/// Optimizations enabled in the compiler.
-pub struct Optimizations {
-    /// Memoize the instance function in a loop.
-    memoize_instance_fn: bool,
-}
-
-impl Optimizations {
-    /// Parse the given option.
-    pub fn parse_option(&mut self, option: &str) -> Result<(), ConfigurationError> {
-        let mut it = option.split('=');
-
-        match it.next() {
-            Some("memoize-instance-fn") => {
-                self.memoize_instance_fn = it.next() != Some("false");
-            }
-            _ => {
-                return Err(ConfigurationError::UnsupportedOptimizationOption {
-                    option: option.to_owned(),
-                });
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl Default for Optimizations {
-    fn default() -> Self {
-        Self {
-            memoize_instance_fn: true,
-        }
-    }
-}
+use self::loops::{Loop, Loops};
+pub use self::options::Options;
+use self::scope::{Scope, ScopeGuard, Scopes};
+pub use self::warning::{Warning, Warnings};
 
 /// Instance function to use for iteration.
 const ITERATOR_NEXT: &str = "next";
@@ -172,9 +68,9 @@ impl<'a> crate::ParseAll<'a, ast::File> {
                 scopes: Scopes::new(),
                 contexts: vec![span],
                 source,
-                loops: Vec::new(),
+                loops: Loops::new(),
                 current_block: Span::empty(),
-                optimizations: &options.optimizations,
+                options,
                 warnings: &mut warnings,
             };
 
@@ -186,101 +82,6 @@ impl<'a> crate::ParseAll<'a, ast::File> {
     }
 }
 
-#[must_use]
-struct ScopeGuard(usize);
-
-struct Scopes {
-    scopes: Vec<Scope>,
-}
-
-impl Scopes {
-    /// Construct a new collection of scopes.
-    fn new() -> Self {
-        Self {
-            scopes: vec![Scope::new()],
-        }
-    }
-
-    /// Get the local with the given name.
-    fn get_var(&self, name: &str, span: Span) -> Result<&Var> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(var) = scope.get(name) {
-                return Ok(var);
-            }
-        }
-
-        Err(CompileError::MissingLocal {
-            name: name.to_owned(),
-            span,
-        })
-    }
-
-    /// Get the local with the given name.
-    fn get_var_mut(&mut self, name: &str, span: Span) -> Result<&mut Var> {
-        for scope in self.scopes.iter_mut().rev() {
-            if let Some(var) = scope.get_mut(name) {
-                return Ok(var);
-            }
-        }
-
-        Err(CompileError::MissingLocal {
-            name: name.to_owned(),
-            span,
-        })
-    }
-
-    /// Get the local with the given name.
-    fn last(&self, span: Span) -> Result<&Scope> {
-        Ok(self
-            .scopes
-            .last()
-            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
-    }
-
-    /// Get the last locals scope.
-    fn last_mut(&mut self, span: Span) -> Result<&mut Scope> {
-        Ok(self
-            .scopes
-            .last_mut()
-            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
-    }
-
-    /// Push a scope and return an index.
-    fn push(&mut self, scope: Scope) -> ScopeGuard {
-        self.scopes.push(scope);
-        ScopeGuard(self.scopes.len())
-    }
-
-    /// Pop the last scope and compare with the expected length.
-    fn pop(&mut self, span: Span, expected: ScopeGuard) -> Result<Scope> {
-        let ScopeGuard(expected) = expected;
-
-        if self.scopes.len() != expected {
-            return Err(CompileError::internal(
-                "the number of scopes do not match",
-                span,
-            ));
-        }
-
-        self.pop_unchecked(span)
-    }
-
-    /// Pop the last of the scope.
-    fn pop_last(&mut self, span: Span) -> Result<Scope> {
-        self.pop(span, ScopeGuard(1))
-    }
-
-    /// Pop the last scope and compare with the expected length.
-    fn pop_unchecked(&mut self, span: Span) -> Result<Scope> {
-        let scope = self
-            .scopes
-            .pop()
-            .ok_or_else(|| CompileError::internal("missing parent scope", span))?;
-
-        Ok(scope)
-    }
-}
-
 struct Compiler<'a> {
     unit: &'a mut st::CompilationUnit,
     asm: &'a mut Assembly,
@@ -289,11 +90,11 @@ struct Compiler<'a> {
     contexts: Vec<Span>,
     source: Source<'a>,
     /// The nesting of loop we are currently in.
-    loops: Vec<Loop>,
+    loops: Loops,
     /// The current block that we are in.
     current_block: Span,
     /// Enabled optimizations.
-    optimizations: &'a Optimizations,
+    options: &'a Options,
     /// Compilation warnings.
     warnings: &'a mut Warnings,
 }
@@ -373,7 +174,7 @@ impl<'a> Compiler<'a> {
         let span = block.span();
         self.current_block = span;
 
-        let new_scope = self.scopes.last(span)?.new_scope();
+        let new_scope = self.scopes.last(span)?.child();
         let scopes_count = self.scopes.push(new_scope);
 
         for (expr, _) in &block.exprs {
@@ -721,9 +522,7 @@ impl<'a> Compiler<'a> {
         let end_label = self.asm.new_label("while_end");
         let break_label = self.asm.new_label("while_break");
 
-        let loop_count = self.loops.len();
-
-        self.loops.push(Loop {
+        let loop_count = self.loops.push(Loop {
             break_label,
             total_var_count: self.scopes.last(span)?.total_var_count,
             needs_value,
@@ -743,18 +542,7 @@ impl<'a> Compiler<'a> {
 
         // NB: breaks produce their own value.
         self.asm.label(break_label)?;
-
-        if self.loops.pop().is_none() {
-            return Err(CompileError::internal("while: missing parent loop", span));
-        }
-
-        if loop_count != self.loops.len() {
-            return Err(CompileError::internal(
-                "while: loop count mismatch on return",
-                span,
-            ));
-        }
-
+        self.loops.pop(span, loop_count)?;
         Ok(())
     }
 
@@ -766,12 +554,10 @@ impl<'a> Compiler<'a> {
         let end_label = self.asm.new_label("for_end");
         let break_label = self.asm.new_label("for_break");
 
-        let loop_count = self.loops.len();
-
-        let new_scope = self.scopes.last(span)?.new_scope();
+        let new_scope = self.scopes.last(span)?.child();
         let scopes_count = self.scopes.push(new_scope);
 
-        self.loops.push(Loop {
+        let loop_count = self.loops.push(Loop {
             break_label,
             total_var_count: self.scopes.last(span)?.total_var_count,
             needs_value,
@@ -792,7 +578,7 @@ impl<'a> Compiler<'a> {
         };
 
         // Declare storage for memoized `next` instance fn.
-        let next_offset = if self.optimizations.memoize_instance_fn {
+        let next_offset = if self.options.memoize_instance_fn {
             let offset = self.scopes.last_mut(span)?.decl_anon(expr_for.iter.span());
             let hash = st::Hash::of(ITERATOR_NEXT);
 
@@ -884,17 +670,7 @@ impl<'a> Compiler<'a> {
         // NB: breaks produce their own value.
         self.asm.label(break_label)?;
 
-        if self.loops.pop().is_none() {
-            return Err(CompileError::internal("for: missing parent loop", span));
-        }
-
-        if loop_count != self.loops.len() {
-            return Err(CompileError::internal(
-                "for: loop count mismatch on return",
-                span,
-            ));
-        }
-
+        self.loops.pop(span, loop_count)?;
         Ok(())
     }
 
@@ -910,9 +686,7 @@ impl<'a> Compiler<'a> {
         let end_label = self.asm.new_label("loop_end");
         let break_label = self.asm.new_label("loop_break");
 
-        let loop_count = self.loops.len();
-
-        self.loops.push(Loop {
+        let loop_count = self.loops.push(Loop {
             break_label,
             total_var_count: self.scopes.last(span)?.total_var_count,
             needs_value,
@@ -929,18 +703,7 @@ impl<'a> Compiler<'a> {
         }
 
         self.asm.label(break_label)?;
-
-        if self.loops.pop().is_none() {
-            return Err(CompileError::internal("loop: missing parent loop", span));
-        }
-
-        if loop_count != self.loops.len() {
-            return Err(CompileError::internal(
-                "loop: loop count mismatch on return",
-                span,
-            ));
-        }
-
+        self.loops.pop(span, loop_count)?;
         Ok(())
     }
 
@@ -1046,7 +809,7 @@ impl<'a> Compiler<'a> {
             return Err(CompileError::BreakDoesNotProduceValue { span });
         }
 
-        let last_loop = match self.loops.last().copied() {
+        let last_loop = match self.loops.last() {
             Some(last_loop) => last_loop,
             None => {
                 return Err(CompileError::BreakOutsideOfLoop { span });
@@ -1130,8 +893,7 @@ impl<'a> Compiler<'a> {
             }
         };
 
-        let offset = var.offset;
-        self.asm.push(st::Inst::Copy { offset }, span);
+        self.asm.push(st::Inst::Copy { offset: var.offset }, span);
         Ok(())
     }
 
@@ -1337,14 +1099,14 @@ impl<'a> Compiler<'a> {
                 self.encode_expr(&*expr, NeedsValue(true))?;
                 self.asm.jump_if(then_label, span);
 
-                Ok(self.scopes.last(span)?.new_scope())
+                Ok(self.scopes.last(span)?.child())
             }
             ast::Condition::ExprLet(expr_let) => {
                 let span = expr_let.span();
 
                 let false_label = self.asm.new_label("if_condition_false");
 
-                let mut scope = self.scopes.last(span)?.new_scope();
+                let mut scope = self.scopes.last(span)?.child();
                 self.encode_expr(&*expr_let.expr, NeedsValue(true))?;
                 let offset = scope.decl_anon(span);
 
@@ -1431,7 +1193,7 @@ impl<'a> Compiler<'a> {
         let span = expr_match.span();
         log::trace!("ExprMatch => {:?}", self.source.source(span)?);
 
-        let new_scope = self.scopes.last(span)?.new_scope();
+        let new_scope = self.scopes.last(span)?.child();
         let expected_scopes = self.scopes.push(new_scope);
 
         self.encode_expr(&*expr_match.expr, NeedsValue(true))?;
@@ -1450,7 +1212,7 @@ impl<'a> Compiler<'a> {
             let branch_label = self.asm.new_label("match_branch");
             let match_false = self.asm.new_label("match_false");
 
-            let mut scope = self.scopes.last(span)?.new_scope();
+            let mut scope = self.scopes.last(span)?.child();
 
             let load = move |asm: &mut Assembly| {
                 asm.push(st::Inst::Copy { offset }, span);
@@ -1789,138 +1551,4 @@ fn resolve_path<'a>(path: ast::Path, source: Source<'a>) -> Result<Vec<&'a str>>
     }
 
     Ok(output)
-}
-
-/// A locally declared variable.
-#[derive(Debug, Clone)]
-struct Var {
-    /// Slot offset from the current stack frame.
-    offset: usize,
-    /// Name of the variable.
-    name: String,
-    /// Token assocaited with the variable.
-    span: Span,
-}
-
-/// A locally declared variable.
-#[derive(Debug, Clone)]
-struct AnonVar {
-    /// Slot offset from the current stack frame.
-    offset: usize,
-    /// Span associated with the anonymous variable.
-    span: Span,
-}
-
-#[derive(Debug, Clone)]
-struct Scope {
-    /// Named variables.
-    locals: HashMap<String, Var>,
-    /// Anonymous variables.
-    anon: Vec<AnonVar>,
-    /// The number of variables.
-    total_var_count: usize,
-    /// The number of variables local to this scope.
-    local_var_count: usize,
-}
-
-impl Scope {
-    /// Construct a new locals handlers.
-    pub fn new() -> Scope {
-        Self {
-            locals: HashMap::new(),
-            anon: Vec::new(),
-            total_var_count: 0,
-            local_var_count: 0,
-        }
-    }
-
-    /// Construct a new scope.
-    pub fn new_scope(&self) -> Self {
-        Self {
-            locals: HashMap::new(),
-            anon: Vec::new(),
-            total_var_count: self.total_var_count,
-            local_var_count: 0,
-        }
-    }
-
-    /// Insert a new local, and return the old one if there's a conflict.
-    pub fn new_var(&mut self, name: &str, span: Span) -> Result<()> {
-        let local = Var {
-            offset: self.total_var_count,
-            name: name.to_owned(),
-            span,
-        };
-
-        self.total_var_count += 1;
-        self.local_var_count += 1;
-
-        if let Some(old) = self.locals.insert(name.to_owned(), local) {
-            return Err(CompileError::VariableConflict {
-                name: name.to_owned(),
-                span,
-                existing_span: old.span,
-            });
-        }
-
-        Ok(())
-    }
-
-    /// Insert a new local, and return the old one if there's a conflict.
-    pub fn decl_var(&mut self, name: &str, span: Span) -> usize {
-        let offset = self.total_var_count;
-
-        self.locals.insert(
-            name.to_owned(),
-            Var {
-                offset,
-                name: name.to_owned(),
-                span,
-            },
-        );
-
-        self.total_var_count += 1;
-        self.local_var_count += 1;
-        offset
-    }
-
-    /// Insert a new local, and return the old one if there's a conflict.
-    fn decl_anon(&mut self, span: Span) -> usize {
-        let offset = self.total_var_count;
-
-        self.anon.push(AnonVar { offset, span });
-
-        self.total_var_count += 1;
-        self.local_var_count += 1;
-        offset
-    }
-
-    /// Access the local with the given name.
-    pub fn get(&self, name: &str) -> Option<&Var> {
-        if let Some(local) = self.locals.get(name) {
-            return Some(local);
-        }
-
-        None
-    }
-
-    /// Access the local with the given name.
-    pub fn get_mut(&mut self, name: &str) -> Option<&mut Var> {
-        if let Some(local) = self.locals.get_mut(name) {
-            return Some(local);
-        }
-
-        None
-    }
-}
-
-/// Loops we are inside.
-#[derive(Clone, Copy)]
-struct Loop {
-    /// The end label of the loop.
-    break_label: Label,
-    /// The number of variables observed at the start of the loop.
-    total_var_count: usize,
-    /// If the loop needs a value.
-    needs_value: NeedsValue,
 }

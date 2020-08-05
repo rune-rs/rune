@@ -203,7 +203,7 @@ impl Runtime {
         I::Item: AsRef<str>,
     {
         for opt in options {
-            self.options.optimizations.parse_option(opt.as_ref())?;
+            self.options.parse_option(opt.as_ref())?;
         }
 
         Ok(())
