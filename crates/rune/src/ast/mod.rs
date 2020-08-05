@@ -156,7 +156,7 @@ decl_tokens! {
     (In, Kind::In),
     (Break, Kind::Break),
     (Return, Kind::Return),
-    (Star, Kind::Star),
+    (Star, Kind::Mul),
     (Rocket, Kind::Rocket),
     (StartObject, Kind::StartObject),
     (DotDot, Kind::DotDot),

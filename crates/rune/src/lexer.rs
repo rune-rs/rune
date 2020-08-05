@@ -283,6 +283,22 @@ impl<'a> Lexer<'a> {
             let kind = loop {
                 if let Some(c2) = it.clone().next().map(|(_, c)| c) {
                     match (c, c2) {
+                        ('+', '=') => {
+                            it.next();
+                            break Kind::AddAssign;
+                        }
+                        ('-', '=') => {
+                            it.next();
+                            break Kind::SubAssign;
+                        }
+                        ('*', '=') => {
+                            it.next();
+                            break Kind::MulAssign;
+                        }
+                        ('/', '=') => {
+                            it.next();
+                            break Kind::DivAssign;
+                        }
                         ('/', '/') => {
                             self.consume_line(&mut it);
                             continue 'outer;
@@ -359,10 +375,10 @@ impl<'a> Lexer<'a> {
                     '.' => Kind::Dot,
                     ';' => Kind::SemiColon,
                     '=' => Kind::Eq,
-                    '+' => Kind::Plus,
-                    '-' => Kind::Minus,
-                    '/' => Kind::Slash,
-                    '*' => Kind::Star,
+                    '+' => Kind::Add,
+                    '-' => Kind::Sub,
+                    '/' => Kind::Div,
+                    '*' => Kind::Mul,
                     '&' => Kind::Ampersand,
                     '>' => Kind::Gt,
                     '<' => Kind::Lt,
@@ -448,6 +464,45 @@ mod tests {
                 kind: Kind::LitStr {
                     escaped: false,
                 },
+            }
+        };
+    }
+
+    #[test]
+    fn test_operators() {
+        test_lexer! {
+            "+ += - -= * *= / /=",
+            Token {
+                span: Span::new(0, 1),
+                kind: Kind::Add,
+            },
+            Token {
+                span: Span::new(2, 4),
+                kind: Kind::AddAssign,
+            },
+            Token {
+                span: Span::new(5, 6),
+                kind: Kind::Sub,
+            },
+            Token {
+                span: Span::new(7, 9),
+                kind: Kind::SubAssign,
+            },
+            Token {
+                span: Span::new(10, 11),
+                kind: Kind::Mul,
+            },
+            Token {
+                span: Span::new(12, 14),
+                kind: Kind::MulAssign,
+            },
+            Token {
+                span: Span::new(15, 16),
+                kind: Kind::Div,
+            },
+            Token {
+                span: Span::new(17, 19),
+                kind: Kind::DivAssign,
             }
         };
     }

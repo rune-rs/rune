@@ -43,12 +43,20 @@ impl ExprBinary {
 pub enum BinOp {
     /// Addition.
     Add,
+    /// Add assign operation.
+    AddAssign,
     /// Subtraction.
     Sub,
+    /// Sub assign operation.
+    SubAssign,
     /// Division.
     Div,
+    /// Div assign operation.
+    DivAssign,
     /// Multiplication.
     Mul,
+    /// Multiply assign operation.
+    MulAssign,
     /// Equality check.
     Eq,
     /// Inequality check.
@@ -78,6 +86,7 @@ impl BinOp {
     pub(super) fn precedence(self) -> usize {
         match self {
             Self::Assign => 1,
+            Self::AddAssign | Self::SubAssign | Self::MulAssign | Self::DivAssign => 1,
             Self::Or => 2,
             Self::And => 3,
             Self::Eq | Self::Neq | Self::Gt | Self::Lt | Self::Gte | Self::Lte => 4,
@@ -104,10 +113,10 @@ impl BinOp {
     /// Convert from a token.
     pub(super) fn from_token(token: Token) -> Option<(BinOp, Token)> {
         let op = match token.kind {
-            Kind::Plus => Self::Add,
-            Kind::Minus => Self::Sub,
-            Kind::Slash => Self::Div,
-            Kind::Star => Self::Mul,
+            Kind::Add => Self::Add,
+            Kind::Sub => Self::Sub,
+            Kind::Div => Self::Div,
+            Kind::Mul => Self::Mul,
             Kind::EqEq => Self::Eq,
             Kind::Neq => Self::Neq,
             Kind::Lt => Self::Lt,
@@ -132,14 +141,26 @@ impl fmt::Display for BinOp {
             Self::Add => {
                 write!(fmt, "+")?;
             }
+            Self::AddAssign => {
+                write!(fmt, "+=")?;
+            }
             Self::Sub => {
                 write!(fmt, "-")?;
+            }
+            Self::SubAssign => {
+                write!(fmt, "-=")?;
             }
             Self::Div => {
                 write!(fmt, "/")?;
             }
+            Self::DivAssign => {
+                write!(fmt, "/=")?;
+            }
             Self::Mul => {
                 write!(fmt, "*")?;
+            }
+            Self::MulAssign => {
+                write!(fmt, "*=")?;
             }
             Self::Eq => {
                 write!(fmt, "==")?;
@@ -200,10 +221,10 @@ impl Peek for BinOp {
     fn peek(p1: Option<Token>, _: Option<Token>) -> bool {
         match p1 {
             Some(p1) => match p1.kind {
-                Kind::Plus => true,
-                Kind::Minus => true,
-                Kind::Star => true,
-                Kind::Slash => true,
+                Kind::Add => true,
+                Kind::Sub => true,
+                Kind::Mul => true,
+                Kind::Div => true,
                 Kind::EqEq => true,
                 Kind::Neq => true,
                 Kind::Gt => true,

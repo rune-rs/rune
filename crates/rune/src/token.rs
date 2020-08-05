@@ -128,14 +128,22 @@ pub enum Kind {
     Colon,
     /// A semi-colon `;`.
     SemiColon,
-    /// A plus sign `+`.
-    Plus,
-    /// A dash literal `-`.
-    Minus,
-    /// A slash literal `/`.
-    Slash,
-    /// A star literal `*`.
-    Star,
+    /// An add operator `+`.
+    Add,
+    /// An add assign operator `+=`.
+    AddAssign,
+    /// A sub operator `-`.
+    Sub,
+    /// An sub assign operator `-=`.
+    SubAssign,
+    /// A division operator `/`.
+    Div,
+    /// An division assign operator `/=`.
+    DivAssign,
+    /// A multiply operator `*`.
+    Mul,
+    /// An multiply assign operator `*=`.
+    MulAssign,
     /// An ampersand literal `&`.
     Ampersand,
     /// An equals sign `=`.
@@ -197,10 +205,14 @@ impl fmt::Display for Kind {
             Self::Dot => write!(fmt, ".")?,
             Self::Scope => write!(fmt, "::")?,
             Self::SemiColon => write!(fmt, ";")?,
-            Self::Plus => write!(fmt, "+")?,
-            Self::Minus => write!(fmt, "-")?,
-            Self::Slash => write!(fmt, "/")?,
-            Self::Star => write!(fmt, "*")?,
+            Self::Add => write!(fmt, "+")?,
+            Self::AddAssign => write!(fmt, "+=")?,
+            Self::Sub => write!(fmt, "-")?,
+            Self::SubAssign => write!(fmt, "-=")?,
+            Self::Div => write!(fmt, "/")?,
+            Self::DivAssign => write!(fmt, "/=")?,
+            Self::Mul => write!(fmt, "*")?,
+            Self::MulAssign => write!(fmt, "*=")?,
             Self::Ampersand => write!(fmt, "&")?,
             Self::Eq => write!(fmt, "=")?,
             Self::EqEq => write!(fmt, "==")?,

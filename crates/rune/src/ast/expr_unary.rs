@@ -12,6 +12,8 @@ use std::fmt;
 pub struct ExprUnary {
     /// The operation to apply.
     pub op: UnaryOp,
+    /// Token associated with operator.
+    pub token: Token,
     /// The expression of the operation.
     pub expr: Box<Expr>,
 }
@@ -19,14 +21,31 @@ pub struct ExprUnary {
 impl ExprUnary {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
-        self.op.span().join(self.expr.span())
+        self.token.span.join(self.expr.span())
     }
 }
 
+/// Parse a unary statement.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// # fn main() {
+/// parse_all::<ast::ExprUnary>("!0").unwrap();
+/// parse_all::<ast::ExprUnary>("*foo").unwrap();
+/// parse_all::<ast::ExprUnary>("&foo").unwrap();
+/// # }
+/// ```
 impl Parse for ExprUnary {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let token = parser.token_next()?;
+        let op = UnaryOp::from_token(token)?;
+
         Ok(Self {
-            op: parser.parse()?,
+            op,
+            token,
             expr: Box::new(Expr::parse_primary(parser, NoIndex(false))?),
         })
     }
@@ -36,41 +55,20 @@ impl Parse for ExprUnary {
 #[derive(Debug, Clone, Copy)]
 pub enum UnaryOp {
     /// Not `!<thing>`.
-    Not {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Not,
     /// Reference `&<thing>`.
-    Ref {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Ref,
     /// Dereference `*<thing>`.
-    Deref {
-        /// Token associated with operator.
-        token: Token,
-    },
+    Deref,
 }
 
 impl UnaryOp {
-    /// Access the span of the unary operator.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Not { token } => token.span,
-            Self::Ref { token } => token.span,
-            Self::Deref { token } => token.span,
-        }
-    }
-}
-
-impl Parse for UnaryOp {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
-
+    /// Convert a unary operator from a token.
+    pub fn from_token(token: Token) -> Result<Self, ParseError> {
         Ok(match token.kind {
-            Kind::Not => Self::Not { token },
-            Kind::Ampersand => Self::Ref { token },
-            Kind::Star => Self::Deref { token },
+            Kind::Not => Self::Not,
+            Kind::Ampersand => Self::Ref,
+            Kind::Mul => Self::Deref,
             actual => {
                 return Err(ParseError::ExpectedUnaryOperator {
                     span: token.span,
@@ -84,9 +82,9 @@ impl Parse for UnaryOp {
 impl fmt::Display for UnaryOp {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Not { .. } => write!(fmt, "!")?,
-            Self::Ref { .. } => write!(fmt, "&")?,
-            Self::Deref { .. } => write!(fmt, "*")?,
+            Self::Not => write!(fmt, "!")?,
+            Self::Ref => write!(fmt, "&")?,
+            Self::Deref => write!(fmt, "*")?,
         }
 
         Ok(())

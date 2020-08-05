@@ -44,18 +44,46 @@ pub enum Inst {
     ///
     /// This is the result of an `<a> + <b>` expression.
     Add,
+    /// Add a value to the given frame offset.
+    ///
+    /// This is the result of an `<offset> += <b>` expression.
+    AddAssign {
+        /// The frame offset to assign to.
+        offset: usize,
+    },
     /// Subtract two things.
     ///
     /// This is the result of an `<a> - <b>` expression.
     Sub,
-    /// Divide two things.
+    /// Subtract a value to the given frame offset.
     ///
-    /// This is the result of an `<a> / <b>` expression.
-    Div,
+    /// This is the result of an `<offset> -= <b>` expression.
+    SubAssign {
+        /// The frame offset to assign to.
+        offset: usize,
+    },
     /// Multiply two things.
     ///
     /// This is the result of an `<a> * <b>` expression.
     Mul,
+    /// Multiply a value to the given frame offset.
+    ///
+    /// This is the result of an `<offset> *= <b>` expression.
+    MulAssign {
+        /// The frame offset to assign to.
+        offset: usize,
+    },
+    /// Divide two things.
+    ///
+    /// This is the result of an `<a> / <b>` expression.
+    Div,
+    /// Divide a value to the given frame offset.
+    ///
+    /// This is the result of an `<offset> /= <b>` expression.
+    DivAssign {
+        /// The frame offset to assign to.
+        offset: usize,
+    },
     /// Perform a function call.
     ///
     /// It will construct a new stack frame which includes the last `args`
@@ -499,14 +527,26 @@ impl fmt::Display for Inst {
             Self::Add => {
                 write!(fmt, "add")?;
             }
+            Self::AddAssign { offset } => {
+                write!(fmt, "add-assign {}", offset)?;
+            }
             Self::Sub => {
                 write!(fmt, "sub")?;
+            }
+            Self::SubAssign { offset } => {
+                write!(fmt, "sub-assign {}", offset)?;
+            }
+            Self::Mul => {
+                write!(fmt, "mul")?;
+            }
+            Self::MulAssign { offset } => {
+                write!(fmt, "mul-assign {}", offset)?;
             }
             Self::Div => {
                 write!(fmt, "div")?;
             }
-            Self::Mul => {
-                write!(fmt, "mul")?;
+            Self::DivAssign { offset } => {
+                write!(fmt, "div-assign {}", offset)?;
             }
             Self::Call { hash, args } => {
                 write!(fmt, "call {}, {}", hash, args)?;

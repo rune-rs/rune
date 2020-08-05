@@ -209,7 +209,7 @@ impl Expr {
                 });
             }
             Kind::StartObject => Self::LitObject(parser.parse()?),
-            Kind::Not | Kind::Ampersand | Kind::Star => Self::ExprUnary(parser.parse()?),
+            Kind::Not | Kind::Ampersand | Kind::Mul => Self::ExprUnary(parser.parse()?),
             Kind::While => Self::ExprWhile(parser.parse()?),
             Kind::Loop => Self::ExprLoop(parser.parse()?),
             Kind::For => Self::ExprFor(parser.parse()?),
@@ -402,7 +402,7 @@ impl Peek for Expr {
                 _ => false,
             },
             Kind::StartObject => true,
-            Kind::Not | Kind::Ampersand | Kind::Star => true,
+            Kind::Not | Kind::Ampersand | Kind::Mul => true,
             Kind::While => true,
             Kind::Loop => true,
             Kind::For => true,

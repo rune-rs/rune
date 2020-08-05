@@ -492,6 +492,21 @@ macro_rules! numeric_ops {
     }
 }
 
+/// Generate a primitive combination of operations.
+macro_rules! numeric_assign_ops {
+    ($vm:expr, $a:ident $op:tt $b:ident) => {
+        match (*$a, $b) {
+            (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float($a $op $b),
+            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer($a $op $b),
+            (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
+                op: stringify!($op),
+                lhs: lhs.type_info($vm)?,
+                rhs: rhs.type_info($vm)?,
+            }),
+        }
+    }
+}
+
 /// The holde of an external value.
 #[derive(Debug)]
 struct Holder {
@@ -772,15 +787,30 @@ impl Vm {
             .ok_or_else(|| StackError::StackEmpty)
     }
 
+    /// Access the value at the given frame offset.
+    fn value_at(&self, offset: usize) -> Result<ValuePtr, VmError> {
+        self.stack_top
+            .checked_add(offset)
+            .and_then(|n| self.stack.get(n).copied())
+            .ok_or_else(|| VmError::StackOutOfBounds)
+    }
+
+    /// Access the value at the given frame offset.
+    fn value_at_mut(&mut self, offset: usize) -> Result<&mut ValuePtr, VmError> {
+        let n = self
+            .stack_top
+            .checked_add(offset)
+            .ok_or_else(|| VmError::StackOutOfBounds)?;
+
+        self.stack
+            .get_mut(n)
+            .ok_or_else(|| VmError::StackOutOfBounds)
+    }
+
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
     fn do_copy(&mut self, offset: usize) -> Result<(), VmError> {
-        let value = self
-            .stack_top
-            .checked_add(offset)
-            .and_then(|n| self.stack.get(n).copied())
-            .ok_or_else(|| VmError::StackOutOfBounds)?;
-
+        let value = self.value_at(offset)?;
         self.stack.push(value);
         Ok(())
     }
@@ -1416,10 +1446,42 @@ impl Vm {
     }
 
     #[inline]
+    fn op_add_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        let arg = self.pop()?;
+        let value = self.value_at_mut(offset)?;
+        *value = numeric_assign_ops!(self, value + arg);
+        Ok(())
+    }
+
+    #[inline]
     fn op_sub(&mut self) -> Result<(), VmError> {
         let b = self.pop()?;
         let a = self.pop()?;
         self.push(numeric_ops!(self, a - b));
+        Ok(())
+    }
+
+    #[inline]
+    fn op_sub_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        let arg = self.pop()?;
+        let value = self.value_at_mut(offset)?;
+        *value = numeric_assign_ops!(self, value - arg);
+        Ok(())
+    }
+
+    #[inline]
+    fn op_mul(&mut self) -> Result<(), VmError> {
+        let b = self.pop()?;
+        let a = self.pop()?;
+        self.push(numeric_ops!(self, a * b));
+        Ok(())
+    }
+
+    #[inline]
+    fn op_mul_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        let arg = self.pop()?;
+        let value = self.value_at_mut(offset)?;
+        *value = numeric_assign_ops!(self, value * arg);
         Ok(())
     }
 
@@ -1432,10 +1494,10 @@ impl Vm {
     }
 
     #[inline]
-    fn op_mul(&mut self) -> Result<(), VmError> {
-        let b = self.pop()?;
-        let a = self.pop()?;
-        self.push(numeric_ops!(self, a * b));
+    fn op_div_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        let arg = self.pop()?;
+        let value = self.value_at_mut(offset)?;
+        *value = numeric_assign_ops!(self, value / arg);
         Ok(())
     }
 
@@ -1718,14 +1780,26 @@ impl Vm {
                 Inst::Add => {
                     self.op_add()?;
                 }
+                Inst::AddAssign { offset } => {
+                    self.op_add_assign(*offset)?;
+                }
                 Inst::Sub => {
                     self.op_sub()?;
+                }
+                Inst::SubAssign { offset } => {
+                    self.op_sub_assign(*offset)?;
+                }
+                Inst::Mul => {
+                    self.op_mul()?;
+                }
+                Inst::MulAssign { offset } => {
+                    self.op_mul_assign(*offset)?;
                 }
                 Inst::Div => {
                     self.op_div()?;
                 }
-                Inst::Mul => {
-                    self.op_mul()?;
+                Inst::DivAssign { offset } => {
+                    self.op_div_assign(*offset)?;
                 }
                 // NB: we inline function calls because it helps Rust optimize
                 // the async plumbing.
