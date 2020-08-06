@@ -2,7 +2,7 @@ use crate::ast::{Condition, Else, ExprBlock, If};
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::traits::Parse;
-use st::unit::Span;
+use stk::unit::Span;
 
 /// An else branch of an if expression.
 #[derive(Debug, Clone)]

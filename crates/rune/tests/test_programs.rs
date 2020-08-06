@@ -1,13 +1,13 @@
-use st::VmError::*;
+use stk::VmError::*;
 
-async fn run_main<T>(source: &str) -> st::Result<T>
+async fn run_main<T>(source: &str) -> stk::Result<T>
 where
-    T: st::FromValue,
+    T: stk::FromValue,
 {
     let (unit, _) = rune::compile(source)?;
-    let mut vm = st::Vm::new();
-    let context = st::Context::with_default_packages()?;
-    let task: st::Task<T> = vm.call_function(&context, &unit, &["main"], ())?;
+    let mut vm = stk::Vm::new();
+    let context = stk::Context::with_default_packages()?;
+    let task: stk::Task<T> = vm.call_function(&context, &unit, &["main"], ())?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }
@@ -25,7 +25,7 @@ macro_rules! test_vm_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
         let e = run_main::<()>($source).await.unwrap_err();
 
-        let e = match e.downcast_ref::<st::VmError>() {
+        let e = match e.downcast_ref::<stk::VmError>() {
             Some(e) => e,
             None => {
                 panic!("{:?}", e);
@@ -44,7 +44,7 @@ macro_rules! test_vm_error {
 #[tokio::test]
 async fn test_small_programs() {
     assert_eq!(test!(u64 => r#"fn main() { 42 }"#), 42u64);
-    assert_eq!(test!(st::Unit => r#"fn main() {}"#), st::Unit);
+    assert_eq!(test!(stk::Unit => r#"fn main() {}"#), stk::Unit);
 
     assert_eq! {
         test! {
@@ -183,8 +183,8 @@ async fn test_shadowing() {
 #[tokio::test]
 async fn test_arrays() {
     assert_eq! {
-        test!(st::Unit => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
-        st::Unit,
+        test!(stk::Unit => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
+        stk::Unit,
     };
 }
 
@@ -463,8 +463,8 @@ async fn test_match() {
 #[tokio::test]
 async fn test_array_match() {
     assert_eq! {
-        test!(st::Unit => r#"fn main() { match [] { [..] => true } }"#),
-        st::Unit,
+        test!(stk::Unit => r#"fn main() { match [] { [..] => true } }"#),
+        stk::Unit,
     };
 
     assert_eq! {
@@ -473,13 +473,13 @@ async fn test_array_match() {
     };
 
     assert_eq! {
-        test!(st::Unit => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
-        st::Unit,
+        test!(stk::Unit => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
+        stk::Unit,
     };
 
     assert_eq! {
-        test!(st::Unit => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
-        st::Unit,
+        test!(stk::Unit => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
+        stk::Unit,
     };
 
     assert_eq! {
@@ -536,8 +536,8 @@ async fn test_array_match() {
 #[tokio::test]
 async fn test_object_match() {
     assert_eq! {
-        test!(st::Unit => r#"fn main() { match #{} { #{..} => true } }"#),
-        st::Unit,
+        test!(stk::Unit => r#"fn main() { match #{} { #{..} => true } }"#),
+        stk::Unit,
     };
 
     assert_eq! {
@@ -575,7 +575,7 @@ async fn test_bad_pattern() {
             let [] = [1, 2, 3];
         }
         "#,
-        Panic { reason: st::Panic::UnmatchedPattern } => {}
+        Panic { reason: stk::Panic::UnmatchedPattern } => {}
     );
 }
 

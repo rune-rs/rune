@@ -2,7 +2,7 @@ use crate::ast::{CloseBrace, Expr, OpenBrace, SemiColon};
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A block of expressions.
 #[derive(Debug, Clone)]

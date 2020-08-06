@@ -2,7 +2,7 @@ use crate::ast::{Colon, ExprBlock, Label, Loop};
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::traits::Parse;
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A let expression `let <name> = <expr>;`
 #[derive(Debug, Clone)]

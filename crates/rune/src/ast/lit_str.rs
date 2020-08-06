@@ -4,8 +4,8 @@ use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
-use st::unit::Span;
 use std::borrow::Cow;
+use stk::unit::Span;
 
 /// A string literal.
 #[derive(Debug, Clone)]

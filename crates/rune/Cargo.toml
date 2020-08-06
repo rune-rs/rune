@@ -1,10 +1,17 @@
 [package]
 name = "rune"
-version = "0.0.0"
+version = "0.2.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "MIT/Apache-2.0"
 edition = "2018"
+readme = "README.md"
+repository = "https://github.com/udoprog/stk"
+homepage = "https://github.com/udoprog/stk"
+documentation = "https://docs.rs/stk-json"
+keywords = ["language", "scripting"]
+categories = []
 description = """
-Rune is a simple dynamic language for the ST virtual machine.
+Rune is a simple dynamic language for the stk virtual machine.
 """
 
 [features]
@@ -12,7 +19,7 @@ default = ["runtime"]
 runtime = ["codespan-reporting"]
 
 [dependencies]
-st = {version = "0.0.0", path = "../st"}
+stk = {version = "0.2.0", path = "../stk"}
 thiserror = "1.0.20"
 log = "0.4.11"
 codespan-reporting = {version = "0.9.5", optional = true}

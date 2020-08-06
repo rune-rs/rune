@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
 use crate::compiler::{CompileError, Result};
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A locally declared variable.
 #[derive(Debug, Clone)]

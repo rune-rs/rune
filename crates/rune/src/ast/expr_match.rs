@@ -2,7 +2,7 @@ use crate::ast::{CloseBrace, Comma, Expr, If, Match, OpenBrace, Pat, Rocket};
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::traits::Parse;
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A match branch.
 #[derive(Debug, Clone)]

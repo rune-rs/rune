@@ -1,5 +1,5 @@
 use crate::ast::{Comma, Dot, Expr, Ident, Parenthesized};
-use st::unit::Span;
+use stk::unit::Span;
 
 /// An instance function call `<instance>.<name>(<args>)`.
 #[derive(Debug, Clone)]

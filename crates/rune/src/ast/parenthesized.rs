@@ -2,7 +2,7 @@ use crate::ast::{CloseParen, OpenParen};
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::traits::{Parse, Peek};
-use st::unit::Span;
+use stk::unit::Span;
 
 /// Something parenthesized and comma separated `(<T,>*)`.
 #[derive(Debug, Clone)]

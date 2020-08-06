@@ -3,7 +3,7 @@ use crate::error::{ParseError, ResolveError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
 use crate::traits::{Parse, Resolve};
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone)]

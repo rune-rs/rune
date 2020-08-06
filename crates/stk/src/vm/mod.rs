@@ -705,7 +705,7 @@ pub struct Vm {
 }
 
 impl Vm {
-    /// Construct a new ST virtual machine.
+    /// Construct a new stk virtual machine.
     pub fn new() -> Self {
         Self {
             ip: 0,

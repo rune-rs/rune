@@ -1,7 +1,7 @@
 use rune::CompileError::*;
 use rune::ParseError::*;
 use rune::Warning::*;
-use st::unit::Span;
+use stk::unit::Span;
 
 macro_rules! test_parse {
     ($source:expr) => {{

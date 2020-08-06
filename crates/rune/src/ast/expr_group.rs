@@ -2,7 +2,7 @@ use crate::ast::{CloseParen, Expr, OpenParen};
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A prioritized expression group `(<expr>)`.
 #[derive(Debug, Clone)]

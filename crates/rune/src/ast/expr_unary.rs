@@ -4,8 +4,8 @@ use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::token::{Kind, Token};
 use crate::traits::Parse;
-use st::unit::Span;
 use std::fmt;
+use stk::unit::Span;
 
 /// A unary expression.
 #[derive(Debug, Clone)]

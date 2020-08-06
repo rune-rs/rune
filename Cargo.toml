@@ -1,14 +1,14 @@
 [workspace]
 members = [
-    "crates/st",
-    "crates/st-http",
-    "crates/st-json",
+    "crates/stk",
+    "crates/stk-http",
+    "crates/stk-json",
     "crates/rune",
     "crates/rune-cli",
 ]
 
 default-members = [
-    "crates/st",
+    "crates/stk",
     "crates/rune",
     "crates/rune-cli",
 ]

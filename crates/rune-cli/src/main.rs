@@ -19,9 +19,9 @@ async fn main() -> Result<()> {
     let mut dump_types = false;
     let mut help = false;
 
-    let mut context = st::Context::with_default_packages()?;
-    context.install(st_http::module()?)?;
-    context.install(st_json::module()?)?;
+    let mut context = stk::Context::with_default_packages()?;
+    context.install(stk_http::module()?)?;
+    context.install(stk_json::module()?)?;
 
     let mut runtime = rune::Runtime::with_context(context);
 
@@ -206,7 +206,7 @@ async fn main() -> Result<()> {
         println!("---");
     }
 
-    let task: st::Task<st::Value> = runtime.call_function(file_id, &["main"], ())?;
+    let task: stk::Task<stk::Value> = runtime.call_function(file_id, &["main"], ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {
@@ -266,7 +266,7 @@ async fn main() -> Result<()> {
 
 enum TraceError {
     Io(std::io::Error),
-    VmError(st::VmError),
+    VmError(stk::VmError),
 }
 
 impl From<std::io::Error> for TraceError {
@@ -275,16 +275,16 @@ impl From<std::io::Error> for TraceError {
     }
 }
 
-impl From<st::VmError> for TraceError {
-    fn from(error: st::VmError) -> Self {
+impl From<stk::VmError> for TraceError {
+    fn from(error: stk::VmError) -> Self {
         Self::VmError(error)
     }
 }
 
 /// Perform a detailed trace of the program.
-async fn do_trace<T>(mut task: st::Task<'_, T>, dump_vm: bool) -> Result<T, TraceError>
+async fn do_trace<T>(mut task: stk::Task<'_, T>, dump_vm: bool) -> Result<T, TraceError>
 where
-    T: st::FromValue,
+    T: stk::FromValue,
 {
     use std::io::Write as _;
     let out = std::io::stdout();

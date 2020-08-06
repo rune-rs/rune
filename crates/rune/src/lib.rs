@@ -1,4 +1,8 @@
-//! Rune is a simple dynamic language for the ST virtual machine.
+//! Rune is a simple dynamic language for the stk virtual machine.
+//!
+//! You can take it for a spin with [rune-cli].
+//!
+//! [rune-cli]: https://github.com/udoprog/stk
 
 #![deny(missing_docs)]
 
@@ -22,12 +26,12 @@ pub use crate::runtime::{termcolor, Runtime};
 pub use crate::source::Source;
 pub use crate::token::{Kind, Token};
 pub use crate::traits::Resolve;
-pub use st::unit::Span;
+pub use stk::unit::Span;
 
 /// Helper function to compile the given source.
 ///
 /// Discards any warnings produced.
-pub fn compile(source: &str) -> Result<(st::CompilationUnit, Warnings)> {
+pub fn compile(source: &str) -> Result<(stk::CompilationUnit, Warnings)> {
     let unit = parse_all::<ast::DeclFile>(&source)?;
     let (unit, warnings) = unit.compile()?;
     Ok((unit, warnings))

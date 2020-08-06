@@ -1,6 +1,6 @@
 use crate::error::ResolveError;
-use st::unit::Span;
 use std::iter::Peekable;
+use stk::unit::Span;
 
 /// Parse an escape sequence.
 pub(super) fn parse_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<char, ResolveError>
@@ -129,7 +129,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{parse_hex_escape, parse_unicode_escape};
-    use st::unit::Span;
+    use stk::unit::Span;
 
     macro_rules! input {
         ($string:expr) => {

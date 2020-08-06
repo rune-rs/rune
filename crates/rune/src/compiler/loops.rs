@@ -2,7 +2,7 @@ use crate::ast;
 use crate::compiler::{NeedsValue, Result};
 use crate::error::CompileError;
 use crate::source::Source;
-use st::unit::{Label, Span};
+use stk::unit::{Label, Span};
 
 #[must_use]
 pub(super) struct LoopGuard(usize);

@@ -3,7 +3,7 @@ use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::token::Kind;
 use crate::traits::Parse;
-use st::unit::Span;
+use stk::unit::Span;
 
 /// An if condition.
 #[derive(Debug, Clone)]

@@ -2,7 +2,7 @@ use crate::ast::{Comma, ExprBlock, FnToken, Ident, Parenthesized};
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A function.
 #[derive(Debug, Clone)]

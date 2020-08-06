@@ -2,7 +2,7 @@ use crate::ast::{Expr, Return};
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::traits::Parse;
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A return statement `return [expr]`.
 #[derive(Debug, Clone)]

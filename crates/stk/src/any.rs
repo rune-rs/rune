@@ -56,7 +56,7 @@ impl Any {
     ///
     /// ```rust
     /// let value = 1u32;
-    /// let any = unsafe { st::Any::from_ptr(&value) };
+    /// let any = unsafe { stk::Any::from_ptr(&value) };
     /// assert!(any.is::<u32>());
     /// assert_eq!(Some(&1u32), any.downcast_ref());
     /// ```
@@ -88,7 +88,7 @@ impl Any {
     ///
     /// ```rust
     /// let mut value = 1u32;
-    /// let mut any = unsafe { st::Any::from_mut_ptr(&mut value) };
+    /// let mut any = unsafe { stk::Any::from_mut_ptr(&mut value) };
     /// assert!(any.is::<u32>());
     /// *any.downcast_mut::<u32>().unwrap() = 2;
     /// assert_eq!(Some(&2u32), any.downcast_ref());
@@ -115,7 +115,7 @@ impl Any {
     /// # Examples
     ///
     /// ```rust
-    /// let any = st::Any::new(1u32);
+    /// let any = stk::Any::new(1u32);
     /// assert!(any.is::<u32>());
     /// ```
     #[inline]
@@ -132,7 +132,7 @@ impl Any {
     /// # Examples
     ///
     /// ```rust
-    /// let any = st::Any::new(1u32);
+    /// let any = stk::Any::new(1u32);
     /// assert_eq!(Some(&1u32), any.downcast_ref::<u32>());
     /// assert_eq!(None, any.downcast_ref::<&u32>());
     /// ```
@@ -154,7 +154,7 @@ impl Any {
     /// # Examples
     ///
     /// ```rust
-    /// let mut any = st::Any::new(1u32);
+    /// let mut any = stk::Any::new(1u32);
     /// *any.downcast_mut::<u32>().unwrap() = 2;
     /// assert_eq!(Some(&2u32), any.downcast_ref::<u32>());
     /// ```

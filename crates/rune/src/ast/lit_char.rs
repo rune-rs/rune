@@ -4,7 +4,7 @@ use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A number literal.
 #[derive(Debug, Clone)]

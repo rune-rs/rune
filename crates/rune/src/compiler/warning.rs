@@ -1,4 +1,4 @@
-use st::unit::Span;
+use stk::unit::Span;
 
 /// Compilation warning.
 #[derive(Debug, Clone, Copy)]

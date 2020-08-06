@@ -3,7 +3,7 @@ use json;
 
 fn main() {
     let client = http::Client::new();
-    let response = http::get("http://worldtimeapi.org/api/ip");
+    let response = client.get("http://worldtimeapi.org/api/ip");
     let text = response.text();
     let json = json::from_string(text);
 
@@ -13,7 +13,7 @@ fn main() {
         dbg(timezone);
     }
 
-    let body = json::to_bytes({"hello": "world"});
+    let body = json::to_bytes(#{"hello": "world"});
 
     let response = client.post("https://postman-echo.com/post")
         .body_bytes(body)

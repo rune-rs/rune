@@ -1,5 +1,5 @@
 use crate::ast::{Comma, Expr, Parenthesized, Path};
-use st::unit::Span;
+use stk::unit::Span;
 
 /// A function call `<name>(<args>)`.
 #[derive(Debug, Clone)]

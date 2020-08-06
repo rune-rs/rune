@@ -1,10 +1,17 @@
 [package]
-name = "st"
-version = "0.0.0"
+name = "stk"
+version = "0.2.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "MIT/Apache-2.0"
 edition = "2018"
+readme = "README.md"
+repository = "https://github.com/udoprog/stk"
+homepage = "https://github.com/udoprog/stk"
+documentation = "https://docs.rs/stk"
+keywords = ["language", "scripting"]
+categories = []
 description = """
-The ST stack-based virtual machine.
+The simple stack-based virtual machine.
 """
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

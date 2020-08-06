@@ -1,5 +1,5 @@
-use st::unit::Span;
 use std::fmt;
+use stk::unit::Span;
 
 /// The kind of a number literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

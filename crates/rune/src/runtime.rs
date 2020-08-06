@@ -2,13 +2,13 @@ use crate::compiler::{Options, Warning, Warnings};
 use crate::error::{CompileError, ConfigurationError, ParseError, SpannedError as _};
 use anyhow::Result;
 use slab::Slab;
-use st::unit::{LinkerError, LinkerErrors, Span};
 use std::error::Error as _;
 use std::fmt::Write as _;
 use std::fs;
 use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use stk::unit::{LinkerError, LinkerErrors, Span};
 use thiserror::Error;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
@@ -52,7 +52,7 @@ pub enum CallFunctionError {
     VmError {
         /// The error.
         #[from]
-        error: st::VmError,
+        error: stk::VmError,
     },
     /// Error raised when we try to call a function on a missing unit.
     #[error("missing unit for file id `{file_id}`")]
@@ -70,7 +70,7 @@ pub enum RuntimeError {
     VmError {
         /// The source error.
         #[source]
-        error: st::VmError,
+        error: stk::VmError,
         /// The span at which the error occured.
         span: Span,
     },
@@ -97,8 +97,8 @@ pub enum RuntimeError {
 /// A rune runtime, which simplifies embedding and using rune.
 pub struct Runtime {
     /// The underlying virtual machine.
-    vm: st::Vm,
-    context: st::Context,
+    vm: stk::Vm,
+    context: stk::Context,
     files: SlabFiles,
     options: Options,
     errors: Vec<(usize, RuntimeError)>,
@@ -107,8 +107,8 @@ pub struct Runtime {
 
 impl Runtime {
     /// Construct a new runtime with the default context.
-    pub fn new() -> Result<Self, st::ContextError> {
-        Ok(Self::with_context(st::Context::with_default_packages()?))
+    pub fn new() -> Result<Self, stk::ContextError> {
+        Ok(Self::with_context(stk::Context::with_default_packages()?))
     }
 
     /// Indicate that the runtime has issues it can report with
@@ -118,10 +118,10 @@ impl Runtime {
     }
 
     /// Construct a new runtime with a custom context.
-    pub fn with_context(context: st::Context) -> Self {
+    pub fn with_context(context: stk::Context) -> Self {
         Self {
             context,
-            vm: st::Vm::new(),
+            vm: stk::Vm::new(),
             files: SlabFiles::new(),
             options: crate::Options::default(),
             errors: Vec::new(),
@@ -130,17 +130,17 @@ impl Runtime {
     }
 
     /// Access the underlying virtual machine of the runtime.
-    pub fn vm(&self) -> &st::Vm {
+    pub fn vm(&self) -> &stk::Vm {
         &self.vm
     }
 
     /// Access the underlying context of the runtime.
-    pub fn context(&self) -> &st::Context {
+    pub fn context(&self) -> &stk::Context {
         &self.context
     }
 
     /// Get the unit associated with the given file id.
-    pub fn unit(&self, file_id: usize) -> Option<&st::CompilationUnit> {
+    pub fn unit(&self, file_id: usize) -> Option<&stk::CompilationUnit> {
         self.files.get(file_id)?.unit.as_ref()
     }
 
@@ -152,12 +152,12 @@ impl Runtime {
         file_id: usize,
         name: I,
         args: A,
-    ) -> Result<st::Task<'a, T>, CallFunctionError>
+    ) -> Result<stk::Task<'a, T>, CallFunctionError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
-        A: 'a + st::IntoArgs,
-        T: st::FromValue,
+        A: 'a + stk::IntoArgs,
+        T: stk::FromValue,
     {
         let unit = self
             .files
@@ -174,8 +174,8 @@ impl Runtime {
     pub fn register_vm_error(
         &mut self,
         file_id: usize,
-        error: st::VmError,
-    ) -> Result<(), st::VmError> {
+        error: stk::VmError,
+    ) -> Result<(), stk::VmError> {
         let unit = match self.files.get(file_id).and_then(|f| f.unit.as_ref()) {
             Some(unit) => unit,
             None => return Err(error),
@@ -431,7 +431,7 @@ impl Runtime {
 
 struct File {
     file: SimpleFile<String, String>,
-    unit: Option<st::CompilationUnit>,
+    unit: Option<stk::CompilationUnit>,
 }
 
 struct SlabFiles {

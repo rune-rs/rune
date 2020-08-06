@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::token::Kind;
-use st::unit::Span;
+use stk::unit::Span;
 use thiserror::Error;
 
 /// Result alias used by this frontend.
@@ -324,12 +324,12 @@ pub enum CompileError {
         /// Where the invariant was broken.
         span: Span,
     },
-    /// Unit error from ST encoding.
+    /// Unit error from stk encoding.
     #[error("unit construction error: {error}")]
     UnitError {
         /// Source error.
         #[from]
-        error: st::CompilationUnitError,
+        error: stk::CompilationUnitError,
     },
     /// Error for resolving values from source files.
     #[error("resolve error: {error}")]
@@ -362,7 +362,7 @@ pub enum CompileError {
         /// The span of the missing module.
         span: Span,
         /// The name of the missing module.
-        module: st::Item,
+        module: stk::Item,
     },
     /// A specific label is missing.
     #[error("label not found in scope")]
