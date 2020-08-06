@@ -1,6 +1,5 @@
 use crate::compiler::{Options, Warning, Warnings};
 use crate::error::{CompileError, ConfigurationError, ParseError, SpannedError as _};
-use anyhow::Result;
 use slab::Slab;
 use std::error::Error as _;
 use std::fmt::Write as _;
@@ -259,7 +258,7 @@ impl Runtime {
     }
 
     /// Emit diagnostics about the last error we encountered.
-    pub fn emit_diagnostics<O>(&mut self, out: &mut O) -> Result<()>
+    pub fn emit_diagnostics<O>(&mut self, out: &mut O) -> anyhow::Result<()>
     where
         O: WriteColor,
     {
