@@ -1,7 +1,7 @@
 use crate::hash::Hash;
 use crate::value::slot::Slot;
 use crate::value::{ValueType, ValueTypeInfo};
-use crate::vm::{StackError, Vm};
+use crate::vm::{Vm, VmError};
 
 /// An entry on the stack.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -16,6 +16,9 @@ pub enum ValuePtr {
     Integer(i64),
     /// A float.
     Float(f64),
+    /// A static string.
+    /// The index is the index into the static string slot for the current unit.
+    StaticString(usize),
     /// A String.
     String(Slot),
     /// An array.
@@ -33,10 +36,10 @@ pub enum ValuePtr {
 impl ValuePtr {
     /// Try to coerce value reference into an array.
     #[inline]
-    pub fn into_string(self, vm: &Vm) -> Result<Slot, StackError> {
+    pub fn into_string(self, vm: &Vm) -> Result<Slot, VmError> {
         match self {
             Self::String(slot) => Ok(slot),
-            actual => Err(StackError::ExpectedString {
+            actual => Err(VmError::ExpectedString {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -44,10 +47,10 @@ impl ValuePtr {
 
     /// Try to coerce value reference into an array.
     #[inline]
-    pub fn into_array(self, vm: &Vm) -> Result<Slot, StackError> {
+    pub fn into_array(self, vm: &Vm) -> Result<Slot, VmError> {
         match self {
             Self::Array(slot) => Ok(slot),
-            actual => Err(StackError::ExpectedArray {
+            actual => Err(VmError::ExpectedArray {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -55,10 +58,10 @@ impl ValuePtr {
 
     /// Try to coerce value reference into an object.
     #[inline]
-    pub fn into_object(self, vm: &Vm) -> Result<Slot, StackError> {
+    pub fn into_object(self, vm: &Vm) -> Result<Slot, VmError> {
         match self {
             Self::Object(slot) => Ok(slot),
-            actual => Err(StackError::ExpectedObject {
+            actual => Err(VmError::ExpectedObject {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -66,17 +69,17 @@ impl ValuePtr {
 
     /// Try to coerce value reference into an external.
     #[inline]
-    pub fn into_external(self, vm: &Vm) -> Result<Slot, StackError> {
+    pub fn into_external(self, vm: &Vm) -> Result<Slot, VmError> {
         match self {
             Self::External(slot) => Ok(slot),
-            actual => Err(StackError::ExpectedExternal {
+            actual => Err(VmError::ExpectedExternal {
                 actual: actual.type_info(vm)?,
             }),
         }
     }
 
     /// Get the type information for the current value.
-    pub fn value_type(&self, vm: &Vm) -> Result<ValueType, StackError> {
+    pub fn value_type(&self, vm: &Vm) -> Result<ValueType, VmError> {
         Ok(match *self {
             Self::None => ValueType::Unit,
             Self::Integer(..) => ValueType::Integer,
@@ -84,6 +87,7 @@ impl ValuePtr {
             Self::Bool(..) => ValueType::Bool,
             Self::Char(..) => ValueType::Char,
             Self::String(..) => ValueType::String,
+            Self::StaticString(..) => ValueType::String,
             Self::Array(..) => ValueType::Array,
             Self::Object(..) => ValueType::Object,
             Self::External(slot) => ValueType::External(vm.slot_type_id(slot)?),
@@ -93,7 +97,7 @@ impl ValuePtr {
     }
 
     /// Get the type information for the current value.
-    pub fn type_info(&self, vm: &Vm) -> Result<ValueTypeInfo, StackError> {
+    pub fn type_info(&self, vm: &Vm) -> Result<ValueTypeInfo, VmError> {
         Ok(match *self {
             Self::None => ValueTypeInfo::Unit,
             Self::Integer(..) => ValueTypeInfo::Integer,
@@ -101,6 +105,7 @@ impl ValuePtr {
             Self::Bool(..) => ValueTypeInfo::Bool,
             Self::Char(..) => ValueTypeInfo::Char,
             Self::String(..) => ValueTypeInfo::String,
+            Self::StaticString(..) => ValueTypeInfo::String,
             Self::Array(..) => ValueTypeInfo::Array,
             Self::Object(..) => ValueTypeInfo::Object,
             Self::External(slot) => ValueTypeInfo::External(vm.slot_type_name(slot)?),

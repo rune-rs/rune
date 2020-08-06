@@ -6,6 +6,7 @@
 //! The serde implementation of `VirtualPtr` relies on being called inside of
 //! [with_vm].
 
+use crate::unit::CompilationUnit;
 use crate::vm::Vm;
 use std::cell::RefCell;
 use std::future::Future;
@@ -13,10 +14,15 @@ use std::pin::Pin;
 use std::ptr::NonNull;
 use std::task::{Context, Poll};
 
-thread_local!(static VM: RefCell<Option<NonNull<Vm>>> = RefCell::new(None));
+thread_local!(static VM: RefCell<Option<Tls>> = RefCell::new(None));
+
+struct Tls {
+    vm: NonNull<Vm>,
+    unit: *const CompilationUnit,
+}
 
 /// Guard that restored the old VM in the threadlocal when dropped.
-struct Guard<'a>(&'a RefCell<Option<NonNull<Vm>>>, Option<NonNull<Vm>>);
+struct Guard<'a>(&'a RefCell<Option<Tls>>, Option<Tls>);
 
 impl Drop for Guard<'_> {
     fn drop(&mut self) {
@@ -27,15 +33,16 @@ impl Drop for Guard<'_> {
 }
 
 /// Inject the vm into TLS while running the given closure.
-pub fn inject_vm<F, O>(vm: &mut Vm, f: F) -> O
+pub fn inject_vm<F, O>(vm: &mut Vm, unit: &CompilationUnit, f: F) -> O
 where
     F: FnOnce() -> O,
 {
     let vm = unsafe { NonNull::new_unchecked(vm) };
+    let tls = Tls { vm, unit };
 
     VM.with(|storage| {
-        let old_vm = storage.borrow_mut().replace(vm);
-        let _guard = Guard(&storage, old_vm);
+        let old_tls = storage.borrow_mut().replace(tls);
+        let _guard = Guard(&storage, old_tls);
         f()
     })
 }
@@ -43,17 +50,19 @@ where
 /// Run the given closure with access to the vm.
 pub fn with_vm<F, O>(f: F) -> O
 where
-    F: FnOnce(&mut Vm) -> O,
+    F: FnOnce(&mut Vm, &CompilationUnit) -> O,
 {
     VM.with(|storage| {
-        let mut b = storage.borrow_mut().expect("vm must be available");
-        f(unsafe { b.as_mut() })
+        let mut b = storage.borrow_mut();
+        let b = b.as_mut().expect("vm must be available");
+        unsafe { f(b.vm.as_mut(), &*b.unit) }
     })
 }
 
 /// A future which wraps polls to have access to the TLS virtual machine.
 pub struct InjectVm<'vm, T> {
     vm: &'vm mut Vm,
+    unit: &'vm CompilationUnit,
     future: T,
 }
 
@@ -65,8 +74,8 @@ impl<'vm, T> InjectVm<'vm, T> {
     ///
     /// Caller must ensure that `InjectVm` is correctly pinned w.r.t. its inner
     /// future.
-    pub unsafe fn new(vm: &'vm mut Vm, future: T) -> Self {
-        Self { vm, future }
+    pub unsafe fn new(vm: &'vm mut Vm, unit: &'vm CompilationUnit, future: T) -> Self {
+        Self { vm, unit, future }
     }
 }
 
@@ -82,7 +91,7 @@ where
         unsafe {
             let this = Pin::into_inner_unchecked(self);
             let future = Pin::new_unchecked(&mut this.future);
-            inject_vm(this.vm, || future.poll(cx))
+            inject_vm(this.vm, this.unit, || future.poll(cx))
         }
     }
 }

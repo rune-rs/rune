@@ -21,9 +21,285 @@ use self::access::Access;
 pub use self::access::{Mut, RawMutGuard, RawRefGuard, Ref};
 pub use self::inst::{Inst, Panic};
 
-/// An error raised when interacting with types on the stack.
+/// A type-erased rust number.
+#[derive(Debug, Clone, Copy)]
+pub enum Integer {
+    /// `u8`
+    U8(u8),
+    /// `u16`
+    U16(u16),
+    /// `u32`
+    U32(u32),
+    /// `u64`
+    U64(u64),
+    /// `u128`
+    U128(u128),
+    /// `i8`
+    I8(i8),
+    /// `i16`
+    I16(i16),
+    /// `i32`
+    I32(i32),
+    /// `i64`
+    I64(i64),
+    /// `i128`
+    I128(i128),
+    /// `isize`
+    Isize(isize),
+    /// `usize`
+    Usize(usize),
+}
+
+impl fmt::Display for Integer {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::U8(n) => write!(fmt, "{}u8", n),
+            Self::U16(n) => write!(fmt, "{}u16", n),
+            Self::U32(n) => write!(fmt, "{}u32", n),
+            Self::U64(n) => write!(fmt, "{}u64", n),
+            Self::U128(n) => write!(fmt, "{}u128", n),
+            Self::I8(n) => write!(fmt, "{}i8", n),
+            Self::I16(n) => write!(fmt, "{}i16", n),
+            Self::I32(n) => write!(fmt, "{}i32", n),
+            Self::I64(n) => write!(fmt, "{}i64", n),
+            Self::I128(n) => write!(fmt, "{}i128", n),
+            Self::Isize(n) => write!(fmt, "{}isize", n),
+            Self::Usize(n) => write!(fmt, "{}usize", n),
+        }
+    }
+}
+
+/// Errors raised by the execution of the virtual machine.
 #[derive(Debug, Error)]
-pub enum StackError {
+pub enum VmError {
+    /// The virtual machine panicked for no specific reason.
+    #[error("panicked `{reason}`")]
+    Panic {
+        /// The reason for the panic.
+        reason: Panic,
+    },
+    /// The virtual machine encountered a numerical overflow.
+    #[error("numerical overflow")]
+    Overflow,
+    /// The virtual machine encountered a numerical underflow.
+    #[error("numerical underflow")]
+    Underflow,
+    /// The virtual machine encountered a divide-by-zero.
+    #[error("division by zero")]
+    DivideByZero,
+    /// Error raised in a user-defined function.
+    #[error("error in user-defined function: {error}")]
+    UserError {
+        /// Source error.
+        #[from]
+        error: crate::error::Error,
+    },
+    /// Failure to lookup function.
+    #[error("missing function with hash `{hash}`")]
+    MissingFunction {
+        /// Hash of function to look up.
+        hash: Hash,
+    },
+    /// Failure to lookup module.
+    #[error("missing module with hash `{module}`")]
+    MissingModule {
+        /// Hash of module to look up.
+        module: Hash,
+    },
+    /// Failure to lookup function in a module.
+    #[error("missing function with hash `{hash}` in module with hash `{module}`")]
+    MissingModuleFunction {
+        /// Module that was looked up.
+        module: Hash,
+        /// Function that could not be found.
+        hash: Hash,
+    },
+    /// Instruction pointer went out-of-bounds.
+    #[error("instruction pointer is out-of-bounds")]
+    IpOutOfBounds,
+    /// Unsupported binary operation.
+    #[error("unsupported vm operation `{lhs} {op} {rhs}`")]
+    UnsupportedBinaryOperation {
+        /// Operation.
+        op: &'static str,
+        /// Left-hand side operator.
+        lhs: ValueTypeInfo,
+        /// Right-hand side operator.
+        rhs: ValueTypeInfo,
+    },
+    /// Unsupported unary operation.
+    #[error("unsupported vm operation `{op}{operand}`")]
+    UnsupportedUnaryOperation {
+        /// Operation.
+        op: &'static str,
+        /// Operand.
+        operand: ValueTypeInfo,
+    },
+    /// Unsupported argument to object-exact-keys.
+    #[error("unsupported object key `{actual}`")]
+    UnsupportedObjectKey {
+        /// The encountered argument.
+        actual: ValueTypeInfo,
+    },
+    /// Unsupported argument to string-concat
+    #[error("unsupported string-concat argument `{actual}`")]
+    UnsupportedStringConcatArgument {
+        /// The encountered argument.
+        actual: ValueTypeInfo,
+    },
+    /// Attempt to access out-of-bounds stack item.
+    #[error("tried to access an out-of-bounds stack entry")]
+    StackOutOfBounds,
+    /// Indicates that a static string is missing for the given slot.
+    #[error("static string slot `{slot}` does not exist")]
+    MissingStaticString {
+        /// Slot which is missing a static string.
+        slot: usize,
+    },
+    /// Indicates that a static object keys is missing for the given slot.
+    #[error("static object keys slot `{slot}` does not exist")]
+    MissingStaticObjectKeys {
+        /// Slot which is missing a static object keys.
+        slot: usize,
+    },
+    /// Saw an unexpected stack value.
+    #[error("unexpected stack value, expected `{expected}` but was `{actual}`")]
+    StackTopTypeError {
+        /// The type that was expected.
+        expected: ValueTypeInfo,
+        /// The type observed.
+        actual: ValueTypeInfo,
+    },
+    /// Indicates a failure to convert from one type to another.
+    #[error("failed to convert stack value from `{from}` to `{to}`")]
+    StackConversionError {
+        /// The source of the error.
+        #[source]
+        error: Box<VmError>,
+        /// The actual type to be converted.
+        from: ValueTypeInfo,
+        /// The expected type to convert towards.
+        to: &'static str,
+    },
+    /// Failure to convert from one type to another.
+    #[error("failed to convert argument #{arg} from `{from}` to `{to}`")]
+    ArgumentConversionError {
+        /// The underlying stack error.
+        #[source]
+        error: Box<VmError>,
+        /// The argument location that was converted.
+        arg: usize,
+        /// The value type we attempted to convert from.
+        from: ValueTypeInfo,
+        /// The native type we attempt to convert to.
+        to: &'static str,
+    },
+    /// Wrong number of arguments provided in call.
+    #[error("wrong number of arguments `{actual}`, expected `{expected}`")]
+    ArgumentCountMismatch {
+        /// The actual number of arguments.
+        actual: usize,
+        /// The expected number of arguments.
+        expected: usize,
+    },
+    /// Failure to convert return value.
+    #[error("failed to convert return value `{ret}`")]
+    ReturnConversionError {
+        /// Error describing the failed conversion.
+        #[source]
+        error: Box<VmError>,
+        /// Type of the return value we attempted to convert.
+        ret: &'static str,
+    },
+    /// An index set operation that is not supported.
+    #[error(
+        "the index set operation `{target_type}[{index_type}] = {value_type}` is not supported"
+    )]
+    UnsupportedIndexSet {
+        /// The target type to set.
+        target_type: ValueTypeInfo,
+        /// The index to set.
+        index_type: ValueTypeInfo,
+        /// The value to set.
+        value_type: ValueTypeInfo,
+    },
+    /// An index get operation that is not supported.
+    #[error("the index get operation `{target_type}[{index_type}]` is not supported")]
+    UnsupportedIndexGet {
+        /// The target type to get.
+        target_type: ValueTypeInfo,
+        /// The index to get.
+        index_type: ValueTypeInfo,
+    },
+    /// An array index get operation that is not supported.
+    #[error("the array index get operation on `{target_type}` is not supported")]
+    UnsupportedArrayIndexGet {
+        /// The target type we tried to perform the array indexing on.
+        target_type: ValueTypeInfo,
+    },
+    /// An object slot index get operation that is not supported.
+    #[error("the object slot index get operation on `{target_type}` is not supported")]
+    UnsupportedObjectSlotIndexGet {
+        /// The target type we tried to perform the object indexing on.
+        target_type: ValueTypeInfo,
+    },
+    /// An is operation is not supported.
+    #[error("`{value_type} is {test_type}` is not supported")]
+    UnsupportedIs {
+        /// The argument that is not supported.
+        value_type: ValueTypeInfo,
+        /// The type that is not supported.
+        test_type: ValueTypeInfo,
+    },
+    /// Encountered a value that could not be dereferenced.
+    #[error("replace deref `*{target_type} = {value_type}` is not supported")]
+    UnsupportedReplaceDeref {
+        /// The type we try to assign to.
+        target_type: ValueTypeInfo,
+        /// The type we try to assign.
+        value_type: ValueTypeInfo,
+    },
+    /// Encountered a value that could not be dereferenced.
+    #[error("`*{actual_type}` is not supported")]
+    UnsupportedDeref {
+        /// The type that could not be de-referenced.
+        actual_type: ValueTypeInfo,
+    },
+    /// Missing type.
+    #[error("no type matching hash `{hash}`")]
+    MissingType {
+        /// Hash of the type missing.
+        hash: Hash,
+    },
+    /// Attempting to assign an illegal pointer.
+    #[error(
+        "pointer cannot be changed to point to a lower stack address `{value_ptr} > {target_ptr}`"
+    )]
+    IllegalPtrReplace {
+        /// The target ptr being assigned to.
+        target_ptr: usize,
+        /// The value ptr we are trying to assign.
+        value_ptr: usize,
+    },
+    /// Encountered a value that could not be called as a function
+    #[error("`{actual_type}` cannot be called since it's not a function")]
+    UnsupportedCallFn {
+        /// The type that could not be called.
+        actual_type: ValueTypeInfo,
+    },
+    /// Tried to fetch an index in an array that doesn't exist.
+    #[error("missing index `{index}` in array")]
+    ArrayIndexMissing {
+        /// The missing index.
+        index: usize,
+    },
+    /// Tried to fetch an index in an object that doesn't exist.
+    #[error("missing index by static string slot `{slot}` in object")]
+    ObjectIndexMissing {
+        /// The static string slot corresponding to the index that is missing.
+        slot: usize,
+    },
+
     /// Internal error that happens when we run out of items in a list.
     #[error("unexpectedly ran out of items to iterate over")]
     IterationError,
@@ -159,293 +435,6 @@ pub enum StackError {
     },
 }
 
-/// A type-erased rust number.
-#[derive(Debug, Clone, Copy)]
-pub enum Integer {
-    /// `u8`
-    U8(u8),
-    /// `u16`
-    U16(u16),
-    /// `u32`
-    U32(u32),
-    /// `u64`
-    U64(u64),
-    /// `u128`
-    U128(u128),
-    /// `i8`
-    I8(i8),
-    /// `i16`
-    I16(i16),
-    /// `i32`
-    I32(i32),
-    /// `i64`
-    I64(i64),
-    /// `i128`
-    I128(i128),
-    /// `isize`
-    Isize(isize),
-    /// `usize`
-    Usize(usize),
-}
-
-impl fmt::Display for Integer {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::U8(n) => write!(fmt, "{}u8", n),
-            Self::U16(n) => write!(fmt, "{}u16", n),
-            Self::U32(n) => write!(fmt, "{}u32", n),
-            Self::U64(n) => write!(fmt, "{}u64", n),
-            Self::U128(n) => write!(fmt, "{}u128", n),
-            Self::I8(n) => write!(fmt, "{}i8", n),
-            Self::I16(n) => write!(fmt, "{}i16", n),
-            Self::I32(n) => write!(fmt, "{}i32", n),
-            Self::I64(n) => write!(fmt, "{}i64", n),
-            Self::I128(n) => write!(fmt, "{}i128", n),
-            Self::Isize(n) => write!(fmt, "{}isize", n),
-            Self::Usize(n) => write!(fmt, "{}usize", n),
-        }
-    }
-}
-
-/// Errors raised by the execution of the virtual machine.
-#[derive(Debug, Error)]
-pub enum VmError {
-    /// The virtual machine panicked for no specific reason.
-    #[error("panicked `{reason}`")]
-    Panic {
-        /// The reason for the panic.
-        reason: Panic,
-    },
-    /// The virtual machine encountered a numerical overflow.
-    #[error("numerical overflow")]
-    Overflow,
-    /// The virtual machine encountered a numerical underflow.
-    #[error("numerical underflow")]
-    Underflow,
-    /// The virtual machine encountered a divide-by-zero.
-    #[error("division by zero")]
-    DivideByZero,
-    /// Error raised in a user-defined function.
-    #[error("error in user-defined function: {error}")]
-    UserError {
-        /// Source error.
-        #[from]
-        error: crate::error::Error,
-    },
-    /// Failure to interact with the stack.
-    #[error("failed to interact with the stack: {error}")]
-    StackError {
-        /// Source error.
-        #[from]
-        error: StackError,
-    },
-    /// Failure to lookup function.
-    #[error("missing function with hash `{hash}`")]
-    MissingFunction {
-        /// Hash of function to look up.
-        hash: Hash,
-    },
-    /// Failure to lookup module.
-    #[error("missing module with hash `{module}`")]
-    MissingModule {
-        /// Hash of module to look up.
-        module: Hash,
-    },
-    /// Failure to lookup function in a module.
-    #[error("missing function with hash `{hash}` in module with hash `{module}`")]
-    MissingModuleFunction {
-        /// Module that was looked up.
-        module: Hash,
-        /// Function that could not be found.
-        hash: Hash,
-    },
-    /// Instruction pointer went out-of-bounds.
-    #[error("instruction pointer is out-of-bounds")]
-    IpOutOfBounds,
-    /// Unsupported binary operation.
-    #[error("unsupported vm operation `{lhs} {op} {rhs}`")]
-    UnsupportedBinaryOperation {
-        /// Operation.
-        op: &'static str,
-        /// Left-hand side operator.
-        lhs: ValueTypeInfo,
-        /// Right-hand side operator.
-        rhs: ValueTypeInfo,
-    },
-    /// Unsupported unary operation.
-    #[error("unsupported vm operation `{op}{operand}`")]
-    UnsupportedUnaryOperation {
-        /// Operation.
-        op: &'static str,
-        /// Operand.
-        operand: ValueTypeInfo,
-    },
-    /// Unsupported argument to object-exact-keys.
-    #[error("unsupported object key `{actual}`")]
-    UnsupportedObjectKey {
-        /// The encountered argument.
-        actual: ValueTypeInfo,
-    },
-    /// Unsupported argument to string-concat
-    #[error("unsupported string-concat argument `{actual}`")]
-    UnsupportedStringConcatArgument {
-        /// The encountered argument.
-        actual: ValueTypeInfo,
-    },
-    /// Attempt to access out-of-bounds stack item.
-    #[error("tried to access an out-of-bounds stack entry")]
-    StackOutOfBounds,
-    /// Indicates that a static string is missing for the given slot.
-    #[error("static string slot `{slot}` does not exist")]
-    MissingStaticString {
-        /// Slot which is missing a static string.
-        slot: usize,
-    },
-    /// Indicates that a static object keys is missing for the given slot.
-    #[error("static object keys slot `{slot}` does not exist")]
-    MissingStaticObjectKeys {
-        /// Slot which is missing a static object keys.
-        slot: usize,
-    },
-    /// Saw an unexpected stack value.
-    #[error("unexpected stack value, expected `{expected}` but was `{actual}`")]
-    StackTopTypeError {
-        /// The type that was expected.
-        expected: ValueTypeInfo,
-        /// The type observed.
-        actual: ValueTypeInfo,
-    },
-    /// Indicates a failure to convert from one type to another.
-    #[error("failed to convert stack value from `{from}` to `{to}`")]
-    StackConversionError {
-        /// The source of the error.
-        #[source]
-        error: StackError,
-        /// The actual type to be converted.
-        from: ValueTypeInfo,
-        /// The expected type to convert towards.
-        to: &'static str,
-    },
-    /// Failure to convert from one type to another.
-    #[error("failed to convert argument #{arg} from `{from}` to `{to}`")]
-    ArgumentConversionError {
-        /// The underlying stack error.
-        #[source]
-        error: StackError,
-        /// The argument location that was converted.
-        arg: usize,
-        /// The value type we attempted to convert from.
-        from: ValueTypeInfo,
-        /// The native type we attempt to convert to.
-        to: &'static str,
-    },
-    /// Wrong number of arguments provided in call.
-    #[error("wrong number of arguments `{actual}`, expected `{expected}`")]
-    ArgumentCountMismatch {
-        /// The actual number of arguments.
-        actual: usize,
-        /// The expected number of arguments.
-        expected: usize,
-    },
-    /// Failure to convert return value.
-    #[error("failed to convert return value `{ret}`")]
-    ReturnConversionError {
-        /// Error describing the failed conversion.
-        #[source]
-        error: StackError,
-        /// Type of the return value we attempted to convert.
-        ret: &'static str,
-    },
-    /// An index set operation that is not supported.
-    #[error(
-        "the index set operation `{target_type}[{index_type}] = {value_type}` is not supported"
-    )]
-    UnsupportedIndexSet {
-        /// The target type to set.
-        target_type: ValueTypeInfo,
-        /// The index to set.
-        index_type: ValueTypeInfo,
-        /// The value to set.
-        value_type: ValueTypeInfo,
-    },
-    /// An index get operation that is not supported.
-    #[error("the index get operation `{target_type}[{index_type}]` is not supported")]
-    UnsupportedIndexGet {
-        /// The target type to get.
-        target_type: ValueTypeInfo,
-        /// The index to get.
-        index_type: ValueTypeInfo,
-    },
-    /// An array index get operation that is not supported.
-    #[error("the array index get operation on `{target_type}` is not supported")]
-    UnsupportedArrayIndexGet {
-        /// The target type we tried to perform the array indexing on.
-        target_type: ValueTypeInfo,
-    },
-    /// An object slot index get operation that is not supported.
-    #[error("the object slot index get operation on `{target_type}` is not supported")]
-    UnsupportedObjectSlotIndexGet {
-        /// The target type we tried to perform the object indexing on.
-        target_type: ValueTypeInfo,
-    },
-    /// An is operation is not supported.
-    #[error("`{value_type} is {test_type}` is not supported")]
-    UnsupportedIs {
-        /// The argument that is not supported.
-        value_type: ValueTypeInfo,
-        /// The type that is not supported.
-        test_type: ValueTypeInfo,
-    },
-    /// Encountered a value that could not be dereferenced.
-    #[error("replace deref `*{target_type} = {value_type}` is not supported")]
-    UnsupportedReplaceDeref {
-        /// The type we try to assign to.
-        target_type: ValueTypeInfo,
-        /// The type we try to assign.
-        value_type: ValueTypeInfo,
-    },
-    /// Encountered a value that could not be dereferenced.
-    #[error("`*{actual_type}` is not supported")]
-    UnsupportedDeref {
-        /// The type that could not be de-referenced.
-        actual_type: ValueTypeInfo,
-    },
-    /// Missing type.
-    #[error("no type matching hash `{hash}`")]
-    MissingType {
-        /// Hash of the type missing.
-        hash: Hash,
-    },
-    /// Attempting to assign an illegal pointer.
-    #[error(
-        "pointer cannot be changed to point to a lower stack address `{value_ptr} > {target_ptr}`"
-    )]
-    IllegalPtrReplace {
-        /// The target ptr being assigned to.
-        target_ptr: usize,
-        /// The value ptr we are trying to assign.
-        value_ptr: usize,
-    },
-    /// Encountered a value that could not be called as a function
-    #[error("`{actual_type}` cannot be called since it's not a function")]
-    UnsupportedCallFn {
-        /// The type that could not be called.
-        actual_type: ValueTypeInfo,
-    },
-    /// Tried to fetch an index in an array that doesn't exist.
-    #[error("missing index `{index}` in array")]
-    ArrayIndexMissing {
-        /// The missing index.
-        index: usize,
-    },
-    /// Tried to fetch an index in an object that doesn't exist.
-    #[error("missing index by static string slot `{slot}` in object")]
-    ObjectIndexMissing {
-        /// The static string slot corresponding to the index that is missing.
-        slot: usize,
-    },
-}
-
 /// Pop and type check a value off the stack.
 macro_rules! pop {
     ($vm:expr, $variant:ident) => {
@@ -504,7 +493,7 @@ macro_rules! check_float {
 
 /// Generate a primitive combination of operations.
 macro_rules! numeric_ops {
-    ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
+    ($vm:expr, $unit:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => {
                 $vm.push(ValuePtr::Integer({
@@ -536,8 +525,8 @@ macro_rules! numeric_ops {
                 $vm.push(lhs);
 
                 let result = match handler {
-                    Handler::Async(handler) => handler($vm, 1).await,
-                    Handler::Regular(handler) => handler($vm, 1),
+                    Handler::Async(handler) => handler($vm, $unit, 1).await,
+                    Handler::Regular(handler) => handler($vm, $unit, 1),
                 };
 
                 result?;
@@ -548,7 +537,7 @@ macro_rules! numeric_ops {
 
 /// Generate a primitive combination of operations.
 macro_rules! assign_ops {
-    ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
+    ($vm:expr, $unit:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer({
                 match $a.$checked_op($b) {
@@ -578,8 +567,8 @@ macro_rules! assign_ops {
                 $vm.push(lhs);
 
                 match handler {
-                    Handler::Async(handler) => handler($vm, 1).await?,
-                    Handler::Regular(handler) => handler($vm, 1)?,
+                    Handler::Async(handler) => handler($vm, $unit, 1).await?,
+                    Handler::Regular(handler) => handler($vm, $unit, 1)?,
                 };
 
                 $vm.pop()?;
@@ -618,12 +607,12 @@ struct CallFrame {
 }
 
 macro_rules! call_fn {
-    ($s:expr, $hash:expr, $args:expr, $context:expr, $unit:expr, $update_ip:ident) => {
+    ($vm:expr, $unit:expr, $hash:expr, $args:expr, $context:expr,  $update_ip:ident) => {
         let hash = $hash;
 
         match $unit.lookup_offset(hash) {
             Some(loc) => {
-                $s.push_call_frame(loc, $args)?;
+                $vm.push_call_frame(loc, $args)?;
                 $update_ip = false;
             }
             None => {
@@ -632,8 +621,8 @@ macro_rules! call_fn {
                     .ok_or_else(|| VmError::MissingFunction { hash })?;
 
                 let result = match handler {
-                    Handler::Async(handler) => handler($s, $args).await,
-                    Handler::Regular(handler) => handler($s, $args),
+                    Handler::Async(handler) => handler($vm, $unit, $args).await,
+                    Handler::Regular(handler) => handler($vm, $unit, $args),
                 };
 
                 result?;
@@ -669,24 +658,24 @@ macro_rules! impl_slot_functions {
         }
 
         /// Get a reference of the value at the given slot.
-        pub fn $ref_fn(&self, slot: Slot) -> Result<Ref<'_, $ty>, StackError> {
+        pub fn $ref_fn(&self, slot: Slot) -> Result<Ref<'_, $ty>, VmError> {
             self.external_ref::<$ty>(slot)
         }
 
         /// Get a cloned value from the given slot.
-        pub fn $clone_fn(&self, slot: Slot) -> Result<$ty, StackError> {
+        pub fn $clone_fn(&self, slot: Slot) -> Result<$ty, VmError> {
             self.external_clone::<$ty>(slot)
         }
 
         /// Get a reference of the value at the given slot.
-        pub fn $mut_fn(&self, slot: Slot) -> Result<Mut<'_, $ty>, StackError> {
+        pub fn $mut_fn(&self, slot: Slot) -> Result<Mut<'_, $ty>, VmError> {
             self.external_mut::<$ty>(slot)
         }
 
         /// Take the value at the given slot.
         ///
         /// After taking the value, the caller is responsible for deallocating it.
-        pub fn $take_fn(&mut self, slot: Slot) -> Result<$ty, StackError> {
+        pub fn $take_fn(&mut self, slot: Slot) -> Result<$ty, VmError> {
             self.external_take::<$ty>(slot)
         }
     };
@@ -754,14 +743,15 @@ impl Vm {
 
     /// Iterate over the stack, producing the value associated with each stack
     /// item.
-    pub fn iter_stack_debug(
-        &self,
-    ) -> impl Iterator<Item = (ValuePtr, Result<ValueRef<'_>, StackError>)> + '_ {
+    pub fn iter_stack_debug<'vm>(
+        &'vm self,
+        unit: &'vm CompilationUnit,
+    ) -> impl Iterator<Item = (ValuePtr, Result<ValueRef<'vm>, VmError>)> + 'vm {
         let mut it = self.stack.iter().copied();
 
         std::iter::from_fn(move || {
             let value_ref = it.next()?;
-            let value = self.value_ref(value_ref);
+            let value = self.value_ref(unit, value_ref);
             Some((value_ref, value))
         })
     }
@@ -832,26 +822,26 @@ impl Vm {
     }
 
     /// Pop a reference to a value from the stack.
-    pub fn pop(&mut self) -> Result<ValuePtr, StackError> {
+    pub fn pop(&mut self) -> Result<ValuePtr, VmError> {
         if self.stack.len() == self.stack_top {
-            return Err(StackError::PopOutOfBounds {
+            return Err(VmError::PopOutOfBounds {
                 frame: self.stack_top,
             });
         }
 
-        self.stack.pop().ok_or_else(|| StackError::StackEmpty)
+        self.stack.pop().ok_or_else(|| VmError::StackEmpty)
     }
 
     /// Pop a number of values from the stack.
-    fn op_popn(&mut self, n: usize) -> Result<(), StackError> {
+    fn op_popn(&mut self, n: usize) -> Result<(), VmError> {
         if self.stack.len().saturating_sub(self.stack_top) < n {
-            return Err(StackError::PopOutOfBounds {
+            return Err(VmError::PopOutOfBounds {
                 frame: self.stack_top,
             });
         }
 
         for _ in 0..n {
-            self.stack.pop().ok_or_else(|| StackError::StackEmpty)?;
+            self.stack.pop().ok_or_else(|| VmError::StackEmpty)?;
         }
 
         Ok(())
@@ -859,7 +849,7 @@ impl Vm {
 
     /// Pop a number of values from the stack, while preserving the top of the
     /// stack.
-    fn op_clean(&mut self, n: usize) -> Result<(), StackError> {
+    fn op_clean(&mut self, n: usize) -> Result<(), VmError> {
         let value = self.pop()?;
         self.op_popn(n)?;
         self.push(value);
@@ -867,11 +857,11 @@ impl Vm {
     }
 
     /// Peek the top of the stack.
-    fn peek(&mut self) -> Result<ValuePtr, StackError> {
+    fn peek(&mut self) -> Result<ValuePtr, VmError> {
         self.stack
             .last()
             .copied()
-            .ok_or_else(|| StackError::StackEmpty)
+            .ok_or_else(|| VmError::StackEmpty)
     }
 
     /// Access the value at the given frame offset.
@@ -948,11 +938,11 @@ impl Vm {
     }
 
     /// Pop a call frame and return it.
-    fn pop_call_frame(&mut self) -> Result<bool, StackError> {
+    fn pop_call_frame(&mut self) -> Result<bool, VmError> {
         // Assert that the stack frame has been restored to the previous top
         // at the point of return.
         if self.stack.len() != self.stack_top {
-            return Err(StackError::CorruptedStackFrame {
+            return Err(VmError::CorruptedStackFrame {
                 stack_top: self.stack.len(),
                 frame_at: self.stack_top,
             });
@@ -1082,7 +1072,7 @@ impl Vm {
 
     /// Get a reference of the external value of the given type and the given
     /// slot.
-    pub fn external_ref<T>(&self, slot: Slot) -> Result<Ref<'_, T>, StackError>
+    pub fn external_ref<T>(&self, slot: Slot) -> Result<Ref<'_, T>, VmError>
     where
         T: any::Any,
     {
@@ -1090,7 +1080,7 @@ impl Vm {
             .slots
             .get(slot.into_usize())
             .filter(|h| h.generation == slot.into_generation())
-            .ok_or_else(|| StackError::SlotMissing { slot })?;
+            .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         holder.access.shared(slot)?;
 
@@ -1107,7 +1097,7 @@ impl Vm {
                     // won't be maintaining access to the type.
                     holder.access.release_shared();
 
-                    return Err(StackError::UnexpectedSlotType {
+                    return Err(VmError::UnexpectedSlotType {
                         expected: any::type_name::<T>(),
                         actual,
                     });
@@ -1128,7 +1118,7 @@ impl Vm {
     ///
     /// Mark the given value as mutably used, preventing it from being used
     /// again.
-    pub fn external_mut<T>(&self, slot: Slot) -> Result<Mut<'_, T>, StackError>
+    pub fn external_mut<T>(&self, slot: Slot) -> Result<Mut<'_, T>, VmError>
     where
         T: any::Any,
     {
@@ -1136,7 +1126,7 @@ impl Vm {
             .slots
             .get(slot.into_usize())
             .filter(|h| h.generation == slot.into_generation())
-            .ok_or_else(|| StackError::SlotMissing { slot })?;
+            .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         holder.access.exclusive(slot)?;
 
@@ -1153,7 +1143,7 @@ impl Vm {
                     // won't be maintaining access to the type.
                     holder.access.release_exclusive();
 
-                    return Err(StackError::UnexpectedSlotType {
+                    return Err(VmError::UnexpectedSlotType {
                         expected: any::type_name::<T>(),
                         actual,
                     });
@@ -1170,12 +1160,12 @@ impl Vm {
     }
 
     /// Get a clone of the given external.
-    pub fn external_clone<T: Clone + any::Any>(&self, slot: Slot) -> Result<T, StackError> {
+    pub fn external_clone<T: Clone + any::Any>(&self, slot: Slot) -> Result<T, VmError> {
         let holder = self
             .slots
             .get(slot.into_usize())
             .filter(|h| h.generation == slot.into_generation())
-            .ok_or_else(|| StackError::SlotMissing { slot })?;
+            .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         // NB: we don't need a guard here since we're only using the reference
         // for the duration of this function.
@@ -1190,7 +1180,7 @@ impl Vm {
                 None => {
                     let actual = (*holder.value.get()).type_name();
 
-                    return Err(StackError::UnexpectedSlotType {
+                    return Err(VmError::UnexpectedSlotType {
                         expected: any::type_name::<T>(),
                         actual,
                     });
@@ -1222,7 +1212,7 @@ impl Vm {
     }
 
     /// Take an external value from the virtual machine by its slot.
-    pub fn external_take<T>(&mut self, slot: Slot) -> Result<T, StackError>
+    pub fn external_take<T>(&mut self, slot: Slot) -> Result<T, VmError>
     where
         T: any::Any,
     {
@@ -1238,21 +1228,21 @@ impl Vm {
             .filter(|h| h.generation == slot.into_generation())
             .is_none()
         {
-            return Err(StackError::SlotMissing { slot });
+            return Err(VmError::SlotMissing { slot });
         }
 
         let holder = self.slots.remove(pos);
 
         match Self::take_value(holder.value.into_inner()) {
             Ok(value) => return Ok(value),
-            Err(value) => Err(StackError::UnexpectedSlotType {
+            Err(value) => Err(VmError::UnexpectedSlotType {
                 expected: any::type_name::<T>(),
                 actual: value.type_name(),
             }),
         }
     }
 
-    fn external_with_dyn<F, T>(&self, slot: Slot, f: F) -> Result<T, StackError>
+    fn external_with_dyn<F, T>(&self, slot: Slot, f: F) -> Result<T, VmError>
     where
         F: FnOnce(&Any) -> T,
     {
@@ -1260,7 +1250,7 @@ impl Vm {
             .slots
             .get(slot.into_usize())
             .filter(|h| h.generation == slot.into_generation())
-            .ok_or_else(|| StackError::SlotMissing { slot })?;
+            .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         holder.access.test_shared(slot)?;
 
@@ -1272,12 +1262,12 @@ impl Vm {
 
     /// Get a reference of the external value of the given type and the given
     /// slot.
-    pub fn external_ref_dyn(&self, slot: Slot) -> Result<Ref<'_, Any>, StackError> {
+    pub fn external_ref_dyn(&self, slot: Slot) -> Result<Ref<'_, Any>, VmError> {
         let holder = self
             .slots
             .get(slot.into_usize())
             .filter(|h| h.generation == slot.into_generation())
-            .ok_or_else(|| StackError::SlotMissing { slot })?;
+            .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         holder.access.shared(slot)?;
 
@@ -1293,7 +1283,7 @@ impl Vm {
     }
 
     /// Take an external value by dyn, assuming you have exlusive access to it.
-    pub fn external_take_dyn(&mut self, slot: Slot) -> Result<Any, StackError> {
+    pub fn external_take_dyn(&mut self, slot: Slot) -> Result<Any, VmError> {
         let pos = slot.into_usize();
 
         if self
@@ -1302,7 +1292,7 @@ impl Vm {
             .filter(|h| h.generation == slot.into_generation())
             .is_none()
         {
-            return Err(StackError::SlotMissing { slot });
+            return Err(VmError::SlotMissing { slot });
         }
 
         let holder = self.slots.remove(pos);
@@ -1314,17 +1304,21 @@ impl Vm {
     }
 
     /// Access the type name of the slot.
-    pub fn slot_type_name(&self, slot: Slot) -> Result<&'static str, StackError> {
+    pub fn slot_type_name(&self, slot: Slot) -> Result<&'static str, VmError> {
         self.external_with_dyn(slot, |e| e.type_name())
     }
 
     /// Access the type id of the slot.
-    pub fn slot_type_id(&self, slot: Slot) -> Result<any::TypeId, StackError> {
+    pub fn slot_type_id(&self, slot: Slot) -> Result<any::TypeId, VmError> {
         self.external_with_dyn(slot, |e| e.type_id())
     }
 
     /// Convert a value reference into an owned value.
-    pub fn value_take(&mut self, value: ValuePtr) -> Result<Value, StackError> {
+    pub fn value_take(
+        &mut self,
+        unit: &CompilationUnit,
+        value: ValuePtr,
+    ) -> Result<Value, VmError> {
         return Ok(match value {
             ValuePtr::None => Value::Unit,
             ValuePtr::Integer(integer) => Value::Integer(integer),
@@ -1332,13 +1326,14 @@ impl Vm {
             ValuePtr::Bool(boolean) => Value::Bool(boolean),
             ValuePtr::Char(c) => Value::Char(c),
             ValuePtr::String(slot) => Value::String(self.string_take(slot)?),
+            ValuePtr::StaticString(slot) => Value::String(unit.lookup_string(slot)?.to_owned()),
             ValuePtr::Array(slot) => {
                 let array = self.array_take(slot)?;
-                Value::Array(value_take_array(self, array)?)
+                Value::Array(value_take_array(self, unit, array)?)
             }
             ValuePtr::Object(slot) => {
                 let object = self.object_take(slot)?;
-                Value::Object(value_take_object(self, object)?)
+                Value::Object(value_take_object(self, unit, object)?)
             }
             ValuePtr::External(slot) => Value::External(self.external_take_dyn(slot)?),
             ValuePtr::Type(ty) => Value::Type(ty),
@@ -1346,11 +1341,15 @@ impl Vm {
         });
 
         /// Convert into an owned array.
-        fn value_take_array(vm: &mut Vm, values: Vec<ValuePtr>) -> Result<Vec<Value>, StackError> {
+        fn value_take_array(
+            vm: &mut Vm,
+            unit: &CompilationUnit,
+            values: Vec<ValuePtr>,
+        ) -> Result<Vec<Value>, VmError> {
             let mut output = Vec::with_capacity(values.len());
 
             for value in values {
-                output.push(vm.value_take(value)?);
+                output.push(vm.value_take(unit, value)?);
             }
 
             Ok(output)
@@ -1359,12 +1358,13 @@ impl Vm {
         /// Convert into an owned object.
         fn value_take_object(
             vm: &mut Vm,
+            unit: &CompilationUnit,
             object: HashMap<String, ValuePtr>,
-        ) -> Result<HashMap<String, Value>, StackError> {
+        ) -> Result<HashMap<String, Value>, VmError> {
             let mut output = HashMap::with_capacity(object.len());
 
             for (key, value) in object {
-                output.insert(key, vm.value_take(value)?);
+                output.insert(key, vm.value_take(unit, value)?);
             }
 
             Ok(output)
@@ -1372,7 +1372,11 @@ impl Vm {
     }
 
     /// Convert the given ptr into a type-erase ValueRef.
-    pub fn value_ref(&self, value: ValuePtr) -> Result<ValueRef<'_>, StackError> {
+    pub fn value_ref<'vm>(
+        &'vm self,
+        unit: &'vm CompilationUnit,
+        value: ValuePtr,
+    ) -> Result<ValueRef<'vm>, VmError> {
         return Ok(match value {
             ValuePtr::None => ValueRef::Unit,
             ValuePtr::Integer(integer) => ValueRef::Integer(integer),
@@ -1380,13 +1384,14 @@ impl Vm {
             ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
             ValuePtr::Char(c) => ValueRef::Char(c),
             ValuePtr::String(slot) => ValueRef::String(self.string_ref(slot)?),
+            ValuePtr::StaticString(slot) => ValueRef::StaticString(unit.lookup_string(slot)?),
             ValuePtr::Array(slot) => {
                 let array = self.array_ref(slot)?;
-                ValueRef::Array(self.value_array_ref(&*array)?)
+                ValueRef::Array(self.value_array_ref(unit, &*array)?)
             }
             ValuePtr::Object(slot) => {
                 let object = self.object_ref(slot)?;
-                ValueRef::Object(self.value_object_ref(&*object)?)
+                ValueRef::Object(self.value_object_ref(unit, &*object)?)
             }
             ValuePtr::External(slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             ValuePtr::Type(ty) => ValueRef::Type(ty),
@@ -1395,44 +1400,49 @@ impl Vm {
     }
 
     /// Convert the given value pointers into an array.
-    pub fn value_array_ref(&self, values: &[ValuePtr]) -> Result<Vec<ValueRef<'_>>, StackError> {
+    pub fn value_array_ref<'vm>(
+        &'vm self,
+        unit: &'vm CompilationUnit,
+        values: &[ValuePtr],
+    ) -> Result<Vec<ValueRef<'vm>>, VmError> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
-            output.push(self.value_ref(value)?);
+            output.push(self.value_ref(unit, value)?);
         }
 
         Ok(output)
     }
 
     /// Convert the given value pointers into an array.
-    pub fn value_object_ref(
-        &self,
+    pub fn value_object_ref<'vm>(
+        &'vm self,
+        unit: &'vm CompilationUnit,
         object: &HashMap<String, ValuePtr>,
-    ) -> Result<HashMap<String, ValueRef<'_>>, StackError> {
+    ) -> Result<HashMap<String, ValueRef<'vm>>, VmError> {
         let mut output = HashMap::with_capacity(object.len());
 
         for (key, value) in object.iter() {
-            output.insert(key.to_owned(), self.value_ref(*value)?);
+            output.insert(key.to_owned(), self.value_ref(unit, *value)?);
         }
 
         Ok(output)
     }
 
     /// Pop the last value on the stack and evaluate it as `T`.
-    fn pop_decode<T>(&mut self) -> Result<T, VmError>
+    fn pop_decode<T>(&mut self, unit: &CompilationUnit) -> Result<T, VmError>
     where
         T: FromValue,
     {
         let value = self.pop()?;
 
-        let value = match T::from_value(value, self) {
+        let value = match T::from_value(value, self, unit) {
             Ok(value) => value,
             Err(error) => {
                 let type_info = value.type_info(self)?;
 
                 return Err(VmError::StackConversionError {
-                    error,
+                    error: Box::new(error),
                     from: type_info,
                     to: any::type_name::<T>(),
                 });
@@ -1449,7 +1459,12 @@ impl Vm {
     ///
     /// Note: External types are compared by their slot, but should eventually
     /// use a dynamically resolve equality function.
-    fn value_ptr_eq(&self, a: ValuePtr, b: ValuePtr) -> Result<bool, VmError> {
+    fn value_ptr_eq(
+        &self,
+        unit: &CompilationUnit,
+        a: ValuePtr,
+        b: ValuePtr,
+    ) -> Result<bool, VmError> {
         Ok(match (a, b) {
             (ValuePtr::None, ValuePtr::None) => true,
             (ValuePtr::Char(a), ValuePtr::Char(b)) => a == b,
@@ -1465,7 +1480,7 @@ impl Vm {
                 }
 
                 for (a, b) in a.iter().copied().zip(b.iter().copied()) {
-                    if !self.value_ptr_eq(a, b)? {
+                    if !self.value_ptr_eq(unit, a, b)? {
                         return Ok(false);
                     }
                 }
@@ -1486,7 +1501,7 @@ impl Vm {
                         None => return Ok(false),
                     };
 
-                    if !self.value_ptr_eq(*a, *b)? {
+                    if !self.value_ptr_eq(unit, *a, *b)? {
                         return Ok(false);
                     }
                 }
@@ -1498,6 +1513,19 @@ impl Vm {
                 let b = self.string_ref(b)?;
                 *a == *b
             }
+            (ValuePtr::StaticString(a), ValuePtr::String(b)) => {
+                let a = unit.lookup_string(a)?;
+                let b = self.string_ref(b)?;
+                a == *b
+            }
+            (ValuePtr::String(a), ValuePtr::StaticString(b)) => {
+                let a = self.string_ref(a)?;
+                let b = unit.lookup_string(b)?;
+                *a == b
+            }
+            // fast string comparison: exact string slot.
+            (ValuePtr::StaticString(a), ValuePtr::StaticString(b)) => a == b,
+            // fast external comparison by slot.
             (ValuePtr::External(a), ValuePtr::External(b)) => a == b,
             _ => false,
         })
@@ -1505,19 +1533,19 @@ impl Vm {
 
     /// Optimized equality implementation.
     #[inline]
-    fn op_eq(&mut self) -> Result<(), VmError> {
+    fn op_eq(&mut self, unit: &CompilationUnit) -> Result<(), VmError> {
         let a = self.pop()?;
         let b = self.pop()?;
-        self.push(ValuePtr::Bool(self.value_ptr_eq(a, b)?));
+        self.push(ValuePtr::Bool(self.value_ptr_eq(unit, a, b)?));
         Ok(())
     }
 
     /// Optimized inequality implementation.
     #[inline]
-    fn op_neq(&mut self) -> Result<(), VmError> {
+    fn op_neq(&mut self, unit: &CompilationUnit) -> Result<(), VmError> {
         let a = self.pop()?;
         let b = self.pop()?;
-        self.push(ValuePtr::Bool(!self.value_ptr_eq(a, b)?));
+        self.push(ValuePtr::Bool(!self.value_ptr_eq(unit, a, b)?));
         Ok(())
     }
 
@@ -1547,19 +1575,30 @@ impl Vm {
 
     /// Perform an index set operation.
     #[inline]
-    async fn op_index_set(&mut self, context: &Context) -> Result<(), VmError> {
+    async fn op_index_set(
+        &mut self,
+        unit: &CompilationUnit,
+        context: &Context,
+    ) -> Result<(), VmError> {
         let target = self.pop()?;
         let index = self.pop()?;
         let value = self.pop()?;
 
-        match (target, index) {
-            (ValuePtr::Object(target), ValuePtr::String(index)) => {
-                let index = self.string_take(index)?;
-                let mut object = self.object_mut(target)?;
-                object.insert(index, value);
-                return Ok(());
+        loop {
+            match (target, index) {
+                (ValuePtr::Object(target), index) => {
+                    let index = match index {
+                        ValuePtr::String(index) => self.string_take(index)?,
+                        ValuePtr::StaticString(slot) => unit.lookup_string(slot)?.to_owned(),
+                        _ => break,
+                    };
+
+                    let mut object = self.object_mut(target)?;
+                    object.insert(index, value);
+                    return Ok(());
+                }
+                _ => break,
             }
-            _ => (),
         }
 
         let ty = target.value_type(self)?;
@@ -1585,8 +1624,8 @@ impl Vm {
         self.push(target);
 
         let result = match handler {
-            Handler::Async(handler) => handler(self, 2).await,
-            Handler::Regular(handler) => handler(self, 2),
+            Handler::Async(handler) => handler(self, unit, 2).await,
+            Handler::Regular(handler) => handler(self, unit, 2),
         };
 
         result?;
@@ -1595,22 +1634,38 @@ impl Vm {
 
     /// Perform an index get operation.
     #[inline]
-    async fn op_index_get(&mut self, context: &Context) -> Result<(), VmError> {
+    async fn op_index_get(
+        &mut self,
+        unit: &CompilationUnit,
+        context: &Context,
+    ) -> Result<(), VmError> {
         let target = self.pop()?;
         let index = self.pop()?;
 
-        match (target, index) {
-            (ValuePtr::Object(target), ValuePtr::String(index)) => {
-                let value = {
-                    let object = self.object_ref(target)?;
-                    let index = self.string_ref(index)?;
-                    object.get(&*index).copied().unwrap_or_default()
-                };
+        loop {
+            match (target, index) {
+                (ValuePtr::Object(target), index) => {
+                    let string_ref;
 
-                self.push(value);
-                return Ok(());
+                    let index = match index {
+                        ValuePtr::String(index) => {
+                            string_ref = self.string_ref(index)?;
+                            string_ref.as_str()
+                        }
+                        ValuePtr::StaticString(slot) => unit.lookup_string(slot)?,
+                        _ => break,
+                    };
+
+                    let value = {
+                        let object = self.object_ref(target)?;
+                        object.get(index).copied().unwrap_or_default()
+                    };
+
+                    self.push(value);
+                    return Ok(());
+                }
+                _ => break,
             }
-            _ => (),
         }
 
         let ty = target.value_type(self)?;
@@ -1633,8 +1688,8 @@ impl Vm {
         self.push(target);
 
         let result = match handler {
-            Handler::Async(handler) => handler(self, 1).await,
-            Handler::Regular(handler) => handler(self, 1),
+            Handler::Async(handler) => handler(self, unit, 1).await,
+            Handler::Regular(handler) => handler(self, unit, 1),
         };
 
         result?;
@@ -1678,9 +1733,7 @@ impl Vm {
 
         let value = match target {
             ValuePtr::Object(slot) => {
-                let index = unit
-                    .lookup_string(string_slot)
-                    .ok_or_else(|| VmError::MissingStaticString { slot: string_slot })?;
+                let index = unit.lookup_string(string_slot)?;
 
                 let array = self.object_ref(slot)?;
 
@@ -1722,7 +1775,12 @@ impl Vm {
 
     /// Optimize operation to perform string concatenation.
     #[inline]
-    fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
+    fn op_string_concat(
+        &mut self,
+        unit: &CompilationUnit,
+        len: usize,
+        size_hint: usize,
+    ) -> Result<(), VmError> {
         use std::fmt::Write as _;
 
         let mut buf = String::with_capacity(size_hint);
@@ -1734,6 +1792,10 @@ impl Vm {
                 ValuePtr::String(slot) => {
                     let string = self.string_ref(slot)?;
                     buf.push_str(&*string);
+                }
+                ValuePtr::StaticString(slot) => {
+                    let string = unit.lookup_string(slot)?;
+                    buf.push_str(string);
                 }
                 ValuePtr::Integer(integer) => {
                     // NB: infallible operation.
@@ -1809,16 +1871,17 @@ impl Vm {
     /// string location.
     #[inline]
     fn op_eq_static_string(&mut self, slot: usize, unit: &CompilationUnit) -> Result<(), VmError> {
-        let string = unit
-            .lookup_string(slot)
-            .ok_or_else(|| VmError::MissingStaticString { slot })?;
-
+        let string = unit.lookup_string(slot)?;
         let value = self.pop()?;
 
         self.push(ValuePtr::Bool(match value {
             ValuePtr::String(slot) => {
                 let actual = self.string_ref(slot)?;
                 *actual == string
+            }
+            ValuePtr::StaticString(slot) => {
+                let actual = unit.lookup_string(slot)?;
+                actual == string
             }
             _ => false,
         }));
@@ -1899,13 +1962,13 @@ impl Vm {
                 Inst::Add => {
                     let a = self.pop()?;
                     let b = self.pop()?;
-                    numeric_ops!(self, context, crate::ADD, +, a.checked_add(b), Overflow);
+                    numeric_ops!(self, unit, context, crate::ADD, +, a.checked_add(b), Overflow);
                 }
                 Inst::AddAssign { offset } => {
                     let arg = self.pop()?;
                     let value = self.value_at(*offset)?;
                     let value = assign_ops! {
-                        self, context, crate::ADD_ASSIGN, +, value.checked_add(arg), Overflow
+                        self, unit, context, crate::ADD_ASSIGN, +, value.checked_add(arg), Overflow
                     };
 
                     *self.value_at_mut(*offset)? = value;
@@ -1913,53 +1976,53 @@ impl Vm {
                 Inst::Sub => {
                     let a = self.pop()?;
                     let b = self.pop()?;
-                    numeric_ops!(self, context, crate::SUB, -, a.checked_sub(b), Underflow);
+                    numeric_ops!(self, unit, context, crate::SUB, -, a.checked_sub(b), Underflow);
                 }
                 Inst::SubAssign { offset } => {
                     let arg = self.pop()?;
                     let value = self.value_at(*offset)?;
                     let value = assign_ops! {
-                        self, context, crate::SUB_ASSIGN, -, value.checked_sub(arg), Underflow
+                        self, unit, context, crate::SUB_ASSIGN, -, value.checked_sub(arg), Underflow
                     };
                     *self.value_at_mut(*offset)? = value;
                 }
                 Inst::Mul => {
                     let a = self.pop()?;
                     let b = self.pop()?;
-                    numeric_ops!(self, context, crate::MUL, *, a.checked_mul(b), Overflow);
+                    numeric_ops!(self, unit, context, crate::MUL, *, a.checked_mul(b), Overflow);
                 }
                 Inst::MulAssign { offset } => {
                     let arg = self.pop()?;
                     let value = self.value_at(*offset)?;
                     let value = assign_ops! {
-                        self, context, crate::MUL_ASSIGN, *, value.checked_mul(arg), Overflow
+                        self, unit, context, crate::MUL_ASSIGN, *, value.checked_mul(arg), Overflow
                     };
                     *self.value_at_mut(*offset)? = value;
                 }
                 Inst::Div => {
                     let a = self.pop()?;
                     let b = self.pop()?;
-                    numeric_ops!(self, context, crate::DIV, /, a.checked_div(b), DivideByZero);
+                    numeric_ops!(self, unit, context, crate::DIV, /, a.checked_div(b), DivideByZero);
                 }
                 Inst::DivAssign { offset } => {
                     let arg = self.pop()?;
                     let value = self.value_at(*offset)?;
                     let value = assign_ops! {
-                        self, context, crate::DIV_ASSIGN, /, value.checked_div(arg), DivideByZero
+                        self, unit, context, crate::DIV_ASSIGN, /, value.checked_div(arg), DivideByZero
                     };
                     *self.value_at_mut(*offset)? = value;
                 }
                 // NB: we inline function calls because it helps Rust optimize
                 // the async plumbing.
                 Inst::Call { hash, args } => {
-                    call_fn!(self, *hash, *args, context, unit, update_ip);
+                    call_fn!(self, unit, *hash, *args, context, update_ip);
                 }
                 Inst::CallInstance { hash, args } => {
                     let instance = self.peek()?;
                     let ty = instance.value_type(self)?;
                     let hash = Hash::instance_function(ty, *hash);
 
-                    call_fn!(self, hash, *args, context, unit, update_ip);
+                    call_fn!(self, unit, hash, *args, context, update_ip);
                 }
                 Inst::CallFn { args } => {
                     let function = self.pop()?;
@@ -1972,7 +2035,7 @@ impl Vm {
                         }
                     };
 
-                    call_fn!(self, hash, *args, context, unit, update_ip);
+                    call_fn!(self, unit, hash, *args, context, update_ip);
                 }
                 Inst::LoadInstanceFn { hash } => {
                     let instance = self.pop()?;
@@ -1981,7 +2044,7 @@ impl Vm {
                     self.push(ValuePtr::Fn(hash));
                 }
                 Inst::IndexGet => {
-                    self.op_index_get(context).await?;
+                    self.op_index_get(unit, context).await?;
                 }
                 Inst::ArrayIndexGet { index } => {
                     self.op_array_index_get(*index)?;
@@ -1990,7 +2053,7 @@ impl Vm {
                     self.op_object_slot_index_get(*slot, unit)?;
                 }
                 Inst::IndexSet => {
-                    self.op_index_set(context).await?;
+                    self.op_index_set(unit, context).await?;
                 }
                 Inst::Return => {
                     let return_value = self.pop()?;
@@ -2046,10 +2109,10 @@ impl Vm {
                     self.push(ValuePtr::Bool(primitive_ops!(self, a <= b)));
                 }
                 Inst::Eq => {
-                    self.op_eq()?;
+                    self.op_eq(unit)?;
                 }
                 Inst::Neq => {
-                    self.op_neq()?;
+                    self.op_neq(unit)?;
                 }
                 Inst::Jump { offset } => {
                     self.op_jump(*offset, &mut update_ip)?;
@@ -2076,7 +2139,7 @@ impl Vm {
                     let mut array = Vec::with_capacity(*count);
 
                     for _ in 0..*count {
-                        array.push(self.stack.pop().ok_or_else(|| StackError::StackEmpty)?);
+                        array.push(self.stack.pop().ok_or_else(|| VmError::StackEmpty)?);
                     }
 
                     let value = self.array_allocate(array);
@@ -2092,15 +2155,16 @@ impl Vm {
                     self.push(ValuePtr::Char(*c));
                 }
                 Inst::String { slot } => {
-                    let string = unit
-                        .lookup_string(*slot)
-                        .ok_or_else(|| VmError::MissingStaticString { slot: *slot })?;
+                    let string = unit.lookup_string(*slot)?;
                     // TODO: do something sneaky to only allocate the static string once.
                     let value = self.string_allocate(string.to_owned());
                     self.push(value);
                 }
+                Inst::StaticString { slot } => {
+                    self.push(ValuePtr::StaticString(*slot));
+                }
                 Inst::StringConcat { len, size_hint } => {
-                    self.op_string_concat(*len, *size_hint)?;
+                    self.op_string_concat(unit, *len, *size_hint)?;
                 }
                 Inst::Is => {
                     self.op_is(context)?;
@@ -2221,7 +2285,7 @@ where
             self.vm.run_for(self.context, self.unit, None).await?;
         }
 
-        let value = self.vm.pop_decode()?;
+        let value = self.vm.pop_decode(self.unit)?;
 
         Ok(value)
     }
@@ -2231,7 +2295,7 @@ where
         self.vm.run_for(self.context, self.unit, Some(1)).await?;
 
         if self.vm.exited {
-            let value = self.vm.pop_decode()?;
+            let value = self.vm.pop_decode(self.unit)?;
             return Ok(Some(value));
         }
 

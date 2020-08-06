@@ -40,7 +40,7 @@ macro_rules! decl_external {
         }
 
         impl $crate::ToValue for $external {
-            fn to_value(self, vm: &mut $crate::Vm) -> Result<$crate::ValuePtr, $crate::StackError> {
+            fn to_value(self, vm: &mut $crate::Vm) -> Result<$crate::ValuePtr, $crate::VmError> {
                 Ok(vm.external_allocate(self))
             }
         }
@@ -49,7 +49,7 @@ macro_rules! decl_external {
             unsafe fn unsafe_to_value(
                 self,
                 vm: &mut $crate::Vm,
-            ) -> Result<$crate::ValuePtr, $crate::StackError> {
+            ) -> Result<$crate::ValuePtr, $crate::VmError> {
                 Ok(vm.external_allocate_ptr(self))
             }
         }
@@ -58,7 +58,7 @@ macro_rules! decl_external {
             unsafe fn unsafe_to_value(
                 self,
                 vm: &mut $crate::Vm,
-            ) -> Result<$crate::ValuePtr, $crate::StackError> {
+            ) -> Result<$crate::ValuePtr, $crate::VmError> {
                 Ok(vm.external_allocate_mut_ptr(self))
             }
         }
@@ -67,7 +67,8 @@ macro_rules! decl_external {
             fn from_value(
                 value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-            ) -> Result<Self, $crate::StackError> {
+                _: &$crate::CompilationUnit,
+            ) -> Result<Self, $crate::VmError> {
                 let slot = value.into_external(vm)?;
                 vm.external_take::<$external>(slot)
             }
@@ -79,7 +80,8 @@ macro_rules! decl_external {
             unsafe fn unsafe_from_value(
                 value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-            ) -> Result<(Self, Self::Guard), $crate::StackError> {
+                _: &$crate::CompilationUnit,
+            ) -> Result<(Self, Self::Guard), $crate::VmError> {
                 let slot = value.into_external(vm)?;
                 Ok($crate::Ref::unsafe_into_ref(
                     vm.external_ref::<$external>(slot)?,
@@ -93,7 +95,8 @@ macro_rules! decl_external {
             unsafe fn unsafe_from_value(
                 value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-            ) -> Result<(Self, Self::Guard), $crate::StackError> {
+                _: &$crate::CompilationUnit,
+            ) -> Result<(Self, Self::Guard), $crate::VmError> {
                 let slot = value.into_external(vm)?;
                 Ok($crate::Mut::unsafe_into_mut(
                     vm.external_mut::<$external>(slot)?,

@@ -1,5 +1,5 @@
 use crate::value::Slot;
-use crate::vm::StackError;
+use crate::vm::VmError;
 use std::cell::Cell;
 use std::fmt;
 use std::ops;
@@ -10,11 +10,11 @@ pub(super) struct Access(Cell<isize>);
 impl Access {
     /// Test if we have shared access without modifying the internal count.
     #[inline]
-    pub(super) fn test_shared(&self, slot: Slot) -> Result<(), StackError> {
+    pub(super) fn test_shared(&self, slot: Slot) -> Result<(), VmError> {
         let b = self.0.get().wrapping_sub(1);
 
         if b >= 0 {
-            return Err(StackError::SlotInaccessibleShared { slot });
+            return Err(VmError::SlotInaccessibleShared { slot });
         }
 
         Ok(())
@@ -22,11 +22,11 @@ impl Access {
 
     /// Mark that we want shared access to the given access token.
     #[inline]
-    pub(super) fn shared(&self, slot: Slot) -> Result<(), StackError> {
+    pub(super) fn shared(&self, slot: Slot) -> Result<(), VmError> {
         let b = self.0.get().wrapping_sub(1);
 
         if b >= 0 {
-            return Err(StackError::SlotInaccessibleShared { slot });
+            return Err(VmError::SlotInaccessibleShared { slot });
         }
 
         self.0.set(b);
@@ -51,11 +51,11 @@ impl Access {
 
     /// Mark that we want exclusive access to the given access token.
     #[inline]
-    pub(super) fn exclusive(&self, slot: Slot) -> Result<(), StackError> {
+    pub(super) fn exclusive(&self, slot: Slot) -> Result<(), VmError> {
         let b = self.0.get().wrapping_add(1);
 
         if b != 1 {
-            return Err(StackError::SlotInaccessibleExclusive { slot });
+            return Err(VmError::SlotInaccessibleExclusive { slot });
         }
 
         self.0.set(b);

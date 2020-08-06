@@ -7,7 +7,7 @@ use crate::collections::HashMap;
 use crate::context::Context;
 use crate::context::Item;
 use crate::hash::Hash;
-use crate::vm::Inst;
+use crate::vm::{Inst, VmError};
 use std::fmt;
 use thiserror::Error;
 
@@ -367,8 +367,12 @@ impl CompilationUnit {
     }
 
     /// Lookup the static string by slot, if it exists.
-    pub fn lookup_string(&self, slot: usize) -> Option<&str> {
-        self.static_strings.get(slot).map(String::as_str)
+    pub fn lookup_string(&self, slot: usize) -> Result<&str, VmError> {
+        Ok(self
+            .static_strings
+            .get(slot)
+            .ok_or_else(|| VmError::MissingStaticString { slot })?
+            .as_str())
     }
 
     /// Lookup the static object keys by slot, if it exists.

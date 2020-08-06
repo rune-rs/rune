@@ -1,5 +1,6 @@
 use crate::collections::HashMap;
 use crate::hash::Hash;
+use crate::unit::CompilationUnit;
 use crate::value::{ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 use std::fmt;
@@ -68,8 +69,16 @@ type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 /// A function handler.
 pub(crate) enum Handler {
-    Async(Box<dyn for<'vm> Fn(&'vm mut Vm, usize) -> BoxFuture<'vm, Result<(), VmError>>>),
-    Regular(Box<dyn Fn(&mut Vm, usize) -> Result<(), VmError>>),
+    Async(
+        Box<
+            dyn for<'vm> Fn(
+                &'vm mut Vm,
+                &'vm CompilationUnit,
+                usize,
+            ) -> BoxFuture<'vm, Result<(), VmError>>,
+        >,
+    ),
+    Regular(Box<dyn Fn(&mut Vm, &CompilationUnit, usize) -> Result<(), VmError>>),
 }
 
 /// Information on a specific type.

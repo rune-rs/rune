@@ -64,9 +64,7 @@ pub use crate::unit::{CompilationUnit, CompilationUnitError};
 pub use crate::value::{
     Array, Object, Slot, Unit, Value, ValuePtr, ValueRef, ValueType, ValueTypeInfo,
 };
-pub use crate::vm::{
-    Inst, Mut, Panic, RawMutGuard, RawRefGuard, Ref, StackError, Task, Vm, VmError,
-};
+pub use crate::vm::{Inst, Mut, Panic, RawMutGuard, RawRefGuard, Ref, Task, Vm, VmError};
 
 mod collections {
     pub use hashbrown::HashMap;

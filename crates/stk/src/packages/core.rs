@@ -14,9 +14,9 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty(&["bool"]).build::<bool>()?;
     module.ty(&["char"]).build::<char>()?;
 
-    module.raw_fn(&["dbg"], |vm, args| {
+    module.raw_fn(&["dbg"], |vm, unit, args| {
         for n in 0..args {
-            match vm.pop().and_then(|v| vm.value_ref(v)) {
+            match vm.pop().and_then(|v| vm.value_ref(unit, v)) {
                 Ok(value) => {
                     println!("{} = {:?}", n, value);
                 }

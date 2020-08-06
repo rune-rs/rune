@@ -1,6 +1,7 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
+use crate::unit::CompilationUnit;
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
-use crate::vm::{StackError, Vm};
+use crate::vm::{Vm, VmError};
 
 macro_rules! impl_map {
     ($($tt:tt)*) => {
@@ -18,14 +19,14 @@ macro_rules! impl_map {
         where
             T: FromValue,
         {
-            fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+            fn from_value(value: ValuePtr, vm: &mut Vm, unit: &CompilationUnit) -> Result<Self, VmError> {
                 let slot = value.into_array(vm)?;
                 let object = vm.object_take(slot)?;
 
                 let mut output = $($tt)*::with_capacity(object.len());
 
                 for (key, value) in object {
-                    output.insert(key, T::from_value(value, vm)?);
+                    output.insert(key, T::from_value(value, vm, unit)?);
                 }
 
                 Ok(output)
@@ -36,7 +37,7 @@ macro_rules! impl_map {
         where
             T: ToValue,
         {
-            fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
+            fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
                 let mut object = crate::collections::HashMap::with_capacity(self.len());
 
                 for (key, value) in self {

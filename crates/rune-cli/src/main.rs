@@ -251,14 +251,16 @@ async fn main() -> Result<()> {
     let duration = std::time::Instant::now().duration_since(last);
     println!("== {:?} ({:?})", result, duration);
 
-    if dump_vm {
-        println!("# stack dump after completion");
+    if let Some(unit) = runtime.unit(file_id) {
+        if dump_vm {
+            println!("# stack dump after completion");
 
-        for (n, (_, value)) in runtime.vm().iter_stack_debug().enumerate() {
-            println!("{} = {:?}", n, value);
+            for (n, (_, value)) in runtime.vm().iter_stack_debug(unit).enumerate() {
+                println!("{} = {:?}", n, value);
+            }
+
+            println!("---");
         }
-
-        println!("---");
     }
 
     Ok(())
@@ -327,7 +329,7 @@ where
         if dump_vm {
             writeln!(out, "# stack dump")?;
 
-            for (n, (_, value)) in task.vm.iter_stack_debug().enumerate() {
+            for (n, (_, value)) in task.vm.iter_stack_debug(task.unit).enumerate() {
                 writeln!(out, "{} = {:?}", n, value)?;
             }
 

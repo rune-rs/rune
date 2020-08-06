@@ -1,6 +1,7 @@
 use crate::any::Any;
+use crate::unit::CompilationUnit;
 use crate::value::{Value, ValuePtr, ValueType, ValueTypeInfo};
-use crate::vm::{StackError, Vm};
+use crate::vm::{Vm, VmError};
 
 mod array;
 mod hash_map;
@@ -18,7 +19,7 @@ pub trait IntoArgs {
     /// This has the ability to encode references into the virtual machine.
     /// The caller must ensure that the virtual machine is cleared with
     /// [clear][Vm::clear] before the references are no longer valid.
-    unsafe fn into_args(self, vm: &mut Vm) -> Result<(), StackError>;
+    unsafe fn into_args(self, vm: &mut Vm) -> Result<(), VmError>;
 
     /// The number of arguments.
     fn count() -> usize;
@@ -36,19 +37,19 @@ pub trait ReflectValueType: Sized {
 /// Trait for converting types into values.
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError>;
+    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError>;
 }
 
 /// Trait for unsafe conversion of value types into values.
 pub trait UnsafeToValue {
     /// Convert into a value.
-    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError>;
+    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError>;
 }
 
 /// Trait for converting from a value.
 pub trait FromValue: Sized {
     /// Try to convert to the given type, from the given value.
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError>;
+    fn from_value(value: ValuePtr, vm: &mut Vm, unit: &CompilationUnit) -> Result<Self, VmError>;
 }
 
 /// A potentially unsafe conversion for value conversion.
@@ -71,7 +72,8 @@ pub trait UnsafeFromValue: Sized {
     unsafe fn unsafe_from_value(
         value: ValuePtr,
         vm: &mut Vm,
-    ) -> Result<(Self, Self::Guard), StackError>;
+        unit: &CompilationUnit,
+    ) -> Result<(Self, Self::Guard), VmError>;
 }
 
 impl<T> UnsafeFromValue for T
@@ -83,8 +85,9 @@ where
     unsafe fn unsafe_from_value(
         value: ValuePtr,
         vm: &mut Vm,
-    ) -> Result<(Self, Self::Guard), StackError> {
-        Ok((T::from_value(value, vm)?, ()))
+        unit: &CompilationUnit,
+    ) -> Result<(Self, Self::Guard), VmError> {
+        Ok((T::from_value(value, vm, unit)?, ()))
     }
 }
 
@@ -92,31 +95,31 @@ impl<T> UnsafeToValue for T
 where
     T: ToValue,
 {
-    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
+    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
         self.to_value(vm)
     }
 }
 
 impl FromValue for ValuePtr {
-    fn from_value(value: ValuePtr, _: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, _: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
         Ok(value)
     }
 }
 
 impl ToValue for ValuePtr {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
         Ok(self)
     }
 }
 
 impl FromValue for Value {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
-        vm.value_take(value)
+    fn from_value(value: ValuePtr, vm: &mut Vm, unit: &CompilationUnit) -> Result<Self, VmError> {
+        vm.value_take(unit, value)
     }
 }
 
 impl FromValue for Any {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
         let slot = value.into_external(vm)?;
         vm.external_take_dyn(slot)
     }
@@ -138,7 +141,7 @@ macro_rules! impl_into_args {
             $($ty: UnsafeToValue + std::fmt::Debug,)*
         {
             #[allow(unused)]
-            unsafe fn into_args(self, vm: &mut Vm) -> Result<(), StackError> {
+            unsafe fn into_args(self, vm: &mut Vm) -> Result<(), VmError> {
                 let ($($var,)*) = self;
                 impl_into_args!(@push vm, [$($var)*]);
                 Ok(())
@@ -188,20 +191,21 @@ macro_rules! impl_from_value_tuple {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+            #[allow(unused)]
+            fn from_value(value: ValuePtr, vm: &mut Vm, unit: &CompilationUnit) -> Result<Self, VmError> {
                 let array = match value {
                     ValuePtr::Array(slot) => Clone::clone(&*vm.array_ref(slot)?),
                     actual => {
                         let actual = actual.type_info(vm)?;
 
-                        return Err(StackError::ExpectedArray {
+                        return Err(VmError::ExpectedArray {
                             actual,
                         });
                     }
                 };
 
                 if array.len() != $count {
-                    return Err(StackError::ExpectedArrayLength {
+                    return Err(VmError::ExpectedArrayLength {
                         actual: array.len(),
                         expected: $count,
                     });
@@ -212,9 +216,9 @@ macro_rules! impl_from_value_tuple {
 
                 $(
                     let $var: $ty = match it.next() {
-                        Some(value) => <$ty>::from_value(*value, vm)?,
+                        Some(value) => <$ty>::from_value(*value, vm, unit)?,
                         None => {
-                            return Err(StackError::IterationError);
+                            return Err(VmError::IterationError);
                         },
                     };
                 )*

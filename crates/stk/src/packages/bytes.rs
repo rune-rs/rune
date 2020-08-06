@@ -104,7 +104,8 @@ impl<'a> crate::UnsafeFromValue for &'a [u8] {
     unsafe fn unsafe_from_value(
         value: crate::ValuePtr,
         vm: &mut crate::Vm,
-    ) -> Result<(Self, Self::Guard), crate::StackError> {
+        _: &crate::CompilationUnit,
+    ) -> Result<(Self, Self::Guard), crate::VmError> {
         let slot = value.into_external(vm)?;
         let (value, guard) = crate::Ref::unsafe_into_ref(vm.external_ref::<Bytes>(slot)?);
         Ok((value.bytes.as_slice(), guard))

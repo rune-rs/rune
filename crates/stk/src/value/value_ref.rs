@@ -10,6 +10,8 @@ pub enum ValueRef<'vm> {
     Unit,
     /// A string.
     String(Ref<'vm, String>),
+    /// A static string from the current unit.
+    StaticString(&'vm str),
     /// An array.
     Array(Vec<ValueRef<'vm>>),
     /// An object.

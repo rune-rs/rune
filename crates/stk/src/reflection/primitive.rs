@@ -1,8 +1,9 @@
 //! Trait implementations for primitive types.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
+use crate::unit::CompilationUnit;
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
-use crate::vm::{Integer, StackError, Vm};
+use crate::vm::{Integer, Vm, VmError};
 
 impl ReflectValueType for crate::value::Unit {
     fn value_type() -> ValueType {
@@ -15,16 +16,16 @@ impl ReflectValueType for crate::value::Unit {
 }
 
 impl ToValue for crate::value::Unit {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
         Ok(ValuePtr::None)
     }
 }
 
 impl FromValue for crate::value::Unit {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
         match value {
             ValuePtr::None => Ok(crate::value::Unit),
-            actual => Err(StackError::ExpectedNone {
+            actual => Err(VmError::ExpectedNone {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -32,7 +33,7 @@ impl FromValue for crate::value::Unit {
 }
 
 impl ToValue for () {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
         Ok(ValuePtr::None)
     }
 }
@@ -48,16 +49,16 @@ impl ReflectValueType for bool {
 }
 
 impl ToValue for bool {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
         Ok(ValuePtr::Bool(self))
     }
 }
 
 impl FromValue for bool {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
         match value {
             ValuePtr::Bool(value) => Ok(value),
-            actual => Err(StackError::ExpectedBoolean {
+            actual => Err(VmError::ExpectedBoolean {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -75,16 +76,16 @@ impl ReflectValueType for char {
 }
 
 impl ToValue for char {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
         Ok(ValuePtr::Char(self))
     }
 }
 
 impl FromValue for char {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
         match value {
             ValuePtr::Char(value) => Ok(value),
-            actual => Err(StackError::ExpectedChar {
+            actual => Err(VmError::ExpectedChar {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -105,12 +106,12 @@ macro_rules! number_value_trait {
         }
 
         impl ToValue for $ty {
-            fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+            fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
                 use std::convert::TryInto as _;
 
                 match self.try_into() {
                     Ok(number) => Ok(ValuePtr::Integer(number)),
-                    Err(..) => Err(StackError::IntegerToValueCoercionError {
+                    Err(..) => Err(VmError::IntegerToValueCoercionError {
                         from: Integer::$variant(self),
                         to: std::any::type_name::<i64>(),
                     }),
@@ -119,18 +120,22 @@ macro_rules! number_value_trait {
         }
 
         impl FromValue for $ty {
-            fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+            fn from_value(
+                value: ValuePtr,
+                vm: &mut Vm,
+                _: &CompilationUnit,
+            ) -> Result<Self, VmError> {
                 use std::convert::TryInto as _;
 
                 match value {
                     ValuePtr::Integer(number) => match number.try_into() {
                         Ok(number) => Ok(number),
-                        Err(..) => Err(StackError::ValueToIntegerCoercionError {
+                        Err(..) => Err(VmError::ValueToIntegerCoercionError {
                             from: Integer::I64(number),
                             to: std::any::type_name::<Self>(),
                         }),
                     },
-                    actual => Err(StackError::ExpectedInteger {
+                    actual => Err(VmError::ExpectedInteger {
                         actual: actual.type_info(vm)?,
                     }),
                 }
@@ -162,16 +167,16 @@ impl ReflectValueType for f64 {
 }
 
 impl ToValue for f64 {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
         Ok(ValuePtr::Float(self))
     }
 }
 
 impl FromValue for f64 {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
         match value {
             ValuePtr::Float(number) => Ok(number),
-            actual => Err(StackError::ExpectedFloat {
+            actual => Err(VmError::ExpectedFloat {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -190,16 +195,16 @@ impl ReflectValueType for f32 {
 }
 
 impl ToValue for f32 {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, StackError> {
+    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
         Ok(ValuePtr::Float(self as f64))
     }
 }
 
 impl FromValue for f32 {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
         match value {
             ValuePtr::Float(number) => Ok(number as f32),
-            actual => Err(StackError::ExpectedFloat {
+            actual => Err(VmError::ExpectedFloat {
                 actual: actual.type_info(vm)?,
             }),
         }
