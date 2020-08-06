@@ -3,7 +3,7 @@ use std::iter::Peekable;
 use stk::unit::Span;
 
 /// Parse an escape sequence.
-pub(super) fn parse_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<char, ResolveError>
+pub(super) fn parse_char_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<char, ResolveError>
 where
     I: Iterator<Item = (usize, char)>,
 {
@@ -16,9 +16,12 @@ where
 
     Ok(match c {
         '\'' => '\'',
-        '0' => '\0',
+        '\"' => '\"',
         'n' => '\n',
         'r' => '\r',
+        't' => '\t',
+        '\\' => '\\',
+        '0' => '\0',
         'x' => parse_hex_escape(span, it)?,
         'u' => parse_unicode_escape(span, it)?,
         _ => {

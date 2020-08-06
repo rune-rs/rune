@@ -71,7 +71,7 @@ impl<'a> Resolve<'a> for LitChar {
         };
 
         let c = match c {
-            '\\' => utils::parse_escape(span.with_start(n), &mut it)?,
+            '\\' => utils::parse_char_escape(span.with_start(n), &mut it)?,
             c => c,
         };
 
