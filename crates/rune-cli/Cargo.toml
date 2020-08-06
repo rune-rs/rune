@@ -1,6 +1,6 @@
 [package]
 name = "rune-cli"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -21,10 +21,10 @@ tokio = {version = "0.2.22", features = ["rt-core", "net", "fs", "macros"]}
 reqwest = "0.10.7"
 env_logger = "0.7.1"
 
-rune = {version = "0.2.0", path = "../rune"}
-stk = {version = "0.2.0", path = "../stk"}
-stk-http = {version = "0.2.0", path = "../stk-http"}
-stk-json = {version = "0.2.0", path = "../stk-json"}
+rune = {version = "0.2.1", path = "../rune"}
+stk = {version = "0.2.1", path = "../stk"}
+stk-http = {version = "0.2.1", path = "../stk-http"}
+stk-json = {version = "0.2.1", path = "../stk-json"}
 codespan-reporting = "0.9.5"
 
 anyhow = "1.0.32"
