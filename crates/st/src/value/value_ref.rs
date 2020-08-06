@@ -23,7 +23,7 @@ pub enum ValueRef<'vm> {
     /// A character.
     Char(char),
     /// Reference to an external type.
-    External(Ref<'vm, dyn Any>),
+    External(Ref<'vm, Any>),
     /// Reference to a value type.
     Type(Hash),
     /// A function.

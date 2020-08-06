@@ -156,7 +156,7 @@ impl Runtime {
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
-        A: st::IntoArgs,
+        A: 'a + st::IntoArgs,
         T: st::FromValue,
     {
         let unit = self

@@ -22,7 +22,7 @@ pub enum Value {
     /// A character.
     Char(char),
     /// Reference to an external type.
-    External(Box<dyn Any>),
+    External(Any),
     /// A type to a different value.
     Type(Hash),
     /// A function.

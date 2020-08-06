@@ -12,7 +12,13 @@ mod string;
 /// Trait for converting arguments into values.
 pub trait IntoArgs {
     /// Encode arguments to the vm.
-    fn into_args(self, vm: &mut Vm) -> Result<(), StackError>;
+    ///
+    /// # Safety
+    ///
+    /// This has the ability to encode references into the virtual machine.
+    /// The caller must ensure that the virtual machine is cleared with
+    /// [clear][Vm::clear] before the references are no longer valid.
+    unsafe fn into_args(self, vm: &mut Vm) -> Result<(), StackError>;
 
     /// The number of arguments.
     fn count() -> usize;
@@ -31,6 +37,12 @@ pub trait ReflectValueType: Sized {
 pub trait ToValue: Sized {
     /// Convert into a value.
     fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError>;
+}
+
+/// Trait for unsafe conversion of value types into values.
+pub trait UnsafeToValue {
+    /// Convert into a value.
+    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError>;
 }
 
 /// Trait for converting from a value.
@@ -76,6 +88,15 @@ where
     }
 }
 
+impl<T> UnsafeToValue for T
+where
+    T: ToValue,
+{
+    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<ValuePtr, StackError> {
+        self.to_value(vm)
+    }
+}
+
 impl FromValue for ValuePtr {
     fn from_value(value: ValuePtr, _: &mut Vm) -> Result<Self, StackError> {
         Ok(value)
@@ -94,7 +115,7 @@ impl FromValue for Value {
     }
 }
 
-impl FromValue for Box<dyn Any> {
+impl FromValue for Any {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, StackError> {
         let slot = value.into_external(vm)?;
         vm.external_take_dyn(slot)
@@ -114,13 +135,12 @@ macro_rules! impl_into_args {
     (@impl $count:expr, $({$ty:ident, $var:ident, $ignore_count:expr},)*) => {
         impl<$($ty,)*> IntoArgs for ($($ty,)*)
         where
-            $($ty: ToValue,)*
+            $($ty: UnsafeToValue + std::fmt::Debug,)*
         {
             #[allow(unused)]
-            fn into_args(self, vm: &mut Vm) -> Result<(), StackError> {
+            unsafe fn into_args(self, vm: &mut Vm) -> Result<(), StackError> {
                 let ($($var,)*) = self;
-                $(let $var = $var.to_value(vm)?;)*
-                $(vm.push($var);)*
+                impl_into_args!(@push vm, [$($var)*]);
                 Ok(())
             }
 
@@ -128,6 +148,17 @@ macro_rules! impl_into_args {
                 $count
             }
         }
+    };
+
+    (@push $vm:expr, [] $($var:ident)*) => {
+        $(
+            let $var = $var.unsafe_to_value($vm)?;
+            $vm.push($var);
+        )*
+    };
+
+    (@push $vm:expr, [$first:ident $($rest:ident)*] $($var:ident)*) => {
+        impl_into_args!(@push $vm, [$($rest)*] $first $($var)*)
     };
 }
 

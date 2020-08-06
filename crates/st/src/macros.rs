@@ -45,6 +45,24 @@ macro_rules! decl_external {
             }
         }
 
+        impl<'a> $crate::UnsafeToValue for &'a $external {
+            unsafe fn unsafe_to_value(
+                self,
+                vm: &mut $crate::Vm,
+            ) -> Result<$crate::ValuePtr, $crate::StackError> {
+                Ok(vm.external_allocate_ptr(self))
+            }
+        }
+
+        impl<'a> $crate::UnsafeToValue for &'a mut $external {
+            unsafe fn unsafe_to_value(
+                self,
+                vm: &mut $crate::Vm,
+            ) -> Result<$crate::ValuePtr, $crate::StackError> {
+                Ok(vm.external_allocate_mut_ptr(self))
+            }
+        }
+
         impl $crate::FromValue for $external {
             fn from_value(
                 value: $crate::ValuePtr,
