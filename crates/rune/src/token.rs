@@ -108,6 +108,11 @@ pub enum Kind {
         /// If the string literal contains escapes.
         escaped: bool,
     },
+    /// A template literal, including escape sequences. Like ``hello {name}``.
+    LitTemplate {
+        /// If the template contains escapes.
+        escaped: bool,
+    },
     /// An open delimiter: `(`, `{`, or `[`.
     Open {
         /// The delimiter being opened.
@@ -198,6 +203,7 @@ impl fmt::Display for Kind {
             Self::Label => write!(fmt, "label")?,
             Self::LitNumber { .. } => write!(fmt, "number")?,
             Self::LitStr { .. } => write!(fmt, "string")?,
+            Self::LitTemplate { .. } => write!(fmt, "template")?,
             Self::LitChar { .. } => write!(fmt, "char")?,
             Self::Open { delimiter } => write!(fmt, "{}", delimiter.open())?,
             Self::Close { delimiter } => write!(fmt, "{}", delimiter.close())?,

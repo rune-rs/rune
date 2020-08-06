@@ -281,6 +281,53 @@ impl<'a> Lexer<'a> {
         }));
     }
 
+    /// Consume a string literal.
+    fn next_template<I>(&mut self, it: &mut I, start: usize) -> Result<Option<Token>, ParseError>
+    where
+        I: Clone + Iterator<Item = (usize, char)>,
+    {
+        let mut escaped = false;
+
+        self.cursor = loop {
+            break match it.next() {
+                Some((_, c)) => match c {
+                    '`' => self.end_span(it),
+                    '\\' => match it.next() {
+                        Some(_) => {
+                            escaped = true;
+                            continue;
+                        }
+                        None => {
+                            return Err(ParseError::ExpectedTemplateClose {
+                                span: Span {
+                                    start,
+                                    end: self.source.len(),
+                                },
+                            });
+                        }
+                    },
+                    _ => continue,
+                },
+                None => {
+                    return Err(ParseError::ExpectedTemplateClose {
+                        span: Span {
+                            start,
+                            end: self.source.len(),
+                        },
+                    })
+                }
+            };
+        };
+
+        return Ok(Some(Token {
+            kind: Kind::LitTemplate { escaped },
+            span: Span {
+                start,
+                end: self.cursor,
+            },
+        }));
+    }
+
     /// Consume the entire line.
     fn consume_line<I>(&mut self, it: &mut I)
     where
@@ -416,6 +463,9 @@ impl<'a> Lexer<'a> {
                     }
                     '"' => {
                         return self.next_string_literal(&mut it, start);
+                    }
+                    '`' => {
+                        return self.next_template(&mut it, start);
                     }
                     '\'' => {
                         return self.next_char_or_label(&mut it, start);

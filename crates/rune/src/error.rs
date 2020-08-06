@@ -143,6 +143,12 @@ pub enum ParseError {
         /// Span that caused the error.
         span: Span,
     },
+    /// Expected a string template to be closed, but it wasn't.
+    #[error("expected string template to be closed")]
+    ExpectedTemplateClose {
+        /// Span that caused the error.
+        span: Span,
+    },
     /// Error encountered when we see a character escape sequence without a
     /// character being escaped.
     #[error("expected character character")]
@@ -292,6 +298,7 @@ impl SpannedError for ParseError {
             Self::ExpectedStringEscape { span, .. } => span,
             Self::ExpectedCharEscape { span, .. } => span,
             Self::ExpectedStringClose { span, .. } => span,
+            Self::ExpectedTemplateClose { span, .. } => span,
             Self::ExpectedCharClose { span, .. } => span,
             Self::TokenMismatch { span, .. } => span,
             Self::ExpectedPatError { span, .. } => span,
