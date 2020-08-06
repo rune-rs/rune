@@ -1781,8 +1781,6 @@ impl Vm {
         len: usize,
         size_hint: usize,
     ) -> Result<(), VmError> {
-        use std::fmt::Write as _;
-
         let mut buf = String::with_capacity(size_hint);
 
         for _ in 0..len {
@@ -1798,12 +1796,12 @@ impl Vm {
                     buf.push_str(string);
                 }
                 ValuePtr::Integer(integer) => {
-                    // NB: infallible operation.
-                    write!(buf, "{}", integer).unwrap();
+                    let mut buffer = itoa::Buffer::new();
+                    buf.push_str(buffer.format(integer));
                 }
                 ValuePtr::Float(float) => {
-                    // NB: infallible operation.
-                    write!(buf, "{}", float).unwrap();
+                    let mut buffer = ryu::Buffer::new();
+                    buf.push_str(buffer.format(float));
                 }
                 actual => {
                     let actual = actual.type_info(self)?;
