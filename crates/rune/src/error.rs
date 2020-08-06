@@ -6,18 +6,9 @@ use thiserror::Error;
 /// Result alias used by this frontend.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// An error with an associated span.
-pub trait SpannedError {
-    /// Access the span of the error.
-    fn span(&self) -> Span;
-}
-
 /// Error capable of collecting all error types.
 #[derive(Debug, Error)]
 pub enum Error {
-    /// Source resolve error.
-    #[error("resolve error")]
-    ResolveError(#[from] ResolveError),
     /// Source parse error.
     #[error("parse error")]
     ParseError(#[from] ParseError),
@@ -29,10 +20,10 @@ pub enum Error {
     ConfigurationError(#[from] ConfigurationError),
 }
 
-impl SpannedError for Error {
-    fn span(&self) -> Span {
+impl Error {
+    /// Get the span for the underlying error.
+    pub fn span(&self) -> Span {
         match self {
-            Self::ResolveError(e) => e.span(),
             Self::ParseError(e) => e.span(),
             Self::CompileError(e) => e.span(),
             Self::ConfigurationError(..) => Span::empty(),
@@ -48,84 +39,6 @@ pub enum ConfigurationError {
         /// The unsupported option.
         option: String,
     },
-}
-
-/// Error raised when resolving a value.
-#[derive(Debug, Clone, Copy, Error)]
-pub enum ResolveError {
-    /// A sub-parse failed during resolve.
-    #[error("parse error: {error}")]
-    ParseError {
-        /// The underlying error.
-        #[from]
-        error: ParseError,
-    },
-    /// Attempt to read a slice which doesn't exist.
-    #[error("tried to read bad slice from source `{span}`")]
-    BadSlice {
-        /// The slice we tried to read.
-        span: Span,
-    },
-    /// Encountered a bad string escape sequence.
-    #[error("bad escape sequence")]
-    BadEscapeSequence {
-        /// Span of the illegal escape sequence.
-        span: Span,
-    },
-    /// Tried to resolve an illegal number literal.
-    #[error("illegal number literal")]
-    IllegalNumberLiteral {
-        /// Span of the illegal number literal.
-        span: Span,
-    },
-    /// A bad character literal.
-    #[error("bad character literal")]
-    BadCharacterLiteral {
-        /// Span containing the bad character literal.
-        span: Span,
-    },
-    /// Error when we encounter a bad unicode escape.
-    #[error("bad unicode escape")]
-    BadUnicodeEscape {
-        /// Where the bad escape is.
-        span: Span,
-    },
-    /// Error when we encounter a bad byte escape in bounds.
-    #[error(
-        "this form of character escape may only be used with characters in the range [\\x00-\\x7f]"
-    )]
-    BadByteEscapeBounds {
-        /// Where the bad escape is.
-        span: Span,
-    },
-    /// Error when we encounter a bad byte escape.
-    #[error("bad byte escape")]
-    BadByteEscape {
-        /// Where the bad escape is.
-        span: Span,
-    },
-    /// When we encounter an invalid template literal.
-    #[error("invalid template literal")]
-    InvalidTemplateLiteral {
-        /// The span where the error occured.
-        span: Span,
-    },
-}
-
-impl SpannedError for ResolveError {
-    fn span(&self) -> Span {
-        match *self {
-            Self::ParseError { error, .. } => error.span(),
-            Self::BadSlice { span, .. } => span,
-            Self::BadEscapeSequence { span, .. } => span,
-            Self::IllegalNumberLiteral { span, .. } => span,
-            Self::BadCharacterLiteral { span, .. } => span,
-            Self::BadUnicodeEscape { span, .. } => span,
-            Self::BadByteEscapeBounds { span, .. } => span,
-            Self::BadByteEscape { span, .. } => span,
-            Self::InvalidTemplateLiteral { span, .. } => span,
-        }
-    }
 }
 
 /// Error when parsing.
@@ -303,10 +216,67 @@ pub enum ParseError {
         /// Span that caused the error.
         span: Span,
     },
+    /// Attempt to read a slice which doesn't exist.
+    #[error("tried to read bad slice from source `{span}`")]
+    BadSlice {
+        /// The slice we tried to read.
+        span: Span,
+    },
+    /// Encountered a bad string escape sequence.
+    #[error("bad escape sequence")]
+    BadEscapeSequence {
+        /// Span of the illegal escape sequence.
+        span: Span,
+    },
+    /// Tried to resolve an illegal number literal.
+    #[error("illegal number literal")]
+    IllegalNumberLiteral {
+        /// Span of the illegal number literal.
+        span: Span,
+    },
+    /// A bad character literal.
+    #[error("bad character literal")]
+    BadCharacterLiteral {
+        /// Span containing the bad character literal.
+        span: Span,
+    },
+    /// Error when we encounter a bad unicode escape.
+    #[error("bad unicode escape")]
+    BadUnicodeEscape {
+        /// Where the bad escape is.
+        span: Span,
+    },
+    /// Error when we encounter a bad byte escape in bounds.
+    #[error(
+        "this form of character escape may only be used with characters in the range [\\x00-\\x7f]"
+    )]
+    BadByteEscapeBounds {
+        /// Where the bad escape is.
+        span: Span,
+    },
+    /// Error when we encounter a bad byte escape.
+    #[error("bad byte escape")]
+    BadByteEscape {
+        /// Where the bad escape is.
+        span: Span,
+    },
+    /// When we encounter an invalid template literal.
+    #[error("invalid template literal")]
+    InvalidTemplateLiteral {
+        /// The span where the error occured.
+        span: Span,
+    },
+    /// When we encounter an unescaped closing brace `}`.
+    #[error("closing braces must be escaped inside of templates with `\\}}`")]
+    UnexpectedCloseBrace {
+        /// Where the brace was encountered.
+        span: Span,
+    },
 }
 
-impl SpannedError for ParseError {
-    fn span(&self) -> Span {
+impl ParseError {
+    /// Get the span for the parse error.
+    pub fn span(&self) -> Span {
         match *self {
             Self::UnexpectedEof { span, .. } => span,
             Self::ExpectedEof { span, .. } => span,
@@ -331,6 +301,15 @@ impl SpannedError for ParseError {
             Self::MatchMultipleFallbackBranches { span, .. } => span,
             Self::MatchNeverReached { span, .. } => span,
             Self::PrecedenceGroupRequired { span, .. } => span,
+            Self::BadSlice { span, .. } => span,
+            Self::BadEscapeSequence { span, .. } => span,
+            Self::IllegalNumberLiteral { span, .. } => span,
+            Self::BadCharacterLiteral { span, .. } => span,
+            Self::BadUnicodeEscape { span, .. } => span,
+            Self::BadByteEscapeBounds { span, .. } => span,
+            Self::BadByteEscape { span, .. } => span,
+            Self::InvalidTemplateLiteral { span, .. } => span,
+            Self::UnexpectedCloseBrace { span, .. } => span,
         }
     }
 }
@@ -354,11 +333,11 @@ pub enum CompileError {
         error: stk::CompilationUnitError,
     },
     /// Error for resolving values from source files.
-    #[error("resolve error: {error}")]
-    ResolveError {
+    #[error("{error}")]
+    ParseError {
         /// Source error.
         #[from]
-        error: ResolveError,
+        error: ParseError,
     },
     /// Error for variable conflicts.
     #[error("variable `{name}` conflicts")]
@@ -482,12 +461,13 @@ impl CompileError {
     }
 }
 
-impl SpannedError for CompileError {
-    fn span(&self) -> Span {
+impl CompileError {
+    /// Get the span for the error.
+    pub fn span(&self) -> Span {
         match *self {
             Self::UnitError { .. } => Span::default(),
             Self::Internal { span, .. } => span,
-            Self::ResolveError { error, .. } => error.span(),
+            Self::ParseError { error, .. } => error.span(),
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
             Self::MissingModule { span, .. } => span,

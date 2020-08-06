@@ -1,4 +1,4 @@
-use crate::error::{ParseError, ResolveError, Result};
+use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::Token;
@@ -24,5 +24,5 @@ pub trait Resolve<'a> {
     type Output: 'a;
 
     /// Resolve the value from parsed AST.
-    fn resolve(&self, parsed: Source<'a>) -> Result<Self::Output, ResolveError>;
+    fn resolve(&self, parsed: Source<'a>) -> Result<Self::Output, ParseError>;
 }

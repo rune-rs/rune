@@ -1,6 +1,6 @@
 use crate::ast::utils;
 use crate::ast::Expr;
-use crate::error::{ParseError, ResolveError, Result};
+use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{Kind, Token};
@@ -43,7 +43,7 @@ pub struct Template {
 impl<'a> Resolve<'a> for LitTemplate {
     type Output = Template;
 
-    fn resolve(&self, source: Source<'a>) -> Result<Self::Output, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<Self::Output, ParseError> {
         let span = self.span().narrow(1);
         let string = source.source(span)?;
 
@@ -64,6 +64,9 @@ impl<'a> Resolve<'a> for LitTemplate {
                     let c = utils::parse_char_escape(span, &mut it, utils::WithBrace(true))?;
                     buf.push(c);
                 }
+                '}' => {
+                    return Err(ParseError::UnexpectedCloseBrace { span });
+                }
                 '{' => {
                     if !buf.is_empty() {
                         size_hint += buf.len();
@@ -71,7 +74,7 @@ impl<'a> Resolve<'a> for LitTemplate {
                         buf.clear();
                     }
 
-                    let span = find_expr(span, &mut it)?;
+                    let span = utils::template_expr(span, &mut it)?;
                     let source = &source.as_str()[..span.end];
 
                     let mut parser = Parser::new_with_start(source, span.start);
@@ -96,36 +99,6 @@ impl<'a> Resolve<'a> for LitTemplate {
             size_hint,
             components,
         })
-    }
-}
-
-/// Find an expression inside of a balanced collection of braces.
-fn find_expr<I>(span: Span, it: &mut I) -> Result<Span, ResolveError>
-where
-    I: Iterator<Item = (usize, char)>,
-{
-    let mut start = None;
-    let mut level = 1;
-
-    loop {
-        let (n, c) = it
-            .next()
-            .ok_or_else(|| ResolveError::InvalidTemplateLiteral { span })?;
-
-        if start.is_none() {
-            start = Some(n);
-        }
-
-        match c {
-            '{' => level += 1,
-            '}' => level -= 1,
-            _ => (),
-        }
-
-        if level == 0 {
-            let start = start.ok_or_else(|| ResolveError::InvalidTemplateLiteral { span })?;
-            return Ok(Span::new(start, n));
-        }
     }
 }
 

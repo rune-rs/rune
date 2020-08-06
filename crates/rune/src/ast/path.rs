@@ -1,5 +1,5 @@
 use crate::ast::{Ident, Scope};
-use crate::error::{ParseError, ResolveError, Result};
+use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
 use crate::traits::{Parse, Resolve};
@@ -50,7 +50,7 @@ impl Parse for Path {
 impl<'a> Resolve<'a> for Path {
     type Output = Vec<&'a str>;
 
-    fn resolve(&self, source: Source<'a>) -> Result<Vec<&'a str>, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<Vec<&'a str>, ParseError> {
         let mut output = Vec::new();
 
         output.push(self.first.resolve(source)?);

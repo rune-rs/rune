@@ -1,5 +1,5 @@
 use crate::compiler::{Options, Warning, Warnings};
-use crate::error::{CompileError, ConfigurationError, ParseError, SpannedError as _};
+use crate::error::{CompileError, ConfigurationError, ParseError};
 use slab::Slab;
 use std::error::Error as _;
 use std::fmt::Write as _;

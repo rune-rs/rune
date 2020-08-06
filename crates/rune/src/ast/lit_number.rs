@@ -1,4 +1,4 @@
-use crate::error::{ParseError, ResolveError, Result};
+use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{self, Kind, Token};
@@ -73,7 +73,7 @@ impl Parse for LitNumber {
 impl<'a> Resolve<'a> for LitNumber {
     type Output = Number;
 
-    fn resolve(&self, source: Source<'a>) -> Result<Number, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<Number, ParseError> {
         use std::str::FromStr as _;
 
         let mut string = source.source(self.token.span)?;
@@ -110,8 +110,8 @@ impl<'a> Resolve<'a> for LitNumber {
 
         return Ok(Number::Integer(number));
 
-        fn err_span<E>(span: Span) -> impl Fn(E) -> ResolveError {
-            move |_| ResolveError::IllegalNumberLiteral { span }
+        fn err_span<E>(span: Span) -> impl Fn(E) -> ParseError {
+            move |_| ParseError::IllegalNumberLiteral { span }
         }
     }
 }

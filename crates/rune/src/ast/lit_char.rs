@@ -1,5 +1,5 @@
 use crate::ast::utils;
-use crate::error::{ParseError, ResolveError};
+use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{Kind, Token};
@@ -55,7 +55,7 @@ impl Parse for LitChar {
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
-    fn resolve(&self, source: Source<'a>) -> Result<char, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<char, ParseError> {
         let span = self.token.span;
         let string = source.source(span.narrow(1))?;
         let mut it = string
@@ -66,7 +66,7 @@ impl<'a> Resolve<'a> for LitChar {
         let (n, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(ResolveError::BadCharacterLiteral { span });
+                return Err(ParseError::BadCharacterLiteral { span });
             }
         };
 
@@ -77,7 +77,7 @@ impl<'a> Resolve<'a> for LitChar {
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(ResolveError::BadCharacterLiteral { span });
+            return Err(ParseError::BadCharacterLiteral { span });
         }
 
         Ok(c)

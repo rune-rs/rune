@@ -1,6 +1,6 @@
 //! AST for the Rune language.
 
-use crate::error::{ParseError, ResolveError, Result};
+use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{Delimiter, Kind, Token};
@@ -43,7 +43,7 @@ mod pat;
 mod pat_array;
 mod pat_object;
 mod path;
-mod utils;
+pub(super) mod utils;
 
 pub use self::call_fn::CallFn;
 pub use self::call_instance_fn::CallInstanceFn;
@@ -168,7 +168,7 @@ decl_tokens! {
 impl<'a> Resolve<'a> for Ident {
     type Output = &'a str;
 
-    fn resolve(&self, source: Source<'a>) -> Result<&'a str, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<&'a str, ParseError> {
         source.source(self.token.span)
     }
 }
@@ -176,7 +176,7 @@ impl<'a> Resolve<'a> for Ident {
 impl<'a> Resolve<'a> for Label {
     type Output = &'a str;
 
-    fn resolve(&self, source: Source<'a>) -> Result<&'a str, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<&'a str, ParseError> {
         source.source(self.token.span.trim_start(1))
     }
 }

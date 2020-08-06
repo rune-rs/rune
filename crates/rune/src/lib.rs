@@ -18,7 +18,7 @@ mod token;
 mod traits;
 
 pub use crate::compiler::{Options, Warning, Warnings};
-pub use crate::error::{CompileError, Error, ParseError, ResolveError, Result, SpannedError};
+pub use crate::error::{CompileError, Error, ParseError, Result};
 pub use crate::lexer::Lexer;
 pub use crate::parser::Parser;
 #[cfg(feature = "runtime")]

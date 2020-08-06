@@ -150,3 +150,15 @@ fn test_template_without_variables() {
         }
     };
 }
+
+#[test]
+fn test_template_strings() {
+    test_parse!(r#"fn main() { `hello \}` }"#);
+
+    test_compile_error! {
+        r#"fn main() { `hello }` }"#,
+        ParseError { error: UnexpectedCloseBrace { span } } => {
+            assert_eq!(span, Span::new(13, 20));
+        }
+    };
+}

@@ -1,3 +1,4 @@
+use crate::ast::utils;
 use crate::error::{ParseError, Result};
 use crate::token::{Delimiter, Kind, LitNumber, Token};
 use stk::unit::Span;
@@ -298,8 +299,13 @@ impl<'a> Lexer<'a> {
 
         self.cursor = loop {
             break match it.next() {
-                Some((_, c)) => match c {
+                Some((n, c)) => match c {
                     '`' => self.end_span(it),
+                    '{' => {
+                        let span = Span::new(start, n);
+                        utils::template_expr(span, it)?;
+                        continue;
+                    }
                     '\\' => match it.next() {
                         Some(_) => {
                             escaped = true;

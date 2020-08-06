@@ -1,5 +1,5 @@
 use crate::ast::utils;
-use crate::error::{ParseError, ResolveError, Result};
+use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{Kind, Token};
@@ -24,7 +24,7 @@ impl LitStr {
 }
 
 impl LitStr {
-    fn parse_escaped(&self, span: Span, source: &str) -> Result<String, ResolveError> {
+    fn parse_escaped(&self, span: Span, source: &str) -> Result<String, ParseError> {
         let mut buffer = String::with_capacity(source.len());
         let mut it = source
             .char_indices()
@@ -47,7 +47,7 @@ impl LitStr {
 impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, source: Source<'a>) -> Result<Cow<'a, str>, ResolveError> {
+    fn resolve(&self, source: Source<'a>) -> Result<Cow<'a, str>, ParseError> {
         let span = self.token.span.narrow(1);
         let string = source.source(span)?;
 

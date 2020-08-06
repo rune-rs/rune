@@ -1,4 +1,4 @@
-use crate::error::{ResolveError, Result};
+use crate::error::{ParseError, Result};
 use stk::unit::Span;
 
 /// A parsed input coupled with it's source.
@@ -9,10 +9,10 @@ pub struct Source<'a> {
 
 impl<'a> Source<'a> {
     /// Fetch source for the given span.
-    pub fn source(&self, span: Span) -> Result<&'a str, ResolveError> {
+    pub fn source(&self, span: Span) -> Result<&'a str, ParseError> {
         self.source
             .get(span.start..span.end)
-            .ok_or_else(|| ResolveError::BadSlice { span })
+            .ok_or_else(|| ParseError::BadSlice { span })
     }
 
     /// Get the end of the source.
