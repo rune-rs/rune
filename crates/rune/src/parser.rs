@@ -24,9 +24,14 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    /// Construct a new parser around the given lexer.
+    /// Construct a new parser around the given source.
     pub fn new(source: &'a str) -> Self {
-        let mut lexer = Lexer::new(source);
+        Self::new_with_start(source, 0)
+    }
+
+    /// Construct a new parser around the given source.
+    pub fn new_with_start(source: &'a str, start: usize) -> Self {
+        let mut lexer = Lexer::new_with_start(source, start);
 
         let p1 = lexer.next();
         let p2 = lexer.next();

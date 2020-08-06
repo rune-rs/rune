@@ -708,3 +708,38 @@ async fn test_string_concat() {
         "foo/bar/baz",
     };
 }
+
+#[tokio::test]
+async fn test_template_string() {
+    assert_eq! {
+        test! {
+            String => r#"
+            fn main() {
+                let name = "John Doe";
+                `Hello {name}, I am {1 - 10} years old!`
+            }
+            "#
+        },
+        "Hello John Doe, I am -9 years old!",
+    };
+
+    // Contrived expression with an arbitrary sub-expression.
+    // This tests that the temporary variables used during calculations do not
+    // accidentally clobber the scope.
+    assert_eq! {
+        test! {
+            String => r#"
+            fn main() {
+                let name = "John Doe";
+
+                `Hello {name}, I am {{
+                    let a = 20;
+                    a += 2;
+                    a
+                }} years old!`
+            }
+            "#
+        },
+        "Hello John Doe, I am 22 years old!",
+    };
+}

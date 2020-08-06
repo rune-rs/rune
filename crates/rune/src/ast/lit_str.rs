@@ -33,7 +33,9 @@ impl LitStr {
 
         while let Some((n, c)) = it.next() {
             buffer.push(match c {
-                '\\' => utils::parse_char_escape(span.with_start(n), &mut it)?,
+                '\\' => {
+                    utils::parse_char_escape(span.with_start(n), &mut it, utils::WithBrace(false))?
+                }
                 c => c,
             });
         }

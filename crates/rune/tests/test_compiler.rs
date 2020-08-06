@@ -140,3 +140,13 @@ fn test_binary_exprs() {
     test_parse!(r#"fn main() { 0 < 10 && 10 > 0 }"#);
     test_parse!(r#"fn main() { 0 < 10 && 10 > 0 || true }"#);
 }
+
+#[test]
+fn test_template_without_variables() {
+    test_warnings! {
+        r#"fn main() { `Hello World` }"#,
+        TemplateWithoutExpansions { span, .. } => {
+            assert_eq!(span, Span::new(12, 25));
+        }
+    };
+}

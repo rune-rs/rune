@@ -19,4 +19,9 @@ impl<'a> Source<'a> {
     pub fn end(&self) -> usize {
         self.source.len()
     }
+
+    /// Access the underlying string for the source.
+    pub fn as_str(&self) -> &str {
+        &self.source
+    }
 }

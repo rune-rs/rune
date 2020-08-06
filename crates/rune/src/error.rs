@@ -53,6 +53,13 @@ pub enum ConfigurationError {
 /// Error raised when resolving a value.
 #[derive(Debug, Clone, Copy, Error)]
 pub enum ResolveError {
+    /// A sub-parse failed during resolve.
+    #[error("parse error: {error}")]
+    ParseError {
+        /// The underlying error.
+        #[from]
+        error: ParseError,
+    },
     /// Attempt to read a slice which doesn't exist.
     #[error("tried to read bad slice from source `{span}`")]
     BadSlice {
@@ -97,11 +104,18 @@ pub enum ResolveError {
         /// Where the bad escape is.
         span: Span,
     },
+    /// When we encounter an invalid template literal.
+    #[error("invalid template literal")]
+    InvalidTemplateLiteral {
+        /// The span where the error occured.
+        span: Span,
+    },
 }
 
 impl SpannedError for ResolveError {
     fn span(&self) -> Span {
         match *self {
+            Self::ParseError { error, .. } => error.span(),
             Self::BadSlice { span, .. } => span,
             Self::BadEscapeSequence { span, .. } => span,
             Self::IllegalNumberLiteral { span, .. } => span,
@@ -109,6 +123,7 @@ impl SpannedError for ResolveError {
             Self::BadUnicodeEscape { span, .. } => span,
             Self::BadByteEscapeBounds { span, .. } => span,
             Self::BadByteEscape { span, .. } => span,
+            Self::InvalidTemplateLiteral { span, .. } => span,
         }
     }
 }

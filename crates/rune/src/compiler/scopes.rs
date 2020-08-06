@@ -81,6 +81,8 @@ impl Scope {
     pub(super) fn decl_var(&mut self, name: &str, span: Span) -> usize {
         let offset = self.total_var_count;
 
+        log::trace!("decl {} => {}", name, offset);
+
         self.locals.insert(
             name.to_owned(),
             Var {
@@ -114,15 +116,6 @@ impl Scope {
 
         None
     }
-
-    /// Access the local with the given name.
-    pub(super) fn get_mut(&mut self, name: &str) -> Option<&mut Var> {
-        if let Some(local) = self.locals.get_mut(name) {
-            return Some(local);
-        }
-
-        None
-    }
 }
 
 /// A guard returned from [push][Scopes::push].
@@ -148,20 +141,6 @@ impl Scopes {
     pub(super) fn get_var(&self, name: &str, span: Span) -> Result<&Var> {
         for scope in self.scopes.iter().rev() {
             if let Some(var) = scope.get(name) {
-                return Ok(var);
-            }
-        }
-
-        Err(CompileError::MissingLocal {
-            name: name.to_owned(),
-            span,
-        })
-    }
-
-    /// Get the local with the given name.
-    pub(super) fn get_var_mut(&mut self, name: &str, span: Span) -> Result<&mut Var> {
-        for scope in self.scopes.iter_mut().rev() {
-            if let Some(var) = scope.get_mut(name) {
                 return Ok(var);
             }
         }

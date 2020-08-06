@@ -286,6 +286,12 @@ pub enum VmError {
         /// The encountered argument.
         actual: ValueTypeInfo,
     },
+    /// Unsupported argument to string-concat
+    #[error("unsupported string-concat argument `{actual}`")]
+    UnsupportedStringConcatArgument {
+        /// The encountered argument.
+        actual: ValueTypeInfo,
+    },
     /// Attempt to access out-of-bounds stack item.
     #[error("tried to access an out-of-bounds stack entry")]
     StackOutOfBounds,
@@ -1714,6 +1720,42 @@ impl Vm {
         Ok(())
     }
 
+    /// Optimize operation to perform string concatenation.
+    #[inline]
+    fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
+        use std::fmt::Write as _;
+
+        let mut buf = String::with_capacity(size_hint);
+
+        for _ in 0..len {
+            let value = self.pop()?;
+
+            match value {
+                ValuePtr::String(slot) => {
+                    let string = self.string_ref(slot)?;
+                    buf.push_str(&*string);
+                }
+                ValuePtr::Integer(integer) => {
+                    // NB: infallible operation.
+                    write!(buf, "{}", integer).unwrap();
+                }
+                ValuePtr::Float(float) => {
+                    // NB: infallible operation.
+                    write!(buf, "{}", float).unwrap();
+                }
+                actual => {
+                    let actual = actual.type_info(self)?;
+
+                    return Err(VmError::UnsupportedStringConcatArgument { actual });
+                }
+            }
+        }
+
+        let value = self.string_allocate(buf);
+        self.push(value);
+        Ok(())
+    }
+
     #[inline]
     fn op_is(&mut self, context: &Context) -> Result<(), VmError> {
         let a = self.pop()?;
@@ -2056,6 +2098,9 @@ impl Vm {
                     // TODO: do something sneaky to only allocate the static string once.
                     let value = self.string_allocate(string.to_owned());
                     self.push(value);
+                }
+                Inst::StringConcat { len, size_hint } => {
+                    self.op_string_concat(*len, *size_hint)?;
                 }
                 Inst::Is => {
                     self.op_is(context)?;

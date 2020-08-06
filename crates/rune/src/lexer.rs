@@ -40,6 +40,14 @@ impl<'a> Lexer<'a> {
         Self { cursor: 0, source }
     }
 
+    /// Construct a new lexer with the given start.
+    pub fn new_with_start(source: &'a str, start: usize) -> Self {
+        Self {
+            cursor: start,
+            source,
+        }
+    }
+
     /// Access the end span of the input.
     pub fn end(&self) -> Span {
         Span::point(self.source.len())
@@ -621,6 +629,17 @@ mod tests {
             Token {
                 span: Span::new(16, 17),
                 kind: Kind::Close { delimiter: Delimiter::Parenthesis },
+            },
+        };
+    }
+
+    #[test]
+    fn test_template_literals() {
+        test_lexer! {
+            "`foo {bar} \\` baz`",
+            Token {
+                span: Span::new(0, 18),
+                kind: Kind::LitTemplate { escaped: true },
             },
         };
     }

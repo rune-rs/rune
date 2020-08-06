@@ -388,6 +388,23 @@ pub enum Inst {
         /// The static string slot to load the string from.
         slot: usize,
     },
+    /// Pop the given number of values from the stack, and concatenate a string
+    /// from them.
+    ///
+    /// This is a dedicated template-string optimization.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value...>
+    /// => <string>
+    /// ```
+    StringConcat {
+        /// The number of items to pop from the stack.
+        len: usize,
+        /// The minimum string size used.
+        size_hint: usize,
+    },
     /// Test if the top of the stack is an instance of the second item on the
     /// stack.
     ///
@@ -643,6 +660,9 @@ impl fmt::Display for Inst {
             }
             Self::String { slot } => {
                 write!(fmt, "string {}", slot)?;
+            }
+            Self::StringConcat { len, size_hint } => {
+                write!(fmt, "string-concat {}, {}", len, size_hint)?;
             }
             Self::Char { c } => {
                 write!(fmt, "char {:?}", c)?;

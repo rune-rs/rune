@@ -406,6 +406,14 @@ impl Runtime {
                         );
                         context
                     }
+                    Warning::TemplateWithoutExpansions { span, context } => {
+                        labels.push(
+                            Label::primary(source_file, span.start..span.end)
+                                .with_message("template string without expansions like `{1 + 2}`"),
+                        );
+
+                        context
+                    }
                 };
 
                 if let Some(context) = context {

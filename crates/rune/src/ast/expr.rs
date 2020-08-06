@@ -56,6 +56,8 @@ pub enum Expr {
     LitNumber(ast::LitNumber),
     /// A literal string expression.
     LitStr(ast::LitStr),
+    /// A literal string expression.
+    LitTemplate(ast::LitTemplate),
     /// A literal array declaration.
     LitArray(ast::LitArray),
     /// A literal object declaration.
@@ -117,6 +119,7 @@ impl Expr {
             Self::LitNumber(expr) => expr.span(),
             Self::LitChar(expr) => expr.span(),
             Self::LitStr(expr) => expr.span(),
+            Self::LitTemplate(expr) => expr.span(),
             Self::ExprGroup(expr) => expr.span(),
             Self::ExprUnary(expr) => expr.span(),
             Self::ExprBinary(expr) => expr.span(),
@@ -219,6 +222,7 @@ impl Expr {
             Kind::LitNumber { .. } => Self::LitNumber(parser.parse()?),
             Kind::LitChar { .. } => Self::LitChar(parser.parse()?),
             Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
+            Kind::LitTemplate { .. } => Self::LitTemplate(parser.parse()?),
             Kind::Open {
                 delimiter: Delimiter::Parenthesis,
             } => {
@@ -411,6 +415,7 @@ impl Peek for Expr {
             Kind::LitNumber { .. } => true,
             Kind::LitChar { .. } => true,
             Kind::LitStr { .. } => true,
+            Kind::LitTemplate { .. } => true,
             Kind::Open {
                 delimiter: Delimiter::Parenthesis,
             } => true,

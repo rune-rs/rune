@@ -1,9 +1,25 @@
 use crate::error::ResolveError;
 use std::iter::Peekable;
+use std::ops;
 use stk::unit::Span;
 
+#[derive(Debug, Clone, Copy)]
+pub(super) struct WithBrace(pub(super) bool);
+
+impl ops::Deref for WithBrace {
+    type Target = bool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Parse an escape sequence.
-pub(super) fn parse_char_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<char, ResolveError>
+pub(super) fn parse_char_escape<I>(
+    span: Span,
+    it: &mut Peekable<I>,
+    with_brace: WithBrace,
+) -> Result<char, ResolveError>
 where
     I: Iterator<Item = (usize, char)>,
 {
@@ -15,6 +31,7 @@ where
     };
 
     Ok(match c {
+        '{' if *with_brace => '{',
         '\'' => '\'',
         '\"' => '\"',
         'n' => '\n',

@@ -320,11 +320,14 @@ impl<'a> Compiler<'a> {
             ast::Expr::LitObject(lit_object) => {
                 self.compile_lit_object(lit_object, needs_value)?;
             }
-            ast::Expr::LitChar(string) => {
-                self.compile_lit_char(string, needs_value)?;
+            ast::Expr::LitChar(lit_char) => {
+                self.compile_lit_char(lit_char, needs_value)?;
             }
-            ast::Expr::LitStr(string) => {
-                self.compile_lit_str(string, needs_value)?;
+            ast::Expr::LitStr(lit_str) => {
+                self.compile_lit_str(lit_str, needs_value)?;
+            }
+            ast::Expr::LitTemplate(lit_template) => {
+                self.compile_lit_template(lit_template, needs_value)?;
             }
         }
 
@@ -337,7 +340,7 @@ impl<'a> Compiler<'a> {
         needs_value: NeedsValue,
     ) -> Result<()> {
         let span = lit_array.span();
-        log::trace!("ArrayLiteral => {:?}", self.source.source(span)?);
+        log::trace!("LitArray => {:?}", self.source.source(span)?);
 
         if !*needs_value && lit_array.is_const() {
             // Don't encode unecessary literals.
@@ -372,7 +375,7 @@ impl<'a> Compiler<'a> {
         needs_value: NeedsValue,
     ) -> Result<()> {
         let span = lit_object.span();
-        log::trace!("ObjectLiteral => {:?}", self.source.source(span)?);
+        log::trace!("LitObject => {:?}", self.source.source(span)?);
 
         if !*needs_value && lit_object.is_const() {
             // Don't encode unecessary literals.
@@ -425,7 +428,7 @@ impl<'a> Compiler<'a> {
         needs_value: NeedsValue,
     ) -> Result<()> {
         let span = char_literal.span();
-        log::trace!("CharLiteral => {:?}", self.source.source(span)?);
+        log::trace!("LitChar => {:?}", self.source.source(span)?);
 
         // NB: Elide the entire literal if it's not needed.
         if !*needs_value {
@@ -439,9 +442,9 @@ impl<'a> Compiler<'a> {
     }
 
     /// Encode a string literal, like `"foo bar"`.
-    fn compile_lit_str(&mut self, string: &ast::LitStr, needs_value: NeedsValue) -> Result<()> {
-        let span = string.span();
-        log::trace!("StringLiteral => {:?}", self.source.source(span)?);
+    fn compile_lit_str(&mut self, lit_str: &ast::LitStr, needs_value: NeedsValue) -> Result<()> {
+        let span = lit_str.span();
+        log::trace!("LitStr => {:?}", self.source.source(span)?);
 
         // NB: Elide the entire literal if it's not needed.
         if !*needs_value {
@@ -449,15 +452,66 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        let string = string.resolve(self.source)?;
+        let string = lit_str.resolve(self.source)?;
         let slot = self.unit.new_static_string(&*string)?;
         self.asm.push(stk::Inst::String { slot }, span);
         Ok(())
     }
 
+    /// Encode a string literal, like `"foo bar"`.
+    fn compile_lit_template(
+        &mut self,
+        lit_template: &ast::LitTemplate,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = lit_template.span();
+        log::trace!("LitTemplate => {:?}", self.source.source(span)?);
+
+        // NB: Elide the entire literal if it's not needed.
+        if !*needs_value {
+            self.warnings.not_used(span, self.context());
+            return Ok(());
+        }
+
+        let template = lit_template.resolve(self.source)?;
+
+        if !template.has_expansions {
+            self.warnings
+                .template_without_expansions(span, self.context());
+        }
+
+        let scope = self.scopes.last(span)?.child();
+        let expected = self.scopes.push(scope);
+
+        for c in template.components.iter().rev() {
+            match c {
+                ast::TemplateComponent::String(string) => {
+                    let slot = self.unit.new_static_string(&string)?;
+                    self.asm.push(stk::Inst::String { slot }, span);
+                    self.scopes.last_mut(span)?.decl_anon(span);
+                }
+                ast::TemplateComponent::Expr(expr) => {
+                    self.compile_expr(expr, NeedsValue(true))?;
+                    self.scopes.last_mut(span)?.decl_anon(span);
+                }
+            }
+        }
+
+        self.asm.push(
+            stk::Inst::StringConcat {
+                len: template.components.len(),
+                size_hint: template.size_hint,
+            },
+            span,
+        );
+
+        let _ = self.scopes.pop(span, expected)?;
+        Ok(())
+    }
+
     fn compile_lit_unit(&mut self, lit_unit: &ast::LitUnit, needs_value: NeedsValue) -> Result<()> {
         let span = lit_unit.span();
-        log::trace!("UnitLiteral => {:?}", self.source.source(span)?);
+        log::trace!("LitUnit => {:?}", self.source.source(span)?);
 
         // If the value is not needed, no need to encode it.
         if !*needs_value {
@@ -471,7 +525,7 @@ impl<'a> Compiler<'a> {
 
     fn compile_lit_bool(&mut self, lit_bool: &ast::LitBool, needs_value: NeedsValue) -> Result<()> {
         let span = lit_bool.span();
-        log::trace!("BoolLiteral => {:?}", self.source.source(span)?);
+        log::trace!("LitBool => {:?}", self.source.source(span)?);
 
         // If the value is not needed, no need to encode it.
         if !*needs_value {
@@ -494,7 +548,7 @@ impl<'a> Compiler<'a> {
         needs_value: NeedsValue,
     ) -> Result<()> {
         let span = lit_number.span();
-        log::trace!("NumberLiteral => {:?}", self.source.source(span)?);
+        log::trace!("LitNumber => {:?}", self.source.source(span)?);
 
         // NB: don't encode unecessary literal.
         if !*needs_value {
@@ -764,7 +818,7 @@ impl<'a> Compiler<'a> {
         let offset = match lhs {
             ast::Expr::Ident(ident) => {
                 let name = ident.resolve(self.source)?;
-                let var = self.scopes.get_var_mut(name, ident.span())?;
+                let var = self.scopes.get_var(name, ident.span())?;
                 var.offset
             }
             _ => {
