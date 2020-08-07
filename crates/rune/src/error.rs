@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::token::Kind;
+use runestick::unit::Span;
 use std::fmt;
 use std::io;
-use stk::unit::Span;
 use thiserror::Error;
 
 /// Result alias used by this frontend.
@@ -28,10 +28,10 @@ pub enum Error {
     Fmt(#[from] fmt::Error),
     /// Errors raised by the virtual machine.
     #[error("virtual machine error")]
-    VmError(#[from] stk::VmError),
+    VmError(#[from] runestick::VmError),
     /// Errors raised when setting up context.
     #[error("context error")]
-    ContextError(#[from] stk::ContextError),
+    ContextError(#[from] runestick::ContextError),
 }
 
 #[derive(Debug, Clone, Error)]
@@ -328,12 +328,12 @@ pub enum CompileError {
         /// Where the invariant was broken.
         span: Span,
     },
-    /// Unit error from stk encoding.
+    /// Unit error from runestick encoding.
     #[error("unit construction error: {error}")]
     UnitError {
         /// Source error.
         #[from]
-        error: stk::CompilationUnitError,
+        error: runestick::CompilationUnitError,
     },
     /// Error for resolving values from source files.
     #[error("{error}")]
@@ -366,7 +366,7 @@ pub enum CompileError {
         /// The span of the missing module.
         span: Span,
         /// The name of the missing module.
-        module: stk::Item,
+        module: runestick::Item,
     },
     /// A specific label is missing.
     #[error("label not found in scope")]

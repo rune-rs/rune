@@ -5,8 +5,8 @@ authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
 readme = "README.md"
-repository = "https://github.com/udoprog/stk"
-homepage = "https://github.com/udoprog/stk"
+repository = "https://github.com/udoprog/runestick"
+homepage = "https://github.com/udoprog/runestick"
 documentation = "https://docs.rs/rune-cli"
 keywords = ["language", "scripting"]
 categories = []
@@ -22,10 +22,10 @@ reqwest = "0.10.7"
 env_logger = "0.7.1"
 
 rune = {version = "0.2.1", path = "../rune"}
-stk = {version = "0.2.1", path = "../stk"}
-stk-http = {version = "0.2.1", path = "../stk-http"}
-stk-json = {version = "0.2.1", path = "../stk-json"}
-stk-time = {version = "0.2.1", path = "../stk-time"}
+runestick = {version = "0.2.1", path = "../runestick"}
+runestick-http = {version = "0.2.1", path = "../runestick-http"}
+runestick-json = {version = "0.2.1", path = "../runestick-json"}
+runestick-time = {version = "0.2.1", path = "../runestick-time"}
 codespan-reporting = "0.9.5"
 
 anyhow = "1.0.32"

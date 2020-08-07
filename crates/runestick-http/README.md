@@ -1,26 +1,26 @@
-[![Build Status](https://github.com/udoprog/stk/workflows/Build/badge.svg)](https://github.com/udoprog/stk/actions)
+[![Build Status](https://github.com/udoprog/runestick/workflows/Build/badge.svg)](https://github.com/udoprog/runestick/actions)
 
-# stk-http
+# runestick-http
 
-HTTP module for stk based on reqwest.
+HTTP module for runestick based on reqwest.
 
 ### Usage
 
 Add the following to your `Cargo.toml`:
 
 ```toml
-stk = "0.2"
-stk-http = "0.2"
+runestick = "0.2"
+runestick-http = "0.2"
 # not necessary, but useful
-stk-json = "0.2"
+runestick-json = "0.2"
 ```
 
 Install it into your context:
 
 ```rust
-let mut context = stk::Context::with_default_packages()?;
-context.install(stk_http::module()?)?;
-context.install(stk_json::module()?)?;
+let mut context = runestick::Context::with_default_packages()?;
+context.install(runestick_http::module()?)?;
+context.install(runestick_json::module()?)?;
 ```
 
 Use it in Rune:

@@ -1,5 +1,5 @@
 use crate::ast::{Comma, Dot, Expr, Ident, Parenthesized};
-use stk::unit::Span;
+use runestick::unit::Span;
 
 /// An instance function call `<instance>.<name>(<args>)`.
 #[derive(Debug, Clone)]

@@ -783,7 +783,7 @@ pub struct Vm {
 }
 
 impl Vm {
-    /// Construct a new stk virtual machine.
+    /// Construct a new runestick virtual machine.
     pub fn new(unit: Arc<CompilationUnit>) -> Self {
         Self {
             ip: 0,

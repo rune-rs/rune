@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
 use crate::compiler::{CompileError, Result};
-use stk::unit::Span;
+use runestick::unit::Span;
 
 /// A locally declared variable.
 #[derive(Debug, Clone)]

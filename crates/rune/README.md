@@ -1,9 +1,9 @@
-[![Build Status](https://github.com/udoprog/stk/workflows/Build/badge.svg)](https://github.com/udoprog/stk/actions)
+[![Build Status](https://github.com/udoprog/runestick/workflows/Build/badge.svg)](https://github.com/udoprog/runestick/actions)
 
 # rune
 
-Rune is a simple dynamic language for the stk virtual machine.
+Rune is a simple dynamic language for the runestick virtual machine.
 
 You can take it for a spin with [rune-cli].
 
-[rune-cli]: https://github.com/udoprog/stk
+[rune-cli]: https://github.com/udoprog/runestick

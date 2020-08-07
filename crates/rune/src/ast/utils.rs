@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::error::ParseError;
+use runestick::unit::Span;
 use std::iter::Peekable;
 use std::ops;
-use stk::unit::Span;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct WithBrace(pub(super) bool);
@@ -196,7 +196,7 @@ pub(crate) fn is_block_end(expr: &ast::Expr, comma: Option<&ast::Comma>) -> bool
 #[cfg(test)]
 mod tests {
     use super::{parse_hex_escape, parse_unicode_escape};
-    use stk::unit::Span;
+    use runestick::unit::Span;
 
     macro_rules! input {
         ($string:expr) => {

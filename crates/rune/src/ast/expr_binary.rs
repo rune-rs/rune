@@ -3,8 +3,8 @@ use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Peek};
+use runestick::unit::Span;
 use std::fmt;
-use stk::unit::Span;
 
 /// A binary expression.
 #[derive(Debug, Clone)]

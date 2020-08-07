@@ -1,7 +1,7 @@
 use crate::ast::utils;
 use crate::error::{ParseError, Result};
 use crate::token::{Delimiter, Kind, LitNumber, Token};
-use stk::unit::Span;
+use runestick::unit::Span;
 
 /// Lexer for the rune language.
 #[derive(Debug, Clone)]
@@ -517,7 +517,7 @@ impl<'a> Lexer<'a> {
 mod tests {
     use super::Lexer;
     use crate::token::{Delimiter, Kind, LitNumber, Token};
-    use stk::unit::Span;
+    use runestick::unit::Span;
 
     macro_rules! test_lexer {
         ($source:expr $(, $pat:expr)* $(,)?) => {{

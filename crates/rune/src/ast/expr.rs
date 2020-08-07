@@ -7,8 +7,8 @@ use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::token::{Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek};
+use runestick::unit::Span;
 use std::ops;
-use stk::unit::Span;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct NoIndex(pub(super) bool);

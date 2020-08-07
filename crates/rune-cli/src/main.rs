@@ -20,10 +20,10 @@ async fn main() -> Result<()> {
     let mut dump_types = false;
     let mut help = false;
 
-    let mut context = stk::Context::with_default_packages()?;
-    context.install(stk_http::module()?)?;
-    context.install(stk_json::module()?)?;
-    context.install(stk_time::module()?)?;
+    let mut context = runestick::Context::with_default_packages()?;
+    context.install(runestick_http::module()?)?;
+    context.install(runestick_json::module()?)?;
+    context.install(runestick_time::module()?)?;
 
     let mut runtime = rune::Runtime::with_context(Arc::new(context));
 
@@ -208,7 +208,8 @@ async fn main() -> Result<()> {
         println!("---");
     }
 
-    let mut task: stk::Task<stk::Value> = runtime.call_function(file_id, &["main"], ())?;
+    let mut task: runestick::Task<runestick::Value> =
+        runtime.call_function(file_id, &["main"], ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {
@@ -271,7 +272,7 @@ async fn main() -> Result<()> {
 
 enum TraceError {
     Io(std::io::Error),
-    VmError(stk::VmError),
+    VmError(runestick::VmError),
 }
 
 impl From<std::io::Error> for TraceError {
@@ -281,9 +282,9 @@ impl From<std::io::Error> for TraceError {
 }
 
 /// Perform a detailed trace of the program.
-async fn do_trace<T>(task: &mut stk::Task<'_, T>, dump_vm: bool) -> Result<T, TraceError>
+async fn do_trace<T>(task: &mut runestick::Task<'_, T>, dump_vm: bool) -> Result<T, TraceError>
 where
-    T: stk::FromValue,
+    T: runestick::FromValue,
 {
     use std::io::Write as _;
     let out = std::io::stdout();

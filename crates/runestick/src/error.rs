@@ -1,6 +1,6 @@
 use std::fmt;
 
-/// Result alias for the stk crate.
+/// Result alias for the runestick crate.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// An error raised from a user functions.
