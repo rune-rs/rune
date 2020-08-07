@@ -1,4 +1,5 @@
 use anyhow::Result;
+use futures_executor::block_on;
 
 async fn run_main<T, A>(context: &stk::Context, source: &str, args: A) -> Result<T>
 where
@@ -12,8 +13,8 @@ where
     Ok(output)
 }
 
-#[tokio::test]
-async fn test_custom_functions() -> anyhow::Result<()> {
+#[test]
+fn test_custom_functions() -> anyhow::Result<()> {
     let mut module = stk::Module::default();
     module.function(&["test"], || 42).unwrap();
 
@@ -21,7 +22,7 @@ async fn test_custom_functions() -> anyhow::Result<()> {
     context.install(module)?;
 
     assert_eq! {
-        run_main::<i64, _>(
+        block_on(run_main::<i64, _>(
             &context,
             r#"
                 fn main() {
@@ -29,7 +30,7 @@ async fn test_custom_functions() -> anyhow::Result<()> {
                 }
             "#,
             ()
-        ).await.unwrap(),
+        )).unwrap(),
         42,
     };
 
@@ -41,8 +42,8 @@ struct Thing(usize);
 
 stk::decl_external!(Thing);
 
-#[tokio::test]
-async fn test_passed_in_reference() -> anyhow::Result<()> {
+#[test]
+fn test_passed_in_reference() -> anyhow::Result<()> {
     let mut module = stk::Module::default();
     module
         .function(&["test"], |mut a: Thing, b: &mut Thing| {
@@ -58,9 +59,12 @@ async fn test_passed_in_reference() -> anyhow::Result<()> {
     let a = Thing(19);
     let mut b = Thing(21);
 
-    let a = run_main::<Thing, _>(&context, r#"fn main(a, b) { test(a, b) }"#, (a, &mut b))
-        .await
-        .unwrap();
+    let a = block_on(run_main::<Thing, _>(
+        &context,
+        r#"fn main(a, b) { test(a, b) }"#,
+        (a, &mut b),
+    ))
+    .unwrap();
 
     assert_eq!(a.0, 29);
     assert_eq!(b.0, 11);

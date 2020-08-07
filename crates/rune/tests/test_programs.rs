@@ -1,3 +1,4 @@
+use futures_executor::block_on;
 use stk::VmError::*;
 
 async fn run_main<T>(source: &str) -> stk::Result<T>
@@ -15,15 +16,13 @@ where
 /// Run the given program as a test.
 macro_rules! test {
     ($ty:ty => $source:expr) => {
-        run_main::<$ty>($source)
-            .await
-            .expect("program to run successfully")
+        block_on(run_main::<$ty>($source)).expect("program to run successfully")
     };
 }
 
 macro_rules! test_vm_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
-        let e = run_main::<()>($source).await.unwrap_err();
+        let e = block_on(run_main::<()>($source)).unwrap_err();
 
         let e = match e.downcast_ref::<stk::VmError>() {
             Some(e) => e,
@@ -41,8 +40,8 @@ macro_rules! test_vm_error {
     }};
 }
 
-#[tokio::test]
-async fn test_small_programs() {
+#[test]
+fn test_small_programs() {
     assert_eq!(test!(u64 => r#"fn main() { 42 }"#), 42u64);
     assert_eq!(test!(stk::Unit => r#"fn main() {}"#), stk::Unit);
 
@@ -63,8 +62,8 @@ async fn test_small_programs() {
     };
 }
 
-#[tokio::test]
-async fn test_boolean_ops() {
+#[test]
+fn test_boolean_ops() {
     assert_eq! {
         test!(bool => r#"fn main() { true && true }"#),
         true,
@@ -106,8 +105,8 @@ async fn test_boolean_ops() {
     };
 }
 
-#[tokio::test]
-async fn test_if() {
+#[test]
+fn test_if() {
     assert_eq! {
         test! {
             i64 => r#"
@@ -143,8 +142,8 @@ async fn test_if() {
     };
 }
 
-#[tokio::test]
-async fn test_block() {
+#[test]
+fn test_block() {
     assert_eq! {
         test! {
             i64 => r#"
@@ -164,8 +163,8 @@ async fn test_block() {
     };
 }
 
-#[tokio::test]
-async fn test_shadowing() {
+#[test]
+fn test_shadowing() {
     assert_eq! {
         test! {
             i64 => r#"
@@ -180,16 +179,16 @@ async fn test_shadowing() {
     };
 }
 
-#[tokio::test]
-async fn test_arrays() {
+#[test]
+fn test_arrays() {
     assert_eq! {
         test!(stk::Unit => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
         stk::Unit,
     };
 }
 
-#[tokio::test]
-async fn test_while() {
+#[test]
+fn test_while() {
     assert_eq! {
         test!{
             i64 => r#"
@@ -229,8 +228,8 @@ async fn test_while() {
     };
 }
 
-#[tokio::test]
-async fn test_loop() {
+#[test]
+fn test_loop() {
     assert_eq! {
         test! {
             (i64, bool) => r#"
@@ -274,8 +273,8 @@ async fn test_loop() {
     };
 }
 
-#[tokio::test]
-async fn test_for() {
+#[test]
+fn test_for() {
     assert_eq! {
         test! {
             i64 => r#"
@@ -345,8 +344,8 @@ async fn test_for() {
     };
 }
 
-#[tokio::test]
-async fn test_return() {
+#[test]
+fn test_return() {
     assert_eq! {
         test! {
             i64 => r#"
@@ -367,8 +366,8 @@ async fn test_return() {
     };
 }
 
-#[tokio::test]
-async fn test_is() {
+#[test]
+fn test_is() {
     assert_eq! {
         test!(bool => r#"
         fn main() {
@@ -427,8 +426,8 @@ async fn test_is() {
     };
 }
 
-#[tokio::test]
-async fn test_match() {
+#[test]
+fn test_match() {
     assert_eq! {
         test!(i64 => r#"fn main() { match 1 { _ => 10 } }"#),
         10,
@@ -460,8 +459,8 @@ async fn test_match() {
     };
 }
 
-#[tokio::test]
-async fn test_array_match() {
+#[test]
+fn test_array_match() {
     assert_eq! {
         test!(stk::Unit => r#"fn main() { match [] { [..] => true } }"#),
         stk::Unit,
@@ -533,8 +532,8 @@ async fn test_array_match() {
     };
 }
 
-#[tokio::test]
-async fn test_object_match() {
+#[test]
+fn test_object_match() {
     assert_eq! {
         test!(stk::Unit => r#"fn main() { match #{} { #{..} => true } }"#),
         stk::Unit,
@@ -566,8 +565,8 @@ async fn test_object_match() {
     };
 }
 
-#[tokio::test]
-async fn test_bad_pattern() {
+#[test]
+fn test_bad_pattern() {
     // Attempting to assign to an unmatched pattern leads to a panic.
     test_vm_error!(
         r#"
@@ -579,8 +578,8 @@ async fn test_bad_pattern() {
     );
 }
 
-#[tokio::test]
-async fn test_destructuring() {
+#[test]
+fn test_destructuring() {
     assert_eq! {
         test! {
             i64 => r#"
@@ -598,8 +597,8 @@ async fn test_destructuring() {
     };
 }
 
-#[tokio::test]
-async fn test_if_pattern() {
+#[test]
+fn test_if_pattern() {
     assert_eq! {
         test! {
             bool => r#"
@@ -650,8 +649,8 @@ async fn test_if_pattern() {
     };
 }
 
-#[tokio::test]
-async fn test_break_label() {
+#[test]
+fn test_break_label() {
     assert_eq! {
         test! {
             i64 => r#"
@@ -685,16 +684,16 @@ async fn test_break_label() {
     };
 }
 
-#[tokio::test]
-async fn test_literal() {
+#[test]
+fn test_literal() {
     assert_eq! {
         test!(char => r#"fn main() { '\u{1F4AF}' }"#),
         '💯',
     };
 }
 
-#[tokio::test]
-async fn test_string_concat() {
+#[test]
+fn test_string_concat() {
     assert_eq! {
         test! {
             String => r#"
@@ -709,8 +708,8 @@ async fn test_string_concat() {
     };
 }
 
-#[tokio::test]
-async fn test_template_string() {
+#[test]
+fn test_template_string() {
     assert_eq! {
         test! {
             String => r#"

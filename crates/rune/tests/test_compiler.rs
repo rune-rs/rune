@@ -115,8 +115,8 @@ fn test_match() {
     };
 }
 
-#[tokio::test]
-async fn test_pointers() {
+#[test]
+fn test_pointers() {
     test_compile_error! {
         r#"fn main() { let n = 0; foo(&n); }"#,
         UnsupportedRef { span } => {
