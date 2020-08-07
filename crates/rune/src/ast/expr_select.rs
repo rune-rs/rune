@@ -1,5 +1,5 @@
 use crate::ast::utils;
-use crate::ast::{CloseBrace, Comma, Eq, Expr, Ident, OpenBrace, Rocket, Select};
+use crate::ast::{CloseBrace, Comma, Eq, Expr, OpenBrace, Pat, Rocket, Select};
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::traits::Parse;
@@ -9,7 +9,7 @@ use stk::unit::Span;
 #[derive(Debug, Clone)]
 pub struct ExprSelectBranch {
     /// The identifier to bind the result to.
-    pub ident: Ident,
+    pub pat: Pat,
     /// `=`.
     pub eq: Eq,
     /// The expression that should evaluate to a future.
@@ -20,10 +20,17 @@ pub struct ExprSelectBranch {
     pub body: Box<Expr>,
 }
 
+impl ExprSelectBranch {
+    /// The span of the expression.
+    pub fn span(&self) -> Span {
+        self.pat.span().join(self.body.span())
+    }
+}
+
 impl Parse for ExprSelectBranch {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         Ok(Self {
-            ident: parser.parse()?,
+            pat: parser.parse()?,
             eq: parser.parse()?,
             expr: Box::new(parser.parse()?),
             rocket: parser.parse()?,

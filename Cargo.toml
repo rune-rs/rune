@@ -3,6 +3,7 @@ members = [
     "crates/stk",
     "crates/stk-http",
     "crates/stk-json",
+    "crates/stk-time",
     "crates/rune",
     "crates/rune-cli",
 ]

@@ -25,7 +25,7 @@ impl Future {
     ///
     /// A future constructed through this must **only** be polled while any
     /// data it references is **live**.
-    pub unsafe fn unsafe_new(
+    pub unsafe fn new_unchecked(
         future: *mut dyn future::Future<Output = Result<(), VmError>>,
     ) -> Self {
         Self {
@@ -88,6 +88,45 @@ impl Drop for Future {
     fn drop(&mut self) {
         if let Some(future) = self.future.take() {
             let _ = unsafe { Box::from_raw(future.as_ptr()) };
+        }
+    }
+}
+
+/// Future wrapper, used when selecting over a branch of futures.
+pub struct SelectFuture {
+    future: *mut Future,
+    index: usize,
+}
+
+impl SelectFuture {
+    /// Construct a new select future.
+    ///
+    /// # Safety
+    ///
+    /// This polls over a raw future, and the caller must ensure that any
+    /// references held by the underlying future must be live while it is being
+    /// polled.
+    pub unsafe fn new_unchecked(future: *mut Future, index: usize) -> Self {
+        Self { future, index }
+    }
+}
+
+impl future::Future for SelectFuture {
+    type Output = Result<usize, VmError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        // Safety: this future can only be constructed through an unsafe
+        // constructor, and must therefore abide by its safety requirements.
+        let result = unsafe { Pin::new_unchecked(&mut *this.future).poll(cx) };
+
+        match result {
+            Poll::Ready(result) => match result {
+                Ok(()) => Poll::Ready(Ok(this.index)),
+                Err(e) => Poll::Ready(Err(e)),
+            },
+            Poll::Pending => Poll::Pending,
         }
     }
 }

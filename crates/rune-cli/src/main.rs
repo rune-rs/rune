@@ -23,6 +23,7 @@ async fn main() -> Result<()> {
     let mut context = stk::Context::with_default_packages()?;
     context.install(stk_http::module()?)?;
     context.install(stk_json::module()?)?;
+    context.install(stk_time::module()?)?;
 
     let mut runtime = rune::Runtime::with_context(Arc::new(context));
 

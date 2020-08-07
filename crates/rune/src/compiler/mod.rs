@@ -335,6 +335,9 @@ impl<'a> Compiler<'a> {
             ast::Expr::LitTemplate(lit_template) => {
                 self.compile_lit_template(lit_template, needs_value)?;
             }
+            ast::Expr::LitAwait(lit_await) => {
+                self.compile_lit_await(lit_await, needs_value)?;
+            }
         }
 
         Ok(())
@@ -513,6 +516,12 @@ impl<'a> Compiler<'a> {
 
         let _ = self.scopes.pop(span, expected)?;
         Ok(())
+    }
+
+    fn compile_lit_await(&mut self, await_: &ast::Await, _: NeedsValue) -> Result<()> {
+        let span = await_.span();
+        log::trace!("Await => {:?}", self.source.source(span)?);
+        Err(CompileError::UnsupportedAwait { span })
     }
 
     fn compile_lit_unit(&mut self, lit_unit: &ast::LitUnit, needs_value: NeedsValue) -> Result<()> {
@@ -1398,15 +1407,62 @@ impl<'a> Compiler<'a> {
     fn compile_expr_select(
         &mut self,
         expr_select: &ast::ExprSelect,
-        _needs_value: NeedsValue,
+        needs_value: NeedsValue,
     ) -> Result<()> {
         let span = expr_select.span();
         log::trace!("ExprSelect => {:?}", self.source.source(span)?);
+        let len = expr_select.branches.len();
 
-        Err(CompileError::internal(
-            "select expressions are not supported yet",
-            span,
-        ))
+        let mut branches = Vec::new();
+
+        let end_label = self.asm.new_label("select_end");
+
+        for (branch, _) in &expr_select.branches {
+            let label = self.asm.new_label("select_branch");
+            branches.push((label, branch));
+        }
+
+        for (_, branch) in branches.iter().rev() {
+            self.compile_expr(&branch.expr, NeedsValue(true))?;
+        }
+
+        self.asm.push(stk::Inst::Select { len }, span);
+
+        for (branch, (label, b)) in branches.iter().enumerate() {
+            self.asm.jump_if_branch(branch, *label, b.span());
+        }
+
+        if *needs_value {
+            self.asm.push(stk::Inst::Unit, span);
+            self.asm.jump(end_label, span);
+        }
+
+        for (label, branch) in branches {
+            let span = branch.span();
+            self.asm.label(label)?;
+
+            let mut scope = self.scopes.last(span)?.child();
+
+            match &branch.pat {
+                ast::Pat::PatBinding(binding) => {
+                    let name = binding.resolve(self.source)?;
+                    scope.decl_var(name, span);
+                }
+                ast::Pat::PatIgnore(..) => {
+                    self.asm.push(stk::Inst::Pop, span);
+                }
+                other => return Err(CompileError::UnsupportedSelectPattern { span: other.span() }),
+            }
+
+            // Set up a new scope with the binding.
+            let expected = self.scopes.push(scope);
+            self.compile_expr(&*branch.body, needs_value)?;
+            self.clean_last_scope(span, expected, needs_value)?;
+            self.asm.jump(end_label, span);
+        }
+
+        self.asm.label(end_label)?;
+        Ok(())
     }
 
     /// Encode an array pattern match.

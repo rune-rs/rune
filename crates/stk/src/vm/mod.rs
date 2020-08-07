@@ -1,13 +1,12 @@
 use crate::any::Any;
 use crate::collections::HashMap;
 use crate::context::Context;
-use crate::future::Future;
+use crate::future::{Future, SelectFuture};
 use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::tls;
 use crate::unit::CompilationUnit;
 use crate::value::{Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
-use slab::Slab;
 use std::any;
 use std::cell::UnsafeCell;
 use std::fmt;
@@ -18,10 +17,12 @@ use thiserror::Error;
 
 mod access;
 mod inst;
+mod slots;
 
 use self::access::Access;
 pub use self::access::{Mut, RawMutGuard, RawRefGuard, Ref};
 pub use self::inst::{Inst, Panic};
+use self::slots::Slots;
 
 /// A type-erased rust number.
 #[derive(Debug, Clone, Copy)]
@@ -441,6 +442,9 @@ pub enum VmError {
         /// The location of the stack frame.
         frame_at: usize,
     },
+    /// Error raised when the branch register is empty.
+    #[error("branch register empty")]
+    BranchEmpty {},
 }
 
 /// Pop and type check a value off the stack.
@@ -769,11 +773,13 @@ pub struct Vm {
     /// Frames relative to the stack.
     call_frames: Vec<CallFrame>,
     /// Slots with external values.
-    slots: Slab<Holder>,
+    slots: Slots,
     /// Generation used for allocated objects.
     generation: usize,
     /// The compilation unit associated with the virtual machine.
     pub(crate) unit: Arc<CompilationUnit>,
+    /// The `branch` registry used for certain operations.
+    branch: Option<usize>,
 }
 
 impl Vm {
@@ -784,9 +790,10 @@ impl Vm {
             stack: Stack::new(),
             exited: false,
             call_frames: Vec::new(),
-            slots: Slab::new(),
+            slots: Slots::new(),
             generation: 0,
             unit,
+            branch: None,
         }
     }
 
@@ -921,6 +928,54 @@ impl Vm {
         }
 
         Ok(())
+    }
+
+    async fn op_select(&mut self, len: usize) -> Result<(), VmError> {
+        use futures::stream::StreamExt as _;
+
+        let branch = {
+            let mut futures = futures::stream::FuturesUnordered::new();
+            let mut guards = Vec::new();
+
+            for index in 0..len {
+                let value = self.stack.pop()?;
+
+                let future = match value {
+                    ValuePtr::Future(slot) => self.external_mut::<Future>(slot)?,
+                    actual => {
+                        return Err(VmError::ExpectedFuture {
+                            actual: actual.type_info(self)?,
+                        })
+                    }
+                };
+
+                if future.is_completed() {
+                    continue;
+                }
+
+                // Safety: we have exclusive access to the virtual machine, so we
+                // can assert that nothing is invalidate for the duration of this
+                // select.
+                unsafe {
+                    let (raw_future, guard) = Mut::unsafe_into_mut(future);
+                    futures.push(SelectFuture::new_unchecked(raw_future, index));
+                    guards.push(guard);
+                };
+            }
+
+            // NB: nothing to poll.
+            if futures.is_empty() {
+                return Ok(());
+            }
+
+            let result = unsafe { tls::InjectVm::new(self, futures.next()).await.unwrap() };
+            let index = result?;
+            drop(guards);
+            index
+        };
+
+        self.branch = Some(branch);
+        return Ok(());
     }
 
     /// Pop a number of values from the stack.
@@ -1138,8 +1193,7 @@ impl Vm {
     {
         let holder = self
             .slots
-            .get(slot.into_usize())
-            .filter(|h| h.generation == slot.into_generation())
+            .get(slot.into_usize(), slot.into_generation())
             .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         holder.access.shared(slot)?;
@@ -1184,8 +1238,7 @@ impl Vm {
     {
         let holder = self
             .slots
-            .get(slot.into_usize())
-            .filter(|h| h.generation == slot.into_generation())
+            .get(slot.into_usize(), slot.into_generation())
             .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         holder.access.exclusive(slot)?;
@@ -1223,8 +1276,7 @@ impl Vm {
     pub fn external_clone<T: Clone + any::Any>(&self, slot: Slot) -> Result<T, VmError> {
         let holder = self
             .slots
-            .get(slot.into_usize())
-            .filter(|h| h.generation == slot.into_generation())
+            .get(slot.into_usize(), slot.into_generation())
             .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         // NB: we don't need a guard here since we're only using the reference
@@ -1276,22 +1328,16 @@ impl Vm {
     where
         T: any::Any,
     {
-        let pos = slot.into_usize();
-
         // NB: don't need to perform a runtime check because this function
         // requires exclusive access to the virtual machine, at which point it's
         // impossible for live references to slots to be out unless unsafe
         // functions have been used in an unsound manner.
-        if self
-            .slots
-            .get(slot.into_usize())
-            .filter(|h| h.generation == slot.into_generation())
-            .is_none()
-        {
-            return Err(VmError::SlotMissing { slot });
-        }
-
-        let holder = self.slots.remove(pos);
+        let holder = match self.slots.remove(slot.into_usize(), slot.into_generation()) {
+            Some(holder) => holder,
+            None => {
+                return Err(VmError::SlotMissing { slot });
+            }
+        };
 
         match Self::take_value(holder.value.into_inner()) {
             Ok(value) => return Ok(value),
@@ -1308,8 +1354,7 @@ impl Vm {
     {
         let holder = self
             .slots
-            .get(slot.into_usize())
-            .filter(|h| h.generation == slot.into_generation())
+            .get(slot.into_usize(), slot.into_generation())
             .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         holder.access.test_shared(slot)?;
@@ -1325,8 +1370,7 @@ impl Vm {
     pub fn external_ref_dyn(&self, slot: Slot) -> Result<Ref<'_, Any>, VmError> {
         let holder = self
             .slots
-            .get(slot.into_usize())
-            .filter(|h| h.generation == slot.into_generation())
+            .get(slot.into_usize(), slot.into_generation())
             .ok_or_else(|| VmError::SlotMissing { slot })?;
 
         holder.access.shared(slot)?;
@@ -1344,18 +1388,12 @@ impl Vm {
 
     /// Take an external value by dyn, assuming you have exlusive access to it.
     pub fn external_take_dyn(&mut self, slot: Slot) -> Result<Any, VmError> {
-        let pos = slot.into_usize();
-
-        if self
-            .slots
-            .get(pos)
-            .filter(|h| h.generation == slot.into_generation())
-            .is_none()
-        {
-            return Err(VmError::SlotMissing { slot });
-        }
-
-        let holder = self.slots.remove(pos);
+        let holder = match self.slots.remove(slot.into_usize(), slot.into_generation()) {
+            Some(holder) => holder,
+            None => {
+                return Err(VmError::SlotMissing { slot });
+            }
+        };
 
         // Safety: We have the necessary level of ownership to guarantee that
         // the reference cast is safe, and we wrap the return value in a
@@ -2088,6 +2126,9 @@ impl Vm {
                 Inst::Await => {
                     self.op_await().await?;
                 }
+                Inst::Select { len } => {
+                    self.op_select(len).await?;
+                }
                 Inst::Pop => {
                     self.stack.pop()?;
                 }
@@ -2151,6 +2192,15 @@ impl Vm {
                     if !pop!(self, Bool) {
                         self.modify_ip(offset)?;
                         update_ip = false;
+                    }
+                }
+                Inst::JumpIfBranch { branch, offset } => {
+                    if let Some(current) = self.branch {
+                        if current == branch {
+                            self.branch = None;
+                            self.modify_ip(offset)?;
+                            update_ip = false;
+                        }
                     }
                 }
                 Inst::Unit => {
@@ -2269,16 +2319,8 @@ impl fmt::Debug for Vm {
             .field("exited", &self.exited)
             .field("stack", &self.stack)
             .field("call_frames", &self.call_frames)
-            .field("slots", &DebugSlots(&self.slots))
+            .field("slots", &"Slots")
             .finish()
-    }
-}
-
-struct DebugSlots<'a>(&'a Slab<Holder>);
-
-impl fmt::Debug for DebugSlots<'_> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_map().entries(self.0.iter()).finish()
     }
 }
 

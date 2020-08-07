@@ -1,5 +1,5 @@
 [package]
-name = "stk-json"
+name = "stk-time"
 version = "0.2.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
@@ -7,13 +7,13 @@ edition = "2018"
 readme = "README.md"
 repository = "https://github.com/udoprog/stk"
 homepage = "https://github.com/udoprog/stk"
-documentation = "https://docs.rs/stk-json"
+documentation = "https://docs.rs/stk-timer"
 keywords = ["language", "scripting"]
 categories = []
 description = """
-An JSON module based on serde_json for stk.
+An time module based on tokio::time for stk.
 """
 
 [dependencies]
-serde_json = "1.0.57"
+tokio = {version = "0.2.22", features = ["time"]}
 stk = {version = "0.2.1", path = "../stk"}

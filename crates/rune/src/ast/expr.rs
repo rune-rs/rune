@@ -62,6 +62,8 @@ pub enum Expr {
     LitArray(ast::LitArray),
     /// A literal object declaration.
     LitObject(ast::LitObject),
+    /// A literal await.
+    LitAwait(ast::Await),
     /// A grouped expression.
     ExprGroup(ast::ExprGroup),
     /// A binary expression.
@@ -120,6 +122,7 @@ impl Expr {
             Self::LitBool(b) => b.span(),
             Self::LitArray(expr) => expr.span(),
             Self::LitObject(expr) => expr.span(),
+            Self::LitAwait(expr) => expr.span(),
             Self::LitNumber(expr) => expr.span(),
             Self::LitChar(expr) => expr.span(),
             Self::LitStr(expr) => expr.span(),
@@ -219,6 +222,7 @@ impl Expr {
                 });
             }
             Kind::StartObject => Self::LitObject(parser.parse()?),
+            Kind::Await => Self::LitAwait(parser.parse()?),
             Kind::Not | Kind::Ampersand | Kind::Mul => Self::ExprUnary(parser.parse()?),
             Kind::While => Self::ExprWhile(parser.parse()?),
             Kind::Loop => Self::ExprLoop(parser.parse()?),
@@ -291,23 +295,6 @@ impl Expr {
                         close: parser.parse()?,
                     });
                 }
-                Kind::Dot => {
-                    let token = match parser.token_peek2()? {
-                        Some(token) => token,
-                        None => break,
-                    };
-
-                    match token.kind {
-                        Kind::Await => {
-                            expr = Expr::ExprAwait(ExprAwait {
-                                expr: Box::new(expr),
-                                dot: parser.parse()?,
-                                await_: parser.parse()?,
-                            });
-                        }
-                        _ => break,
-                    }
-                }
                 _ => break,
             }
         }
@@ -360,6 +347,11 @@ impl Expr {
                         args: call_fn.args,
                     })
                 }
+                (BinOp::Dot, Expr::LitAwait(await_)) => Expr::ExprAwait(ExprAwait {
+                    expr: Box::new(lhs),
+                    dot: Dot { token },
+                    await_,
+                }),
                 (op, rhs) => Expr::ExprBinary(ExprBinary {
                     lhs: Box::new(lhs),
                     op,
@@ -431,6 +423,7 @@ impl Peek for Expr {
                 _ => false,
             },
             Kind::StartObject => true,
+            Kind::Await => true,
             Kind::Not | Kind::Ampersand | Kind::Mul => true,
             Kind::While => true,
             Kind::Loop => true,

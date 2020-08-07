@@ -25,6 +25,7 @@ rune = {version = "0.2.1", path = "../rune"}
 stk = {version = "0.2.1", path = "../stk"}
 stk-http = {version = "0.2.1", path = "../stk-http"}
 stk-json = {version = "0.2.1", path = "../stk-json"}
+stk-time = {version = "0.2.1", path = "../stk-time"}
 codespan-reporting = "0.9.5"
 
 anyhow = "1.0.32"

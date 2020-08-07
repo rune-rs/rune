@@ -1,0 +1,23 @@
+use http;
+
+fn test(timeout) {
+    let request = http::get(`http://httpstat.us/200?sleep={timeout}`);
+    let timeout = time::delay_for(time::Duration::from_secs(2));
+
+    let result = select {
+        res = request => res,
+        _ = timeout => ()
+    };
+
+    if result is unit {
+        dbg("request timed out!");
+    } else {
+        dbg(result);
+        dbg(result.text().await);
+    }
+}
+
+fn main() {
+    test(1000);
+    test(5000);
+}

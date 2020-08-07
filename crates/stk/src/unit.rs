@@ -541,6 +541,12 @@ impl CompilationUnit {
                     let offset = translate_offset(pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIfNot { offset });
                 }
+                AssemblyInst::JumpIfBranch { branch, label } => {
+                    comment = Some(format!("label:{}", label).into_boxed_str());
+                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    self.instructions
+                        .push(Inst::JumpIfBranch { branch, offset });
+                }
                 AssemblyInst::Raw { raw } => {
                     self.instructions.push(raw);
                 }
@@ -610,6 +616,7 @@ enum AssemblyInst {
     Jump { label: Label },
     JumpIf { label: Label },
     JumpIfNot { label: Label },
+    JumpIfBranch { branch: usize, label: Label },
     Raw { raw: Inst },
 }
 
@@ -678,6 +685,12 @@ impl Assembly {
     pub fn jump_if_not(&mut self, label: Label, span: Span) {
         self.instructions
             .push((AssemblyInst::JumpIfNot { label }, span));
+    }
+
+    /// Add a conditional jump-if-branch instruction.
+    pub fn jump_if_branch(&mut self, branch: usize, label: Label, span: Span) {
+        self.instructions
+            .push((AssemblyInst::JumpIfBranch { branch, label }, span));
     }
 
     /// Push a raw instruction.

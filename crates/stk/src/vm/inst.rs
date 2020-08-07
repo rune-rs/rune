@@ -213,6 +213,23 @@ pub enum Inst {
     /// => <value>
     /// ```
     Await,
+    /// Select over `len` futures on the stack. Sets the `branch` register to
+    /// the index of the branch that completed. And pushes its value on the
+    /// stack.
+    ///
+    /// This operation will block the VM until at least one of the underlying
+    /// futures complete.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <future...>
+    /// => <value>
+    /// ```
+    Select {
+        /// The number of futures to poll.
+        len: usize,
+    },
     /// Pop the value on the stack, discarding its result.
     ///
     /// # Operation
@@ -352,6 +369,16 @@ pub enum Inst {
     /// ```
     JumpIfNot {
         /// Offset to jump to.
+        offset: isize,
+    },
+    /// Compares the `branch` register with `value`, and if they match performs
+    /// the jump to offset.
+    ///
+    /// This will clear the `branch` register.
+    JumpIfBranch {
+        /// The branch value to compare against.
+        branch: usize,
+        /// The offset to jump.
         offset: isize,
     },
     /// Push a unit value onto the stack.
@@ -627,6 +654,9 @@ impl fmt::Display for Inst {
             Self::Await => {
                 write!(fmt, "await")?;
             }
+            Self::Select { len } => {
+                write!(fmt, "select {}", len)?;
+            }
             Self::Pop => {
                 write!(fmt, "pop")?;
             }
@@ -677,6 +707,9 @@ impl fmt::Display for Inst {
             }
             Self::JumpIfNot { offset } => {
                 write!(fmt, "jump-if-not {}", offset)?;
+            }
+            Self::JumpIfBranch { branch, offset } => {
+                write!(fmt, "jump-if-branch {}, {}", branch, offset)?;
             }
             Self::Unit => {
                 write!(fmt, "unit")?;

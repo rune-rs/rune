@@ -411,6 +411,18 @@ pub enum CompileError {
         /// The thing we are taking the reference of.
         span: Span,
     },
+    /// Await has been used in a position where it's not supported.
+    #[error("`await` expression is not supported in this location")]
+    UnsupportedAwait {
+        /// The location of the await.
+        span: Span,
+    },
+    /// Using a pattern that is not supported in a select.
+    #[error("unsupported select pattern")]
+    UnsupportedSelectPattern {
+        /// The span of the pattern.
+        span: Span,
+    },
     /// Error raised when trying to use a break outside of a loop.
     #[error("break expressions cannot be used as a value")]
     BreakOutsideOfLoop {
@@ -476,10 +488,12 @@ impl CompileError {
             Self::MissingModule { span, .. } => span,
             Self::MissingLabel { span, .. } => span,
             Self::UnsupportedRef { span, .. } => span,
+            Self::UnsupportedAwait { span, .. } => span,
             Self::UnsupportedUnaryOp { span, .. } => span,
             Self::UnsupportedBinaryOp { span, .. } => span,
             Self::UnsupportedAssignExpr { span, .. } => span,
             Self::UnsupportedAssignBinOp { span, .. } => span,
+            Self::UnsupportedSelectPattern { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,
             Self::ReturnLocalReferences { span, .. } => span,
             Self::ReturnDoesNotProduceValue { span, .. } => span,

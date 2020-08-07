@@ -453,7 +453,7 @@ macro_rules! impl_register {
                         Ok(())
                     });
 
-                    Future::unsafe_new(Box::into_raw(future))
+                    Future::new_unchecked(Box::into_raw(future))
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -550,7 +550,7 @@ macro_rules! impl_register {
                         Ok(())
                     });
 
-                    Future::unsafe_new(Box::into_raw(future))
+                    Future::new_unchecked(Box::into_raw(future))
                 };
 
                 impl_register!{@return vm, ret, Ret}
