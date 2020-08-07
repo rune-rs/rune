@@ -1,6 +1,6 @@
 [package]
 name = "runestick-http"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -17,7 +17,7 @@ An HTTP module based on reqwest for runestick.
 [dependencies]
 anyhow = "1.0.32"
 reqwest = "0.10.7"
-runestick = {version = "0.2.1", path = "../runestick"}
+runestick = {version = "0.2.2", path = "../runestick"}
 
 [dev-dependencies]
-runestick-json = {version = "0.2.1", path = "../runestick-json"}
+runestick-json = {version = "0.2.2", path = "../runestick-json"}

@@ -1,6 +1,6 @@
 [package]
 name = "rune-cli"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -21,11 +21,11 @@ tokio = {version = "0.2.22", features = ["rt-core", "net", "fs", "macros"]}
 reqwest = "0.10.7"
 env_logger = "0.7.1"
 
-rune = {version = "0.2.1", path = "../rune"}
-runestick = {version = "0.2.1", path = "../runestick"}
-runestick-http = {version = "0.2.1", path = "../runestick-http"}
-runestick-json = {version = "0.2.1", path = "../runestick-json"}
-runestick-time = {version = "0.2.1", path = "../runestick-time"}
+rune = {version = "0.2.2", path = "../rune"}
+runestick = {version = "0.2.2", path = "../runestick"}
+runestick-http = {version = "0.2.2", path = "../runestick-http"}
+runestick-json = {version = "0.2.2", path = "../runestick-json"}
+runestick-time = {version = "0.2.2", path = "../runestick-time"}
 codespan-reporting = "0.9.5"
 
 anyhow = "1.0.32"
