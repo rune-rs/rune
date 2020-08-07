@@ -1,3 +1,4 @@
+use crate::ast;
 use crate::error::ParseError;
 use std::iter::Peekable;
 use std::ops;
@@ -173,6 +174,22 @@ where
             let start = start.ok_or_else(|| ParseError::InvalidTemplateLiteral { span })?;
             return Ok(Span::new(start, n));
         }
+    }
+}
+
+/// Test if the given expression qualifieis as a block end or not, as with a
+/// body in a match expression.
+///
+/// This determines if a comma is necessary or not after the expression.
+pub(crate) fn is_block_end(expr: &ast::Expr, comma: Option<&ast::Comma>) -> bool {
+    match (expr, comma) {
+        (ast::Expr::ExprBlock(..), _) => false,
+        (ast::Expr::ExprFor(..), _) => false,
+        (ast::Expr::ExprWhile(..), _) => false,
+        (ast::Expr::ExprIf(..), _) => false,
+        (ast::Expr::ExprMatch(..), _) => false,
+        (_, Some(..)) => false,
+        (_, None) => true,
     }
 }
 

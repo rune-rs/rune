@@ -1,3 +1,4 @@
+use crate::ast::utils;
 use crate::ast::{CloseBrace, Comma, Expr, If, Match, OpenBrace, Pat, Rocket};
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
@@ -141,16 +142,7 @@ impl Parse for ExprMatch {
                 (_, default_branch) => default_branch,
             };
 
-            let is_end = match (&*branch.body, &comma) {
-                (Expr::ExprBlock(..), _) => false,
-                (Expr::ExprFor(..), _) => false,
-                (Expr::ExprWhile(..), _) => false,
-                (Expr::ExprIf(..), _) => false,
-                (Expr::ExprMatch(..), _) => false,
-                (_, Some(..)) => false,
-                (_, None) => true,
-            };
-
+            let is_end = utils::is_block_end(&*branch.body, comma.as_ref());
             branches.push((branch, comma));
 
             if is_end {

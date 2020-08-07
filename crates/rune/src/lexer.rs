@@ -101,6 +101,7 @@ impl<'a> Lexer<'a> {
             "break" => Kind::Break,
             "return" => Kind::Return,
             "await" => Kind::Await,
+            "select" => Kind::Select,
             _ => Kind::Ident,
         };
 

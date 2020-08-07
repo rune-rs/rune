@@ -296,6 +296,9 @@ impl<'a> Compiler<'a> {
             ast::Expr::ExprAwait(expr_await) => {
                 self.compile_expr_await(expr_await, needs_value)?;
             }
+            ast::Expr::ExprSelect(expr_select) => {
+                self.compile_expr_select(expr_select, needs_value)?;
+            }
             ast::Expr::Ident(ident) => {
                 self.compile_ident(ident, needs_value)?;
             }
@@ -1389,6 +1392,21 @@ impl<'a> Compiler<'a> {
         }
 
         Ok(())
+    }
+
+    /// Compile a select expression.
+    fn compile_expr_select(
+        &mut self,
+        expr_select: &ast::ExprSelect,
+        _needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = expr_select.span();
+        log::trace!("ExprSelect => {:?}", self.source.source(span)?);
+
+        Err(CompileError::internal(
+            "select expressions are not supported yet",
+            span,
+        ))
     }
 
     /// Encode an array pattern match.

@@ -78,6 +78,8 @@ pub enum Expr {
     ExprReturn(ast::ExprReturn),
     /// An await expression.
     ExprAwait(ast::ExprAwait),
+    /// A select expression.
+    ExprSelect(ast::ExprSelect),
 }
 
 impl Expr {
@@ -130,6 +132,7 @@ impl Expr {
             Self::ExprBlock(b) => b.span(),
             Self::ExprReturn(ret) => ret.span(),
             Self::ExprAwait(ret) => ret.span(),
+            Self::ExprSelect(ret) => ret.span(),
         }
     }
 
@@ -198,6 +201,7 @@ impl Expr {
         let token = parser.token_peek_eof()?;
 
         let expr = match token.kind {
+            Kind::Select => Self::ExprSelect(parser.parse()?),
             Kind::Label => {
                 let label = Some((parser.parse::<Label>()?, parser.parse::<Colon>()?));
                 let token = parser.token_peek_eof()?;
@@ -421,6 +425,7 @@ impl Peek for Expr {
         };
 
         match t1.kind {
+            Kind::Select => true,
             Kind::Label => match t2.map(|t| t.kind) {
                 Some(Kind::Colon) => true,
                 _ => false,

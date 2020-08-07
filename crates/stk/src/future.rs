@@ -32,6 +32,13 @@ impl Future {
             future: Some(NonNull::new_unchecked(future)),
         }
     }
+
+    /// Check if future is completed.
+    ///
+    /// This will prevent it from being used in a select expression.
+    pub fn is_completed(&self) -> bool {
+        self.future.is_none()
+    }
 }
 
 impl ToValue for Future {
@@ -43,7 +50,9 @@ impl ToValue for Future {
 
 impl fmt::Debug for Future {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "Future")
+        fmt.debug_struct("Future")
+            .field("is_completed", &self.future.is_none())
+            .finish()
     }
 }
 

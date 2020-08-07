@@ -88,8 +88,10 @@ pub enum Kind {
     Break,
     /// A `return` token.
     Return,
-    /// An `await` keyword.
+    /// The `await` keyword.
     Await,
+    /// The `select` keyword.
+    Select,
     /// An identifier.
     Ident,
     /// A label, like `'loop`.
@@ -202,6 +204,7 @@ impl fmt::Display for Kind {
             Self::Break => write!(fmt, "break")?,
             Self::Return => write!(fmt, "return")?,
             Self::Await => write!(fmt, "await")?,
+            Self::Select => write!(fmt, "select")?,
             Self::Ident => write!(fmt, "ident")?,
             Self::Label => write!(fmt, "label")?,
             Self::LitNumber { .. } => write!(fmt, "number")?,
