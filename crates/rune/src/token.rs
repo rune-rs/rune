@@ -175,6 +175,8 @@ pub enum Kind {
     Gte,
     /// Not operator `!`.
     Not,
+    /// Try operator `?`.
+    Try,
     /// A start object indicator `#{`.
     StartObject,
     /// Double dots `..`.
@@ -237,6 +239,7 @@ impl fmt::Display for Kind {
             Self::Lte => write!(fmt, "<=")?,
             Self::Gte => write!(fmt, ">=")?,
             Self::Not => write!(fmt, "!")?,
+            Self::Try => write!(fmt, "?")?,
             Self::StartObject => write!(fmt, "#{{")?,
             Self::DotDot => write!(fmt, "..")?,
             Self::And => write!(fmt, "&&")?,

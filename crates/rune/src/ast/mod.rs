@@ -30,6 +30,7 @@ mod expr_loop;
 mod expr_match;
 mod expr_return;
 mod expr_select;
+mod expr_try;
 mod expr_unary;
 mod expr_while;
 mod lit_array;
@@ -70,6 +71,7 @@ pub use self::expr_loop::ExprLoop;
 pub use self::expr_match::{ExprMatch, ExprMatchBranch};
 pub use self::expr_return::ExprReturn;
 pub use self::expr_select::ExprSelect;
+pub use self::expr_try::ExprTry;
 pub use self::expr_unary::{ExprUnary, UnaryOp};
 pub use self::expr_while::ExprWhile;
 pub use self::lit_array::LitArray;
@@ -169,6 +171,7 @@ decl_tokens! {
     (DotDot, Kind::DotDot),
     (Await, Kind::Await),
     (Select, Kind::Select),
+    (Try, Kind::Try),
 }
 
 impl<'a> Resolve<'a> for Ident {

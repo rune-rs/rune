@@ -294,6 +294,9 @@ impl<'a> Compiler<'a> {
             ast::Expr::ExprAwait(expr_await) => {
                 self.compile_expr_await(expr_await, needs_value)?;
             }
+            ast::Expr::ExprTry(expr_try) => {
+                self.compile_expr_try(expr_try, needs_value)?;
+            }
             ast::Expr::ExprSelect(expr_select) => {
                 self.compile_expr_select(expr_select, needs_value)?;
             }
@@ -1405,6 +1408,22 @@ impl<'a> Compiler<'a> {
         }
 
         Ok(())
+    }
+
+    /// Compile a try expression.
+    fn compile_expr_try(
+        &mut self,
+        expr_try: &ast::ExprTry,
+        _needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = expr_try.span();
+        log::trace!("ExprTry => {:?}", self.source.source(span)?);
+
+        self.compile_expr(&*expr_try.expr, NeedsValue(true))?;
+        Err(CompileError::internal(
+            "try expressions are not implemented",
+            span,
+        ))
     }
 
     /// Compile a select expression.

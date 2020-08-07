@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::ast::{
     BinOp, CallFn, CallInstanceFn, Colon, Dot, Eq, ExprAwait, ExprBinary, ExprFor, ExprIndexGet,
-    ExprIndexSet, ExprLoop, ExprWhile, Label, LitUnit, OpenParen, Path,
+    ExprIndexSet, ExprLoop, ExprTry, ExprWhile, Label, LitUnit, OpenParen, Path,
 };
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
@@ -80,6 +80,8 @@ pub enum Expr {
     ExprReturn(ast::ExprReturn),
     /// An await expression.
     ExprAwait(ast::ExprAwait),
+    /// Try expression.
+    ExprTry(ast::ExprTry),
     /// A select expression.
     ExprSelect(ast::ExprSelect),
 }
@@ -135,6 +137,7 @@ impl Expr {
             Self::ExprBlock(b) => b.span(),
             Self::ExprReturn(ret) => ret.span(),
             Self::ExprAwait(ret) => ret.span(),
+            Self::ExprTry(ret) => ret.span(),
             Self::ExprSelect(ret) => ret.span(),
         }
     }
@@ -308,9 +311,26 @@ impl Expr {
         mut lhs: Self,
         min_precedence: usize,
     ) -> Result<Self, ParseError> {
-        let mut lookahead = parser.token_peek()?.and_then(BinOp::from_token);
+        let mut lookahead_tok = parser.token_peek()?;
 
         loop {
+            // NB: consume try operators.
+            loop {
+                match lookahead_tok.map(|t| t.kind) {
+                    Some(Kind::Try) => {
+                        lhs = Expr::ExprTry(ExprTry {
+                            expr: Box::new(lhs),
+                            try_: parser.parse()?,
+                        })
+                    }
+                    _ => break,
+                }
+
+                lookahead_tok = parser.token_peek()?;
+            }
+
+            let lookahead = lookahead_tok.and_then(BinOp::from_token);
+
             let (op, token) = match lookahead {
                 Some((op, token)) if op.precedence() >= min_precedence => (op, token),
                 _ => break,
@@ -319,10 +339,10 @@ impl Expr {
             parser.token_next()?;
             let mut rhs = Self::parse_primary(parser, NoIndex(false))?;
 
-            lookahead = parser.token_peek()?.and_then(BinOp::from_token);
+            lookahead_tok = parser.token_peek()?;
 
             loop {
-                let (lh, _) = match lookahead {
+                let (lh, _) = match lookahead_tok.and_then(BinOp::from_token) {
                     Some((lh, _)) if lh.precedence() > op.precedence() => (lh, token),
                     Some((lh, _)) if lh.precedence() == op.precedence() && !lh.is_assoc(op) => {
                         return Err(ParseError::PrecedenceGroupRequired {
@@ -333,7 +353,7 @@ impl Expr {
                 };
 
                 rhs = Self::parse_expr_binary(parser, rhs, lh.precedence())?;
-                lookahead = parser.token_peek()?.and_then(BinOp::from_token);
+                lookahead_tok = parser.token_peek()?;
             }
 
             lhs = match (op, rhs) {
