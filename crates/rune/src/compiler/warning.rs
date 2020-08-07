@@ -32,6 +32,13 @@ pub enum Warning {
         /// The context in which it is used.
         context: Option<Span>,
     },
+    /// Attempt to assign a return to a value.
+    ReturnDoesNotProduceValue {
+        /// The block in which it was used.
+        span: Span,
+        /// The context in which it is used.
+        context: Option<Span>,
+    },
 }
 /// Compilation warnings.
 #[derive(Debug, Clone, Default)]
@@ -74,6 +81,12 @@ impl Warnings {
     pub(super) fn template_without_expansions(&mut self, span: Span, context: Option<Span>) {
         self.warnings
             .push(Warning::TemplateWithoutExpansions { span, context });
+    }
+
+    /// Indicate that we encountered a template string without any expansion groups.
+    pub(super) fn return_does_not_produce_value(&mut self, span: Span, context: Option<Span>) {
+        self.warnings
+            .push(Warning::ReturnDoesNotProduceValue { span, context });
     }
 }
 

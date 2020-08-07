@@ -223,10 +223,8 @@ impl<'a> Compiler<'a> {
         log::trace!("Return => {:?}", self.source.source(span)?);
 
         if *needs_value {
-            return Err(CompileError::ReturnDoesNotProduceValue {
-                block: self.current_block,
-                span,
-            });
+            self.warnings
+                .return_does_not_produce_value(span, self.context());
         }
 
         // NB: we actually want total_var_count here since we need to clean up
@@ -1418,6 +1416,7 @@ impl<'a> Compiler<'a> {
         let span = expr_select.span();
         log::trace!("ExprSelect => {:?}", self.source.source(span)?);
         let len = expr_select.branches.len();
+        self.contexts.push(span);
 
         let mut branches = Vec::new();
 
@@ -1468,6 +1467,11 @@ impl<'a> Compiler<'a> {
         }
 
         self.asm.label(end_label)?;
+
+        self.contexts
+            .pop()
+            .ok_or_else(|| CompileError::internal("missing parent context", span))?;
+
         Ok(())
     }
 
