@@ -43,6 +43,7 @@ mod vm;
 #[macro_use]
 mod macros;
 mod error;
+mod future;
 mod hash;
 pub mod packages;
 mod reflection;
@@ -56,6 +57,7 @@ pub use crate::context::{
     ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, MUL, MUL_ASSIGN, NEXT, SUB, SUB_ASSIGN,
 };
 pub use crate::error::{Error, Result};
+pub use crate::future::Future;
 pub use crate::hash::Hash;
 pub use crate::reflection::{
     FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue, UnsafeToValue,

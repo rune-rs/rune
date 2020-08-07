@@ -8,6 +8,7 @@ use std::fs;
 use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use stk::unit::{LinkerError, LinkerErrors, Span};
 use thiserror::Error;
 
@@ -105,9 +106,7 @@ pub enum DiagnosticsError {
 
 /// A rune runtime, which simplifies embedding and using rune.
 pub struct Runtime {
-    /// The underlying virtual machine.
-    vm: stk::Vm,
-    context: stk::Context,
+    context: Arc<stk::Context>,
     files: SlabFiles,
     options: Options,
     errors: Vec<(usize, RuntimeError)>,
@@ -117,7 +116,9 @@ pub struct Runtime {
 impl Runtime {
     /// Construct a new runtime with the default context.
     pub fn new() -> Result<Self, stk::ContextError> {
-        Ok(Self::with_context(stk::Context::with_default_packages()?))
+        Ok(Self::with_context(Arc::new(
+            stk::Context::with_default_packages()?,
+        )))
     }
 
     /// Indicate that the runtime has issues it can report with
@@ -127,10 +128,9 @@ impl Runtime {
     }
 
     /// Construct a new runtime with a custom context.
-    pub fn with_context(context: stk::Context) -> Self {
+    pub fn with_context(context: Arc<stk::Context>) -> Self {
         Self {
             context,
-            vm: stk::Vm::new(),
             files: SlabFiles::new(),
             options: crate::Options::default(),
             errors: Vec::new(),
@@ -138,26 +138,21 @@ impl Runtime {
         }
     }
 
-    /// Access the underlying virtual machine of the runtime.
-    pub fn vm(&self) -> &stk::Vm {
-        &self.vm
-    }
-
     /// Access the underlying context of the runtime.
     pub fn context(&self) -> &stk::Context {
-        &self.context
+        &*self.context
     }
 
     /// Get the unit associated with the given file id.
-    pub fn unit(&self, file_id: usize) -> Option<&stk::CompilationUnit> {
-        self.files.get(file_id)?.unit.as_ref()
+    pub fn unit(&self, file_id: usize) -> Option<Arc<stk::CompilationUnit>> {
+        self.files.get(file_id)?.unit.as_ref().cloned()
     }
 
     /// Call the given function in the given named file.
     ///
     /// Returns the associated task and the file id associated with the unit.
     pub fn call_function<'a, A, T, I>(
-        &'a mut self,
+        &'a self,
         file_id: usize,
         name: I,
         args: A,
@@ -172,9 +167,11 @@ impl Runtime {
             .files
             .get(file_id)
             .and_then(|file| file.unit.as_ref())
+            .cloned()
             .ok_or_else(|| CallFunctionError::MissingUnit { file_id })?;
 
-        Ok(self.vm.call_function(&self.context, unit, name, args)?)
+        let vm = stk::Vm::new(unit);
+        Ok(vm.call_function(self.context.clone(), name, args)?)
     }
 
     /// Register the runtime error.
@@ -182,6 +179,7 @@ impl Runtime {
     /// If we don't have debuginfo, returns Err with the passed in error.
     pub fn register_vm_error(
         &mut self,
+        ip: usize,
         file_id: usize,
         error: stk::VmError,
     ) -> Result<(), stk::VmError> {
@@ -190,7 +188,7 @@ impl Runtime {
             None => return Err(error),
         };
 
-        if let Some(debug) = unit.debug_info_at(self.vm.ip()) {
+        if let Some(debug) = unit.debug_info_at(ip) {
             self.errors.push((
                 file_id,
                 RuntimeError::VmError {
@@ -257,13 +255,13 @@ impl Runtime {
         let mut errors = LinkerErrors::new();
 
         if !unit.link(&self.context, &mut errors) {
-            file.unit = Some(unit);
+            file.unit = Some(Arc::new(unit));
             self.errors
                 .push((file_id, RuntimeError::LinkError { errors }));
             return Err(LoadError::LinkError);
         }
 
-        file.unit = Some(unit);
+        file.unit = Some(Arc::new(unit));
         Ok(file_id)
     }
 
@@ -448,7 +446,7 @@ impl Runtime {
 
 struct File {
     file: SimpleFile<String, String>,
-    unit: Option<stk::CompilationUnit>,
+    unit: Option<Arc<stk::CompilationUnit>>,
 }
 
 struct SlabFiles {

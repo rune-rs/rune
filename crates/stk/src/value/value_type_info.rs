@@ -29,6 +29,8 @@ pub enum ValueTypeInfo {
     Ptr,
     /// A function.
     Fn(Hash),
+    /// A future.
+    Future,
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -69,6 +71,9 @@ impl fmt::Display for ValueTypeInfo {
             }
             ValueTypeInfo::Fn(hash) => {
                 write!(fmt, "fn({})", hash)?;
+            }
+            ValueTypeInfo::Future => {
+                write!(fmt, "future")?;
             }
         }
 

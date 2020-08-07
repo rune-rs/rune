@@ -203,7 +203,24 @@ pub enum Inst {
         /// The number to push.
         number: f64,
     },
-    /// Pop the value on the stack.
+    /// Await the future that is on the stack and push the value that it
+    /// produces.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <future>
+    /// => <value>
+    /// ```
+    Await,
+    /// Pop the value on the stack, discarding its result.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// =>
+    /// ```
     Pop,
     /// Pop the given number of elements from the stack.
     ///
@@ -606,6 +623,9 @@ impl fmt::Display for Inst {
             }
             Self::Float { number } => {
                 write!(fmt, "float {}", number)?;
+            }
+            Self::Await => {
+                write!(fmt, "await")?;
             }
             Self::Pop => {
                 write!(fmt, "pop")?;

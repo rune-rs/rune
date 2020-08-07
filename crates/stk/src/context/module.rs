@@ -1,15 +1,15 @@
 use crate::collections::HashMap;
+use crate::future::Future;
 use crate::hash::Hash;
 use crate::reflection::{ReflectValueType, ToValue, UnsafeFromValue};
 use crate::tls;
-use crate::unit::CompilationUnit;
 use crate::value::{ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 use std::any::type_name;
-use std::future::Future;
+use std::future;
 
 use crate::context::item::Item;
-use crate::context::{BoxFuture, ContextError, Handler, IntoInstFnHash};
+use crate::context::{ContextError, Handler, IntoInstFnHash};
 
 /// A collection of functions that can be looked up by type.
 #[derive(Default)]
@@ -95,7 +95,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler = Handler::Regular(Box::new(move |vm, unit, args| f.vm_call(vm, unit, args)));
+        let handler: Handler = Box::new(move |vm, args| f.vm_call(vm, args));
         self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
@@ -127,7 +127,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler = Handler::Async(Box::new(move |vm, unit, args| f.vm_call(vm, unit, args)));
+        let handler: Handler = Box::new(move |vm, args| f.vm_call(vm, args));
         self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
@@ -136,11 +136,7 @@ impl Module {
     /// machine.
     pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
     where
-        for<'vm> F: 'static
-            + Copy
-            + Fn(&'vm mut Vm, &'vm CompilationUnit, usize) -> Result<(), VmError>
-            + Send
-            + Sync,
+        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), VmError> + Send + Sync,
         N: IntoIterator,
         N::Item: AsRef<str>,
     {
@@ -150,31 +146,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler = Handler::Regular(Box::new(move |vm, unit, args| f(vm, unit, args)));
-        self.functions.insert(name, (handler, None));
-        Ok(())
-    }
-
-    /// Register a raw function which interacts directly with the virtual
-    /// machine.
-    pub fn async_raw_fn<F, O, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
-    where
-        for<'vm> F:
-            'static + Copy + Fn(&'vm mut Vm, &'vm CompilationUnit, usize) -> O + Send + Sync,
-        O: Future<Output = Result<(), VmError>>,
-        N: IntoIterator,
-        N::Item: AsRef<str>,
-    {
-        let name = Item::of(name);
-
-        if self.functions.contains_key(&name) {
-            return Err(ContextError::ConflictingFunctionName { name });
-        }
-
-        let handler = Handler::Async(Box::new(move |vm, unit, args| {
-            Box::pin(async move { f(vm, unit, args).await })
-        }));
-
+        let handler: Handler = Box::new(move |vm, args| f(vm, args));
         self.functions.insert(name, (handler, None));
         Ok(())
     }
@@ -225,7 +197,7 @@ impl Module {
             return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
-        let handler = Handler::Regular(Box::new(move |vm, unit, args| f.vm_call(vm, unit, args)));
+        let handler: Handler = Box::new(move |vm, args| f.vm_call(vm, args));
 
         self.instance_functions
             .insert(key.clone(), (handler, Some(Func::args()), type_info, name));
@@ -276,7 +248,7 @@ impl Module {
             return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
-        let handler = Handler::Async(Box::new(move |vm, unit, args| f.vm_call(vm, unit, args)));
+        let handler: Handler = Box::new(move |vm, args| f.vm_call(vm, args));
 
         self.instance_functions
             .insert(key.clone(), (handler, Some(Func::args()), type_info, name));
@@ -350,7 +322,7 @@ pub trait Function<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, unit: &CompilationUnit, args: usize) -> Result<(), VmError>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_function][Context::async_function] function.
@@ -359,12 +331,7 @@ pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn vm_call<'vm>(
-        self,
-        vm: &'vm mut Vm,
-        unit: &'vm CompilationUnit,
-        args: usize,
-    ) -> BoxFuture<'vm, Result<(), VmError>>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [inst_fn][Context::inst_fn] function.
@@ -379,7 +346,7 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     fn instance_value_type_info() -> ValueTypeInfo;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, unit: &CompilationUnit, args: usize) -> Result<(), VmError>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_inst_fn][Context::async_inst_fn] function.
@@ -394,12 +361,7 @@ pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
     fn instance_value_type_info() -> ValueTypeInfo;
 
     /// Perform the vm call.
-    fn vm_call<'vm>(
-        self,
-        vm: &'vm mut Vm,
-        unit: &'vm CompilationUnit,
-        args: usize,
-    ) -> BoxFuture<'vm, Result<(), VmError>>;
+    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
 }
 
 macro_rules! impl_register {
@@ -427,10 +389,9 @@ macro_rules! impl_register {
             fn vm_call(
                 self,
                 vm: &mut Vm,
-                unit: &CompilationUnit,
                 args: usize
             ) -> Result<(), VmError> {
-                impl_register!{@args $count, args}
+                impl_register!{@check-args $count, args}
 
                 $(let $var = vm.pop()?;)*
 
@@ -439,10 +400,10 @@ macro_rules! impl_register {
                 //
                 // The scope is also necessary, since we mutably access `vm`
                 // when we return below.
-                #[allow(unused_unsafe)]
+                #[allow(unused)]
                 let ret = unsafe {
-                    impl_register!{@vars vm, unit, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, unit, || self($($var.0,)*)).into_vm_result()?
+                    impl_register!{@unsafe-vars vm, $count, $($ty, $var, $num,)*}
+                    tls::inject_vm(vm, || self($(<$ty>::to_arg($var.0),)*)).into_vm_result()?
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -453,39 +414,50 @@ macro_rules! impl_register {
         impl<Func, Ret, $($ty,)*> AsyncFunction<($($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
-            Ret: Future,
+            Ret: future::Future,
             Ret::Output: IntoVmResult,
-            $($ty: UnsafeFromValue,)*
+            $($ty: 'static + UnsafeFromValue,)*
         {
             fn args() -> usize {
                 $count
             }
 
-            fn vm_call<'vm>(
+            fn vm_call(
                 self,
-                vm: &'vm mut Vm,
-                unit: &'vm CompilationUnit,
+                vm: &mut Vm,
                 args: usize
-            ) -> BoxFuture<'vm, Result<(), VmError>> {
-                Box::pin(async move {
-                    impl_register!{@args $count, args}
+            ) -> Result<(), VmError> {
+                impl_register!{@check-args $count, args}
+                $(let $var = vm.pop()?;)*
 
-                    $(let $var = vm.pop()?;)*
+                // Safety: Future is owned and will only be called within the
+                // context of the virtual machine, which will provide
+                // exclusive thread-local access to itself while the future is
+                // being polled.
+                let ret = unsafe {
+                    let future: Box<dyn future::Future<Output = Result<(), VmError>>> = Box::new(async move {
+                        #[allow(unused)]
+                        let ($($var,)*) = tls::with_vm(|vm| {
+                            impl_register!{@unsafe-vars vm, $count, $($ty, $var, $num,)*}
+                            Ok::<_, VmError>(($($var,)*))
+                        })?;
 
-                    // Safety: We hold a reference to the Vm, so we can
-                    // guarantee that it won't be modified.
-                    //
-                    // The scope is also necessary, since we mutably access `vm`
-                    // when we return below.
-                    #[allow(unused_unsafe)]
-                    let ret = unsafe {
-                        impl_register!{@vars vm, unit, $count, $($ty, $var, $num,)*}
-                        tls::InjectVm::new(vm, unit, self($($var.0,)*)).await.into_vm_result()?
-                    };
+                        let output = self($(<$ty>::to_arg($var.0),)*).await.into_vm_result()?;
 
-                    impl_register!{@return vm, ret, Ret}
-                    Ok(())
-                })
+                        tls::with_vm(|vm| {
+                            let value = output.to_value(vm)?;
+                            vm.push(value);
+                            Ok::<_, VmError>(())
+                        })?;
+
+                        Ok(())
+                    });
+
+                    Future::unsafe_new(Box::into_raw(future))
+                };
+
+                impl_register!{@return vm, ret, Ret}
+                Ok(())
             }
         }
 
@@ -508,8 +480,8 @@ macro_rules! impl_register {
                 Inst::value_type_info()
             }
 
-            fn vm_call(self, vm: &mut Vm, unit: &CompilationUnit, args: usize) -> Result<(), VmError> {
-                impl_register!{@args $count, args}
+            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
+                impl_register!{@check-args $count, args}
 
                 let inst = vm.pop()?;
                 $(let $var = vm.pop()?;)*
@@ -519,10 +491,10 @@ macro_rules! impl_register {
                 //
                 // The scope is also necessary, since we mutably access `vm`
                 // when we return below.
-                #[allow(unused_unsafe)]
+                #[allow(unused)]
                 let ret = unsafe {
-                    impl_register!{@unsafeinstancevars inst, vm, unit, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, unit, || self(inst.0, $($var.0,)*)).into_vm_result()?
+                    impl_register!{@unsafe-inst-vars inst, vm, $count, $($ty, $var, $num,)*}
+                    tls::inject_vm(vm, || self(Inst::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*)).into_vm_result()?
                 };
 
                 impl_register!{@return vm, ret, Ret}
@@ -533,7 +505,7 @@ macro_rules! impl_register {
         impl<Func, Ret, Inst, $($ty,)*> AsyncInstFn<(Inst, $($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Ret,
-            Ret: Future,
+            Ret: future::Future,
             Ret::Output: IntoVmResult,
             Inst: UnsafeFromValue + ReflectValueType,
             $($ty: UnsafeFromValue,)*
@@ -550,27 +522,39 @@ macro_rules! impl_register {
                 Inst::value_type_info()
             }
 
-            fn vm_call<'vm>(self, vm: &'vm mut Vm, unit: &'vm CompilationUnit, args: usize) -> BoxFuture<'vm, Result<(), VmError>> {
-                Box::pin(async move {
-                    impl_register!{@args $count, args}
+            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
+                impl_register!{@check-args $count, args}
+                let inst = vm.pop()?;
+                $(let $var = vm.pop()?;)*
 
-                    let inst = vm.pop()?;
-                    $(let $var = vm.pop()?;)*
+                // Safety: Future is owned and will only be called within the
+                // context of the virtual machine, which will provide
+                // exclusive thread-local access to itself while the future is
+                // being polled.
+                #[allow(unused)]
+                let ret = unsafe {
+                    let future: Box<dyn future::Future<Output = Result<(), VmError>>> = Box::new(async move {
+                        let (inst, $($var,)*) = tls::with_vm(|vm| {
+                            impl_register!{@unsafe-inst-vars inst, vm, $count, $($ty, $var, $num,)*}
+                            Ok((inst, $($var,)*))
+                        })?;
 
-                    // Safety: We hold a reference to the Vm, so we can
-                    // guarantee that it won't be modified.
-                    //
-                    // The scope is also necessary, since we mutably access `vm`
-                    // when we return below.
-                    #[allow(unused_unsafe)]
-                    let ret = unsafe {
-                        impl_register!{@unsafeinstancevars inst, vm, unit, $count, $($ty, $var, $num,)*}
-                        tls::InjectVm::new(vm, unit, self(inst.0, $($var.0,)*)).await.into_vm_result()?
-                    };
+                        let output = self(Inst::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*).await.into_vm_result()?;
 
-                    impl_register!{@return vm, ret, Ret}
-                    Ok(())
-                })
+                        tls::with_vm(|vm| {
+                            let value = output.to_value(vm)?;
+                            vm.push(value);
+                            Ok::<_, VmError>(())
+                        })?;
+
+                        Ok(())
+                    });
+
+                    Future::unsafe_new(Box::into_raw(future))
+                };
+
+                impl_register!{@return vm, ret, Ret}
+                Ok(())
             }
         }
     };
@@ -590,9 +574,9 @@ macro_rules! impl_register {
     };
 
     // Expand to function variable bindings.
-    (@vars $vm:expr, $unit:expr, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
+    (@unsafe-vars $vm:expr, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         $(
-            let $var = match <$ty>::unsafe_from_value($var, $vm, $unit) {
+            let $var = match <$ty>::unsafe_from_value($var, $vm) {
                 Ok(v) => v,
                 Err(error) => {
                     let ty = $var.type_info($vm)?;
@@ -609,8 +593,8 @@ macro_rules! impl_register {
     };
 
     // Expand to instance variable bindings.
-    (@unsafeinstancevars $inst:ident, $vm:expr, $unit:expr, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
-        let $inst = match Inst::unsafe_from_value($inst, $vm, $unit) {
+    (@unsafe-inst-vars $inst:ident, $vm:expr, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
+        let $inst = match Inst::unsafe_from_value($inst, $vm) {
             Ok(v) => v,
             Err(error) => {
                 let ty = $inst.type_info($vm)?;
@@ -625,7 +609,7 @@ macro_rules! impl_register {
         };
 
         $(
-            let $var = match <$ty>::unsafe_from_value($var, $vm, $unit) {
+            let $var = match <$ty>::unsafe_from_value($var, $vm) {
                 Ok(v) => v,
                 Err(error) => {
                     let ty = $var.type_info($vm)?;
@@ -641,7 +625,7 @@ macro_rules! impl_register {
         )*
     };
 
-    (@args $expected:expr, $actual:expr) => {
+    (@check-args $expected:expr, $actual:expr) => {
         if $actual != $expected {
             return Err(VmError::ArgumentCountMismatch {
                 actual: $actual,

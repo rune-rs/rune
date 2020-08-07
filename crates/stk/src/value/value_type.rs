@@ -28,6 +28,8 @@ pub enum ValueType {
     Ptr,
     /// A function pointer.
     Fn(Hash),
+    /// A future.
+    Future,
 }
 
 #[cfg(test)]

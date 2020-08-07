@@ -1,5 +1,6 @@
 use crate::any::Any;
 use crate::collections::HashMap;
+use crate::future::Future;
 use crate::hash::Hash;
 
 #[derive(Debug)]
@@ -27,4 +28,6 @@ pub enum Value {
     Type(Hash),
     /// A function.
     Fn(Hash),
+    /// A future in the virtual machine.
+    Future(Future),
 }

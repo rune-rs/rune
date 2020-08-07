@@ -1,5 +1,6 @@
 use crate::any::Any;
 use crate::collections::HashMap;
+use crate::future::Future;
 use crate::hash::Hash;
 use crate::vm::Ref;
 
@@ -30,4 +31,6 @@ pub enum ValueRef<'vm> {
     Type(Hash),
     /// A function.
     Fn(Hash),
+    /// A future.
+    Future(Ref<'vm, Future>),
 }

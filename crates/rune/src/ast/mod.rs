@@ -14,6 +14,7 @@ mod decl_file;
 mod decl_fn;
 mod decl_use;
 mod expr;
+mod expr_await;
 mod expr_binary;
 mod expr_block;
 mod expr_break;
@@ -52,6 +53,7 @@ pub use self::decl_file::DeclFile;
 pub use self::decl_fn::DeclFn;
 pub use self::decl_use::DeclUse;
 pub use self::expr::Expr;
+pub use self::expr_await::ExprAwait;
 pub use self::expr_binary::{BinOp, ExprBinary};
 pub use self::expr_block::ExprBlock;
 pub use self::expr_break::{ExprBreak, ExprBreakValue};
@@ -163,6 +165,7 @@ decl_tokens! {
     (Rocket, Kind::Rocket),
     (StartObject, Kind::StartObject),
     (DotDot, Kind::DotDot),
+    (Await, Kind::Await),
 }
 
 impl<'a> Resolve<'a> for Ident {

@@ -99,16 +99,20 @@ impl Bytes {
 decl_external!(Bytes);
 
 impl<'a> crate::UnsafeFromValue for &'a [u8] {
+    type Output = *const [u8];
     type Guard = RawRefGuard;
 
     unsafe fn unsafe_from_value(
         value: crate::ValuePtr,
         vm: &mut crate::Vm,
-        _: &crate::CompilationUnit,
-    ) -> Result<(Self, Self::Guard), crate::VmError> {
+    ) -> Result<(Self::Output, Self::Guard), crate::VmError> {
         let slot = value.into_external(vm)?;
         let (value, guard) = crate::Ref::unsafe_into_ref(vm.external_ref::<Bytes>(slot)?);
-        Ok((value.bytes.as_slice(), guard))
+        Ok(((*value).bytes.as_slice(), guard))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &*output
     }
 }
 

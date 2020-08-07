@@ -96,9 +96,8 @@ impl<'a, T: ?Sized> Ref<'a, T> {
     /// The returned reference must not outlive the VM that produced it.
     /// Calling [disarm][Vm::disarm] must not be done until all referenced
     /// produced through these methods are no longer live.
-    pub unsafe fn unsafe_into_ref<'out>(this: Self) -> (&'out T, RawRefGuard) {
-        let value = &*(this.value as *const _);
-        (value, this.raw)
+    pub unsafe fn unsafe_into_ref(this: Self) -> (*const T, RawRefGuard) {
+        (this.value, this.raw)
     }
 }
 
@@ -152,9 +151,8 @@ impl<'a, T: ?Sized> Mut<'a, T> {
     /// The returned reference must not outlive the VM that produced it.
     /// Calling [disarm][Vm::disarm] must not be done until all referenced
     /// produced through these methods are no longer live.
-    pub unsafe fn unsafe_into_mut<'out>(this: Self) -> (&'out mut T, RawMutGuard) {
-        let value = &mut *(this.value as *mut _);
-        (value, this.raw)
+    pub unsafe fn unsafe_into_mut(this: Self) -> (*mut T, RawMutGuard) {
+        (this.value, this.raw)
     }
 }
 

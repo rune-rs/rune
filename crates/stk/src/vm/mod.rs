@@ -1,8 +1,10 @@
 use crate::any::Any;
 use crate::collections::HashMap;
-use crate::context::{Context, Handler};
+use crate::context::Context;
+use crate::future::Future;
 use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
+use crate::tls;
 use crate::unit::CompilationUnit;
 use crate::value::{Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
 use slab::Slab;
@@ -11,6 +13,7 @@ use std::cell::UnsafeCell;
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
+use std::sync::Arc;
 use thiserror::Error;
 
 mod access;
@@ -405,6 +408,12 @@ pub enum VmError {
         /// The actual type observed instead.
         actual: ValueTypeInfo,
     },
+    /// Error raised when we expected a future.
+    #[error("expected future, but found `{actual}`")]
+    ExpectedFuture {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
     /// Error raised when we expected a managed value with a specific slot.
     #[error("slot type is incompatible with expected")]
     IncompatibleSlot,
@@ -492,7 +501,7 @@ macro_rules! check_float {
 
 /// Generate a primitive combination of operations.
 macro_rules! numeric_ops {
-    ($vm:expr, $unit:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
+    ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => {
                 $vm.push(ValuePtr::Integer({
@@ -522,13 +531,7 @@ macro_rules! numeric_ops {
 
                 $vm.push(rhs);
                 $vm.push(lhs);
-
-                let result = match handler {
-                    Handler::Async(handler) => handler($vm, $unit, 1).await,
-                    Handler::Regular(handler) => handler($vm, $unit, 1),
-                };
-
-                result?;
+                handler($vm, 1)?;
             },
         }
     }
@@ -536,7 +539,7 @@ macro_rules! numeric_ops {
 
 /// Generate a primitive combination of operations.
 macro_rules! assign_ops {
-    ($vm:expr, $unit:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
+    ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
             (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer({
                 match $a.$checked_op($b) {
@@ -564,12 +567,7 @@ macro_rules! assign_ops {
 
                 $vm.push(rhs);
                 $vm.push(lhs);
-
-                match handler {
-                    Handler::Async(handler) => handler($vm, $unit, 1).await?,
-                    Handler::Regular(handler) => handler($vm, $unit, 1)?,
-                };
-
+                handler($vm, 1)?;
                 $vm.pop()?;
                 lhs
             }
@@ -606,10 +604,10 @@ struct CallFrame {
 }
 
 macro_rules! call_fn {
-    ($vm:expr, $unit:expr, $hash:expr, $args:expr, $context:expr,  $update_ip:ident) => {
+    ($vm:expr, $hash:expr, $args:expr, $context:expr,  $update_ip:ident) => {
         let hash = $hash;
 
-        match $unit.lookup_offset(hash) {
+        match $vm.unit.lookup_offset(hash) {
             Some(loc) => {
                 $vm.push_call_frame(loc, $args)?;
                 $update_ip = false;
@@ -619,12 +617,7 @@ macro_rules! call_fn {
                     .lookup(hash)
                     .ok_or_else(|| VmError::MissingFunction { hash })?;
 
-                let result = match handler {
-                    Handler::Async(handler) => handler($vm, $unit, $args).await,
-                    Handler::Regular(handler) => handler($vm, $unit, $args),
-                };
-
-                result?;
+                handler($vm, $args)?;
             }
         }
     };
@@ -649,11 +642,7 @@ macro_rules! impl_slot_functions {
         /// pushed on the stack using [push], rather than
         /// [push.
         pub fn $allocate_fn(&mut self, value: $ty) -> ValuePtr {
-            let generation = self.generation();
-            ValuePtr::$slot(Slot::new(
-                generation,
-                self.internal_allocate(generation, value),
-            ))
+            ValuePtr::$slot(self.slot_allocate(value))
         }
 
         /// Get a reference of the value at the given slot.
@@ -680,136 +669,63 @@ macro_rules! impl_slot_functions {
     };
 }
 
-/// A stack which references variables indirectly from a slab.
-pub struct Vm {
-    /// The current instruction pointer.
-    ip: usize,
-    /// The top of the current frame.
-    stack_top: usize,
-    /// We have exited from the last frame.
-    exited: bool,
+#[derive(Debug)]
+pub struct Stack {
     /// The current stack of values.
     stack: Vec<ValuePtr>,
-    /// Frames relative to the stack.
-    call_frames: Vec<CallFrame>,
-    /// Slots with external values.
-    slots: Slab<Holder>,
-    /// Generation used for allocated objects.
-    generation: usize,
+    /// The top of the current stack frame.
+    stack_top: usize,
 }
 
-impl Vm {
-    /// Construct a new stk virtual machine.
+impl Stack {
+    /// Construct a new stack.
     pub fn new() -> Self {
         Self {
-            ip: 0,
-            stack_top: 0,
-            exited: false,
             stack: Vec::new(),
-            call_frames: Vec::new(),
-            slots: Slab::new(),
-            generation: 0,
+            stack_top: 0,
         }
     }
 
-    /// Reset this virtual machine, freeing all memory used.
+    /// Clear the current stack.
     pub fn clear(&mut self) {
-        self.ip = 0;
-        self.stack_top = 0;
-        self.exited = false;
         self.stack.clear();
-        self.call_frames.clear();
-        self.slots.clear();
-        self.generation = 0;
+        self.stack_top = 0;
     }
 
-    /// Access the current instruction pointer.
-    pub fn ip(&self) -> usize {
-        self.ip
+    /// Peek the top of the stack.
+    fn peek(&mut self) -> Result<ValuePtr, VmError> {
+        self.stack
+            .last()
+            .copied()
+            .ok_or_else(|| VmError::StackEmpty)
     }
 
-    /// Modify the current instruction pointer.
-    pub fn modify_ip(&mut self, offset: isize) -> Result<(), VmError> {
-        let ip = if offset < 0 {
-            self.ip.checked_sub(-offset as usize)
-        } else {
-            self.ip.checked_add(offset as usize)
+    /// Get the last position on the stack.
+    pub fn last(&self) -> Result<ValuePtr, VmError> {
+        self.stack
+            .last()
+            .copied()
+            .ok_or_else(|| VmError::StackEmpty)
+    }
+
+    /// Access the value at the given frame offset.
+    fn at_offset(&self, offset: usize) -> Result<ValuePtr, VmError> {
+        self.stack_top
+            .checked_add(offset)
+            .and_then(|n| self.stack.get(n).copied())
+            .ok_or_else(|| VmError::StackOutOfBounds)
+    }
+
+    /// Get the offset at the given location.
+    fn at_offset_mut(&mut self, offset: usize) -> Result<&mut ValuePtr, VmError> {
+        let n = match self.stack_top.checked_add(offset) {
+            Some(n) => n,
+            None => return Err(VmError::StackOutOfBounds),
         };
 
-        self.ip = ip.ok_or_else(|| VmError::IpOutOfBounds)?;
-        Ok(())
-    }
-
-    /// Iterate over the stack, producing the value associated with each stack
-    /// item.
-    pub fn iter_stack_debug<'vm>(
-        &'vm self,
-        unit: &'vm CompilationUnit,
-    ) -> impl Iterator<Item = (ValuePtr, Result<ValueRef<'vm>, VmError>)> + 'vm {
-        let mut it = self.stack.iter().copied();
-
-        std::iter::from_fn(move || {
-            let value_ref = it.next()?;
-            let value = self.value_ref(unit, value_ref);
-            Some((value_ref, value))
-        })
-    }
-
-    /// Call the given function in the given compilation unit.
-    pub fn call_function<'a, A: 'a, T, I>(
-        &'a mut self,
-        context: &'a Context,
-        unit: &'a CompilationUnit,
-        name: I,
-        args: A,
-    ) -> Result<Task<'a, T>, VmError>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-        A: IntoArgs,
-        T: FromValue,
-    {
-        let hash = Hash::function(name);
-
-        let function = unit
-            .lookup(hash)
-            .ok_or_else(|| VmError::MissingFunction { hash })?;
-
-        if function.signature.args != A::count() {
-            return Err(VmError::ArgumentCountMismatch {
-                actual: A::count(),
-                expected: function.signature.args,
-            });
-        }
-
-        // Safety: we bind the lifetime of the arguments to the outgoing task,
-        // ensuring that the task won't outlive any potentially passed in
-        // references.
-        unsafe {
-            args.into_args(self)?;
-        }
-
-        self.ip = function.offset;
-        self.stack_top = 0;
-
-        Ok(Task {
-            vm: self,
-            context,
-            unit,
-            _marker: PhantomData,
-        })
-    }
-
-    /// Run the given program on the virtual machine.
-    pub fn run<'a, T>(&'a mut self, context: &'a Context, unit: &'a CompilationUnit) -> Task<'a, T>
-    where
-        T: FromValue,
-    {
-        Task {
-            vm: self,
-            context,
-            unit,
-            _marker: PhantomData,
+        match self.stack.get_mut(n) {
+            Some(value) => Ok(value),
+            None => Err(VmError::StackOutOfBounds),
         }
     }
 
@@ -831,16 +747,192 @@ impl Vm {
         self.stack.pop().ok_or_else(|| VmError::StackEmpty)
     }
 
+    /// Get the length of the stack.
+    pub fn len(&self) -> usize {
+        self.stack.len()
+    }
+
+    /// Iterate over the stack.
+    pub fn iter(&self) -> impl Iterator<Item = ValuePtr> + '_ {
+        self.stack.iter().copied()
+    }
+}
+
+/// A stack which references variables indirectly from a slab.
+pub struct Vm {
+    /// The current instruction pointer.
+    ip: usize,
+    /// The current stack.
+    stack: Stack,
+    /// We have exited from the last frame.
+    exited: bool,
+    /// Frames relative to the stack.
+    call_frames: Vec<CallFrame>,
+    /// Slots with external values.
+    slots: Slab<Holder>,
+    /// Generation used for allocated objects.
+    generation: usize,
+    /// The compilation unit associated with the virtual machine.
+    pub(crate) unit: Arc<CompilationUnit>,
+}
+
+impl Vm {
+    /// Construct a new stk virtual machine.
+    pub fn new(unit: Arc<CompilationUnit>) -> Self {
+        Self {
+            ip: 0,
+            stack: Stack::new(),
+            exited: false,
+            call_frames: Vec::new(),
+            slots: Slab::new(),
+            generation: 0,
+            unit,
+        }
+    }
+
+    /// Access the underlying compilation unit.
+    pub fn unit(&self) -> &CompilationUnit {
+        &*self.unit
+    }
+
+    /// Reset this virtual machine, freeing all memory used.
+    pub fn clear(&mut self) {
+        self.ip = 0;
+        self.exited = false;
+        self.stack.clear();
+        self.call_frames.clear();
+        self.slots.clear();
+        self.generation = 0;
+    }
+
+    /// Push an unmanaged reference.
+    ///
+    /// The reference count of the value being referenced won't be modified.
+    pub fn push(&mut self, value: ValuePtr) {
+        self.stack.push(value);
+    }
+
+    /// Pop a reference to a value from the stack.
+    pub fn pop(&mut self) -> Result<ValuePtr, VmError> {
+        self.stack.pop()
+    }
+
+    /// Access the current instruction pointer.
+    pub fn ip(&self) -> usize {
+        self.ip
+    }
+
+    /// Modify the current instruction pointer.
+    pub fn modify_ip(&mut self, offset: isize) -> Result<(), VmError> {
+        let ip = if offset < 0 {
+            self.ip.checked_sub(-offset as usize)
+        } else {
+            self.ip.checked_add(offset as usize)
+        };
+
+        self.ip = ip.ok_or_else(|| VmError::IpOutOfBounds)?;
+        Ok(())
+    }
+
+    /// Iterate over the stack, producing the value associated with each stack
+    /// item.
+    pub fn iter_stack_debug(
+        &self,
+    ) -> impl Iterator<Item = (ValuePtr, Result<ValueRef<'_>, VmError>)> + '_ {
+        let mut it = self.stack.iter();
+
+        std::iter::from_fn(move || {
+            let value_ref = it.next()?;
+            let value = self.value_ref(value_ref);
+            Some((value_ref, value))
+        })
+    }
+
+    /// Call the given function in the given compilation unit.
+    pub fn call_function<'a, A: 'a, T, I>(
+        mut self,
+        context: Arc<Context>,
+        name: I,
+        args: A,
+    ) -> Result<Task<'a, T>, VmError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+        A: 'a + IntoArgs,
+        T: FromValue,
+    {
+        let hash = Hash::function(name);
+
+        let function = self
+            .unit
+            .lookup(hash)
+            .ok_or_else(|| VmError::MissingFunction { hash })?;
+
+        if function.signature.args != A::count() {
+            return Err(VmError::ArgumentCountMismatch {
+                actual: A::count(),
+                expected: function.signature.args,
+            });
+        }
+
+        self.ip = function.offset;
+        self.stack.clear();
+
+        // Safety: we bind the lifetime of the arguments to the outgoing task,
+        // ensuring that the task won't outlive any potentially passed in
+        // references.
+        unsafe {
+            args.into_args(&mut self)?;
+        }
+
+        Ok(Task {
+            vm: self,
+            context,
+            _marker: PhantomData,
+        })
+    }
+
+    /// Run the given program on the virtual machine.
+    pub fn run<'a, T>(self, context: Arc<Context>) -> Task<'a, T>
+    where
+        T: FromValue,
+    {
+        Task {
+            vm: self,
+            context,
+            _marker: PhantomData,
+        }
+    }
+
+    async fn op_await(&mut self) -> Result<(), VmError> {
+        let value = self.pop()?;
+
+        let future = match value {
+            ValuePtr::Future(slot) => self.external_take::<Future>(slot)?,
+            actual => {
+                return Err(VmError::ExpectedFuture {
+                    actual: actual.type_info(self)?,
+                })
+            }
+        };
+
+        unsafe {
+            tls::InjectVm::new(self, future).await?;
+        }
+
+        Ok(())
+    }
+
     /// Pop a number of values from the stack.
     fn op_popn(&mut self, n: usize) -> Result<(), VmError> {
-        if self.stack.len().saturating_sub(self.stack_top) < n {
+        if self.stack.len().saturating_sub(self.stack.stack_top) < n {
             return Err(VmError::PopOutOfBounds {
-                frame: self.stack_top,
+                frame: self.stack.stack_top,
             });
         }
 
         for _ in 0..n {
-            self.stack.pop().ok_or_else(|| VmError::StackEmpty)?;
+            self.stack.pop()?;
         }
 
         Ok(())
@@ -849,56 +941,23 @@ impl Vm {
     /// Pop a number of values from the stack, while preserving the top of the
     /// stack.
     fn op_clean(&mut self, n: usize) -> Result<(), VmError> {
-        let value = self.pop()?;
+        let value = self.stack.pop()?;
         self.op_popn(n)?;
         self.push(value);
         Ok(())
     }
 
-    /// Peek the top of the stack.
-    fn peek(&mut self) -> Result<ValuePtr, VmError> {
-        self.stack
-            .last()
-            .copied()
-            .ok_or_else(|| VmError::StackEmpty)
-    }
-
-    /// Access the value at the given frame offset.
-    fn value_at(&self, offset: usize) -> Result<ValuePtr, VmError> {
-        self.stack_top
-            .checked_add(offset)
-            .and_then(|n| self.stack.get(n).copied())
-            .ok_or_else(|| VmError::StackOutOfBounds)
-    }
-
-    /// Access the value at the given frame offset.
-    fn value_at_mut(&mut self, offset: usize) -> Result<&mut ValuePtr, VmError> {
-        let n = self
-            .stack_top
-            .checked_add(offset)
-            .ok_or_else(|| VmError::StackOutOfBounds)?;
-
-        self.stack
-            .get_mut(n)
-            .ok_or_else(|| VmError::StackOutOfBounds)
-    }
-
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
     fn do_copy(&mut self, offset: usize) -> Result<(), VmError> {
-        let value = self.value_at(offset)?;
+        let value = self.stack.at_offset(offset)?;
         self.stack.push(value);
         Ok(())
     }
 
     /// Duplicate the value at the top of the stack.
     fn do_dup(&mut self) -> Result<(), VmError> {
-        let value = self
-            .stack
-            .last()
-            .copied()
-            .ok_or_else(|| VmError::StackOutOfBounds)?;
-
+        let value = self.stack.last()?;
         self.stack.push(value);
         Ok(())
     }
@@ -906,14 +965,8 @@ impl Vm {
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
     fn do_replace(&mut self, offset: usize) -> Result<(), VmError> {
-        let mut value = self.stack.pop().ok_or_else(|| VmError::StackOutOfBounds)?;
-
-        let stack_value = self
-            .stack_top
-            .checked_add(offset)
-            .and_then(|n| self.stack.get_mut(n))
-            .ok_or_else(|| VmError::StackOutOfBounds)?;
-
+        let mut value = self.stack.pop()?;
+        let stack_value = self.stack.at_offset_mut(offset)?;
         mem::swap(stack_value, &mut value);
         Ok(())
     }
@@ -928,10 +981,10 @@ impl Vm {
 
         self.call_frames.push(CallFrame {
             ip: self.ip,
-            stack_top: self.stack_top,
+            stack_top: self.stack.stack_top,
         });
 
-        self.stack_top = offset;
+        self.stack.stack_top = offset;
         self.ip = new_ip;
         Ok(())
     }
@@ -940,10 +993,10 @@ impl Vm {
     fn pop_call_frame(&mut self) -> Result<bool, VmError> {
         // Assert that the stack frame has been restored to the previous top
         // at the point of return.
-        if self.stack.len() != self.stack_top {
+        if self.stack.len() != self.stack.stack_top {
             return Err(VmError::CorruptedStackFrame {
                 stack_top: self.stack.len(),
-                frame_at: self.stack_top,
+                frame_at: self.stack.stack_top,
             });
         }
 
@@ -952,7 +1005,7 @@ impl Vm {
             None => return Ok(true),
         };
 
-        self.stack_top = frame.stack_top;
+        self.stack.stack_top = frame.stack_top;
         self.ip = frame.ip;
         Ok(false)
     }
@@ -978,15 +1031,23 @@ impl Vm {
     ///
     /// This will leak memory unless the reference is pushed onto the stack to
     /// be managed.
-    pub fn external_allocate<T>(&mut self, value: T) -> ValuePtr
+    pub fn slot_allocate<T>(&mut self, value: T) -> Slot
     where
         T: any::Any,
     {
         let generation = self.generation();
-        ValuePtr::External(Slot::new(
-            generation,
-            self.internal_allocate(generation, value),
-        ))
+        Slot::new(generation, self.internal_allocate(generation, value))
+    }
+
+    /// Allocate and insert an external and return its reference.
+    ///
+    /// This will leak memory unless the reference is pushed onto the stack to
+    /// be managed.
+    pub fn external_allocate<T>(&mut self, value: T) -> ValuePtr
+    where
+        T: any::Any,
+    {
+        ValuePtr::External(self.slot_allocate(value))
     }
 
     /// Allocate an external slot for the given reference.
@@ -1313,11 +1374,7 @@ impl Vm {
     }
 
     /// Convert a value reference into an owned value.
-    pub fn value_take(
-        &mut self,
-        unit: &CompilationUnit,
-        value: ValuePtr,
-    ) -> Result<Value, VmError> {
+    pub fn value_take(&mut self, value: ValuePtr) -> Result<Value, VmError> {
         return Ok(match value {
             ValuePtr::None => Value::Unit,
             ValuePtr::Integer(integer) => Value::Integer(integer),
@@ -1325,30 +1382,32 @@ impl Vm {
             ValuePtr::Bool(boolean) => Value::Bool(boolean),
             ValuePtr::Char(c) => Value::Char(c),
             ValuePtr::String(slot) => Value::String(self.string_take(slot)?),
-            ValuePtr::StaticString(slot) => Value::String(unit.lookup_string(slot)?.to_owned()),
+            ValuePtr::StaticString(slot) => {
+                Value::String(self.unit.lookup_string(slot)?.to_owned())
+            }
             ValuePtr::Array(slot) => {
                 let array = self.array_take(slot)?;
-                Value::Array(value_take_array(self, unit, array)?)
+                Value::Array(value_take_array(self, array)?)
             }
             ValuePtr::Object(slot) => {
                 let object = self.object_take(slot)?;
-                Value::Object(value_take_object(self, unit, object)?)
+                Value::Object(value_take_object(self, object)?)
             }
             ValuePtr::External(slot) => Value::External(self.external_take_dyn(slot)?),
             ValuePtr::Type(ty) => Value::Type(ty),
             ValuePtr::Fn(hash) => Value::Fn(hash),
+            ValuePtr::Future(slot) => {
+                let future = self.external_take(slot)?;
+                Value::Future(future)
+            }
         });
 
         /// Convert into an owned array.
-        fn value_take_array(
-            vm: &mut Vm,
-            unit: &CompilationUnit,
-            values: Vec<ValuePtr>,
-        ) -> Result<Vec<Value>, VmError> {
+        fn value_take_array(vm: &mut Vm, values: Vec<ValuePtr>) -> Result<Vec<Value>, VmError> {
             let mut output = Vec::with_capacity(values.len());
 
             for value in values {
-                output.push(vm.value_take(unit, value)?);
+                output.push(vm.value_take(value)?);
             }
 
             Ok(output)
@@ -1357,13 +1416,12 @@ impl Vm {
         /// Convert into an owned object.
         fn value_take_object(
             vm: &mut Vm,
-            unit: &CompilationUnit,
             object: HashMap<String, ValuePtr>,
         ) -> Result<HashMap<String, Value>, VmError> {
             let mut output = HashMap::with_capacity(object.len());
 
             for (key, value) in object {
-                output.insert(key, vm.value_take(unit, value)?);
+                output.insert(key, vm.value_take(value)?);
             }
 
             Ok(output)
@@ -1371,11 +1429,7 @@ impl Vm {
     }
 
     /// Convert the given ptr into a type-erase ValueRef.
-    pub fn value_ref<'vm>(
-        &'vm self,
-        unit: &'vm CompilationUnit,
-        value: ValuePtr,
-    ) -> Result<ValueRef<'vm>, VmError> {
+    pub fn value_ref<'vm>(&'vm self, value: ValuePtr) -> Result<ValueRef<'vm>, VmError> {
         return Ok(match value {
             ValuePtr::None => ValueRef::Unit,
             ValuePtr::Integer(integer) => ValueRef::Integer(integer),
@@ -1383,31 +1437,34 @@ impl Vm {
             ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
             ValuePtr::Char(c) => ValueRef::Char(c),
             ValuePtr::String(slot) => ValueRef::String(self.string_ref(slot)?),
-            ValuePtr::StaticString(slot) => ValueRef::StaticString(unit.lookup_string(slot)?),
+            ValuePtr::StaticString(slot) => ValueRef::StaticString(self.unit.lookup_string(slot)?),
             ValuePtr::Array(slot) => {
                 let array = self.array_ref(slot)?;
-                ValueRef::Array(self.value_array_ref(unit, &*array)?)
+                ValueRef::Array(self.value_array_ref(&*array)?)
             }
             ValuePtr::Object(slot) => {
                 let object = self.object_ref(slot)?;
-                ValueRef::Object(self.value_object_ref(unit, &*object)?)
+                ValueRef::Object(self.value_object_ref(&*object)?)
             }
             ValuePtr::External(slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             ValuePtr::Type(ty) => ValueRef::Type(ty),
             ValuePtr::Fn(hash) => ValueRef::Fn(hash),
+            ValuePtr::Future(slot) => {
+                let future = self.external_ref(slot)?;
+                ValueRef::Future(future)
+            }
         });
     }
 
     /// Convert the given value pointers into an array.
     pub fn value_array_ref<'vm>(
         &'vm self,
-        unit: &'vm CompilationUnit,
         values: &[ValuePtr],
     ) -> Result<Vec<ValueRef<'vm>>, VmError> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
-            output.push(self.value_ref(unit, value)?);
+            output.push(self.value_ref(value)?);
         }
 
         Ok(output)
@@ -1416,26 +1473,25 @@ impl Vm {
     /// Convert the given value pointers into an array.
     pub fn value_object_ref<'vm>(
         &'vm self,
-        unit: &'vm CompilationUnit,
         object: &HashMap<String, ValuePtr>,
     ) -> Result<HashMap<String, ValueRef<'vm>>, VmError> {
         let mut output = HashMap::with_capacity(object.len());
 
         for (key, value) in object.iter() {
-            output.insert(key.to_owned(), self.value_ref(unit, *value)?);
+            output.insert(key.to_owned(), self.value_ref(*value)?);
         }
 
         Ok(output)
     }
 
     /// Pop the last value on the stack and evaluate it as `T`.
-    fn pop_decode<T>(&mut self, unit: &CompilationUnit) -> Result<T, VmError>
+    fn pop_decode<T>(&mut self) -> Result<T, VmError>
     where
         T: FromValue,
     {
-        let value = self.pop()?;
+        let value = self.stack.pop()?;
 
-        let value = match T::from_value(value, self, unit) {
+        let value = match T::from_value(value, self) {
             Ok(value) => value,
             Err(error) => {
                 let type_info = value.type_info(self)?;
@@ -1458,12 +1514,7 @@ impl Vm {
     ///
     /// Note: External types are compared by their slot, but should eventually
     /// use a dynamically resolve equality function.
-    fn value_ptr_eq(
-        &self,
-        unit: &CompilationUnit,
-        a: ValuePtr,
-        b: ValuePtr,
-    ) -> Result<bool, VmError> {
+    fn value_ptr_eq(&self, a: ValuePtr, b: ValuePtr) -> Result<bool, VmError> {
         Ok(match (a, b) {
             (ValuePtr::None, ValuePtr::None) => true,
             (ValuePtr::Char(a), ValuePtr::Char(b)) => a == b,
@@ -1479,7 +1530,7 @@ impl Vm {
                 }
 
                 for (a, b) in a.iter().copied().zip(b.iter().copied()) {
-                    if !self.value_ptr_eq(unit, a, b)? {
+                    if !self.value_ptr_eq(a, b)? {
                         return Ok(false);
                     }
                 }
@@ -1500,7 +1551,7 @@ impl Vm {
                         None => return Ok(false),
                     };
 
-                    if !self.value_ptr_eq(unit, *a, *b)? {
+                    if !self.value_ptr_eq(*a, *b)? {
                         return Ok(false);
                     }
                 }
@@ -1513,13 +1564,13 @@ impl Vm {
                 *a == *b
             }
             (ValuePtr::StaticString(a), ValuePtr::String(b)) => {
-                let a = unit.lookup_string(a)?;
+                let a = self.unit.lookup_string(a)?;
                 let b = self.string_ref(b)?;
                 a == *b
             }
             (ValuePtr::String(a), ValuePtr::StaticString(b)) => {
                 let a = self.string_ref(a)?;
-                let b = unit.lookup_string(b)?;
+                let b = self.unit.lookup_string(b)?;
                 *a == b
             }
             // fast string comparison: exact string slot.
@@ -1532,19 +1583,19 @@ impl Vm {
 
     /// Optimized equality implementation.
     #[inline]
-    fn op_eq(&mut self, unit: &CompilationUnit) -> Result<(), VmError> {
-        let a = self.pop()?;
-        let b = self.pop()?;
-        self.push(ValuePtr::Bool(self.value_ptr_eq(unit, a, b)?));
+    fn op_eq(&mut self) -> Result<(), VmError> {
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.push(ValuePtr::Bool(self.value_ptr_eq(a, b)?));
         Ok(())
     }
 
     /// Optimized inequality implementation.
     #[inline]
-    fn op_neq(&mut self, unit: &CompilationUnit) -> Result<(), VmError> {
-        let a = self.pop()?;
-        let b = self.pop()?;
-        self.push(ValuePtr::Bool(!self.value_ptr_eq(unit, a, b)?));
+    fn op_neq(&mut self) -> Result<(), VmError> {
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
+        self.push(ValuePtr::Bool(!self.value_ptr_eq(a, b)?));
         Ok(())
     }
 
@@ -1558,7 +1609,7 @@ impl Vm {
 
     #[inline]
     fn op_not(&mut self) -> Result<(), VmError> {
-        let value = self.pop()?;
+        let value = self.stack.pop()?;
 
         let value = match value {
             ValuePtr::Bool(value) => ValuePtr::Bool(!value),
@@ -1574,21 +1625,17 @@ impl Vm {
 
     /// Perform an index set operation.
     #[inline]
-    async fn op_index_set(
-        &mut self,
-        unit: &CompilationUnit,
-        context: &Context,
-    ) -> Result<(), VmError> {
-        let target = self.pop()?;
-        let index = self.pop()?;
-        let value = self.pop()?;
+    fn op_index_set(&mut self, context: &Context) -> Result<(), VmError> {
+        let target = self.stack.pop()?;
+        let index = self.stack.pop()?;
+        let value = self.stack.pop()?;
 
         loop {
             match (target, index) {
                 (ValuePtr::Object(target), index) => {
                     let index = match index {
                         ValuePtr::String(index) => self.string_take(index)?,
-                        ValuePtr::StaticString(slot) => unit.lookup_string(slot)?.to_owned(),
+                        ValuePtr::StaticString(slot) => self.unit.lookup_string(slot)?.to_owned(),
                         _ => break,
                     };
 
@@ -1621,25 +1668,15 @@ impl Vm {
         self.push(value);
         self.push(index);
         self.push(target);
-
-        let result = match handler {
-            Handler::Async(handler) => handler(self, unit, 2).await,
-            Handler::Regular(handler) => handler(self, unit, 2),
-        };
-
-        result?;
+        handler(self, 2)?;
         Ok(())
     }
 
     /// Perform an index get operation.
     #[inline]
-    async fn op_index_get(
-        &mut self,
-        unit: &CompilationUnit,
-        context: &Context,
-    ) -> Result<(), VmError> {
-        let target = self.pop()?;
-        let index = self.pop()?;
+    fn op_index_get(&mut self, context: &Context) -> Result<(), VmError> {
+        let target = self.stack.pop()?;
+        let index = self.stack.pop()?;
 
         loop {
             match (target, index) {
@@ -1651,7 +1688,7 @@ impl Vm {
                             string_ref = self.string_ref(index)?;
                             string_ref.as_str()
                         }
-                        ValuePtr::StaticString(slot) => unit.lookup_string(slot)?,
+                        ValuePtr::StaticString(slot) => self.unit.lookup_string(slot)?,
                         _ => break,
                     };
 
@@ -1685,20 +1722,14 @@ impl Vm {
 
         self.push(index);
         self.push(target);
-
-        let result = match handler {
-            Handler::Async(handler) => handler(self, unit, 1).await,
-            Handler::Regular(handler) => handler(self, unit, 1),
-        };
-
-        result?;
+        handler(self, 1)?;
         Ok(())
     }
 
     /// Perform an index get operation.
     #[inline]
     fn op_array_index_get(&mut self, index: usize) -> Result<(), VmError> {
-        let target = self.pop()?;
+        let target = self.stack.pop()?;
 
         let value = match target {
             ValuePtr::Array(slot) => {
@@ -1723,16 +1754,12 @@ impl Vm {
 
     /// Perform a specialized index get operation on an object.
     #[inline]
-    fn op_object_slot_index_get(
-        &mut self,
-        string_slot: usize,
-        unit: &CompilationUnit,
-    ) -> Result<(), VmError> {
-        let target = self.pop()?;
+    fn op_object_slot_index_get(&mut self, string_slot: usize) -> Result<(), VmError> {
+        let target = self.stack.pop()?;
 
         let value = match target {
             ValuePtr::Object(slot) => {
-                let index = unit.lookup_string(string_slot)?;
+                let index = self.unit.lookup_string(string_slot)?;
 
                 let array = self.object_ref(slot)?;
 
@@ -1755,15 +1782,16 @@ impl Vm {
 
     /// Operation to allocate an object.
     #[inline]
-    fn op_object(&mut self, slot: usize, unit: &CompilationUnit) -> Result<(), VmError> {
-        let keys = unit
+    fn op_object(&mut self, slot: usize) -> Result<(), VmError> {
+        let keys = self
+            .unit
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
         let mut object = HashMap::with_capacity(keys.len());
 
         for key in keys {
-            let value = self.pop()?;
+            let value = self.stack.pop()?;
             object.insert(key.clone(), value);
         }
 
@@ -1774,16 +1802,11 @@ impl Vm {
 
     /// Optimize operation to perform string concatenation.
     #[inline]
-    fn op_string_concat(
-        &mut self,
-        unit: &CompilationUnit,
-        len: usize,
-        size_hint: usize,
-    ) -> Result<(), VmError> {
+    fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
         let mut buf = String::with_capacity(size_hint);
 
         for _ in 0..len {
-            let value = self.pop()?;
+            let value = self.stack.pop()?;
 
             match value {
                 ValuePtr::String(slot) => {
@@ -1791,7 +1814,7 @@ impl Vm {
                     buf.push_str(&*string);
                 }
                 ValuePtr::StaticString(slot) => {
-                    let string = unit.lookup_string(slot)?;
+                    let string = self.unit.lookup_string(slot)?;
                     buf.push_str(string);
                 }
                 ValuePtr::Integer(integer) => {
@@ -1817,8 +1840,8 @@ impl Vm {
 
     #[inline]
     fn op_is(&mut self, context: &Context) -> Result<(), VmError> {
-        let a = self.pop()?;
-        let b = self.pop()?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
 
         match (a, b) {
             (a, ValuePtr::Type(hash)) => {
@@ -1847,8 +1870,8 @@ impl Vm {
     /// Operation associated with `and` instruction.
     #[inline]
     fn op_and(&mut self) -> Result<(), VmError> {
-        let a = self.pop()?;
-        let b = self.pop()?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
         let value = boolean_ops!(self, a && b);
         self.push(ValuePtr::Bool(value));
         Ok(())
@@ -1857,8 +1880,8 @@ impl Vm {
     /// Operation associated with `or` instruction.
     #[inline]
     fn op_or(&mut self) -> Result<(), VmError> {
-        let a = self.pop()?;
-        let b = self.pop()?;
+        let a = self.stack.pop()?;
+        let b = self.stack.pop()?;
         let value = boolean_ops!(self, a || b);
         self.push(ValuePtr::Bool(value));
         Ok(())
@@ -1867,17 +1890,17 @@ impl Vm {
     /// Test if the top of stack is equal to the string at the given static
     /// string location.
     #[inline]
-    fn op_eq_static_string(&mut self, slot: usize, unit: &CompilationUnit) -> Result<(), VmError> {
-        let string = unit.lookup_string(slot)?;
-        let value = self.pop()?;
+    fn op_eq_static_string(&mut self, slot: usize) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+        let string = self.unit.lookup_string(slot)?;
 
-        self.push(ValuePtr::Bool(match value {
+        self.stack.push(ValuePtr::Bool(match value {
             ValuePtr::String(slot) => {
                 let actual = self.string_ref(slot)?;
                 *actual == string
             }
             ValuePtr::StaticString(slot) => {
-                let actual = unit.lookup_string(slot)?;
+                let actual = self.unit.lookup_string(slot)?;
                 actual == string
             }
             _ => false,
@@ -1891,7 +1914,7 @@ impl Vm {
     where
         F: FnOnce(&Vec<ValuePtr>) -> bool,
     {
-        let value = self.pop()?;
+        let value = self.stack.pop()?;
 
         self.push(ValuePtr::Bool(match value {
             ValuePtr::Array(slot) => f(&*self.array_ref(slot)?),
@@ -1902,13 +1925,14 @@ impl Vm {
     }
 
     #[inline]
-    fn match_object<F>(&mut self, slot: usize, unit: &CompilationUnit, f: F) -> Result<(), VmError>
+    fn match_object<F>(&mut self, slot: usize, f: F) -> Result<(), VmError>
     where
         F: FnOnce(&HashMap<String, ValuePtr>, usize) -> bool,
     {
-        let value = self.pop()?;
+        let value = self.stack.pop()?;
 
-        let keys = unit
+        let keys = self
+            .unit
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
@@ -1942,11 +1966,11 @@ impl Vm {
     pub async fn run_for(
         &mut self,
         context: &Context,
-        unit: &CompilationUnit,
         mut limit: Option<usize>,
     ) -> Result<(), VmError> {
         while !self.exited {
-            let inst = unit
+            let inst = *self
+                .unit
                 .instruction_at(self.ip)
                 .ok_or_else(|| VmError::IpOutOfBounds)?;
 
@@ -1957,72 +1981,72 @@ impl Vm {
                     self.op_not()?;
                 }
                 Inst::Add => {
-                    let a = self.pop()?;
-                    let b = self.pop()?;
-                    numeric_ops!(self, unit, context, crate::ADD, +, a.checked_add(b), Overflow);
+                    let a = self.stack.pop()?;
+                    let b = self.stack.pop()?;
+                    numeric_ops!(self, context, crate::ADD, +, a.checked_add(b), Overflow);
                 }
                 Inst::AddAssign { offset } => {
-                    let arg = self.pop()?;
-                    let value = self.value_at(*offset)?;
+                    let arg = self.stack.pop()?;
+                    let value = self.stack.at_offset(offset)?;
                     let value = assign_ops! {
-                        self, unit, context, crate::ADD_ASSIGN, +, value.checked_add(arg), Overflow
+                        self, context, crate::ADD_ASSIGN, +, value.checked_add(arg), Overflow
                     };
 
-                    *self.value_at_mut(*offset)? = value;
+                    *self.stack.at_offset_mut(offset)? = value;
                 }
                 Inst::Sub => {
-                    let a = self.pop()?;
-                    let b = self.pop()?;
-                    numeric_ops!(self, unit, context, crate::SUB, -, a.checked_sub(b), Underflow);
+                    let a = self.stack.pop()?;
+                    let b = self.stack.pop()?;
+                    numeric_ops!(self, context, crate::SUB, -, a.checked_sub(b), Underflow);
                 }
                 Inst::SubAssign { offset } => {
-                    let arg = self.pop()?;
-                    let value = self.value_at(*offset)?;
+                    let arg = self.stack.pop()?;
+                    let value = self.stack.at_offset(offset)?;
                     let value = assign_ops! {
-                        self, unit, context, crate::SUB_ASSIGN, -, value.checked_sub(arg), Underflow
+                        self, context, crate::SUB_ASSIGN, -, value.checked_sub(arg), Underflow
                     };
-                    *self.value_at_mut(*offset)? = value;
+                    *self.stack.at_offset_mut(offset)? = value;
                 }
                 Inst::Mul => {
-                    let a = self.pop()?;
-                    let b = self.pop()?;
-                    numeric_ops!(self, unit, context, crate::MUL, *, a.checked_mul(b), Overflow);
+                    let a = self.stack.pop()?;
+                    let b = self.stack.pop()?;
+                    numeric_ops!(self, context, crate::MUL, *, a.checked_mul(b), Overflow);
                 }
                 Inst::MulAssign { offset } => {
-                    let arg = self.pop()?;
-                    let value = self.value_at(*offset)?;
+                    let arg = self.stack.pop()?;
+                    let value = self.stack.at_offset(offset)?;
                     let value = assign_ops! {
-                        self, unit, context, crate::MUL_ASSIGN, *, value.checked_mul(arg), Overflow
+                        self, context, crate::MUL_ASSIGN, *, value.checked_mul(arg), Overflow
                     };
-                    *self.value_at_mut(*offset)? = value;
+                    *self.stack.at_offset_mut(offset)? = value;
                 }
                 Inst::Div => {
-                    let a = self.pop()?;
-                    let b = self.pop()?;
-                    numeric_ops!(self, unit, context, crate::DIV, /, a.checked_div(b), DivideByZero);
+                    let a = self.stack.pop()?;
+                    let b = self.stack.pop()?;
+                    numeric_ops!(self, context, crate::DIV, /, a.checked_div(b), DivideByZero);
                 }
                 Inst::DivAssign { offset } => {
-                    let arg = self.pop()?;
-                    let value = self.value_at(*offset)?;
+                    let arg = self.stack.pop()?;
+                    let value = self.stack.at_offset(offset)?;
                     let value = assign_ops! {
-                        self, unit, context, crate::DIV_ASSIGN, /, value.checked_div(arg), DivideByZero
+                        self, context, crate::DIV_ASSIGN, /, value.checked_div(arg), DivideByZero
                     };
-                    *self.value_at_mut(*offset)? = value;
+                    *self.stack.at_offset_mut(offset)? = value;
                 }
                 // NB: we inline function calls because it helps Rust optimize
                 // the async plumbing.
                 Inst::Call { hash, args } => {
-                    call_fn!(self, unit, *hash, *args, context, update_ip);
+                    call_fn!(self, hash, args, context, update_ip);
                 }
                 Inst::CallInstance { hash, args } => {
-                    let instance = self.peek()?;
+                    let instance = self.stack.peek()?;
                     let ty = instance.value_type(self)?;
-                    let hash = Hash::instance_function(ty, *hash);
+                    let hash = Hash::instance_function(ty, hash);
 
-                    call_fn!(self, unit, hash, *args, context, update_ip);
+                    call_fn!(self, hash, args, context, update_ip);
                 }
                 Inst::CallFn { args } => {
-                    let function = self.pop()?;
+                    let function = self.stack.pop()?;
 
                     let hash = match function {
                         ValuePtr::Fn(hash) => hash,
@@ -2032,28 +2056,28 @@ impl Vm {
                         }
                     };
 
-                    call_fn!(self, unit, hash, *args, context, update_ip);
+                    call_fn!(self, hash, args, context, update_ip);
                 }
                 Inst::LoadInstanceFn { hash } => {
-                    let instance = self.pop()?;
+                    let instance = self.stack.pop()?;
                     let ty = instance.value_type(self)?;
-                    let hash = Hash::instance_function(ty, *hash);
+                    let hash = Hash::instance_function(ty, hash);
                     self.push(ValuePtr::Fn(hash));
                 }
                 Inst::IndexGet => {
-                    self.op_index_get(unit, context).await?;
+                    self.op_index_get(context)?;
                 }
                 Inst::ArrayIndexGet { index } => {
-                    self.op_array_index_get(*index)?;
+                    self.op_array_index_get(index)?;
                 }
                 Inst::ObjectSlotIndexGet { slot } => {
-                    self.op_object_slot_index_get(*slot, unit)?;
+                    self.op_object_slot_index_get(slot)?;
                 }
                 Inst::IndexSet => {
-                    self.op_index_set(unit, context).await?;
+                    self.op_index_set(context)?;
                 }
                 Inst::Return => {
-                    let return_value = self.pop()?;
+                    let return_value = self.stack.pop()?;
                     self.exited = self.pop_call_frame()?;
                     self.push(return_value);
                 }
@@ -2061,68 +2085,71 @@ impl Vm {
                     self.exited = self.pop_call_frame()?;
                     self.push(ValuePtr::None);
                 }
+                Inst::Await => {
+                    self.op_await().await?;
+                }
                 Inst::Pop => {
-                    self.pop()?;
+                    self.stack.pop()?;
                 }
                 Inst::PopN { count } => {
-                    self.op_popn(*count)?;
+                    self.op_popn(count)?;
                 }
                 Inst::Clean { count } => {
-                    self.op_clean(*count)?;
+                    self.op_clean(count)?;
                 }
                 Inst::Integer { number } => {
-                    self.push(ValuePtr::Integer(*number));
+                    self.push(ValuePtr::Integer(number));
                 }
                 Inst::Float { number } => {
-                    self.push(ValuePtr::Float(*number));
+                    self.push(ValuePtr::Float(number));
                 }
                 Inst::Copy { offset } => {
-                    self.do_copy(*offset)?;
+                    self.do_copy(offset)?;
                 }
                 Inst::Dup => {
                     self.do_dup()?;
                 }
                 Inst::Replace { offset } => {
-                    self.do_replace(*offset)?;
+                    self.do_replace(offset)?;
                 }
                 Inst::Gt => {
-                    let a = self.pop()?;
-                    let b = self.pop()?;
+                    let a = self.stack.pop()?;
+                    let b = self.stack.pop()?;
                     self.push(ValuePtr::Bool(primitive_ops!(self, a > b)));
                 }
                 Inst::Gte => {
-                    let a = self.pop()?;
-                    let b = self.pop()?;
+                    let a = self.stack.pop()?;
+                    let b = self.stack.pop()?;
                     self.push(ValuePtr::Bool(primitive_ops!(self, a >= b)));
                 }
                 Inst::Lt => {
-                    let a = self.pop()?;
-                    let b = self.pop()?;
+                    let a = self.stack.pop()?;
+                    let b = self.stack.pop()?;
                     self.push(ValuePtr::Bool(primitive_ops!(self, a < b)));
                 }
                 Inst::Lte => {
-                    let a = self.pop()?;
-                    let b = self.pop()?;
+                    let a = self.stack.pop()?;
+                    let b = self.stack.pop()?;
                     self.push(ValuePtr::Bool(primitive_ops!(self, a <= b)));
                 }
                 Inst::Eq => {
-                    self.op_eq(unit)?;
+                    self.op_eq()?;
                 }
                 Inst::Neq => {
-                    self.op_neq(unit)?;
+                    self.op_neq()?;
                 }
                 Inst::Jump { offset } => {
-                    self.op_jump(*offset, &mut update_ip)?;
+                    self.op_jump(offset, &mut update_ip)?;
                 }
                 Inst::JumpIf { offset } => {
                     if pop!(self, Bool) {
-                        self.modify_ip(*offset)?;
+                        self.modify_ip(offset)?;
                         update_ip = false;
                     }
                 }
                 Inst::JumpIfNot { offset } => {
                     if !pop!(self, Bool) {
-                        self.modify_ip(*offset)?;
+                        self.modify_ip(offset)?;
                         update_ip = false;
                     }
                 }
@@ -2130,44 +2157,44 @@ impl Vm {
                     self.push(ValuePtr::None);
                 }
                 Inst::Bool { value } => {
-                    self.push(ValuePtr::Bool(*value));
+                    self.push(ValuePtr::Bool(value));
                 }
                 Inst::Array { count } => {
-                    let mut array = Vec::with_capacity(*count);
+                    let mut array = Vec::with_capacity(count);
 
-                    for _ in 0..*count {
-                        array.push(self.stack.pop().ok_or_else(|| VmError::StackEmpty)?);
+                    for _ in 0..count {
+                        array.push(self.stack.pop()?);
                     }
 
                     let value = self.array_allocate(array);
                     self.push(value);
                 }
                 Inst::Object { slot } => {
-                    self.op_object(*slot, unit)?;
+                    self.op_object(slot)?;
                 }
                 Inst::Type { hash } => {
-                    self.push(ValuePtr::Type(*hash));
+                    self.push(ValuePtr::Type(hash));
                 }
                 Inst::Char { c } => {
-                    self.push(ValuePtr::Char(*c));
+                    self.push(ValuePtr::Char(c));
                 }
                 Inst::String { slot } => {
-                    let string = unit.lookup_string(*slot)?;
+                    let string = self.unit.lookup_string(slot)?.to_owned();
                     // TODO: do something sneaky to only allocate the static string once.
-                    let value = self.string_allocate(string.to_owned());
+                    let value = self.string_allocate(string);
                     self.push(value);
                 }
                 Inst::StaticString { slot } => {
-                    self.push(ValuePtr::StaticString(*slot));
+                    self.push(ValuePtr::StaticString(slot));
                 }
                 Inst::StringConcat { len, size_hint } => {
-                    self.op_string_concat(unit, *len, *size_hint)?;
+                    self.op_string_concat(len, size_hint)?;
                 }
                 Inst::Is => {
                     self.op_is(context)?;
                 }
                 Inst::IsUnit => {
-                    let value = self.pop()?;
+                    let value = self.stack.pop()?;
 
                     self.push(ValuePtr::Bool(match value {
                         ValuePtr::None => true,
@@ -2181,44 +2208,40 @@ impl Vm {
                     self.op_or()?;
                 }
                 Inst::EqCharacter { character } => {
-                    let value = self.pop()?;
+                    let value = self.stack.pop()?;
 
                     self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Char(actual) => actual == *character,
+                        ValuePtr::Char(actual) => actual == character,
                         _ => false,
                     }));
                 }
                 Inst::EqInteger { integer } => {
-                    let value = self.pop()?;
+                    let value = self.stack.pop()?;
 
                     self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Integer(actual) => actual == *integer,
+                        ValuePtr::Integer(actual) => actual == integer,
                         _ => false,
                     }));
                 }
                 Inst::EqStaticString { slot } => {
-                    self.op_eq_static_string(*slot, unit)?;
+                    self.op_eq_static_string(slot)?;
                 }
                 Inst::MatchArray { len, exact } => {
-                    let len = *len;
-
-                    if *exact {
+                    if exact {
                         self.match_array(|array| array.len() == len)?;
                     } else {
                         self.match_array(|array| array.len() >= len)?;
                     }
                 }
                 Inst::MatchObject { slot, exact } => {
-                    let slot = *slot;
-
-                    if *exact {
-                        self.match_object(slot, unit, |object, len| object.len() == len)?;
+                    if exact {
+                        self.match_object(slot, |object, len| object.len() == len)?;
                     } else {
-                        self.match_object(slot, unit, |object, len| object.len() >= len)?;
+                        self.match_object(slot, |object, len| object.len() >= len)?;
                     }
                 }
                 Inst::Panic { reason } => {
-                    return Err(VmError::Panic { reason: *reason });
+                    return Err(VmError::Panic { reason });
                 }
             }
 
@@ -2243,7 +2266,6 @@ impl fmt::Debug for Vm {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Vm")
             .field("ip", &self.ip)
-            .field("stack_top", &self.stack_top)
             .field("exited", &self.exited)
             .field("stack", &self.stack)
             .field("call_frames", &self.call_frames)
@@ -2263,36 +2285,43 @@ impl fmt::Debug for DebugSlots<'_> {
 /// The task of a unit being run.
 pub struct Task<'a, T> {
     /// The virtual machine of the task.
-    pub vm: &'a mut Vm,
+    vm: Vm,
     /// Functions collection associated with the task.
-    pub context: &'a Context,
-    /// The unit associated with the task.
-    pub unit: &'a CompilationUnit,
+    context: Arc<Context>,
     /// Hold the type of the task.
-    _marker: PhantomData<T>,
+    _marker: PhantomData<(&'a (), T)>,
 }
 
 impl<'a, T> Task<'a, T>
 where
     T: FromValue,
 {
+    /// Access the underlying vm.
+    pub fn vm(&self) -> &Vm {
+        &self.vm
+    }
+
     /// Run the given task to completion.
-    pub async fn run_to_completion(self) -> Result<T, VmError> {
+    pub async fn run_to_completion(&mut self) -> Result<T, VmError> {
         while !self.vm.exited {
-            self.vm.run_for(self.context, self.unit, None).await?;
+            match self.vm.run_for(&*self.context, None).await {
+                Ok(()) => (),
+                Err(e) => return Err(e),
+            }
         }
 
-        let value = self.vm.pop_decode(self.unit)?;
-
-        Ok(value)
+        match self.vm.pop_decode() {
+            Ok(value) => Ok(value),
+            Err(e) => Err(e),
+        }
     }
 
     /// Step the given task until the return value is available.
     pub async fn step(&mut self) -> Result<Option<T>, VmError> {
-        self.vm.run_for(self.context, self.unit, Some(1)).await?;
+        self.vm.run_for(&*self.context, Some(1)).await?;
 
         if self.vm.exited {
-            let value = self.vm.pop_decode(self.unit)?;
+            let value = self.vm.pop_decode()?;
             return Ok(Some(value));
         }
 

@@ -1,7 +1,6 @@
 //! Trait implementations for primitive types.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
-use crate::unit::CompilationUnit;
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{Integer, Vm, VmError};
 
@@ -22,7 +21,7 @@ impl ToValue for crate::value::Unit {
 }
 
 impl FromValue for crate::value::Unit {
-    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
             ValuePtr::None => Ok(crate::value::Unit),
             actual => Err(VmError::ExpectedNone {
@@ -55,7 +54,7 @@ impl ToValue for bool {
 }
 
 impl FromValue for bool {
-    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
             ValuePtr::Bool(value) => Ok(value),
             actual => Err(VmError::ExpectedBoolean {
@@ -82,7 +81,7 @@ impl ToValue for char {
 }
 
 impl FromValue for char {
-    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
             ValuePtr::Char(value) => Ok(value),
             actual => Err(VmError::ExpectedChar {
@@ -120,11 +119,7 @@ macro_rules! number_value_trait {
         }
 
         impl FromValue for $ty {
-            fn from_value(
-                value: ValuePtr,
-                vm: &mut Vm,
-                _: &CompilationUnit,
-            ) -> Result<Self, VmError> {
+            fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
                 use std::convert::TryInto as _;
 
                 match value {
@@ -173,7 +168,7 @@ impl ToValue for f64 {
 }
 
 impl FromValue for f64 {
-    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
             ValuePtr::Float(number) => Ok(number),
             actual => Err(VmError::ExpectedFloat {
@@ -201,7 +196,7 @@ impl ToValue for f32 {
 }
 
 impl FromValue for f32 {
-    fn from_value(value: ValuePtr, vm: &mut Vm, _: &CompilationUnit) -> Result<Self, VmError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
             ValuePtr::Float(number) => Ok(number as f32),
             actual => Err(VmError::ExpectedFloat {

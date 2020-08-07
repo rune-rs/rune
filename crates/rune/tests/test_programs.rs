@@ -1,4 +1,5 @@
 use futures_executor::block_on;
+use std::sync::Arc;
 use stk::VmError::*;
 
 async fn run_main<T>(source: &str) -> stk::Result<T>
@@ -6,9 +7,9 @@ where
     T: stk::FromValue,
 {
     let (unit, _) = rune::compile(source)?;
-    let mut vm = stk::Vm::new();
-    let context = stk::Context::with_default_packages()?;
-    let task: stk::Task<T> = vm.call_function(&context, &unit, &["main"], ())?;
+    let vm = stk::Vm::new(Arc::new(unit));
+    let context = Arc::new(stk::Context::with_default_packages()?);
+    let mut task: stk::Task<T> = vm.call_function(context, &["main"], ())?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }

@@ -3,6 +3,7 @@ use std::env;
 use std::error::Error;
 use std::io::Write as _;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -23,7 +24,7 @@ async fn main() -> Result<()> {
     context.install(stk_http::module()?)?;
     context.install(stk_json::module()?)?;
 
-    let mut runtime = rune::Runtime::with_context(context);
+    let mut runtime = rune::Runtime::with_context(Arc::new(context));
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -206,11 +207,11 @@ async fn main() -> Result<()> {
         println!("---");
     }
 
-    let task: stk::Task<stk::Value> = runtime.call_function(file_id, &["main"], ())?;
+    let mut task: stk::Task<stk::Value> = runtime.call_function(file_id, &["main"], ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {
-        match do_trace(task, dump_vm).await {
+        match do_trace(&mut task, dump_vm).await {
             Ok(value) => Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
             Err(TraceError::VmError(vm)) => Err(vm),
@@ -222,8 +223,11 @@ async fn main() -> Result<()> {
     let result = match result {
         Ok(result) => result,
         Err(e) => {
+            let ip = task.vm().ip();
+            drop(task);
+
             // NB: this only works if we have debuginfo.
-            match runtime.register_vm_error(file_id, e) {
+            match runtime.register_vm_error(ip, file_id, e) {
                 Ok(()) => {
                     use rune::termcolor;
                     let mut writer =
@@ -251,16 +255,14 @@ async fn main() -> Result<()> {
     let duration = std::time::Instant::now().duration_since(last);
     println!("== {:?} ({:?})", result, duration);
 
-    if let Some(unit) = runtime.unit(file_id) {
-        if dump_vm {
-            println!("# stack dump after completion");
+    if dump_vm {
+        println!("# stack dump after completion");
 
-            for (n, (_, value)) in runtime.vm().iter_stack_debug(unit).enumerate() {
-                println!("{} = {:?}", n, value);
-            }
-
-            println!("---");
+        for (n, (_, value)) in task.vm().iter_stack_debug().enumerate() {
+            println!("{} = {:?}", n, value);
         }
+
+        println!("---");
     }
 
     Ok(())
@@ -277,14 +279,8 @@ impl From<std::io::Error> for TraceError {
     }
 }
 
-impl From<stk::VmError> for TraceError {
-    fn from(error: stk::VmError) -> Self {
-        Self::VmError(error)
-    }
-}
-
 /// Perform a detailed trace of the program.
-async fn do_trace<T>(mut task: stk::Task<'_, T>, dump_vm: bool) -> Result<T, TraceError>
+async fn do_trace<T>(task: &mut stk::Task<'_, T>, dump_vm: bool) -> Result<T, TraceError>
 where
     T: stk::FromValue,
 {
@@ -295,9 +291,9 @@ where
         {
             let mut out = out.lock();
 
-            let debug = task.unit.debug_info_at(task.vm.ip());
+            let debug = task.vm().unit().debug_info_at(task.vm().ip());
 
-            if let Some((hash, function)) = task.unit.function_at(task.vm.ip()) {
+            if let Some((hash, function)) = task.vm().unit().function_at(task.vm().ip()) {
                 writeln!(out, "fn {} ({}):", function.signature, hash)?;
             }
 
@@ -307,10 +303,10 @@ where
                 }
             }
 
-            if let Some(inst) = task.unit.instruction_at(task.vm.ip()) {
-                write!(out, "  {:04} = {}", task.vm.ip(), inst)?;
+            if let Some(inst) = task.vm().unit().instruction_at(task.vm().ip()) {
+                write!(out, "  {:04} = {}", task.vm().ip(), inst)?;
             } else {
-                write!(out, "  {:04} = *out of bounds*", task.vm.ip(),)?;
+                write!(out, "  {:04} = *out of bounds*", task.vm().ip())?;
             }
 
             if let Some(debug) = debug {
@@ -322,14 +318,17 @@ where
             writeln!(out,)?;
         }
 
-        let result = task.step().await?;
+        let result = match task.step().await {
+            Ok(result) => result,
+            Err(e) => return Err(TraceError::VmError(e)),
+        };
 
         let mut out = out.lock();
 
         if dump_vm {
             writeln!(out, "# stack dump")?;
 
-            for (n, (_, value)) in task.vm.iter_stack_debug(task.unit).enumerate() {
+            for (n, (_, value)) in task.vm().iter_stack_debug().enumerate() {
                 writeln!(out, "{} = {:?}", n, value)?;
             }
 

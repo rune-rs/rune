@@ -1,7 +1,6 @@
 //! Trait implementations for Option<T>.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
-use crate::unit::CompilationUnit;
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 
@@ -34,10 +33,10 @@ impl<T> FromValue for Option<T>
 where
     T: FromValue,
 {
-    fn from_value(value: ValuePtr, vm: &mut Vm, unit: &CompilationUnit) -> Result<Self, VmError> {
+    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
             ValuePtr::None => Ok(None),
-            _ => Ok(Some(T::from_value(value, vm, unit)?)),
+            _ => Ok(Some(T::from_value(value, vm)?)),
         }
     }
 }

@@ -31,6 +31,8 @@ pub enum ValuePtr {
     Type(Hash),
     /// A function pointer.
     Fn(Hash),
+    /// A stored future.
+    Future(Slot),
 }
 
 impl ValuePtr {
@@ -93,6 +95,7 @@ impl ValuePtr {
             Self::External(slot) => ValueType::External(vm.slot_type_id(slot)?),
             Self::Type(..) => ValueType::Type,
             Self::Fn(hash) => ValueType::Fn(hash),
+            Self::Future(..) => ValueType::Future,
         })
     }
 
@@ -111,6 +114,7 @@ impl ValuePtr {
             Self::External(slot) => ValueTypeInfo::External(vm.slot_type_name(slot)?),
             Self::Type(..) => ValueTypeInfo::Type,
             Self::Fn(hash) => ValueTypeInfo::Fn(hash),
+            Self::Future(..) => ValueTypeInfo::Future,
         })
     }
 }

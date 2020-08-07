@@ -38,15 +38,15 @@ impl ser::Serialize for ValuePtr {
             ValuePtr::Char(c) => serializer.serialize_char(c),
             ValuePtr::Integer(integer) => serializer.serialize_i64(integer),
             ValuePtr::Float(float) => serializer.serialize_f64(float),
-            ValuePtr::StaticString(slot) => tls::with_vm(|_, unit| {
-                let string = unit.lookup_string(slot).map_err(ser::Error::custom)?;
+            ValuePtr::StaticString(slot) => tls::with_vm(|vm| {
+                let string = vm.unit.lookup_string(slot).map_err(ser::Error::custom)?;
                 serializer.serialize_str(string)
             }),
-            ValuePtr::String(slot) => tls::with_vm(|vm, _| {
+            ValuePtr::String(slot) => tls::with_vm(|vm| {
                 let string = vm.string_ref(slot).map_err(ser::Error::custom)?;
                 serializer.serialize_str(&*string)
             }),
-            ValuePtr::Array(slot) => tls::with_vm(|vm, _| {
+            ValuePtr::Array(slot) => tls::with_vm(|vm| {
                 let array = vm.array_ref(slot).map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_seq(Some(array.len()))?;
 
@@ -56,7 +56,7 @@ impl ser::Serialize for ValuePtr {
 
                 serializer.end()
             }),
-            ValuePtr::Object(slot) => tls::with_vm(|vm, _| {
+            ValuePtr::Object(slot) => tls::with_vm(|vm| {
                 let object = vm.object_ref(slot).map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_map(Some(object.len()))?;
 
@@ -74,6 +74,9 @@ impl ser::Serialize for ValuePtr {
             }
             ValuePtr::Fn(..) => {
                 return Err(ser::Error::custom("cannot serialize fn objects"));
+            }
+            ValuePtr::Future(..) => {
+                return Err(ser::Error::custom("cannot serialize futures"));
             }
         }
     }
@@ -104,7 +107,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm, _| Ok(vm.string_allocate(value.to_owned())))
+        tls::with_vm(|vm| Ok(vm.string_allocate(value.to_owned())))
     }
 
     #[inline]
@@ -112,7 +115,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm, _| Ok(vm.string_allocate(value)))
+        tls::with_vm(|vm| Ok(vm.string_allocate(value)))
     }
 
     #[inline]
@@ -120,7 +123,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm, _| Ok(vm.external_allocate(Bytes::from_bytes(v.to_vec()))))
+        tls::with_vm(|vm| Ok(vm.external_allocate(Bytes::from_bytes(v.to_vec()))))
     }
 
     #[inline]
@@ -128,7 +131,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm, _| Ok(vm.external_allocate(Bytes::from_bytes(v))))
+        tls::with_vm(|vm| Ok(vm.external_allocate(Bytes::from_bytes(v))))
     }
 
     #[inline]
@@ -246,7 +249,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
             vec.push(elem);
         }
 
-        tls::with_vm(|vm, _| Ok(vm.array_allocate(vec)))
+        tls::with_vm(|vm| Ok(vm.array_allocate(vec)))
     }
 
     #[inline]
@@ -260,6 +263,6 @@ impl<'de> de::Visitor<'de> for VmVisitor {
             object.insert(key, value);
         }
 
-        tls::with_vm(|vm, _| Ok(vm.object_allocate(object)))
+        tls::with_vm(|vm| Ok(vm.object_allocate(object)))
     }
 }

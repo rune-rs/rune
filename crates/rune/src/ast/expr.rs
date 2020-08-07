@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::ast::{
-    BinOp, CallFn, CallInstanceFn, Colon, Dot, Eq, ExprBinary, ExprFor, ExprIndexGet, ExprIndexSet,
-    ExprLoop, ExprWhile, Label, LitUnit, OpenParen, Path,
+    BinOp, CallFn, CallInstanceFn, Colon, Dot, Eq, ExprAwait, ExprBinary, ExprFor, ExprIndexGet,
+    ExprIndexSet, ExprLoop, ExprWhile, Label, LitUnit, OpenParen, Path,
 };
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
@@ -76,6 +76,8 @@ pub enum Expr {
     ExprBlock(ast::ExprBlock),
     /// A return statement.
     ExprReturn(ast::ExprReturn),
+    /// An await expression.
+    ExprAwait(ast::ExprAwait),
 }
 
 impl Expr {
@@ -127,6 +129,7 @@ impl Expr {
             Self::ExprBreak(b) => b.span(),
             Self::ExprBlock(b) => b.span(),
             Self::ExprReturn(ret) => ret.span(),
+            Self::ExprAwait(ret) => ret.span(),
         }
     }
 
@@ -283,6 +286,23 @@ impl Expr {
                         index: Box::new(parser.parse()?),
                         close: parser.parse()?,
                     });
+                }
+                Kind::Dot => {
+                    let token = match parser.token_peek2()? {
+                        Some(token) => token,
+                        None => break,
+                    };
+
+                    match token.kind {
+                        Kind::Await => {
+                            expr = Expr::ExprAwait(ExprAwait {
+                                expr: Box::new(expr),
+                                dot: parser.parse()?,
+                                await_: parser.parse()?,
+                            });
+                        }
+                        _ => break,
+                    }
                 }
                 _ => break,
             }

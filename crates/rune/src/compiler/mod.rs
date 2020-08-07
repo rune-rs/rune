@@ -293,6 +293,9 @@ impl<'a> Compiler<'a> {
             ast::Expr::ExprMatch(expr_match) => {
                 self.compile_expr_match(expr_match, needs_value)?;
             }
+            ast::Expr::ExprAwait(expr_await) => {
+                self.compile_expr_await(expr_await, needs_value)?;
+            }
             ast::Expr::Ident(ident) => {
                 self.compile_ident(ident, needs_value)?;
             }
@@ -1366,6 +1369,25 @@ impl<'a> Compiler<'a> {
 
         // pop the implicit scope where we store the anonymous match variable.
         self.clean_last_scope(span, expected_scopes, needs_value)?;
+        Ok(())
+    }
+
+    /// Compile an await expression.
+    fn compile_expr_await(
+        &mut self,
+        expr_await: &ast::ExprAwait,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = expr_await.span();
+        log::trace!("ExprAwait => {:?}", self.source.source(span)?);
+
+        self.compile_expr(&*expr_await.expr, NeedsValue(true))?;
+        self.asm.push(stk::Inst::Await, span);
+
+        if !*needs_value {
+            self.asm.push(stk::Inst::Pop, span);
+        }
+
         Ok(())
     }
 

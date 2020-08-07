@@ -67,7 +67,6 @@ macro_rules! decl_external {
             fn from_value(
                 value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-                _: &$crate::CompilationUnit,
             ) -> Result<Self, $crate::VmError> {
                 let slot = value.into_external(vm)?;
                 vm.external_take::<$external>(slot)
@@ -75,32 +74,40 @@ macro_rules! decl_external {
         }
 
         impl<'a> $crate::UnsafeFromValue for &'a $external {
+            type Output = *const $external;
             type Guard = $crate::RawRefGuard;
 
             unsafe fn unsafe_from_value(
                 value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-                _: &$crate::CompilationUnit,
-            ) -> Result<(Self, Self::Guard), $crate::VmError> {
+            ) -> Result<(Self::Output, Self::Guard), $crate::VmError> {
                 let slot = value.into_external(vm)?;
                 Ok($crate::Ref::unsafe_into_ref(
                     vm.external_ref::<$external>(slot)?,
                 ))
             }
+
+            unsafe fn to_arg(output: Self::Output) -> Self {
+                &*output
+            }
         }
 
         impl<'a> $crate::UnsafeFromValue for &'a mut $external {
+            type Output = *mut $external;
             type Guard = $crate::RawMutGuard;
 
             unsafe fn unsafe_from_value(
                 value: $crate::ValuePtr,
                 vm: &mut $crate::Vm,
-                _: &$crate::CompilationUnit,
-            ) -> Result<(Self, Self::Guard), $crate::VmError> {
+            ) -> Result<(Self::Output, Self::Guard), $crate::VmError> {
                 let slot = value.into_external(vm)?;
                 Ok($crate::Mut::unsafe_into_mut(
                     vm.external_mut::<$external>(slot)?,
                 ))
+            }
+
+            unsafe fn to_arg(output: Self::Output) -> Self {
+                &mut *output
             }
         }
     };

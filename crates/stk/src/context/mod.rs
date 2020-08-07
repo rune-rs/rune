@@ -1,11 +1,8 @@
 use crate::collections::HashMap;
 use crate::hash::Hash;
-use crate::unit::CompilationUnit;
 use crate::value::{ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
 use thiserror::Error;
 
 mod item;
@@ -64,22 +61,8 @@ pub enum ContextError {
     },
 }
 
-/// Helper alias for boxed futures.
-type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
-
 /// A function handler.
-pub(crate) enum Handler {
-    Async(
-        Box<
-            dyn for<'vm> Fn(
-                &'vm mut Vm,
-                &'vm CompilationUnit,
-                usize,
-            ) -> BoxFuture<'vm, Result<(), VmError>>,
-        >,
-    ),
-    Regular(Box<dyn Fn(&mut Vm, &CompilationUnit, usize) -> Result<(), VmError>>),
-}
+pub(crate) type Handler = Box<dyn Fn(&mut Vm, usize) -> Result<(), VmError>>;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
