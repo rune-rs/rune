@@ -4,7 +4,7 @@ use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
-use stk::unit::{Assembly, Label, Span};
+use runestick::unit::{Assembly, Label, Span};
 
 mod loops;
 mod options;
@@ -35,7 +35,7 @@ impl std::ops::Deref for NeedsValue {
 
 impl<'a> crate::ParseAll<'a, ast::DeclFile> {
     /// Compile the parse with default options.
-    pub fn compile(self) -> Result<(stk::CompilationUnit, Warnings)> {
+    pub fn compile(self) -> Result<(runestick::CompilationUnit, Warnings)> {
         self.compile_with_options(&Default::default())
     }
 
@@ -43,12 +43,12 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
     pub fn compile_with_options(
         self,
         options: &Options,
-    ) -> Result<(stk::CompilationUnit, Warnings)> {
+    ) -> Result<(runestick::CompilationUnit, Warnings)> {
         let ParseAll { source, item: file } = self;
 
         let mut warnings = Warnings::new();
 
-        let mut unit = stk::CompilationUnit::with_default_prelude();
+        let mut unit = runestick::CompilationUnit::with_default_prelude();
 
         for import in file.imports {
             let name = import.path.resolve(source)?;
@@ -83,7 +83,7 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
 }
 
 struct Compiler<'a> {
-    unit: &'a mut stk::CompilationUnit,
+    unit: &'a mut runestick::CompilationUnit,
     asm: &'a mut Assembly,
     scopes: Scopes,
     /// Context for which to emit warnings.
@@ -110,7 +110,7 @@ impl<'a> Compiler<'a> {
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
-            self.asm.push(stk::Inst::ReturnUnit, span);
+            self.asm.push(runestick::Inst::ReturnUnit, span);
             return Ok(());
         }
 
@@ -123,11 +123,11 @@ impl<'a> Compiler<'a> {
 
             let total_var_count = self.scopes.last(span)?.total_var_count;
             self.locals_clean(total_var_count, span);
-            self.asm.push(stk::Inst::Return, span);
+            self.asm.push(runestick::Inst::Return, span);
         } else {
             let total_var_count = self.scopes.last(span)?.total_var_count;
             self.locals_pop(total_var_count, span);
-            self.asm.push(stk::Inst::ReturnUnit, span);
+            self.asm.push(runestick::Inst::ReturnUnit, span);
         }
 
         self.scopes.pop_last(span)?;
@@ -139,10 +139,10 @@ impl<'a> Compiler<'a> {
         match total_var_count {
             0 => (),
             1 => {
-                self.asm.push(stk::Inst::Pop, span);
+                self.asm.push(runestick::Inst::Pop, span);
             }
             count => {
-                self.asm.push(stk::Inst::PopN { count }, span);
+                self.asm.push(runestick::Inst::PopN { count }, span);
             }
         }
     }
@@ -156,7 +156,7 @@ impl<'a> Compiler<'a> {
         match total_var_count {
             0 => (),
             count => {
-                self.asm.push(stk::Inst::Clean { count }, span);
+                self.asm.push(runestick::Inst::Clean { count }, span);
             }
         }
     }
@@ -199,7 +199,7 @@ impl<'a> Compiler<'a> {
         if *needs_value {
             if block.trailing_expr.is_none() {
                 self.locals_pop(scope.local_var_count, span);
-                self.asm.push(stk::Inst::Unit, span);
+                self.asm.push(runestick::Inst::Unit, span);
             } else {
                 self.locals_clean(scope.local_var_count, span);
             }
@@ -236,10 +236,10 @@ impl<'a> Compiler<'a> {
         if let Some(expr) = &return_expr.expr {
             self.compile_expr(&*expr, NeedsValue(true))?;
             self.locals_clean(total_var_count, span);
-            self.asm.push(stk::Inst::Return, span);
+            self.asm.push(runestick::Inst::Return, span);
         } else {
             self.locals_pop(total_var_count, span);
-            self.asm.push(stk::Inst::ReturnUnit, span);
+            self.asm.push(runestick::Inst::ReturnUnit, span);
         }
 
         Ok(())
@@ -364,7 +364,7 @@ impl<'a> Compiler<'a> {
             // Evaluate the expressions one by one, then pop them to cause any
             // side effects (without creating an object).
             if !*needs_value {
-                self.asm.push(stk::Inst::Pop, span);
+                self.asm.push(runestick::Inst::Pop, span);
             }
         }
 
@@ -374,7 +374,7 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        self.asm.push(stk::Inst::Array { count }, span);
+        self.asm.push(runestick::Inst::Array { count }, span);
         Ok(())
     }
 
@@ -414,7 +414,7 @@ impl<'a> Compiler<'a> {
             // Evaluate the expressions one by one, then pop them to cause any
             // side effects (without creating an object).
             if !*needs_value {
-                self.asm.push(stk::Inst::Pop, span);
+                self.asm.push(runestick::Inst::Pop, span);
             }
         }
 
@@ -426,7 +426,7 @@ impl<'a> Compiler<'a> {
 
         let slot = self.unit.new_static_object_keys(&keys)?;
 
-        self.asm.push(stk::Inst::Object { slot }, span);
+        self.asm.push(runestick::Inst::Object { slot }, span);
         Ok(())
     }
 
@@ -446,7 +446,8 @@ impl<'a> Compiler<'a> {
         }
 
         let resolved_char = char_literal.resolve(self.source)?;
-        self.asm.push(stk::Inst::Char { c: resolved_char }, span);
+        self.asm
+            .push(runestick::Inst::Char { c: resolved_char }, span);
         Ok(())
     }
 
@@ -463,7 +464,7 @@ impl<'a> Compiler<'a> {
 
         let string = lit_str.resolve(self.source)?;
         let slot = self.unit.new_static_string(&*string)?;
-        self.asm.push(stk::Inst::String { slot }, span);
+        self.asm.push(runestick::Inst::String { slot }, span);
         Ok(())
     }
 
@@ -496,7 +497,7 @@ impl<'a> Compiler<'a> {
             match c {
                 ast::TemplateComponent::String(string) => {
                     let slot = self.unit.new_static_string(&string)?;
-                    self.asm.push(stk::Inst::StaticString { slot }, span);
+                    self.asm.push(runestick::Inst::StaticString { slot }, span);
                     self.scopes.last_mut(span)?.decl_anon(span);
                 }
                 ast::TemplateComponent::Expr(expr) => {
@@ -507,7 +508,7 @@ impl<'a> Compiler<'a> {
         }
 
         self.asm.push(
-            stk::Inst::StringConcat {
+            runestick::Inst::StringConcat {
                 len: template.components.len(),
                 size_hint: template.size_hint,
             },
@@ -534,7 +535,7 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        self.asm.push(stk::Inst::Unit, span);
+        self.asm.push(runestick::Inst::Unit, span);
         Ok(())
     }
 
@@ -548,7 +549,7 @@ impl<'a> Compiler<'a> {
         }
 
         self.asm.push(
-            stk::Inst::Bool {
+            runestick::Inst::Bool {
                 value: lit_bool.value,
             },
             span,
@@ -575,10 +576,10 @@ impl<'a> Compiler<'a> {
 
         match lit_number {
             ast::Number::Float(number) => {
-                self.asm.push(stk::Inst::Float { number }, span);
+                self.asm.push(runestick::Inst::Float { number }, span);
             }
             ast::Number::Integer(number) => {
-                self.asm.push(stk::Inst::Integer { number }, span);
+                self.asm.push(runestick::Inst::Integer { number }, span);
             }
         }
 
@@ -613,7 +614,8 @@ impl<'a> Compiler<'a> {
         self.asm.label(end_label)?;
 
         if *needs_value {
-            self.asm.push(stk::Inst::Unit, expr_while.condition.span());
+            self.asm
+                .push(runestick::Inst::Unit, expr_while.condition.span());
         }
 
         // NB: breaks produce their own value.
@@ -647,7 +649,7 @@ impl<'a> Compiler<'a> {
 
         // Declare named loop variable.
         let binding_offset = {
-            self.asm.push(stk::Inst::Unit, expr_for.iter.span());
+            self.asm.push(runestick::Inst::Unit, expr_for.iter.span());
             let name = expr_for.var.resolve(self.source)?;
             self.scopes
                 .last_mut(span)?
@@ -657,18 +659,20 @@ impl<'a> Compiler<'a> {
         // Declare storage for memoized `next` instance fn.
         let next_offset = if self.options.memoize_instance_fn {
             let offset = self.scopes.last_mut(span)?.decl_anon(expr_for.iter.span());
-            let hash = *stk::NEXT;
+            let hash = *runestick::NEXT;
 
             // Declare the named loop variable and put it in the scope.
             self.asm.push(
-                stk::Inst::Copy {
+                runestick::Inst::Copy {
                     offset: iterator_offset,
                 },
                 expr_for.iter.span(),
             );
 
-            self.asm
-                .push(stk::Inst::LoadInstanceFn { hash }, expr_for.iter.span());
+            self.asm.push(
+                runestick::Inst::LoadInstanceFn { hash },
+                expr_for.iter.span(),
+            );
             Some(offset)
         } else {
             None
@@ -679,23 +683,23 @@ impl<'a> Compiler<'a> {
         // Use the memoized loop variable.
         if let Some(next_offset) = next_offset {
             self.asm.push(
-                stk::Inst::Copy {
+                runestick::Inst::Copy {
                     offset: iterator_offset,
                 },
                 expr_for.iter.span(),
             );
 
             self.asm.push(
-                stk::Inst::Copy {
+                runestick::Inst::Copy {
                     offset: next_offset,
                 },
                 expr_for.iter.span(),
             );
 
-            self.asm.push(stk::Inst::CallFn { args: 0 }, span);
+            self.asm.push(runestick::Inst::CallFn { args: 0 }, span);
 
             self.asm.push(
-                stk::Inst::Replace {
+                runestick::Inst::Replace {
                     offset: binding_offset,
                 },
                 expr_for.var.span(),
@@ -704,17 +708,17 @@ impl<'a> Compiler<'a> {
             // call the `next` function to get the next level of iteration, bind the
             // result to the loop variable in the loop.
             self.asm.push(
-                stk::Inst::Copy {
+                runestick::Inst::Copy {
                     offset: iterator_offset,
                 },
                 expr_for.iter.span(),
             );
 
-            let hash = stk::Hash::of(ITERATOR_NEXT);
+            let hash = runestick::Hash::of(ITERATOR_NEXT);
             self.asm
-                .push(stk::Inst::CallInstance { hash, args: 0 }, span);
+                .push(runestick::Inst::CallInstance { hash, args: 0 }, span);
             self.asm.push(
-                stk::Inst::Replace {
+                runestick::Inst::Replace {
                     offset: binding_offset,
                 },
                 expr_for.var.span(),
@@ -724,12 +728,12 @@ impl<'a> Compiler<'a> {
         // test loop condition.
         {
             self.asm.push(
-                stk::Inst::Copy {
+                runestick::Inst::Copy {
                     offset: binding_offset,
                 },
                 expr_for.var.span(),
             );
-            self.asm.push(stk::Inst::IsUnit, expr_for.span());
+            self.asm.push(runestick::Inst::IsUnit, expr_for.span());
             self.asm.jump_if(end_label, expr_for.span());
         }
 
@@ -741,7 +745,7 @@ impl<'a> Compiler<'a> {
 
         // NB: If a value is needed from a for loop, encode it as a unit.
         if *needs_value {
-            self.asm.push(stk::Inst::Unit, span);
+            self.asm.push(runestick::Inst::Unit, span);
         }
 
         // NB: breaks produce their own value.
@@ -777,7 +781,7 @@ impl<'a> Compiler<'a> {
 
         // NB: If a value is needed from a while loop, encode it as a unit.
         if *needs_value {
-            self.asm.push(stk::Inst::Unit, span);
+            self.asm.push(runestick::Inst::Unit, span);
         }
 
         self.asm.label(break_label)?;
@@ -803,8 +807,8 @@ impl<'a> Compiler<'a> {
             self.asm.jump(ok_label, span);
             self.asm.label(false_label)?;
             self.asm.push(
-                stk::Inst::Panic {
-                    reason: stk::Panic::UnmatchedPattern,
+                runestick::Inst::Panic {
+                    reason: runestick::Panic::UnmatchedPattern,
                 },
                 span,
             );
@@ -815,7 +819,7 @@ impl<'a> Compiler<'a> {
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if *needs_value {
-            self.asm.push(stk::Inst::Unit, span);
+            self.asm.push(runestick::Inst::Unit, span);
         }
 
         Ok(())
@@ -845,19 +849,19 @@ impl<'a> Compiler<'a> {
 
         match bin_op {
             ast::BinOp::Assign => {
-                self.asm.push(stk::Inst::Replace { offset }, span);
+                self.asm.push(runestick::Inst::Replace { offset }, span);
             }
             ast::BinOp::AddAssign => {
-                self.asm.push(stk::Inst::AddAssign { offset }, span);
+                self.asm.push(runestick::Inst::AddAssign { offset }, span);
             }
             ast::BinOp::SubAssign => {
-                self.asm.push(stk::Inst::SubAssign { offset }, span);
+                self.asm.push(runestick::Inst::SubAssign { offset }, span);
             }
             ast::BinOp::MulAssign => {
-                self.asm.push(stk::Inst::MulAssign { offset }, span);
+                self.asm.push(runestick::Inst::MulAssign { offset }, span);
             }
             ast::BinOp::DivAssign => {
-                self.asm.push(stk::Inst::DivAssign { offset }, span);
+                self.asm.push(runestick::Inst::DivAssign { offset }, span);
             }
             op => {
                 return Err(CompileError::UnsupportedAssignBinOp { span, op });
@@ -865,7 +869,7 @@ impl<'a> Compiler<'a> {
         }
 
         if *needs_value {
-            self.asm.push(stk::Inst::Unit, span);
+            self.asm.push(runestick::Inst::Unit, span);
         }
 
         Ok(())
@@ -881,12 +885,12 @@ impl<'a> Compiler<'a> {
 
         self.compile_expr(&*expr_index_get.index, NeedsValue(true))?;
         self.compile_expr(&*expr_index_get.target, NeedsValue(true))?;
-        self.asm.push(stk::Inst::IndexGet, span);
+        self.asm.push(runestick::Inst::IndexGet, span);
 
         // NB: we still need to perform the operation since it might have side
         // effects, but pop the result in case a value is not needed.
         if !*needs_value {
-            self.asm.push(stk::Inst::Pop, span);
+            self.asm.push(runestick::Inst::Pop, span);
         }
 
         Ok(())
@@ -939,7 +943,7 @@ impl<'a> Compiler<'a> {
                 self.locals_clean(vars, span);
             } else {
                 self.locals_pop(vars, span);
-                self.asm.push(stk::Inst::Unit, span);
+                self.asm.push(runestick::Inst::Unit, span);
             }
         } else {
             self.locals_pop(vars, span);
@@ -961,11 +965,11 @@ impl<'a> Compiler<'a> {
         self.compile_expr(&*expr_index_set.value, NeedsValue(true))?;
         self.compile_expr(&*expr_index_set.index, NeedsValue(true))?;
         self.compile_expr(&*expr_index_set.target, NeedsValue(true))?;
-        self.asm.push(stk::Inst::IndexSet, span);
+        self.asm.push(runestick::Inst::IndexSet, span);
 
         // Encode a unit in case a value is needed.
         if *needs_value {
-            self.asm.push(stk::Inst::Unit, span);
+            self.asm.push(runestick::Inst::Unit, span);
         }
 
         Ok(())
@@ -988,8 +992,8 @@ impl<'a> Compiler<'a> {
             Err(..) => {
                 // Something imported is automatically a type.
                 if let Some(path) = self.unit.lookup_import_by_name(target) {
-                    let hash = stk::Hash::of_type(path);
-                    self.asm.push(stk::Inst::Type { hash }, span);
+                    let hash = runestick::Hash::of_type(path);
+                    self.asm.push(runestick::Inst::Type { hash }, span);
                     return Ok(());
                 }
 
@@ -1000,7 +1004,8 @@ impl<'a> Compiler<'a> {
             }
         };
 
-        self.asm.push(stk::Inst::Copy { offset: var.offset }, span);
+        self.asm
+            .push(runestick::Inst::Copy { offset: var.offset }, span);
         Ok(())
     }
 
@@ -1022,8 +1027,8 @@ impl<'a> Compiler<'a> {
             parts.push(part.resolve(self.source)?);
         }
 
-        let hash = stk::Hash::of_type(&parts);
-        self.asm.push(stk::Inst::Type { hash }, span);
+        let hash = runestick::Hash::of_type(&parts);
+        self.asm.push(runestick::Inst::Type { hash }, span);
         Ok(())
     }
 
@@ -1038,12 +1043,12 @@ impl<'a> Compiler<'a> {
         }
 
         let hash = self.resolve_call_dest(&call_fn.name)?;
-        self.asm.push(stk::Inst::Call { hash, args }, span);
+        self.asm.push(runestick::Inst::Call { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !*needs_value {
-            self.asm.push(stk::Inst::Pop, span);
+            self.asm.push(runestick::Inst::Pop, span);
         }
 
         Ok(())
@@ -1066,13 +1071,14 @@ impl<'a> Compiler<'a> {
         self.compile_expr(&*call_instance_fn.instance, NeedsValue(true))?;
 
         let name = call_instance_fn.name.resolve(self.source)?;
-        let hash = stk::Hash::of(name);
-        self.asm.push(stk::Inst::CallInstance { hash, args }, span);
+        let hash = runestick::Hash::of(name);
+        self.asm
+            .push(runestick::Inst::CallInstance { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !*needs_value {
-            self.asm.push(stk::Inst::Pop, span);
+            self.asm.push(runestick::Inst::Pop, span);
         }
 
         Ok(())
@@ -1099,7 +1105,7 @@ impl<'a> Compiler<'a> {
 
         match expr_unary.op {
             ast::UnaryOp::Not { .. } => {
-                self.asm.push(stk::Inst::Not, span);
+                self.asm.push(runestick::Inst::Not, span);
             }
             op => {
                 return Err(CompileError::UnsupportedUnaryOp { span, op });
@@ -1109,7 +1115,7 @@ impl<'a> Compiler<'a> {
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !*needs_value {
-            self.asm.push(stk::Inst::Pop, span);
+            self.asm.push(runestick::Inst::Pop, span);
         }
 
         Ok(())
@@ -1152,43 +1158,43 @@ impl<'a> Compiler<'a> {
 
         match expr_binary.op {
             ast::BinOp::Add { .. } => {
-                self.asm.push(stk::Inst::Add, span);
+                self.asm.push(runestick::Inst::Add, span);
             }
             ast::BinOp::Sub { .. } => {
-                self.asm.push(stk::Inst::Sub, span);
+                self.asm.push(runestick::Inst::Sub, span);
             }
             ast::BinOp::Div { .. } => {
-                self.asm.push(stk::Inst::Div, span);
+                self.asm.push(runestick::Inst::Div, span);
             }
             ast::BinOp::Mul { .. } => {
-                self.asm.push(stk::Inst::Mul, span);
+                self.asm.push(runestick::Inst::Mul, span);
             }
             ast::BinOp::Eq { .. } => {
-                self.asm.push(stk::Inst::Eq, span);
+                self.asm.push(runestick::Inst::Eq, span);
             }
             ast::BinOp::Neq { .. } => {
-                self.asm.push(stk::Inst::Neq, span);
+                self.asm.push(runestick::Inst::Neq, span);
             }
             ast::BinOp::Lt { .. } => {
-                self.asm.push(stk::Inst::Lt, span);
+                self.asm.push(runestick::Inst::Lt, span);
             }
             ast::BinOp::Gt { .. } => {
-                self.asm.push(stk::Inst::Gt, span);
+                self.asm.push(runestick::Inst::Gt, span);
             }
             ast::BinOp::Lte { .. } => {
-                self.asm.push(stk::Inst::Lte, span);
+                self.asm.push(runestick::Inst::Lte, span);
             }
             ast::BinOp::Gte { .. } => {
-                self.asm.push(stk::Inst::Gte, span);
+                self.asm.push(runestick::Inst::Gte, span);
             }
             ast::BinOp::Is { .. } => {
-                self.asm.push(stk::Inst::Is, span);
+                self.asm.push(runestick::Inst::Is, span);
             }
             ast::BinOp::And { .. } => {
-                self.asm.push(stk::Inst::And, span);
+                self.asm.push(runestick::Inst::And, span);
             }
             ast::BinOp::Or { .. } => {
-                self.asm.push(stk::Inst::Or, span);
+                self.asm.push(runestick::Inst::Or, span);
             }
             op => {
                 return Err(CompileError::UnsupportedBinaryOp { span, op });
@@ -1198,7 +1204,7 @@ impl<'a> Compiler<'a> {
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !*needs_value {
-            self.asm.push(stk::Inst::Pop, span);
+            self.asm.push(runestick::Inst::Pop, span);
         }
 
         Ok(())
@@ -1266,7 +1272,7 @@ impl<'a> Compiler<'a> {
             // NB: if we must produce a value and there is no fallback branch,
             // encode the result of the statement as a unit.
             if *needs_value {
-                self.asm.push(stk::Inst::Unit, span);
+                self.asm.push(runestick::Inst::Unit, span);
             }
         }
 
@@ -1332,7 +1338,7 @@ impl<'a> Compiler<'a> {
             let mut scope = self.scopes.last(span)?.child();
 
             let load = move |asm: &mut Assembly| {
-                asm.push(stk::Inst::Copy { offset }, span);
+                asm.push(runestick::Inst::Copy { offset }, span);
             };
 
             self.compile_pat(&mut scope, &branch.pat, match_false, &load)?;
@@ -1355,7 +1361,7 @@ impl<'a> Compiler<'a> {
         // default match branch.
         if !expr_match.has_default {
             if *needs_value {
-                self.asm.push(stk::Inst::Unit, span);
+                self.asm.push(runestick::Inst::Unit, span);
             }
 
             self.asm.jump(end_label, span);
@@ -1394,10 +1400,10 @@ impl<'a> Compiler<'a> {
         log::trace!("ExprAwait => {:?}", self.source.source(span)?);
 
         self.compile_expr(&*expr_await.expr, NeedsValue(true))?;
-        self.asm.push(stk::Inst::Await, span);
+        self.asm.push(runestick::Inst::Await, span);
 
         if !*needs_value {
-            self.asm.push(stk::Inst::Pop, span);
+            self.asm.push(runestick::Inst::Pop, span);
         }
 
         Ok(())
@@ -1426,14 +1432,14 @@ impl<'a> Compiler<'a> {
             self.compile_expr(&branch.expr, NeedsValue(true))?;
         }
 
-        self.asm.push(stk::Inst::Select { len }, span);
+        self.asm.push(runestick::Inst::Select { len }, span);
 
         for (branch, (label, b)) in branches.iter().enumerate() {
             self.asm.jump_if_branch(branch, *label, b.span());
         }
 
         if *needs_value {
-            self.asm.push(stk::Inst::Unit, span);
+            self.asm.push(runestick::Inst::Unit, span);
             self.asm.jump(end_label, span);
         }
 
@@ -1449,7 +1455,7 @@ impl<'a> Compiler<'a> {
                     scope.decl_var(name, span);
                 }
                 ast::Pat::PatIgnore(..) => {
-                    self.asm.push(stk::Inst::Pop, span);
+                    self.asm.push(runestick::Inst::Pop, span);
                 }
                 other => return Err(CompileError::UnsupportedSelectPattern { span: other.span() }),
             }
@@ -1483,7 +1489,7 @@ impl<'a> Compiler<'a> {
 
             if array.open_pattern.is_some() {
                 self.asm.push(
-                    stk::Inst::MatchArray {
+                    runestick::Inst::MatchArray {
                         len: array.items.len(),
                         exact: false,
                     },
@@ -1491,7 +1497,7 @@ impl<'a> Compiler<'a> {
                 );
             } else {
                 self.asm.push(
-                    stk::Inst::MatchArray {
+                    runestick::Inst::MatchArray {
                         len: array.items.len(),
                         exact: true,
                     },
@@ -1512,7 +1518,7 @@ impl<'a> Compiler<'a> {
 
             let load = move |asm: &mut Assembly| {
                 load(asm);
-                asm.push(stk::Inst::ArrayIndexGet { index }, span);
+                asm.push(runestick::Inst::ArrayIndexGet { index }, span);
             };
 
             self.compile_pat(scope, &*pat, false_label, &load)?;
@@ -1562,7 +1568,7 @@ impl<'a> Compiler<'a> {
 
             if object.open_pattern.is_some() {
                 self.asm.push(
-                    stk::Inst::MatchObject {
+                    runestick::Inst::MatchObject {
                         slot: keys,
                         exact: false,
                     },
@@ -1570,7 +1576,7 @@ impl<'a> Compiler<'a> {
                 );
             } else {
                 self.asm.push(
-                    stk::Inst::MatchObject {
+                    runestick::Inst::MatchObject {
                         slot: keys,
                         exact: true,
                     },
@@ -1591,7 +1597,7 @@ impl<'a> Compiler<'a> {
 
             let load = move |asm: &mut Assembly| {
                 load(asm);
-                asm.push(stk::Inst::ObjectSlotIndexGet { slot }, span);
+                asm.push(runestick::Inst::ObjectSlotIndexGet { slot }, span);
             };
 
             // load the given array index and declare it as a local variable.
@@ -1633,7 +1639,7 @@ impl<'a> Compiler<'a> {
                 let span = unit.span();
 
                 load(&mut self.asm);
-                self.asm.push(stk::Inst::IsUnit, span);
+                self.asm.push(runestick::Inst::IsUnit, span);
                 self.asm.jump_if(true_label, span);
             }
             ast::Pat::PatChar(char_literal) => {
@@ -1642,7 +1648,8 @@ impl<'a> Compiler<'a> {
                 let character = char_literal.resolve(self.source)?;
 
                 load(&mut self.asm);
-                self.asm.push(stk::Inst::EqCharacter { character }, span);
+                self.asm
+                    .push(runestick::Inst::EqCharacter { character }, span);
                 self.asm.jump_if(true_label, span);
             }
             ast::Pat::PatNumber(number_literal) => {
@@ -1658,7 +1665,7 @@ impl<'a> Compiler<'a> {
                 };
 
                 load(&mut self.asm);
-                self.asm.push(stk::Inst::EqInteger { integer }, span);
+                self.asm.push(runestick::Inst::EqInteger { integer }, span);
 
                 self.asm.jump_if(true_label, span);
             }
@@ -1669,7 +1676,8 @@ impl<'a> Compiler<'a> {
                 let slot = self.unit.new_static_string(&*string)?;
 
                 load(&mut self.asm);
-                self.asm.push(stk::Inst::EqStaticString { slot }, span);
+                self.asm
+                    .push(runestick::Inst::EqStaticString { slot }, span);
 
                 self.asm.jump_if(true_label, span);
             }
@@ -1678,7 +1686,7 @@ impl<'a> Compiler<'a> {
                 load(&mut self.asm);
 
                 let load = |asm: &mut Assembly| {
-                    asm.push(stk::Inst::Copy { offset }, span);
+                    asm.push(runestick::Inst::Copy { offset }, span);
                 };
 
                 self.compile_pat_array(scope, array, false_label, &load)?;
@@ -1689,7 +1697,7 @@ impl<'a> Compiler<'a> {
                 load(&mut self.asm);
 
                 let load = |asm: &mut Assembly| {
-                    asm.push(stk::Inst::Copy { offset }, span);
+                    asm.push(runestick::Inst::Copy { offset }, span);
                 };
 
                 self.compile_pat_object(scope, object, false_label, &load)?;
@@ -1724,12 +1732,12 @@ impl<'a> Compiler<'a> {
     }
 
     /// Decode a path into a call destination based on its hashes.
-    fn resolve_call_dest(&self, path: &ast::Path) -> Result<stk::Hash> {
+    fn resolve_call_dest(&self, path: &ast::Path) -> Result<runestick::Hash> {
         let local = path.first.resolve(self.source)?;
 
         let imported = match self.unit.lookup_import_by_name(local).cloned() {
             Some(path) => path,
-            None => stk::Item::of(&[local]),
+            None => runestick::Item::of(&[local]),
         };
 
         let mut rest = Vec::new();
@@ -1743,7 +1751,7 @@ impl<'a> Compiler<'a> {
             .map(String::as_str)
             .chain(rest.into_iter());
 
-        Ok(stk::Hash::function(it))
+        Ok(runestick::Hash::function(it))
     }
 
     /// Get the latest relevant warning context.

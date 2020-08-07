@@ -3,7 +3,7 @@ use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{self, Kind, Token};
 use crate::traits::{Parse, Resolve};
-use stk::unit::Span;
+use runestick::unit::Span;
 
 /// A resolved number literal.
 pub enum Number {

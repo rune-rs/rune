@@ -6,16 +6,16 @@
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! stk = "0.2"
-//! stk-json = "0.2"
+//! runestick = "0.2"
+//! runestick-json = "0.2"
 //! ```
 //!
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> stk::Result<()> {
-//! let mut context = stk::Context::with_default_packages()?;
-//! context.install(stk_json::module()?)?;
+//! # fn main() -> runestick::Result<()> {
+//! let mut context = runestick::Context::with_default_packages()?;
+//! context.install(runestick_json::module()?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -31,25 +31,25 @@
 //! }
 //! ```
 
-use stk::packages::bytes::Bytes;
-use stk::{ContextError, Module, ValuePtr};
+use runestick::packages::bytes::Bytes;
+use runestick::{ContextError, Module, ValuePtr};
 
-fn from_bytes(bytes: &[u8]) -> stk::Result<ValuePtr> {
+fn from_bytes(bytes: &[u8]) -> runestick::Result<ValuePtr> {
     Ok(serde_json::from_slice(&bytes)?)
 }
 
 /// Get value from json string.
-fn from_string(string: &str) -> stk::Result<ValuePtr> {
+fn from_string(string: &str) -> runestick::Result<ValuePtr> {
     Ok(serde_json::from_str(string)?)
 }
 
 /// Convert any value to a json string.
-fn to_string(value: ValuePtr) -> stk::Result<String> {
+fn to_string(value: ValuePtr) -> runestick::Result<String> {
     Ok(serde_json::to_string(&value)?)
 }
 
 /// Convert any value to a json string.
-fn to_bytes(value: ValuePtr) -> stk::Result<Bytes> {
+fn to_bytes(value: ValuePtr) -> runestick::Result<Bytes> {
     let bytes = serde_json::to_vec(&value)?;
     Ok(Bytes::from_bytes(bytes))
 }

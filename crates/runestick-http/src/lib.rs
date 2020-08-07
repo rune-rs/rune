@@ -1,23 +1,23 @@
-//! HTTP module for stk based on reqwest.
+//! HTTP module for runestick based on reqwest.
 //!
 //! ## Usage
 //!
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! stk = "0.2"
-//! stk-http = "0.2"
+//! runestick = "0.2"
+//! runestick-http = "0.2"
 //! # not necessary, but useful
-//! stk-json = "0.2"
+//! runestick-json = "0.2"
 //! ```
 //!
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> stk::Result<()> {
-//! let mut context = stk::Context::with_default_packages()?;
-//! context.install(stk_http::module()?)?;
-//! context.install(stk_json::module()?)?;
+//! # fn main() -> runestick::Result<()> {
+//! let mut context = runestick::Context::with_default_packages()?;
+//! context.install(runestick_http::module()?)?;
+//! context.install(runestick_json::module()?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -51,7 +51,7 @@
 //! }
 //! ```
 
-use stk::packages::bytes::Bytes;
+use runestick::packages::bytes::Bytes;
 
 #[derive(Debug)]
 struct Client {
@@ -64,7 +64,7 @@ pub struct Response {
 }
 
 impl Response {
-    async fn text(self) -> stk::Result<String> {
+    async fn text(self) -> runestick::Result<String> {
         let text = self.response.text().await?;
         Ok(text)
     }
@@ -77,12 +77,12 @@ pub struct RequestBuilder {
 
 impl RequestBuilder {
     /// Send the request being built.
-    async fn send(self) -> stk::Result<Response> {
+    async fn send(self) -> runestick::Result<Response> {
         let response = self.request.send().await?;
         Ok(Response { response })
     }
 
-    async fn body_bytes(self, bytes: Bytes) -> stk::Result<Self> {
+    async fn body_bytes(self, bytes: Bytes) -> runestick::Result<Self> {
         let bytes = bytes.into_inner();
 
         Ok(Self {
@@ -99,32 +99,32 @@ impl Client {
     }
 
     /// Construct a builder to GET the given URL.
-    async fn get(&self, url: &str) -> stk::Result<RequestBuilder> {
+    async fn get(&self, url: &str) -> runestick::Result<RequestBuilder> {
         let request = self.client.get(url);
         Ok(RequestBuilder { request })
     }
 
     /// Construct a builder to POST to the given URL.
-    async fn post(&self, url: &str) -> stk::Result<RequestBuilder> {
+    async fn post(&self, url: &str) -> runestick::Result<RequestBuilder> {
         let request = self.client.post(url);
         Ok(RequestBuilder { request })
     }
 }
 
 /// Shorthand for generating a get request.
-async fn get(url: &str) -> stk::Result<Response> {
+async fn get(url: &str) -> runestick::Result<Response> {
     Ok(Response {
         response: reqwest::get(url).await?,
     })
 }
 
-stk::decl_external!(Client);
-stk::decl_external!(Response);
-stk::decl_external!(RequestBuilder);
+runestick::decl_external!(Client);
+runestick::decl_external!(Response);
+runestick::decl_external!(RequestBuilder);
 
 /// Construct the http library.
-pub fn module() -> Result<stk::Module, stk::ContextError> {
-    let mut module = stk::Module::new(&["http"]);
+pub fn module() -> Result<runestick::Module, runestick::ContextError> {
+    let mut module = runestick::Module::new(&["http"]);
 
     module.ty(&["Client"]).build::<Client>()?;
     module.ty(&["Response"]).build::<Response>()?;

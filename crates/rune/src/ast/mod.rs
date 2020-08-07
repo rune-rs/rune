@@ -5,7 +5,7 @@ use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek, Resolve};
-use stk::unit::Span;
+use runestick::unit::Span;
 
 mod call_fn;
 mod call_instance_fn;

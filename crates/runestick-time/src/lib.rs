@@ -1,20 +1,20 @@
-//! The stk time package.
+//! The runestick time package.
 //!
 //! ## Usage
 //!
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! stk = "0.2"
-//! stk-timer = "0.2"
+//! runestick = "0.2"
+//! runestick-timer = "0.2"
 //! ```
 //!
 //! Install it into your context:
 //!
 //! ```rust
-//! # fn main() -> stk::Result<()> {
-//! let mut context = stk::Context::with_default_packages()?;
-//! context.install(stk_time::module()?)?;
+//! # fn main() -> runestick::Result<()> {
+//! let mut context = runestick::Context::with_default_packages()?;
+//! context.install(runestick_time::module()?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -29,7 +29,7 @@
 //! }
 //! ```
 
-use stk::{ContextError, Module};
+use runestick::{ContextError, Module};
 
 #[derive(Debug, Clone, Copy)]
 struct Duration {
@@ -50,7 +50,7 @@ async fn delay_for(duration: Duration) {
     tokio::time::delay_for(duration.inner).await;
 }
 
-stk::decl_external!(Duration);
+runestick::decl_external!(Duration);
 
 /// Get the module for the bytes package.
 pub fn module() -> Result<Module, ContextError> {

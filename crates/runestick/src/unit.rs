@@ -1,4 +1,4 @@
-//! A single execution unit in the stk virtual machine.
+//! A single execution unit in the runestick virtual machine.
 //!
 //! A unit consists of an array of instructions, and lookaside tables for
 //! metadata like function locations.

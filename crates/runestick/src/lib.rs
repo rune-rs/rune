@@ -1,4 +1,4 @@
-//! STK, a simple stack-based virtual machine.
+//! runestick, a simple stack-based virtual machine.
 //!
 //! ## Contributing
 //!
@@ -8,7 +8,7 @@
 //! Create an issue about the optimization you want to work on and communicate that
 //! you are working on it.
 //!
-//! ## Features of stk
+//! ## Features of runestick
 //!
 //! * [Clean Rust FFI][rust-ffi].
 //! * Stack-based C FFI like with Lua (TBD).
@@ -17,7 +17,7 @@
 //!
 //! ## Rune Scripts
 //!
-//! stk comes with a simple scripting language called *Rune*.
+//! runestick comes with a simple scripting language called *Rune*.
 //!
 //! You can run example scripts through rune-cli:
 //!
@@ -31,8 +31,8 @@
 //! cargo run -- ./scripts/hello_world.rn --dump-unit --trace
 //! ```
 //!
-//! [rust-ffi]: https://github.com/udoprog/stk/blob/master/crates/stk-http/src/lib.rs
-//! [future-optimizations]: https://github.com/udoprog/stk/blob/master/FUTURE_OPTIMIZATIONS.md
+//! [rust-ffi]: https://github.com/udoprog/runestick/blob/master/crates/runestick-http/src/lib.rs
+//! [future-optimizations]: https://github.com/udoprog/runestick/blob/master/FUTURE_OPTIMIZATIONS.md
 
 #![deny(missing_docs)]
 

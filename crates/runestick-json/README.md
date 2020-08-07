@@ -1,6 +1,6 @@
-[![Build Status](https://github.com/udoprog/stk/workflows/Build/badge.svg)](https://github.com/udoprog/stk/actions)
+[![Build Status](https://github.com/udoprog/runestick/workflows/Build/badge.svg)](https://github.com/udoprog/runestick/actions)
 
-# stk-json
+# runestick-json
 
 The json package, providing access to functions to serialize and deserialize
 json.
@@ -10,15 +10,15 @@ json.
 Add the following to your `Cargo.toml`:
 
 ```toml
-stk = "0.2"
-stk-json = "0.2"
+runestick = "0.2"
+runestick-json = "0.2"
 ```
 
 Install it into your context:
 
 ```rust
-let mut context = stk::Context::with_default_packages()?;
-context.install(stk_json::module()?)?;
+let mut context = runestick::Context::with_default_packages()?;
+context.install(runestick_json::module()?)?;
 ```
 
 Use it in Rune:

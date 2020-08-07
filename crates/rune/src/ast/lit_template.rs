@@ -5,7 +5,7 @@ use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
-use stk::unit::Span;
+use runestick::unit::Span;
 
 /// A string literal.
 #[derive(Debug, Clone)]

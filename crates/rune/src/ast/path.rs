@@ -3,7 +3,7 @@ use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
 use crate::traits::{Parse, Resolve};
-use stk::unit::Span;
+use runestick::unit::Span;
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone)]

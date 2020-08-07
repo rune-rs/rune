@@ -71,15 +71,15 @@ impl Module {
     ///     }
     /// }
     ///
-    /// stk::decl_external!(StringQueue);
+    /// runestick::decl_external!(StringQueue);
     ///
-    /// # fn main() -> stk::Result<()> {
-    /// let mut module = stk::Module::default();
+    /// # fn main() -> runestick::Result<()> {
+    /// let mut module = runestick::Module::default();
     ///
     /// module.function(&["bytes"], StringQueue::new)?;
-    /// module.function(&["empty"], || Ok::<_, stk::Error>(()))?;
-    /// module.function(&["string"], |a: String| Ok::<_, stk::Error>(()))?;
-    /// module.function(&["optional"], |a: Option<String>| Ok::<_, stk::Error>(()))?;
+    /// module.function(&["empty"], || Ok::<_, runestick::Error>(()))?;
+    /// module.function(&["string"], |a: String| Ok::<_, runestick::Error>(()))?;
+    /// module.function(&["optional"], |a: Option<String>| Ok::<_, runestick::Error>(()))?;
     /// # Ok(())
     /// # }
     /// ```
@@ -105,13 +105,13 @@ impl Module {
     /// # Examples
     ///
     /// ```rust
-    /// # fn main() -> stk::Result<()> {
-    /// let mut module = stk::Module::default();
+    /// # fn main() -> runestick::Result<()> {
+    /// let mut module = runestick::Module::default();
     ///
     /// module.async_function(&["empty"], || async { () })?;
-    /// module.async_function(&["empty_fallible"], || async { Ok::<_, stk::Error>(()) })?;
-    /// module.async_function(&["string"], |a: String| async { Ok::<_, stk::Error>(()) })?;
-    /// module.async_function(&["optional"], |a: Option<String>| async { Ok::<_, stk::Error>(()) })?;
+    /// module.async_function(&["empty_fallible"], || async { Ok::<_, runestick::Error>(()) })?;
+    /// module.async_function(&["string"], |a: String| async { Ok::<_, runestick::Error>(()) })?;
+    /// module.async_function(&["optional"], |a: Option<String>| async { Ok::<_, runestick::Error>(()) })?;
     /// # Ok(())
     /// # }
     /// ```
@@ -171,10 +171,10 @@ impl Module {
     ///     }
     /// }
     ///
-    /// stk::decl_external!(StringQueue);
+    /// runestick::decl_external!(StringQueue);
     ///
-    /// # fn main() -> stk::Result<()> {
-    /// let mut module = stk::Module::default();
+    /// # fn main() -> runestick::Result<()> {
+    /// let mut module = runestick::Module::default();
     ///
     /// module.ty(&["StringQueue"]).build::<StringQueue>()?;
     /// module.function(&["StringQueue", "bytes"], StringQueue::new)?;
@@ -212,7 +212,7 @@ impl Module {
     /// use std::sync::atomic::AtomicU32;
     /// use std::sync::Arc;
     ///
-    /// stk::decl_external!(MyType);
+    /// runestick::decl_external!(MyType);
     ///
     /// #[derive(Clone, Debug)]
     /// struct MyType {
@@ -220,13 +220,13 @@ impl Module {
     /// }
     ///
     /// impl MyType {
-    ///     async fn test(&self) -> stk::Result<()> {
+    ///     async fn test(&self) -> runestick::Result<()> {
     ///         Ok(())
     ///     }
     /// }
     ///
-    /// # fn main() -> stk::Result<()> {
-    /// let mut module = stk::Module::default();
+    /// # fn main() -> runestick::Result<()> {
+    /// let mut module = runestick::Module::default();
     ///
     /// module.ty(&["MyType"]).build::<MyType>()?;
     /// module.async_inst_fn("test", MyType::test)?;

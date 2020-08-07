@@ -3,7 +3,7 @@ use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Peek};
-use stk::unit::Span;
+use runestick::unit::Span;
 
 /// Things that we can break on.
 #[derive(Debug, Clone)]

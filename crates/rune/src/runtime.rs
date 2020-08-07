@@ -1,5 +1,6 @@
 use crate::compiler::{Options, Warning, Warnings};
 use crate::error::{CompileError, ConfigurationError, ParseError};
+use runestick::unit::{LinkerError, LinkerErrors, Span};
 use slab::Slab;
 use std::error::Error as _;
 use std::fmt;
@@ -9,7 +10,6 @@ use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use stk::unit::{LinkerError, LinkerErrors, Span};
 use thiserror::Error;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
@@ -53,7 +53,7 @@ pub enum CallFunctionError {
     VmError {
         /// The error.
         #[from]
-        error: stk::VmError,
+        error: runestick::VmError,
     },
     /// Error raised when we try to call a function on a missing unit.
     #[error("missing unit for file id `{file_id}`")]
@@ -71,7 +71,7 @@ pub enum RuntimeError {
     VmError {
         /// The source error.
         #[source]
-        error: stk::VmError,
+        error: runestick::VmError,
         /// The span at which the error occured.
         span: Span,
     },
@@ -106,7 +106,7 @@ pub enum DiagnosticsError {
 
 /// A rune runtime, which simplifies embedding and using rune.
 pub struct Runtime {
-    context: Arc<stk::Context>,
+    context: Arc<runestick::Context>,
     files: SlabFiles,
     options: Options,
     errors: Vec<(usize, RuntimeError)>,
@@ -115,9 +115,9 @@ pub struct Runtime {
 
 impl Runtime {
     /// Construct a new runtime with the default context.
-    pub fn new() -> Result<Self, stk::ContextError> {
+    pub fn new() -> Result<Self, runestick::ContextError> {
         Ok(Self::with_context(Arc::new(
-            stk::Context::with_default_packages()?,
+            runestick::Context::with_default_packages()?,
         )))
     }
 
@@ -128,7 +128,7 @@ impl Runtime {
     }
 
     /// Construct a new runtime with a custom context.
-    pub fn with_context(context: Arc<stk::Context>) -> Self {
+    pub fn with_context(context: Arc<runestick::Context>) -> Self {
         Self {
             context,
             files: SlabFiles::new(),
@@ -139,12 +139,12 @@ impl Runtime {
     }
 
     /// Access the underlying context of the runtime.
-    pub fn context(&self) -> &stk::Context {
+    pub fn context(&self) -> &runestick::Context {
         &*self.context
     }
 
     /// Get the unit associated with the given file id.
-    pub fn unit(&self, file_id: usize) -> Option<Arc<stk::CompilationUnit>> {
+    pub fn unit(&self, file_id: usize) -> Option<Arc<runestick::CompilationUnit>> {
         self.files.get(file_id)?.unit.as_ref().cloned()
     }
 
@@ -156,12 +156,12 @@ impl Runtime {
         file_id: usize,
         name: I,
         args: A,
-    ) -> Result<stk::Task<'a, T>, CallFunctionError>
+    ) -> Result<runestick::Task<'a, T>, CallFunctionError>
     where
         I: IntoIterator,
         I::Item: AsRef<str>,
-        A: 'a + stk::IntoArgs,
-        T: stk::FromValue,
+        A: 'a + runestick::IntoArgs,
+        T: runestick::FromValue,
     {
         let unit = self
             .files
@@ -170,7 +170,7 @@ impl Runtime {
             .cloned()
             .ok_or_else(|| CallFunctionError::MissingUnit { file_id })?;
 
-        let vm = stk::Vm::new(unit);
+        let vm = runestick::Vm::new(unit);
         Ok(vm.call_function(self.context.clone(), name, args)?)
     }
 
@@ -181,8 +181,8 @@ impl Runtime {
         &mut self,
         ip: usize,
         file_id: usize,
-        error: stk::VmError,
-    ) -> Result<(), stk::VmError> {
+        error: runestick::VmError,
+    ) -> Result<(), runestick::VmError> {
         let unit = match self.files.get(file_id).and_then(|f| f.unit.as_ref()) {
             Some(unit) => unit,
             None => return Err(error),
@@ -446,7 +446,7 @@ impl Runtime {
 
 struct File {
     file: SimpleFile<String, String>,
-    unit: Option<Arc<stk::CompilationUnit>>,
+    unit: Option<Arc<runestick::CompilationUnit>>,
 }
 
 struct SlabFiles {

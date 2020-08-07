@@ -1,15 +1,15 @@
 use futures_executor::block_on;
+use runestick::VmError::*;
 use std::sync::Arc;
-use stk::VmError::*;
 
-async fn run_main<T>(source: &str) -> stk::Result<T>
+async fn run_main<T>(source: &str) -> runestick::Result<T>
 where
-    T: stk::FromValue,
+    T: runestick::FromValue,
 {
     let (unit, _) = rune::compile(source)?;
-    let vm = stk::Vm::new(Arc::new(unit));
-    let context = Arc::new(stk::Context::with_default_packages()?);
-    let mut task: stk::Task<T> = vm.call_function(context, &["main"], ())?;
+    let vm = runestick::Vm::new(Arc::new(unit));
+    let context = Arc::new(runestick::Context::with_default_packages()?);
+    let mut task: runestick::Task<T> = vm.call_function(context, &["main"], ())?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }
@@ -25,7 +25,7 @@ macro_rules! test_vm_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
         let e = block_on(run_main::<()>($source)).unwrap_err();
 
-        let e = match e.downcast_ref::<stk::VmError>() {
+        let e = match e.downcast_ref::<runestick::VmError>() {
             Some(e) => e,
             None => {
                 panic!("{:?}", e);
@@ -44,7 +44,7 @@ macro_rules! test_vm_error {
 #[test]
 fn test_small_programs() {
     assert_eq!(test!(u64 => r#"fn main() { 42 }"#), 42u64);
-    assert_eq!(test!(stk::Unit => r#"fn main() {}"#), stk::Unit);
+    assert_eq!(test!(runestick::Unit => r#"fn main() {}"#), runestick::Unit);
 
     assert_eq! {
         test! {
@@ -183,8 +183,8 @@ fn test_shadowing() {
 #[test]
 fn test_arrays() {
     assert_eq! {
-        test!(stk::Unit => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
-        stk::Unit,
+        test!(runestick::Unit => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
+        runestick::Unit,
     };
 }
 
@@ -463,8 +463,8 @@ fn test_match() {
 #[test]
 fn test_array_match() {
     assert_eq! {
-        test!(stk::Unit => r#"fn main() { match [] { [..] => true } }"#),
-        stk::Unit,
+        test!(runestick::Unit => r#"fn main() { match [] { [..] => true } }"#),
+        runestick::Unit,
     };
 
     assert_eq! {
@@ -473,13 +473,13 @@ fn test_array_match() {
     };
 
     assert_eq! {
-        test!(stk::Unit => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
-        stk::Unit,
+        test!(runestick::Unit => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
+        runestick::Unit,
     };
 
     assert_eq! {
-        test!(stk::Unit => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
-        stk::Unit,
+        test!(runestick::Unit => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
+        runestick::Unit,
     };
 
     assert_eq! {
@@ -536,8 +536,8 @@ fn test_array_match() {
 #[test]
 fn test_object_match() {
     assert_eq! {
-        test!(stk::Unit => r#"fn main() { match #{} { #{..} => true } }"#),
-        stk::Unit,
+        test!(runestick::Unit => r#"fn main() { match #{} { #{..} => true } }"#),
+        runestick::Unit,
     };
 
     assert_eq! {
@@ -575,7 +575,7 @@ fn test_bad_pattern() {
             let [] = [1, 2, 3];
         }
         "#,
-        Panic { reason: stk::Panic::UnmatchedPattern } => {}
+        Panic { reason: runestick::Panic::UnmatchedPattern } => {}
     );
 }
 

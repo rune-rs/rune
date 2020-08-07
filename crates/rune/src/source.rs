@@ -1,5 +1,5 @@
 use crate::error::{ParseError, Result};
-use stk::unit::Span;
+use runestick::unit::Span;
 
 /// A parsed input coupled with it's source.
 #[derive(Debug, Clone, Copy)]

@@ -1,24 +1,24 @@
 use futures_executor::block_on;
 use std::sync::Arc;
 
-async fn run_main<T, A>(context: Arc<stk::Context>, source: &str, args: A) -> rune::Result<T>
+async fn run_main<T, A>(context: Arc<runestick::Context>, source: &str, args: A) -> rune::Result<T>
 where
-    T: stk::FromValue,
-    A: stk::IntoArgs,
+    T: runestick::FromValue,
+    A: runestick::IntoArgs,
 {
     let (unit, _) = rune::compile(source)?;
-    let vm = stk::Vm::new(Arc::new(unit));
-    let mut task: stk::Task<T> = vm.call_function(context, &["main"], args)?;
+    let vm = runestick::Vm::new(Arc::new(unit));
+    let mut task: runestick::Task<T> = vm.call_function(context, &["main"], args)?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }
 
 #[test]
 fn test_custom_functions() {
-    let mut module = stk::Module::default();
+    let mut module = runestick::Module::default();
     module.function(&["test"], || 42).unwrap();
 
-    let mut context = stk::Context::new();
+    let mut context = runestick::Context::new();
     context.install(module).unwrap();
     let context = Arc::new(context);
 
@@ -39,11 +39,11 @@ fn test_custom_functions() {
 #[derive(Debug)]
 struct Thing(usize);
 
-stk::decl_external!(Thing);
+runestick::decl_external!(Thing);
 
 #[test]
 fn test_passed_in_reference() {
-    let mut module = stk::Module::default();
+    let mut module = runestick::Module::default();
     module
         .function(&["test"], |mut a: Thing, b: &mut Thing| {
             a.0 += 10;
@@ -52,7 +52,7 @@ fn test_passed_in_reference() {
         })
         .unwrap();
 
-    let mut context = stk::Context::new();
+    let mut context = runestick::Context::new();
     context.install(module).unwrap();
     let context = Arc::new(context);
 

@@ -3,7 +3,7 @@ use crate::ast::{CloseBrace, Comma, Eq, Expr, OpenBrace, Pat, Rocket, Select};
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::traits::Parse;
-use stk::unit::Span;
+use runestick::unit::Span;
 
 /// A single selection branch.
 #[derive(Debug, Clone)]
