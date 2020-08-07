@@ -66,7 +66,7 @@ impl<'a> Resolve<'a> for LitStr {
 /// ```rust
 /// use rune::{ParseAll, parse_all, ast, Resolve as _};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// let ParseAll { source, item } = parse_all::<ast::LitStr>("\"hello world\"")?;
 /// assert_eq!(item.resolve(source)?, "hello world");
 ///

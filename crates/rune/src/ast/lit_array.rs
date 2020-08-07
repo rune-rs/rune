@@ -36,7 +36,7 @@ impl LitArray {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::LitArray>("[1, \"two\"]").unwrap();
 /// parse_all::<ast::LitArray>("[1, 2,]").unwrap();
 /// parse_all::<ast::LitArray>("[1, 2, foo()]").unwrap();

@@ -109,7 +109,7 @@ impl<'a> Resolve<'a> for LitTemplate {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::LitTemplate>("`hello world`")?;
 /// parse_all::<ast::LitTemplate>("`hello\\n world`")?;
 /// # Ok(())

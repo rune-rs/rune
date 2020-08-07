@@ -5,7 +5,6 @@ use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::unit::CompilationUnit;
 use crate::value::{Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
-use anyhow::Result;
 use slab::Slab;
 use std::any;
 use std::cell::UnsafeCell;

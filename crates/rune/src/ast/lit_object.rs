@@ -37,7 +37,7 @@ impl LitObject {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::LitObject>("#{\"foo\": 42}")?;
 /// parse_all::<ast::LitObject>("#{\"foo\": 42,}")?;
 /// # Ok(())

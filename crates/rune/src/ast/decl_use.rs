@@ -21,7 +21,7 @@ pub struct DeclUse {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::DeclUse>("use foo;")?;
 /// parse_all::<ast::DeclUse>("use foo::bar;")?;
 /// parse_all::<ast::DeclUse>("use foo::bar::baz;")?;

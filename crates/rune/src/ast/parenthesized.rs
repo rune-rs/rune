@@ -29,7 +29,7 @@ impl<T, S> Parenthesized<T, S> {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, \"two\")")?;
 /// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2,)")?;
 /// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2, foo())")?;

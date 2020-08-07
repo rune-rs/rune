@@ -27,7 +27,7 @@ impl LitChar {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::LitChar>("'a'")?;
 /// parse_all::<ast::LitChar>("'\\0'")?;
 /// parse_all::<ast::LitChar>("'\\n'")?;

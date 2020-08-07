@@ -41,7 +41,7 @@ pub struct DeclFile {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// let _ = parse_all::<ast::DeclFile>(r#"
 /// use http;
 ///

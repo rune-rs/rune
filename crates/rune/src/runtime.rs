@@ -2,6 +2,7 @@ use crate::compiler::{Options, Warning, Warnings};
 use crate::error::{CompileError, ConfigurationError, ParseError};
 use slab::Slab;
 use std::error::Error as _;
+use std::fmt;
 use std::fmt::Write as _;
 use std::fs;
 use std::io;
@@ -91,6 +92,15 @@ pub enum RuntimeError {
         /// Errors that happened during linking.
         errors: LinkerErrors,
     },
+}
+
+/// Error emitted when we saw an error while we were emitting diagnostics.
+#[derive(Debug, Error)]
+pub enum DiagnosticsError {
+    #[error("I/O error")]
+    Io(#[from] io::Error),
+    #[error("formatting error")]
+    Fmt(#[from] fmt::Error),
 }
 
 /// A rune runtime, which simplifies embedding and using rune.
@@ -258,7 +268,7 @@ impl Runtime {
     }
 
     /// Emit diagnostics about the last error we encountered.
-    pub fn emit_diagnostics<O>(&mut self, out: &mut O) -> anyhow::Result<()>
+    pub fn emit_diagnostics<O>(&mut self, out: &mut O) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
     {

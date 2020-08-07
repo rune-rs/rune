@@ -73,7 +73,7 @@ impl Module {
     ///
     /// stk::decl_external!(StringQueue);
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> stk::Result<()> {
     /// let mut module = stk::Module::default();
     ///
     /// module.function(&["bytes"], StringQueue::new)?;
@@ -105,7 +105,7 @@ impl Module {
     /// # Examples
     ///
     /// ```rust
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> stk::Result<()> {
     /// let mut module = stk::Module::default();
     ///
     /// module.async_function(&["empty"], || async { () })?;
@@ -201,7 +201,7 @@ impl Module {
     ///
     /// stk::decl_external!(StringQueue);
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> stk::Result<()> {
     /// let mut module = stk::Module::default();
     ///
     /// module.ty(&["StringQueue"]).build::<StringQueue>()?;
@@ -253,7 +253,7 @@ impl Module {
     ///     }
     /// }
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> stk::Result<()> {
     /// let mut module = stk::Module::default();
     ///
     /// module.ty(&["MyType"]).build::<MyType>()?;

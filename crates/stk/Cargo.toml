@@ -20,13 +20,14 @@ The simple stack-based virtual machine.
 env_logger = "0.7.1"
 log = "0.4.11"
 twox-hash = "1.5.0"
-anyhow = "1.0.32"
 thiserror = "1.0.20"
 slab = "0.4.2"
 hashbrown = "0.8.1"
 serde = "1.0.114"
 itoa = "0.4.6"
 ryu = "1.0"
+# used to store errors raised in user-defined functions.
+anyhow = "1.0.32"
 
 [dev-dependencies]
 tokio = {version = "0.2.22", features = ["full"]}

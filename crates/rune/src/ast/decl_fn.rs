@@ -31,7 +31,7 @@ impl DeclFn {
 /// ```rust
 /// use rune::{ParseAll, parse_all, ast, Resolve as _};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// let ParseAll { item, .. } = parse_all::<ast::DeclFn>("fn hello() {}")?;
 /// assert_eq!(item.args.items.len(), 0);
 ///

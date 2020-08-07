@@ -31,7 +31,7 @@ impl Condition {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::Condition>("true")?;
 /// parse_all::<ast::Condition>("let [a, ..] = v")?;
 /// # Ok(())

@@ -1,12 +1,14 @@
 use crate::ast;
 use crate::token::Kind;
+use std::fmt;
+use std::io;
 use stk::unit::Span;
 use thiserror::Error;
 
 /// Result alias used by this frontend.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Error capable of collecting all error types.
+/// Error capable of collecting all error types emitted by this crate.
 #[derive(Debug, Error)]
 pub enum Error {
     /// Source parse error.
@@ -18,17 +20,18 @@ pub enum Error {
     /// Configuration error.
     #[error("configuration error")]
     ConfigurationError(#[from] ConfigurationError),
-}
-
-impl Error {
-    /// Get the span for the underlying error.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::ParseError(e) => e.span(),
-            Self::CompileError(e) => e.span(),
-            Self::ConfigurationError(..) => Span::empty(),
-        }
-    }
+    /// I/O error.
+    #[error("I/O error")]
+    Io(#[from] io::Error),
+    /// Formatting error.
+    #[error("formatting error")]
+    Fmt(#[from] fmt::Error),
+    /// Errors raised by the virtual machine.
+    #[error("virtual machine error")]
+    VmError(#[from] stk::VmError),
+    /// Errors raised when setting up context.
+    #[error("context error")]
+    ContextError(#[from] stk::ContextError),
 }
 
 #[derive(Debug, Clone, Error)]

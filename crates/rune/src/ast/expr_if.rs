@@ -44,7 +44,7 @@ impl ExprIf {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::ExprIf>("if 0 {  }")?;
 /// parse_all::<ast::ExprIf>("if 0 {  } else {  }")?;
 /// parse_all::<ast::ExprIf>("if 0 {  } else if 0 {  } else {  }")?;

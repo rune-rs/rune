@@ -47,7 +47,7 @@ impl ExprBlock {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// let block = parse_all::<ast::ExprBlock>("{}")?.item;
 /// assert_eq!(block.exprs.len(), 0);
 /// assert!(block.trailing_expr.is_none());

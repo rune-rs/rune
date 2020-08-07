@@ -36,7 +36,7 @@ impl ExprMatchBranch {
 /// ```rust
 /// use rune::{ParseAll, parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::ExprMatchBranch>("1 => { foo }")?;
 /// # Ok(())
 /// # }
@@ -96,7 +96,7 @@ impl ExprMatch {
 /// ```rust
 /// use rune::{ParseAll, parse_all, ast};
 ///
-/// # fn main() -> anyhow::Result<()> {
+/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::ExprMatch>("match 0 { _ => 1, }")?;
 /// # Ok(())
 /// # }
