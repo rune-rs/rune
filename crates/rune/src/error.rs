@@ -205,22 +205,6 @@ pub enum ParseError {
         /// The actual token.
         actual: Kind,
     },
-    /// Trying to define multiple fallback branches.
-    #[error("multiple distinct fallback branches are defined")]
-    MatchMultipleFallbackBranches {
-        /// The current branch we are trying to define.
-        span: Span,
-        /// The existing branch we have already defined.
-        existing: Span,
-    },
-    /// A match branch that will never be reached.
-    #[error("match branch will never be reached")]
-    MatchNeverReached {
-        /// The span of the branch.
-        span: Span,
-        /// The span of the existing branch.
-        existing: Span,
-    },
     /// Expression group required to break precedence.
     #[error("group required in expression to determine precedence")]
     PrecedenceGroupRequired {
@@ -310,8 +294,6 @@ impl ParseError {
             Self::ExpectedLitObjectKey { span, .. } => span,
             Self::PathCallInstanceError { span, .. } => span,
             Self::ExpectedUnaryOperator { span, .. } => span,
-            Self::MatchMultipleFallbackBranches { span, .. } => span,
-            Self::MatchNeverReached { span, .. } => span,
             Self::PrecedenceGroupRequired { span, .. } => span,
             Self::BadSlice { span, .. } => span,
             Self::BadEscapeSequence { span, .. } => span,

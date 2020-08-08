@@ -98,24 +98,14 @@ impl Parse for ExprBlock {
                     exprs.push((expr, None));
                     continue;
                 }
-                Expr::ExprIf(expr_if) => {
-                    if expr_if.produces_nothing() {
-                        exprs.push((expr, None));
-                    } else {
-                        last_expr_with_value = true;
-                        exprs.push((expr, None));
-                    }
-
+                Expr::ExprIf(..) => {
+                    last_expr_with_value = true;
+                    exprs.push((expr, None));
                     continue;
                 }
-                Expr::ExprMatch(expr_match) => {
-                    if expr_match.produces_nothing() {
-                        exprs.push((expr, None));
-                    } else {
-                        last_expr_with_value = true;
-                        exprs.push((expr, None));
-                    }
-
+                Expr::ExprMatch(..) => {
+                    last_expr_with_value = true;
+                    exprs.push((expr, None));
                     continue;
                 }
                 _ => (),

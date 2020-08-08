@@ -463,8 +463,8 @@ fn test_match() {
 #[test]
 fn test_array_match() {
     assert_eq! {
-        test!(runestick::Unit => r#"fn main() { match [] { [..] => true } }"#),
-        runestick::Unit,
+        test!(bool => r#"fn main() { match [] { [..] => true } }"#),
+        true,
     };
 
     assert_eq! {
@@ -473,8 +473,8 @@ fn test_array_match() {
     };
 
     assert_eq! {
-        test!(runestick::Unit => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
-        runestick::Unit,
+        test!(bool => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
+        true,
     };
 
     assert_eq! {
@@ -536,8 +536,8 @@ fn test_array_match() {
 #[test]
 fn test_object_match() {
     assert_eq! {
-        test!(runestick::Unit => r#"fn main() { match #{} { #{..} => true } }"#),
-        runestick::Unit,
+        test!(bool => r#"fn main() { match #{} { #{..} => true } }"#),
+        true,
     };
 
     assert_eq! {
@@ -741,5 +741,84 @@ fn test_template_string() {
             "#
         },
         "Hello John Doe, I am 22 years old!",
+    };
+}
+
+#[test]
+fn test_match_custom_tuple() {
+    assert_eq! {
+        test! {
+            i64 => r#"
+            fn main() { match Err("err") { Err("err") => 1,  _ => 2 } }
+            "#
+        },
+        1,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            fn main() { match Err("err") { Ok("ok") => 1,  _ => 2 } }
+            "#
+        },
+        2,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            fn main() { match Ok("ok") { Ok("ok") => 1,  _ => 2 } }
+            "#
+        },
+        1,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            fn main() { match Some("value") { Some("value") => 1,  _ => 2 } }
+            "#
+        },
+        1,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            fn main() { match Some("value") { None => 1,  _ => 2 } }
+            "#
+        },
+        2,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            fn main() { match None() { None() => 1,  _ => 2 } }
+            "#
+        },
+        1,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"
+            fn main() {
+                if let Some(a) = Some("hello") { true } else { false }
+            }
+            "#
+        },
+        true,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"
+            fn main() {
+                if let Some(a) = None() { true } else { false }
+            }
+            "#
+        },
+        false,
     };
 }

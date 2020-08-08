@@ -74,19 +74,12 @@ pub struct ExprMatch {
     pub branches: Vec<(ExprMatchBranch, Option<Comma>)>,
     /// The close brace of the match.
     pub close: CloseBrace,
-    /// Test if expression has a default branch.
-    pub has_default: bool,
 }
 
 impl ExprMatch {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.match_.span().join(self.close.span())
-    }
-
-    /// An if statement evaluates to empty if it does not have an else branch.
-    pub fn produces_nothing(&self) -> bool {
-        !self.has_default
     }
 }
 
@@ -110,7 +103,6 @@ impl Parse for ExprMatch {
         let open = parser.parse()?;
 
         let mut branches = Vec::new();
-        let mut default_branch = None::<Span>;
 
         while !parser.peek::<CloseBrace>()? {
             let branch = parser.parse::<ExprMatchBranch>()?;
@@ -119,27 +111,6 @@ impl Parse for ExprMatch {
                 Some(parser.parse()?)
             } else {
                 None
-            };
-
-            let fallback = match &branch.pat {
-                Pat::PatIgnore(..) | Pat::PatBinding(..) if branch.condition.is_none() => {
-                    Some(branch.span())
-                }
-                _ => None,
-            };
-
-            default_branch = match (fallback, default_branch) {
-                (Some(span), Some(existing)) => {
-                    return Err(ParseError::MatchMultipleFallbackBranches { span, existing });
-                }
-                (None, Some(existing)) => {
-                    return Err(ParseError::MatchNeverReached {
-                        span: branch.span(),
-                        existing,
-                    });
-                }
-                (Some(fallback), None) => Some(fallback),
-                (_, default_branch) => default_branch,
             };
 
             let is_end = utils::is_block_end(&*branch.body, comma.as_ref());
@@ -158,7 +129,6 @@ impl Parse for ExprMatch {
             open,
             branches,
             close,
-            has_default: default_branch.is_some(),
         })
     }
 }

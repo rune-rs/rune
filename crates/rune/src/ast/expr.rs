@@ -98,7 +98,6 @@ impl Expr {
             Self::ExprLet(..) => true,
             Self::ExprIndexSet(..) => true,
             Self::ExprIf(expr_if) => expr_if.produces_nothing(),
-            Self::ExprMatch(expr_match) => expr_match.produces_nothing(),
             Self::ExprGroup(expr_group) => expr_group.produces_nothing(),
             Self::ExprBreak(..) => true,
             Self::ExprBinary(expr_binary) => expr_binary.produces_nothing(),

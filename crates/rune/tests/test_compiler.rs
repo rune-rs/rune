@@ -97,25 +97,6 @@ fn test_assign_exprs() {
 }
 
 #[test]
-fn test_match() {
-    test_parse_error! {
-        r#"fn main(n) { match n { _ => 1, _ => 2, } }"#,
-        MatchMultipleFallbackBranches { span, existing } => {
-            assert_eq!(span, Span::new(31, 37));
-            assert_eq!(existing, Span::new(23, 29));
-        }
-    };
-
-    test_parse_error! {
-        r#"fn main(n) { match n { _ => 1, 5 => 2, } }"#,
-        MatchNeverReached { span, existing } => {
-            assert_eq!(span, Span::new(31, 37));
-            assert_eq!(existing, Span::new(23, 29));
-        }
-    };
-}
-
-#[test]
 fn test_pointers() {
     test_compile_error! {
         r#"fn main() { let n = 0; foo(&n); }"#,

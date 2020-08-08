@@ -1455,13 +1455,11 @@ impl<'a> Compiler<'a> {
 
         // what to do in case nothing matches and the pattern doesn't have any
         // default match branch.
-        if !expr_match.has_default {
-            if *needs_value {
-                self.asm.push(Inst::Unit, span);
-            }
-
-            self.asm.jump(end_label, span);
+        if *needs_value {
+            self.asm.push(Inst::Unit, span);
         }
+
+        self.asm.jump(end_label, span);
 
         let mut it = expr_match.branches.iter().zip(&branches).peekable();
 
@@ -1656,6 +1654,30 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
+    fn compile_pat_match_tuple_len(
+        &mut self,
+        scope: &mut Scope,
+        false_label: Label,
+        len: usize,
+        exact: bool,
+        span: Span,
+        load: &dyn Fn(&mut Assembly),
+    ) -> Result<()> {
+        // Copy the temporary and check that its length matches the pattern and
+        // that it is indeed a tuple.
+        load(&mut self.asm);
+
+        self.asm.push(Inst::MatchTuple { len, exact }, span);
+
+        let length_true = self.asm.new_label("pat_tuple_len_true");
+
+        self.asm.jump_if(length_true, span);
+        self.locals_pop(scope.local_var_count, span);
+        self.asm.jump(false_label, span);
+        self.asm.label(length_true)?;
+        Ok(())
+    }
+
     /// Encode an array pattern match.
     fn compile_pat_tuple(
         &mut self,
@@ -1667,36 +1689,14 @@ impl<'a> Compiler<'a> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span)?);
 
-        // Copy the temporary and check that its length matches the pattern and
-        // that it is indeed a tuple.
-        {
-            load(&mut self.asm);
-
-            if pat_tuple.open_pattern.is_some() {
-                self.asm.push(
-                    Inst::MatchTuple {
-                        len: pat_tuple.items.len(),
-                        exact: false,
-                    },
-                    span,
-                );
-            } else {
-                self.asm.push(
-                    Inst::MatchTuple {
-                        len: pat_tuple.items.len(),
-                        exact: true,
-                    },
-                    span,
-                );
-            }
-        }
-
-        let length_true = self.asm.new_label("pat_tuple_len_true");
-
-        self.asm.jump_if(length_true, span);
-        self.locals_pop(scope.local_var_count, span);
-        self.asm.jump(false_label, span);
-        self.asm.label(length_true)?;
+        self.compile_pat_match_tuple_len(
+            scope,
+            false_label,
+            pat_tuple.items.len(),
+            pat_tuple.open_pattern.is_none(),
+            span,
+            load,
+        )?;
 
         for (index, (pat, _)) in pat_tuple.items.iter().enumerate() {
             let span = pat.span();
@@ -1709,6 +1709,48 @@ impl<'a> Compiler<'a> {
             self.compile_pat(scope, &*pat, false_label, &load)?;
         }
 
+        Ok(())
+    }
+
+    /// Type check the given name.
+    fn compile_pat_type_check(
+        &mut self,
+        scope: &mut Scope,
+        ty: &runestick::Item,
+        span: Span,
+        false_label: Label,
+        load: &dyn Fn(&mut Assembly),
+    ) -> Result<()> {
+        let type_hash = runestick::Hash::of_type(ty);
+        self.asm.push(Inst::Type { hash: type_hash }, span);
+        load(self.asm);
+        self.asm.push(Inst::Is, span);
+
+        let check_true = self.asm.new_label("compile_pat_type_check_true");
+        self.asm.jump_if(check_true, span);
+        self.locals_pop(scope.local_var_count, span);
+        self.asm.jump(false_label, span);
+        self.asm.label(check_true)?;
+        Ok(())
+    }
+
+    fn compile_pat_tuple_check(
+        &mut self,
+        scope: &mut Scope,
+        ty: &runestick::Item,
+        span: Span,
+        false_label: Label,
+        load: &dyn Fn(&mut Assembly),
+    ) -> Result<()> {
+        load(self.asm);
+        let hash = runestick::Hash::tuple_match(ty);
+        self.asm.push(Inst::Call { hash, args: 0 }, span);
+
+        let check_true = self.asm.new_label("tuple_match_true");
+        self.asm.jump_if(check_true, span);
+        self.locals_pop(scope.local_var_count, span);
+        self.asm.jump(false_label, span);
+        self.asm.label(check_true)?;
         Ok(())
     }
 
@@ -1730,29 +1772,9 @@ impl<'a> Compiler<'a> {
         };
 
         {
-            let type_hash = runestick::Hash::of_type(&ty);
-            self.asm.push(Inst::Type { hash: type_hash }, span);
-            load(self.asm);
-            self.asm.push(Inst::Is, span);
-
-            let check_true = self.asm.new_label("type_check_true");
-            self.asm.jump_if(check_true, span);
-            self.locals_pop(scope.local_var_count, span);
-            self.asm.jump(false_label, span);
-            self.asm.label(check_true)?;
-        }
-
-        // test if function is a tuple match.
-        {
-            load(self.asm);
-            let hash = runestick::Hash::tuple_match(&ty);
-            self.asm.push(Inst::Call { hash, args: 0 }, span);
-
-            let check_true = self.asm.new_label("tuple_match_true");
-            self.asm.jump_if(check_true, span);
-            self.locals_pop(scope.local_var_count, span);
-            self.asm.jump(false_label, span);
-            self.asm.label(check_true)?;
+            self.compile_pat_type_check(scope, &ty, span, false_label, load)?;
+            // test if function is a tuple match.
+            self.compile_pat_tuple_check(scope, &ty, span, false_label, load)?;
         }
 
         self.compile_pat_tuple(scope, &pat_tuple_type.pat_tuple, false_label, load)?;
@@ -1859,8 +1881,25 @@ impl<'a> Compiler<'a> {
 
         match pat {
             ast::Pat::PatBinding(binding) => {
-                load(&mut self.asm);
                 let name = binding.resolve(self.source)?;
+
+                // binding is an exact match to an imported name, so treat it as
+                // an empty tuple binding pattern.
+                if let Some(ty) = self.unit.lookup_import_by_name(name).cloned() {
+                    let offset = scope.decl_anon(span);
+                    load(&mut self.asm);
+
+                    let load = |asm: &mut Assembly| {
+                        asm.push(Inst::Copy { offset }, span);
+                    };
+
+                    self.compile_pat_type_check(scope, &ty, span, false_label, &load)?;
+                    self.compile_pat_tuple_check(scope, &ty, span, false_label, &load)?;
+                    self.compile_pat_match_tuple_len(scope, false_label, 0, true, span, &load)?;
+                    return Ok(true);
+                }
+
+                load(&mut self.asm);
                 scope.decl_var(name, span);
                 return Ok(false);
             }
