@@ -303,10 +303,26 @@ impl CompilationUnit {
             Item::of(&["std", "string", "String"]),
         );
 
-        this.imports
-            .insert(String::from("error"), Item::of(&["std", "result", "error"]));
-        this.imports
-            .insert(String::from("ok"), Item::of(&["std", "result", "ok"]));
+        this.imports.insert(
+            String::from("Err"),
+            Item::of(&["std", "result", "Result", "Err"]),
+        );
+
+        this.imports.insert(
+            String::from("Ok"),
+            Item::of(&["std", "result", "Result", "Ok"]),
+        );
+
+        this.imports.insert(
+            String::from("Some"),
+            Item::of(&["std", "option", "Option", "Some"]),
+        );
+
+        this.imports.insert(
+            String::from("None"),
+            Item::of(&["std", "option", "Option", "None"]),
+        );
+
         this
     }
 

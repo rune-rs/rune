@@ -4,10 +4,7 @@ use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 
-impl<T> ReflectValueType for Option<T>
-where
-    T: ReflectValueType,
-{
+impl<T> ReflectValueType for Option<T> {
     fn value_type() -> ValueType {
         ValueType::Option
     }

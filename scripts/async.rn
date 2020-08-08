@@ -7,13 +7,13 @@ fn test(timeout) {
     let result = select {
         res = request => res?,
         _ = timeout => {
-            return error("timed out");
+            return Err("timed out");
         }
     };
 
     dbg(result);
     dbg(result.text().await?);
-    ok(())
+    Ok(())
 }
 
 fn main() {
