@@ -5,16 +5,15 @@ fn test(timeout) {
     let timeout = time::delay_for(time::Duration::from_secs(2));
 
     let result = select {
-        res = request => res,
-        _ = timeout => ()
+        res = request => res?,
+        _ = timeout => {
+            dbg("request timed out!");
+            return;
+        }
     };
 
-    if result is unit {
-        dbg("request timed out!");
-    } else {
-        dbg(result);
-        dbg(result.text().await);
-    }
+    dbg(result);
+    dbg(result.text().await);
 }
 
 fn main() {

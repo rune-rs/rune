@@ -16,15 +16,15 @@ impl ReflectValueType for crate::value::Unit {
 
 impl ToValue for crate::value::Unit {
     fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
-        Ok(ValuePtr::None)
+        Ok(ValuePtr::Unit)
     }
 }
 
 impl FromValue for crate::value::Unit {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
-            ValuePtr::None => Ok(crate::value::Unit),
-            actual => Err(VmError::ExpectedNone {
+            ValuePtr::Unit => Ok(crate::value::Unit),
+            actual => Err(VmError::ExpectedUnit {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -33,7 +33,7 @@ impl FromValue for crate::value::Unit {
 
 impl ToValue for () {
     fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
-        Ok(ValuePtr::None)
+        Ok(ValuePtr::Unit)
     }
 }
 

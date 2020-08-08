@@ -31,6 +31,10 @@ pub enum ValueTypeInfo {
     Fn(Hash),
     /// A future.
     Future,
+    /// An optional value.
+    Option,
+    /// A result value.
+    Result,
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -74,6 +78,12 @@ impl fmt::Display for ValueTypeInfo {
             }
             ValueTypeInfo::Future => {
                 write!(fmt, "future")?;
+            }
+            ValueTypeInfo::Option => {
+                write!(fmt, "option")?;
+            }
+            ValueTypeInfo::Result => {
+                write!(fmt, "result")?;
             }
         }
 

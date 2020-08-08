@@ -4,12 +4,15 @@
 //! * `assert` assert that a value is true.
 
 use crate::context::{ContextError, Module};
-use crate::error::{Error, Result};
+use crate::vm::VmError;
 
 /// Assert that a value is true.
-fn assert(value: bool, message: &str) -> Result<()> {
+fn assert(value: bool, message: &str) -> Result<(), VmError> {
     if !value {
-        return Err(Error::msg(format!("assertion failed: {}", message)));
+        return Err(VmError::custom_panic(format!(
+            "assertion failed: {}",
+            message
+        )));
     }
 
     Ok(())

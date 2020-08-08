@@ -30,6 +30,10 @@ pub enum ValueType {
     Fn(Hash),
     /// A future.
     Future,
+    /// An optional value.
+    Option,
+    /// A result value.
+    Result,
 }
 
 #[cfg(test)]

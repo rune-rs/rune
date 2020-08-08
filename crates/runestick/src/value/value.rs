@@ -30,4 +30,8 @@ pub enum Value {
     Fn(Hash),
     /// A future in the virtual machine.
     Future(Future),
+    /// An optional value.
+    Option(Option<Box<Value>>),
+    /// A result value.
+    Result(Result<Box<Value>, Box<Value>>),
 }

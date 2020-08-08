@@ -9,11 +9,11 @@ where
     T: ReflectValueType,
 {
     fn value_type() -> ValueType {
-        T::value_type()
+        ValueType::Option
     }
 
     fn value_type_info() -> ValueTypeInfo {
-        T::value_type_info()
+        ValueTypeInfo::Option
     }
 }
 
@@ -22,10 +22,17 @@ where
     T: ToValue,
 {
     fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
-        match self {
-            Some(s) => s.to_value(vm),
-            None => Ok(ValuePtr::None),
-        }
+        Ok(match self {
+            Some(s) => {
+                let value = s.to_value(vm)?;
+                let slot = vm.slot_allocate::<Option<ValuePtr>>(Some(value));
+                ValuePtr::Option(slot)
+            }
+            None => {
+                let slot = vm.slot_allocate::<Option<ValuePtr>>(None);
+                ValuePtr::Option(slot)
+            }
+        })
     }
 }
 
@@ -35,8 +42,17 @@ where
 {
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
-            ValuePtr::None => Ok(None),
-            _ => Ok(Some(T::from_value(value, vm)?)),
+            ValuePtr::Option(slot) => {
+                let option = vm.external_take::<Option<ValuePtr>>(slot)?;
+
+                Ok(match option {
+                    Some(some) => Some(T::from_value(some, vm)?),
+                    None => None,
+                })
+            }
+            actual => Err(VmError::ExpectedOption {
+                actual: actual.type_info(vm)?,
+            }),
         }
     }
 }

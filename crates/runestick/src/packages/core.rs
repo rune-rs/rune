@@ -26,7 +26,7 @@ pub fn module() -> Result<Module, ContextError> {
             }
         }
 
-        vm.push(ValuePtr::None);
+        vm.push(ValuePtr::Unit);
         Ok(())
     })?;
 

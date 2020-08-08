@@ -3,6 +3,8 @@ use std::fmt;
 /// Result alias for the runestick crate.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+decl_external!(Error);
+
 /// An error raised from a user functions.
 #[derive(Debug)]
 pub struct Error {

@@ -303,19 +303,6 @@ where
     }
 }
 
-impl<T, E> IntoVmResult for Result<T, E>
-where
-    crate::Error: From<E>,
-    T: ToValue,
-{
-    type Output = T;
-
-    fn into_vm_result(self) -> Result<Self::Output, VmError> {
-        use crate::error::Error;
-        self.map_err(|e| VmError::from(Error::from(e)))
-    }
-}
-
 /// Trait used to provide the [function][Context::function] function.
 pub trait Function<Args>: 'static + Copy + Send + Sync {
     /// Get the number of arguments.

@@ -33,7 +33,7 @@ impl ser::Serialize for ValuePtr {
         use serde::ser::SerializeSeq as _;
 
         match *self {
-            ValuePtr::None => serializer.serialize_unit(),
+            ValuePtr::Unit => serializer.serialize_unit(),
             ValuePtr::Bool(b) => serializer.serialize_bool(b),
             ValuePtr::Char(c) => serializer.serialize_char(c),
             ValuePtr::Integer(integer) => serializer.serialize_i64(integer),
@@ -66,8 +66,14 @@ impl ser::Serialize for ValuePtr {
 
                 serializer.end()
             }),
-            ValuePtr::External(..) => {
-                return Err(ser::Error::custom("cannot serialize external objects"));
+            ValuePtr::Option(slot) => tls::with_vm(|vm| {
+                let option = vm
+                    .external_ref::<Option<ValuePtr>>(slot)
+                    .map_err(ser::Error::custom)?;
+                <Option<ValuePtr>>::serialize(&*option, serializer)
+            }),
+            ValuePtr::Result(..) => {
+                return Err(ser::Error::custom("cannot serialize results"));
             }
             ValuePtr::Type(..) => {
                 return Err(ser::Error::custom("cannot serialize type objects"));
@@ -77,6 +83,9 @@ impl ser::Serialize for ValuePtr {
             }
             ValuePtr::Future(..) => {
                 return Err(ser::Error::custom("cannot serialize futures"));
+            }
+            ValuePtr::External(..) => {
+                return Err(ser::Error::custom("cannot serialize external objects"));
             }
         }
     }
@@ -227,7 +236,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::None)
+        Ok(ValuePtr::Unit)
     }
 
     #[inline]
@@ -235,7 +244,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::None)
+        Ok(ValuePtr::Unit)
     }
 
     #[inline]

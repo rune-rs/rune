@@ -33,4 +33,8 @@ pub enum ValueRef<'vm> {
     Fn(Hash),
     /// A future.
     Future(Ref<'vm, Future>),
+    /// An optional value.
+    Option(Option<Box<ValueRef<'vm>>>),
+    /// A result value.
+    Result(Result<Box<ValueRef<'vm>>, Box<ValueRef<'vm>>>),
 }

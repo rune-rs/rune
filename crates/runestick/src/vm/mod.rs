@@ -75,11 +75,17 @@ impl fmt::Display for Integer {
 /// Errors raised by the execution of the virtual machine.
 #[derive(Debug, Error)]
 pub enum VmError {
-    /// The virtual machine panicked for no specific reason.
+    /// The virtual machine panicked for a specific reason.
     #[error("panicked `{reason}`")]
     Panic {
         /// The reason for the panic.
         reason: Panic,
+    },
+    /// The virtual machine panicked for a specific reason.
+    #[error("panicked `{reason}`")]
+    CustomPanic {
+        /// The reason for the panic.
+        reason: String,
     },
     /// The virtual machine encountered a numerical overflow.
     #[error("numerical overflow")]
@@ -100,6 +106,14 @@ pub enum VmError {
     /// Failure to lookup function.
     #[error("missing function with hash `{hash}`")]
     MissingFunction {
+        /// Hash of function to look up.
+        hash: Hash,
+    },
+    /// Failure to lookup instance function.
+    #[error("missing instance function for instance `{instance}` with hash `{hash}`")]
+    MissingInstanceFunction {
+        /// The instance type we tried to look up function on.
+        instance: ValueTypeInfo,
         /// Hash of function to look up.
         hash: Hash,
     },
@@ -341,9 +355,21 @@ pub enum VmError {
         /// The type that was found.
         actual: &'static str,
     },
-    /// Error raised when we expected a unit.
+    /// Error raised when expecting a unit.
     #[error("expected unit, but found `{actual}`")]
-    ExpectedNone {
+    ExpectedUnit {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when expecting an option.
+    #[error("expected option, but found `{actual}`")]
+    ExpectedOption {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expecting a result.
+    #[error("expected result, but found `{actual}`")]
+    ExpectedResult {
         /// The actual type found.
         actual: ValueTypeInfo,
     },
@@ -445,6 +471,18 @@ pub enum VmError {
     /// Error raised when the branch register is empty.
     #[error("branch register empty")]
     BranchEmpty {},
+}
+
+impl VmError {
+    /// Generate a custom panic.
+    pub fn custom_panic<D>(reason: D) -> Self
+    where
+        D: fmt::Display,
+    {
+        Self::CustomPanic {
+            reason: reason.to_string(),
+        }
+    }
 }
 
 /// Pop and type check a value off the stack.
@@ -1414,7 +1452,7 @@ impl Vm {
     /// Convert a value reference into an owned value.
     pub fn value_take(&mut self, value: ValuePtr) -> Result<Value, VmError> {
         return Ok(match value {
-            ValuePtr::None => Value::Unit,
+            ValuePtr::Unit => Value::Unit,
             ValuePtr::Integer(integer) => Value::Integer(integer),
             ValuePtr::Float(float) => Value::Float(float),
             ValuePtr::Bool(boolean) => Value::Bool(boolean),
@@ -1437,6 +1475,26 @@ impl Vm {
             ValuePtr::Future(slot) => {
                 let future = self.external_take(slot)?;
                 Value::Future(future)
+            }
+            ValuePtr::Option(slot) => {
+                let option = self.external_take(slot)?;
+
+                let option = match option {
+                    Some(slot) => Some(Box::new(self.value_take(slot)?)),
+                    None => None,
+                };
+
+                Value::Option(option)
+            }
+            ValuePtr::Result(slot) => {
+                let result = self.external_take(slot)?;
+
+                let result = match result {
+                    Ok(slot) => Ok(Box::new(self.value_take(slot)?)),
+                    Err(slot) => Err(Box::new(self.value_take(slot)?)),
+                };
+
+                Value::Result(result)
             }
         });
 
@@ -1469,7 +1527,7 @@ impl Vm {
     /// Convert the given ptr into a type-erase ValueRef.
     pub fn value_ref<'vm>(&'vm self, value: ValuePtr) -> Result<ValueRef<'vm>, VmError> {
         return Ok(match value {
-            ValuePtr::None => ValueRef::Unit,
+            ValuePtr::Unit => ValueRef::Unit,
             ValuePtr::Integer(integer) => ValueRef::Integer(integer),
             ValuePtr::Float(float) => ValueRef::Float(float),
             ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
@@ -1490,6 +1548,26 @@ impl Vm {
             ValuePtr::Future(slot) => {
                 let future = self.external_ref(slot)?;
                 ValueRef::Future(future)
+            }
+            ValuePtr::Option(slot) => {
+                let option = self.external_ref::<Option<ValuePtr>>(slot)?;
+
+                let option = match *option {
+                    Some(some) => Some(Box::new(self.value_ref(some)?)),
+                    None => None,
+                };
+
+                ValueRef::Option(option)
+            }
+            ValuePtr::Result(slot) => {
+                let result = self.external_ref::<Result<ValuePtr, ValuePtr>>(slot)?;
+
+                let result = match *result {
+                    Ok(ok) => Ok(Box::new(self.value_ref(ok)?)),
+                    Err(err) => Err(Box::new(self.value_ref(err)?)),
+                };
+
+                ValueRef::Result(result)
             }
         });
     }
@@ -1554,7 +1632,7 @@ impl Vm {
     /// use a dynamically resolve equality function.
     fn value_ptr_eq(&self, a: ValuePtr, b: ValuePtr) -> Result<bool, VmError> {
         Ok(match (a, b) {
-            (ValuePtr::None, ValuePtr::None) => true,
+            (ValuePtr::Unit, ValuePtr::Unit) => true,
             (ValuePtr::Char(a), ValuePtr::Char(b)) => a == b,
             (ValuePtr::Bool(a), ValuePtr::Bool(b)) => a == b,
             (ValuePtr::Integer(a), ValuePtr::Integer(b)) => a == b,
@@ -2081,7 +2159,25 @@ impl Vm {
                     let ty = instance.value_type(self)?;
                     let hash = Hash::instance_function(ty, hash);
 
-                    call_fn!(self, hash, args, context, update_ip);
+                    match self.unit.lookup_offset(hash) {
+                        Some(loc) => {
+                            self.push_call_frame(loc, args)?;
+                            update_ip = false;
+                        }
+                        None => {
+                            let handler = match context.lookup(hash) {
+                                Some(handler) => handler,
+                                None => {
+                                    return Err(VmError::MissingInstanceFunction {
+                                        instance: instance.type_info(self)?,
+                                        hash,
+                                    });
+                                }
+                            };
+
+                            handler(self, args)?;
+                        }
+                    }
                 }
                 Inst::CallFn { args } => {
                     let function = self.stack.pop()?;
@@ -2121,7 +2217,7 @@ impl Vm {
                 }
                 Inst::ReturnUnit => {
                     self.exited = self.pop_call_frame()?;
-                    self.push(ValuePtr::None);
+                    self.push(ValuePtr::Unit);
                 }
                 Inst::Await => {
                     self.op_await().await?;
@@ -2204,7 +2300,7 @@ impl Vm {
                     }
                 }
                 Inst::Unit => {
-                    self.push(ValuePtr::None);
+                    self.push(ValuePtr::Unit);
                 }
                 Inst::Bool { value } => {
                     self.push(ValuePtr::Bool(value));
@@ -2247,7 +2343,7 @@ impl Vm {
                     let value = self.stack.pop()?;
 
                     self.push(ValuePtr::Bool(match value {
-                        ValuePtr::None => true,
+                        ValuePtr::Unit => true,
                         _ => false,
                     }));
                 }

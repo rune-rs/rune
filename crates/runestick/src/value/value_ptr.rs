@@ -6,8 +6,8 @@ use crate::vm::{Vm, VmError};
 /// An entry on the stack.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ValuePtr {
-    /// An empty value indicating nothing.
-    None,
+    /// The unit value.
+    Unit,
     /// A boolean.
     Bool(bool),
     /// A character.
@@ -33,6 +33,10 @@ pub enum ValuePtr {
     Fn(Hash),
     /// A stored future.
     Future(Slot),
+    /// An empty value indicating nothing.
+    Option(Slot),
+    /// A stored result in a slot.
+    Result(Slot),
 }
 
 impl ValuePtr {
@@ -83,7 +87,7 @@ impl ValuePtr {
     /// Get the type information for the current value.
     pub fn value_type(&self, vm: &Vm) -> Result<ValueType, VmError> {
         Ok(match *self {
-            Self::None => ValueType::Unit,
+            Self::Unit => ValueType::Unit,
             Self::Integer(..) => ValueType::Integer,
             Self::Float(..) => ValueType::Float,
             Self::Bool(..) => ValueType::Bool,
@@ -96,13 +100,15 @@ impl ValuePtr {
             Self::Type(..) => ValueType::Type,
             Self::Fn(hash) => ValueType::Fn(hash),
             Self::Future(..) => ValueType::Future,
+            Self::Result(..) => ValueType::Result,
+            Self::Option(..) => ValueType::Option,
         })
     }
 
     /// Get the type information for the current value.
     pub fn type_info(&self, vm: &Vm) -> Result<ValueTypeInfo, VmError> {
         Ok(match *self {
-            Self::None => ValueTypeInfo::Unit,
+            Self::Unit => ValueTypeInfo::Unit,
             Self::Integer(..) => ValueTypeInfo::Integer,
             Self::Float(..) => ValueTypeInfo::Float,
             Self::Bool(..) => ValueTypeInfo::Bool,
@@ -115,13 +121,15 @@ impl ValuePtr {
             Self::Type(..) => ValueTypeInfo::Type,
             Self::Fn(hash) => ValueTypeInfo::Fn(hash),
             Self::Future(..) => ValueTypeInfo::Future,
+            Self::Option(..) => ValueTypeInfo::Option,
+            Self::Result(..) => ValueTypeInfo::Result,
         })
     }
 }
 
 impl Default for ValuePtr {
     fn default() -> Self {
-        Self::None
+        Self::Unit
     }
 }
 

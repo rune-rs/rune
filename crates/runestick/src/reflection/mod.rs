@@ -7,6 +7,7 @@ mod hash_map;
 mod object;
 mod option;
 mod primitive;
+mod result;
 mod string;
 
 /// Trait for converting arguments into values.
