@@ -10,6 +10,8 @@ pub enum ValueType {
     String,
     /// An array of dynamic values.
     Array,
+    /// An tuple of dynamic values.
+    Tuple,
     /// An object of dynamic values.
     Object,
     /// A number.

@@ -25,7 +25,7 @@ pub use crate::parser::Parser;
 pub use crate::runtime::{termcolor, Runtime};
 pub use crate::source::Source;
 pub use crate::token::{Kind, Token};
-pub use crate::traits::Resolve;
+pub use crate::traits::{Parse, Resolve};
 pub use runestick::unit::Span;
 
 /// Helper function to compile the given source.

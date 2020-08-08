@@ -62,6 +62,8 @@ pub enum Expr {
     LitArray(ast::LitArray),
     /// A literal object declaration.
     LitObject(ast::LitObject),
+    /// A literal tuple declaration.
+    LitTuple(ast::LitTuple),
     /// A literal await.
     LitAwait(ast::Await),
     /// A grouped expression.
@@ -124,6 +126,7 @@ impl Expr {
             Self::LitBool(b) => b.span(),
             Self::LitArray(expr) => expr.span(),
             Self::LitObject(expr) => expr.span(),
+            Self::LitTuple(expr) => expr.span(),
             Self::LitAwait(expr) => expr.span(),
             Self::LitNumber(expr) => expr.span(),
             Self::LitChar(expr) => expr.span(),
@@ -153,6 +156,7 @@ impl Expr {
             Expr::LitStr(..) => true,
             Expr::LitArray(array) => array.is_const(),
             Expr::LitObject(object) => object.is_const(),
+            Expr::LitTuple(tuple) => tuple.is_const(),
             Expr::ExprBlock(b) => b.is_const(),
             _ => false,
         }
@@ -174,6 +178,27 @@ impl Expr {
             name: path,
             args: parser.parse()?,
         }))
+    }
+
+    /// Parsing something that opens with a parenthesis.
+    pub fn parse_open_paren(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        if parser.peek::<LitUnit>()? {
+            return Ok(Self::LitUnit(parser.parse()?));
+        }
+
+        let open = parser.parse::<ast::OpenParen>()?;
+        let expr = parser.parse::<ast::Expr>()?;
+
+        if parser.peek::<ast::CloseParen>()? {
+            return Ok(Expr::ExprGroup(ast::ExprGroup {
+                open,
+                expr: Box::new(expr),
+                close: parser.parse()?,
+            }));
+        }
+
+        let lit_tuple = ast::LitTuple::parse_from_first_expr(parser, open, expr)?;
+        Ok(Expr::LitTuple(lit_tuple))
     }
 
     /// Parse indexing operation.
@@ -239,13 +264,7 @@ impl Expr {
             Kind::LitTemplate { .. } => Self::LitTemplate(parser.parse()?),
             Kind::Open {
                 delimiter: Delimiter::Parenthesis,
-            } => {
-                if parser.peek::<LitUnit>()? {
-                    Self::LitUnit(parser.parse()?)
-                } else {
-                    Self::ExprGroup(parser.parse()?)
-                }
-            }
+            } => Self::parse_open_paren(parser)?,
             Kind::Open {
                 delimiter: Delimiter::Bracket,
             } => Self::LitArray(parser.parse()?),

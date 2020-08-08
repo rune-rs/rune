@@ -15,6 +15,8 @@ pub enum ValueRef<'vm> {
     StaticString(&'vm str),
     /// An array.
     Array(Vec<ValueRef<'vm>>),
+    /// A tuple.
+    Tuple(Box<[ValueRef<'vm>]>),
     /// An object.
     Object(HashMap<String, ValueRef<'vm>>),
     /// An integer.

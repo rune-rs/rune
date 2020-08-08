@@ -11,6 +11,8 @@ pub enum ValueTypeInfo {
     String,
     /// An array.
     Array,
+    /// A tuple.
+    Tuple,
     /// An object.
     Object,
     /// A number.
@@ -48,6 +50,9 @@ impl fmt::Display for ValueTypeInfo {
             }
             ValueTypeInfo::Array => {
                 write!(fmt, "Array")?;
+            }
+            ValueTypeInfo::Tuple => {
+                write!(fmt, "Tuple")?;
             }
             ValueTypeInfo::Object => {
                 write!(fmt, "Object")?;

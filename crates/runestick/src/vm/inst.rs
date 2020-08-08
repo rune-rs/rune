@@ -402,8 +402,28 @@ pub enum Inst {
     },
     /// Construct a push an array value onto the stack. The number of elements
     /// in the array are determined by `count` and are popped from the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value..>
+    /// => <array>
+    /// ```
     Array {
         /// The size of the array.
+        count: usize,
+    },
+    /// Construct a push a tuple value onto the stack. The number of elements
+    /// in the tuple are determined by `count` and are popped from the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value..>
+    /// => <tuple>
+    /// ```
+    Tuple {
+        /// The size of the tuple.
         count: usize,
     },
     /// Construct a push an object onto the stack. The number of elements
@@ -511,6 +531,15 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     IsErr,
+    /// Test if the top of the stack is none.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    IsNone,
     /// Unwrap a result from the top of the stack.
     /// This causes a vm error if the top of the stack is not an ok result.
     ///
@@ -521,6 +550,17 @@ pub enum Inst {
     /// => <value>
     /// ```
     ResultUnwrap,
+    /// Unwrap an option from the top of the stack.
+    /// This causes a vm error if the top of the stack is not an option with
+    /// something in it.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <result>
+    /// => <value>
+    /// ```
+    OptionUnwrap,
     /// Test if the top of the stack is a specific character.
     ///
     /// # Operation
@@ -739,6 +779,9 @@ impl fmt::Display for Inst {
             Self::Array { count } => {
                 write!(fmt, "array {}", count)?;
             }
+            Self::Tuple { count } => {
+                write!(fmt, "tuple {}", count)?;
+            }
             Self::Object { slot } => {
                 write!(fmt, "object {}", slot)?;
             }
@@ -769,8 +812,14 @@ impl fmt::Display for Inst {
             Self::IsErr => {
                 write!(fmt, "is-err")?;
             }
+            Self::IsNone => {
+                write!(fmt, "is-none")?;
+            }
             Self::ResultUnwrap => {
                 write!(fmt, "result-unwrap")?;
+            }
+            Self::OptionUnwrap => {
+                write!(fmt, "option-unwrap")?;
             }
             Self::EqCharacter { character } => {
                 write!(fmt, "eq-character {}", character)?;

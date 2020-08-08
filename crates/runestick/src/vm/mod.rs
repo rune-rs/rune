@@ -367,6 +367,9 @@ pub enum VmError {
         /// The actual type found.
         actual: ValueTypeInfo,
     },
+    /// Error raised when we fail to unwrap an option.
+    #[error("expected some value, but found none")]
+    ExpectedOptionSome,
     /// Error raised when we expecting a result.
     #[error("expected result, but found `{actual}`")]
     ExpectedResult {
@@ -1471,6 +1474,10 @@ impl Vm {
                 let array = self.array_take(slot)?;
                 Value::Array(value_take_array(self, array)?)
             }
+            ValuePtr::Tuple(slot) => {
+                let tuple = self.external_take::<Box<[ValuePtr]>>(slot)?;
+                Value::Tuple(value_take_tuple(self, tuple)?)
+            }
             ValuePtr::Object(slot) => {
                 let object = self.object_take(slot)?;
                 Value::Object(value_take_object(self, object)?)
@@ -1515,6 +1522,17 @@ impl Vm {
             Ok(output)
         }
 
+        /// Convert into an owned tuple.
+        fn value_take_tuple(vm: &mut Vm, values: Box<[ValuePtr]>) -> Result<Box<[Value]>, VmError> {
+            let mut output = Vec::with_capacity(values.len());
+
+            for value in values.iter() {
+                output.push(vm.value_take(*value)?);
+            }
+
+            Ok(output.into_boxed_slice())
+        }
+
         /// Convert into an owned object.
         fn value_take_object(
             vm: &mut Vm,
@@ -1543,6 +1561,10 @@ impl Vm {
             ValuePtr::Array(slot) => {
                 let array = self.array_ref(slot)?;
                 ValueRef::Array(self.value_array_ref(&*array)?)
+            }
+            ValuePtr::Tuple(slot) => {
+                let tuple = self.external_ref::<Box<[ValuePtr]>>(slot)?;
+                ValueRef::Tuple(self.value_tuple_ref(&*tuple)?)
             }
             ValuePtr::Object(slot) => {
                 let object = self.object_ref(slot)?;
@@ -1590,6 +1612,20 @@ impl Vm {
         }
 
         Ok(output)
+    }
+
+    /// Convert the given value pointers into a tuple.
+    pub fn value_tuple_ref<'vm>(
+        &'vm self,
+        values: &[ValuePtr],
+    ) -> Result<Box<[ValueRef<'vm>]>, VmError> {
+        let mut output = Vec::with_capacity(values.len());
+
+        for value in values.iter().copied() {
+            output.push(self.value_ref(value)?);
+        }
+
+        Ok(output.into_boxed_slice())
     }
 
     /// Convert the given value pointers into an array.
@@ -1726,6 +1762,35 @@ impl Vm {
     fn op_jump(&mut self, offset: isize, update_ip: &mut bool) -> Result<(), VmError> {
         self.modify_ip(offset)?;
         *update_ip = false;
+        Ok(())
+    }
+
+    /// Construct a new array.
+    #[inline]
+    fn op_array(&mut self, count: usize) -> Result<(), VmError> {
+        let mut array = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            array.push(self.stack.pop()?);
+        }
+
+        let value = self.array_allocate(array);
+        self.push(value);
+        Ok(())
+    }
+
+    /// Construct a new tuple.
+    #[inline]
+    fn op_tuple(&mut self, count: usize) -> Result<(), VmError> {
+        let mut tuple = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            tuple.push(self.stack.pop()?);
+        }
+
+        let tuple = tuple.into_boxed_slice();
+        let value = self.slot_allocate(tuple);
+        self.push(ValuePtr::Tuple(value));
         Ok(())
     }
 
@@ -1987,6 +2052,30 @@ impl Vm {
     }
 
     #[inline]
+    fn op_option_unwrap(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        let option = match value {
+            ValuePtr::Option(slot) => self.external_take::<Option<ValuePtr>>(slot)?,
+            actual => {
+                return Err(VmError::ExpectedOption {
+                    actual: actual.type_info(self)?,
+                })
+            }
+        };
+
+        let value = match option {
+            Some(some) => some,
+            None => {
+                return Err(VmError::ExpectedOptionSome);
+            }
+        };
+
+        self.stack.push(value);
+        Ok(())
+    }
+
+    #[inline]
     fn op_is(&mut self, context: &Context) -> Result<(), VmError> {
         let a = self.stack.pop()?;
         let b = self.stack.pop()?;
@@ -2011,6 +2100,44 @@ impl Vm {
                 });
             }
         }
+
+        Ok(())
+    }
+
+    /// Test if the top of the stack is an error.
+    #[inline]
+    fn op_is_err(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        self.push(ValuePtr::Bool(match value {
+            ValuePtr::Result(slot) => self
+                .external_ref::<Result<ValuePtr, ValuePtr>>(slot)?
+                .is_err(),
+            actual => {
+                return Err(VmError::ExpectedResult {
+                    actual: actual.type_info(self)?,
+                })
+            }
+        }));
+
+        Ok(())
+    }
+
+    /// Test if the top of the stack is none.
+    ///
+    /// TODO: optimize the layout of optional values to make this easier.
+    #[inline]
+    fn op_is_none(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        self.push(ValuePtr::Bool(match value {
+            ValuePtr::Option(slot) => self.external_ref::<Option<ValuePtr>>(slot)?.is_none(),
+            actual => {
+                return Err(VmError::ExpectedOption {
+                    actual: actual.type_info(self)?,
+                })
+            }
+        }));
 
         Ok(())
     }
@@ -2338,14 +2465,10 @@ impl Vm {
                     self.push(ValuePtr::Bool(value));
                 }
                 Inst::Array { count } => {
-                    let mut array = Vec::with_capacity(count);
-
-                    for _ in 0..count {
-                        array.push(self.stack.pop()?);
-                    }
-
-                    let value = self.array_allocate(array);
-                    self.push(value);
+                    self.op_array(count)?;
+                }
+                Inst::Tuple { count } => {
+                    self.op_tuple(count)?;
                 }
                 Inst::Object { slot } => {
                     self.op_object(slot)?;
@@ -2380,21 +2503,16 @@ impl Vm {
                     }));
                 }
                 Inst::IsErr => {
-                    let value = self.stack.pop()?;
-
-                    self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Result(slot) => self
-                            .external_ref::<Result<ValuePtr, ValuePtr>>(slot)?
-                            .is_err(),
-                        actual => {
-                            return Err(VmError::ExpectedResult {
-                                actual: actual.type_info(self)?,
-                            })
-                        }
-                    }));
+                    self.op_is_err()?;
+                }
+                Inst::IsNone => {
+                    self.op_is_none()?;
                 }
                 Inst::ResultUnwrap => {
                     self.op_result_unwrap()?;
+                }
+                Inst::OptionUnwrap => {
+                    self.op_option_unwrap()?;
                 }
                 Inst::And => {
                     self.op_and()?;

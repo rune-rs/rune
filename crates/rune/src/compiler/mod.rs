@@ -5,6 +5,7 @@ use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use runestick::unit::{Assembly, Label, Span};
+use runestick::Inst;
 
 mod loops;
 mod options;
@@ -110,7 +111,7 @@ impl<'a> Compiler<'a> {
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
-            self.asm.push(runestick::Inst::ReturnUnit, span);
+            self.asm.push(Inst::ReturnUnit, span);
             return Ok(());
         }
 
@@ -123,11 +124,11 @@ impl<'a> Compiler<'a> {
 
             let total_var_count = self.scopes.last(span)?.total_var_count;
             self.locals_clean(total_var_count, span);
-            self.asm.push(runestick::Inst::Return, span);
+            self.asm.push(Inst::Return, span);
         } else {
             let total_var_count = self.scopes.last(span)?.total_var_count;
             self.locals_pop(total_var_count, span);
-            self.asm.push(runestick::Inst::ReturnUnit, span);
+            self.asm.push(Inst::ReturnUnit, span);
         }
 
         self.scopes.pop_last(span)?;
@@ -139,10 +140,10 @@ impl<'a> Compiler<'a> {
         match total_var_count {
             0 => (),
             1 => {
-                self.asm.push(runestick::Inst::Pop, span);
+                self.asm.push(Inst::Pop, span);
             }
             count => {
-                self.asm.push(runestick::Inst::PopN { count }, span);
+                self.asm.push(Inst::PopN { count }, span);
             }
         }
     }
@@ -156,7 +157,7 @@ impl<'a> Compiler<'a> {
         match total_var_count {
             0 => (),
             count => {
-                self.asm.push(runestick::Inst::Clean { count }, span);
+                self.asm.push(Inst::Clean { count }, span);
             }
         }
     }
@@ -199,7 +200,7 @@ impl<'a> Compiler<'a> {
         if *needs_value {
             if block.trailing_expr.is_none() {
                 self.locals_pop(scope.local_var_count, span);
-                self.asm.push(runestick::Inst::Unit, span);
+                self.asm.push(Inst::Unit, span);
             } else {
                 self.locals_clean(scope.local_var_count, span);
             }
@@ -234,10 +235,10 @@ impl<'a> Compiler<'a> {
         if let Some(expr) = &return_expr.expr {
             self.compile_expr(&*expr, NeedsValue(true))?;
             self.locals_clean(total_var_count, span);
-            self.asm.push(runestick::Inst::Return, span);
+            self.asm.push(Inst::Return, span);
         } else {
             self.locals_pop(total_var_count, span);
-            self.asm.push(runestick::Inst::ReturnUnit, span);
+            self.asm.push(Inst::ReturnUnit, span);
         }
 
         Ok(())
@@ -315,6 +316,9 @@ impl<'a> Compiler<'a> {
             ast::Expr::LitUnit(lit_unit) => {
                 self.compile_lit_unit(lit_unit, needs_value)?;
             }
+            ast::Expr::LitTuple(lit_tuple) => {
+                self.compile_lit_tuple(lit_tuple, needs_value)?;
+            }
             ast::Expr::LitBool(lit_bool) => {
                 self.compile_lit_bool(lit_bool, needs_value)?;
             }
@@ -365,7 +369,7 @@ impl<'a> Compiler<'a> {
             // Evaluate the expressions one by one, then pop them to cause any
             // side effects (without creating an object).
             if !*needs_value {
-                self.asm.push(runestick::Inst::Pop, span);
+                self.asm.push(Inst::Pop, span);
             }
         }
 
@@ -375,7 +379,7 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        self.asm.push(runestick::Inst::Array { count }, span);
+        self.asm.push(Inst::Array { count }, span);
         Ok(())
     }
 
@@ -415,7 +419,7 @@ impl<'a> Compiler<'a> {
             // Evaluate the expressions one by one, then pop them to cause any
             // side effects (without creating an object).
             if !*needs_value {
-                self.asm.push(runestick::Inst::Pop, span);
+                self.asm.push(Inst::Pop, span);
             }
         }
 
@@ -427,7 +431,7 @@ impl<'a> Compiler<'a> {
 
         let slot = self.unit.new_static_object_keys(&keys)?;
 
-        self.asm.push(runestick::Inst::Object { slot }, span);
+        self.asm.push(Inst::Object { slot }, span);
         Ok(())
     }
 
@@ -447,8 +451,7 @@ impl<'a> Compiler<'a> {
         }
 
         let resolved_char = char_literal.resolve(self.source)?;
-        self.asm
-            .push(runestick::Inst::Char { c: resolved_char }, span);
+        self.asm.push(Inst::Char { c: resolved_char }, span);
         Ok(())
     }
 
@@ -465,7 +468,7 @@ impl<'a> Compiler<'a> {
 
         let string = lit_str.resolve(self.source)?;
         let slot = self.unit.new_static_string(&*string)?;
-        self.asm.push(runestick::Inst::String { slot }, span);
+        self.asm.push(Inst::String { slot }, span);
         Ok(())
     }
 
@@ -498,7 +501,7 @@ impl<'a> Compiler<'a> {
             match c {
                 ast::TemplateComponent::String(string) => {
                     let slot = self.unit.new_static_string(&string)?;
-                    self.asm.push(runestick::Inst::StaticString { slot }, span);
+                    self.asm.push(Inst::StaticString { slot }, span);
                     self.scopes.last_mut(span)?.decl_anon(span);
                 }
                 ast::TemplateComponent::Expr(expr) => {
@@ -509,7 +512,7 @@ impl<'a> Compiler<'a> {
         }
 
         self.asm.push(
-            runestick::Inst::StringConcat {
+            Inst::StringConcat {
                 len: template.components.len(),
                 size_hint: template.size_hint,
             },
@@ -536,7 +539,35 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        self.asm.push(runestick::Inst::Unit, span);
+        self.asm.push(Inst::Unit, span);
+        Ok(())
+    }
+
+    fn compile_lit_tuple(
+        &mut self,
+        lit_tuple: &ast::LitTuple,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = lit_tuple.span();
+        log::trace!("LitTuple => {:?}", self.source.source(span)?);
+
+        // If the value is not needed, no need to encode it.
+        if !*needs_value && lit_tuple.is_const() {
+            self.warnings.not_used(span, self.context());
+            return Ok(());
+        }
+
+        for (expr, _) in &lit_tuple.items {
+            self.compile_expr(expr, NeedsValue(true))?;
+        }
+
+        self.asm.push(
+            Inst::Tuple {
+                count: lit_tuple.items.len(),
+            },
+            span,
+        );
+
         Ok(())
     }
 
@@ -550,7 +581,7 @@ impl<'a> Compiler<'a> {
         }
 
         self.asm.push(
-            runestick::Inst::Bool {
+            Inst::Bool {
                 value: lit_bool.value,
             },
             span,
@@ -577,10 +608,10 @@ impl<'a> Compiler<'a> {
 
         match lit_number {
             ast::Number::Float(number) => {
-                self.asm.push(runestick::Inst::Float { number }, span);
+                self.asm.push(Inst::Float { number }, span);
             }
             ast::Number::Integer(number) => {
-                self.asm.push(runestick::Inst::Integer { number }, span);
+                self.asm.push(Inst::Integer { number }, span);
             }
         }
 
@@ -615,8 +646,7 @@ impl<'a> Compiler<'a> {
         self.asm.label(end_label)?;
 
         if *needs_value {
-            self.asm
-                .push(runestick::Inst::Unit, expr_while.condition.span());
+            self.asm.push(Inst::Unit, expr_while.condition.span());
         }
 
         // NB: breaks produce their own value.
@@ -650,7 +680,7 @@ impl<'a> Compiler<'a> {
 
         // Declare named loop variable.
         let binding_offset = {
-            self.asm.push(runestick::Inst::Unit, expr_for.iter.span());
+            self.asm.push(Inst::Unit, expr_for.iter.span());
             let name = expr_for.var.resolve(self.source)?;
             self.scopes
                 .last_mut(span)?
@@ -664,16 +694,14 @@ impl<'a> Compiler<'a> {
 
             // Declare the named loop variable and put it in the scope.
             self.asm.push(
-                runestick::Inst::Copy {
+                Inst::Copy {
                     offset: iterator_offset,
                 },
                 expr_for.iter.span(),
             );
 
-            self.asm.push(
-                runestick::Inst::LoadInstanceFn { hash },
-                expr_for.iter.span(),
-            );
+            self.asm
+                .push(Inst::LoadInstanceFn { hash }, expr_for.iter.span());
             Some(offset)
         } else {
             None
@@ -684,23 +712,23 @@ impl<'a> Compiler<'a> {
         // Use the memoized loop variable.
         if let Some(next_offset) = next_offset {
             self.asm.push(
-                runestick::Inst::Copy {
+                Inst::Copy {
                     offset: iterator_offset,
                 },
                 expr_for.iter.span(),
             );
 
             self.asm.push(
-                runestick::Inst::Copy {
+                Inst::Copy {
                     offset: next_offset,
                 },
                 expr_for.iter.span(),
             );
 
-            self.asm.push(runestick::Inst::CallFn { args: 0 }, span);
+            self.asm.push(Inst::CallFn { args: 0 }, span);
 
             self.asm.push(
-                runestick::Inst::Replace {
+                Inst::Replace {
                     offset: binding_offset,
                 },
                 expr_for.var.span(),
@@ -709,33 +737,47 @@ impl<'a> Compiler<'a> {
             // call the `next` function to get the next level of iteration, bind the
             // result to the loop variable in the loop.
             self.asm.push(
-                runestick::Inst::Copy {
+                Inst::Copy {
                     offset: iterator_offset,
                 },
                 expr_for.iter.span(),
             );
 
             let hash = runestick::Hash::of(ITERATOR_NEXT);
-            self.asm
-                .push(runestick::Inst::CallInstance { hash, args: 0 }, span);
+            self.asm.push(Inst::CallInstance { hash, args: 0 }, span);
             self.asm.push(
-                runestick::Inst::Replace {
+                Inst::Replace {
                     offset: binding_offset,
                 },
                 expr_for.var.span(),
             );
         }
 
-        // test loop condition.
+        // test loop condition and unwrap the option.
+        // TODO: introduce a dedicated instruction for this :|.
         {
             self.asm.push(
-                runestick::Inst::Copy {
+                Inst::Copy {
                     offset: binding_offset,
                 },
                 expr_for.var.span(),
             );
-            self.asm.push(runestick::Inst::IsUnit, expr_for.span());
+            self.asm.push(Inst::IsNone, expr_for.span());
             self.asm.jump_if(end_label, expr_for.span());
+            self.asm.push(
+                Inst::Copy {
+                    offset: binding_offset,
+                },
+                expr_for.var.span(),
+            );
+            // unwrap the optional value.
+            self.asm.push(Inst::OptionUnwrap, expr_for.span());
+            self.asm.push(
+                Inst::Replace {
+                    offset: binding_offset,
+                },
+                expr_for.var.span(),
+            );
         }
 
         self.compile_expr_block(&*expr_for.body, NeedsValue(false))?;
@@ -746,7 +788,7 @@ impl<'a> Compiler<'a> {
 
         // NB: If a value is needed from a for loop, encode it as a unit.
         if *needs_value {
-            self.asm.push(runestick::Inst::Unit, span);
+            self.asm.push(Inst::Unit, span);
         }
 
         // NB: breaks produce their own value.
@@ -782,7 +824,7 @@ impl<'a> Compiler<'a> {
 
         // NB: If a value is needed from a while loop, encode it as a unit.
         if *needs_value {
-            self.asm.push(runestick::Inst::Unit, span);
+            self.asm.push(Inst::Unit, span);
         }
 
         self.asm.label(break_label)?;
@@ -808,7 +850,7 @@ impl<'a> Compiler<'a> {
             self.asm.jump(ok_label, span);
             self.asm.label(false_label)?;
             self.asm.push(
-                runestick::Inst::Panic {
+                Inst::Panic {
                     reason: runestick::Panic::UnmatchedPattern,
                 },
                 span,
@@ -820,7 +862,7 @@ impl<'a> Compiler<'a> {
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if *needs_value {
-            self.asm.push(runestick::Inst::Unit, span);
+            self.asm.push(Inst::Unit, span);
         }
 
         Ok(())
@@ -850,19 +892,19 @@ impl<'a> Compiler<'a> {
 
         match bin_op {
             ast::BinOp::Assign => {
-                self.asm.push(runestick::Inst::Replace { offset }, span);
+                self.asm.push(Inst::Replace { offset }, span);
             }
             ast::BinOp::AddAssign => {
-                self.asm.push(runestick::Inst::AddAssign { offset }, span);
+                self.asm.push(Inst::AddAssign { offset }, span);
             }
             ast::BinOp::SubAssign => {
-                self.asm.push(runestick::Inst::SubAssign { offset }, span);
+                self.asm.push(Inst::SubAssign { offset }, span);
             }
             ast::BinOp::MulAssign => {
-                self.asm.push(runestick::Inst::MulAssign { offset }, span);
+                self.asm.push(Inst::MulAssign { offset }, span);
             }
             ast::BinOp::DivAssign => {
-                self.asm.push(runestick::Inst::DivAssign { offset }, span);
+                self.asm.push(Inst::DivAssign { offset }, span);
             }
             op => {
                 return Err(CompileError::UnsupportedAssignBinOp { span, op });
@@ -870,7 +912,7 @@ impl<'a> Compiler<'a> {
         }
 
         if *needs_value {
-            self.asm.push(runestick::Inst::Unit, span);
+            self.asm.push(Inst::Unit, span);
         }
 
         Ok(())
@@ -886,12 +928,12 @@ impl<'a> Compiler<'a> {
 
         self.compile_expr(&*expr_index_get.index, NeedsValue(true))?;
         self.compile_expr(&*expr_index_get.target, NeedsValue(true))?;
-        self.asm.push(runestick::Inst::IndexGet, span);
+        self.asm.push(Inst::IndexGet, span);
 
         // NB: we still need to perform the operation since it might have side
         // effects, but pop the result in case a value is not needed.
         if !*needs_value {
-            self.asm.push(runestick::Inst::Pop, span);
+            self.asm.push(Inst::Pop, span);
         }
 
         Ok(())
@@ -944,7 +986,7 @@ impl<'a> Compiler<'a> {
                 self.locals_clean(vars, span);
             } else {
                 self.locals_pop(vars, span);
-                self.asm.push(runestick::Inst::Unit, span);
+                self.asm.push(Inst::Unit, span);
             }
         } else {
             self.locals_pop(vars, span);
@@ -966,11 +1008,11 @@ impl<'a> Compiler<'a> {
         self.compile_expr(&*expr_index_set.value, NeedsValue(true))?;
         self.compile_expr(&*expr_index_set.index, NeedsValue(true))?;
         self.compile_expr(&*expr_index_set.target, NeedsValue(true))?;
-        self.asm.push(runestick::Inst::IndexSet, span);
+        self.asm.push(Inst::IndexSet, span);
 
         // Encode a unit in case a value is needed.
         if *needs_value {
-            self.asm.push(runestick::Inst::Unit, span);
+            self.asm.push(Inst::Unit, span);
         }
 
         Ok(())
@@ -994,7 +1036,7 @@ impl<'a> Compiler<'a> {
                 // Something imported is automatically a type.
                 if let Some(path) = self.unit.lookup_import_by_name(target) {
                     let hash = runestick::Hash::of_type(path);
-                    self.asm.push(runestick::Inst::Type { hash }, span);
+                    self.asm.push(Inst::Type { hash }, span);
                     return Ok(());
                 }
 
@@ -1005,8 +1047,7 @@ impl<'a> Compiler<'a> {
             }
         };
 
-        self.asm
-            .push(runestick::Inst::Copy { offset: var.offset }, span);
+        self.asm.push(Inst::Copy { offset: var.offset }, span);
         Ok(())
     }
 
@@ -1029,7 +1070,7 @@ impl<'a> Compiler<'a> {
         }
 
         let hash = runestick::Hash::of_type(&parts);
-        self.asm.push(runestick::Inst::Type { hash }, span);
+        self.asm.push(Inst::Type { hash }, span);
         Ok(())
     }
 
@@ -1044,12 +1085,12 @@ impl<'a> Compiler<'a> {
         }
 
         let hash = self.resolve_call_dest(&call_fn.name)?;
-        self.asm.push(runestick::Inst::Call { hash, args }, span);
+        self.asm.push(Inst::Call { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !*needs_value {
-            self.asm.push(runestick::Inst::Pop, span);
+            self.asm.push(Inst::Pop, span);
         }
 
         Ok(())
@@ -1073,13 +1114,12 @@ impl<'a> Compiler<'a> {
 
         let name = call_instance_fn.name.resolve(self.source)?;
         let hash = runestick::Hash::of(name);
-        self.asm
-            .push(runestick::Inst::CallInstance { hash, args }, span);
+        self.asm.push(Inst::CallInstance { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !*needs_value {
-            self.asm.push(runestick::Inst::Pop, span);
+            self.asm.push(Inst::Pop, span);
         }
 
         Ok(())
@@ -1106,7 +1146,7 @@ impl<'a> Compiler<'a> {
 
         match expr_unary.op {
             ast::UnaryOp::Not { .. } => {
-                self.asm.push(runestick::Inst::Not, span);
+                self.asm.push(Inst::Not, span);
             }
             op => {
                 return Err(CompileError::UnsupportedUnaryOp { span, op });
@@ -1116,7 +1156,7 @@ impl<'a> Compiler<'a> {
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !*needs_value {
-            self.asm.push(runestick::Inst::Pop, span);
+            self.asm.push(Inst::Pop, span);
         }
 
         Ok(())
@@ -1159,43 +1199,43 @@ impl<'a> Compiler<'a> {
 
         match expr_binary.op {
             ast::BinOp::Add { .. } => {
-                self.asm.push(runestick::Inst::Add, span);
+                self.asm.push(Inst::Add, span);
             }
             ast::BinOp::Sub { .. } => {
-                self.asm.push(runestick::Inst::Sub, span);
+                self.asm.push(Inst::Sub, span);
             }
             ast::BinOp::Div { .. } => {
-                self.asm.push(runestick::Inst::Div, span);
+                self.asm.push(Inst::Div, span);
             }
             ast::BinOp::Mul { .. } => {
-                self.asm.push(runestick::Inst::Mul, span);
+                self.asm.push(Inst::Mul, span);
             }
             ast::BinOp::Eq { .. } => {
-                self.asm.push(runestick::Inst::Eq, span);
+                self.asm.push(Inst::Eq, span);
             }
             ast::BinOp::Neq { .. } => {
-                self.asm.push(runestick::Inst::Neq, span);
+                self.asm.push(Inst::Neq, span);
             }
             ast::BinOp::Lt { .. } => {
-                self.asm.push(runestick::Inst::Lt, span);
+                self.asm.push(Inst::Lt, span);
             }
             ast::BinOp::Gt { .. } => {
-                self.asm.push(runestick::Inst::Gt, span);
+                self.asm.push(Inst::Gt, span);
             }
             ast::BinOp::Lte { .. } => {
-                self.asm.push(runestick::Inst::Lte, span);
+                self.asm.push(Inst::Lte, span);
             }
             ast::BinOp::Gte { .. } => {
-                self.asm.push(runestick::Inst::Gte, span);
+                self.asm.push(Inst::Gte, span);
             }
             ast::BinOp::Is { .. } => {
-                self.asm.push(runestick::Inst::Is, span);
+                self.asm.push(Inst::Is, span);
             }
             ast::BinOp::And { .. } => {
-                self.asm.push(runestick::Inst::And, span);
+                self.asm.push(Inst::And, span);
             }
             ast::BinOp::Or { .. } => {
-                self.asm.push(runestick::Inst::Or, span);
+                self.asm.push(Inst::Or, span);
             }
             op => {
                 return Err(CompileError::UnsupportedBinaryOp { span, op });
@@ -1205,7 +1245,7 @@ impl<'a> Compiler<'a> {
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
         if !*needs_value {
-            self.asm.push(runestick::Inst::Pop, span);
+            self.asm.push(Inst::Pop, span);
         }
 
         Ok(())
@@ -1273,7 +1313,7 @@ impl<'a> Compiler<'a> {
             // NB: if we must produce a value and there is no fallback branch,
             // encode the result of the statement as a unit.
             if *needs_value {
-                self.asm.push(runestick::Inst::Unit, span);
+                self.asm.push(Inst::Unit, span);
             }
         }
 
@@ -1339,7 +1379,7 @@ impl<'a> Compiler<'a> {
             let mut scope = self.scopes.last(span)?.child();
 
             let load = move |asm: &mut Assembly| {
-                asm.push(runestick::Inst::Copy { offset }, span);
+                asm.push(Inst::Copy { offset }, span);
             };
 
             self.compile_pat(&mut scope, &branch.pat, match_false, &load)?;
@@ -1362,7 +1402,7 @@ impl<'a> Compiler<'a> {
         // default match branch.
         if !expr_match.has_default {
             if *needs_value {
-                self.asm.push(runestick::Inst::Unit, span);
+                self.asm.push(Inst::Unit, span);
             }
 
             self.asm.jump(end_label, span);
@@ -1401,10 +1441,10 @@ impl<'a> Compiler<'a> {
         log::trace!("ExprAwait => {:?}", self.source.source(span)?);
 
         self.compile_expr(&*expr_await.expr, NeedsValue(true))?;
-        self.asm.push(runestick::Inst::Await, span);
+        self.asm.push(Inst::Await, span);
 
         if !*needs_value {
-            self.asm.push(runestick::Inst::Pop, span);
+            self.asm.push(Inst::Pop, span);
         }
 
         Ok(())
@@ -1422,17 +1462,17 @@ impl<'a> Compiler<'a> {
         let not_error = self.asm.new_label("try_not_error");
 
         self.compile_expr(&*expr_try.expr, NeedsValue(true))?;
-        self.asm.push(runestick::Inst::Dup, span);
-        self.asm.push(runestick::Inst::IsErr, span);
+        self.asm.push(Inst::Dup, span);
+        self.asm.push(Inst::IsErr, span);
         self.asm.jump_if_not(not_error, span);
 
         // Clean up all locals so far and return from the current function.
         let total_var_count = self.scopes.last(span)?.total_var_count;
         self.locals_clean(total_var_count, span);
-        self.asm.push(runestick::Inst::Return, span);
+        self.asm.push(Inst::Return, span);
 
         self.asm.label(not_error)?;
-        self.asm.push(runestick::Inst::ResultUnwrap, span);
+        self.asm.push(Inst::ResultUnwrap, span);
 
         Ok(())
     }
@@ -1461,14 +1501,14 @@ impl<'a> Compiler<'a> {
             self.compile_expr(&branch.expr, NeedsValue(true))?;
         }
 
-        self.asm.push(runestick::Inst::Select { len }, span);
+        self.asm.push(Inst::Select { len }, span);
 
         for (branch, (label, b)) in branches.iter().enumerate() {
             self.asm.jump_if_branch(branch, *label, b.span());
         }
 
         if *needs_value {
-            self.asm.push(runestick::Inst::Unit, span);
+            self.asm.push(Inst::Unit, span);
             self.asm.jump(end_label, span);
         }
 
@@ -1484,7 +1524,7 @@ impl<'a> Compiler<'a> {
                     scope.decl_var(name, span);
                 }
                 ast::Pat::PatIgnore(..) => {
-                    self.asm.push(runestick::Inst::Pop, span);
+                    self.asm.push(Inst::Pop, span);
                 }
                 other => return Err(CompileError::UnsupportedSelectPattern { span: other.span() }),
             }
@@ -1523,7 +1563,7 @@ impl<'a> Compiler<'a> {
 
             if array.open_pattern.is_some() {
                 self.asm.push(
-                    runestick::Inst::MatchArray {
+                    Inst::MatchArray {
                         len: array.items.len(),
                         exact: false,
                     },
@@ -1531,7 +1571,7 @@ impl<'a> Compiler<'a> {
                 );
             } else {
                 self.asm.push(
-                    runestick::Inst::MatchArray {
+                    Inst::MatchArray {
                         len: array.items.len(),
                         exact: true,
                     },
@@ -1552,7 +1592,7 @@ impl<'a> Compiler<'a> {
 
             let load = move |asm: &mut Assembly| {
                 load(asm);
-                asm.push(runestick::Inst::ArrayIndexGet { index }, span);
+                asm.push(Inst::ArrayIndexGet { index }, span);
             };
 
             self.compile_pat(scope, &*pat, false_label, &load)?;
@@ -1602,7 +1642,7 @@ impl<'a> Compiler<'a> {
 
             if object.open_pattern.is_some() {
                 self.asm.push(
-                    runestick::Inst::MatchObject {
+                    Inst::MatchObject {
                         slot: keys,
                         exact: false,
                     },
@@ -1610,7 +1650,7 @@ impl<'a> Compiler<'a> {
                 );
             } else {
                 self.asm.push(
-                    runestick::Inst::MatchObject {
+                    Inst::MatchObject {
                         slot: keys,
                         exact: true,
                     },
@@ -1631,7 +1671,7 @@ impl<'a> Compiler<'a> {
 
             let load = move |asm: &mut Assembly| {
                 load(asm);
-                asm.push(runestick::Inst::ObjectSlotIndexGet { slot }, span);
+                asm.push(Inst::ObjectSlotIndexGet { slot }, span);
             };
 
             // load the given array index and declare it as a local variable.
@@ -1673,7 +1713,7 @@ impl<'a> Compiler<'a> {
                 let span = unit.span();
 
                 load(&mut self.asm);
-                self.asm.push(runestick::Inst::IsUnit, span);
+                self.asm.push(Inst::IsUnit, span);
                 self.asm.jump_if(true_label, span);
             }
             ast::Pat::PatChar(char_literal) => {
@@ -1682,8 +1722,7 @@ impl<'a> Compiler<'a> {
                 let character = char_literal.resolve(self.source)?;
 
                 load(&mut self.asm);
-                self.asm
-                    .push(runestick::Inst::EqCharacter { character }, span);
+                self.asm.push(Inst::EqCharacter { character }, span);
                 self.asm.jump_if(true_label, span);
             }
             ast::Pat::PatNumber(number_literal) => {
@@ -1699,7 +1738,7 @@ impl<'a> Compiler<'a> {
                 };
 
                 load(&mut self.asm);
-                self.asm.push(runestick::Inst::EqInteger { integer }, span);
+                self.asm.push(Inst::EqInteger { integer }, span);
 
                 self.asm.jump_if(true_label, span);
             }
@@ -1710,8 +1749,7 @@ impl<'a> Compiler<'a> {
                 let slot = self.unit.new_static_string(&*string)?;
 
                 load(&mut self.asm);
-                self.asm
-                    .push(runestick::Inst::EqStaticString { slot }, span);
+                self.asm.push(Inst::EqStaticString { slot }, span);
 
                 self.asm.jump_if(true_label, span);
             }
@@ -1720,7 +1758,7 @@ impl<'a> Compiler<'a> {
                 load(&mut self.asm);
 
                 let load = |asm: &mut Assembly| {
-                    asm.push(runestick::Inst::Copy { offset }, span);
+                    asm.push(Inst::Copy { offset }, span);
                 };
 
                 self.compile_pat_array(scope, array, false_label, &load)?;
@@ -1731,7 +1769,7 @@ impl<'a> Compiler<'a> {
                 load(&mut self.asm);
 
                 let load = |asm: &mut Assembly| {
-                    asm.push(runestick::Inst::Copy { offset }, span);
+                    asm.push(Inst::Copy { offset }, span);
                 };
 
                 self.compile_pat_object(scope, object, false_label, &load)?;

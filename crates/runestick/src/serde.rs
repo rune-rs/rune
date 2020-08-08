@@ -56,6 +56,18 @@ impl ser::Serialize for ValuePtr {
 
                 serializer.end()
             }),
+            ValuePtr::Tuple(slot) => tls::with_vm(|vm| {
+                let tuple = vm
+                    .external_ref::<Box<[ValuePtr]>>(slot)
+                    .map_err(ser::Error::custom)?;
+                let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
+
+                for value in tuple.iter() {
+                    serializer.serialize_element(value)?;
+                }
+
+                serializer.end()
+            }),
             ValuePtr::Object(slot) => tls::with_vm(|vm| {
                 let object = vm.object_ref(slot).map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_map(Some(object.len()))?;

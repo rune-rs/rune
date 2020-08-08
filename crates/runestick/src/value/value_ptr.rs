@@ -23,6 +23,8 @@ pub enum ValuePtr {
     String(Slot),
     /// An array.
     Array(Slot),
+    /// A tuple.
+    Tuple(Slot),
     /// An object.
     Object(Slot),
     /// An external value.
@@ -95,6 +97,7 @@ impl ValuePtr {
             Self::String(..) => ValueType::String,
             Self::StaticString(..) => ValueType::String,
             Self::Array(..) => ValueType::Array,
+            Self::Tuple(..) => ValueType::Tuple,
             Self::Object(..) => ValueType::Object,
             Self::External(slot) => ValueType::External(vm.slot_type_id(slot)?),
             Self::Type(..) => ValueType::Type,
@@ -116,6 +119,7 @@ impl ValuePtr {
             Self::String(..) => ValueTypeInfo::String,
             Self::StaticString(..) => ValueTypeInfo::String,
             Self::Array(..) => ValueTypeInfo::Array,
+            Self::Tuple(..) => ValueTypeInfo::Tuple,
             Self::Object(..) => ValueTypeInfo::Object,
             Self::External(slot) => ValueTypeInfo::External(vm.slot_type_name(slot)?),
             Self::Type(..) => ValueTypeInfo::Type,

@@ -12,6 +12,8 @@ pub enum Value {
     String(String),
     /// An array.
     Array(Vec<Value>),
+    /// A tuple.
+    Tuple(Box<[Value]>),
     /// An object.
     Object(HashMap<String, Value>),
     /// An integer.
