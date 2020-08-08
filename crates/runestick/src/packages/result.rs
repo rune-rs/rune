@@ -7,17 +7,11 @@ use crate::context::{ContextError, Module};
 use crate::value::ValuePtr;
 
 fn match_err(result: &Result<ValuePtr, ValuePtr>) -> bool {
-    match result {
-        Err(_) => true,
-        _ => false,
-    }
+    matches!(result, Err(_))
 }
 
 fn match_ok(result: &Result<ValuePtr, ValuePtr>) -> bool {
-    match result {
-        Ok(_) => true,
-        _ => false,
-    }
+    matches!(result, Ok(_))
 }
 
 /// Install the core package into the given functions namespace.

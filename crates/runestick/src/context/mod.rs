@@ -29,10 +29,10 @@ pub enum ContextError {
         name: Item,
     },
     /// Error raised when attempting to register a conflicting instance function.
-    #[error("instance function `{name}` for type `{type_info}` already exists")]
+    #[error("instance function `{name}` for type `{value_type_info}` already exists")]
     ConflictingInstanceFunction {
         /// Type that we register the instance function for.
-        type_info: ValueTypeInfo,
+        value_type_info: ValueTypeInfo,
         /// The name of the conflicting function.
         name: String,
     },
@@ -297,9 +297,7 @@ impl Context {
             self.functions.insert(hash, handler);
         }
 
-        for ((ty, hash), (handler, args, instance_type, name)) in
-            module.instance_functions.into_iter()
-        {
+        for ((ty, hash), inst) in module.instance_functions {
             let type_info = match self
                 .types_rev
                 .get(&ty)
@@ -307,15 +305,17 @@ impl Context {
             {
                 Some(type_info) => type_info,
                 None => {
-                    return Err(ContextError::MissingInstance { instance_type });
+                    return Err(ContextError::MissingInstance {
+                        instance_type: inst.value_type_info,
+                    });
                 }
             };
 
             let hash = Hash::instance_function(ty, hash);
             let signature = FnSignature::new_inst(
                 type_info.name.clone(),
-                name,
-                args,
+                inst.name,
+                inst.args,
                 type_info.value_type_info,
             );
 
@@ -326,7 +326,7 @@ impl Context {
                 });
             }
 
-            self.functions.insert(hash, handler);
+            self.functions.insert(hash, inst.handler);
         }
 
         for variant in module.variants {

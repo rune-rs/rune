@@ -1034,7 +1034,7 @@ impl Vm {
         };
 
         self.branch = Some(branch);
-        return Ok(());
+        Ok(())
     }
 
     /// Pop a number of values from the stack.
@@ -1399,7 +1399,7 @@ impl Vm {
         };
 
         match Self::take_value(holder.value.into_inner()) {
-            Ok(value) => return Ok(value),
+            Ok(value) => Ok(value),
             Err(value) => Err(VmError::UnexpectedSlotType {
                 expected: any::type_name::<T>(),
                 actual: value.type_name(),
@@ -1488,7 +1488,7 @@ impl Vm {
             }
             ValuePtr::Tuple(slot) => {
                 let tuple = self.external_take::<Box<[ValuePtr]>>(slot)?;
-                Value::Tuple(value_take_tuple(self, tuple)?)
+                Value::Tuple(value_take_tuple(self, &*tuple)?)
             }
             ValuePtr::Object(slot) => {
                 let object = self.object_take(slot)?;
@@ -1535,7 +1535,7 @@ impl Vm {
         }
 
         /// Convert into an owned tuple.
-        fn value_take_tuple(vm: &mut Vm, values: Box<[ValuePtr]>) -> Result<Box<[Value]>, VmError> {
+        fn value_take_tuple(vm: &mut Vm, values: &[ValuePtr]) -> Result<Box<[Value]>, VmError> {
             let mut output = Vec::with_capacity(values.len());
 
             for value in values.iter() {
@@ -1561,8 +1561,8 @@ impl Vm {
     }
 
     /// Convert the given ptr into a type-erase ValueRef.
-    pub fn value_ref<'vm>(&'vm self, value: ValuePtr) -> Result<ValueRef<'vm>, VmError> {
-        return Ok(match value {
+    pub fn value_ref(&self, value: ValuePtr) -> Result<ValueRef<'_>, VmError> {
+        Ok(match value {
             ValuePtr::Unit => ValueRef::Unit,
             ValuePtr::Integer(integer) => ValueRef::Integer(integer),
             ValuePtr::Float(float) => ValueRef::Float(float),
@@ -1609,7 +1609,7 @@ impl Vm {
 
                 ValueRef::Result(result)
             }
-        });
+        })
     }
 
     /// Convert the given value pointers into an array.
@@ -1829,21 +1829,18 @@ impl Vm {
         let index = self.stack.pop()?;
         let value = self.stack.pop()?;
 
-        loop {
-            match (target, index) {
-                (ValuePtr::Object(target), index) => {
-                    let index = match index {
-                        ValuePtr::String(index) => self.string_take(index)?,
-                        ValuePtr::StaticString(slot) => self.unit.lookup_string(slot)?.to_owned(),
-                        _ => break,
-                    };
-
-                    let mut object = self.object_mut(target)?;
-                    object.insert(index, value);
-                    return Ok(());
-                }
+        // This is a useful pattern.
+        #[allow(clippy::never_loop)]
+        while let ValuePtr::Object(target) = target {
+            let index = match index {
+                ValuePtr::String(index) => self.string_take(index)?,
+                ValuePtr::StaticString(slot) => self.unit.lookup_string(slot)?.to_owned(),
                 _ => break,
-            }
+            };
+
+            let mut object = self.object_mut(target)?;
+            object.insert(index, value);
+            return Ok(());
         }
 
         let ty = target.value_type(self)?;
@@ -1877,30 +1874,27 @@ impl Vm {
         let target = self.stack.pop()?;
         let index = self.stack.pop()?;
 
-        loop {
-            match (target, index) {
-                (ValuePtr::Object(target), index) => {
-                    let string_ref;
+        // This is a useful pattern.
+        #[allow(clippy::never_loop)]
+        while let ValuePtr::Object(target) = target {
+            let string_ref;
 
-                    let index = match index {
-                        ValuePtr::String(index) => {
-                            string_ref = self.string_ref(index)?;
-                            string_ref.as_str()
-                        }
-                        ValuePtr::StaticString(slot) => self.unit.lookup_string(slot)?,
-                        _ => break,
-                    };
-
-                    let value = {
-                        let object = self.object_ref(target)?;
-                        object.get(index).copied().unwrap_or_default()
-                    };
-
-                    self.push(value);
-                    return Ok(());
+            let index = match index {
+                ValuePtr::String(index) => {
+                    string_ref = self.string_ref(index)?;
+                    string_ref.as_str()
                 }
+                ValuePtr::StaticString(slot) => self.unit.lookup_string(slot)?,
                 _ => break,
-            }
+            };
+
+            let value = {
+                let object = self.object_ref(target)?;
+                object.get(index).copied().unwrap_or_default()
+            };
+
+            self.push(value);
+            return Ok(());
         }
 
         let ty = target.value_type(self)?;
@@ -2596,11 +2590,7 @@ impl Vm {
                 }
                 Inst::IsUnit => {
                     let value = self.stack.pop()?;
-
-                    self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Unit => true,
-                        _ => false,
-                    }));
+                    self.push(ValuePtr::Bool(matches!(value, ValuePtr::Unit)));
                 }
                 Inst::IsErr => {
                     self.op_is_err()?;

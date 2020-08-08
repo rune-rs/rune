@@ -32,11 +32,9 @@ impl ExprUnary {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() {
 /// parse_all::<ast::ExprUnary>("!0").unwrap();
 /// parse_all::<ast::ExprUnary>("*foo").unwrap();
 /// parse_all::<ast::ExprUnary>("&foo").unwrap();
-/// # }
 /// ```
 impl Parse for ExprUnary {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

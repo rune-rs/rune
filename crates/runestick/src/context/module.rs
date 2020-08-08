@@ -23,6 +23,13 @@ pub struct Variant {
     pub value_type_info: ValueTypeInfo,
 }
 
+pub struct InstanceFunction {
+    pub(super) handler: Box<Handler>,
+    pub(super) args: Option<usize>,
+    pub(super) value_type_info: ValueTypeInfo,
+    pub(super) name: String,
+}
+
 /// A collection of functions that can be looked up by type.
 #[derive(Default)]
 pub struct Module {
@@ -31,8 +38,7 @@ pub struct Module {
     /// Free functions.
     pub(super) functions: HashMap<Item, (Box<Handler>, Option<usize>)>,
     /// Instance functions.
-    pub(super) instance_functions:
-        HashMap<(ValueType, Hash), (Box<Handler>, Option<usize>, ValueTypeInfo, String)>,
+    pub(super) instance_functions: HashMap<(ValueType, Hash), InstanceFunction>,
     /// Registered types.
     pub(super) types: HashMap<ValueType, (ValueTypeInfo, Item)>,
     /// Registered variants.
@@ -218,19 +224,29 @@ impl Module {
         Func: InstFn<Args>,
     {
         let ty = Func::instance_value_type();
-        let type_info = Func::instance_value_type_info();
+        let value_type_info = Func::instance_value_type_info();
 
         let key = (ty, name.to_hash());
         let name = name.to_name();
 
         if self.instance_functions.contains_key(&key) {
-            return Err(ContextError::ConflictingInstanceFunction { type_info, name });
+            return Err(ContextError::ConflictingInstanceFunction {
+                value_type_info,
+                name,
+            });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
 
-        self.instance_functions
-            .insert(key.clone(), (handler, Some(Func::args()), type_info, name));
+        let instance_function = InstanceFunction {
+            handler,
+            args: Some(Func::args()),
+            value_type_info,
+            name,
+        };
+
+        self.instance_functions.insert(key, instance_function);
+
         Ok(())
     }
 
@@ -269,19 +285,28 @@ impl Module {
         Func: AsyncInstFn<Args>,
     {
         let ty = Func::instance_value_type();
-        let type_info = Func::instance_value_type_info();
+        let value_type_info = Func::instance_value_type_info();
 
         let key = (ty, name.to_hash());
         let name = name.to_name();
 
         if self.instance_functions.contains_key(&key) {
-            return Err(ContextError::ConflictingInstanceFunction { type_info, name });
+            return Err(ContextError::ConflictingInstanceFunction {
+                value_type_info,
+                name,
+            });
         }
 
         let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
 
-        self.instance_functions
-            .insert(key.clone(), (handler, Some(Func::args()), type_info, name));
+        let instance_function = InstanceFunction {
+            handler,
+            args: Some(Func::args()),
+            value_type_info,
+            name,
+        };
+
+        self.instance_functions.insert(key, instance_function);
         Ok(())
     }
 }

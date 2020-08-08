@@ -928,6 +928,8 @@ impl<'a> Compiler<'a> {
 
         let span = lhs.span().join(rhs.span());
 
+        // This loop is actually useful.
+        #[allow(clippy::never_loop)]
         loop {
             match rhs {
                 ast::Expr::LitNumber(n) => {
@@ -1186,12 +1188,9 @@ impl<'a> Compiler<'a> {
         log::trace!("ExprUnary => {:?}", self.source.source(span)?);
 
         // NB: special unary expressions.
-        match expr_unary.op {
-            ast::UnaryOp::Ref { .. } => {
-                self.compile_ref(&*expr_unary.expr, expr_unary.span(), needs_value)?;
-                return Ok(());
-            }
-            _ => (),
+        if let ast::UnaryOp::Ref { .. } = expr_unary.op {
+            self.compile_ref(&*expr_unary.expr, expr_unary.span(), needs_value)?;
+            return Ok(());
         }
 
         self.compile_expr(&*expr_unary.expr, NeedsValue(true))?;

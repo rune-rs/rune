@@ -62,7 +62,7 @@ impl<'a> Lexer<'a> {
         it.clone()
             .next()
             .map(|(n, _)| self.cursor + n)
-            .unwrap_or(self.source.len())
+            .unwrap_or_else(|| self.source.len())
     }
 
     fn next_ident<I>(&mut self, it: &mut I, start: usize) -> Result<Option<Token>, ParseError>
@@ -134,6 +134,8 @@ impl<'a> Lexer<'a> {
         let number = {
             let mut sub = it.clone();
 
+            // This loop is useful.
+            #[allow(clippy::never_loop)]
             loop {
                 let m = match (sub.next(), sub.next()) {
                     (Some((_, '0')), Some((_, m))) => m,
@@ -174,7 +176,7 @@ impl<'a> Lexer<'a> {
             }
         };
 
-        return Ok(Some(Token {
+        Ok(Some(Token {
             kind: Kind::LitNumber {
                 is_fractional,
                 is_negative,
@@ -184,7 +186,7 @@ impl<'a> Lexer<'a> {
                 start,
                 end: self.cursor,
             },
-        }));
+        }))
     }
 
     /// Consume a string literal.
@@ -283,13 +285,13 @@ impl<'a> Lexer<'a> {
             };
         };
 
-        return Ok(Some(Token {
+        Ok(Some(Token {
             kind: Kind::LitStr { escaped },
             span: Span {
                 start,
                 end: self.cursor,
             },
-        }));
+        }))
     }
 
     /// Consume a string literal.
@@ -335,13 +337,13 @@ impl<'a> Lexer<'a> {
             };
         };
 
-        return Ok(Some(Token {
+        Ok(Some(Token {
             kind: Kind::LitTemplate { escaped },
             span: Span {
                 start,
                 end: self.cursor,
             },
-        }));
+        }))
     }
 
     /// Consume the entire line.
@@ -358,6 +360,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume the next token from the lexer.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Result<Option<Token>, ParseError> {
         let mut it = self.source[self.cursor..].char_indices();
 
@@ -368,6 +371,8 @@ impl<'a> Lexer<'a> {
                 continue;
             }
 
+            // This loop is useful, at least until it's rewritten.
+            #[allow(clippy::never_loop)]
             let kind = loop {
                 if let Some(c2) = it.clone().next().map(|(_, c)| c) {
                     match (c, c2) {
@@ -490,7 +495,7 @@ impl<'a> Lexer<'a> {
                     _ => {
                         let span = Span {
                             start,
-                            end: self.end_span(&mut it),
+                            end: self.end_span(&it),
                         };
 
                         return Err(ParseError::UnexpectedChar { span, c });

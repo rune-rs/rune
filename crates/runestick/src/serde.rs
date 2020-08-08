@@ -82,23 +82,14 @@ impl ser::Serialize for ValuePtr {
                 let option = vm
                     .external_ref::<Option<ValuePtr>>(slot)
                     .map_err(ser::Error::custom)?;
+
                 <Option<ValuePtr>>::serialize(&*option, serializer)
             }),
-            ValuePtr::Result(..) => {
-                return Err(ser::Error::custom("cannot serialize results"));
-            }
-            ValuePtr::Type(..) => {
-                return Err(ser::Error::custom("cannot serialize type objects"));
-            }
-            ValuePtr::Fn(..) => {
-                return Err(ser::Error::custom("cannot serialize fn objects"));
-            }
-            ValuePtr::Future(..) => {
-                return Err(ser::Error::custom("cannot serialize futures"));
-            }
-            ValuePtr::External(..) => {
-                return Err(ser::Error::custom("cannot serialize external objects"));
-            }
+            ValuePtr::Result(..) => Err(ser::Error::custom("cannot serialize results")),
+            ValuePtr::Type(..) => Err(ser::Error::custom("cannot serialize type objects")),
+            ValuePtr::Fn(..) => Err(ser::Error::custom("cannot serialize fn objects")),
+            ValuePtr::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
+            ValuePtr::External(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }
 }

@@ -42,7 +42,13 @@ pub trait ToValue: Sized {
 
 /// Trait for unsafe conversion of value types into values.
 pub trait UnsafeToValue {
-    /// Convert into a value.
+    /// Convert into a value, loading it into the specified virtual machine.
+    ///
+    /// # Safety
+    ///
+    /// The caller of this function need to make sure that the value converted
+    /// doesn't outlive the virtual machine which uses it, since it might be
+    /// encoded as a raw pointer in the slots of the virtual machine.
     unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError>;
 }
 

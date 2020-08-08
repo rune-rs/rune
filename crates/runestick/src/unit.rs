@@ -126,6 +126,11 @@ impl Span {
         self.end.saturating_sub(self.start)
     }
 
+    /// Check if the span is empty.
+    pub fn is_empty(self) -> bool {
+        self.start == self.end
+    }
+
     /// Join this span with another span.
     pub fn join(self, other: Self) -> Self {
         Self {
@@ -186,10 +191,7 @@ pub struct UnitFnSignature {
 impl UnitFnSignature {
     /// Construct a new function signature.
     pub fn new(path: Item, args: usize) -> Self {
-        Self {
-            path: path.to_owned(),
-            args,
-        }
+        Self { path, args }
     }
 }
 
@@ -225,7 +227,7 @@ pub struct DebugInfo {
 }
 
 /// Instructions from a single source file.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CompilationUnit {
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
@@ -262,19 +264,7 @@ pub struct CompilationUnit {
 impl CompilationUnit {
     /// Construct a new unit.
     pub fn new() -> Self {
-        Self {
-            instructions: Vec::new(),
-            imports: HashMap::new(),
-            functions: HashMap::new(),
-            functions_rev: HashMap::new(),
-            static_strings: Vec::new(),
-            static_string_rev: HashMap::new(),
-            static_object_keys: Vec::new(),
-            static_object_keys_rev: HashMap::new(),
-            debug: Vec::new(),
-            label_count: 0,
-            required_functions: HashMap::new(),
-        }
+        Self::default()
     }
 
     /// Construct a new unit with the default prelude.
@@ -683,7 +673,7 @@ impl Assembly {
     pub fn label(&mut self, label: Label) -> Result<Label, CompilationUnitError> {
         let offset = self.instructions.len();
 
-        if let Some(_) = self.labels.insert(label, offset) {
+        if self.labels.insert(label, offset).is_some() {
             return Err(CompilationUnitError::DuplicateLabel { label });
         }
 
@@ -716,11 +706,8 @@ impl Assembly {
 
     /// Push a raw instruction.
     pub fn push(&mut self, raw: Inst, span: Span) {
-        match raw {
-            Inst::Call { hash, .. } => {
-                self.required_functions.entry(hash).or_default().push(span);
-            }
-            _ => (),
+        if let Inst::Call { hash, .. } = raw {
+            self.required_functions.entry(hash).or_default().push(span);
         }
 
         self.instructions.push((AssemblyInst::Raw { raw }, span));
@@ -740,7 +727,7 @@ pub enum LinkerError {
 }
 
 /// Linker errors.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct LinkerErrors {
     errors: Vec<LinkerError>,
 }
@@ -748,7 +735,7 @@ pub struct LinkerErrors {
 impl LinkerErrors {
     /// Construct a new collection of linker errors.
     pub fn new() -> Self {
-        Self { errors: Vec::new() }
+        Self::default()
     }
 
     /// Test if error collection is empty.

@@ -20,11 +20,8 @@ pub struct ExprBinary {
 impl ExprBinary {
     /// If the expression is empty.
     pub fn produces_nothing(&self) -> bool {
-        match self.op {
-            // Assignments do not produce a value.
-            BinOp::Assign { .. } => true,
-            _ => false,
-        }
+        // Assignments do not produce a value.
+        matches!(self.op, BinOp::Assign { .. })
     }
 
     /// Access the span of the expression.

@@ -29,7 +29,7 @@ pub enum TemplateComponent {
     /// A literal string.
     String(String),
     /// An expression inside of the template. Like `{1 + 2}`.
-    Expr(Expr),
+    Expr(Box<Expr>),
 }
 
 /// A resolved and parsed string template.
@@ -79,7 +79,7 @@ impl<'a> Resolve<'a> for LitTemplate {
 
                     let mut parser = Parser::new_with_start(source, span.start);
                     let expr = Expr::parse(&mut parser)?;
-                    components.push(TemplateComponent::Expr(expr));
+                    components.push(TemplateComponent::Expr(Box::new(expr)));
                     has_expansions = true;
                 }
                 c => {

@@ -55,7 +55,6 @@ impl Pat {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() {
 /// parse_all::<ast::Pat>("()").unwrap();
 /// parse_all::<ast::Pat>("1").unwrap();
 /// parse_all::<ast::Pat>("'a'").unwrap();
@@ -63,7 +62,6 @@ impl Pat {
 /// parse_all::<ast::Pat>("var").unwrap();
 /// parse_all::<ast::Pat>("_").unwrap();
 /// parse_all::<ast::Pat>("Foo(n)").unwrap();
-/// # }
 /// ```
 impl Parse for Pat {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

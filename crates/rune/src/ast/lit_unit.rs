@@ -28,9 +28,7 @@ impl LitUnit {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() {
 /// parse_all::<ast::LitUnit>("()").unwrap();
-/// # }
 /// ```
 impl Parse for LitUnit {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
@@ -48,7 +46,8 @@ impl Peek for LitUnit {
             _ => return false,
         };
 
-        match (p1.kind, p2.kind) {
+        matches! {
+            (p1.kind, p2.kind),
             (
                 Kind::Open {
                     delimiter: Delimiter::Parenthesis,
@@ -56,8 +55,7 @@ impl Peek for LitUnit {
                 Kind::Close {
                     delimiter: Delimiter::Parenthesis,
                 },
-            ) => true,
-            _ => false,
+            )
         }
     }
 }

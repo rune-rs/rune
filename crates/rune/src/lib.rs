@@ -54,7 +54,7 @@ pub struct ParseAll<'a, T> {
 /// This required the whole input to be parsed.
 ///
 /// Returns the wrapped source and the parsed type.
-pub fn parse_all<'a, T>(source: &'a str) -> Result<ParseAll<T>, ParseError>
+pub fn parse_all<T>(source: &str) -> Result<ParseAll<T>, ParseError>
 where
     T: crate::traits::Parse,
 {

@@ -27,10 +27,8 @@ impl LitBool {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() {
 /// parse_all::<ast::LitBool>("true").unwrap();
 /// parse_all::<ast::LitBool>("false").unwrap();
-/// # }
 /// ```
 impl Parse for LitBool {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

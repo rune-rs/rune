@@ -131,10 +131,7 @@ macro_rules! decl_tokens {
             impl Peek for $parser {
                 fn peek(p1: Option<Token>, _: Option<Token>) -> bool {
                     match p1 {
-                        Some(p1) => match p1.kind {
-                            $($kind)* => true,
-                            _ => false,
-                        }
+                        Some(p1) => matches!(p1.kind, $($kind)*),
                         _ => false,
                     }
                 }

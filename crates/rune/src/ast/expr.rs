@@ -300,12 +300,7 @@ impl Expr {
         mut expr: Self,
         no_index: NoIndex,
     ) -> Result<Self, ParseError> {
-        loop {
-            let token = match parser.token_peek()? {
-                Some(token) => token,
-                None => break,
-            };
-
+        while let Some(token) = parser.token_peek()? {
             match token.kind {
                 Kind::Open {
                     delimiter: Delimiter::Bracket,
@@ -334,16 +329,11 @@ impl Expr {
 
         loop {
             // NB: consume try operators.
-            loop {
-                match lookahead_tok.map(|t| t.kind) {
-                    Some(Kind::Try) => {
-                        lhs = Expr::ExprTry(ExprTry {
-                            expr: Box::new(lhs),
-                            try_: parser.parse()?,
-                        })
-                    }
-                    _ => break,
-                }
+            while let Some(Kind::Try) = lookahead_tok.map(|t| t.kind) {
+                lhs = Expr::ExprTry(ExprTry {
+                    expr: Box::new(lhs),
+                    try_: parser.parse()?,
+                });
 
                 lookahead_tok = parser.token_peek()?;
             }
@@ -410,7 +400,6 @@ impl Expr {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() {
 /// parse_all::<ast::Expr>("foo[\"foo\"]").unwrap();
 /// parse_all::<ast::Expr>("foo.bar()").unwrap();
 /// parse_all::<ast::Expr>("var()").unwrap();
@@ -439,7 +428,6 @@ impl Expr {
 /// parse_all::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
 ///
 /// parse_all::<ast::Expr>("42 is int::int").unwrap();
-/// # }
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -457,10 +445,7 @@ impl Peek for Expr {
 
         match t1.kind {
             Kind::Select => true,
-            Kind::Label => match t2.map(|t| t.kind) {
-                Some(Kind::Colon) => true,
-                _ => false,
-            },
+            Kind::Label => matches!(t2.map(|t| t.kind), Some(Kind::Colon)),
             Kind::StartObject => true,
             Kind::Await => true,
             Kind::Not | Kind::Ampersand | Kind::Mul => true,

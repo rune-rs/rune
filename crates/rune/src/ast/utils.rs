@@ -62,22 +62,18 @@ where
             .next()
             .ok_or_else(|| ParseError::BadByteEscape { span })?;
 
-        match c {
-            c => {
-                let span = it.peek().map(|(n, _)| span.with_end(*n)).unwrap_or(span);
+        let span = it.peek().map(|(n, _)| span.with_end(*n)).unwrap_or(span);
 
-                result = result
-                    .checked_shl(4)
-                    .ok_or_else(|| ParseError::BadByteEscape { span })?;
+        result = result
+            .checked_shl(4)
+            .ok_or_else(|| ParseError::BadByteEscape { span })?;
 
-                result += match c {
-                    '0'..='9' => c as u32 - '0' as u32,
-                    'a'..='f' => c as u32 - 'a' as u32 + 10,
-                    'A'..='F' => c as u32 - 'A' as u32 + 10,
-                    _ => return Err(ParseError::BadByteEscape { span }),
-                };
-            }
-        }
+        result += match c {
+            '0'..='9' => c as u32 - '0' as u32,
+            'a'..='f' => c as u32 - 'a' as u32 + 10,
+            'A'..='F' => c as u32 - 'A' as u32 + 10,
+            _ => return Err(ParseError::BadByteEscape { span }),
+        };
     }
 
     let span = it.peek().map(|(n, _)| span.with_end(*n)).unwrap_or(span);

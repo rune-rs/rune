@@ -19,8 +19,7 @@ pub struct DeclFile {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() {
-/// let _ = parse_all::<ast::DeclFile>(r#"
+/// parse_all::<ast::DeclFile>(r#"
 /// use foo;
 ///
 /// fn foo() {
@@ -33,7 +32,6 @@ pub struct DeclFile {
 ///     a
 /// }
 /// "#).unwrap();
-/// # }
 /// ```
 ///
 /// # Realistic Example
@@ -41,8 +39,7 @@ pub struct DeclFile {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// let _ = parse_all::<ast::DeclFile>(r#"
+/// parse_all::<ast::DeclFile>(r#"
 /// use http;
 ///
 /// fn main() {
@@ -50,10 +47,10 @@ pub struct DeclFile {
 ///     let response = client.get("https://google.com");
 ///     let text = response.text();
 /// }
-/// "#)?;
-/// # Ok(())
-/// # }
+/// "#).unwrap();
 /// ```
+// TODO: this is a false positive: https://github.com/rust-lang/rust-clippy/issues/5879
+#[allow(clippy::needless_doctest_main)]
 impl Parse for DeclFile {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let mut imports = Vec::new();

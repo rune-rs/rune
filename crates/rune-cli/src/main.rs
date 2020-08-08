@@ -65,7 +65,7 @@ async fn main() -> Result<()> {
             "--help" | "-h" => {
                 help = true;
             }
-            other if !other.starts_with("-") => {
+            other if !other.starts_with('-') => {
                 path = Some(PathBuf::from(other));
             }
             other => {
@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
     }
 
     let path = match path {
-        Some(path) => PathBuf::from(path),
+        Some(path) => path,
         None => {
             bail!("Invalid usage: {}", USAGE);
         }
