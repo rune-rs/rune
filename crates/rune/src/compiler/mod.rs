@@ -1419,11 +1419,22 @@ impl<'a> Compiler<'a> {
         let span = expr_try.span();
         log::trace!("ExprTry => {:?}", self.source.source(span)?);
 
+        let not_error = self.asm.new_label("try_not_error");
+
         self.compile_expr(&*expr_try.expr, NeedsValue(true))?;
-        Err(CompileError::internal(
-            "try expressions are not implemented",
-            span,
-        ))
+        self.asm.push(runestick::Inst::Dup, span);
+        self.asm.push(runestick::Inst::IsErr, span);
+        self.asm.jump_if_not(not_error, span);
+
+        // Clean up all locals so far and return from the current function.
+        let total_var_count = self.scopes.last(span)?.total_var_count;
+        self.locals_clean(total_var_count, span);
+        self.asm.push(runestick::Inst::Return, span);
+
+        self.asm.label(not_error)?;
+        self.asm.push(runestick::Inst::ResultUnwrap, span);
+
+        Ok(())
     }
 
     /// Compile a select expression.

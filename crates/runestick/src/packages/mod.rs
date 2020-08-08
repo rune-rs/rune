@@ -8,5 +8,6 @@ pub mod float;
 pub mod int;
 pub mod iter;
 pub mod object;
+pub mod result;
 pub mod string;
 pub mod test;

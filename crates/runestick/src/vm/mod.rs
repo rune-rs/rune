@@ -373,6 +373,12 @@ pub enum VmError {
         /// The actual type found.
         actual: ValueTypeInfo,
     },
+    /// Error raised when we expecting an ok result.
+    #[error("expected ok result, but found error `{error}`")]
+    ExpectedResultOk {
+        /// The error found.
+        error: ValueTypeInfo,
+    },
     /// Error raised when we expected a boolean value.
     #[error("expected booleant, but found `{actual}`")]
     ExpectedBoolean {
@@ -1955,6 +1961,32 @@ impl Vm {
     }
 
     #[inline]
+    fn op_result_unwrap(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        let result = match value {
+            ValuePtr::Result(slot) => self.external_take::<Result<ValuePtr, ValuePtr>>(slot)?,
+            actual => {
+                return Err(VmError::ExpectedResult {
+                    actual: actual.type_info(self)?,
+                })
+            }
+        };
+
+        let value = match result {
+            Ok(ok) => ok,
+            Err(error) => {
+                return Err(VmError::ExpectedResultOk {
+                    error: error.type_info(self)?,
+                })
+            }
+        };
+
+        self.stack.push(value);
+        Ok(())
+    }
+
+    #[inline]
     fn op_is(&mut self, context: &Context) -> Result<(), VmError> {
         let a = self.stack.pop()?;
         let b = self.stack.pop()?;
@@ -2346,6 +2378,23 @@ impl Vm {
                         ValuePtr::Unit => true,
                         _ => false,
                     }));
+                }
+                Inst::IsErr => {
+                    let value = self.stack.pop()?;
+
+                    self.push(ValuePtr::Bool(match value {
+                        ValuePtr::Result(slot) => self
+                            .external_ref::<Result<ValuePtr, ValuePtr>>(slot)?
+                            .is_err(),
+                        actual => {
+                            return Err(VmError::ExpectedResult {
+                                actual: actual.type_info(self)?,
+                            })
+                        }
+                    }));
+                }
+                Inst::ResultUnwrap => {
+                    self.op_result_unwrap()?;
                 }
                 Inst::And => {
                     self.op_and()?;

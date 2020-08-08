@@ -302,6 +302,11 @@ impl CompilationUnit {
             String::from("String"),
             Item::of(&["std", "string", "String"]),
         );
+
+        this.imports
+            .insert(String::from("error"), Item::of(&["std", "result", "error"]));
+        this.imports
+            .insert(String::from("ok"), Item::of(&["std", "result", "ok"]));
         this
     }
 

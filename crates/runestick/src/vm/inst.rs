@@ -502,6 +502,25 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     IsUnit,
+    /// Test if the top of the stack is an error.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    IsErr,
+    /// Unwrap a result from the top of the stack.
+    /// This causes a vm error if the top of the stack is not an ok result.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <result>
+    /// => <value>
+    /// ```
+    ResultUnwrap,
     /// Test if the top of the stack is a specific character.
     ///
     /// # Operation
@@ -746,6 +765,12 @@ impl fmt::Display for Inst {
             }
             Self::IsUnit => {
                 write!(fmt, "is-unit")?;
+            }
+            Self::IsErr => {
+                write!(fmt, "is-err")?;
+            }
+            Self::ResultUnwrap => {
+                write!(fmt, "result-unwrap")?;
             }
             Self::EqCharacter { character } => {
                 write!(fmt, "eq-character {}", character)?;
