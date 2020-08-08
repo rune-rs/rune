@@ -24,6 +24,8 @@ pub enum Pat {
     PatArray(ast::PatArray),
     /// A tuple pattern.
     PatTuple(ast::PatTuple),
+    /// A pattern over a tuple type.
+    PatTupleType(ast::PatTupleType),
     /// An object pattern.
     PatObject(ast::PatObject),
 }
@@ -40,6 +42,7 @@ impl Pat {
             Self::PatIgnore(pat) => pat.span(),
             Self::PatArray(pat) => pat.span(),
             Self::PatTuple(pat) => pat.span(),
+            Self::PatTupleType(pat) => pat.span(),
             Self::PatObject(pat) => pat.span(),
         }
     }
@@ -59,6 +62,7 @@ impl Pat {
 /// parse_all::<ast::Pat>("\"hello world\"").unwrap();
 /// parse_all::<ast::Pat>("var").unwrap();
 /// parse_all::<ast::Pat>("_").unwrap();
+/// parse_all::<ast::Pat>("Foo(n)").unwrap();
 /// # }
 /// ```
 impl Parse for Pat {
@@ -83,7 +87,18 @@ impl Parse for Pat {
             Kind::LitNumber { .. } => Self::PatNumber(parser.parse()?),
             Kind::LitStr { .. } => Self::PatString(parser.parse()?),
             Kind::Underscore => Self::PatIgnore(parser.parse()?),
-            Kind::Ident => Self::PatBinding(parser.parse()?),
+            Kind::Ident => {
+                let ident = parser.parse()?;
+
+                if parser.peek::<ast::OpenParen>()? {
+                    Self::PatTupleType(ast::PatTupleType {
+                        ident,
+                        pat_tuple: parser.parse()?,
+                    })
+                } else {
+                    Self::PatBinding(ident)
+                }
+            }
             _ => {
                 return Err(ParseError::ExpectedPatError {
                     span: token.span,

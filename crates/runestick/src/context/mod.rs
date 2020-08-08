@@ -52,6 +52,12 @@ pub enum ContextError {
         /// The type information for the type that already existed.
         existing: ValueTypeInfo,
     },
+    /// Error raised when attempting to register a conflicting function.
+    #[error("variant with name `{name}` already exists")]
+    ConflictingVariant {
+        /// The name of the conflicting variant.
+        name: Item,
+    },
     /// Error raised when attempting to register an instance function on an
     /// instance which does not exist.
     #[error("instance `{instance_type}` does not exist in module")]
@@ -62,7 +68,7 @@ pub enum ContextError {
 }
 
 /// A function handler.
-pub(crate) type Handler = Box<dyn Fn(&mut Vm, usize) -> Result<(), VmError>>;
+pub(crate) type Handler = dyn Fn(&mut Vm, usize) -> Result<(), VmError>;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
@@ -72,12 +78,12 @@ pub struct TypeInfo {
     /// The value type of the type.
     pub value_type: ValueType,
     /// Information on the type.
-    pub type_info: ValueTypeInfo,
+    pub value_type_info: ValueTypeInfo,
 }
 
 impl fmt::Display for TypeInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{} => {}", self.name, self.type_info)?;
+        write!(fmt, "{} => {}", self.name, self.value_type_info)?;
         Ok(())
     }
 }
@@ -101,6 +107,11 @@ pub enum FnSignature {
         /// Information on the self type.
         self_type_info: ValueTypeInfo,
     },
+    /// A tuple match function for the type at the given path.
+    TupleMatch {
+        /// The path of the item the function relates to.
+        path: Item,
+    },
 }
 
 impl FnSignature {
@@ -122,6 +133,11 @@ impl FnSignature {
             args,
             self_type_info,
         }
+    }
+
+    /// Construct a new function signature.
+    pub fn new_tuple_match(path: Item) -> Self {
+        Self::TupleMatch { path }
     }
 }
 
@@ -166,10 +182,18 @@ impl fmt::Display for FnSignature {
 
                 write!(fmt, ")")?;
             }
+            Self::TupleMatch { path } => {
+                write!(fmt, "{} (tuple match)", path)?;
+            }
         }
 
         Ok(())
     }
+}
+
+/// The information on a variant.
+pub struct VariantInfo {
+    name: Item,
 }
 
 /// Static run context visible to the virtual machine.
@@ -181,13 +205,15 @@ impl fmt::Display for FnSignature {
 #[derive(Default)]
 pub struct Context {
     /// Free functions.
-    functions: HashMap<Hash, Handler>,
+    functions: HashMap<Hash, Box<Handler>>,
     /// Information on functions.
     functions_info: HashMap<Hash, FnSignature>,
     /// Registered types.
     types: HashMap<Hash, TypeInfo>,
     /// Reverse lookup for types.
     types_rev: HashMap<ValueType, Hash>,
+    /// Variants.
+    variants: HashMap<Hash, VariantInfo>,
 }
 
 impl Context {
@@ -235,20 +261,20 @@ impl Context {
 
     /// Install the specified module.
     pub fn install(&mut self, module: Module) -> Result<(), ContextError> {
-        for (value_type, (type_info, name)) in module.types.into_iter() {
+        for (value_type, (value_type_info, name)) in module.types.into_iter() {
             let name = module.path.join(&name);
             let hash = Hash::of_type(&name);
 
             let type_info = TypeInfo {
                 name,
                 value_type,
-                type_info,
+                value_type_info,
             };
 
             if let Some(existing) = self.types.insert(hash, type_info) {
                 return Err(ContextError::ConflictingType {
                     name: existing.name,
-                    existing: existing.type_info,
+                    existing: existing.value_type_info,
                 });
             }
 
@@ -286,8 +312,12 @@ impl Context {
             };
 
             let hash = Hash::instance_function(ty, hash);
-            let signature =
-                FnSignature::new_inst(type_info.name.clone(), name, args, type_info.type_info);
+            let signature = FnSignature::new_inst(
+                type_info.name.clone(),
+                name,
+                args,
+                type_info.value_type_info,
+            );
 
             if let Some(old) = self.functions_info.insert(hash, signature) {
                 return Err(ContextError::ConflictingFunction {
@@ -297,6 +327,47 @@ impl Context {
             }
 
             self.functions.insert(hash, handler);
+        }
+
+        for variant in module.variants {
+            let name = module.path.join(&variant.name);
+
+            let hash = Hash::of_type(&name);
+            let tuple_match_hash = Hash::tuple_match(&name);
+
+            if let Some(tuple_match) = variant.tuple_match {
+                let signature = FnSignature::new_tuple_match(name.clone());
+
+                if let Some(old) = self.functions_info.insert(hash, signature) {
+                    return Err(ContextError::ConflictingFunction {
+                        signature: old,
+                        hash,
+                    });
+                }
+
+                self.functions.insert(tuple_match_hash, tuple_match);
+            }
+
+            let variant_info = VariantInfo { name: variant.name };
+
+            if let Some(variant_info) = self.variants.insert(hash, variant_info) {
+                return Err(ContextError::ConflictingVariant {
+                    name: variant_info.name,
+                });
+            }
+
+            let type_info = TypeInfo {
+                name,
+                value_type: variant.value_type,
+                value_type_info: variant.value_type_info,
+            };
+
+            if let Some(existing) = self.types.insert(hash, type_info) {
+                return Err(ContextError::ConflictingType {
+                    name: existing.name,
+                    existing: existing.value_type_info,
+                });
+            }
         }
 
         Ok(())

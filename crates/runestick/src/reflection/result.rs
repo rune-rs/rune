@@ -1,10 +1,20 @@
 //! Trait implementations for `Result` types.
 
-use crate::reflection::{FromValue, ReflectValueType, ToValue};
+use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
-use crate::vm::{Vm, VmError};
+use crate::vm::{RawRefGuard, Ref, Vm, VmError};
 
 impl<T, E> ReflectValueType for Result<T, E> {
+    fn value_type() -> ValueType {
+        ValueType::Result
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Result
+    }
+}
+
+impl<'a, T, E> ReflectValueType for &'a Result<T, E> {
     fn value_type() -> ValueType {
         ValueType::Result
     }
@@ -67,5 +77,23 @@ where
                 actual: actual.type_info(vm)?,
             }),
         }
+    }
+}
+
+impl<'a> UnsafeFromValue for &'a Result<ValuePtr, ValuePtr> {
+    type Output = *const Result<ValuePtr, ValuePtr>;
+    type Guard = RawRefGuard;
+
+    unsafe fn unsafe_from_value(
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self::Output, Self::Guard), VmError> {
+        let slot = value.into_result(vm)?;
+        let result = vm.external_ref::<Result<ValuePtr, ValuePtr>>(slot)?;
+        Ok(Ref::unsafe_into_ref(result))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &*output
     }
 }

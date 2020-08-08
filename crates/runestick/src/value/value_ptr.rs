@@ -42,6 +42,28 @@ pub enum ValuePtr {
 }
 
 impl ValuePtr {
+    /// Try to coerce value reference into a result.
+    #[inline]
+    pub fn into_result(self, vm: &Vm) -> Result<Slot, VmError> {
+        match self {
+            Self::Result(slot) => Ok(slot),
+            actual => Err(VmError::ExpectedResult {
+                actual: actual.type_info(vm)?,
+            }),
+        }
+    }
+
+    /// Try to coerce value reference into an option.
+    #[inline]
+    pub fn into_option(self, vm: &Vm) -> Result<Slot, VmError> {
+        match self {
+            Self::Option(slot) => Ok(slot),
+            actual => Err(VmError::ExpectedOption {
+                actual: actual.type_info(vm)?,
+            }),
+        }
+    }
+
     /// Try to coerce value reference into an array.
     #[inline]
     pub fn into_string(self, vm: &Vm) -> Result<Slot, VmError> {

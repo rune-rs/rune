@@ -47,6 +47,7 @@ mod pat;
 mod pat_array;
 mod pat_object;
 mod pat_tuple;
+mod pat_tuple_type;
 mod path;
 pub(super) mod utils;
 
@@ -90,6 +91,7 @@ pub use self::pat::Pat;
 pub use self::pat_array::PatArray;
 pub use self::pat_object::PatObject;
 pub use self::pat_tuple::PatTuple;
+pub use self::pat_tuple_type::PatTupleType;
 pub use self::path::Path;
 
 macro_rules! decl_tokens {

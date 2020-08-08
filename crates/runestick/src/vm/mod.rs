@@ -1967,6 +1967,34 @@ impl Vm {
                     }
                 }
             }
+            ValuePtr::Result(slot) => {
+                if index != 0 {
+                    return Err(VmError::TupleIndexMissing { index });
+                }
+
+                let result = self.external_ref::<Result<ValuePtr, ValuePtr>>(slot)?;
+
+                match *result {
+                    Ok(ok) => ok,
+                    Err(err) => err,
+                }
+            }
+            ValuePtr::Option(slot) => {
+                let option = self.external_ref::<Option<ValuePtr>>(slot)?;
+
+                match *option {
+                    Some(some) => {
+                        if index != 0 {
+                            return Err(VmError::TupleIndexMissing { index });
+                        }
+
+                        some
+                    }
+                    None => {
+                        return Err(VmError::TupleIndexMissing { index });
+                    }
+                }
+            }
             target_type => {
                 let target_type = target_type.type_info(self)?;
                 return Err(VmError::UnsupportedTupleIndexGet { target_type });
@@ -2240,12 +2268,28 @@ impl Vm {
     #[inline]
     fn match_tuple<F>(&mut self, f: F) -> Result<(), VmError>
     where
-        F: FnOnce(&Box<[ValuePtr]>) -> bool,
+        F: FnOnce(&[ValuePtr]) -> bool,
     {
         let value = self.stack.pop()?;
 
         self.push(ValuePtr::Bool(match value {
-            ValuePtr::Tuple(slot) => f(&*self.external_ref(slot)?),
+            ValuePtr::Tuple(slot) => f(&*self.external_ref::<Box<[ValuePtr]>>(slot)?),
+            ValuePtr::Result(slot) => {
+                let result = self.external_ref::<Result<ValuePtr, ValuePtr>>(slot)?;
+
+                match &*result {
+                    Ok(ok) => f(&[*ok]),
+                    Err(err) => f(&[*err]),
+                }
+            }
+            ValuePtr::Option(slot) => {
+                let option = self.external_ref::<Option<ValuePtr>>(slot)?;
+
+                match &*option {
+                    Some(some) => f(&[*some]),
+                    None => f(&[]),
+                }
+            }
             _ => false,
         }));
 

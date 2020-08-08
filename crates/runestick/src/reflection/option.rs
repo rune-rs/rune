@@ -1,10 +1,20 @@
 //! Trait implementations for Option<T>.
 
-use crate::reflection::{FromValue, ReflectValueType, ToValue};
+use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
-use crate::vm::{Vm, VmError};
+use crate::vm::{RawRefGuard, Ref, Vm, VmError};
 
 impl<T> ReflectValueType for Option<T> {
+    fn value_type() -> ValueType {
+        ValueType::Option
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Option
+    }
+}
+
+impl<'a, T> ReflectValueType for &'a Option<T> {
     fn value_type() -> ValueType {
         ValueType::Option
     }
@@ -51,5 +61,23 @@ where
                 actual: actual.type_info(vm)?,
             }),
         }
+    }
+}
+
+impl<'a> UnsafeFromValue for &'a Option<ValuePtr> {
+    type Output = *const Option<ValuePtr>;
+    type Guard = RawRefGuard;
+
+    unsafe fn unsafe_from_value(
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self::Output, Self::Guard), VmError> {
+        let slot = value.into_option(vm)?;
+        let result = vm.external_ref::<Option<ValuePtr>>(slot)?;
+        Ok(Ref::unsafe_into_ref(result))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &*output
     }
 }

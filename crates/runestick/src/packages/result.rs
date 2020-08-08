@@ -6,6 +6,20 @@
 use crate::context::{ContextError, Module};
 use crate::value::ValuePtr;
 
+fn match_err(result: &Result<ValuePtr, ValuePtr>) -> bool {
+    match result {
+        Err(_) => true,
+        _ => false,
+    }
+}
+
+fn match_ok(result: &Result<ValuePtr, ValuePtr>) -> bool {
+    match result {
+        Ok(_) => true,
+        _ => false,
+    }
+}
+
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "result"]);
@@ -13,6 +27,9 @@ pub fn module() -> Result<Module, ContextError> {
     module
         .ty(&["Result"])
         .build::<Result<ValuePtr, ValuePtr>>()?;
+
+    module.variant(&["Result", "Err"]).tuple_match(match_err);
+    module.variant(&["Result", "Ok"]).tuple_match(match_ok);
 
     module.function(&["Result", "Err"], Result::<ValuePtr, ValuePtr>::Err)?;
     module.function(&["Result", "Ok"], Result::<ValuePtr, ValuePtr>::Ok)?;

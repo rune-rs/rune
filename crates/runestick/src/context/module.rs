@@ -11,18 +11,32 @@ use std::future;
 use crate::context::item::Item;
 use crate::context::{ContextError, Handler, IntoInstFnHash};
 
+pub struct Variant {
+    /// Full name of the variant.
+    pub(super) name: Item,
+    /// Function to use when testing if variant is a tuple that can be matched
+    /// over.
+    pub(super) tuple_match: Option<Box<Handler>>,
+    /// The value type of the type.
+    pub value_type: ValueType,
+    /// Information on the type.
+    pub value_type_info: ValueTypeInfo,
+}
+
 /// A collection of functions that can be looked up by type.
 #[derive(Default)]
 pub struct Module {
     /// The name of the module.
     pub(super) path: Item,
     /// Free functions.
-    pub(super) functions: HashMap<Item, (Handler, Option<usize>)>,
+    pub(super) functions: HashMap<Item, (Box<Handler>, Option<usize>)>,
     /// Instance functions.
     pub(super) instance_functions:
-        HashMap<(ValueType, Hash), (Handler, Option<usize>, ValueTypeInfo, String)>,
+        HashMap<(ValueType, Hash), (Box<Handler>, Option<usize>, ValueTypeInfo, String)>,
     /// Registered types.
     pub(super) types: HashMap<ValueType, (ValueTypeInfo, Item)>,
+    /// Registered variants.
+    pub(super) variants: Vec<Variant>,
 }
 
 impl Module {
@@ -37,6 +51,7 @@ impl Module {
             functions: Default::default(),
             instance_functions: Default::default(),
             types: Default::default(),
+            variants: Default::default(),
         }
     }
 
@@ -52,6 +67,21 @@ impl Module {
         TypeBuilder {
             name,
             types: &mut self.types,
+        }
+    }
+
+    /// Register a variant.
+    ///
+    /// This will allow the type to be used within scripts, using the item named
+    /// here.
+    pub fn variant<N>(&mut self, name: N) -> VariantBuilder<'_, N>
+    where
+        N: IntoIterator,
+        N::Item: AsRef<str>,
+    {
+        VariantBuilder {
+            name,
+            variants: &mut self.variants,
         }
     }
 
@@ -95,7 +125,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Handler = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
         self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
@@ -127,7 +157,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Handler = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
         self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
@@ -146,7 +176,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Handler = Box::new(move |vm, args| f(vm, args));
+        let handler: Box<Handler> = Box::new(move |vm, args| f(vm, args));
         self.functions.insert(name, (handler, None));
         Ok(())
     }
@@ -197,7 +227,7 @@ impl Module {
             return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
-        let handler: Handler = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
 
         self.instance_functions
             .insert(key.clone(), (handler, Some(Func::args()), type_info, name));
@@ -248,7 +278,7 @@ impl Module {
             return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
-        let handler: Handler = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
 
         self.instance_functions
             .insert(key.clone(), (handler, Some(Func::args()), type_info, name));
@@ -282,6 +312,37 @@ where
         }
 
         Ok(())
+    }
+}
+
+/// The builder for a type.
+#[must_use = "must be consumed with build::<T>() to construct a variant"]
+pub struct VariantBuilder<'a, N> {
+    name: N,
+    variants: &'a mut Vec<Variant>,
+}
+
+impl<N> VariantBuilder<'_, N>
+where
+    N: IntoIterator,
+    N::Item: AsRef<str>,
+{
+    /// Perform a tuple match.
+    pub fn tuple_match<Func, Args>(self, f: Func)
+    where
+        Func: InstFn<Args>,
+    {
+        let name = Item::of(self.name);
+        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let value_type = Func::instance_value_type();
+        let value_type_info = Func::instance_value_type_info();
+
+        self.variants.push(Variant {
+            name,
+            tuple_match: Some(handler),
+            value_type,
+            value_type_info,
+        });
     }
 }
 
@@ -379,7 +440,6 @@ macro_rules! impl_register {
                 args: usize
             ) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
-
                 $(let $var = vm.pop()?;)*
 
                 // Safety: We hold a reference to the Vm, so we can
@@ -469,7 +529,6 @@ macro_rules! impl_register {
 
             fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
-
                 let inst = vm.pop()?;
                 $(let $var = vm.pop()?;)*
 

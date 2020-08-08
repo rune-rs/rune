@@ -535,7 +535,6 @@ impl<'a> Compiler<'a> {
 
         // If the value is not needed, no need to encode it.
         if !*needs_value {
-            self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
@@ -1714,6 +1713,53 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
+    /// Encode an array pattern match.
+    fn compile_pat_tuple_type(
+        &mut self,
+        scope: &mut Scope,
+        pat_tuple_type: &ast::PatTupleType,
+        false_label: Label,
+        load: &dyn Fn(&mut Assembly),
+    ) -> Result<()> {
+        let span = pat_tuple_type.span();
+        log::trace!("PatTupleType => {:?}", self.source.source(span)?);
+        let local = pat_tuple_type.ident.resolve(self.source)?;
+
+        let ty = match self.unit.lookup_import_by_name(local).cloned() {
+            Some(path) => path,
+            None => runestick::Item::of(&[local]),
+        };
+
+        {
+            let type_hash = runestick::Hash::of_type(&ty);
+            self.asm.push(Inst::Type { hash: type_hash }, span);
+            load(self.asm);
+            self.asm.push(Inst::Is, span);
+
+            let check_true = self.asm.new_label("type_check_true");
+            self.asm.jump_if(check_true, span);
+            self.locals_pop(scope.local_var_count, span);
+            self.asm.jump(false_label, span);
+            self.asm.label(check_true)?;
+        }
+
+        // test if function is a tuple match.
+        {
+            load(self.asm);
+            let hash = runestick::Hash::tuple_match(&ty);
+            self.asm.push(Inst::Call { hash, args: 0 }, span);
+
+            let check_true = self.asm.new_label("tuple_match_true");
+            self.asm.jump_if(check_true, span);
+            self.locals_pop(scope.local_var_count, span);
+            self.asm.jump(false_label, span);
+            self.asm.label(check_true)?;
+        }
+
+        self.compile_pat_tuple(scope, &pat_tuple_type.pat_tuple, false_label, load)?;
+        Ok(())
+    }
+
     /// Encode an object pattern match.
     fn compile_pat_object(
         &mut self,
@@ -1877,7 +1923,7 @@ impl<'a> Compiler<'a> {
                 self.compile_pat_array(scope, array, false_label, &load)?;
                 return Ok(true);
             }
-            ast::Pat::PatTuple(array) => {
+            ast::Pat::PatTuple(pat_tuple) => {
                 let offset = scope.decl_anon(span);
                 load(&mut self.asm);
 
@@ -1885,7 +1931,18 @@ impl<'a> Compiler<'a> {
                     asm.push(Inst::Copy { offset }, span);
                 };
 
-                self.compile_pat_tuple(scope, array, false_label, &load)?;
+                self.compile_pat_tuple(scope, pat_tuple, false_label, &load)?;
+                return Ok(true);
+            }
+            ast::Pat::PatTupleType(pat_tuple_type) => {
+                let offset = scope.decl_anon(span);
+                load(&mut self.asm);
+
+                let load = |asm: &mut Assembly| {
+                    asm.push(Inst::Copy { offset }, span);
+                };
+
+                self.compile_pat_tuple_type(scope, pat_tuple_type, false_label, &load)?;
                 return Ok(true);
             }
             ast::Pat::PatObject(object) => {

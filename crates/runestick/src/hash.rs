@@ -16,6 +16,7 @@ impl Hash {
     const FUNCTION: usize = 2;
     const INSTANCE_FUNCTION: usize = 3;
     const OBJECT_KEYS: usize = 4;
+    const TUPLE_MATCH: usize = 5;
 
     /// Construct a simple hash from something that is hashable.
     pub fn of<T: std::hash::Hash>(thing: T) -> Self {
@@ -65,6 +66,15 @@ impl Hash {
         I::Item: AsRef<str>,
     {
         Self::path(Self::TYPE, path)
+    }
+
+    /// Get the hash of a tuple match function.
+    pub fn tuple_match<I>(path: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        Self::path(Self::TUPLE_MATCH, path)
     }
 
     /// Construct a hash for a function in the given path.

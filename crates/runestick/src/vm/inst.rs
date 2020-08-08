@@ -4,6 +4,8 @@ use std::fmt;
 /// The reason why a panic was invoked in the virtual machine.
 #[derive(Debug, Clone, Copy)]
 pub enum Panic {
+    /// Not implemented.
+    NotImplemented,
     /// A pattern didn't match where it unconditionally has to.
     UnmatchedPattern,
 }
@@ -12,6 +14,7 @@ impl Panic {
     /// The identifier of the panic.
     fn ident(&self) -> &'static str {
         match *self {
+            Self::NotImplemented => "not-implemented",
             Self::UnmatchedPattern => "unmatched-pattern",
         }
     }
@@ -20,6 +23,7 @@ impl Panic {
 impl fmt::Display for Panic {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
+            Self::NotImplemented => write!(fmt, "functionality has not been implemented yet")?,
             Self::UnmatchedPattern => write!(fmt, "pattern did not match")?,
         }
 
