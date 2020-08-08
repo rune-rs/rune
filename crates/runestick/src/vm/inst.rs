@@ -162,6 +162,23 @@ pub enum Inst {
         /// The index to fetch.
         index: usize,
     },
+    /// Get the given index out of a tuple on the top of the stack. Errors if
+    /// the item doesn't exist or the item at the top of the stack is not a
+    /// tuple.
+    ///
+    /// Note: this is a specialized variant of `TupleIndexGet` where we know
+    /// that the top of the stack is supposed to be a tuple.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <tuple>
+    /// => <value>
+    /// ```
+    TupleIndexGet {
+        /// The index to fetch.
+        index: usize,
+    },
     /// Get the given index out of an object on the top of the stack. Errors if
     /// the item doesn't exist or the item at the top of the stack is not an
     /// array.
@@ -613,6 +630,22 @@ pub enum Inst {
         /// `false`.
         exact: bool,
     },
+    /// Test that the top of the stack is a tuple with the given length
+    /// requirements.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    MatchTuple {
+        /// The minimum length to test for.
+        len: usize,
+        /// Whether the operation should check exact `true` or minimum length
+        /// `false`.
+        exact: bool,
+    },
     /// Test that the top of the stack is an object matching the given slot of
     /// object keys.
     ///
@@ -697,6 +730,9 @@ impl fmt::Display for Inst {
             }
             Self::ArrayIndexGet { index } => {
                 write!(fmt, "array-index-get {}", index)?;
+            }
+            Self::TupleIndexGet { index } => {
+                write!(fmt, "tuple-index-get {}", index)?;
             }
             Self::ObjectSlotIndexGet { slot } => {
                 write!(fmt, "object-slot-index-get {}", slot)?;
@@ -832,6 +868,9 @@ impl fmt::Display for Inst {
             }
             Self::MatchArray { len, exact } => {
                 write!(fmt, "match-array {}, {}", len, exact)?;
+            }
+            Self::MatchTuple { len, exact } => {
+                write!(fmt, "match-tuple {}, {}", len, exact)?;
             }
             Self::MatchObject { slot, exact } => {
                 write!(fmt, "match-object {}, {}", slot, exact)?;

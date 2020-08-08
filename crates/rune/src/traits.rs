@@ -24,5 +24,5 @@ pub trait Resolve<'a> {
     type Output: 'a;
 
     /// Resolve the value from parsed AST.
-    fn resolve(&self, parsed: Source<'a>) -> Result<Self::Output, ParseError>;
+    fn resolve(&self, source: Source<'a>) -> Result<Self::Output, ParseError>;
 }

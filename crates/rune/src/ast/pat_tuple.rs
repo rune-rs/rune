@@ -4,46 +4,44 @@ use crate::parser::Parser;
 use crate::traits::Parse;
 use runestick::unit::Span;
 
-/// An array pattern.
+/// A tuple pattern.
 #[derive(Debug, Clone)]
-pub struct PatObject {
-    /// The open object marker.
-    pub open: ast::StartObject,
-    /// The items matched against.
-    pub items: Vec<(ast::LitObjectKey, ast::Colon, ast::Pat, Option<ast::Comma>)>,
+pub struct PatTuple {
+    /// The open bracket.
+    pub open: ast::OpenParen,
+    /// The numbers matched against.
+    pub items: Vec<(Box<ast::Pat>, Option<ast::Comma>)>,
     /// Indicates if the pattern is open or not.
     pub open_pattern: Option<ast::DotDot>,
-    /// The close brace.
-    pub close: ast::CloseBrace,
+    /// The close bracket.
+    pub close: ast::CloseParen,
 }
 
-impl PatObject {
+impl PatTuple {
     /// Get the span of the pattern.
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
     }
 }
 
-impl Parse for PatObject {
+impl Parse for PatTuple {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let open = parser.parse()?;
         let mut items = Vec::new();
 
         let mut is_open = true;
 
-        while !parser.peek::<ast::CloseBrace>()? && !parser.peek::<ast::DotDot>()? {
-            let key = parser.parse()?;
-            let colon = parser.parse()?;
+        while !parser.peek::<ast::CloseParen>()? && !parser.peek::<ast::DotDot>()? {
             let pat = parser.parse()?;
 
             is_open = parser.peek::<ast::Comma>()?;
 
             if !is_open {
-                items.push((key, colon, pat, None));
+                items.push((Box::new(pat), None));
                 break;
             }
 
-            items.push((key, colon, pat, Some(parser.parse()?)));
+            items.push((Box::new(pat), Some(parser.parse()?)));
         }
 
         let open_pattern = if is_open && parser.peek::<ast::DotDot>()? {
@@ -57,8 +55,8 @@ impl Parse for PatObject {
         Ok(Self {
             open,
             items,
-            close,
             open_pattern,
+            close,
         })
     }
 }

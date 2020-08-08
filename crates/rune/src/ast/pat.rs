@@ -1,4 +1,4 @@
-use crate::ast::{Ident, LitChar, LitNumber, LitStr, LitUnit, PatArray, PatObject, Underscore};
+use crate::ast;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::token::{Delimiter, Kind, Token};
@@ -9,35 +9,38 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub enum Pat {
     /// An ignored binding `_`.
-    PatIgnore(Underscore),
+    PatIgnore(ast::Underscore),
     /// A variable binding `n`.
-    PatBinding(Ident),
+    PatBinding(ast::Ident),
     /// A literal unit.
-    PatUnit(LitUnit),
+    PatUnit(ast::LitUnit),
     /// A literal character.
-    PatChar(LitChar),
+    PatChar(ast::LitChar),
     /// A literal number.
-    PatNumber(LitNumber),
+    PatNumber(ast::LitNumber),
     /// A literal string.
-    PatString(LitStr),
+    PatString(ast::LitStr),
     /// An array pattern.
-    PatArray(PatArray),
+    PatArray(ast::PatArray),
+    /// A tuple pattern.
+    PatTuple(ast::PatTuple),
     /// An object pattern.
-    PatObject(PatObject),
+    PatObject(ast::PatObject),
 }
 
 impl Pat {
     /// Get the span of the pattern.
     pub fn span(&self) -> Span {
         match self {
-            Self::PatUnit(expr) => expr.span(),
-            Self::PatChar(expr) => expr.span(),
-            Self::PatNumber(expr) => expr.span(),
-            Self::PatString(expr) => expr.span(),
-            Self::PatBinding(expr) => expr.span(),
-            Self::PatIgnore(expr) => expr.span(),
-            Self::PatArray(expr) => expr.span(),
-            Self::PatObject(expr) => expr.span(),
+            Self::PatUnit(pat) => pat.span(),
+            Self::PatChar(pat) => pat.span(),
+            Self::PatNumber(pat) => pat.span(),
+            Self::PatString(pat) => pat.span(),
+            Self::PatBinding(pat) => pat.span(),
+            Self::PatIgnore(pat) => pat.span(),
+            Self::PatArray(pat) => pat.span(),
+            Self::PatTuple(pat) => pat.span(),
+            Self::PatObject(pat) => pat.span(),
         }
     }
 }
@@ -65,7 +68,13 @@ impl Parse for Pat {
         Ok(match token.kind {
             Kind::Open {
                 delimiter: Delimiter::Parenthesis,
-            } => Self::PatUnit(parser.parse()?),
+            } => {
+                if parser.peek::<ast::LitUnit>()? {
+                    Self::PatUnit(parser.parse()?)
+                } else {
+                    Self::PatTuple(parser.parse()?)
+                }
+            }
             Kind::Open {
                 delimiter: Delimiter::Bracket,
             } => Self::PatArray(parser.parse()?),

@@ -183,6 +183,14 @@ pub enum ParseError {
         /// The actual token that was encountered.
         actual: Kind,
     },
+    /// Expected a valid object key.
+    #[error("expected an object key (string or identifier) but got `{actual}`")]
+    ExpectedLitObjectKey {
+        /// The location of the unexpected token.
+        span: Span,
+        /// The actual token that was encountered.
+        actual: Kind,
+    },
     /// Trying to call an instance function consisting of a path.
     #[error("cannot call instance functions consisting of paths")]
     PathCallInstanceError {
@@ -299,6 +307,7 @@ impl ParseError {
             Self::ExpectedStringError { span, .. } => span,
             Self::ExpectedOperatorError { span, .. } => span,
             Self::ExpectedBoolError { span, .. } => span,
+            Self::ExpectedLitObjectKey { span, .. } => span,
             Self::PathCallInstanceError { span, .. } => span,
             Self::ExpectedUnaryOperator { span, .. } => span,
             Self::MatchMultipleFallbackBranches { span, .. } => span,
@@ -423,6 +432,12 @@ pub enum CompileError {
         /// The span of the pattern.
         span: Span,
     },
+    /// Unsupported field access.
+    #[error("unsupported field access")]
+    UnsupportedFieldAccess {
+        /// The field access expression.
+        span: Span,
+    },
     /// Error raised when trying to use a break outside of a loop.
     #[error("break expressions cannot be used as a value")]
     BreakOutsideOfLoop {
@@ -486,6 +501,7 @@ impl CompileError {
             Self::UnsupportedAssignExpr { span, .. } => span,
             Self::UnsupportedAssignBinOp { span, .. } => span,
             Self::UnsupportedSelectPattern { span, .. } => span,
+            Self::UnsupportedFieldAccess { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,
             Self::ReturnLocalReferences { span, .. } => span,
             Self::MatchFloatInPattern { span, .. } => span,

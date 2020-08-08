@@ -557,7 +557,7 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        for (expr, _) in &lit_tuple.items {
+        for (expr, _) in lit_tuple.items.iter().rev() {
             self.compile_expr(expr, NeedsValue(true))?;
         }
 
@@ -918,6 +918,59 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
+    /// Compile field access for the given expression.
+    fn compile_field_access(
+        &mut self,
+        lhs: &ast::Expr,
+        rhs: &ast::Expr,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        use std::convert::TryFrom as _;
+
+        let span = lhs.span().join(rhs.span());
+
+        loop {
+            match rhs {
+                ast::Expr::LitNumber(n) => {
+                    let index = match n.resolve(self.source)? {
+                        ast::Number::Integer(n) if n >= 0 => match usize::try_from(n) {
+                            Ok(n) => n,
+                            Err(..) => break,
+                        },
+                        _ => break,
+                    };
+
+                    self.compile_expr(lhs, NeedsValue(true))?;
+                    self.asm.push(Inst::TupleIndexGet { index }, span);
+
+                    if !*needs_value {
+                        self.warnings.not_used(span, self.context());
+                        self.asm.push(Inst::Pop, span);
+                    }
+
+                    return Ok(());
+                }
+                ast::Expr::Ident(ident) => {
+                    let field = ident.resolve(self.source)?;
+                    let slot = self.unit.new_static_string(field)?;
+
+                    self.compile_expr(lhs, NeedsValue(true))?;
+                    self.asm.push(Inst::ObjectSlotIndexGet { slot }, span);
+
+                    if !*needs_value {
+                        self.warnings.not_used(span, self.context());
+                        self.asm.push(Inst::Pop, span);
+                    }
+
+                    return Ok(());
+                }
+                _ => break,
+            }
+        }
+
+        Err(CompileError::UnsupportedFieldAccess { span })
+    }
+
     fn compile_expr_index_get(
         &mut self,
         expr_index_get: &ast::ExprIndexGet,
@@ -1189,6 +1242,10 @@ impl<'a> Compiler<'a> {
                     expr_binary.op,
                     needs_value,
                 )?;
+                return Ok(());
+            }
+            ast::BinOp::Dot => {
+                self.compile_field_access(&*expr_binary.lhs, &*expr_binary.rhs, needs_value)?;
                 return Ok(());
             }
             _ => (),
@@ -1549,22 +1606,22 @@ impl<'a> Compiler<'a> {
     fn compile_pat_array(
         &mut self,
         scope: &mut Scope,
-        array: &ast::PatArray,
+        pat_array: &ast::PatArray,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
-        let span = array.span();
-        log::trace!("ArrayPat => {:?}", self.source.source(span)?);
+        let span = pat_array.span();
+        log::trace!("PatArray => {:?}", self.source.source(span)?);
 
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed an array.
         {
             load(&mut self.asm);
 
-            if array.open_pattern.is_some() {
+            if pat_array.open_pattern.is_some() {
                 self.asm.push(
                     Inst::MatchArray {
-                        len: array.items.len(),
+                        len: pat_array.items.len(),
                         exact: false,
                     },
                     span,
@@ -1572,7 +1629,7 @@ impl<'a> Compiler<'a> {
             } else {
                 self.asm.push(
                     Inst::MatchArray {
-                        len: array.items.len(),
+                        len: pat_array.items.len(),
                         exact: true,
                     },
                     span,
@@ -1587,12 +1644,68 @@ impl<'a> Compiler<'a> {
         self.asm.jump(false_label, span);
         self.asm.label(length_true)?;
 
-        for (index, (pat, _)) in array.items.iter().enumerate() {
+        for (index, (pat, _)) in pat_array.items.iter().enumerate() {
             let span = pat.span();
 
             let load = move |asm: &mut Assembly| {
                 load(asm);
                 asm.push(Inst::ArrayIndexGet { index }, span);
+            };
+
+            self.compile_pat(scope, &*pat, false_label, &load)?;
+        }
+
+        Ok(())
+    }
+
+    /// Encode an array pattern match.
+    fn compile_pat_tuple(
+        &mut self,
+        scope: &mut Scope,
+        pat_tuple: &ast::PatTuple,
+        false_label: Label,
+        load: &dyn Fn(&mut Assembly),
+    ) -> Result<()> {
+        let span = pat_tuple.span();
+        log::trace!("PatTuple => {:?}", self.source.source(span)?);
+
+        // Copy the temporary and check that its length matches the pattern and
+        // that it is indeed a tuple.
+        {
+            load(&mut self.asm);
+
+            if pat_tuple.open_pattern.is_some() {
+                self.asm.push(
+                    Inst::MatchTuple {
+                        len: pat_tuple.items.len(),
+                        exact: false,
+                    },
+                    span,
+                );
+            } else {
+                self.asm.push(
+                    Inst::MatchTuple {
+                        len: pat_tuple.items.len(),
+                        exact: true,
+                    },
+                    span,
+                );
+            }
+        }
+
+        let length_true = self.asm.new_label("pat_tuple_len_true");
+
+        self.asm.jump_if(length_true, span);
+        self.locals_pop(scope.local_var_count, span);
+        self.asm.jump(false_label, span);
+        self.asm.label(length_true)?;
+
+        for (index, (pat, _)) in pat_tuple.items.iter().enumerate() {
+            let span = pat.span();
+
+            let load = move |asm: &mut Assembly| {
+                load(asm);
+                asm.push(Inst::TupleIndexGet { index }, span);
             };
 
             self.compile_pat(scope, &*pat, false_label, &load)?;
@@ -1762,6 +1875,17 @@ impl<'a> Compiler<'a> {
                 };
 
                 self.compile_pat_array(scope, array, false_label, &load)?;
+                return Ok(true);
+            }
+            ast::Pat::PatTuple(array) => {
+                let offset = scope.decl_anon(span);
+                load(&mut self.asm);
+
+                let load = |asm: &mut Assembly| {
+                    asm.push(Inst::Copy { offset }, span);
+                };
+
+                self.compile_pat_tuple(scope, array, false_label, &load)?;
                 return Ok(true);
             }
             ast::Pat::PatObject(object) => {

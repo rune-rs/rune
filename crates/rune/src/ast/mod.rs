@@ -46,6 +46,7 @@ mod parenthesized;
 mod pat;
 mod pat_array;
 mod pat_object;
+mod pat_tuple;
 mod path;
 pub(super) mod utils;
 
@@ -79,7 +80,7 @@ pub use self::lit_array::LitArray;
 pub use self::lit_bool::LitBool;
 pub use self::lit_char::LitChar;
 pub use self::lit_number::{LitNumber, Number};
-pub use self::lit_object::LitObject;
+pub use self::lit_object::{LitObject, LitObjectKey};
 pub use self::lit_str::LitStr;
 pub use self::lit_template::{LitTemplate, Template, TemplateComponent};
 pub use self::lit_tuple::LitTuple;
@@ -88,6 +89,7 @@ pub use self::parenthesized::Parenthesized;
 pub use self::pat::Pat;
 pub use self::pat_array::PatArray;
 pub use self::pat_object::PatObject;
+pub use self::pat_tuple::PatTuple;
 pub use self::path::Path;
 
 macro_rules! decl_tokens {

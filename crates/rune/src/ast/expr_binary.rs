@@ -22,8 +22,8 @@ impl ExprBinary {
     pub fn produces_nothing(&self) -> bool {
         match self.op {
             // Assignments do not produce a value.
-            BinOp::Assign { .. } => false,
-            _ => true,
+            BinOp::Assign { .. } => true,
+            _ => false,
         }
     }
 

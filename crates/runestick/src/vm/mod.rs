@@ -249,8 +249,14 @@ pub enum VmError {
         index_type: ValueTypeInfo,
     },
     /// An array index get operation that is not supported.
-    #[error("the array index get operation on `{target_type}` is not supported")]
+    #[error("the array index get operation is not supported on `{target_type}`")]
     UnsupportedArrayIndexGet {
+        /// The target type we tried to perform the array indexing on.
+        target_type: ValueTypeInfo,
+    },
+    /// An array index get operation that is not supported.
+    #[error("the tuple index get operation is not supported on `{target_type}`")]
+    UnsupportedTupleIndexGet {
         /// The target type we tried to perform the array indexing on.
         target_type: ValueTypeInfo,
     },
@@ -307,6 +313,12 @@ pub enum VmError {
     /// Tried to fetch an index in an array that doesn't exist.
     #[error("missing index `{index}` in array")]
     ArrayIndexMissing {
+        /// The missing index.
+        index: usize,
+    },
+    /// Tried to fetch an index in a tuple that doesn't exist.
+    #[error("missing index `{index}` in tuple")]
+    TupleIndexMissing {
         /// The missing index.
         index: usize,
     },
@@ -1939,6 +1951,32 @@ impl Vm {
         Ok(())
     }
 
+    /// Perform an index get operation specialized for tuples.
+    #[inline]
+    fn op_tuple_index_get(&mut self, index: usize) -> Result<(), VmError> {
+        let target = self.stack.pop()?;
+
+        let value = match target {
+            ValuePtr::Tuple(slot) => {
+                let tuple = self.external_ref::<Box<[ValuePtr]>>(slot)?;
+
+                match tuple.get(index).copied() {
+                    Some(value) => value,
+                    None => {
+                        return Err(VmError::TupleIndexMissing { index });
+                    }
+                }
+            }
+            target_type => {
+                let target_type = target_type.type_info(self)?;
+                return Err(VmError::UnsupportedTupleIndexGet { target_type });
+            }
+        };
+
+        self.push(value);
+        Ok(())
+    }
+
     /// Perform a specialized index get operation on an object.
     #[inline]
     fn op_object_slot_index_get(&mut self, string_slot: usize) -> Result<(), VmError> {
@@ -2200,6 +2238,21 @@ impl Vm {
     }
 
     #[inline]
+    fn match_tuple<F>(&mut self, f: F) -> Result<(), VmError>
+    where
+        F: FnOnce(&Box<[ValuePtr]>) -> bool,
+    {
+        let value = self.stack.pop()?;
+
+        self.push(ValuePtr::Bool(match value {
+            ValuePtr::Tuple(slot) => f(&*self.external_ref(slot)?),
+            _ => false,
+        }));
+
+        Ok(())
+    }
+
+    #[inline]
     fn match_object<F>(&mut self, slot: usize, f: F) -> Result<(), VmError>
     where
         F: FnOnce(&HashMap<String, ValuePtr>, usize) -> bool,
@@ -2362,6 +2415,9 @@ impl Vm {
                 }
                 Inst::ArrayIndexGet { index } => {
                     self.op_array_index_get(index)?;
+                }
+                Inst::TupleIndexGet { index } => {
+                    self.op_tuple_index_get(index)?;
                 }
                 Inst::ObjectSlotIndexGet { slot } => {
                     self.op_object_slot_index_get(slot)?;
@@ -2544,6 +2600,13 @@ impl Vm {
                         self.match_array(|array| array.len() == len)?;
                     } else {
                         self.match_array(|array| array.len() >= len)?;
+                    }
+                }
+                Inst::MatchTuple { len, exact } => {
+                    if exact {
+                        self.match_tuple(|array| array.len() == len)?;
+                    } else {
+                        self.match_tuple(|array| array.len() >= len)?;
                     }
                 }
                 Inst::MatchObject { slot, exact } => {
