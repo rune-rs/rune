@@ -1,8 +1,9 @@
 //! The bytes package, providing access to the bytes type.
 
 use crate::context::{ContextError, Module};
-use crate::value::{ValueType, ValueTypeInfo};
-use crate::vm::RawRefGuard;
+use crate::reflection::{ReflectValueType, UnsafeFromValue};
+use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
+use crate::vm::{RawRefGuard, Ref, Vm, VmError};
 use std::any::{type_name, TypeId};
 use std::fmt;
 use std::ops;
@@ -98,16 +99,16 @@ impl Bytes {
 
 decl_external!(Bytes);
 
-impl<'a> crate::UnsafeFromValue for &'a [u8] {
+impl<'a> UnsafeFromValue for &'a [u8] {
     type Output = *const [u8];
     type Guard = RawRefGuard;
 
     unsafe fn unsafe_from_value(
-        value: crate::ValuePtr,
-        vm: &mut crate::Vm,
-    ) -> Result<(Self::Output, Self::Guard), crate::VmError> {
+        value: ValuePtr,
+        vm: &mut Vm,
+    ) -> Result<(Self::Output, Self::Guard), VmError> {
         let slot = value.into_external(vm)?;
-        let (value, guard) = crate::Ref::unsafe_into_ref(vm.external_ref::<Bytes>(slot)?);
+        let (value, guard) = Ref::unsafe_into_ref(vm.external_ref::<Bytes>(slot)?);
         Ok(((*value).bytes.as_slice(), guard))
     }
 
@@ -116,7 +117,9 @@ impl<'a> crate::UnsafeFromValue for &'a [u8] {
     }
 }
 
-impl<'a> crate::ReflectValueType for &'a [u8] {
+impl<'a> ReflectValueType for &'a [u8] {
+    type Owned = Bytes;
+
     fn value_type() -> ValueType {
         ValueType::External(TypeId::of::<Bytes>())
     }

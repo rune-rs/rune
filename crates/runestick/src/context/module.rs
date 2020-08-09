@@ -375,13 +375,11 @@ where
     N::Item: AsRef<str>,
 {
     /// Perform a tuple match.
-    pub fn tuple<Match, MatchArgs, Constructor, ConstructorArgs>(
-        self,
-        tuple_match: Match,
-        tuple_constructor: Constructor,
-    ) where
-        Match: InstFn<MatchArgs>,
-        Constructor: Function<ConstructorArgs>,
+    pub fn tuple<Match, M, Constructor, C>(self, tuple_match: Match, tuple_constructor: Constructor)
+    where
+        Match: InstFn<M, Return = bool>,
+        Match::Owned: ReflectValueType,
+        Constructor: Function<C, Return = Match::Owned>,
     {
         let name = Item::of(self.name);
         let tuple_match: Box<Handler> = Box::new(move |vm, args| tuple_match.vm_call(vm, args));
@@ -401,26 +399,11 @@ where
     }
 }
 
-/// Helper trait to convert function return values into results.
-pub trait IntoVmResult {
-    type Output: ToValue;
-
-    fn into_vm_result(self) -> Result<Self::Output, VmError>;
-}
-
-impl<T> IntoVmResult for T
-where
-    T: ToValue,
-{
-    type Output = T;
-
-    fn into_vm_result(self) -> Result<Self::Output, VmError> {
-        Ok(self)
-    }
-}
-
 /// Trait used to provide the [function][Context::function] function.
 pub trait Function<Args>: 'static + Copy + Send + Sync {
+    type Return;
+    type Owned;
+
     /// Get the number of arguments.
     fn args() -> usize;
 
@@ -430,6 +413,8 @@ pub trait Function<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [async_function][Context::async_function] function.
 pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
+    type Return;
+
     /// Get the number of arguments.
     fn args() -> usize;
 
@@ -439,6 +424,10 @@ pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [inst_fn][Context::inst_fn] function.
 pub trait InstFn<Args>: 'static + Copy + Send + Sync {
+    type Instance;
+    type Owned;
+    type Return;
+
     /// Get the number of arguments.
     fn args() -> usize;
 
@@ -454,6 +443,10 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [async_inst_fn][Context::async_inst_fn] function.
 pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
+    type Instance;
+    type Owned;
+    type Return;
+
     /// Get the number of arguments.
     fn args() -> usize;
 
@@ -478,13 +471,15 @@ macro_rules! impl_register {
     };
 
     (@impl $count:expr, $({$ty:ident, $var:ident, $num:expr},)*) => {
-        impl<Func, Ret, $($ty,)*> Function<($($ty,)*)> for Func
+        impl<Func, Return, $($ty,)*> Function<($($ty,)*)> for Func
         where
-            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
-            Ret: IntoVmResult,
-            Ret::Output: ToValue,
+            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Return,
+            Return: ToValue + ReflectValueType,
             $($ty: UnsafeFromValue,)*
         {
+            type Return = Return;
+            type Owned = <Return as ReflectValueType>::Owned;
+
             fn args() -> usize {
                 $count
             }
@@ -505,21 +500,23 @@ macro_rules! impl_register {
                 #[allow(unused)]
                 let ret = unsafe {
                     impl_register!{@unsafe-vars vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self($(<$ty>::to_arg($var.0),)*)).into_vm_result()?
+                    tls::inject_vm(vm, || self($(<$ty>::to_arg($var.0),)*))
                 };
 
-                impl_register!{@return vm, ret, Ret}
+                impl_register!{@return vm, ret, Return}
                 Ok(())
             }
         }
 
-        impl<Func, Ret, $($ty,)*> AsyncFunction<($($ty,)*)> for Func
+        impl<Func, Return, $($ty,)*> AsyncFunction<($($ty,)*)> for Func
         where
-            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Ret,
-            Ret: future::Future,
-            Ret::Output: IntoVmResult,
+            Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Return,
+            Return: future::Future,
+            Return::Output: ToValue,
             $($ty: 'static + UnsafeFromValue,)*
         {
+            type Return = Return;
+
             fn args() -> usize {
                 $count
             }
@@ -544,7 +541,7 @@ macro_rules! impl_register {
                             Ok::<_, VmError>(($($var,)*))
                         })?;
 
-                        let output = self($(<$ty>::to_arg($var.0),)*).await.into_vm_result()?;
+                        let output = self($(<$ty>::to_arg($var.0),)*).await;
 
                         tls::with_vm(|vm| {
                             let value = output.to_value(vm)?;
@@ -558,28 +555,32 @@ macro_rules! impl_register {
                     Future::new_unchecked(Box::into_raw(future))
                 };
 
-                impl_register!{@return vm, ret, Ret}
+                impl_register!{@return vm, ret, Return}
                 Ok(())
             }
         }
 
-        impl<Func, Ret, Inst, $($ty,)*> InstFn<(Inst, $($ty,)*)> for Func
+        impl<Func, Return, Instance, $($ty,)*> InstFn<(Instance, $($ty,)*)> for Func
         where
-            Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Ret,
-            Ret: IntoVmResult,
-            Inst: UnsafeFromValue + ReflectValueType,
+            Func: 'static + Copy + Send + Sync + Fn(Instance $(, $ty)*) -> Return,
+            Return: ToValue,
+            Instance: UnsafeFromValue + ReflectValueType,
             $($ty: UnsafeFromValue,)*
         {
+            type Instance = Instance;
+            type Owned = <Instance as ReflectValueType>::Owned;
+            type Return = Return;
+
             fn args() -> usize {
                 $count
             }
 
             fn instance_value_type() -> ValueType {
-                Inst::value_type()
+                Instance::value_type()
             }
 
             fn instance_value_type_info() -> ValueTypeInfo {
-                Inst::value_type_info()
+                Instance::value_type_info()
             }
 
             fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
@@ -595,32 +596,36 @@ macro_rules! impl_register {
                 #[allow(unused)]
                 let ret = unsafe {
                     impl_register!{@unsafe-inst-vars inst, vm, $count, $($ty, $var, $num,)*}
-                    tls::inject_vm(vm, || self(Inst::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*)).into_vm_result()?
+                    tls::inject_vm(vm, || self(Instance::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*))
                 };
 
-                impl_register!{@return vm, ret, Ret}
+                impl_register!{@return vm, ret, Return}
                 Ok(())
             }
         }
 
-        impl<Func, Ret, Inst, $($ty,)*> AsyncInstFn<(Inst, $($ty,)*)> for Func
+        impl<Func, Return, Instance, $($ty,)*> AsyncInstFn<(Instance, $($ty,)*)> for Func
         where
-            Func: 'static + Copy + Send + Sync + Fn(Inst $(, $ty)*) -> Ret,
-            Ret: future::Future,
-            Ret::Output: IntoVmResult,
-            Inst: UnsafeFromValue + ReflectValueType,
+            Func: 'static + Copy + Send + Sync + Fn(Instance $(, $ty)*) -> Return,
+            Return: future::Future,
+            Return::Output: ToValue,
+            Instance: UnsafeFromValue + ReflectValueType,
             $($ty: UnsafeFromValue,)*
         {
+            type Instance = Instance;
+            type Owned = <Instance as ReflectValueType>::Owned;
+            type Return = Return;
+
             fn args() -> usize {
                 $count
             }
 
             fn instance_value_type() -> ValueType {
-                Inst::value_type()
+                Instance::value_type()
             }
 
             fn instance_value_type_info() -> ValueTypeInfo {
-                Inst::value_type_info()
+                Instance::value_type_info()
             }
 
             fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
@@ -640,7 +645,7 @@ macro_rules! impl_register {
                             Ok((inst, $($var,)*))
                         })?;
 
-                        let output = self(Inst::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*).await.into_vm_result()?;
+                        let output = self(Instance::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*).await;
 
                         tls::with_vm(|vm| {
                             let value = output.to_value(vm)?;
@@ -654,7 +659,7 @@ macro_rules! impl_register {
                     Future::new_unchecked(Box::into_raw(future))
                 };
 
-                impl_register!{@return vm, ret, Ret}
+                impl_register!{@return vm, ret, Return}
                 Ok(())
             }
         }
@@ -695,7 +700,7 @@ macro_rules! impl_register {
 
     // Expand to instance variable bindings.
     (@unsafe-inst-vars $inst:ident, $vm:expr, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
-        let $inst = match Inst::unsafe_from_value($inst, $vm) {
+        let $inst = match Instance::unsafe_from_value($inst, $vm) {
             Ok(v) => v,
             Err(error) => {
                 let ty = $inst.type_info($vm)?;
@@ -704,7 +709,7 @@ macro_rules! impl_register {
                     error: Box::new(error),
                     arg: 0,
                     from: ty,
-                    to: type_name::<Inst>()
+                    to: type_name::<Instance>()
                 });
             }
         };

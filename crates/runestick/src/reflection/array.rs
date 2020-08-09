@@ -3,6 +3,8 @@ use crate::value::{Array, ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{RawRefGuard, Ref, Vm, VmError};
 
 impl<T> ReflectValueType for Array<T> {
+    type Owned = Array<T>;
+
     fn value_type() -> ValueType {
         ValueType::Array
     }
@@ -13,6 +15,8 @@ impl<T> ReflectValueType for Array<T> {
 }
 
 impl<'a, T> ReflectValueType for &'a Array<T> {
+    type Owned = Array<T>;
+
     fn value_type() -> ValueType {
         ValueType::Array
     }
@@ -23,6 +27,8 @@ impl<'a, T> ReflectValueType for &'a Array<T> {
 }
 
 impl<'a, T> ReflectValueType for &'a mut Array<T> {
+    type Owned = Array<T>;
+
     fn value_type() -> ValueType {
         ValueType::Array
     }

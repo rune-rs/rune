@@ -5,6 +5,8 @@ use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{RawRefGuard, Ref, Vm, VmError};
 
 impl<T> ReflectValueType for Option<T> {
+    type Owned = Option<T>;
+
     fn value_type() -> ValueType {
         ValueType::Option
     }
@@ -15,6 +17,8 @@ impl<T> ReflectValueType for Option<T> {
 }
 
 impl<'a, T> ReflectValueType for &'a Option<T> {
+    type Owned = Option<T>;
+
     fn value_type() -> ValueType {
         ValueType::Option
     }

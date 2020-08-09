@@ -5,6 +5,8 @@ use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{Integer, Vm, VmError};
 
 impl ReflectValueType for crate::value::Unit {
+    type Owned = crate::value::Unit;
+
     fn value_type() -> ValueType {
         ValueType::Unit
     }
@@ -38,6 +40,8 @@ impl ToValue for () {
 }
 
 impl ReflectValueType for bool {
+    type Owned = bool;
+
     fn value_type() -> ValueType {
         ValueType::Bool
     }
@@ -65,6 +69,8 @@ impl FromValue for bool {
 }
 
 impl ReflectValueType for char {
+    type Owned = char;
+
     fn value_type() -> ValueType {
         ValueType::Char
     }
@@ -95,6 +101,8 @@ macro_rules! number_value_trait {
     ($ty:ty, $variant:ident) => {
         /// Convert a number into a value type.
         impl ReflectValueType for $ty {
+            type Owned = $ty;
+
             fn value_type() -> ValueType {
                 ValueType::Integer
             }
@@ -152,6 +160,8 @@ number_value_trait!(isize, Isize);
 
 /// Convert a float into a value type.
 impl ReflectValueType for f64 {
+    type Owned = f64;
+
     fn value_type() -> ValueType {
         ValueType::Float
     }
@@ -180,6 +190,8 @@ impl FromValue for f64 {
 
 /// Convert a float into a value type.
 impl ReflectValueType for f32 {
+    type Owned = f32;
+
     fn value_type() -> ValueType {
         ValueType::Float
     }

@@ -27,6 +27,9 @@ pub trait IntoArgs {
 
 /// Trait for converting types into values.
 pub trait ReflectValueType: Sized {
+    /// The internal, owned type used for this value.
+    type Owned;
+
     /// Convert into a value type.
     fn value_type() -> ValueType;
 

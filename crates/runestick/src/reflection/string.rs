@@ -5,6 +5,8 @@ use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
 use crate::vm::{Mut, RawMutGuard, RawRefGuard, Ref, Vm, VmError};
 
 impl ReflectValueType for String {
+    type Owned = String;
+
     fn value_type() -> ValueType {
         ValueType::String
     }
@@ -15,6 +17,8 @@ impl ReflectValueType for String {
 }
 
 impl<'a> ReflectValueType for &'a str {
+    type Owned = String;
+
     fn value_type() -> ValueType {
         ValueType::String
     }
@@ -39,6 +43,8 @@ impl FromValue for String {
 
 /// Convert a string into a value type.
 impl ReflectValueType for Box<str> {
+    type Owned = String;
+
     fn value_type() -> ValueType {
         ValueType::String
     }
@@ -109,6 +115,8 @@ impl<'a> UnsafeFromValue for &'a String {
 }
 
 impl<'a> ReflectValueType for &'a String {
+    type Owned = String;
+
     fn value_type() -> ValueType {
         ValueType::String
     }
@@ -136,6 +144,8 @@ impl<'a> UnsafeFromValue for &'a mut String {
 }
 
 impl<'a> ReflectValueType for &'a mut String {
+    type Owned = String;
+
     fn value_type() -> ValueType {
         ValueType::String
     }
