@@ -34,15 +34,11 @@ where
 {
     fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
         Ok(match self {
-            Some(s) => {
-                let value = s.to_value(vm)?;
-                let slot = vm.slot_allocate::<Option<ValuePtr>>(Some(value));
-                ValuePtr::Option(slot)
+            Some(some) => {
+                let value = some.to_value(vm)?;
+                vm.option_allocate(Some(value))
             }
-            None => {
-                let slot = vm.slot_allocate::<Option<ValuePtr>>(None);
-                ValuePtr::Option(slot)
-            }
+            None => vm.option_allocate(None),
         })
     }
 }
@@ -54,7 +50,7 @@ where
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
             ValuePtr::Option(slot) => {
-                let option = vm.external_take::<Option<ValuePtr>>(slot)?;
+                let option = vm.option_take(slot)?;
 
                 Ok(match option {
                     Some(some) => Some(T::from_value(some, vm)?),
@@ -77,8 +73,7 @@ impl<'a> UnsafeFromValue for &'a Option<ValuePtr> {
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError> {
         let slot = value.into_option(vm)?;
-        let result = vm.external_ref::<Option<ValuePtr>>(slot)?;
-        Ok(Ref::unsafe_into_ref(result))
+        Ok(Ref::unsafe_into_ref(vm.option_ref(slot)?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

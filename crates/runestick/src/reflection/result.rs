@@ -37,13 +37,11 @@ where
         Ok(match self {
             Ok(ok) => {
                 let ok = ok.to_value(vm)?;
-                let slot = vm.slot_allocate::<Result<ValuePtr, ValuePtr>>(Ok(ok));
-                ValuePtr::Result(slot)
+                vm.result_allocate(Ok(ok))
             }
             Err(err) => {
                 let err = err.to_value(vm)?;
-                let slot = vm.slot_allocate::<Result<ValuePtr, ValuePtr>>(Err(err));
-                ValuePtr::Result(slot)
+                vm.result_allocate(Err(err))
             }
         })
     }
@@ -70,7 +68,7 @@ where
     fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
             ValuePtr::Result(slot) => {
-                let result = vm.external_take::<Result<ValuePtr, ValuePtr>>(slot)?;
+                let result = vm.result_take(slot)?;
 
                 Ok(match result {
                     Ok(ok) => Ok(T::from_value(ok, vm)?),
@@ -93,7 +91,7 @@ impl<'a> UnsafeFromValue for &'a Result<ValuePtr, ValuePtr> {
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError> {
         let slot = value.into_result(vm)?;
-        let result = vm.external_ref::<Result<ValuePtr, ValuePtr>>(slot)?;
+        let result = vm.result_ref(slot)?;
         Ok(Ref::unsafe_into_ref(result))
     }
 

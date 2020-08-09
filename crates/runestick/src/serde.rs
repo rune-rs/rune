@@ -79,10 +79,7 @@ impl ser::Serialize for ValuePtr {
                 serializer.end()
             }),
             ValuePtr::Option(slot) => tls::with_vm(|vm| {
-                let option = vm
-                    .external_ref::<Option<ValuePtr>>(slot)
-                    .map_err(ser::Error::custom)?;
-
+                let option = vm.option_ref(slot).map_err(ser::Error::custom)?;
                 <Option<ValuePtr>>::serialize(&*option, serializer)
             }),
             ValuePtr::Result(..) => Err(ser::Error::custom("cannot serialize results")),

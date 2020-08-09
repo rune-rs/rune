@@ -699,6 +699,14 @@ macro_rules! call_fn {
     };
 }
 
+/// Implements slot functions for a given type.
+///
+/// This provides typed convenience functions over the typical:
+/// * [slot_allocate]
+/// * [external_ref]
+/// * [external_mut]
+/// * [external_take]
+/// * [external_clone]
 macro_rules! impl_slot_functions {
     (
         $ty:ty,
@@ -707,16 +715,9 @@ macro_rules! impl_slot_functions {
         $ref_fn:ident,
         $mut_fn:ident,
         $take_fn:ident,
-        $clone_fn:ident,
+        $($clone_fn:ident,)?
     ) => {
         /// Allocate a value and return its ptr.
-        ///
-        /// This operation can leak memory unless the returned slot is pushed onto
-        /// the stack.
-        ///
-        /// Newly allocated items already have a refcount of 1. And should be
-        /// pushed on the stack using [push], rather than
-        /// [push.
         pub fn $allocate_fn(&mut self, value: $ty) -> ValuePtr {
             ValuePtr::$slot(self.slot_allocate(value))
         }
@@ -726,22 +727,22 @@ macro_rules! impl_slot_functions {
             self.external_ref::<$ty>(slot)
         }
 
-        /// Get a cloned value from the given slot.
-        pub fn $clone_fn(&self, slot: Slot) -> Result<$ty, VmError> {
-            self.external_clone::<$ty>(slot)
-        }
-
         /// Get a reference of the value at the given slot.
         pub fn $mut_fn(&self, slot: Slot) -> Result<Mut<'_, $ty>, VmError> {
             self.external_mut::<$ty>(slot)
         }
 
         /// Take the value at the given slot.
-        ///
-        /// After taking the value, the caller is responsible for deallocating it.
         pub fn $take_fn(&mut self, slot: Slot) -> Result<$ty, VmError> {
             self.external_take::<$ty>(slot)
         }
+
+        $(
+            /// Get a cloned value from the given slot.
+            pub fn $clone_fn(&self, slot: Slot) -> Result<$ty, VmError> {
+                self.external_clone::<$ty>(slot)
+            }
+        )*
     };
 }
 
@@ -987,7 +988,7 @@ impl Vm {
         let value = self.pop()?;
 
         let future = match value {
-            ValuePtr::Future(slot) => self.external_take::<Future>(slot)?,
+            ValuePtr::Future(slot) => self.future_take(slot)?,
             actual => {
                 return Err(VmError::ExpectedFuture {
                     actual: actual.type_info(self)?,
@@ -1013,7 +1014,7 @@ impl Vm {
                 let value = self.stack.pop()?;
 
                 let future = match value {
-                    ValuePtr::Future(slot) => self.external_mut::<Future>(slot)?,
+                    ValuePtr::Future(slot) => self.future_mut(slot)?,
                     actual => {
                         return Err(VmError::ExpectedFuture {
                             actual: actual.type_info(self)?,
@@ -1255,6 +1256,45 @@ impl Vm {
         object_mut,
         object_take,
         object_clone,
+    }
+
+    impl_slot_functions! {
+        Future,
+        Future,
+        future_allocate,
+        future_ref,
+        future_mut,
+        future_take,
+    }
+
+    impl_slot_functions! {
+        Result<ValuePtr, ValuePtr>,
+        Result,
+        result_allocate,
+        result_ref,
+        result_mut,
+        result_take,
+        result_clone,
+    }
+
+    impl_slot_functions! {
+        Option<ValuePtr>,
+        Option,
+        option_allocate,
+        option_ref,
+        option_mut,
+        option_take,
+        option_clone,
+    }
+
+    impl_slot_functions! {
+        Box<[ValuePtr]>,
+        Tuple,
+        tuple_allocate,
+        tuple_ref,
+        tuple_mut,
+        tuple_take,
+        tuple_clone,
     }
 
     /// Get a reference of the external value of the given type and the given
@@ -1500,7 +1540,7 @@ impl Vm {
                 Value::Array(value_take_array(self, array)?)
             }
             ValuePtr::Tuple(slot) => {
-                let tuple = self.external_take::<Box<[ValuePtr]>>(slot)?;
+                let tuple = self.tuple_take(slot)?;
                 Value::Tuple(value_take_tuple(self, &*tuple)?)
             }
             ValuePtr::Object(slot) => {
@@ -1588,7 +1628,7 @@ impl Vm {
                 ValueRef::Array(self.value_array_ref(&*array)?)
             }
             ValuePtr::Tuple(slot) => {
-                let tuple = self.external_ref::<Box<[ValuePtr]>>(slot)?;
+                let tuple = self.tuple_ref(slot)?;
                 ValueRef::Tuple(self.value_tuple_ref(&*tuple)?)
             }
             ValuePtr::Object(slot) => {
@@ -1603,7 +1643,7 @@ impl Vm {
                 ValueRef::Future(future)
             }
             ValuePtr::Option(slot) => {
-                let option = self.external_ref::<Option<ValuePtr>>(slot)?;
+                let option = self.option_ref(slot)?;
 
                 let option = match *option {
                     Some(some) => Some(Box::new(self.value_ref(some)?)),
@@ -1613,7 +1653,7 @@ impl Vm {
                 ValueRef::Option(option)
             }
             ValuePtr::Result(slot) => {
-                let result = self.external_ref::<Result<ValuePtr, ValuePtr>>(slot)?;
+                let result = self.result_ref(slot)?;
 
                 let result = match *result {
                     Ok(ok) => Ok(Box::new(self.value_ref(ok)?)),
@@ -1965,7 +2005,7 @@ impl Vm {
 
         let value = match target {
             ValuePtr::Tuple(slot) => {
-                let tuple = self.external_ref::<Box<[ValuePtr]>>(slot)?;
+                let tuple = self.tuple_ref(slot)?;
 
                 match tuple.get(index).copied() {
                     Some(value) => value,
@@ -1979,7 +2019,7 @@ impl Vm {
                     return Err(VmError::TupleIndexMissing { index });
                 }
 
-                let result = self.external_ref::<Result<ValuePtr, ValuePtr>>(slot)?;
+                let result = self.result_ref(slot)?;
 
                 match *result {
                     Ok(ok) => ok,
@@ -1987,7 +2027,7 @@ impl Vm {
                 }
             }
             ValuePtr::Option(slot) => {
-                let option = self.external_ref::<Option<ValuePtr>>(slot)?;
+                let option = self.option_ref(slot)?;
 
                 match *option {
                     Some(some) => {
@@ -2103,7 +2143,7 @@ impl Vm {
         let value = self.stack.pop()?;
 
         let result = match value {
-            ValuePtr::Result(slot) => self.external_take::<Result<ValuePtr, ValuePtr>>(slot)?,
+            ValuePtr::Result(slot) => self.result_take(slot)?,
             actual => {
                 return Err(VmError::ExpectedResult {
                     actual: actual.type_info(self)?,
@@ -2129,7 +2169,7 @@ impl Vm {
         let value = self.stack.pop()?;
 
         let option = match value {
-            ValuePtr::Option(slot) => self.external_take::<Option<ValuePtr>>(slot)?,
+            ValuePtr::Option(slot) => self.option_take(slot)?,
             actual => {
                 return Err(VmError::ExpectedOption {
                     actual: actual.type_info(self)?,
@@ -2183,9 +2223,7 @@ impl Vm {
         let value = self.stack.pop()?;
 
         self.push(ValuePtr::Bool(match value {
-            ValuePtr::Result(slot) => self
-                .external_ref::<Result<ValuePtr, ValuePtr>>(slot)?
-                .is_err(),
+            ValuePtr::Result(slot) => self.result_ref(slot)?.is_err(),
             actual => {
                 return Err(VmError::ExpectedResult {
                     actual: actual.type_info(self)?,
@@ -2204,7 +2242,7 @@ impl Vm {
         let value = self.stack.pop()?;
 
         self.push(ValuePtr::Bool(match value {
-            ValuePtr::Option(slot) => self.external_ref::<Option<ValuePtr>>(slot)?.is_none(),
+            ValuePtr::Option(slot) => self.option_ref(slot)?.is_none(),
             actual => {
                 return Err(VmError::ExpectedOption {
                     actual: actual.type_info(self)?,
@@ -2280,9 +2318,9 @@ impl Vm {
         let value = self.stack.pop()?;
 
         self.push(ValuePtr::Bool(match value {
-            ValuePtr::Tuple(slot) => f(&*self.external_ref::<Box<[ValuePtr]>>(slot)?),
+            ValuePtr::Tuple(slot) => f(&*self.tuple_ref(slot)?),
             ValuePtr::Result(slot) => {
-                let result = self.external_ref::<Result<ValuePtr, ValuePtr>>(slot)?;
+                let result = self.result_ref(slot)?;
 
                 match &*result {
                     Ok(ok) => f(&[*ok]),
@@ -2290,7 +2328,7 @@ impl Vm {
                 }
             }
             ValuePtr::Option(slot) => {
-                let option = self.external_ref::<Option<ValuePtr>>(slot)?;
+                let option = self.option_ref(slot)?;
 
                 match &*option {
                     Some(some) => f(&[*some]),
