@@ -46,6 +46,22 @@ impl Pat {
             Self::PatObject(pat) => pat.span(),
         }
     }
+
+    /// Parse a pattern with a starting identifier.
+    pub fn parse_ident(parser: &mut Parser) -> Result<Self, ParseError> {
+        let first = parser.parse()?;
+
+        if parser.peek::<ast::Scope>()? || parser.peek::<ast::OpenParen>()? {
+            let path = ast::Path::parse_with_first(parser, first)?;
+
+            return Ok(Self::PatTupleType(ast::PatTupleType {
+                path,
+                pat_tuple: parser.parse()?,
+            }));
+        }
+
+        Ok(Self::PatBinding(first))
+    }
 }
 
 /// Parsing a block expression.
@@ -85,18 +101,7 @@ impl Parse for Pat {
             Kind::LitNumber { .. } => Self::PatNumber(parser.parse()?),
             Kind::LitStr { .. } => Self::PatString(parser.parse()?),
             Kind::Underscore => Self::PatIgnore(parser.parse()?),
-            Kind::Ident => {
-                let ident = parser.parse()?;
-
-                if parser.peek::<ast::OpenParen>()? {
-                    Self::PatTupleType(ast::PatTupleType {
-                        ident,
-                        pat_tuple: parser.parse()?,
-                    })
-                } else {
-                    Self::PatBinding(ident)
-                }
-            }
+            Kind::Ident => Self::parse_ident(parser)?,
             _ => {
                 return Err(ParseError::ExpectedPatError {
                     span: token.span,

@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::token::Kind;
-use runestick::{Meta, Span};
+use runestick::{Item, Meta, Span};
 use std::fmt;
 use std::io;
 use thiserror::Error;
@@ -351,13 +351,21 @@ pub enum CompileError {
         /// Name of the missing local.
         name: String,
     },
+    /// Error for missing types.
+    #[error("no type matching `{item}`")]
+    MissingType {
+        /// Span where the error occured.
+        span: Span,
+        /// Name of the missing type.
+        item: Item,
+    },
     /// Tried to use a module that was missing.
     #[error("missing module `{module}`")]
     MissingModule {
         /// The span of the missing module.
         span: Span,
         /// The name of the missing module.
-        module: runestick::Item,
+        module: Item,
     },
     /// A specific label is missing.
     #[error("label not found in scope")]
@@ -500,6 +508,7 @@ impl CompileError {
             Self::ParseError { error, .. } => error.span(),
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
+            Self::MissingType { span, .. } => span,
             Self::MissingModule { span, .. } => span,
             Self::MissingLabel { span, .. } => span,
             Self::UnsupportedRef { span, .. } => span,

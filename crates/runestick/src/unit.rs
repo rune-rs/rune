@@ -294,6 +294,11 @@ impl CompilationUnit {
         );
 
         this.imports.insert(
+            String::from("Result"),
+            Item::of(&["std", "result", "Result"]),
+        );
+
+        this.imports.insert(
             String::from("Err"),
             Item::of(&["std", "result", "Result", "Err"]),
         );
@@ -301,6 +306,11 @@ impl CompilationUnit {
         this.imports.insert(
             String::from("Ok"),
             Item::of(&["std", "result", "Result", "Ok"]),
+        );
+
+        this.imports.insert(
+            String::from("Option"),
+            Item::of(&["std", "option", "Option"]),
         );
 
         this.imports.insert(

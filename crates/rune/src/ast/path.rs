@@ -1,4 +1,4 @@
-use crate::ast::{Ident, Scope};
+use crate::ast;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
@@ -9,14 +9,14 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub struct Path {
     /// The first component in the path.
-    pub first: Ident,
+    pub first: ast::Ident,
     /// The rest of the components in the path.
-    pub rest: Vec<(Scope, Ident)>,
+    pub rest: Vec<(ast::Scope, ast::Ident)>,
 }
 
 impl Path {
     /// Convert into an identifier used for instance calls.
-    pub fn into_instance_call_ident(self) -> Result<Ident, ParseError> {
+    pub fn into_instance_call_ident(self) -> Result<ast::Ident, ParseError> {
         if !self.rest.is_empty() {
             return Err(ParseError::PathCallInstanceError { span: self.span() });
         }
@@ -31,19 +31,24 @@ impl Path {
             None => self.first.span(),
         }
     }
+
+    /// Parse with the first identifier already parsed.
+    pub fn parse_with_first(parser: &mut Parser, first: ast::Ident) -> Result<Self, ParseError> {
+        let mut rest = Vec::new();
+
+        while parser.peek::<ast::Scope>()? {
+            let scope = parser.parse::<ast::Scope>()?;
+            rest.push((scope, parser.parse()?));
+        }
+
+        Ok(Self { first, rest })
+    }
 }
 
 impl Parse for Path {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let first = parser.parse()?;
-        let mut rest = Vec::new();
-
-        while parser.peek::<Scope>()? {
-            let scope = parser.parse::<Scope>()?;
-            rest.push((scope, parser.parse()?));
-        }
-
-        Ok(Self { first, rest })
+        Self::parse_with_first(parser, first)
     }
 }
 

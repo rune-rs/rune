@@ -5,7 +5,7 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub struct PatTupleType {
     /// The identifier of the type to match.
-    pub ident: ast::Ident,
+    pub path: ast::Path,
     /// The tuple pattern to match.
     pub pat_tuple: ast::PatTuple,
 }
@@ -13,6 +13,6 @@ pub struct PatTupleType {
 impl PatTupleType {
     /// Get the span of the pattern.
     pub fn span(&self) -> Span {
-        self.ident.span().join(self.pat_tuple.span())
+        self.path.span().join(self.pat_tuple.span())
     }
 }

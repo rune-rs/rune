@@ -5,7 +5,7 @@ use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use runestick::unit::{Assembly, Label};
-use runestick::{Context, Inst, Item, Meta, Span};
+use runestick::{Context, Hash, Inst, Item, Meta, Span};
 
 mod loops;
 mod options;
@@ -750,7 +750,7 @@ impl<'a> Compiler<'a> {
                 expr_for.iter.span(),
             );
 
-            let hash = runestick::Hash::of(ITERATOR_NEXT);
+            let hash = Hash::of(ITERATOR_NEXT);
             self.asm.push(Inst::CallInstance { hash, args: 0 }, span);
             self.asm.push(
                 Inst::Replace {
@@ -1118,13 +1118,18 @@ impl<'a> Compiler<'a> {
             }
         };
 
+        self.compile_meta(item, meta, span)
+    }
+
+    /// Compile an item.
+    fn compile_meta(&mut self, item: Item, meta: &Meta, span: Span) -> Result<()> {
         match meta {
             Meta::MetaTuple(tuple) if tuple.args == 0 => {
-                let hash = runestick::Hash::function(&item);
+                let hash = Hash::function(&item);
                 self.asm.push(Inst::Call { hash, args: 0 }, span);
             }
             Meta::MetaTuple(..) | Meta::MetaType(..) => {
-                let hash = runestick::Hash::of_type(&item);
+                let hash = Hash::of_type(&item);
                 self.asm.push(Inst::Type { hash }, span);
             }
         }
@@ -1143,15 +1148,16 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        let mut parts = Vec::new();
-        parts.push(path.first.resolve(self.source)?);
+        let item = self.convert_path_to_item(path)?;
 
-        for (_, part) in &path.rest {
-            parts.push(part.resolve(self.source)?);
-        }
+        let meta = match self.context.lookup_meta(&item) {
+            Some(meta) => meta,
+            None => {
+                return Err(CompileError::MissingType { span, item });
+            }
+        };
 
-        let hash = runestick::Hash::of_type(&parts);
-        self.asm.push(Inst::Type { hash }, span);
+        self.compile_meta(item, meta, span)?;
         Ok(())
     }
 
@@ -1161,7 +1167,7 @@ impl<'a> Compiler<'a> {
 
         let imported = match self.unit.lookup_import_by_name(local).cloned() {
             Some(path) => path,
-            None => runestick::Item::of(&[local]),
+            None => Item::of(&[local]),
         };
 
         let mut rest = Vec::new();
@@ -1208,7 +1214,7 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        let hash = runestick::Hash::function(&item);
+        let hash = Hash::function(&item);
         self.asm.push(Inst::Call { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
@@ -1237,7 +1243,7 @@ impl<'a> Compiler<'a> {
         self.compile_expr(&*call_instance_fn.instance, NeedsValue(true))?;
 
         let name = call_instance_fn.name.resolve(self.source)?;
-        let hash = runestick::Hash::of(name);
+        let hash = Hash::of(name);
         self.asm.push(Inst::CallInstance { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
@@ -1786,12 +1792,12 @@ impl<'a> Compiler<'a> {
     fn compile_pat_type_check(
         &mut self,
         scope: &mut Scope,
-        ty: &runestick::Item,
+        ty: &Item,
         span: Span,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
-        let type_hash = runestick::Hash::of_type(ty);
+        let type_hash = Hash::of_type(ty);
         self.asm.push(Inst::Type { hash: type_hash }, span);
         load(self.asm);
         self.asm.push(Inst::Is, span);
@@ -1807,13 +1813,13 @@ impl<'a> Compiler<'a> {
     fn compile_pat_tuple_check(
         &mut self,
         scope: &mut Scope,
-        ty: &runestick::Item,
+        ty: &Item,
         span: Span,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
         load(self.asm);
-        let hash = runestick::Hash::tuple_match(ty);
+        let hash = Hash::tuple_match(ty);
         self.asm.push(Inst::Call { hash, args: 0 }, span);
 
         let check_true = self.asm.new_label("tuple_match_true");
@@ -1834,12 +1840,8 @@ impl<'a> Compiler<'a> {
     ) -> Result<()> {
         let span = pat_tuple_type.span();
         log::trace!("PatTupleType => {:?}", self.source.source(span)?);
-        let local = pat_tuple_type.ident.resolve(self.source)?;
 
-        let item = match self.unit.lookup_import_by_name(local).cloned() {
-            Some(path) => path,
-            None => runestick::Item::of(&[local]),
-        };
+        let item = self.convert_path_to_item(&pat_tuple_type.path)?;
 
         let variant = if let Some(meta) = self.context.lookup_meta(&item) {
             match meta {

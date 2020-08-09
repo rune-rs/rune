@@ -795,7 +795,25 @@ fn test_match_custom_tuple() {
     assert_eq! {
         test! {
             i64 => r#"
-            fn main() { match None() { None() => 1,  _ => 2 } }
+            fn main() { match None { None => 1,  _ => 2 } }
+            "#
+        },
+        1,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            fn main() { match None { None => 1,  _ => 2 } }
+            "#
+        },
+        1,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            fn main() { match Option::None { None => 1,  _ => 2 } }
             "#
         },
         1,
@@ -816,7 +834,7 @@ fn test_match_custom_tuple() {
         test! {
             bool => r#"
             fn main() {
-                if let Some(a) = None() { true } else { false }
+                if let Some(a) = None { true } else { false }
             }
             "#
         },
