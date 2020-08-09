@@ -638,16 +638,29 @@ macro_rules! assign_ops {
     }
 }
 
-/// The holde of an external value.
+/// The holder of an external value.
+///
+/// This behaves a lot like RefCell, but with some extra tricks up its sleeve,
+/// like the ability to construct raw access guards. See [Ref] and [Mut].
 #[derive(Debug)]
 struct Holder {
     /// The generation this holder was created for.
+    ///
+    /// Slots referencing this holder encoder the generation, so a slot will
+    /// become invalid if the generation between the holder and the slot does
+    /// not match.
     generation: usize,
     /// How the external is accessed (if it is accessed).
     /// This only happens during function calls, and the function callee is
     /// responsible for unwinding the access.
-    access: Access,
-    /// The value being held.
+    ///
+    /// Note that this is allocated on the heap, because guards referencing it
+    /// will use (unsafe) pointers to it, and we can't have it move.
+    /// Other safety guarantees of the virtual machinea asserts that the holder
+    /// is not deallocates as well.
+    access: Box<Access>,
+    /// The value being held. Guarded by the `access` field to determine if it
+    /// can be access shared or exclusively.
     value: UnsafeCell<Any>,
 }
 
@@ -1130,7 +1143,7 @@ impl Vm {
     {
         self.slots.insert(Holder {
             generation,
-            access: Access::default(),
+            access: Box::new(Access::default()),
             value: UnsafeCell::new(Any::new(value)),
         })
     }
@@ -1182,7 +1195,7 @@ impl Vm {
 
         let index = self.slots.insert(Holder {
             generation,
-            access: Access::default(),
+            access: Box::new(Access::default()),
             value: UnsafeCell::new(any),
         });
 
@@ -1207,7 +1220,7 @@ impl Vm {
 
         let index = self.slots.insert(Holder {
             generation,
-            access: Access::default(),
+            access: Box::new(Access::default()),
             value: UnsafeCell::new(any),
         });
 
@@ -1280,7 +1293,7 @@ impl Vm {
             Ok(Ref {
                 value: &*(value as *const T),
                 raw: RawRefGuard {
-                    access: &holder.access,
+                    access: &*holder.access,
                 },
             })
         }
@@ -1325,7 +1338,7 @@ impl Vm {
             Ok(Mut {
                 value: &mut *(value as *mut T),
                 raw: RawMutGuard {
-                    access: &holder.access,
+                    access: &*holder.access,
                 },
             })
         }
@@ -1440,7 +1453,7 @@ impl Vm {
         Ok(Ref {
             value: unsafe { &*holder.value.get() },
             raw: RawRefGuard {
-                access: &holder.access,
+                access: &*holder.access,
             },
         })
     }
