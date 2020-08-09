@@ -11,16 +11,30 @@ use std::future;
 use crate::context::item::Item;
 use crate::context::{ContextError, Handler, IntoInstFnHash};
 
-pub struct Variant {
+/// A tuple variant.
+pub(super) struct TupleVariant {
     /// Full name of the variant.
     pub(super) name: Item,
     /// Function to use when testing if variant is a tuple that can be matched
     /// over.
-    pub(super) tuple_match: Option<Box<Handler>>,
+    pub(super) tuple_match: Box<Handler>,
+    /// Function to use when constructing a tuple.
+    pub(super) tuple_constructor: Box<Handler>,
     /// The value type of the type.
-    pub value_type: ValueType,
+    pub(super) value_type: ValueType,
     /// Information on the type.
-    pub value_type_info: ValueTypeInfo,
+    pub(super) value_type_info: ValueTypeInfo,
+    /// The number of arguments the meta argument has.
+    pub(super) args: usize,
+}
+
+pub(super) enum Variant {
+    TupleVariant(TupleVariant),
+}
+
+pub(super) struct Type {
+    pub(super) name: Item,
+    pub(super) value_type_info: ValueTypeInfo,
 }
 
 pub struct InstanceFunction {
@@ -40,7 +54,7 @@ pub struct Module {
     /// Instance functions.
     pub(super) instance_functions: HashMap<(ValueType, Hash), InstanceFunction>,
     /// Registered types.
-    pub(super) types: HashMap<ValueType, (ValueTypeInfo, Item)>,
+    pub(super) types: HashMap<ValueType, Type>,
     /// Registered variants.
     pub(super) variants: Vec<Variant>,
 }
@@ -315,7 +329,7 @@ impl Module {
 #[must_use = "must be consumed with build::<T>() to construct a type"]
 pub struct TypeBuilder<'a, N> {
     name: N,
-    types: &'a mut HashMap<ValueType, (ValueTypeInfo, Item)>,
+    types: &'a mut HashMap<ValueType, Type>,
 }
 
 impl<N> TypeBuilder<'_, N>
@@ -330,10 +344,18 @@ where
     {
         let name = Item::of(self.name);
         let value_type = T::value_type();
-        let type_info = T::value_type_info();
+        let value_type_info = T::value_type_info();
 
-        if let Some((existing, _)) = self.types.insert(value_type, (type_info, name.clone())) {
-            return Err(ContextError::ConflictingType { name, existing });
+        let ty = Type {
+            name: name.clone(),
+            value_type_info,
+        };
+
+        if let Some(old) = self.types.insert(value_type, ty) {
+            return Err(ContextError::ConflictingType {
+                name,
+                existing: old.value_type_info,
+            });
         }
 
         Ok(())
@@ -353,21 +375,29 @@ where
     N::Item: AsRef<str>,
 {
     /// Perform a tuple match.
-    pub fn tuple_match<Func, Args>(self, f: Func)
-    where
-        Func: InstFn<Args>,
+    pub fn tuple<Match, MatchArgs, Constructor, ConstructorArgs>(
+        self,
+        tuple_match: Match,
+        tuple_constructor: Constructor,
+    ) where
+        Match: InstFn<MatchArgs>,
+        Constructor: Function<ConstructorArgs>,
     {
         let name = Item::of(self.name);
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
-        let value_type = Func::instance_value_type();
-        let value_type_info = Func::instance_value_type_info();
+        let tuple_match: Box<Handler> = Box::new(move |vm, args| tuple_match.vm_call(vm, args));
+        let tuple_constructor: Box<Handler> =
+            Box::new(move |vm, args| tuple_constructor.vm_call(vm, args));
+        let value_type = Match::instance_value_type();
+        let value_type_info = Match::instance_value_type_info();
 
-        self.variants.push(Variant {
+        self.variants.push(Variant::TupleVariant(TupleVariant {
             name,
-            tuple_match: Some(handler),
+            tuple_match,
+            tuple_constructor,
             value_type,
             value_type_info,
-        });
+            args: Constructor::args(),
+        }));
     }
 }
 

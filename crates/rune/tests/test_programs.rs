@@ -6,7 +6,8 @@ async fn run_main<T>(source: &str) -> runestick::Result<T>
 where
     T: runestick::FromValue,
 {
-    let (unit, _) = rune::compile(source)?;
+    let context = runestick::Context::with_default_packages()?;
+    let (unit, _) = rune::compile(&context, source)?;
     let vm = runestick::Vm::new(Arc::new(unit));
     let context = Arc::new(runestick::Context::with_default_packages()?);
     let mut task: runestick::Task<T> = vm.call_function(context, &["main"], ())?;

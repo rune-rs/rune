@@ -5,13 +5,15 @@ use runestick::unit::Span;
 
 macro_rules! test_parse {
     ($source:expr) => {{
-        rune::compile($source).unwrap();
+        let context = runestick::Context::with_default_packages().unwrap();
+        rune::compile(&context, $source).unwrap();
     }};
 }
 
 macro_rules! test_compile_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
-        let err = rune::compile($source).unwrap_err();
+        let context = runestick::Context::with_default_packages().unwrap();
+        let err = rune::compile(&context, $source).unwrap_err();
 
         match err {
             rune::Error::CompileError($pat) => ($cond),
@@ -24,7 +26,8 @@ macro_rules! test_compile_error {
 
 macro_rules! test_warnings {
     ($source:expr $(, $pat:pat => $cond:expr)*) => {{
-        let (_, warnings) = rune::compile($source).expect("source should compile");
+        let context = runestick::Context::with_default_packages().unwrap();
+        let (_, warnings) = rune::compile(&context, $source).expect("source should compile");
         assert!(!warnings.is_empty(), "no warnings produced");
 
         let mut it = warnings.into_iter();
@@ -46,7 +49,8 @@ macro_rules! test_warnings {
 
 macro_rules! test_parse_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
-        let err = rune::compile($source).unwrap_err();
+        let context = runestick::Context::with_default_packages().unwrap();
+        let err = rune::compile(&context, $source).unwrap_err();
 
         match err {
             rune::Error::ParseError($pat) => ($cond),
@@ -63,23 +67,6 @@ fn break_outside_of_loop() {
         r#"fn main() { break; }"#,
         BreakOutsideOfLoop { span } => {
             assert_eq!(span, Span::new(12, 17));
-        }
-    };
-}
-
-#[test]
-fn test_break_as_value() {
-    test_warnings! {
-        r#"fn main() { loop { let _ = break; } }"#,
-        BreakDoesNotProduceValue { span, .. } => {
-            assert_eq!(span, Span::new(27, 32));
-        }
-    };
-
-    test_warnings! {
-        r#"fn main() { loop { break } }"#,
-        NotUsed { span, .. } => {
-            assert_eq!(span, Span::new(19, 24));
         }
     };
 }
@@ -123,6 +110,66 @@ fn test_binary_exprs() {
 }
 
 #[test]
+fn test_template_strings() {
+    test_parse!(r#"fn main() { `hello \}` }"#);
+
+    test_compile_error! {
+        r#"fn main() { `hello }` }"#,
+        ParseError { error: UnexpectedCloseBrace { span } } => {
+            assert_eq!(span, Span::new(13, 20));
+        }
+    };
+}
+
+#[test]
+fn test_wrong_arguments() {
+    test_compile_error! {
+        r#"fn main() { Some(1, 2) }"#,
+        UnsupportedArgumentCount { span, expected, actual, .. } => {
+            assert_eq!(span, Span::new(12, 22));
+            assert_eq!(expected, 1);
+            assert_eq!(actual, 2);
+        }
+    };
+
+    test_compile_error! {
+        r#"fn main() { None(1) }"#,
+        UnsupportedArgumentCount { span, expected, actual, .. } => {
+            assert_eq!(span, Span::new(12, 19));
+            assert_eq!(expected, 0);
+            assert_eq!(actual, 1);
+        }
+    };
+}
+
+#[test]
+fn test_let_pattern_might_panic() {
+    test_warnings! {
+        r#"fn main() { let [0, 1, 3] = []; }"#,
+        LetPatternMightPanic { span, .. } => {
+            assert_eq!(span, Span::new(12, 30));
+        }
+    };
+}
+
+#[test]
+fn test_break_as_value() {
+    test_warnings! {
+        r#"fn main() { loop { let _ = break; } }"#,
+        BreakDoesNotProduceValue { span, .. } => {
+            assert_eq!(span, Span::new(27, 32));
+        }
+    };
+
+    test_warnings! {
+        r#"fn main() { loop { break } }"#,
+        NotUsed { span, .. } => {
+            assert_eq!(span, Span::new(19, 24));
+        }
+    };
+}
+
+#[test]
 fn test_template_without_variables() {
     test_warnings! {
         r#"fn main() { `Hello World` }"#,
@@ -133,13 +180,21 @@ fn test_template_without_variables() {
 }
 
 #[test]
-fn test_template_strings() {
-    test_parse!(r#"fn main() { `hello \}` }"#);
+fn test_remove_variant_parens() {
+    test_warnings! {
+        r#"fn main() { None() }"#,
+        RemoveTupleCallParams { span, .. } => {
+            assert_eq!(span, Span::new(12, 18));
+        }
+    };
+}
 
-    test_compile_error! {
-        r#"fn main() { `hello }` }"#,
-        ParseError { error: UnexpectedCloseBrace { span } } => {
-            assert_eq!(span, Span::new(13, 20));
+#[test]
+fn test_return_does_not_produce_value() {
+    test_warnings! {
+        r#"fn main() { let value = return; }"#,
+        ReturnDoesNotProduceValue { span, .. } => {
+            assert_eq!(span, Span::new(24, 30));
         }
     };
 }

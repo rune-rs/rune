@@ -20,10 +20,13 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty(&["Option"]).build::<Option<ValuePtr>>()?;
 
-    module.variant(&["Option", "Some"]).tuple_match(match_some);
-    module.variant(&["Option", "None"]).tuple_match(match_none);
+    module
+        .variant(&["Option", "Some"])
+        .tuple(match_some, Option::<ValuePtr>::Some);
 
-    module.function(&["Option", "Some"], Option::<ValuePtr>::Some)?;
-    module.function(&["Option", "None"], || Option::<ValuePtr>::None)?;
+    module
+        .variant(&["Option", "None"])
+        .tuple(match_none, || Option::<ValuePtr>::None);
+
     Ok(module)
 }

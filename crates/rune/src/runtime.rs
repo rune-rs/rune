@@ -240,7 +240,7 @@ impl Runtime {
             }
         };
 
-        let (unit, warnings) = match unit.compile_with_options(&self.options) {
+        let (unit, warnings) = match unit.compile_with_options(&*self.context, &self.options) {
             Ok(unit) => unit,
             Err(e) => {
                 self.errors.push((file_id, e.into()));
@@ -390,7 +390,7 @@ impl Runtime {
                             .and_then(|s| s.get(span.start..span.end))
                         {
                             let mut note = String::new();
-                            writeln!(note, "Consider rewriting it to:")?;
+                            writeln!(note, "Consider rewriting to:")?;
                             writeln!(note, "if {} {{", binding)?;
                             writeln!(note, "    // ..")?;
                             writeln!(note, "}}")?;
@@ -421,11 +421,34 @@ impl Runtime {
                         );
 
                         let mut note = String::new();
-                        writeln!(note, "Consider wrapping it in a block:")?;
+                        writeln!(note, "Consider wrapping in a block:")?;
                         writeln!(note, "{{")?;
                         writeln!(note, "    return;")?;
                         writeln!(note, "}}")?;
                         notes.push(note);
+
+                        context
+                    }
+                    Warning::RemoveTupleCallParams {
+                        span,
+                        variant,
+                        context,
+                    } => {
+                        labels.push(
+                            Label::secondary(source_file, span.start..span.end).with_message(
+                                "constructing this variant could be done without parentheses",
+                            ),
+                        );
+
+                        if let Some(variant) = self
+                            .files
+                            .source(source_file)
+                            .and_then(|s| s.get(variant.start..variant.end))
+                        {
+                            let mut note = String::new();
+                            writeln!(note, "Consider rewriting to `{}`", variant)?;
+                            notes.push(note);
+                        }
 
                         context
                     }

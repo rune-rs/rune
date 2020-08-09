@@ -22,10 +22,13 @@ pub fn module() -> Result<Module, ContextError> {
         .ty(&["Result"])
         .build::<Result<ValuePtr, ValuePtr>>()?;
 
-    module.variant(&["Result", "Err"]).tuple_match(match_err);
-    module.variant(&["Result", "Ok"]).tuple_match(match_ok);
+    module
+        .variant(&["Result", "Err"])
+        .tuple(match_err, Result::<ValuePtr, ValuePtr>::Err);
 
-    module.function(&["Result", "Err"], Result::<ValuePtr, ValuePtr>::Err)?;
-    module.function(&["Result", "Ok"], Result::<ValuePtr, ValuePtr>::Ok)?;
+    module
+        .variant(&["Result", "Ok"])
+        .tuple(match_ok, Result::<ValuePtr, ValuePtr>::Ok);
+
     Ok(module)
 }

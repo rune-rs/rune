@@ -6,14 +6,27 @@ use std::fmt;
 use thiserror::Error;
 
 mod item;
+mod meta;
 mod module;
 
 pub use self::item::Item;
+pub use self::meta::{Meta, MetaTuple, MetaType};
 pub use self::module::Module;
+use self::module::Variant;
 
 /// An error raised when building the context.
 #[derive(Debug, Error)]
 pub enum ContextError {
+    /// A conflicting name.
+    #[error("conflicting item `{item}`, inserted `{current}` while `{existing}` already existed")]
+    ConflictingMeta {
+        /// The item that conflicted
+        item: Item,
+        /// The current meta we tried to insert.
+        current: Meta,
+        /// The existing meta item.
+        existing: Meta,
+    },
     /// Error raised when attempting to register a conflicting function.
     #[error("function `{signature}` ({hash}) already exists")]
     ConflictingFunction {
@@ -204,6 +217,8 @@ pub struct VariantInfo {
 /// * Type definitions.
 #[derive(Default)]
 pub struct Context {
+    /// Item metadata in the context.
+    meta: HashMap<Item, Meta>,
     /// Free functions.
     functions: HashMap<Hash, Box<Handler>>,
     /// Information on functions.
@@ -239,6 +254,11 @@ impl Context {
         Ok(this)
     }
 
+    /// Access the meta for the given language item.
+    pub fn lookup_meta(&self, name: &Item) -> Option<&Meta> {
+        self.meta.get(name)
+    }
+
     /// Iterate over all available functions
     pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &FnSignature)> {
         let mut it = self.functions_info.iter();
@@ -259,16 +279,37 @@ impl Context {
         })
     }
 
+    /// Install a function and check for duplicates.
+    fn install_function(
+        &mut self,
+        name: &Item,
+        handler: Box<Handler>,
+        args: Option<usize>,
+    ) -> Result<(), ContextError> {
+        let hash = Hash::function(name);
+        let signature = FnSignature::new_free(name.clone(), args);
+
+        if let Some(old) = self.functions_info.insert(hash, signature) {
+            return Err(ContextError::ConflictingFunction {
+                signature: old,
+                hash,
+            });
+        }
+
+        self.functions.insert(hash, handler);
+        Ok(())
+    }
+
     /// Install the specified module.
     pub fn install(&mut self, module: Module) -> Result<(), ContextError> {
-        for (value_type, (value_type_info, name)) in module.types.into_iter() {
-            let name = module.path.join(&name);
+        for (value_type, ty) in module.types.into_iter() {
+            let name = module.path.join(&ty.name);
             let hash = Hash::of_type(&name);
 
             let type_info = TypeInfo {
-                name,
+                name: name.clone(),
                 value_type,
-                value_type_info,
+                value_type_info: ty.value_type_info,
             };
 
             if let Some(existing) = self.types.insert(hash, type_info) {
@@ -280,21 +321,21 @@ impl Context {
 
             // reverse lookup for types.
             self.types_rev.insert(value_type, hash);
+
+            let meta = Meta::MetaType(MetaType { item: name.clone() });
+
+            if let Some(existing) = self.meta.insert(name.clone(), meta.clone()) {
+                return Err(ContextError::ConflictingMeta {
+                    item: name,
+                    existing,
+                    current: meta,
+                });
+            }
         }
 
         for (name, (handler, args)) in module.functions.into_iter() {
             let name = module.path.join(&name);
-            let hash = Hash::function(&name);
-            let signature = FnSignature::new_free(name, args);
-
-            if let Some(old) = self.functions_info.insert(hash, signature) {
-                return Err(ContextError::ConflictingFunction {
-                    signature: old,
-                    hash,
-                });
-            }
-
-            self.functions.insert(hash, handler);
+            self.install_function(&name, handler, args)?;
         }
 
         for ((ty, hash), inst) in module.instance_functions {
@@ -312,6 +353,7 @@ impl Context {
             };
 
             let hash = Hash::instance_function(ty, hash);
+
             let signature = FnSignature::new_inst(
                 type_info.name.clone(),
                 inst.name,
@@ -330,43 +372,62 @@ impl Context {
         }
 
         for variant in module.variants {
-            let name = module.path.join(&variant.name);
+            match variant {
+                Variant::TupleVariant(variant) => {
+                    let name = module.path.join(&variant.name);
 
-            let hash = Hash::of_type(&name);
-            let tuple_match_hash = Hash::tuple_match(&name);
+                    self.install_function(&name, variant.tuple_constructor, Some(variant.args))?;
 
-            if let Some(tuple_match) = variant.tuple_match {
-                let signature = FnSignature::new_tuple_match(name.clone());
-
-                if let Some(old) = self.functions_info.insert(hash, signature) {
-                    return Err(ContextError::ConflictingFunction {
-                        signature: old,
-                        hash,
+                    let meta = Meta::MetaTuple(MetaTuple {
+                        item: name.clone(),
+                        args: variant.args,
                     });
+
+                    if let Some(existing) = self.meta.insert(name.clone(), meta.clone()) {
+                        return Err(ContextError::ConflictingMeta {
+                            item: name,
+                            existing,
+                            current: meta,
+                        });
+                    }
+
+                    let hash = Hash::of_type(&name);
+                    let tuple_match_hash = Hash::tuple_match(&name);
+
+                    {
+                        let signature = FnSignature::new_tuple_match(name.clone());
+
+                        if let Some(old) = self.functions_info.insert(hash, signature) {
+                            return Err(ContextError::ConflictingFunction {
+                                signature: old,
+                                hash,
+                            });
+                        }
+
+                        self.functions.insert(tuple_match_hash, variant.tuple_match);
+                    }
+
+                    let variant_info = VariantInfo { name: variant.name };
+
+                    if let Some(variant_info) = self.variants.insert(hash, variant_info) {
+                        return Err(ContextError::ConflictingVariant {
+                            name: variant_info.name,
+                        });
+                    }
+
+                    let type_info = TypeInfo {
+                        name,
+                        value_type: variant.value_type,
+                        value_type_info: variant.value_type_info,
+                    };
+
+                    if let Some(existing) = self.types.insert(hash, type_info) {
+                        return Err(ContextError::ConflictingType {
+                            name: existing.name,
+                            existing: existing.value_type_info,
+                        });
+                    }
                 }
-
-                self.functions.insert(tuple_match_hash, tuple_match);
-            }
-
-            let variant_info = VariantInfo { name: variant.name };
-
-            if let Some(variant_info) = self.variants.insert(hash, variant_info) {
-                return Err(ContextError::ConflictingVariant {
-                    name: variant_info.name,
-                });
-            }
-
-            let type_info = TypeInfo {
-                name,
-                value_type: variant.value_type,
-                value_type_info: variant.value_type_info,
-            };
-
-            if let Some(existing) = self.types.insert(hash, type_info) {
-                return Err(ContextError::ConflictingType {
-                    name: existing.name,
-                    existing: existing.value_type_info,
-                });
             }
         }
 

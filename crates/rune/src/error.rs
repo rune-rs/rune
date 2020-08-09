@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::token::Kind;
-use runestick::unit::Span;
+use runestick::{Meta, Span};
 use std::fmt;
 use std::io;
 use thiserror::Error;
@@ -420,6 +420,32 @@ pub enum CompileError {
         /// The field access expression.
         span: Span,
     },
+    /// A meta item that is not supported in the given pattern position.
+    #[error("wrong number of arguments, expected `{expected}` but got `{actual}`")]
+    UnsupportedArgumentCount {
+        /// The span which the error occured.
+        span: Span,
+        /// The meta item we tried to use as a pattern.
+        meta: Meta,
+        /// The expected number of arguments.
+        expected: usize,
+        /// The actual number of arguments.
+        actual: usize,
+    },
+    /// A meta item that is not supported in the given pattern position.
+    #[error("`{meta}` is not supported in a pattern like this")]
+    UnsupportedMetaPattern {
+        /// The meta item we tried to use as a pattern.
+        meta: Meta,
+        /// The span which the error occured.
+        span: Span,
+    },
+    /// The pattern is not supported.
+    #[error("item is not supported in a pattern")]
+    UnsupportedPattern {
+        /// Span where the error occured.
+        span: Span,
+    },
     /// Error raised when trying to use a break outside of a loop.
     #[error("break expressions cannot be used as a value")]
     BreakOutsideOfLoop {
@@ -484,6 +510,9 @@ impl CompileError {
             Self::UnsupportedAssignBinOp { span, .. } => span,
             Self::UnsupportedSelectPattern { span, .. } => span,
             Self::UnsupportedFieldAccess { span, .. } => span,
+            Self::UnsupportedArgumentCount { span, .. } => span,
+            Self::UnsupportedMetaPattern { span, .. } => span,
+            Self::UnsupportedPattern { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,
             Self::ReturnLocalReferences { span, .. } => span,
             Self::MatchFloatInPattern { span, .. } => span,

@@ -6,7 +6,7 @@ where
     T: runestick::FromValue,
     A: runestick::IntoArgs,
 {
-    let (unit, _) = rune::compile(source)?;
+    let (unit, _) = rune::compile(&*context, source)?;
     let vm = runestick::Vm::new(Arc::new(unit));
     let mut task: runestick::Task<T> = vm.call_function(context, &["main"], args)?;
     let output = task.run_to_completion().await?;

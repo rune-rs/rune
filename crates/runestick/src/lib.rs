@@ -52,7 +52,7 @@ pub mod tls;
 pub mod unit;
 
 pub use crate::any::Any;
-pub use crate::context::{Context, ContextError, Item, Module};
+pub use crate::context::{Context, ContextError, Item, Meta, MetaTuple, MetaType, Module};
 pub use crate::context::{
     ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, MUL, MUL_ASSIGN, NEXT, SUB, SUB_ASSIGN,
 };
@@ -62,7 +62,7 @@ pub use crate::hash::Hash;
 pub use crate::reflection::{
     FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue, UnsafeToValue,
 };
-pub use crate::unit::{CompilationUnit, CompilationUnitError};
+pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
 pub use crate::value::{
     Array, Object, Slot, Unit, Value, ValuePtr, ValueRef, ValueType, ValueTypeInfo,
 };

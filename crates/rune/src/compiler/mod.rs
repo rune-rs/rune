@@ -4,8 +4,8 @@ use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
-use runestick::unit::{Assembly, Label, Span};
-use runestick::Inst;
+use runestick::unit::{Assembly, Label};
+use runestick::{Context, Inst, Item, Meta, Span};
 
 mod loops;
 mod options;
@@ -36,13 +36,14 @@ impl std::ops::Deref for NeedsValue {
 
 impl<'a> crate::ParseAll<'a, ast::DeclFile> {
     /// Compile the parse with default options.
-    pub fn compile(self) -> Result<(runestick::CompilationUnit, Warnings)> {
-        self.compile_with_options(&Default::default())
+    pub fn compile(self, context: &Context) -> Result<(runestick::CompilationUnit, Warnings)> {
+        self.compile_with_options(context, &Default::default())
     }
 
     /// Encode the given object into a collection of asm.
     pub fn compile_with_options(
         self,
+        context: &Context,
         options: &Options,
     ) -> Result<(runestick::CompilationUnit, Warnings)> {
         let ParseAll { source, item: file } = self;
@@ -63,7 +64,8 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
 
             let mut assembly = unit.new_assembly();
 
-            let mut encoder = Compiler {
+            let mut compiler = Compiler {
+                context,
                 unit: &mut unit,
                 asm: &mut assembly,
                 scopes: Scopes::new(),
@@ -75,7 +77,7 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                 warnings: &mut warnings,
             };
 
-            encoder.compile_decl_fn(f)?;
+            compiler.compile_decl_fn(f)?;
             unit.new_function(&[name], count, assembly)?;
         }
 
@@ -84,11 +86,17 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
 }
 
 struct Compiler<'a> {
+    /// The context we are compiling for.
+    context: &'a Context,
+    /// The compilation unit we are compiling for.
     unit: &'a mut runestick::CompilationUnit,
+    /// The assembly we are generating.
     asm: &'a mut Assembly,
+    /// Scopes defined in the compiler.
     scopes: Scopes,
     /// Context for which to emit warnings.
     contexts: Vec<Span>,
+    /// The source we are compiling for.
     source: Source<'a>,
     /// The nesting of loop we are currently in.
     loops: Loops,
@@ -1083,25 +1091,44 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        let target = ident.resolve(self.source)?;
-        let var = match self.scopes.get_var(target, span) {
-            Ok(var) => var,
-            Err(..) => {
-                // Something imported is automatically a type.
-                if let Some(path) = self.unit.lookup_import_by_name(target) {
-                    let hash = runestick::Hash::of_type(path);
-                    self.asm.push(Inst::Type { hash }, span);
-                    return Ok(());
-                }
+        let binding = ident.resolve(self.source)?;
 
+        loop {
+            let var = match self.scopes.get_var(binding, span) {
+                Ok(var) => var,
+                Err(..) => break,
+            };
+
+            self.asm.push(Inst::Copy { offset: var.offset }, span);
+            return Ok(());
+        }
+
+        let item = match self.unit.lookup_import_by_name(binding).cloned() {
+            Some(item) => item,
+            None => Item::of(&[binding]),
+        };
+
+        let meta = match self.context.lookup_meta(&item) {
+            Some(meta) => meta,
+            None => {
                 return Err(CompileError::MissingLocal {
-                    name: target.to_owned(),
+                    name: binding.to_owned(),
                     span,
                 });
             }
         };
 
-        self.asm.push(Inst::Copy { offset: var.offset }, span);
+        match meta {
+            Meta::MetaTuple(tuple) if tuple.args == 0 => {
+                let hash = runestick::Hash::function(&item);
+                self.asm.push(Inst::Call { hash, args: 0 }, span);
+            }
+            Meta::MetaTuple(..) | Meta::MetaType(..) => {
+                let hash = runestick::Hash::of_type(&item);
+                self.asm.push(Inst::Type { hash }, span);
+            }
+        }
+
         Ok(())
     }
 
@@ -1128,17 +1155,60 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
+    /// Convert a path to an item.
+    fn convert_path_to_item(&self, path: &ast::Path) -> Result<Item> {
+        let local = path.first.resolve(self.source)?;
+
+        let imported = match self.unit.lookup_import_by_name(local).cloned() {
+            Some(path) => path,
+            None => runestick::Item::of(&[local]),
+        };
+
+        let mut rest = Vec::new();
+
+        for (_, part) in &path.rest {
+            rest.push(part.resolve(self.source)?);
+        }
+
+        let it = imported
+            .into_iter()
+            .map(String::as_str)
+            .chain(rest.into_iter());
+
+        Ok(Item::of(it))
+    }
+
     fn compile_call_fn(&mut self, call_fn: &ast::CallFn, needs_value: NeedsValue) -> Result<()> {
         let span = call_fn.span();
         log::trace!("CallFn => {:?}", self.source.source(span)?);
 
         let args = call_fn.args.items.len();
+        let item = self.convert_path_to_item(&call_fn.name)?;
 
         for (expr, _) in call_fn.args.items.iter().rev() {
             self.compile_expr(expr, NeedsValue(true))?;
         }
 
-        let hash = self.resolve_call_dest(&call_fn.name)?;
+        if let Some(meta) = self.context.lookup_meta(&item) {
+            match meta {
+                Meta::MetaTuple(tuple) if tuple.args != call_fn.args.items.len() => {
+                    return Err(CompileError::UnsupportedArgumentCount {
+                        span,
+                        meta: meta.clone(),
+                        expected: tuple.args,
+                        actual: call_fn.args.items.len(),
+                    });
+                }
+                Meta::MetaTuple(tuple) if tuple.args == 0 => {
+                    let tuple = call_fn.name.span();
+                    self.warnings
+                        .remove_tuple_call_parens(span, tuple, self.context());
+                }
+                _ => (),
+            }
+        }
+
+        let hash = runestick::Hash::function(&item);
         self.asm.push(Inst::Call { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
@@ -1766,15 +1836,41 @@ impl<'a> Compiler<'a> {
         log::trace!("PatTupleType => {:?}", self.source.source(span)?);
         let local = pat_tuple_type.ident.resolve(self.source)?;
 
-        let ty = match self.unit.lookup_import_by_name(local).cloned() {
+        let item = match self.unit.lookup_import_by_name(local).cloned() {
             Some(path) => path,
             None => runestick::Item::of(&[local]),
         };
 
+        let variant = if let Some(meta) = self.context.lookup_meta(&item) {
+            match meta {
+                Meta::MetaTuple(variant) => variant,
+                Meta::MetaType(..) => {
+                    return Err(CompileError::UnsupportedMetaPattern {
+                        meta: meta.clone(),
+                        span,
+                    })
+                }
+            }
+        } else {
+            return Err(CompileError::UnsupportedPattern { span });
+        };
+
+        let count = pat_tuple_type.pat_tuple.items.len();
+        let is_open = pat_tuple_type.pat_tuple.open_pattern.is_some();
+
+        if !(variant.args == count || count < variant.args && is_open) {
+            return Err(CompileError::UnsupportedArgumentCount {
+                span,
+                meta: Meta::MetaTuple(variant.clone()),
+                expected: variant.args,
+                actual: count,
+            });
+        }
+
         {
-            self.compile_pat_type_check(scope, &ty, span, false_label, load)?;
+            self.compile_pat_type_check(scope, &item, span, false_label, load)?;
             // test if function is a tuple match.
-            self.compile_pat_tuple_check(scope, &ty, span, false_label, load)?;
+            self.compile_pat_tuple_check(scope, &item, span, false_label, load)?;
         }
 
         self.compile_pat_tuple(scope, &pat_tuple_type.pat_tuple, false_label, load)?;
@@ -1881,11 +1977,34 @@ impl<'a> Compiler<'a> {
 
         match pat {
             ast::Pat::PatBinding(binding) => {
+                let span = binding.span();
+
                 let name = binding.resolve(self.source)?;
 
-                // binding is an exact match to an imported name, so treat it as
-                // an empty tuple binding pattern.
-                if let Some(ty) = self.unit.lookup_import_by_name(name).cloned() {
+                let item = match self.unit.lookup_import_by_name(name).cloned() {
+                    Some(item) => item,
+                    None => Item::of(&[name]),
+                };
+
+                if let Some(meta) = self.context.lookup_meta(&item) {
+                    let tuple = match meta {
+                        Meta::MetaTuple(tuple) if tuple.args != 0 => {
+                            return Err(CompileError::UnsupportedArgumentCount {
+                                meta: meta.clone(),
+                                actual: 0,
+                                expected: tuple.args,
+                                span,
+                            });
+                        }
+                        Meta::MetaTuple(tuple) => tuple,
+                        Meta::MetaType(..) => {
+                            return Err(CompileError::UnsupportedMetaPattern {
+                                meta: meta.clone(),
+                                span,
+                            })
+                        }
+                    };
+
                     let offset = scope.decl_anon(span);
                     load(&mut self.asm);
 
@@ -1893,9 +2012,17 @@ impl<'a> Compiler<'a> {
                         asm.push(Inst::Copy { offset }, span);
                     };
 
-                    self.compile_pat_type_check(scope, &ty, span, false_label, &load)?;
-                    self.compile_pat_tuple_check(scope, &ty, span, false_label, &load)?;
-                    self.compile_pat_match_tuple_len(scope, false_label, 0, true, span, &load)?;
+                    self.compile_pat_type_check(scope, &item, span, false_label, &load)?;
+                    self.compile_pat_tuple_check(scope, &item, span, false_label, &load)?;
+                    self.compile_pat_match_tuple_len(
+                        scope,
+                        false_label,
+                        tuple.args,
+                        true,
+                        span,
+                        &load,
+                    )?;
+
                     return Ok(true);
                 }
 
@@ -2020,29 +2147,6 @@ impl<'a> Compiler<'a> {
         }
 
         Ok(())
-    }
-
-    /// Decode a path into a call destination based on its hashes.
-    fn resolve_call_dest(&self, path: &ast::Path) -> Result<runestick::Hash> {
-        let local = path.first.resolve(self.source)?;
-
-        let imported = match self.unit.lookup_import_by_name(local).cloned() {
-            Some(path) => path,
-            None => runestick::Item::of(&[local]),
-        };
-
-        let mut rest = Vec::new();
-
-        for (_, part) in &path.rest {
-            rest.push(part.resolve(self.source)?);
-        }
-
-        let it = imported
-            .into_iter()
-            .map(String::as_str)
-            .chain(rest.into_iter());
-
-        Ok(runestick::Hash::function(it))
     }
 
     /// Get the latest relevant warning context.

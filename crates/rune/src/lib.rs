@@ -27,13 +27,14 @@ pub use crate::source::Source;
 pub use crate::token::{Kind, Token};
 pub use crate::traits::{Parse, Resolve};
 pub use runestick::unit::Span;
+use runestick::Context;
 
 /// Helper function to compile the given source.
 ///
 /// Discards any warnings produced.
-pub fn compile(source: &str) -> Result<(runestick::CompilationUnit, Warnings)> {
+pub fn compile(context: &Context, source: &str) -> Result<(runestick::CompilationUnit, Warnings)> {
     let unit = parse_all::<ast::DeclFile>(&source)?;
-    let (unit, warnings) = unit.compile()?;
+    let (unit, warnings) = unit.compile(context)?;
     Ok((unit, warnings))
 }
 

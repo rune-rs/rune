@@ -39,6 +39,15 @@ pub enum Warning {
         /// The context in which it is used.
         context: Option<Span>,
     },
+    /// Suggestion that call parameters could be removed.
+    RemoveTupleCallParams {
+        /// The span of the call.
+        span: Span,
+        /// The span of the variant being built.
+        variant: Span,
+        /// The context in which it is used.
+        context: Option<Span>,
+    },
 }
 /// Compilation warnings.
 #[derive(Debug, Clone, Default)]
@@ -87,6 +96,20 @@ impl Warnings {
     pub(super) fn return_does_not_produce_value(&mut self, span: Span, context: Option<Span>) {
         self.warnings
             .push(Warning::ReturnDoesNotProduceValue { span, context });
+    }
+
+    /// Remove call parenthesis.
+    pub(super) fn remove_tuple_call_parens(
+        &mut self,
+        span: Span,
+        variant: Span,
+        context: Option<Span>,
+    ) {
+        self.warnings.push(Warning::RemoveTupleCallParams {
+            span,
+            variant,
+            context,
+        });
     }
 }
 
