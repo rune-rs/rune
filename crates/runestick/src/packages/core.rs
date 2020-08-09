@@ -4,7 +4,7 @@
 //! * `dbg` to debug print to stdout.
 
 use crate::context::{ContextError, Module};
-use crate::value::ValuePtr;
+use crate::value::Value;
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
@@ -26,7 +26,7 @@ pub fn module() -> Result<Module, ContextError> {
             }
         }
 
-        vm.push(ValuePtr::Unit);
+        vm.push(Value::Unit);
         Ok(())
     })?;
 

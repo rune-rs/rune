@@ -1,7 +1,7 @@
 //! String trait implementations.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
+use crate::value::{Value, ValueType, ValueTypeInfo};
 use crate::vm::{Mut, RawMutGuard, RawRefGuard, Ref, Vm, VmError};
 
 impl ReflectValueType for String {
@@ -29,13 +29,13 @@ impl<'a> ReflectValueType for &'a str {
 }
 
 impl ToValue for String {
-    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
+    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
         Ok(vm.string_allocate(self))
     }
 }
 
 impl FromValue for String {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         let slot = value.into_string(vm)?;
         vm.string_take(slot)
     }
@@ -55,13 +55,13 @@ impl ReflectValueType for Box<str> {
 }
 
 impl ToValue for Box<str> {
-    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
+    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
         Ok(vm.string_allocate(self.to_string()))
     }
 }
 
 impl FromValue for Box<str> {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         let slot = value.into_string(vm)?;
         Ok(vm.string_take(slot)?.into_boxed_str())
     }
@@ -72,15 +72,15 @@ impl<'a> UnsafeFromValue for &'a str {
     type Guard = Option<RawRefGuard>;
 
     unsafe fn unsafe_from_value(
-        value: ValuePtr,
+        value: Value,
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
-            ValuePtr::String(slot) => {
+            Value::String(slot) => {
                 let (s, guard) = Ref::unsafe_into_ref(vm.string_ref(slot)?);
                 ((*s).as_str(), Some(guard))
             }
-            ValuePtr::StaticString(slot) => {
+            Value::StaticString(slot) => {
                 let s = vm.unit.lookup_string(slot)?;
                 (s, None)
             }
@@ -102,7 +102,7 @@ impl<'a> UnsafeFromValue for &'a String {
     type Guard = RawRefGuard;
 
     unsafe fn unsafe_from_value(
-        value: ValuePtr,
+        value: Value,
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError> {
         let slot = value.into_string(vm)?;
@@ -131,7 +131,7 @@ impl<'a> UnsafeFromValue for &'a mut String {
     type Guard = RawMutGuard;
 
     unsafe fn unsafe_from_value(
-        value: ValuePtr,
+        value: Value,
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError> {
         let slot = value.into_string(vm)?;

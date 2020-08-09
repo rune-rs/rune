@@ -1,5 +1,5 @@
 use crate::reflection::ToValue;
-use crate::value::ValuePtr;
+use crate::value::Value;
 use crate::vm::{Vm, VmError};
 use std::fmt;
 /// A future which can be unsafely polled.
@@ -42,9 +42,9 @@ impl Future {
 }
 
 impl ToValue for Future {
-    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
+    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
         let slot = vm.slot_allocate(self);
-        Ok(ValuePtr::Future(slot))
+        Ok(Value::Future(slot))
     }
 }
 

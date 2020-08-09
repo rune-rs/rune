@@ -5,17 +5,17 @@ use crate::hash::Hash;
 
 #[derive(Debug)]
 /// A value peeked out of the stack.
-pub enum Value {
+pub enum OwnedValue {
     /// An empty unit.
     Unit,
     /// A string.
     String(String),
     /// An array.
-    Array(Vec<Value>),
+    Array(Vec<OwnedValue>),
     /// A tuple.
-    Tuple(Box<[Value]>),
+    Tuple(Box<[OwnedValue]>),
     /// An object.
-    Object(HashMap<String, Value>),
+    Object(HashMap<String, OwnedValue>),
     /// An integer.
     Integer(i64),
     /// A float.
@@ -33,7 +33,7 @@ pub enum Value {
     /// A future in the virtual machine.
     Future(Future),
     /// An optional value.
-    Option(Option<Box<Value>>),
+    Option(Option<Box<OwnedValue>>),
     /// A result value.
-    Result(Result<Box<Value>, Box<Value>>),
+    Result(Result<Box<OwnedValue>, Box<OwnedValue>>),
 }

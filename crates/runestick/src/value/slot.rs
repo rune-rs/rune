@@ -1,5 +1,8 @@
-use crate::value::Generation;
 use std::fmt;
+
+/// The generation for which a value was allocated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Generation(u32);
 
 /// Compact information on typed slot.
 #[derive(Debug, Clone, Copy, PartialEq)]

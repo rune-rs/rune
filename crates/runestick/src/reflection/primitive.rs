@@ -1,7 +1,7 @@
 //! Trait implementations for primitive types.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
-use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
+use crate::value::{Value, ValueType, ValueTypeInfo};
 use crate::vm::{Integer, Vm, VmError};
 
 impl ReflectValueType for crate::value::Unit {
@@ -17,15 +17,15 @@ impl ReflectValueType for crate::value::Unit {
 }
 
 impl ToValue for crate::value::Unit {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
-        Ok(ValuePtr::Unit)
+    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+        Ok(Value::Unit)
     }
 }
 
 impl FromValue for crate::value::Unit {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
-            ValuePtr::Unit => Ok(crate::value::Unit),
+            Value::Unit => Ok(crate::value::Unit),
             actual => Err(VmError::ExpectedUnit {
                 actual: actual.type_info(vm)?,
             }),
@@ -34,8 +34,8 @@ impl FromValue for crate::value::Unit {
 }
 
 impl ToValue for () {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
-        Ok(ValuePtr::Unit)
+    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+        Ok(Value::Unit)
     }
 }
 
@@ -52,15 +52,15 @@ impl ReflectValueType for bool {
 }
 
 impl ToValue for bool {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
-        Ok(ValuePtr::Bool(self))
+    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+        Ok(Value::Bool(self))
     }
 }
 
 impl FromValue for bool {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
-            ValuePtr::Bool(value) => Ok(value),
+            Value::Bool(value) => Ok(value),
             actual => Err(VmError::ExpectedBoolean {
                 actual: actual.type_info(vm)?,
             }),
@@ -81,15 +81,15 @@ impl ReflectValueType for char {
 }
 
 impl ToValue for char {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
-        Ok(ValuePtr::Char(self))
+    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+        Ok(Value::Char(self))
     }
 }
 
 impl FromValue for char {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
-            ValuePtr::Char(value) => Ok(value),
+            Value::Char(value) => Ok(value),
             actual => Err(VmError::ExpectedChar {
                 actual: actual.type_info(vm)?,
             }),
@@ -113,11 +113,11 @@ macro_rules! number_value_trait {
         }
 
         impl ToValue for $ty {
-            fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
+            fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
                 use std::convert::TryInto as _;
 
                 match self.try_into() {
-                    Ok(number) => Ok(ValuePtr::Integer(number)),
+                    Ok(number) => Ok(Value::Integer(number)),
                     Err(..) => Err(VmError::IntegerToValueCoercionError {
                         from: Integer::$variant(self),
                         to: std::any::type_name::<i64>(),
@@ -127,11 +127,11 @@ macro_rules! number_value_trait {
         }
 
         impl FromValue for $ty {
-            fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+            fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
                 use std::convert::TryInto as _;
 
                 match value {
-                    ValuePtr::Integer(number) => match number.try_into() {
+                    Value::Integer(number) => match number.try_into() {
                         Ok(number) => Ok(number),
                         Err(..) => Err(VmError::ValueToIntegerCoercionError {
                             from: Integer::I64(number),
@@ -172,15 +172,15 @@ impl ReflectValueType for f64 {
 }
 
 impl ToValue for f64 {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
-        Ok(ValuePtr::Float(self))
+    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+        Ok(Value::Float(self))
     }
 }
 
 impl FromValue for f64 {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
-            ValuePtr::Float(number) => Ok(number),
+            Value::Float(number) => Ok(number),
             actual => Err(VmError::ExpectedFloat {
                 actual: actual.type_info(vm)?,
             }),
@@ -202,15 +202,15 @@ impl ReflectValueType for f32 {
 }
 
 impl ToValue for f32 {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
-        Ok(ValuePtr::Float(self as f64))
+    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+        Ok(Value::Float(self as f64))
     }
 }
 
 impl FromValue for f32 {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
-            ValuePtr::Float(number) => Ok(number as f32),
+            Value::Float(number) => Ok(number as f32),
             actual => Err(VmError::ExpectedFloat {
                 actual: actual.type_info(vm)?,
             }),

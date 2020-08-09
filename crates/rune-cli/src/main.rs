@@ -208,7 +208,7 @@ async fn main() -> Result<()> {
         println!("---");
     }
 
-    let mut task: runestick::Task<runestick::Value> =
+    let mut task: runestick::Task<runestick::OwnedValue> =
         runtime.call_function(file_id, &["main"], ())?;
     let last = std::time::Instant::now();
 

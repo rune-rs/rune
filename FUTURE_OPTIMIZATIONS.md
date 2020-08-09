@@ -4,7 +4,7 @@
 
 Static strings are currently copied to the stack when they are access.
 
-Instead, introduce a `ValuePtr::StaticString(usize)` which references the slot
+Instead, introduce a `Value::StaticString(usize)` which references the slot
 from the unit directly.
 
 ## Use less anonymous stack variables during pattern matching

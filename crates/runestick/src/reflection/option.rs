@@ -1,7 +1,7 @@
 //! Trait implementations for Option<T>.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
+use crate::value::{Value, ValueType, ValueTypeInfo};
 use crate::vm::{RawRefGuard, Ref, Vm, VmError};
 
 impl<T> ReflectValueType for Option<T> {
@@ -32,7 +32,7 @@ impl<T> ToValue for Option<T>
 where
     T: ToValue,
 {
-    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
+    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
         Ok(match self {
             Some(some) => {
                 let value = some.to_value(vm)?;
@@ -47,9 +47,9 @@ impl<T> FromValue for Option<T>
 where
     T: FromValue,
 {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
-            ValuePtr::Option(slot) => {
+            Value::Option(slot) => {
                 let option = vm.option_take(slot)?;
 
                 Ok(match option {
@@ -64,12 +64,12 @@ where
     }
 }
 
-impl<'a> UnsafeFromValue for &'a Option<ValuePtr> {
-    type Output = *const Option<ValuePtr>;
+impl<'a> UnsafeFromValue for &'a Option<Value> {
+    type Output = *const Option<Value>;
     type Guard = RawRefGuard;
 
     unsafe fn unsafe_from_value(
-        value: ValuePtr,
+        value: Value,
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError> {
         let slot = value.into_option(vm)?;

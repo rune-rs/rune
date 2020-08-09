@@ -2,7 +2,7 @@
 
 use crate::context::{ContextError, Module};
 use crate::reflection::{ReflectValueType, UnsafeFromValue};
-use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
+use crate::value::{Value, ValueType, ValueTypeInfo};
 use crate::vm::{RawRefGuard, Ref, Vm, VmError};
 use std::any::{type_name, TypeId};
 use std::fmt;
@@ -104,7 +104,7 @@ impl<'a> UnsafeFromValue for &'a [u8] {
     type Guard = RawRefGuard;
 
     unsafe fn unsafe_from_value(
-        value: ValuePtr,
+        value: Value,
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError> {
         let slot = value.into_external(vm)?;

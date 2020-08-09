@@ -46,7 +46,7 @@ macro_rules! decl_external {
         }
 
         impl $crate::ToValue for $external {
-            fn to_value(self, vm: &mut $crate::Vm) -> Result<$crate::ValuePtr, $crate::VmError> {
+            fn to_value(self, vm: &mut $crate::Vm) -> Result<$crate::Value, $crate::VmError> {
                 Ok(vm.external_allocate(self))
             }
         }
@@ -55,7 +55,7 @@ macro_rules! decl_external {
             unsafe fn unsafe_to_value(
                 self,
                 vm: &mut $crate::Vm,
-            ) -> Result<$crate::ValuePtr, $crate::VmError> {
+            ) -> Result<$crate::Value, $crate::VmError> {
                 Ok(vm.external_allocate_ptr(self))
             }
         }
@@ -64,14 +64,14 @@ macro_rules! decl_external {
             unsafe fn unsafe_to_value(
                 self,
                 vm: &mut $crate::Vm,
-            ) -> Result<$crate::ValuePtr, $crate::VmError> {
+            ) -> Result<$crate::Value, $crate::VmError> {
                 Ok(vm.external_allocate_mut_ptr(self))
             }
         }
 
         impl $crate::FromValue for $external {
             fn from_value(
-                value: $crate::ValuePtr,
+                value: $crate::Value,
                 vm: &mut $crate::Vm,
             ) -> Result<Self, $crate::VmError> {
                 let slot = value.into_external(vm)?;
@@ -84,7 +84,7 @@ macro_rules! decl_external {
             type Guard = $crate::RawRefGuard;
 
             unsafe fn unsafe_from_value(
-                value: $crate::ValuePtr,
+                value: $crate::Value,
                 vm: &mut $crate::Vm,
             ) -> Result<(Self::Output, Self::Guard), $crate::VmError> {
                 let slot = value.into_external(vm)?;
@@ -103,7 +103,7 @@ macro_rules! decl_external {
             type Guard = $crate::RawMutGuard;
 
             unsafe fn unsafe_from_value(
-                value: $crate::ValuePtr,
+                value: $crate::Value,
                 vm: &mut $crate::Vm,
             ) -> Result<(Self::Output, Self::Guard), $crate::VmError> {
                 let slot = value.into_external(vm)?;

@@ -1,5 +1,5 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::value::{Array, ValuePtr, ValueType, ValueTypeInfo};
+use crate::value::{Array, Value, ValueType, ValueTypeInfo};
 use crate::vm::{RawRefGuard, Ref, Vm, VmError};
 
 impl<T> ReflectValueType for Array<T> {
@@ -42,7 +42,7 @@ impl<T> FromValue for Array<T>
 where
     T: FromValue,
 {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         let slot = value.into_array(vm)?;
         let array = vm.array_take(slot)?;
 
@@ -56,12 +56,12 @@ where
     }
 }
 
-impl<'a> UnsafeFromValue for &'a Array<ValuePtr> {
-    type Output = *const Array<ValuePtr>;
+impl<'a> UnsafeFromValue for &'a Array<Value> {
+    type Output = *const Array<Value>;
     type Guard = RawRefGuard;
 
     unsafe fn unsafe_from_value(
-        value: ValuePtr,
+        value: Value,
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError> {
         let slot = value.into_array(vm)?;
@@ -77,7 +77,7 @@ impl<T> ToValue for Array<T>
 where
     T: ToValue,
 {
-    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
+    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
         let mut array = Array::with_capacity(self.len());
 
         for value in self {

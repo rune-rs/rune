@@ -6,7 +6,7 @@ use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::tls;
 use crate::unit::CompilationUnit;
-use crate::value::{Slot, Value, ValuePtr, ValueRef, ValueTypeInfo};
+use crate::value::{OwnedValue, Slot, Value, ValueRef, ValueTypeInfo};
 use std::any;
 use std::cell::UnsafeCell;
 use std::fmt;
@@ -510,7 +510,7 @@ impl VmError {
 macro_rules! pop {
     ($vm:expr, $variant:ident) => {
         match $vm.pop()? {
-            ValuePtr::$variant(b) => b,
+            Value::$variant(b) => b,
             other => {
                 return Err(VmError::StackTopTypeError {
                     expected: ValueTypeInfo::$variant,
@@ -525,10 +525,10 @@ macro_rules! pop {
 macro_rules! primitive_ops {
     ($vm:expr, $a:ident $op:tt $b:ident) => {
         match ($a, $b) {
-            (ValuePtr::Char($a), ValuePtr::Char($b)) => $a $op $b,
-            (ValuePtr::Bool($a), ValuePtr::Bool($b)) => $a $op $b,
-            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => $a $op $b,
-            (ValuePtr::Float($a), ValuePtr::Float($b)) => $a $op $b,
+            (Value::Char($a), Value::Char($b)) => $a $op $b,
+            (Value::Bool($a), Value::Bool($b)) => $a $op $b,
+            (Value::Integer($a), Value::Integer($b)) => $a $op $b,
+            (Value::Float($a), Value::Float($b)) => $a $op $b,
             (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
                 lhs: lhs.type_info($vm)?,
@@ -542,7 +542,7 @@ macro_rules! primitive_ops {
 macro_rules! boolean_ops {
     ($vm:expr, $a:ident $op:tt $b:ident) => {
         match ($a, $b) {
-            (ValuePtr::Bool($a), ValuePtr::Bool($b)) => $a $op $b,
+            (Value::Bool($a), Value::Bool($b)) => $a $op $b,
             (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
                 lhs: lhs.type_info($vm)?,
@@ -566,16 +566,16 @@ macro_rules! check_float {
 macro_rules! numeric_ops {
     ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
-            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => {
-                $vm.push(ValuePtr::Integer({
+            (Value::Integer($a), Value::Integer($b)) => {
+                $vm.push(Value::Integer({
                     match $a.$checked_op($b) {
                         Some(value) => value,
                         None => return Err(VmError::$error),
                     }
                 }));
             },
-            (ValuePtr::Float($a), ValuePtr::Float($b)) => {
-                $vm.push(ValuePtr::Float(check_float!($a $op $b, $error)));
+            (Value::Float($a), Value::Float($b)) => {
+                $vm.push(Value::Float(check_float!($a $op $b, $error)));
             },
             (lhs, rhs) => {
                 let ty = lhs.value_type($vm)?;
@@ -604,13 +604,13 @@ macro_rules! numeric_ops {
 macro_rules! assign_ops {
     ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
-            (ValuePtr::Integer($a), ValuePtr::Integer($b)) => ValuePtr::Integer({
+            (Value::Integer($a), Value::Integer($b)) => Value::Integer({
                 match $a.$checked_op($b) {
                     Some(value) => value,
                     None => return Err(VmError::$error),
                 }
             }),
-            (ValuePtr::Float($a), ValuePtr::Float($b)) => ValuePtr::Float({
+            (Value::Float($a), Value::Float($b)) => Value::Float({
                 check_float!($a $op $b, $error)
             }),
             (lhs, rhs) => {
@@ -718,8 +718,8 @@ macro_rules! impl_slot_functions {
         $($clone_fn:ident,)?
     ) => {
         /// Allocate a value and return its ptr.
-        pub fn $allocate_fn(&mut self, value: $ty) -> ValuePtr {
-            ValuePtr::$slot(self.slot_allocate(value))
+        pub fn $allocate_fn(&mut self, value: $ty) -> Value {
+            Value::$slot(self.slot_allocate(value))
         }
 
         /// Get a reference of the value at the given slot.
@@ -749,7 +749,7 @@ macro_rules! impl_slot_functions {
 #[derive(Debug)]
 pub struct Stack {
     /// The current stack of values.
-    stack: Vec<ValuePtr>,
+    stack: Vec<Value>,
     /// The top of the current stack frame.
     stack_top: usize,
 }
@@ -770,7 +770,7 @@ impl Stack {
     }
 
     /// Peek the top of the stack.
-    fn peek(&mut self) -> Result<ValuePtr, VmError> {
+    fn peek(&mut self) -> Result<Value, VmError> {
         self.stack
             .last()
             .copied()
@@ -778,7 +778,7 @@ impl Stack {
     }
 
     /// Get the last position on the stack.
-    pub fn last(&self) -> Result<ValuePtr, VmError> {
+    pub fn last(&self) -> Result<Value, VmError> {
         self.stack
             .last()
             .copied()
@@ -786,7 +786,7 @@ impl Stack {
     }
 
     /// Access the value at the given frame offset.
-    fn at_offset(&self, offset: usize) -> Result<ValuePtr, VmError> {
+    fn at_offset(&self, offset: usize) -> Result<Value, VmError> {
         self.stack_top
             .checked_add(offset)
             .and_then(|n| self.stack.get(n).copied())
@@ -794,7 +794,7 @@ impl Stack {
     }
 
     /// Get the offset at the given location.
-    fn at_offset_mut(&mut self, offset: usize) -> Result<&mut ValuePtr, VmError> {
+    fn at_offset_mut(&mut self, offset: usize) -> Result<&mut Value, VmError> {
         let n = match self.stack_top.checked_add(offset) {
             Some(n) => n,
             None => return Err(VmError::StackOutOfBounds),
@@ -809,12 +809,12 @@ impl Stack {
     /// Push an unmanaged reference.
     ///
     /// The reference count of the value being referenced won't be modified.
-    pub fn push(&mut self, value: ValuePtr) {
+    pub fn push(&mut self, value: Value) {
         self.stack.push(value);
     }
 
     /// Pop a reference to a value from the stack.
-    pub fn pop(&mut self) -> Result<ValuePtr, VmError> {
+    pub fn pop(&mut self) -> Result<Value, VmError> {
         if self.stack.len() == self.stack_top {
             return Err(VmError::PopOutOfBounds {
                 frame: self.stack_top,
@@ -830,7 +830,7 @@ impl Stack {
     }
 
     /// Iterate over the stack.
-    pub fn iter(&self) -> impl Iterator<Item = ValuePtr> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Value> + '_ {
         self.stack.iter().copied()
     }
 }
@@ -888,12 +888,12 @@ impl Vm {
     /// Push an unmanaged reference.
     ///
     /// The reference count of the value being referenced won't be modified.
-    pub fn push(&mut self, value: ValuePtr) {
+    pub fn push(&mut self, value: Value) {
         self.stack.push(value);
     }
 
     /// Pop a reference to a value from the stack.
-    pub fn pop(&mut self) -> Result<ValuePtr, VmError> {
+    pub fn pop(&mut self) -> Result<Value, VmError> {
         self.stack.pop()
     }
 
@@ -918,7 +918,7 @@ impl Vm {
     /// item.
     pub fn iter_stack_debug(
         &self,
-    ) -> impl Iterator<Item = (ValuePtr, Result<ValueRef<'_>, VmError>)> + '_ {
+    ) -> impl Iterator<Item = (Value, Result<ValueRef<'_>, VmError>)> + '_ {
         let mut it = self.stack.iter();
 
         std::iter::from_fn(move || {
@@ -988,7 +988,7 @@ impl Vm {
         let value = self.pop()?;
 
         let future = match value {
-            ValuePtr::Future(slot) => self.future_take(slot)?,
+            Value::Future(slot) => self.future_take(slot)?,
             actual => {
                 return Err(VmError::ExpectedFuture {
                     actual: actual.type_info(self)?,
@@ -1014,7 +1014,7 @@ impl Vm {
                 let value = self.stack.pop()?;
 
                 let future = match value {
-                    ValuePtr::Future(slot) => self.future_mut(slot)?,
+                    Value::Future(slot) => self.future_mut(slot)?,
                     actual => {
                         return Err(VmError::ExpectedFuture {
                             actual: actual.type_info(self)?,
@@ -1171,11 +1171,11 @@ impl Vm {
     ///
     /// This will leak memory unless the reference is pushed onto the stack to
     /// be managed.
-    pub fn external_allocate<T>(&mut self, value: T) -> ValuePtr
+    pub fn external_allocate<T>(&mut self, value: T) -> Value
     where
         T: any::Any,
     {
-        ValuePtr::External(self.slot_allocate(value))
+        Value::External(self.slot_allocate(value))
     }
 
     /// Allocate an external slot for the given reference.
@@ -1186,7 +1186,7 @@ impl Vm {
     /// MUST NOT be used again until the VM has been cleared using
     /// [clear][Self::clear] since the VM is actively aliasing the reference for
     /// the duration of its life.
-    pub unsafe fn external_allocate_ptr<T>(&mut self, value: *const T) -> ValuePtr
+    pub unsafe fn external_allocate_ptr<T>(&mut self, value: *const T) -> Value
     where
         T: any::Any,
     {
@@ -1200,7 +1200,7 @@ impl Vm {
             value: UnsafeCell::new(any),
         });
 
-        ValuePtr::External(Slot::new(generation, index))
+        Value::External(Slot::new(generation, index))
     }
 
     /// Allocate an external slot for the given mutable reference.
@@ -1211,7 +1211,7 @@ impl Vm {
     /// MUST NOT be used again until the VM has been cleared using
     /// [clear][Self::clear] since the VM is actively aliasing the reference for
     /// the duration of its life.
-    pub unsafe fn external_allocate_mut_ptr<T>(&mut self, value: *mut T) -> ValuePtr
+    pub unsafe fn external_allocate_mut_ptr<T>(&mut self, value: *mut T) -> Value
     where
         T: any::Any,
     {
@@ -1225,7 +1225,7 @@ impl Vm {
             value: UnsafeCell::new(any),
         });
 
-        ValuePtr::External(Slot::new(generation, index))
+        Value::External(Slot::new(generation, index))
     }
 
     impl_slot_functions! {
@@ -1239,7 +1239,7 @@ impl Vm {
     }
 
     impl_slot_functions! {
-        Vec<ValuePtr>,
+        Vec<Value>,
         Array,
         array_allocate,
         array_ref,
@@ -1249,7 +1249,7 @@ impl Vm {
     }
 
     impl_slot_functions! {
-        HashMap<String, ValuePtr>,
+        HashMap<String, Value>,
         Object,
         object_allocate,
         object_ref,
@@ -1268,7 +1268,7 @@ impl Vm {
     }
 
     impl_slot_functions! {
-        Result<ValuePtr, ValuePtr>,
+        Result<Value, Value>,
         Result,
         result_allocate,
         result_ref,
@@ -1278,7 +1278,7 @@ impl Vm {
     }
 
     impl_slot_functions! {
-        Option<ValuePtr>,
+        Option<Value>,
         Option,
         option_allocate,
         option_ref,
@@ -1288,7 +1288,7 @@ impl Vm {
     }
 
     impl_slot_functions! {
-        Box<[ValuePtr]>,
+        Box<[Value]>,
         Tuple,
         tuple_allocate,
         tuple_ref,
@@ -1524,37 +1524,37 @@ impl Vm {
     }
 
     /// Convert a value reference into an owned value.
-    pub fn value_take(&mut self, value: ValuePtr) -> Result<Value, VmError> {
+    pub fn value_take(&mut self, value: Value) -> Result<OwnedValue, VmError> {
         return Ok(match value {
-            ValuePtr::Unit => Value::Unit,
-            ValuePtr::Integer(integer) => Value::Integer(integer),
-            ValuePtr::Float(float) => Value::Float(float),
-            ValuePtr::Bool(boolean) => Value::Bool(boolean),
-            ValuePtr::Char(c) => Value::Char(c),
-            ValuePtr::String(slot) => Value::String(self.string_take(slot)?),
-            ValuePtr::StaticString(slot) => {
-                Value::String(self.unit.lookup_string(slot)?.to_owned())
+            Value::Unit => OwnedValue::Unit,
+            Value::Integer(integer) => OwnedValue::Integer(integer),
+            Value::Float(float) => OwnedValue::Float(float),
+            Value::Bool(boolean) => OwnedValue::Bool(boolean),
+            Value::Char(c) => OwnedValue::Char(c),
+            Value::String(slot) => OwnedValue::String(self.string_take(slot)?),
+            Value::StaticString(slot) => {
+                OwnedValue::String(self.unit.lookup_string(slot)?.to_owned())
             }
-            ValuePtr::Array(slot) => {
+            Value::Array(slot) => {
                 let array = self.array_take(slot)?;
-                Value::Array(value_take_array(self, array)?)
+                OwnedValue::Array(value_take_array(self, array)?)
             }
-            ValuePtr::Tuple(slot) => {
+            Value::Tuple(slot) => {
                 let tuple = self.tuple_take(slot)?;
-                Value::Tuple(value_take_tuple(self, &*tuple)?)
+                OwnedValue::Tuple(value_take_tuple(self, &*tuple)?)
             }
-            ValuePtr::Object(slot) => {
+            Value::Object(slot) => {
                 let object = self.object_take(slot)?;
-                Value::Object(value_take_object(self, object)?)
+                OwnedValue::Object(value_take_object(self, object)?)
             }
-            ValuePtr::External(slot) => Value::External(self.external_take_dyn(slot)?),
-            ValuePtr::Type(ty) => Value::Type(ty),
-            ValuePtr::Fn(hash) => Value::Fn(hash),
-            ValuePtr::Future(slot) => {
+            Value::External(slot) => OwnedValue::External(self.external_take_dyn(slot)?),
+            Value::Type(ty) => OwnedValue::Type(ty),
+            Value::Fn(hash) => OwnedValue::Fn(hash),
+            Value::Future(slot) => {
                 let future = self.external_take(slot)?;
-                Value::Future(future)
+                OwnedValue::Future(future)
             }
-            ValuePtr::Option(slot) => {
+            Value::Option(slot) => {
                 let option = self.external_take(slot)?;
 
                 let option = match option {
@@ -1562,9 +1562,9 @@ impl Vm {
                     None => None,
                 };
 
-                Value::Option(option)
+                OwnedValue::Option(option)
             }
-            ValuePtr::Result(slot) => {
+            Value::Result(slot) => {
                 let result = self.external_take(slot)?;
 
                 let result = match result {
@@ -1572,12 +1572,12 @@ impl Vm {
                     Err(slot) => Err(Box::new(self.value_take(slot)?)),
                 };
 
-                Value::Result(result)
+                OwnedValue::Result(result)
             }
         });
 
         /// Convert into an owned array.
-        fn value_take_array(vm: &mut Vm, values: Vec<ValuePtr>) -> Result<Vec<Value>, VmError> {
+        fn value_take_array(vm: &mut Vm, values: Vec<Value>) -> Result<Vec<OwnedValue>, VmError> {
             let mut output = Vec::with_capacity(values.len());
 
             for value in values {
@@ -1588,7 +1588,7 @@ impl Vm {
         }
 
         /// Convert into an owned tuple.
-        fn value_take_tuple(vm: &mut Vm, values: &[ValuePtr]) -> Result<Box<[Value]>, VmError> {
+        fn value_take_tuple(vm: &mut Vm, values: &[Value]) -> Result<Box<[OwnedValue]>, VmError> {
             let mut output = Vec::with_capacity(values.len());
 
             for value in values.iter() {
@@ -1601,8 +1601,8 @@ impl Vm {
         /// Convert into an owned object.
         fn value_take_object(
             vm: &mut Vm,
-            object: HashMap<String, ValuePtr>,
-        ) -> Result<HashMap<String, Value>, VmError> {
+            object: HashMap<String, Value>,
+        ) -> Result<HashMap<String, OwnedValue>, VmError> {
             let mut output = HashMap::with_capacity(object.len());
 
             for (key, value) in object {
@@ -1614,35 +1614,35 @@ impl Vm {
     }
 
     /// Convert the given ptr into a type-erase ValueRef.
-    pub fn value_ref(&self, value: ValuePtr) -> Result<ValueRef<'_>, VmError> {
+    pub fn value_ref(&self, value: Value) -> Result<ValueRef<'_>, VmError> {
         Ok(match value {
-            ValuePtr::Unit => ValueRef::Unit,
-            ValuePtr::Integer(integer) => ValueRef::Integer(integer),
-            ValuePtr::Float(float) => ValueRef::Float(float),
-            ValuePtr::Bool(boolean) => ValueRef::Bool(boolean),
-            ValuePtr::Char(c) => ValueRef::Char(c),
-            ValuePtr::String(slot) => ValueRef::String(self.string_ref(slot)?),
-            ValuePtr::StaticString(slot) => ValueRef::StaticString(self.unit.lookup_string(slot)?),
-            ValuePtr::Array(slot) => {
+            Value::Unit => ValueRef::Unit,
+            Value::Integer(integer) => ValueRef::Integer(integer),
+            Value::Float(float) => ValueRef::Float(float),
+            Value::Bool(boolean) => ValueRef::Bool(boolean),
+            Value::Char(c) => ValueRef::Char(c),
+            Value::String(slot) => ValueRef::String(self.string_ref(slot)?),
+            Value::StaticString(slot) => ValueRef::StaticString(self.unit.lookup_string(slot)?),
+            Value::Array(slot) => {
                 let array = self.array_ref(slot)?;
                 ValueRef::Array(self.value_array_ref(&*array)?)
             }
-            ValuePtr::Tuple(slot) => {
+            Value::Tuple(slot) => {
                 let tuple = self.tuple_ref(slot)?;
                 ValueRef::Tuple(self.value_tuple_ref(&*tuple)?)
             }
-            ValuePtr::Object(slot) => {
+            Value::Object(slot) => {
                 let object = self.object_ref(slot)?;
                 ValueRef::Object(self.value_object_ref(&*object)?)
             }
-            ValuePtr::External(slot) => ValueRef::External(self.external_ref_dyn(slot)?),
-            ValuePtr::Type(ty) => ValueRef::Type(ty),
-            ValuePtr::Fn(hash) => ValueRef::Fn(hash),
-            ValuePtr::Future(slot) => {
+            Value::External(slot) => ValueRef::External(self.external_ref_dyn(slot)?),
+            Value::Type(ty) => ValueRef::Type(ty),
+            Value::Fn(hash) => ValueRef::Fn(hash),
+            Value::Future(slot) => {
                 let future = self.external_ref(slot)?;
                 ValueRef::Future(future)
             }
-            ValuePtr::Option(slot) => {
+            Value::Option(slot) => {
                 let option = self.option_ref(slot)?;
 
                 let option = match *option {
@@ -1652,7 +1652,7 @@ impl Vm {
 
                 ValueRef::Option(option)
             }
-            ValuePtr::Result(slot) => {
+            Value::Result(slot) => {
                 let result = self.result_ref(slot)?;
 
                 let result = match *result {
@@ -1668,7 +1668,7 @@ impl Vm {
     /// Convert the given value pointers into an array.
     pub fn value_array_ref<'vm>(
         &'vm self,
-        values: &[ValuePtr],
+        values: &[Value],
     ) -> Result<Vec<ValueRef<'vm>>, VmError> {
         let mut output = Vec::with_capacity(values.len());
 
@@ -1682,7 +1682,7 @@ impl Vm {
     /// Convert the given value pointers into a tuple.
     pub fn value_tuple_ref<'vm>(
         &'vm self,
-        values: &[ValuePtr],
+        values: &[Value],
     ) -> Result<Box<[ValueRef<'vm>]>, VmError> {
         let mut output = Vec::with_capacity(values.len());
 
@@ -1696,7 +1696,7 @@ impl Vm {
     /// Convert the given value pointers into an array.
     pub fn value_object_ref<'vm>(
         &'vm self,
-        object: &HashMap<String, ValuePtr>,
+        object: &HashMap<String, Value>,
     ) -> Result<HashMap<String, ValueRef<'vm>>, VmError> {
         let mut output = HashMap::with_capacity(object.len());
 
@@ -1737,14 +1737,14 @@ impl Vm {
     ///
     /// Note: External types are compared by their slot, but should eventually
     /// use a dynamically resolve equality function.
-    fn value_ptr_eq(&self, a: ValuePtr, b: ValuePtr) -> Result<bool, VmError> {
+    fn value_ptr_eq(&self, a: Value, b: Value) -> Result<bool, VmError> {
         Ok(match (a, b) {
-            (ValuePtr::Unit, ValuePtr::Unit) => true,
-            (ValuePtr::Char(a), ValuePtr::Char(b)) => a == b,
-            (ValuePtr::Bool(a), ValuePtr::Bool(b)) => a == b,
-            (ValuePtr::Integer(a), ValuePtr::Integer(b)) => a == b,
-            (ValuePtr::Float(a), ValuePtr::Float(b)) => a == b,
-            (ValuePtr::Array(a), ValuePtr::Array(b)) => {
+            (Value::Unit, Value::Unit) => true,
+            (Value::Char(a), Value::Char(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Integer(a), Value::Integer(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
+            (Value::Array(a), Value::Array(b)) => {
                 let a = self.array_ref(a)?;
                 let b = self.array_ref(b)?;
 
@@ -1760,7 +1760,7 @@ impl Vm {
 
                 true
             }
-            (ValuePtr::Object(a), ValuePtr::Object(b)) => {
+            (Value::Object(a), Value::Object(b)) => {
                 let a = self.object_ref(a)?;
                 let b = self.object_ref(b)?;
 
@@ -1781,25 +1781,25 @@ impl Vm {
 
                 true
             }
-            (ValuePtr::String(a), ValuePtr::String(b)) => {
+            (Value::String(a), Value::String(b)) => {
                 let a = self.string_ref(a)?;
                 let b = self.string_ref(b)?;
                 *a == *b
             }
-            (ValuePtr::StaticString(a), ValuePtr::String(b)) => {
+            (Value::StaticString(a), Value::String(b)) => {
                 let a = self.unit.lookup_string(a)?;
                 let b = self.string_ref(b)?;
                 a == *b
             }
-            (ValuePtr::String(a), ValuePtr::StaticString(b)) => {
+            (Value::String(a), Value::StaticString(b)) => {
                 let a = self.string_ref(a)?;
                 let b = self.unit.lookup_string(b)?;
                 *a == b
             }
             // fast string comparison: exact string slot.
-            (ValuePtr::StaticString(a), ValuePtr::StaticString(b)) => a == b,
+            (Value::StaticString(a), Value::StaticString(b)) => a == b,
             // fast external comparison by slot.
-            (ValuePtr::External(a), ValuePtr::External(b)) => a == b,
+            (Value::External(a), Value::External(b)) => a == b,
             _ => false,
         })
     }
@@ -1809,7 +1809,7 @@ impl Vm {
     fn op_eq(&mut self) -> Result<(), VmError> {
         let a = self.stack.pop()?;
         let b = self.stack.pop()?;
-        self.push(ValuePtr::Bool(self.value_ptr_eq(a, b)?));
+        self.push(Value::Bool(self.value_ptr_eq(a, b)?));
         Ok(())
     }
 
@@ -1818,7 +1818,7 @@ impl Vm {
     fn op_neq(&mut self) -> Result<(), VmError> {
         let a = self.stack.pop()?;
         let b = self.stack.pop()?;
-        self.push(ValuePtr::Bool(!self.value_ptr_eq(a, b)?));
+        self.push(Value::Bool(!self.value_ptr_eq(a, b)?));
         Ok(())
     }
 
@@ -1855,7 +1855,7 @@ impl Vm {
 
         let tuple = tuple.into_boxed_slice();
         let value = self.slot_allocate(tuple);
-        self.push(ValuePtr::Tuple(value));
+        self.push(Value::Tuple(value));
         Ok(())
     }
 
@@ -1864,7 +1864,7 @@ impl Vm {
         let value = self.stack.pop()?;
 
         let value = match value {
-            ValuePtr::Bool(value) => ValuePtr::Bool(!value),
+            Value::Bool(value) => Value::Bool(!value),
             other => {
                 let operand = other.type_info(self)?;
                 return Err(VmError::UnsupportedUnaryOperation { op: "!", operand });
@@ -1884,10 +1884,10 @@ impl Vm {
 
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
-        while let ValuePtr::Object(target) = target {
+        while let Value::Object(target) = target {
             let index = match index {
-                ValuePtr::String(index) => self.string_take(index)?,
-                ValuePtr::StaticString(slot) => self.unit.lookup_string(slot)?.to_owned(),
+                Value::String(index) => self.string_take(index)?,
+                Value::StaticString(slot) => self.unit.lookup_string(slot)?.to_owned(),
                 _ => break,
             };
 
@@ -1929,15 +1929,15 @@ impl Vm {
 
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
-        while let ValuePtr::Object(target) = target {
+        while let Value::Object(target) = target {
             let string_ref;
 
             let index = match index {
-                ValuePtr::String(index) => {
+                Value::String(index) => {
                     string_ref = self.string_ref(index)?;
                     string_ref.as_str()
                 }
-                ValuePtr::StaticString(slot) => self.unit.lookup_string(slot)?,
+                Value::StaticString(slot) => self.unit.lookup_string(slot)?,
                 _ => break,
             };
 
@@ -1978,7 +1978,7 @@ impl Vm {
         let target = self.stack.pop()?;
 
         let value = match target {
-            ValuePtr::Array(slot) => {
+            Value::Array(slot) => {
                 let array = self.array_ref(slot)?;
 
                 match array.get(index).copied() {
@@ -2004,7 +2004,7 @@ impl Vm {
         let target = self.stack.pop()?;
 
         let value = match target {
-            ValuePtr::Tuple(slot) => {
+            Value::Tuple(slot) => {
                 let tuple = self.tuple_ref(slot)?;
 
                 match tuple.get(index).copied() {
@@ -2014,7 +2014,7 @@ impl Vm {
                     }
                 }
             }
-            ValuePtr::Result(slot) => {
+            Value::Result(slot) => {
                 if index != 0 {
                     return Err(VmError::TupleIndexMissing { index });
                 }
@@ -2026,7 +2026,7 @@ impl Vm {
                     Err(err) => err,
                 }
             }
-            ValuePtr::Option(slot) => {
+            Value::Option(slot) => {
                 let option = self.option_ref(slot)?;
 
                 match *option {
@@ -2058,7 +2058,7 @@ impl Vm {
         let target = self.stack.pop()?;
 
         let value = match target {
-            ValuePtr::Object(slot) => {
+            Value::Object(slot) => {
                 let index = self.unit.lookup_string(string_slot)?;
 
                 let array = self.object_ref(slot)?;
@@ -2109,19 +2109,19 @@ impl Vm {
             let value = self.stack.pop()?;
 
             match value {
-                ValuePtr::String(slot) => {
+                Value::String(slot) => {
                     let string = self.string_ref(slot)?;
                     buf.push_str(&*string);
                 }
-                ValuePtr::StaticString(slot) => {
+                Value::StaticString(slot) => {
                     let string = self.unit.lookup_string(slot)?;
                     buf.push_str(string);
                 }
-                ValuePtr::Integer(integer) => {
+                Value::Integer(integer) => {
                     let mut buffer = itoa::Buffer::new();
                     buf.push_str(buffer.format(integer));
                 }
-                ValuePtr::Float(float) => {
+                Value::Float(float) => {
                     let mut buffer = ryu::Buffer::new();
                     buf.push_str(buffer.format(float));
                 }
@@ -2143,7 +2143,7 @@ impl Vm {
         let value = self.stack.pop()?;
 
         let result = match value {
-            ValuePtr::Result(slot) => self.result_take(slot)?,
+            Value::Result(slot) => self.result_take(slot)?,
             actual => {
                 return Err(VmError::ExpectedResult {
                     actual: actual.type_info(self)?,
@@ -2169,7 +2169,7 @@ impl Vm {
         let value = self.stack.pop()?;
 
         let option = match value {
-            ValuePtr::Option(slot) => self.option_take(slot)?,
+            Value::Option(slot) => self.option_take(slot)?,
             actual => {
                 return Err(VmError::ExpectedOption {
                     actual: actual.type_info(self)?,
@@ -2194,14 +2194,14 @@ impl Vm {
         let b = self.stack.pop()?;
 
         match (a, b) {
-            (a, ValuePtr::Type(hash)) => {
+            (a, Value::Type(hash)) => {
                 let a = a.value_type(self)?;
 
                 let type_info = context
                     .lookup_type(hash)
                     .ok_or_else(|| VmError::MissingType { hash })?;
 
-                self.push(ValuePtr::Bool(a == type_info.value_type));
+                self.push(Value::Bool(a == type_info.value_type));
             }
             (a, b) => {
                 let a = a.type_info(self)?;
@@ -2222,8 +2222,8 @@ impl Vm {
     fn op_is_err(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        self.push(ValuePtr::Bool(match value {
-            ValuePtr::Result(slot) => self.result_ref(slot)?.is_err(),
+        self.push(Value::Bool(match value {
+            Value::Result(slot) => self.result_ref(slot)?.is_err(),
             actual => {
                 return Err(VmError::ExpectedResult {
                     actual: actual.type_info(self)?,
@@ -2241,8 +2241,8 @@ impl Vm {
     fn op_is_none(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        self.push(ValuePtr::Bool(match value {
-            ValuePtr::Option(slot) => self.option_ref(slot)?.is_none(),
+        self.push(Value::Bool(match value {
+            Value::Option(slot) => self.option_ref(slot)?.is_none(),
             actual => {
                 return Err(VmError::ExpectedOption {
                     actual: actual.type_info(self)?,
@@ -2259,7 +2259,7 @@ impl Vm {
         let a = self.stack.pop()?;
         let b = self.stack.pop()?;
         let value = boolean_ops!(self, a && b);
-        self.push(ValuePtr::Bool(value));
+        self.push(Value::Bool(value));
         Ok(())
     }
 
@@ -2269,7 +2269,7 @@ impl Vm {
         let a = self.stack.pop()?;
         let b = self.stack.pop()?;
         let value = boolean_ops!(self, a || b);
-        self.push(ValuePtr::Bool(value));
+        self.push(Value::Bool(value));
         Ok(())
     }
 
@@ -2280,12 +2280,12 @@ impl Vm {
         let value = self.stack.pop()?;
         let string = self.unit.lookup_string(slot)?;
 
-        self.stack.push(ValuePtr::Bool(match value {
-            ValuePtr::String(slot) => {
+        self.stack.push(Value::Bool(match value {
+            Value::String(slot) => {
                 let actual = self.string_ref(slot)?;
                 *actual == string
             }
-            ValuePtr::StaticString(slot) => {
+            Value::StaticString(slot) => {
                 let actual = self.unit.lookup_string(slot)?;
                 actual == string
             }
@@ -2298,12 +2298,12 @@ impl Vm {
     #[inline]
     fn match_array<F>(&mut self, f: F) -> Result<(), VmError>
     where
-        F: FnOnce(&Vec<ValuePtr>) -> bool,
+        F: FnOnce(&Vec<Value>) -> bool,
     {
         let value = self.stack.pop()?;
 
-        self.push(ValuePtr::Bool(match value {
-            ValuePtr::Array(slot) => f(&*self.array_ref(slot)?),
+        self.push(Value::Bool(match value {
+            Value::Array(slot) => f(&*self.array_ref(slot)?),
             _ => false,
         }));
 
@@ -2313,13 +2313,13 @@ impl Vm {
     #[inline]
     fn match_tuple<F>(&mut self, f: F) -> Result<(), VmError>
     where
-        F: FnOnce(&[ValuePtr]) -> bool,
+        F: FnOnce(&[Value]) -> bool,
     {
         let value = self.stack.pop()?;
 
-        self.push(ValuePtr::Bool(match value {
-            ValuePtr::Tuple(slot) => f(&*self.tuple_ref(slot)?),
-            ValuePtr::Result(slot) => {
+        self.push(Value::Bool(match value {
+            Value::Tuple(slot) => f(&*self.tuple_ref(slot)?),
+            Value::Result(slot) => {
                 let result = self.result_ref(slot)?;
 
                 match &*result {
@@ -2327,7 +2327,7 @@ impl Vm {
                     Err(err) => f(&[*err]),
                 }
             }
-            ValuePtr::Option(slot) => {
+            Value::Option(slot) => {
                 let option = self.option_ref(slot)?;
 
                 match &*option {
@@ -2344,7 +2344,7 @@ impl Vm {
     #[inline]
     fn match_object<F>(&mut self, slot: usize, f: F) -> Result<(), VmError>
     where
-        F: FnOnce(&HashMap<String, ValuePtr>, usize) -> bool,
+        F: FnOnce(&HashMap<String, Value>, usize) -> bool,
     {
         let value = self.stack.pop()?;
 
@@ -2354,15 +2354,15 @@ impl Vm {
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
         let object = match value {
-            ValuePtr::Object(slot) => self.object_ref(slot)?,
+            Value::Object(slot) => self.object_ref(slot)?,
             _ => {
-                self.push(ValuePtr::Bool(false));
+                self.push(Value::Bool(false));
                 return Ok(());
             }
         };
 
         if !f(&*object, keys.len()) {
-            self.push(ValuePtr::Bool(false));
+            self.push(Value::Bool(false));
             return Ok(());
         }
 
@@ -2375,7 +2375,7 @@ impl Vm {
             }
         }
 
-        self.push(ValuePtr::Bool(is_match));
+        self.push(Value::Bool(is_match));
         Ok(())
     }
 
@@ -2484,7 +2484,7 @@ impl Vm {
                     let function = self.stack.pop()?;
 
                     let hash = match function {
-                        ValuePtr::Fn(hash) => hash,
+                        Value::Fn(hash) => hash,
                         actual => {
                             let actual_type = actual.type_info(self)?;
                             return Err(VmError::UnsupportedCallFn { actual_type });
@@ -2497,7 +2497,7 @@ impl Vm {
                     let instance = self.stack.pop()?;
                     let ty = instance.value_type(self)?;
                     let hash = Hash::instance_function(ty, hash);
-                    self.push(ValuePtr::Fn(hash));
+                    self.push(Value::Fn(hash));
                 }
                 Inst::IndexGet => {
                     self.op_index_get(context)?;
@@ -2521,7 +2521,7 @@ impl Vm {
                 }
                 Inst::ReturnUnit => {
                     self.exited = self.pop_call_frame()?;
-                    self.push(ValuePtr::Unit);
+                    self.push(Value::Unit);
                 }
                 Inst::Await => {
                     self.op_await().await?;
@@ -2539,10 +2539,10 @@ impl Vm {
                     self.op_clean(count)?;
                 }
                 Inst::Integer { number } => {
-                    self.push(ValuePtr::Integer(number));
+                    self.push(Value::Integer(number));
                 }
                 Inst::Float { number } => {
-                    self.push(ValuePtr::Float(number));
+                    self.push(Value::Float(number));
                 }
                 Inst::Copy { offset } => {
                     self.do_copy(offset)?;
@@ -2556,22 +2556,22 @@ impl Vm {
                 Inst::Gt => {
                     let a = self.stack.pop()?;
                     let b = self.stack.pop()?;
-                    self.push(ValuePtr::Bool(primitive_ops!(self, a > b)));
+                    self.push(Value::Bool(primitive_ops!(self, a > b)));
                 }
                 Inst::Gte => {
                     let a = self.stack.pop()?;
                     let b = self.stack.pop()?;
-                    self.push(ValuePtr::Bool(primitive_ops!(self, a >= b)));
+                    self.push(Value::Bool(primitive_ops!(self, a >= b)));
                 }
                 Inst::Lt => {
                     let a = self.stack.pop()?;
                     let b = self.stack.pop()?;
-                    self.push(ValuePtr::Bool(primitive_ops!(self, a < b)));
+                    self.push(Value::Bool(primitive_ops!(self, a < b)));
                 }
                 Inst::Lte => {
                     let a = self.stack.pop()?;
                     let b = self.stack.pop()?;
-                    self.push(ValuePtr::Bool(primitive_ops!(self, a <= b)));
+                    self.push(Value::Bool(primitive_ops!(self, a <= b)));
                 }
                 Inst::Eq => {
                     self.op_eq()?;
@@ -2604,10 +2604,10 @@ impl Vm {
                     }
                 }
                 Inst::Unit => {
-                    self.push(ValuePtr::Unit);
+                    self.push(Value::Unit);
                 }
                 Inst::Bool { value } => {
-                    self.push(ValuePtr::Bool(value));
+                    self.push(Value::Bool(value));
                 }
                 Inst::Array { count } => {
                     self.op_array(count)?;
@@ -2619,10 +2619,10 @@ impl Vm {
                     self.op_object(slot)?;
                 }
                 Inst::Type { hash } => {
-                    self.push(ValuePtr::Type(hash));
+                    self.push(Value::Type(hash));
                 }
                 Inst::Char { c } => {
-                    self.push(ValuePtr::Char(c));
+                    self.push(Value::Char(c));
                 }
                 Inst::String { slot } => {
                     let string = self.unit.lookup_string(slot)?.to_owned();
@@ -2631,7 +2631,7 @@ impl Vm {
                     self.push(value);
                 }
                 Inst::StaticString { slot } => {
-                    self.push(ValuePtr::StaticString(slot));
+                    self.push(Value::StaticString(slot));
                 }
                 Inst::StringConcat { len, size_hint } => {
                     self.op_string_concat(len, size_hint)?;
@@ -2641,7 +2641,7 @@ impl Vm {
                 }
                 Inst::IsUnit => {
                     let value = self.stack.pop()?;
-                    self.push(ValuePtr::Bool(matches!(value, ValuePtr::Unit)));
+                    self.push(Value::Bool(matches!(value, Value::Unit)));
                 }
                 Inst::IsErr => {
                     self.op_is_err()?;
@@ -2664,16 +2664,16 @@ impl Vm {
                 Inst::EqCharacter { character } => {
                     let value = self.stack.pop()?;
 
-                    self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Char(actual) => actual == character,
+                    self.push(Value::Bool(match value {
+                        Value::Char(actual) => actual == character,
                         _ => false,
                     }));
                 }
                 Inst::EqInteger { integer } => {
                     let value = self.stack.pop()?;
 
-                    self.push(ValuePtr::Bool(match value {
-                        ValuePtr::Integer(actual) => actual == integer,
+                    self.push(Value::Bool(match value {
+                        Value::Integer(actual) => actual == integer,
                         _ => false,
                     }));
                 }

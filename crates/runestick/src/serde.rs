@@ -2,7 +2,7 @@ use crate::collections::HashMap;
 use crate::error;
 use crate::packages::bytes::Bytes;
 use crate::tls;
-use crate::value::ValuePtr;
+use crate::value::Value;
 use crate::vm::VmError;
 use serde::{de, ser};
 use std::fmt;
@@ -11,7 +11,7 @@ use std::fmt;
 ///
 /// **Warning:** This only works if a `Vm` is accessible through [tls], like by
 /// being set up with [tls::inject_vm] or [tls::InjectVm].
-impl<'de> de::Deserialize<'de> for ValuePtr {
+impl<'de> de::Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
@@ -24,7 +24,7 @@ impl<'de> de::Deserialize<'de> for ValuePtr {
 ///
 /// **Warning:** This only works if a `Vm` is accessible through [tls], like by
 /// being set up with [tls::inject_vm] or [tls::InjectVm].
-impl ser::Serialize for ValuePtr {
+impl ser::Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: ser::Serializer,
@@ -33,20 +33,20 @@ impl ser::Serialize for ValuePtr {
         use serde::ser::SerializeSeq as _;
 
         match *self {
-            ValuePtr::Unit => serializer.serialize_unit(),
-            ValuePtr::Bool(b) => serializer.serialize_bool(b),
-            ValuePtr::Char(c) => serializer.serialize_char(c),
-            ValuePtr::Integer(integer) => serializer.serialize_i64(integer),
-            ValuePtr::Float(float) => serializer.serialize_f64(float),
-            ValuePtr::StaticString(slot) => tls::with_vm(|vm| {
+            Value::Unit => serializer.serialize_unit(),
+            Value::Bool(b) => serializer.serialize_bool(b),
+            Value::Char(c) => serializer.serialize_char(c),
+            Value::Integer(integer) => serializer.serialize_i64(integer),
+            Value::Float(float) => serializer.serialize_f64(float),
+            Value::StaticString(slot) => tls::with_vm(|vm| {
                 let string = vm.unit.lookup_string(slot).map_err(ser::Error::custom)?;
                 serializer.serialize_str(string)
             }),
-            ValuePtr::String(slot) => tls::with_vm(|vm| {
+            Value::String(slot) => tls::with_vm(|vm| {
                 let string = vm.string_ref(slot).map_err(ser::Error::custom)?;
                 serializer.serialize_str(&*string)
             }),
-            ValuePtr::Array(slot) => tls::with_vm(|vm| {
+            Value::Array(slot) => tls::with_vm(|vm| {
                 let array = vm.array_ref(slot).map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_seq(Some(array.len()))?;
 
@@ -56,9 +56,9 @@ impl ser::Serialize for ValuePtr {
 
                 serializer.end()
             }),
-            ValuePtr::Tuple(slot) => tls::with_vm(|vm| {
+            Value::Tuple(slot) => tls::with_vm(|vm| {
                 let tuple = vm
-                    .external_ref::<Box<[ValuePtr]>>(slot)
+                    .external_ref::<Box<[Value]>>(slot)
                     .map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
 
@@ -68,7 +68,7 @@ impl ser::Serialize for ValuePtr {
 
                 serializer.end()
             }),
-            ValuePtr::Object(slot) => tls::with_vm(|vm| {
+            Value::Object(slot) => tls::with_vm(|vm| {
                 let object = vm.object_ref(slot).map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_map(Some(object.len()))?;
 
@@ -78,15 +78,15 @@ impl ser::Serialize for ValuePtr {
 
                 serializer.end()
             }),
-            ValuePtr::Option(slot) => tls::with_vm(|vm| {
+            Value::Option(slot) => tls::with_vm(|vm| {
                 let option = vm.option_ref(slot).map_err(ser::Error::custom)?;
-                <Option<ValuePtr>>::serialize(&*option, serializer)
+                <Option<Value>>::serialize(&*option, serializer)
             }),
-            ValuePtr::Result(..) => Err(ser::Error::custom("cannot serialize results")),
-            ValuePtr::Type(..) => Err(ser::Error::custom("cannot serialize type objects")),
-            ValuePtr::Fn(..) => Err(ser::Error::custom("cannot serialize fn objects")),
-            ValuePtr::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
-            ValuePtr::External(..) => Err(ser::Error::custom("cannot serialize external objects")),
+            Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
+            Value::Type(..) => Err(ser::Error::custom("cannot serialize type objects")),
+            Value::Fn(..) => Err(ser::Error::custom("cannot serialize fn objects")),
+            Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
+            Value::External(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }
 }
@@ -105,7 +105,7 @@ impl de::Error for VmError {
 struct VmVisitor;
 
 impl<'de> de::Visitor<'de> for VmVisitor {
-    type Value = ValuePtr;
+    type Value = Value;
 
     fn expecting(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.write_str("any valid value")
@@ -148,7 +148,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -156,7 +156,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -164,7 +164,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -172,7 +172,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v))
+        Ok(Value::Integer(v))
     }
 
     #[inline]
@@ -180,7 +180,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -188,7 +188,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -196,7 +196,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -204,7 +204,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -212,7 +212,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -220,7 +220,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Integer(v as i64))
+        Ok(Value::Integer(v as i64))
     }
 
     #[inline]
@@ -228,7 +228,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Bool(v))
+        Ok(Value::Bool(v))
     }
 
     #[inline]
@@ -236,7 +236,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Unit)
+        Ok(Value::Unit)
     }
 
     #[inline]
@@ -244,7 +244,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        Ok(ValuePtr::Unit)
+        Ok(Value::Unit)
     }
 
     #[inline]
@@ -266,7 +266,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         V: de::MapAccess<'de>,
     {
-        let mut object = HashMap::<String, ValuePtr>::new();
+        let mut object = HashMap::<String, Value>::new();
 
         while let Some((key, value)) = visitor.next_entry()? {
             object.insert(key, value);

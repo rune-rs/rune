@@ -1,5 +1,5 @@
 use crate::any::Any;
-use crate::value::{Value, ValuePtr, ValueType, ValueTypeInfo};
+use crate::value::{OwnedValue, Value, ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 
 mod array;
@@ -40,7 +40,7 @@ pub trait ReflectValueType: Sized {
 /// Trait for converting types into values.
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError>;
+    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError>;
 }
 
 /// Trait for unsafe conversion of value types into values.
@@ -52,13 +52,13 @@ pub trait UnsafeToValue {
     /// The caller of this function need to make sure that the value converted
     /// doesn't outlive the virtual machine which uses it, since it might be
     /// encoded as a raw pointer in the slots of the virtual machine.
-    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError>;
+    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<Value, VmError>;
 }
 
 /// Trait for converting from a value.
 pub trait FromValue: Sized {
     /// Try to convert to the given type, from the given value.
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError>;
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError>;
 }
 
 /// A potentially unsafe conversion for value conversion.
@@ -82,7 +82,7 @@ pub trait UnsafeFromValue: Sized {
     /// You must also make sure that the returned value does not outlive the
     /// guard.
     unsafe fn unsafe_from_value(
-        value: ValuePtr,
+        value: Value,
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError>;
 
@@ -105,10 +105,7 @@ where
     type Output = T;
     type Guard = ();
 
-    unsafe fn unsafe_from_value(
-        value: ValuePtr,
-        vm: &mut Vm,
-    ) -> Result<(Self, Self::Guard), VmError> {
+    unsafe fn unsafe_from_value(value: Value, vm: &mut Vm) -> Result<(Self, Self::Guard), VmError> {
         Ok((T::from_value(value, vm)?, ()))
     }
 
@@ -121,31 +118,31 @@ impl<T> UnsafeToValue for T
 where
     T: ToValue,
 {
-    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
+    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
         self.to_value(vm)
     }
 }
 
-impl FromValue for ValuePtr {
-    fn from_value(value: ValuePtr, _: &mut Vm) -> Result<Self, VmError> {
+impl FromValue for Value {
+    fn from_value(value: Value, _: &mut Vm) -> Result<Self, VmError> {
         Ok(value)
     }
 }
 
-impl ToValue for ValuePtr {
-    fn to_value(self, _vm: &mut Vm) -> Result<ValuePtr, VmError> {
+impl ToValue for Value {
+    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
         Ok(self)
     }
 }
 
-impl FromValue for Value {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+impl FromValue for OwnedValue {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         vm.value_take(value)
     }
 }
 
 impl FromValue for Any {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         let slot = value.into_external(vm)?;
         vm.external_take_dyn(slot)
     }
@@ -218,9 +215,9 @@ macro_rules! impl_from_value_tuple {
             $($ty: FromValue,)*
         {
             #[allow(unused)]
-            fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+            fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
                 let array = match value {
-                    ValuePtr::Array(slot) => Clone::clone(&*vm.array_ref(slot)?),
+                    Value::Array(slot) => Clone::clone(&*vm.array_ref(slot)?),
                     actual => {
                         let actual = actual.type_info(vm)?;
 

@@ -1,5 +1,5 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
-use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
+use crate::value::{Value, ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 
 macro_rules! impl_map {
@@ -20,7 +20,7 @@ macro_rules! impl_map {
         where
             T: FromValue,
         {
-            fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+            fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
                 let slot = value.into_array(vm)?;
                 let object = vm.object_take(slot)?;
 
@@ -38,7 +38,7 @@ macro_rules! impl_map {
         where
             T: ToValue,
         {
-            fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
+            fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
                 let mut object = crate::collections::HashMap::with_capacity(self.len());
 
                 for (key, value) in self {

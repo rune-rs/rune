@@ -1,7 +1,7 @@
 //! Trait implementations for `Result` types.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::value::{ValuePtr, ValueType, ValueTypeInfo};
+use crate::value::{Value, ValueType, ValueTypeInfo};
 use crate::vm::{RawRefGuard, Ref, Vm, VmError};
 
 impl<T, E> ReflectValueType for Result<T, E> {
@@ -33,7 +33,7 @@ where
     T: ToValue,
     E: ToValue,
 {
-    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
+    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
         Ok(match self {
             Ok(ok) => {
                 let ok = ok.to_value(vm)?;
@@ -52,7 +52,7 @@ impl<T> ToValue for Result<T, VmError>
 where
     T: ToValue,
 {
-    fn to_value(self, vm: &mut Vm) -> Result<ValuePtr, VmError> {
+    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
         match self {
             Ok(ok) => ok.to_value(vm),
             Err(err) => Err(err),
@@ -65,9 +65,9 @@ where
     T: FromValue,
     E: FromValue,
 {
-    fn from_value(value: ValuePtr, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
         match value {
-            ValuePtr::Result(slot) => {
+            Value::Result(slot) => {
                 let result = vm.result_take(slot)?;
 
                 Ok(match result {
@@ -82,12 +82,12 @@ where
     }
 }
 
-impl<'a> UnsafeFromValue for &'a Result<ValuePtr, ValuePtr> {
-    type Output = *const Result<ValuePtr, ValuePtr>;
+impl<'a> UnsafeFromValue for &'a Result<Value, Value> {
+    type Output = *const Result<Value, Value>;
     type Guard = RawRefGuard;
 
     unsafe fn unsafe_from_value(
-        value: ValuePtr,
+        value: Value,
         vm: &mut Vm,
     ) -> Result<(Self::Output, Self::Guard), VmError> {
         let slot = value.into_result(vm)?;
