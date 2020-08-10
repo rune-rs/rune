@@ -17,6 +17,11 @@ use crate::vm::{Vm, VmError};
 pub type Object<T> = crate::collections::HashMap<String, T>;
 
 /// A helper type to deserialize arrays with different interior types.
+///
+/// This implements [FromValue], allowing it to be used as a return value from
+/// a virtual machine.
+///
+/// [FromValue]: crate::FromValue
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VecTuple<I>(pub I);
 

@@ -890,6 +890,14 @@ impl Vm {
     }
 
     /// Reset this virtual machine, freeing all memory used.
+    ///
+    /// # Safety
+    ///
+    /// Any unsafe references constructed through the following methods:
+    /// * [Mut::unsafe_into_mut]
+    /// * [Ref::unsafe_into_ref]
+    ///
+    /// Must not outlive a call to clear, nor this virtual machine.
     pub fn clear(&mut self) {
         self.ip = 0;
         self.exited = false;
