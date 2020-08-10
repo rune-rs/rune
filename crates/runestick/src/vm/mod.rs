@@ -2020,54 +2020,24 @@ impl Vm {
     /// Perform an index get operation specialized for tuples.
     #[inline]
     fn op_tuple_index_get(&mut self, index: usize) -> Result<(), VmError> {
-        let target = self.stack.pop()?;
+        let value = self.stack.pop()?;
 
-        let value = match target {
-            Value::Tuple(slot) => {
-                let tuple = self.tuple_ref(slot)?;
+        let result = self.on_tuple(value, true, |tuple| {
+            tuple
+                .get(index)
+                .copied()
+                .ok_or_else(|| VmError::TupleIndexMissing { index })
+        })?;
 
-                match tuple.get(index).copied() {
-                    Some(value) => value,
-                    None => {
-                        return Err(VmError::TupleIndexMissing { index });
-                    }
-                }
-            }
-            Value::Result(slot) => {
-                if index != 0 {
-                    return Err(VmError::TupleIndexMissing { index });
-                }
-
-                let result = self.result_ref(slot)?;
-
-                match *result {
-                    Ok(ok) => ok,
-                    Err(err) => err,
-                }
-            }
-            Value::Option(slot) => {
-                let option = self.option_ref(slot)?;
-
-                match *option {
-                    Some(some) => {
-                        if index != 0 {
-                            return Err(VmError::TupleIndexMissing { index });
-                        }
-
-                        some
-                    }
-                    None => {
-                        return Err(VmError::TupleIndexMissing { index });
-                    }
-                }
-            }
-            target_type => {
-                let target_type = target_type.type_info(self)?;
+        let result = match result {
+            Some(result) => result,
+            None => {
+                let target_type = value.type_info(self)?;
                 return Err(VmError::UnsupportedTupleIndexGet { target_type });
             }
         };
 
-        self.push(value);
+        self.push(result?);
         Ok(())
     }
 
@@ -2315,6 +2285,20 @@ impl Vm {
     }
 
     #[inline]
+    fn op_match_tuple(&mut self, tuple_like: bool, len: usize, exact: bool) -> Result<(), VmError> {
+        let value = self.pop()?;
+
+        let result = if exact {
+            self.on_tuple(value, tuple_like, |tuple| tuple.len() == len)?
+        } else {
+            self.on_tuple(value, tuple_like, |tuple| tuple.len() >= len)?
+        };
+
+        self.push(Value::Bool(result.unwrap_or_default()));
+        Ok(())
+    }
+
+    #[inline]
     fn match_vec<F>(&mut self, f: F) -> Result<(), VmError>
     where
         F: FnOnce(&Vec<Value>) -> bool,
@@ -2330,34 +2314,37 @@ impl Vm {
     }
 
     #[inline]
-    fn match_tuple<F>(&mut self, f: F) -> Result<(), VmError>
+    fn on_tuple<F, O>(&mut self, value: Value, tuple_like: bool, f: F) -> Result<Option<O>, VmError>
     where
-        F: FnOnce(&[Value]) -> bool,
+        F: FnOnce(&[Value]) -> O,
     {
-        let value = self.stack.pop()?;
+        if let Value::Tuple(slot) = value {
+            return Ok(Some(f(&*self.tuple_ref(slot)?)));
+        }
 
-        self.push(Value::Bool(match value {
-            Value::Tuple(slot) => f(&*self.tuple_ref(slot)?),
+        if !tuple_like {
+            return Ok(None);
+        }
+
+        Ok(match value {
             Value::Result(slot) => {
                 let result = self.result_ref(slot)?;
 
-                match &*result {
+                Some(match &*result {
                     Ok(ok) => f(&[*ok]),
                     Err(err) => f(&[*err]),
-                }
+                })
             }
             Value::Option(slot) => {
                 let option = self.option_ref(slot)?;
 
-                match &*option {
+                Some(match &*option {
                     Some(some) => f(&[*some]),
                     None => f(&[]),
-                }
+                })
             }
-            _ => false,
-        }));
-
-        Ok(())
+            _ => None,
+        })
     }
 
     #[inline]
@@ -2706,12 +2693,12 @@ impl Vm {
                         self.match_vec(|vec| vec.len() >= len)?;
                     }
                 }
-                Inst::MatchTuple { len, exact } => {
-                    if exact {
-                        self.match_tuple(|tuple| tuple.len() == len)?;
-                    } else {
-                        self.match_tuple(|tuple| tuple.len() >= len)?;
-                    }
+                Inst::MatchTuple {
+                    tuple_like,
+                    len,
+                    exact,
+                } => {
+                    self.op_match_tuple(tuple_like, len, exact)?;
                 }
                 Inst::MatchObject { slot, exact } => {
                     if exact {

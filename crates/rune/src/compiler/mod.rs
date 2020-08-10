@@ -1720,6 +1720,7 @@ impl<'a> Compiler<'a> {
         &mut self,
         scope: &mut Scope,
         false_label: Label,
+        tuple_like: bool,
         len: usize,
         exact: bool,
         span: Span,
@@ -1729,7 +1730,14 @@ impl<'a> Compiler<'a> {
         // that it is indeed a tuple.
         load(&mut self.asm);
 
-        self.asm.push(Inst::MatchTuple { len, exact }, span);
+        self.asm.push(
+            Inst::MatchTuple {
+                tuple_like,
+                len,
+                exact,
+            },
+            span,
+        );
 
         let length_true = self.asm.new_label("pat_tuple_len_true");
 
@@ -1744,6 +1752,7 @@ impl<'a> Compiler<'a> {
     fn compile_pat_tuple(
         &mut self,
         scope: &mut Scope,
+        tuple_like: bool,
         pat_tuple: &ast::PatTuple,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
@@ -1754,6 +1763,7 @@ impl<'a> Compiler<'a> {
         self.compile_pat_match_tuple_len(
             scope,
             false_label,
+            tuple_like,
             pat_tuple.items.len(),
             pat_tuple.open_pattern.is_none(),
             span,
@@ -1855,13 +1865,10 @@ impl<'a> Compiler<'a> {
             });
         }
 
-        {
-            self.compile_pat_type_check(scope, &item, span, false_label, load)?;
-            // test if function is a tuple match.
-            self.compile_pat_tuple_check(scope, &item, span, false_label, load)?;
-        }
-
-        self.compile_pat_tuple(scope, &pat_tuple_type.pat_tuple, false_label, load)?;
+        // test if function is a tuple match.
+        self.compile_pat_type_check(scope, &item, span, false_label, load)?;
+        self.compile_pat_tuple_check(scope, &item, span, false_label, load)?;
+        self.compile_pat_tuple(scope, true, &pat_tuple_type.pat_tuple, false_label, load)?;
         Ok(())
     }
 
@@ -2005,6 +2012,7 @@ impl<'a> Compiler<'a> {
                     self.compile_pat_match_tuple_len(
                         scope,
                         false_label,
+                        true,
                         tuple.args,
                         true,
                         span,
@@ -2084,7 +2092,7 @@ impl<'a> Compiler<'a> {
                     asm.push(Inst::Copy { offset }, span);
                 };
 
-                self.compile_pat_tuple(scope, pat_tuple, false_label, &load)?;
+                self.compile_pat_tuple(scope, false, pat_tuple, false_label, &load)?;
                 return Ok(true);
             }
             ast::Pat::PatTupleType(pat_tuple_type) => {

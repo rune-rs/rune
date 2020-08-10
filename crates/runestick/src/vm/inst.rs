@@ -644,6 +644,8 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     MatchTuple {
+        /// Support matches on tuple-like objects.
+        tuple_like: bool,
         /// The minimum length to test for.
         len: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -873,8 +875,12 @@ impl fmt::Display for Inst {
             Self::MatchVec { len, exact } => {
                 write!(fmt, "match-vec {}, {}", len, exact)?;
             }
-            Self::MatchTuple { len, exact } => {
-                write!(fmt, "match-tuple {}, {}", len, exact)?;
+            Self::MatchTuple {
+                tuple_like,
+                len,
+                exact,
+            } => {
+                write!(fmt, "match-tuple {}, {}, {}", tuple_like, len, exact)?;
             }
             Self::MatchObject { slot, exact } => {
                 write!(fmt, "match-object {}, {}", slot, exact)?;
