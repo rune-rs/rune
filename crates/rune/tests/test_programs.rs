@@ -542,6 +542,11 @@ fn test_object_match() {
     };
 
     assert_eq! {
+        test!(bool => r#"fn main() { match #{foo: true} { #{foo} => foo, _ => false } }"#),
+        true,
+    };
+
+    assert_eq! {
         test!(bool => r#"fn main() { match #{} { #{..} => true, _ => false } }"#),
         true,
     };

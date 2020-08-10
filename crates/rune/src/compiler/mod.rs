@@ -1888,14 +1888,14 @@ impl<'a> Compiler<'a> {
         let mut keys_dup = HashMap::new();
         let mut keys = Vec::new();
 
-        for (string, _, _, _) in &object.items {
-            let span = string.span();
+        for (item, _) in &object.items {
+            let span = item.span();
 
-            let string = string.resolve(self.source)?;
-            string_slots.push(self.unit.new_static_string(&*string)?);
-            keys.push(string.to_string());
+            let key = item.key.resolve(self.source)?;
+            string_slots.push(self.unit.new_static_string(&*key)?);
+            keys.push(key.to_string());
 
-            if let Some(existing) = keys_dup.insert(string, span) {
+            if let Some(existing) = keys_dup.insert(key, span) {
                 return Err(CompileError::DuplicateObjectKey {
                     span,
                     existing,
@@ -1937,16 +1937,29 @@ impl<'a> Compiler<'a> {
         self.asm.jump(false_label, span);
         self.asm.label(length_true)?;
 
-        for ((_, _, pat, _), slot) in object.items.iter().zip(string_slots) {
-            let span = pat.span();
+        for ((item, _), slot) in object.items.iter().zip(string_slots) {
+            let span = item.span();
 
-            let load = move |asm: &mut Assembly| {
-                load(asm);
-                asm.push(Inst::ObjectSlotIndexGet { slot }, span);
-            };
+            if let Some((_, pat)) = &item.binding {
+                let load = move |asm: &mut Assembly| {
+                    load(asm);
+                    asm.push(Inst::ObjectSlotIndexGet { slot }, span);
+                };
 
-            // load the given vector index and declare it as a local variable.
-            self.compile_pat(scope, &*pat, false_label, &load)?;
+                // load the given vector index and declare it as a local variable.
+                self.compile_pat(scope, &*pat, false_label, &load)?;
+            } else {
+                // NB: only raw identifiers are supported as anonymous bindings
+                let ident = match &item.key {
+                    ast::LitObjectKey::Ident(ident) => ident,
+                    other => return Err(CompileError::UnsupportedPattern { span: other.span() }),
+                };
+
+                let name = ident.resolve(self.source)?;
+                load(self.asm);
+                self.asm.push(Inst::ObjectSlotIndexGet { slot }, span);
+                scope.decl_var(name, span);
+            }
         }
 
         Ok(())
@@ -1973,7 +1986,6 @@ impl<'a> Compiler<'a> {
         match pat {
             ast::Pat::PatBinding(binding) => {
                 let span = binding.span();
-
                 let name = binding.resolve(self.source)?;
 
                 let item = match self.unit.lookup_import_by_name(name).cloned() {

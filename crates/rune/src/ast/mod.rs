@@ -88,7 +88,7 @@ pub use self::lit_unit::LitUnit;
 pub use self::lit_vec::LitVec;
 pub use self::parenthesized::Parenthesized;
 pub use self::pat::Pat;
-pub use self::pat_object::PatObject;
+pub use self::pat_object::{PatObject, PatObjectItem};
 pub use self::pat_tuple::PatTuple;
 pub use self::pat_tuple_type::PatTupleType;
 pub use self::pat_vec::PatVec;
