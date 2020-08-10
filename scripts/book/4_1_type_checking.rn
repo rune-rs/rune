@@ -8,5 +8,5 @@ fn main() {
     assert(42.1 is float, "floats should be floats");
     assert("hello" is String, "strings should be strings");
     assert(#{"hello": "world"} is Object, "objects should be objects");
-    assert(["hello", "world"] is Array, "arrays should be arrays");
+    assert(["hello", "world"] is Vec, "vectors should be vectors");
 }

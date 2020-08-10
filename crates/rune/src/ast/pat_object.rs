@@ -4,7 +4,7 @@ use crate::parser::Parser;
 use crate::traits::Parse;
 use runestick::unit::Span;
 
-/// An array pattern.
+/// An object pattern.
 #[derive(Debug, Clone)]
 pub struct PatObject {
     /// The open object marker.

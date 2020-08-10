@@ -248,16 +248,16 @@ pub enum VmError {
         /// The index to get.
         index_type: ValueTypeInfo,
     },
-    /// An array index get operation that is not supported.
-    #[error("the array index get operation is not supported on `{target_type}`")]
-    UnsupportedArrayIndexGet {
-        /// The target type we tried to perform the array indexing on.
+    /// A vector index get operation that is not supported.
+    #[error("the vector index get operation is not supported on `{target_type}`")]
+    UnsupportedVecIndexGet {
+        /// The target type we tried to perform the vector indexing on.
         target_type: ValueTypeInfo,
     },
-    /// An array index get operation that is not supported.
+    /// An tuple index get operation that is not supported.
     #[error("the tuple index get operation is not supported on `{target_type}`")]
     UnsupportedTupleIndexGet {
-        /// The target type we tried to perform the array indexing on.
+        /// The target type we tried to perform the tuple indexing on.
         target_type: ValueTypeInfo,
     },
     /// An object slot index get operation that is not supported.
@@ -310,9 +310,9 @@ pub enum VmError {
         /// The type that could not be called.
         actual_type: ValueTypeInfo,
     },
-    /// Tried to fetch an index in an array that doesn't exist.
-    #[error("missing index `{index}` in array")]
-    ArrayIndexMissing {
+    /// Tried to fetch an index in a vector that doesn't exist.
+    #[error("missing index `{index}` in vector")]
+    VecIndexMissing {
         /// The missing index.
         index: usize,
     },
@@ -424,18 +424,32 @@ pub enum VmError {
         /// The actual type observed instead.
         actual: ValueTypeInfo,
     },
-    /// Error raised when we expected a array.
-    #[error("expected a array but found `{actual}`")]
-    ExpectedArray {
+    /// Error raised when we expected a vector.
+    #[error("expected a vector but found `{actual}`")]
+    ExpectedVec {
         /// The actual type observed instead.
         actual: ValueTypeInfo,
     },
-    /// Error raised when we expected an array of the given length.
-    #[error("expected a array of length `{expected}`, but found one with length `{actual}`")]
-    ExpectedArrayLength {
+    /// Error raised when we expected a vector of the given length.
+    #[error("expected a vector of length `{expected}`, but found one with length `{actual}`")]
+    ExpectedVecLength {
         /// The actual length observed.
         actual: usize,
-        /// The expected array length.
+        /// The expected vector length.
+        expected: usize,
+    },
+    /// Error raised when we expected a tuple.
+    #[error("expected a tuple but found `{actual}`")]
+    ExpectedTuple {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected an tuple of the given length.
+    #[error("expected a tuple of length `{expected}`, but found one with length `{actual}`")]
+    ExpectedTupleLength {
+        /// The actual length observed.
+        actual: usize,
+        /// The expected tuple length.
         expected: usize,
     },
     /// Error raised when we expected a object.
@@ -451,7 +465,7 @@ pub enum VmError {
         actual: ValueTypeInfo,
     },
     /// Error raised when we expected a managed value.
-    #[error("expected an external, array, object, or string, but found `{actual}`")]
+    #[error("expected an external, vector, object, or string, but found `{actual}`")]
     ExpectedManaged {
         /// The actual type observed instead.
         actual: ValueTypeInfo,
@@ -1240,12 +1254,12 @@ impl Vm {
 
     impl_slot_functions! {
         Vec<Value>,
-        Array,
-        array_allocate,
-        array_ref,
-        array_mut,
-        array_take,
-        array_clone,
+        Vec,
+        vec_allocate,
+        vec_ref,
+        vec_mut,
+        vec_take,
+        vec_clone,
     }
 
     impl_slot_functions! {
@@ -1535,9 +1549,9 @@ impl Vm {
             Value::StaticString(slot) => {
                 OwnedValue::String(self.unit.lookup_string(slot)?.to_owned())
             }
-            Value::Array(slot) => {
-                let array = self.array_take(slot)?;
-                OwnedValue::Array(value_take_array(self, array)?)
+            Value::Vec(slot) => {
+                let vec = self.vec_take(slot)?;
+                OwnedValue::Vec(value_take_vec(self, vec)?)
             }
             Value::Tuple(slot) => {
                 let tuple = self.tuple_take(slot)?;
@@ -1576,8 +1590,8 @@ impl Vm {
             }
         });
 
-        /// Convert into an owned array.
-        fn value_take_array(vm: &mut Vm, values: Vec<Value>) -> Result<Vec<OwnedValue>, VmError> {
+        /// Convert into an owned vec.
+        fn value_take_vec(vm: &mut Vm, values: Vec<Value>) -> Result<Vec<OwnedValue>, VmError> {
             let mut output = Vec::with_capacity(values.len());
 
             for value in values {
@@ -1623,9 +1637,9 @@ impl Vm {
             Value::Char(c) => ValueRef::Char(c),
             Value::String(slot) => ValueRef::String(self.string_ref(slot)?),
             Value::StaticString(slot) => ValueRef::StaticString(self.unit.lookup_string(slot)?),
-            Value::Array(slot) => {
-                let array = self.array_ref(slot)?;
-                ValueRef::Array(self.value_array_ref(&*array)?)
+            Value::Vec(slot) => {
+                let vec = self.vec_ref(slot)?;
+                ValueRef::Vec(self.value_vec_ref(&*vec)?)
             }
             Value::Tuple(slot) => {
                 let tuple = self.tuple_ref(slot)?;
@@ -1665,11 +1679,8 @@ impl Vm {
         })
     }
 
-    /// Convert the given value pointers into an array.
-    pub fn value_array_ref<'vm>(
-        &'vm self,
-        values: &[Value],
-    ) -> Result<Vec<ValueRef<'vm>>, VmError> {
+    /// Convert the given value pointers into an vec.
+    pub fn value_vec_ref<'vm>(&'vm self, values: &[Value]) -> Result<Vec<ValueRef<'vm>>, VmError> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
@@ -1693,7 +1704,7 @@ impl Vm {
         Ok(output.into_boxed_slice())
     }
 
-    /// Convert the given value pointers into an array.
+    /// Convert the given value pointers into an vec.
     pub fn value_object_ref<'vm>(
         &'vm self,
         object: &HashMap<String, Value>,
@@ -1744,9 +1755,9 @@ impl Vm {
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Integer(a), Value::Integer(b)) => a == b,
             (Value::Float(a), Value::Float(b)) => a == b,
-            (Value::Array(a), Value::Array(b)) => {
-                let a = self.array_ref(a)?;
-                let b = self.array_ref(b)?;
+            (Value::Vec(a), Value::Vec(b)) => {
+                let a = self.vec_ref(a)?;
+                let b = self.vec_ref(b)?;
 
                 if a.len() != b.len() {
                     return Ok(false);
@@ -1830,16 +1841,16 @@ impl Vm {
         Ok(())
     }
 
-    /// Construct a new array.
+    /// Construct a new vec.
     #[inline]
-    fn op_array(&mut self, count: usize) -> Result<(), VmError> {
-        let mut array = Vec::with_capacity(count);
+    fn op_vec(&mut self, count: usize) -> Result<(), VmError> {
+        let mut vec = Vec::with_capacity(count);
 
         for _ in 0..count {
-            array.push(self.stack.pop()?);
+            vec.push(self.stack.pop()?);
         }
 
-        let value = self.array_allocate(array);
+        let value = self.vec_allocate(vec);
         self.push(value);
         Ok(())
     }
@@ -1974,23 +1985,23 @@ impl Vm {
 
     /// Perform an index get operation.
     #[inline]
-    fn op_array_index_get(&mut self, index: usize) -> Result<(), VmError> {
+    fn op_vec_index_get(&mut self, index: usize) -> Result<(), VmError> {
         let target = self.stack.pop()?;
 
         let value = match target {
-            Value::Array(slot) => {
-                let array = self.array_ref(slot)?;
+            Value::Vec(slot) => {
+                let vec = self.vec_ref(slot)?;
 
-                match array.get(index).copied() {
+                match vec.get(index).copied() {
                     Some(value) => value,
                     None => {
-                        return Err(VmError::ArrayIndexMissing { index });
+                        return Err(VmError::VecIndexMissing { index });
                     }
                 }
             }
             target_type => {
                 let target_type = target_type.type_info(self)?;
-                return Err(VmError::UnsupportedArrayIndexGet { target_type });
+                return Err(VmError::UnsupportedVecIndexGet { target_type });
             }
         };
 
@@ -2061,9 +2072,9 @@ impl Vm {
             Value::Object(slot) => {
                 let index = self.unit.lookup_string(string_slot)?;
 
-                let array = self.object_ref(slot)?;
+                let vec = self.object_ref(slot)?;
 
-                match array.get(index).copied() {
+                match vec.get(index).copied() {
                     Some(value) => value,
                     None => {
                         return Err(VmError::ObjectIndexMissing { slot: string_slot });
@@ -2296,14 +2307,14 @@ impl Vm {
     }
 
     #[inline]
-    fn match_array<F>(&mut self, f: F) -> Result<(), VmError>
+    fn match_vec<F>(&mut self, f: F) -> Result<(), VmError>
     where
         F: FnOnce(&Vec<Value>) -> bool,
     {
         let value = self.stack.pop()?;
 
         self.push(Value::Bool(match value {
-            Value::Array(slot) => f(&*self.array_ref(slot)?),
+            Value::Vec(slot) => f(&*self.vec_ref(slot)?),
             _ => false,
         }));
 
@@ -2502,8 +2513,8 @@ impl Vm {
                 Inst::IndexGet => {
                     self.op_index_get(context)?;
                 }
-                Inst::ArrayIndexGet { index } => {
-                    self.op_array_index_get(index)?;
+                Inst::VecIndexGet { index } => {
+                    self.op_vec_index_get(index)?;
                 }
                 Inst::TupleIndexGet { index } => {
                     self.op_tuple_index_get(index)?;
@@ -2609,8 +2620,8 @@ impl Vm {
                 Inst::Bool { value } => {
                     self.push(Value::Bool(value));
                 }
-                Inst::Array { count } => {
-                    self.op_array(count)?;
+                Inst::Vec { count } => {
+                    self.op_vec(count)?;
                 }
                 Inst::Tuple { count } => {
                     self.op_tuple(count)?;
@@ -2680,18 +2691,18 @@ impl Vm {
                 Inst::EqStaticString { slot } => {
                     self.op_eq_static_string(slot)?;
                 }
-                Inst::MatchArray { len, exact } => {
+                Inst::MatchVec { len, exact } => {
                     if exact {
-                        self.match_array(|array| array.len() == len)?;
+                        self.match_vec(|vec| vec.len() == len)?;
                     } else {
-                        self.match_array(|array| array.len() >= len)?;
+                        self.match_vec(|vec| vec.len() >= len)?;
                     }
                 }
                 Inst::MatchTuple { len, exact } => {
                     if exact {
-                        self.match_tuple(|array| array.len() == len)?;
+                        self.match_tuple(|tuple| tuple.len() == len)?;
                     } else {
-                        self.match_tuple(|array| array.len() >= len)?;
+                        self.match_tuple(|tuple| tuple.len() >= len)?;
                     }
                 }
                 Inst::MatchObject { slot, exact } => {

@@ -10,8 +10,8 @@ pub enum OwnedValue {
     Unit,
     /// A string.
     String(String),
-    /// An array.
-    Array(Vec<OwnedValue>),
+    /// A vector.
+    Vec(Vec<OwnedValue>),
     /// A tuple.
     Tuple(Box<[OwnedValue]>),
     /// An object.

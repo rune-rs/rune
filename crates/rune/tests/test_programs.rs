@@ -45,7 +45,7 @@ macro_rules! test_vm_error {
 #[test]
 fn test_small_programs() {
     assert_eq!(test!(u64 => r#"fn main() { 42 }"#), 42u64);
-    assert_eq!(test!(runestick::Unit => r#"fn main() {}"#), runestick::Unit);
+    assert_eq!(test!(() => r#"fn main() {}"#), ());
 
     assert_eq! {
         test! {
@@ -182,10 +182,10 @@ fn test_shadowing() {
 }
 
 #[test]
-fn test_arrays() {
+fn test_vectors() {
     assert_eq! {
-        test!(runestick::Unit => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
-        runestick::Unit,
+        test!(() => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
+        (),
     };
 }
 
@@ -234,7 +234,7 @@ fn test_while() {
 fn test_loop() {
     assert_eq! {
         test! {
-            (i64, bool) => r#"
+            runestick::VecTuple<(i64, bool)> => r#"
             fn main() {
                 let a = 0;
 
@@ -250,7 +250,7 @@ fn test_loop() {
             }
             "#
         },
-        (10, true),
+        runestick::VecTuple((10, true)),
     };
 
     assert_eq! {
@@ -423,7 +423,7 @@ fn test_is() {
         true,
     };
     assert_eq! {
-        test!(bool => r#"fn main() { ["hello", "world"] is Array }"#),
+        test!(bool => r#"fn main() { ["hello", "world"] is Vec }"#),
         true,
     };
 }
@@ -462,7 +462,7 @@ fn test_match() {
 }
 
 #[test]
-fn test_array_match() {
+fn test_vec_match() {
     assert_eq! {
         test!(bool => r#"fn main() { match [] { [..] => true } }"#),
         true,
@@ -479,8 +479,8 @@ fn test_array_match() {
     };
 
     assert_eq! {
-        test!(runestick::Unit => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
-        runestick::Unit,
+        test!(() => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
+        (),
     };
 
     assert_eq! {

@@ -16,12 +16,9 @@ use crate::vm::{Vm, VmError};
 /// The type of an object.
 pub type Object<T> = crate::collections::HashMap<String, T>;
 
-/// The type of an array.
-pub type Array<T> = Vec<T>;
-
-/// The rust type corresponding to rune's `None` type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Unit;
+/// A helper type to deserialize arrays with different interior types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct VecTuple<I>(pub I);
 
 /// An entry on the stack.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -41,8 +38,8 @@ pub enum Value {
     StaticString(usize),
     /// A String.
     String(Slot),
-    /// An array.
-    Array(Slot),
+    /// A vector.
+    Vec(Slot),
     /// A tuple.
     Tuple(Slot),
     /// An object.
@@ -84,7 +81,7 @@ impl Value {
         }
     }
 
-    /// Try to coerce value reference into an array.
+    /// Try to coerce value reference into a string.
     #[inline]
     pub fn into_string(self, vm: &Vm) -> Result<Slot, VmError> {
         match self {
@@ -95,12 +92,23 @@ impl Value {
         }
     }
 
-    /// Try to coerce value reference into an array.
+    /// Try to coerce value reference into a vector.
     #[inline]
-    pub fn into_array(self, vm: &Vm) -> Result<Slot, VmError> {
+    pub fn into_vec(self, vm: &Vm) -> Result<Slot, VmError> {
         match self {
-            Self::Array(slot) => Ok(slot),
-            actual => Err(VmError::ExpectedArray {
+            Self::Vec(slot) => Ok(slot),
+            actual => Err(VmError::ExpectedVec {
+                actual: actual.type_info(vm)?,
+            }),
+        }
+    }
+
+    /// Try to coerce value reference into a tuple.
+    #[inline]
+    pub fn into_tuple(self, vm: &Vm) -> Result<Slot, VmError> {
+        match self {
+            Self::Tuple(slot) => Ok(slot),
+            actual => Err(VmError::ExpectedTuple {
                 actual: actual.type_info(vm)?,
             }),
         }
@@ -138,7 +146,7 @@ impl Value {
             Self::Char(..) => ValueType::Char,
             Self::String(..) => ValueType::String,
             Self::StaticString(..) => ValueType::String,
-            Self::Array(..) => ValueType::Array,
+            Self::Vec(..) => ValueType::Vec,
             Self::Tuple(..) => ValueType::Tuple,
             Self::Object(..) => ValueType::Object,
             Self::External(slot) => ValueType::External(vm.slot_type_id(slot)?),
@@ -160,7 +168,7 @@ impl Value {
             Self::Char(..) => ValueTypeInfo::Char,
             Self::String(..) => ValueTypeInfo::String,
             Self::StaticString(..) => ValueTypeInfo::String,
-            Self::Array(..) => ValueTypeInfo::Array,
+            Self::Vec(..) => ValueTypeInfo::Vec,
             Self::Tuple(..) => ValueTypeInfo::Tuple,
             Self::Object(..) => ValueTypeInfo::Object,
             Self::External(slot) => ValueTypeInfo::External(vm.slot_type_name(slot)?),

@@ -46,11 +46,11 @@ impl ser::Serialize for Value {
                 let string = vm.string_ref(slot).map_err(ser::Error::custom)?;
                 serializer.serialize_str(&*string)
             }),
-            Value::Array(slot) => tls::with_vm(|vm| {
-                let array = vm.array_ref(slot).map_err(ser::Error::custom)?;
-                let mut serializer = serializer.serialize_seq(Some(array.len()))?;
+            Value::Vec(slot) => tls::with_vm(|vm| {
+                let vec = vm.vec_ref(slot).map_err(ser::Error::custom)?;
+                let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
 
-                for value in &*array {
+                for value in &*vec {
                     serializer.serialize_element(value)?;
                 }
 
@@ -258,7 +258,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
             vec.push(elem);
         }
 
-        tls::with_vm(|vm| Ok(vm.array_allocate(vec)))
+        tls::with_vm(|vm| Ok(vm.vec_allocate(vec)))
     }
 
     #[inline]

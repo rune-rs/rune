@@ -9,8 +9,8 @@ pub enum ValueTypeInfo {
     Unit,
     /// A string.
     String,
-    /// An array.
-    Array,
+    /// A vecotr.
+    Vec,
     /// A tuple.
     Tuple,
     /// An object.
@@ -48,8 +48,8 @@ impl fmt::Display for ValueTypeInfo {
             ValueTypeInfo::String => {
                 write!(fmt, "String")?;
             }
-            ValueTypeInfo::Array => {
-                write!(fmt, "Array")?;
+            ValueTypeInfo::Vec => {
+                write!(fmt, "Vec")?;
             }
             ValueTypeInfo::Tuple => {
                 write!(fmt, "Tuple")?;

@@ -69,7 +69,7 @@ impl LitTuple {
     }
 }
 
-/// Parse an array literal.
+/// Parse a tuple literal.
 ///
 /// # Examples
 ///

@@ -9,6 +9,6 @@
   - [Pattern Matching](./3_4_pattern_matching.md)
 - [Types](./4_types.md)
   - [Primitives](./4_1_primitives.md)
-  - [Arrays](./4_2_arrays.md)
+  - [Vectors](./4_2_vectors.md)
   - [Objects](./4_3_objects.md)
   - [Tuples](./4_4_tuples.md)

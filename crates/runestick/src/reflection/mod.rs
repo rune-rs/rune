@@ -1,14 +1,15 @@
 use crate::any::Any;
-use crate::value::{OwnedValue, Value, ValueType, ValueTypeInfo};
+use crate::value::{OwnedValue, Value, ValueType, ValueTypeInfo, VecTuple};
 use crate::vm::{Vm, VmError};
 
-mod array;
 mod hash_map;
 mod object;
 mod option;
 mod primitive;
 mod result;
 mod string;
+mod tuple;
+mod vec;
 
 /// Trait for converting arguments into values.
 pub trait IntoArgs {
@@ -199,43 +200,33 @@ impl_into_args!(
     {A, a, 1},
 );
 
-macro_rules! impl_from_value_tuple {
+macro_rules! impl_from_value_tuple_vec {
     () => {
-        impl_from_value_tuple!{@impl 0,}
     };
 
     ({$ty:ident, $var:ident, $count:expr}, $({$l_ty:ident, $l_var:ident, $l_count:expr},)*) => {
-        impl_from_value_tuple!{@impl $count, {$ty, $var, $count}, $({$l_ty, $l_var, $l_count},)*}
-        impl_from_value_tuple!{$({$l_ty, $l_var, $l_count},)*}
+        impl_from_value_tuple_vec!{@impl $count, {$ty, $var, $count}, $({$l_ty, $l_var, $l_count},)*}
+        impl_from_value_tuple_vec!{$({$l_ty, $l_var, $l_count},)*}
     };
 
     (@impl $count:expr, $({$ty:ident, $var:ident, $ignore_count:expr},)*) => {
-        impl<$($ty,)*> FromValue for ($($ty,)*)
+        impl<$($ty,)*> FromValue for VecTuple<($($ty,)*)>
         where
             $($ty: FromValue,)*
         {
-            #[allow(unused)]
             fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-                let array = match value {
-                    Value::Array(slot) => Clone::clone(&*vm.array_ref(slot)?),
-                    actual => {
-                        let actual = actual.type_info(vm)?;
+                let slot = value.into_vec(vm)?;
+                let tuple = vm.vec_clone(slot)?;
 
-                        return Err(VmError::ExpectedArray {
-                            actual,
-                        });
-                    }
-                };
-
-                if array.len() != $count {
-                    return Err(VmError::ExpectedArrayLength {
-                        actual: array.len(),
+                if tuple.len() != $count {
+                    return Err(VmError::ExpectedTupleLength {
+                        actual: tuple.len(),
                         expected: $count,
                     });
                 }
 
                 #[allow(unused_mut, unused_variables)]
-                let mut it = array.iter();
+                let mut it = tuple.iter();
 
                 $(
                     let $var: $ty = match it.next() {
@@ -246,13 +237,13 @@ macro_rules! impl_from_value_tuple {
                     };
                 )*
 
-                Ok(($($var,)*))
+                Ok(VecTuple(($($var,)*)))
             }
         }
     };
 }
 
-impl_from_value_tuple!(
+impl_from_value_tuple_vec!(
     {H, h, 8},
     {G, g, 7},
     {F, f, 6},

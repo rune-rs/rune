@@ -29,12 +29,12 @@ impl fmt::Debug for Bytes {
 }
 
 impl Bytes {
-    /// Convert into inner byte array.
+    /// Convert into inner byte vector.
     pub fn into_inner(self) -> Vec<u8> {
         self.bytes
     }
 
-    /// Construct from a byte array.
+    /// Construct from a byte vector.
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
         Self { bytes }
     }

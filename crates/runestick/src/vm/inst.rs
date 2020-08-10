@@ -149,20 +149,20 @@ pub enum Inst {
     /// => <value>
     /// ```
     IndexGet,
-    /// Get the given index out of an array on the top of the stack. Errors if
+    /// Get the given index out of a vector on the top of the stack. Errors if
     /// the item doesn't exist or the item at the top of the stack is not an
-    /// array.
+    /// vector.
     ///
     /// Note: this is a specialized variant of `ExprIndexGet` where we know that the
-    /// top of the stack is supposed to be an array.
+    /// top of the stack is supposed to be a vector.
     ///
     /// # Operation
     ///
     /// ```text
-    /// <array>
+    /// <vec>
     /// => <value>
     /// ```
-    ArrayIndexGet {
+    VecIndexGet {
         /// The index to fetch.
         index: usize,
     },
@@ -185,13 +185,13 @@ pub enum Inst {
     },
     /// Get the given index out of an object on the top of the stack. Errors if
     /// the item doesn't exist or the item at the top of the stack is not an
-    /// array.
+    /// vector.
     ///
     /// The index is identifier by a static string slot, which is provided as an
     /// argument.
     ///
     /// Note: this is a specialized variant of `ExprIndexGet` where we know that the
-    /// top of the stack is supposed to be an array.
+    /// top of the stack is supposed to be a vector.
     ///
     /// # Operation
     ///
@@ -421,17 +421,17 @@ pub enum Inst {
         /// The boolean value to push.
         value: bool,
     },
-    /// Construct a push an array value onto the stack. The number of elements
-    /// in the array are determined by `count` and are popped from the stack.
+    /// Construct a push a vector value onto the stack. The number of elements
+    /// in the vector are determined by `count` and are popped from the stack.
     ///
     /// # Operation
     ///
     /// ```text
     /// <value..>
-    /// => <array>
+    /// => <vec>
     /// ```
-    Array {
-        /// The size of the array.
+    Vec {
+        /// The size of the vector.
         count: usize,
     },
     /// Construct a push a tuple value onto the stack. The number of elements
@@ -618,7 +618,7 @@ pub enum Inst {
         /// The slot to test against.
         slot: usize,
     },
-    /// Test that the top of the stack is an array with the given length
+    /// Test that the top of the stack is a vector with the given length
     /// requirements.
     ///
     /// # Operation
@@ -627,7 +627,7 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    MatchArray {
+    MatchVec {
         /// The minimum length to test for.
         len: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -732,8 +732,8 @@ impl fmt::Display for Inst {
             Self::IndexGet => {
                 write!(fmt, "index-get")?;
             }
-            Self::ArrayIndexGet { index } => {
-                write!(fmt, "array-index-get {}", index)?;
+            Self::VecIndexGet { index } => {
+                write!(fmt, "vec-index-get {}", index)?;
             }
             Self::TupleIndexGet { index } => {
                 write!(fmt, "tuple-index-get {}", index)?;
@@ -816,8 +816,8 @@ impl fmt::Display for Inst {
             Self::Bool { value } => {
                 write!(fmt, "bool {}", value)?;
             }
-            Self::Array { count } => {
-                write!(fmt, "array {}", count)?;
+            Self::Vec { count } => {
+                write!(fmt, "vec {}", count)?;
             }
             Self::Tuple { count } => {
                 write!(fmt, "tuple {}", count)?;
@@ -870,8 +870,8 @@ impl fmt::Display for Inst {
             Self::EqStaticString { slot } => {
                 write!(fmt, "eq-static-string {}", slot)?;
             }
-            Self::MatchArray { len, exact } => {
-                write!(fmt, "match-array {}, {}", len, exact)?;
+            Self::MatchVec { len, exact } => {
+                write!(fmt, "match-vec {}, {}", len, exact)?;
             }
             Self::MatchTuple { len, exact } => {
                 write!(fmt, "match-tuple {}, {}", len, exact)?;

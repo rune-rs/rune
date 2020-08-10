@@ -8,8 +8,8 @@ pub enum ValueType {
     Unit,
     /// A string.
     String,
-    /// An array of dynamic values.
-    Array,
+    /// An vector of dynamic values.
+    Vec,
     /// An tuple of dynamic values.
     Tuple,
     /// An object of dynamic values.

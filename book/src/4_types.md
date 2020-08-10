@@ -17,7 +17,7 @@ fn main() {
     assert(42.1 is float, "floats should be floats");
     assert("hello" is String, "strings should be strings");
     assert(#{"hello": "world"} is Object, "objects should be objects");
-    assert(["hello", "world"] is Array, "arrays should be arrays");
+    assert(["hello", "world"] is Vec, "vectors should be vectors");
 }
 ```
 
@@ -27,11 +27,11 @@ Conversely, the type check would fail if it's not valid:
 error: virtual machine error
   ┌─ .\scripts\book\4_2_bad_type_check.rn:4:5
   │
-4 │     assert(["hello", "world"] is String, "arrays should be strings");
+4 │     assert(["hello", "world"] is String, "vectors should be strings");
   │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   │     │
   │     virtual machine error
-  │     assertion failed: arrays should be strings
+  │     assertion failed: vectors should be strings
   │     error in user-defined function
 ```
 
@@ -41,8 +41,8 @@ So this allows us to determine which type is which and act accordingly:
 fn dynamic_type(n) {
     if n is String {
         dbg("n is a String");
-    } else if n is Array {
-        dbg("n is an Array");
+    } else if n is Vec {
+        dbg("n is a vector");
     } else {
         dbg("n is unknown");
     }
@@ -57,7 +57,7 @@ fn main() {
 
 ```text
 0 = String("n is a string")
-0 = String("n is an array")
+0 = String("n is a vector")
 0 = String("I don\'t know n")
 ```
 
@@ -67,7 +67,7 @@ A tighter way to accomplish this would be with a type switch:
 fn dynamic_type(n) {
     switch n {
         n if n is String => dbg("n is a String"),
-        n if n is Array => dbg("n is an Array"),
+        n if n is Vec => dbg("n is an Vec"),
         _ => dbg("n is unknown"),
     }
 }

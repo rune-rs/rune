@@ -1,7 +1,7 @@
 fn dynamic_type(n) {
     switch n {
         n if n is String => dbg("n is a String"),
-        n if n is Array => dbg("n is an Array"),
+        n if n is Vec => dbg("n is a vector"),
         _ => dbg("n is unknown"),
     }
 }

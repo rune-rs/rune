@@ -10,7 +10,7 @@ use crate::value::Value;
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.ty(&["unit"]).build::<crate::value::Unit>()?;
+    module.ty(&["unit"]).build::<()>()?;
     module.ty(&["bool"]).build::<bool>()?;
     module.ty(&["char"]).build::<char>()?;
 

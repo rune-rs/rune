@@ -333,8 +333,8 @@ impl<'a> Compiler<'a> {
             ast::Expr::LitNumber(lit_number) => {
                 self.compile_lit_number(lit_number, needs_value)?;
             }
-            ast::Expr::LitArray(lit_array) => {
-                self.compile_lit_array(lit_array, needs_value)?;
+            ast::Expr::LitVec(lit_vec) => {
+                self.compile_lit_vec(lit_vec, needs_value)?;
             }
             ast::Expr::LitObject(lit_object) => {
                 self.compile_lit_object(lit_object, needs_value)?;
@@ -356,22 +356,18 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn compile_lit_array(
-        &mut self,
-        lit_array: &ast::LitArray,
-        needs_value: NeedsValue,
-    ) -> Result<()> {
-        let span = lit_array.span();
-        log::trace!("LitArray => {:?}", self.source.source(span)?);
+    fn compile_lit_vec(&mut self, lit_vec: &ast::LitVec, needs_value: NeedsValue) -> Result<()> {
+        let span = lit_vec.span();
+        log::trace!("LitVec => {:?}", self.source.source(span)?);
 
-        if !*needs_value && lit_array.is_const() {
+        if !*needs_value && lit_vec.is_const() {
             // Don't encode unecessary literals.
             return Ok(());
         }
 
-        let count = lit_array.items.len();
+        let count = lit_vec.items.len();
 
-        for expr in lit_array.items.iter().rev() {
+        for expr in lit_vec.items.iter().rev() {
             self.compile_expr(expr, NeedsValue(true))?;
 
             // Evaluate the expressions one by one, then pop them to cause any
@@ -381,13 +377,13 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        // No need to create an array if it's not needed.
+        // No need to create a vector if it's not needed.
         if !*needs_value {
             self.warnings.not_used(span, self.context());
             return Ok(());
         }
 
-        self.asm.push(Inst::Array { count }, span);
+        self.asm.push(Inst::Vec { count }, span);
         Ok(())
     }
 
@@ -1674,54 +1670,44 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    /// Encode an array pattern match.
-    fn compile_pat_array(
+    /// Encode a vector pattern match.
+    fn compile_pat_vec(
         &mut self,
         scope: &mut Scope,
-        pat_array: &ast::PatArray,
+        pat_vec: &ast::PatVec,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
-        let span = pat_array.span();
-        log::trace!("PatArray => {:?}", self.source.source(span)?);
+        let span = pat_vec.span();
+        log::trace!("PatVec => {:?}", self.source.source(span)?);
 
         // Copy the temporary and check that its length matches the pattern and
-        // that it is indeed an array.
+        // that it is indeed a vector.
         {
             load(&mut self.asm);
 
-            if pat_array.open_pattern.is_some() {
-                self.asm.push(
-                    Inst::MatchArray {
-                        len: pat_array.items.len(),
-                        exact: false,
-                    },
-                    span,
-                );
-            } else {
-                self.asm.push(
-                    Inst::MatchArray {
-                        len: pat_array.items.len(),
-                        exact: true,
-                    },
-                    span,
-                );
-            }
+            self.asm.push(
+                Inst::MatchVec {
+                    len: pat_vec.items.len(),
+                    exact: pat_vec.open_pattern.is_none(),
+                },
+                span,
+            );
         }
 
-        let length_true = self.asm.new_label("pat_array_len_true");
+        let length_true = self.asm.new_label("pat_vec_len_true");
 
         self.asm.jump_if(length_true, span);
         self.locals_pop(scope.local_var_count, span);
         self.asm.jump(false_label, span);
         self.asm.label(length_true)?;
 
-        for (index, (pat, _)) in pat_array.items.iter().enumerate() {
+        for (index, (pat, _)) in pat_vec.items.iter().enumerate() {
             let span = pat.span();
 
             let load = move |asm: &mut Assembly| {
                 load(asm);
-                asm.push(Inst::ArrayIndexGet { index }, span);
+                asm.push(Inst::VecIndexGet { index }, span);
             };
 
             self.compile_pat(scope, &*pat, false_label, &load)?;
@@ -1754,7 +1740,7 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    /// Encode an array pattern match.
+    /// Encode a vector pattern match.
     fn compile_pat_tuple(
         &mut self,
         scope: &mut Scope,
@@ -1830,7 +1816,7 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    /// Encode an array pattern match.
+    /// Encode a vector pattern match.
     fn compile_pat_tuple_type(
         &mut self,
         scope: &mut Scope,
@@ -1914,7 +1900,7 @@ impl<'a> Compiler<'a> {
         let keys = self.unit.new_static_object_keys(&keys[..])?;
 
         // Copy the temporary and check that its length matches the pattern and
-        // that it is indeed an array.
+        // that it is indeed a vector.
         {
             load(&mut self.asm);
 
@@ -1952,7 +1938,7 @@ impl<'a> Compiler<'a> {
                 asm.push(Inst::ObjectSlotIndexGet { slot }, span);
             };
 
-            // load the given array index and declare it as a local variable.
+            // load the given vector index and declare it as a local variable.
             self.compile_pat(scope, &*pat, false_label, &load)?;
         }
 
@@ -2068,10 +2054,10 @@ impl<'a> Compiler<'a> {
 
                 self.asm.jump_if(true_label, span);
             }
-            ast::Pat::PatString(string) => {
-                let span = string.span();
+            ast::Pat::PatString(pat_string) => {
+                let span = pat_string.span();
 
-                let string = string.resolve(self.source)?;
+                let string = pat_string.resolve(self.source)?;
                 let slot = self.unit.new_static_string(&*string)?;
 
                 load(&mut self.asm);
@@ -2079,7 +2065,7 @@ impl<'a> Compiler<'a> {
 
                 self.asm.jump_if(true_label, span);
             }
-            ast::Pat::PatArray(array) => {
+            ast::Pat::PatVec(pat_vec) => {
                 let offset = scope.decl_anon(span);
                 load(&mut self.asm);
 
@@ -2087,7 +2073,7 @@ impl<'a> Compiler<'a> {
                     asm.push(Inst::Copy { offset }, span);
                 };
 
-                self.compile_pat_array(scope, array, false_label, &load)?;
+                self.compile_pat_vec(scope, pat_vec, false_label, &load)?;
                 return Ok(true);
             }
             ast::Pat::PatTuple(pat_tuple) => {

@@ -21,7 +21,7 @@ macro_rules! impl_map {
             T: FromValue,
         {
             fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-                let slot = value.into_array(vm)?;
+                let slot = value.into_vec(vm)?;
                 let object = vm.object_take(slot)?;
 
                 let mut output = $($tt)*::with_capacity(object.len());

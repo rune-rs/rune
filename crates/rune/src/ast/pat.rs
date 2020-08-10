@@ -20,8 +20,8 @@ pub enum Pat {
     PatNumber(ast::LitNumber),
     /// A literal string.
     PatString(ast::LitStr),
-    /// An array pattern.
-    PatArray(ast::PatArray),
+    /// A vector pattern.
+    PatVec(ast::PatVec),
     /// A tuple pattern.
     PatTuple(ast::PatTuple),
     /// A pattern over a tuple type.
@@ -40,7 +40,7 @@ impl Pat {
             Self::PatString(pat) => pat.span(),
             Self::PatBinding(pat) => pat.span(),
             Self::PatIgnore(pat) => pat.span(),
-            Self::PatArray(pat) => pat.span(),
+            Self::PatVec(pat) => pat.span(),
             Self::PatTuple(pat) => pat.span(),
             Self::PatTupleType(pat) => pat.span(),
             Self::PatObject(pat) => pat.span(),
@@ -95,7 +95,7 @@ impl Parse for Pat {
             }
             Kind::Open {
                 delimiter: Delimiter::Bracket,
-            } => Self::PatArray(parser.parse()?),
+            } => Self::PatVec(parser.parse()?),
             Kind::StartObject => Self::PatObject(parser.parse()?),
             Kind::LitChar { .. } => Self::PatChar(parser.parse()?),
             Kind::LitNumber { .. } => Self::PatNumber(parser.parse()?),

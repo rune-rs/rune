@@ -6,7 +6,7 @@ use runestick::unit::Span;
 
 /// An array pattern.
 #[derive(Debug, Clone)]
-pub struct PatArray {
+pub struct PatVec {
     /// The open bracket.
     pub open: OpenBracket,
     /// The numbers matched against.
@@ -17,14 +17,14 @@ pub struct PatArray {
     pub close: CloseBracket,
 }
 
-impl PatArray {
+impl PatVec {
     /// Get the span of the pattern.
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
     }
 }
 
-impl Parse for PatArray {
+impl Parse for PatVec {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let open = parser.parse()?;
         let mut items = Vec::new();

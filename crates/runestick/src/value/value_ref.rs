@@ -13,8 +13,8 @@ pub enum ValueRef<'vm> {
     String(Ref<'vm, String>),
     /// A static string from the current unit.
     StaticString(&'vm str),
-    /// An array.
-    Array(Vec<ValueRef<'vm>>),
+    /// A vector.
+    Vec(Vec<ValueRef<'vm>>),
     /// A tuple.
     Tuple(Box<[ValueRef<'vm>]>),
     /// An object.

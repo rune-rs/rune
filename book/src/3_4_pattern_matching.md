@@ -15,7 +15,7 @@ fn main() {
     match x {
         1 => println!("the number one"),
         n if n is int => println!("n is a number"),
-        [1, 2, ..] => println!("array starting with one and two"),
+        [1, 2, ..] => println!("vector starting with one and two"),
         "one" => println!("one as a string"),
         _ => println!("anything"),
     }
@@ -37,7 +37,7 @@ Literals take a number of form:
 * A literal character, like `'a'` or `'あ'`.
 * A literal integer, like `42`.
 * A string, like `"Steven Universe"`.
-* An array, like the numbers `[4, 8, 15, 16, 23, 42]` or the empty `[]`.
+* A vector, like the numbers `[4, 8, 15, 16, 23, 42]` or the empty `[]`.
 * An object, like the numbers `{"name": "Steven Universe"}` or the empty `{}`.
 
 Finally, literals can be *any* combination of the above.
@@ -50,14 +50,14 @@ tells Rune to *ignore* the value. Or a variable identifier like `name` which
 tells rune to bind the value to that variable.
 
 * `[_, a, b]` which will ignore the first, but then capture the second and third
-  element in the array.
+  element in the vector.
 * `{"name": name}` will capture the `name` value out of the specified object.
 
 The sequence `..` asks Rune to *ignore* any additional values that might be
-present when matching an array or an object.
+present when matching a vector or an object.
 
 ```rust,noplaypen
-/// Describe how fast the first car in the array is.
+/// Describe how fast the first car in the vector is.
 fn first_car_speed(cars) {
     match cars {
         [first, ..] => match first {
@@ -65,7 +65,7 @@ fn first_car_speed(cars) {
             {"model": "Ford", "make": 1908, ..} => "Could be faster",
             _ => "Unknown",
         },
-        _ => "You didn't give me an array of cars!",
+        _ => "You didn't give me a vector of cars!",
     }
 }
 ```

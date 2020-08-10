@@ -1,6 +1,6 @@
 //! A single execution unit in the runestick virtual machine.
 //!
-//! A unit consists of an array of instructions, and lookaside tables for
+//! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
 use crate::collections::HashMap;
@@ -287,7 +287,7 @@ impl CompilationUnit {
             Item::of(&["std", "object", "Object"]),
         );
         this.imports
-            .insert(String::from("Array"), Item::of(&["std", "array", "Array"]));
+            .insert(String::from("Vec"), Item::of(&["std", "vec", "Vec"]));
         this.imports.insert(
             String::from("String"),
             Item::of(&["std", "string", "String"]),

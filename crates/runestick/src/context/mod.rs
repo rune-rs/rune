@@ -247,7 +247,7 @@ impl Context {
         this.install(crate::packages::float::module()?)?;
         this.install(crate::packages::test::module()?)?;
         this.install(crate::packages::iter::module()?)?;
-        this.install(crate::packages::array::module()?)?;
+        this.install(crate::packages::vec::module()?)?;
         this.install(crate::packages::object::module()?)?;
         this.install(crate::packages::result::module()?)?;
         this.install(crate::packages::option::module()?)?;

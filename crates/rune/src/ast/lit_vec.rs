@@ -6,7 +6,7 @@ use runestick::unit::Span;
 
 /// A number literal.
 #[derive(Debug, Clone)]
-pub struct LitArray {
+pub struct LitVec {
     /// The open bracket.
     pub open: OpenBracket,
     /// Items in the array.
@@ -17,7 +17,7 @@ pub struct LitArray {
     is_const: bool,
 }
 
-impl LitArray {
+impl LitVec {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
@@ -37,13 +37,13 @@ impl LitArray {
 /// use rune::{parse_all, ast};
 ///
 /// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::LitArray>("[1, \"two\"]").unwrap();
-/// parse_all::<ast::LitArray>("[1, 2,]").unwrap();
-/// parse_all::<ast::LitArray>("[1, 2, foo()]").unwrap();
+/// parse_all::<ast::LitVec>("[1, \"two\"]").unwrap();
+/// parse_all::<ast::LitVec>("[1, 2,]").unwrap();
+/// parse_all::<ast::LitVec>("[1, 2, foo()]").unwrap();
 /// # Ok(())
 /// # }
 /// ```
-impl Parse for LitArray {
+impl Parse for LitVec {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let open = parser.parse()?;
 

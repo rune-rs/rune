@@ -58,8 +58,8 @@ pub enum Expr {
     LitStr(ast::LitStr),
     /// A literal string expression.
     LitTemplate(ast::LitTemplate),
-    /// A literal array declaration.
-    LitArray(ast::LitArray),
+    /// A literal vector declaration.
+    LitVec(ast::LitVec),
     /// A literal object declaration.
     LitObject(ast::LitObject),
     /// A literal tuple declaration.
@@ -123,7 +123,7 @@ impl Expr {
             Self::CallInstanceFn(expr) => expr.span(),
             Self::LitUnit(unit) => unit.span(),
             Self::LitBool(b) => b.span(),
-            Self::LitArray(expr) => expr.span(),
+            Self::LitVec(expr) => expr.span(),
             Self::LitObject(expr) => expr.span(),
             Self::LitTuple(expr) => expr.span(),
             Self::LitAwait(expr) => expr.span(),
@@ -153,7 +153,7 @@ impl Expr {
             Expr::LitChar(..) => true,
             Expr::LitNumber(..) => true,
             Expr::LitStr(..) => true,
-            Expr::LitArray(array) => array.is_const(),
+            Expr::LitVec(vec) => vec.is_const(),
             Expr::LitObject(object) => object.is_const(),
             Expr::LitTuple(tuple) => tuple.is_const(),
             Expr::ExprBlock(b) => b.is_const(),
@@ -266,7 +266,7 @@ impl Expr {
             } => Self::parse_open_paren(parser)?,
             Kind::Open {
                 delimiter: Delimiter::Bracket,
-            } => Self::LitArray(parser.parse()?),
+            } => Self::LitVec(parser.parse()?),
             Kind::Open {
                 delimiter: Delimiter::Brace,
             } => Self::ExprBlock(parser.parse()?),

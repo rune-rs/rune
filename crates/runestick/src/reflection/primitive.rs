@@ -4,41 +4,6 @@ use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::value::{Value, ValueType, ValueTypeInfo};
 use crate::vm::{Integer, Vm, VmError};
 
-impl ReflectValueType for crate::value::Unit {
-    type Owned = crate::value::Unit;
-
-    fn value_type() -> ValueType {
-        ValueType::Unit
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Unit
-    }
-}
-
-impl ToValue for crate::value::Unit {
-    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
-        Ok(Value::Unit)
-    }
-}
-
-impl FromValue for crate::value::Unit {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-        match value {
-            Value::Unit => Ok(crate::value::Unit),
-            actual => Err(VmError::ExpectedUnit {
-                actual: actual.type_info(vm)?,
-            }),
-        }
-    }
-}
-
-impl ToValue for () {
-    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
-        Ok(Value::Unit)
-    }
-}
-
 impl ReflectValueType for bool {
     type Owned = bool;
 

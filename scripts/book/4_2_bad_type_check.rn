@@ -1,5 +1,5 @@
 use std::test::assert;
 
 fn main() {
-    assert(["hello", "world"] is String, "arrays should be strings");
+    assert(["hello", "world"] is String, "vectors should be strings");
 }

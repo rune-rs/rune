@@ -1,13 +1,13 @@
 //! Package containing array functions.
 
 use crate::context::{ContextError, Module};
-use crate::value::{Array, Value};
+use crate::value::Value;
 
 /// Get the module for the array package.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "array"]);
+    let mut module = Module::new(&["std", "vec"]);
 
-    module.ty(&["Array"]).build::<Array<Value>>()?;
-    module.inst_fn("len", Array::<Value>::len)?;
+    module.ty(&["Vec"]).build::<Vec<Value>>()?;
+    module.inst_fn("len", Vec::<Value>::len)?;
     Ok(module)
 }
