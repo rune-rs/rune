@@ -52,10 +52,14 @@ pub enum Expr {
     LitBool(ast::LitBool),
     /// A char literal.
     LitChar(ast::LitChar),
+    /// A byte literal.
+    LitByte(ast::LitByte),
     /// A literal number expression.
     LitNumber(ast::LitNumber),
     /// A literal string expression.
     LitStr(ast::LitStr),
+    /// A literal byte string expression.
+    LitByteStr(ast::LitByteStr),
     /// A literal string expression.
     LitTemplate(ast::LitTemplate),
     /// A literal vector declaration.
@@ -128,8 +132,10 @@ impl Expr {
             Self::LitTuple(expr) => expr.span(),
             Self::LitAwait(expr) => expr.span(),
             Self::LitNumber(expr) => expr.span(),
+            Self::LitByte(expr) => expr.span(),
             Self::LitChar(expr) => expr.span(),
             Self::LitStr(expr) => expr.span(),
+            Self::LitByteStr(expr) => expr.span(),
             Self::LitTemplate(expr) => expr.span(),
             Self::ExprGroup(expr) => expr.span(),
             Self::ExprUnary(expr) => expr.span(),
@@ -150,9 +156,11 @@ impl Expr {
             Expr::ExprBinary(binary) => binary.is_const(),
             Expr::LitUnit(..) => true,
             Expr::LitBool(..) => true,
+            Expr::LitByte(..) => true,
             Expr::LitChar(..) => true,
             Expr::LitNumber(..) => true,
             Expr::LitStr(..) => true,
+            Expr::LitByteStr(..) => true,
             Expr::LitVec(vec) => vec.is_const(),
             Expr::LitObject(object) => object.is_const(),
             Expr::LitTuple(tuple) => tuple.is_const(),
@@ -241,7 +249,7 @@ impl Expr {
                     Kind::Loop => Self::ExprLoop(ExprLoop::parse_with_label(parser, label)?),
                     Kind::For => Self::ExprFor(ExprFor::parse_with_label(parser, label)?),
                     _ => {
-                        return Err(ParseError::ExpectedLoopError {
+                        return Err(ParseError::ExpectedLoop {
                             actual: token.kind,
                             span: token.span,
                         });
@@ -259,7 +267,9 @@ impl Expr {
             Kind::Match => Self::ExprMatch(parser.parse()?),
             Kind::LitNumber { .. } => Self::LitNumber(parser.parse()?),
             Kind::LitChar { .. } => Self::LitChar(parser.parse()?),
+            Kind::LitByte { .. } => Self::LitByte(parser.parse()?),
             Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
+            Kind::LitByteStr { .. } => Self::LitByteStr(parser.parse()?),
             Kind::LitTemplate { .. } => Self::LitTemplate(parser.parse()?),
             Kind::Open {
                 delimiter: Delimiter::Parenthesis,
@@ -283,7 +293,7 @@ impl Expr {
             Kind::Break => Self::ExprBreak(parser.parse()?),
             Kind::Return => Self::ExprReturn(parser.parse()?),
             _ => {
-                return Err(ParseError::ExpectedExprError {
+                return Err(ParseError::ExpectedExpr {
                     actual: token.kind,
                     span: token.span,
                 })
@@ -455,7 +465,9 @@ impl Peek for Expr {
             Kind::If => true,
             Kind::LitNumber { .. } => true,
             Kind::LitChar { .. } => true,
+            Kind::LitByte { .. } => true,
             Kind::LitStr { .. } => true,
+            Kind::LitByteStr { .. } => true,
             Kind::LitTemplate { .. } => true,
             Kind::Open {
                 delimiter: Delimiter::Parenthesis,

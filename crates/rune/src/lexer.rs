@@ -198,44 +198,124 @@ impl<'a> Lexer<'a> {
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
-        let mut is_char_literal = false;
+        let mut is_label = true;
+        let mut char_count = 0;
 
         self.cursor = loop {
             let (n, c) = match it.clone().next() {
                 Some(c) => c,
-                None => break self.source.len(),
+                None => {
+                    if is_label {
+                        return Err(ParseError::ExpectedCharClose {
+                            span: Span {
+                                start,
+                                end: self.source.len(),
+                            },
+                        });
+                    }
+
+                    break self.source.len();
+                }
             };
 
             match c {
-                '0'..='9' | 'a'..='z' | 'A'..='Z' | '_' | '{' | '}' => {
-                    it.next();
-                }
                 '\\' => {
-                    is_char_literal = true;
+                    is_label = false;
                     it.next();
                     it.next();
+                    char_count += 1;
                 }
                 '\'' => {
-                    is_char_literal = true;
+                    is_label = false;
                     it.next();
                     break self.end_span(it);
                 }
-                _ => break self.cursor + n,
+                // components of labels.
+                '0'..='9' | 'a'..='z' => {
+                    it.next();
+                    char_count += 1;
+                }
+                c if c.is_control() => {
+                    return Err(ParseError::UnterminatedCharLit {
+                        span: Span {
+                            start,
+                            end: self.cursor + n,
+                        },
+                    });
+                }
+                _ if is_label && char_count > 0 => {
+                    break self.cursor + n;
+                }
+                _ => {
+                    is_label = false;
+                    it.next();
+                    char_count += 1;
+                }
             }
         };
 
-        if is_char_literal {
-            return Ok(Some(Token {
+        if is_label {
+            Ok(Some(Token {
+                kind: Kind::Label,
+                span: Span {
+                    start,
+                    end: self.cursor,
+                },
+            }))
+        } else {
+            Ok(Some(Token {
                 kind: Kind::LitChar,
                 span: Span {
                     start,
                     end: self.cursor,
                 },
-            }));
+            }))
         }
+    }
+
+    /// Consume a string literal.
+    fn next_lit_byte<I>(&mut self, it: &mut I, start: usize) -> Result<Option<Token>, ParseError>
+    where
+        I: Clone + Iterator<Item = (usize, char)>,
+    {
+        self.cursor = loop {
+            let (n, c) = match it.clone().next() {
+                Some(c) => c,
+                None => {
+                    return Err(ParseError::ExpectedByteClose {
+                        span: Span {
+                            start,
+                            end: self.source.len(),
+                        },
+                    })
+                }
+            };
+
+            match c {
+                '\\' => {
+                    it.next();
+                    it.next();
+                }
+                '\'' => {
+                    it.next();
+                    break self.end_span(it);
+                }
+                c if c.is_control() => {
+                    return Err(ParseError::UnterminatedByteLit {
+                        span: Span {
+                            start,
+                            end: self.cursor + n,
+                        },
+                    });
+                }
+                _ => {
+                    it.next();
+                }
+            }
+        };
 
         Ok(Some(Token {
-            kind: Kind::Label,
+            kind: Kind::LitByte,
             span: Span {
                 start,
                 end: self.cursor,
@@ -244,7 +324,54 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a string literal.
-    fn next_string_literal<I>(
+    fn next_lit_str<I>(&mut self, it: &mut I, start: usize) -> Result<Option<Token>, ParseError>
+    where
+        I: Clone + Iterator<Item = (usize, char)>,
+    {
+        let mut escaped = false;
+
+        self.cursor = loop {
+            break match it.next() {
+                Some((_, c)) => match c {
+                    '"' => self.end_span(it),
+                    '\\' => match it.next() {
+                        Some(_) => {
+                            escaped = true;
+                            continue;
+                        }
+                        None => {
+                            return Err(ParseError::ExpectedStringEscape {
+                                span: Span {
+                                    start,
+                                    end: self.source.len(),
+                                },
+                            });
+                        }
+                    },
+                    _ => continue,
+                },
+                None => {
+                    return Err(ParseError::UnterminatedStrLit {
+                        span: Span {
+                            start,
+                            end: self.source.len(),
+                        },
+                    })
+                }
+            };
+        };
+
+        Ok(Some(Token {
+            kind: Kind::LitStr { escaped },
+            span: Span {
+                start,
+                end: self.cursor,
+            },
+        }))
+    }
+
+    /// Consume a string literal.
+    fn next_lit_byte_str<I>(
         &mut self,
         it: &mut I,
         start: usize,
@@ -275,7 +402,7 @@ impl<'a> Lexer<'a> {
                     _ => continue,
                 },
                 None => {
-                    return Err(ParseError::ExpectedStringClose {
+                    return Err(ParseError::UnterminatedStrLit {
                         span: Span {
                             start,
                             end: self.source.len(),
@@ -286,7 +413,7 @@ impl<'a> Lexer<'a> {
         };
 
         Ok(Some(Token {
-            kind: Kind::LitStr { escaped },
+            kind: Kind::LitByteStr { escaped },
             span: Span {
                 start,
                 end: self.cursor,
@@ -439,6 +566,16 @@ impl<'a> Lexer<'a> {
                         ('-', '0'..='9') => {
                             return self.next_number_literal(&mut it, start);
                         }
+                        ('b', '\'') => {
+                            it.next();
+                            it.next();
+                            return self.next_lit_byte(&mut it, start);
+                        }
+                        ('b', '"') => {
+                            it.next();
+                            it.next();
+                            return self.next_lit_byte_str(&mut it, start);
+                        }
                         _ => (),
                     }
                 }
@@ -484,7 +621,7 @@ impl<'a> Lexer<'a> {
                         return self.next_number_literal(&mut it, start);
                     }
                     '"' => {
-                        return self.next_string_literal(&mut it, start);
+                        return self.next_lit_str(&mut it, start);
                     }
                     '`' => {
                         return self.next_template(&mut it, start);
@@ -654,6 +791,59 @@ mod tests {
             Token {
                 span: Span::new(0, 18),
                 kind: Kind::LitTemplate { escaped: true },
+            },
+        };
+    }
+
+    #[test]
+    fn test_literals() {
+        test_lexer! {
+            r#"b"hello world""#,
+            Token {
+                span: Span::new(0, 14),
+                kind: Kind::LitByteStr {
+                    escaped: false,
+                },
+            },
+        };
+
+        test_lexer! {
+            "b'\\\\''",
+            Token {
+                span: Span::new(0, 6),
+                kind: Kind::LitByte,
+            },
+        };
+
+        test_lexer! {
+            "'label 'a' b'a'",
+            Token {
+                span: Span::new(0, 6),
+                kind: Kind::Label,
+            },
+            Token {
+                span: Span::new(7, 10),
+                kind: Kind::LitChar,
+            },
+            Token {
+                span: Span::new(11, 15),
+                kind: Kind::LitByte,
+            },
+        };
+
+        test_lexer! {
+            "b'a'",
+            Token {
+                span: Span::new(0, 4),
+                kind: Kind::LitByte,
+            },
+        };
+
+        test_lexer! {
+            "b'\\n'",
+            Token {
+                span: Span::new(0, 5),
+                kind: Kind::LitByte,
             },
         };
     }

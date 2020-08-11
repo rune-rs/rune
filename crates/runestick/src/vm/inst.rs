@@ -464,13 +464,47 @@ pub enum Inst {
         slot: usize,
     },
     /// Load a literal character.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <char>
+    /// ```
     Char {
         /// The literal character to load.
         c: char,
     },
-    /// Load a literal string.
+    /// Load a literal byte.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <byte>
+    /// ```
+    Byte {
+        /// The literal byte to load.
+        b: u8,
+    },
+    /// Load a literal string from a static string slot.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <string>
+    /// ```
     String {
         /// The static string slot to load the string from.
+        slot: usize,
+    },
+    /// Load a literal byte string from a static byte string slot.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <bytes>
+    /// ```
+    Bytes {
+        /// The static byte string slot to load the string from.
         slot: usize,
     },
     /// Load a static, unmodifiable string from the given static string slot
@@ -582,6 +616,18 @@ pub enum Inst {
     /// => <value>
     /// ```
     OptionUnwrap,
+    /// Test if the top of the stack is a specific byte.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    EqByte {
+        /// The byte to test against.
+        byte: u8,
+    },
     /// Test if the top of the stack is a specific character.
     ///
     /// # Operation
@@ -830,6 +876,9 @@ impl fmt::Display for Inst {
             Self::String { slot } => {
                 write!(fmt, "string {}", slot)?;
             }
+            Self::Bytes { slot } => {
+                write!(fmt, "bytes {}", slot)?;
+            }
             Self::StaticString { slot } => {
                 write!(fmt, "static-string {}", slot)?;
             }
@@ -838,6 +887,9 @@ impl fmt::Display for Inst {
             }
             Self::Char { c } => {
                 write!(fmt, "char {:?}", c)?;
+            }
+            Self::Byte { b } => {
+                write!(fmt, "byte {:?}", b)?;
             }
             Self::Is => {
                 write!(fmt, "is")?;
@@ -863,8 +915,11 @@ impl fmt::Display for Inst {
             Self::OptionUnwrap => {
                 write!(fmt, "option-unwrap")?;
             }
+            Self::EqByte { byte } => {
+                write!(fmt, "eq-byte {:?}", byte)?;
+            }
             Self::EqCharacter { character } => {
-                write!(fmt, "eq-character {}", character)?;
+                write!(fmt, "eq-character {:?}", character)?;
             }
             Self::EqInteger { integer } => {
                 write!(fmt, "eq-integer {}", integer)?;

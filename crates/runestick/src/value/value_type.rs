@@ -6,6 +6,18 @@ use std::any::TypeId;
 pub enum ValueType {
     /// An value indicating nothing.
     Unit,
+    /// A boolean.
+    Bool,
+    /// A character.
+    Char,
+    /// A byte.
+    Byte,
+    /// A number.
+    Integer,
+    /// A float.
+    Float,
+    /// A byte array.
+    Bytes,
     /// A string.
     String,
     /// An vector of dynamic values.
@@ -14,14 +26,6 @@ pub enum ValueType {
     Tuple,
     /// An object of dynamic values.
     Object,
-    /// A number.
-    Integer,
-    /// A float.
-    Float,
-    /// A boolean.
-    Bool,
-    /// A character.
-    Char,
     /// Reference to a foreign type.
     External(TypeId),
     /// The type of type values.

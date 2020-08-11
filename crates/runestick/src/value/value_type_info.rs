@@ -7,22 +7,26 @@ use std::fmt;
 pub enum ValueTypeInfo {
     /// An empty value indicating nothing.
     Unit,
+    /// A boolean.
+    Bool,
+    /// A character.
+    Char,
+    /// A byte.
+    Byte,
+    /// A number.
+    Integer,
+    /// A float.
+    Float,
     /// A string.
     String,
+    /// Byte array.
+    Bytes,
     /// A vecotr.
     Vec,
     /// A tuple.
     Tuple,
     /// An object.
     Object,
-    /// A number.
-    Integer,
-    /// A float.
-    Float,
-    /// A boolean.
-    Bool,
-    /// A character.
-    Char,
     /// Reference to a foreign type.
     External(&'static str),
     /// The type of a value.
@@ -45,8 +49,26 @@ impl fmt::Display for ValueTypeInfo {
             ValueTypeInfo::Unit => {
                 write!(fmt, "unit")?;
             }
+            ValueTypeInfo::Bool => {
+                write!(fmt, "bool")?;
+            }
+            ValueTypeInfo::Char => {
+                write!(fmt, "char")?;
+            }
+            ValueTypeInfo::Byte => {
+                write!(fmt, "byte")?;
+            }
+            ValueTypeInfo::Integer => {
+                write!(fmt, "int")?;
+            }
+            ValueTypeInfo::Float => {
+                write!(fmt, "float")?;
+            }
             ValueTypeInfo::String => {
                 write!(fmt, "String")?;
+            }
+            ValueTypeInfo::Bytes => {
+                write!(fmt, "Bytes")?;
             }
             ValueTypeInfo::Vec => {
                 write!(fmt, "Vec")?;
@@ -56,18 +78,6 @@ impl fmt::Display for ValueTypeInfo {
             }
             ValueTypeInfo::Object => {
                 write!(fmt, "Object")?;
-            }
-            ValueTypeInfo::Integer => {
-                write!(fmt, "int")?;
-            }
-            ValueTypeInfo::Float => {
-                write!(fmt, "float")?;
-            }
-            ValueTypeInfo::Bool => {
-                write!(fmt, "bool")?;
-            }
-            ValueTypeInfo::Char => {
-                write!(fmt, "char")?;
             }
             ValueTypeInfo::External(type_name) => {
                 write!(fmt, "{}", type_name)?;

@@ -1,15 +1,21 @@
-use bytes;
-use test::assert;
+use std::bytes::Bytes;
+use std::test::assert;
 
 fn main() {
-    let bytes = bytes::Bytes::new();
+    let bytes = Bytes::new();
     bytes.extend_str("hello world");
     bytes.extend_str("hello world");
     let other = bytes.clone();
     bytes.extend(other);
 
-    assert(bytes is bytes::Bytes, "bytes should be bytes");
+    assert(bytes is Bytes, "bytes should be bytes");
     dbg(bytes);
 
-    bytes
+    let vec = bytes.into_vec();
+
+    if let [b'h', b'e', b'l', b'l', b'o', ..] = vec {
+        dbg("it does start with an 'hello'");
+    }
+
+    Bytes::from_vec(vec)
 }

@@ -1,4 +1,5 @@
 use crate::any::Any;
+use crate::bytes::Bytes;
 use crate::collections::HashMap;
 use crate::context::Context;
 use crate::future::{Future, SelectFuture};
@@ -400,6 +401,12 @@ pub enum VmError {
         /// The actual type found.
         actual: ValueTypeInfo,
     },
+    /// Error raised when we expected a byte value.
+    #[error("expected byte, but found `{actual}`")]
+    ExpectedByte {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
     /// Error raised when we expected a char value.
     #[error("expected char, but found `{actual}`")]
     ExpectedChar {
@@ -421,6 +428,12 @@ pub enum VmError {
     /// Error raised when we expected a string.
     #[error("expected a string but found `{actual}`")]
     ExpectedString {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a byte string.
+    #[error("expected a byte string but found `{actual}`")]
+    ExpectedBytes {
         /// The actual type observed instead.
         actual: ValueTypeInfo,
     },
@@ -1251,6 +1264,16 @@ impl Vm {
     }
 
     impl_slot_functions! {
+        Bytes,
+        Bytes,
+        bytes_allocate,
+        bytes_ref,
+        bytes_mut,
+        bytes_take,
+        bytes_clone,
+    }
+
+    impl_slot_functions! {
         String,
         String,
         string_allocate,
@@ -1549,14 +1572,16 @@ impl Vm {
     pub fn value_take(&mut self, value: Value) -> Result<OwnedValue, VmError> {
         return Ok(match value {
             Value::Unit => OwnedValue::Unit,
+            Value::Bool(boolean) => OwnedValue::Bool(boolean),
+            Value::Byte(b) => OwnedValue::Byte(b),
+            Value::Char(c) => OwnedValue::Char(c),
             Value::Integer(integer) => OwnedValue::Integer(integer),
             Value::Float(float) => OwnedValue::Float(float),
-            Value::Bool(boolean) => OwnedValue::Bool(boolean),
-            Value::Char(c) => OwnedValue::Char(c),
             Value::String(slot) => OwnedValue::String(self.string_take(slot)?),
             Value::StaticString(slot) => {
                 OwnedValue::String(self.unit.lookup_string(slot)?.to_owned())
             }
+            Value::Bytes(slot) => OwnedValue::Bytes(self.bytes_take(slot)?),
             Value::Vec(slot) => {
                 let vec = self.vec_take(slot)?;
                 OwnedValue::Vec(value_take_vec(self, vec)?)
@@ -1639,12 +1664,14 @@ impl Vm {
     pub fn value_ref(&self, value: Value) -> Result<ValueRef<'_>, VmError> {
         Ok(match value {
             Value::Unit => ValueRef::Unit,
+            Value::Bool(boolean) => ValueRef::Bool(boolean),
+            Value::Byte(b) => ValueRef::Byte(b),
+            Value::Char(c) => ValueRef::Char(c),
             Value::Integer(integer) => ValueRef::Integer(integer),
             Value::Float(float) => ValueRef::Float(float),
-            Value::Bool(boolean) => ValueRef::Bool(boolean),
-            Value::Char(c) => ValueRef::Char(c),
             Value::String(slot) => ValueRef::String(self.string_ref(slot)?),
             Value::StaticString(slot) => ValueRef::StaticString(self.unit.lookup_string(slot)?),
+            Value::Bytes(slot) => ValueRef::Bytes(self.bytes_ref(slot)?),
             Value::Vec(slot) => {
                 let vec = self.vec_ref(slot)?;
                 ValueRef::Vec(self.value_vec_ref(&*vec)?)
@@ -2630,10 +2657,19 @@ impl Vm {
                 Inst::Char { c } => {
                     self.push(Value::Char(c));
                 }
+                Inst::Byte { b } => {
+                    self.push(Value::Byte(b));
+                }
                 Inst::String { slot } => {
                     let string = self.unit.lookup_string(slot)?.to_owned();
                     // TODO: do something sneaky to only allocate the static string once.
                     let value = self.string_allocate(string);
+                    self.push(value);
+                }
+                Inst::Bytes { slot } => {
+                    let bytes = self.unit.lookup_bytes(slot)?.to_owned();
+                    // TODO: do something sneaky to only allocate the static byte string once.
+                    let value = self.bytes_allocate(Bytes::from_vec(bytes));
                     self.push(value);
                 }
                 Inst::StaticString { slot } => {
@@ -2666,6 +2702,14 @@ impl Vm {
                 }
                 Inst::Or => {
                     self.op_or()?;
+                }
+                Inst::EqByte { byte } => {
+                    let value = self.stack.pop()?;
+
+                    self.push(Value::Bool(match value {
+                        Value::Byte(actual) => actual == byte,
+                        _ => false,
+                    }));
                 }
                 Inst::EqCharacter { character } => {
                     let value = self.stack.pop()?;

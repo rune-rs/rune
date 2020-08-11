@@ -14,6 +14,8 @@ pub enum Pat {
     PatBinding(ast::Ident),
     /// A literal unit.
     PatUnit(ast::LitUnit),
+    /// A literal byte.
+    PatByte(ast::LitByte),
     /// A literal character.
     PatChar(ast::LitChar),
     /// A literal number.
@@ -35,6 +37,7 @@ impl Pat {
     pub fn span(&self) -> Span {
         match self {
             Self::PatUnit(pat) => pat.span(),
+            Self::PatByte(pat) => pat.span(),
             Self::PatChar(pat) => pat.span(),
             Self::PatNumber(pat) => pat.span(),
             Self::PatString(pat) => pat.span(),
@@ -97,6 +100,7 @@ impl Parse for Pat {
                 delimiter: Delimiter::Bracket,
             } => Self::PatVec(parser.parse()?),
             Kind::StartObject => Self::PatObject(parser.parse()?),
+            Kind::LitByte { .. } => Self::PatByte(parser.parse()?),
             Kind::LitChar { .. } => Self::PatChar(parser.parse()?),
             Kind::LitNumber { .. } => Self::PatNumber(parser.parse()?),
             Kind::LitStr { .. } => Self::PatString(parser.parse()?),
@@ -127,6 +131,7 @@ impl Peek for Pat {
                 delimiter: Delimiter::Bracket,
             } => true,
             Kind::StartObject => true,
+            Kind::LitByte { .. } => true,
             Kind::LitChar { .. } => true,
             Kind::LitNumber { .. } => true,
             Kind::LitStr { .. } => true,

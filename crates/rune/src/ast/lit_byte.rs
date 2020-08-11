@@ -6,44 +6,41 @@ use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
 use runestick::unit::Span;
 
-/// A character literal.
+/// A byte literal.
 #[derive(Debug, Clone)]
-pub struct LitChar {
+pub struct LitByte {
     /// The token corresponding to the literal.
     pub token: Token,
 }
 
-impl LitChar {
+impl LitByte {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.token.span
     }
 }
 
-/// Parse a character literal.
+/// Parse a byte literal.
 ///
 /// # Examples
 ///
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::LitChar>("'a'")?;
-/// parse_all::<ast::LitChar>("'\\0'")?;
-/// parse_all::<ast::LitChar>("'\\n'")?;
-/// parse_all::<ast::LitChar>("'\\r'")?;
-/// parse_all::<ast::LitChar>("'\\''")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::LitByte>("b'a'").unwrap();
+/// parse_all::<ast::LitByte>("b'\\0'").unwrap();
+/// parse_all::<ast::LitByte>("b'\\n'").unwrap();
+/// parse_all::<ast::LitByte>("b'\\r'").unwrap();
+/// parse_all::<ast::LitByte>("b'\\\\''").unwrap();
 /// ```
-impl Parse for LitChar {
+impl Parse for LitByte {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let token = parser.token_next()?;
 
         Ok(match token.kind {
-            Kind::LitChar => LitChar { token },
+            Kind::LitByte => LitByte { token },
             _ => {
-                return Err(ParseError::ExpectedChar {
+                return Err(ParseError::ExpectedByte {
                     actual: token.kind,
                     span: token.span,
                 })
@@ -52,12 +49,13 @@ impl Parse for LitChar {
     }
 }
 
-impl<'a> Resolve<'a> for LitChar {
-    type Output = char;
+impl<'a> Resolve<'a> for LitByte {
+    type Output = u8;
 
-    fn resolve(&self, source: Source<'a>) -> Result<char, ParseError> {
+    fn resolve(&self, source: Source<'a>) -> Result<u8, ParseError> {
         let span = self.token.span;
-        let string = source.source(span.narrow(1))?;
+        let string = source.source(span.trim_start(2).trim_end(1))?;
+
         let mut it = string
             .char_indices()
             .map(|(n, c)| (span.start + n, c))
@@ -66,18 +64,21 @@ impl<'a> Resolve<'a> for LitChar {
         let (n, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(ParseError::BadCharLiteral { span });
+                return Err(ParseError::BadByteLiteral { span });
             }
         };
 
         let c = match c {
-            '\\' => utils::parse_char_escape(span.with_start(n), &mut it, utils::WithBrace(false))?,
-            c => c,
+            '\\' => utils::parse_byte_escape(span.with_start(n), &mut it)?,
+            c if c.is_ascii() && !c.is_control() => c as u8,
+            _ => {
+                return Err(ParseError::BadByteLiteral { span });
+            }
         };
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(ParseError::BadCharLiteral { span });
+            return Err(ParseError::BadByteLiteral { span });
         }
 
         Ok(c)

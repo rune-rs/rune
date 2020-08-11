@@ -209,7 +209,7 @@ impl Parse for BinOp {
         Ok(match Self::from_token(token) {
             Some((op, _)) => op,
             None => {
-                return Err(ParseError::ExpectedOperatorError {
+                return Err(ParseError::ExpectedOperator {
                     span: token.span,
                     actual: token.kind,
                 })

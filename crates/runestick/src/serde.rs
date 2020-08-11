@@ -1,6 +1,6 @@
+use crate::bytes::Bytes;
 use crate::collections::HashMap;
 use crate::error;
-use crate::packages::bytes::Bytes;
 use crate::tls;
 use crate::value::Value;
 use crate::vm::VmError;
@@ -36,6 +36,7 @@ impl ser::Serialize for Value {
             Value::Unit => serializer.serialize_unit(),
             Value::Bool(b) => serializer.serialize_bool(b),
             Value::Char(c) => serializer.serialize_char(c),
+            Value::Byte(c) => serializer.serialize_u8(c),
             Value::Integer(integer) => serializer.serialize_i64(integer),
             Value::Float(float) => serializer.serialize_f64(float),
             Value::StaticString(slot) => tls::with_vm(|vm| {
@@ -45,6 +46,10 @@ impl ser::Serialize for Value {
             Value::String(slot) => tls::with_vm(|vm| {
                 let string = vm.string_ref(slot).map_err(ser::Error::custom)?;
                 serializer.serialize_str(&*string)
+            }),
+            Value::Bytes(slot) => tls::with_vm(|vm| {
+                let bytes = vm.bytes_ref(slot).map_err(ser::Error::custom)?;
+                serializer.serialize_bytes(&*bytes)
             }),
             Value::Vec(slot) => tls::with_vm(|vm| {
                 let vec = vm.vec_ref(slot).map_err(ser::Error::custom)?;
@@ -132,7 +137,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm| Ok(vm.external_allocate(Bytes::from_bytes(v.to_vec()))))
+        tls::with_vm(|vm| Ok(vm.external_allocate(Bytes::from_vec(v.to_vec()))))
     }
 
     #[inline]
@@ -140,7 +145,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm| Ok(vm.external_allocate(Bytes::from_bytes(v))))
+        tls::with_vm(|vm| Ok(vm.external_allocate(Bytes::from_vec(v))))
     }
 
     #[inline]

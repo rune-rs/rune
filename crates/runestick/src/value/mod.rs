@@ -32,6 +32,8 @@ pub enum Value {
     Unit,
     /// A boolean.
     Bool(bool),
+    /// A single byte.
+    Byte(u8),
     /// A character.
     Char(char),
     /// A number.
@@ -41,9 +43,11 @@ pub enum Value {
     /// A static string.
     /// The index is the index into the static string slot for the current unit.
     StaticString(usize),
-    /// A String.
+    /// A UTF-8 string.
     String(Slot),
-    /// A vector.
+    /// A byte string.
+    Bytes(Slot),
+    /// A vector containing any values.
     Vec(Slot),
     /// A tuple.
     Tuple(Slot),
@@ -97,6 +101,17 @@ impl Value {
         }
     }
 
+    /// Try to coerce value reference into bytes.
+    #[inline]
+    pub fn into_bytes(self, vm: &Vm) -> Result<Slot, VmError> {
+        match self {
+            Self::Bytes(slot) => Ok(slot),
+            actual => Err(VmError::ExpectedBytes {
+                actual: actual.type_info(vm)?,
+            }),
+        }
+    }
+
     /// Try to coerce value reference into a vector.
     #[inline]
     pub fn into_vec(self, vm: &Vm) -> Result<Slot, VmError> {
@@ -145,12 +160,14 @@ impl Value {
     pub fn value_type(&self, vm: &Vm) -> Result<ValueType, VmError> {
         Ok(match *self {
             Self::Unit => ValueType::Unit,
+            Self::Bool(..) => ValueType::Bool,
+            Self::Byte(..) => ValueType::Byte,
+            Self::Char(..) => ValueType::Char,
             Self::Integer(..) => ValueType::Integer,
             Self::Float(..) => ValueType::Float,
-            Self::Bool(..) => ValueType::Bool,
-            Self::Char(..) => ValueType::Char,
             Self::String(..) => ValueType::String,
             Self::StaticString(..) => ValueType::String,
+            Self::Bytes(..) => ValueType::Bytes,
             Self::Vec(..) => ValueType::Vec,
             Self::Tuple(..) => ValueType::Tuple,
             Self::Object(..) => ValueType::Object,
@@ -167,12 +184,14 @@ impl Value {
     pub fn type_info(&self, vm: &Vm) -> Result<ValueTypeInfo, VmError> {
         Ok(match *self {
             Self::Unit => ValueTypeInfo::Unit,
+            Self::Bool(..) => ValueTypeInfo::Bool,
+            Self::Byte(..) => ValueTypeInfo::Byte,
+            Self::Char(..) => ValueTypeInfo::Char,
             Self::Integer(..) => ValueTypeInfo::Integer,
             Self::Float(..) => ValueTypeInfo::Float,
-            Self::Bool(..) => ValueTypeInfo::Bool,
-            Self::Char(..) => ValueTypeInfo::Char,
             Self::String(..) => ValueTypeInfo::String,
             Self::StaticString(..) => ValueTypeInfo::String,
+            Self::Bytes(..) => ValueTypeInfo::Bytes,
             Self::Vec(..) => ValueTypeInfo::Vec,
             Self::Tuple(..) => ValueTypeInfo::Tuple,
             Self::Object(..) => ValueTypeInfo::Object,

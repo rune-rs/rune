@@ -38,7 +38,7 @@ impl Parse for LitBool {
             Kind::True => true,
             Kind::False => false,
             _ => {
-                return Err(ParseError::ExpectedBoolError {
+                return Err(ParseError::ExpectedBool {
                     span: token.span,
                     actual: token.kind,
                 })

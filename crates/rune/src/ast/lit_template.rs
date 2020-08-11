@@ -121,7 +121,7 @@ impl Parse for LitTemplate {
 
         match token.kind {
             Kind::LitTemplate { escaped } => Ok(LitTemplate { token, escaped }),
-            _ => Err(ParseError::ExpectedStringError {
+            _ => Err(ParseError::ExpectedString {
                 actual: token.kind,
                 span: token.span,
             }),

@@ -4,6 +4,7 @@ use runestick::unit::Span;
 use std::iter::Peekable;
 use std::ops;
 
+/// Indicates if we are parsing braces.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct WithBrace(pub(super) bool);
 
@@ -15,7 +16,46 @@ impl ops::Deref for WithBrace {
     }
 }
 
-/// Parse an escape sequence.
+/// Parse a byte escape sequence.
+pub(super) fn parse_byte_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<u8, ParseError>
+where
+    I: Iterator<Item = (usize, char)>,
+{
+    let (n, c) = match it.next() {
+        Some(c) => c,
+        None => {
+            return Err(ParseError::BadEscapeSequence { span });
+        }
+    };
+
+    Ok(match c {
+        '\'' => b'\'',
+        '\"' => b'\"',
+        'n' => b'\n',
+        'r' => b'\r',
+        't' => b'\t',
+        '\\' => b'\\',
+        '0' => b'\0',
+        'x' => {
+            let (result, span) = parse_hex_escape(span, it)?;
+
+            if result > 0xff {
+                return Err(ParseError::UnsupportedByteEscape { span });
+            }
+
+            result as u8
+        }
+        'u' => {
+            return Err(ParseError::UnicodeEscapeNotSupported { span });
+        }
+        _ => {
+            let span = span.with_end(n);
+            return Err(ParseError::BadEscapeSequence { span });
+        }
+    })
+}
+
+/// Parse a byte escape sequence.
 pub(super) fn parse_char_escape<I>(
     span: Span,
     it: &mut Peekable<I>,
@@ -41,7 +81,19 @@ where
         't' => '\t',
         '\\' => '\\',
         '0' => '\0',
-        'x' => parse_hex_escape(span, it)?,
+        'x' => {
+            let (result, span) = parse_hex_escape(span, it)?;
+
+            if result > 0x7f {
+                return Err(ParseError::UnsupportedUnicodeByteEscape { span });
+            }
+
+            if let Some(c) = std::char::from_u32(result) {
+                c
+            } else {
+                return Err(ParseError::BadByteEscape { span });
+            }
+        }
         'u' => parse_unicode_escape(span, it)?,
         _ => {
             let span = span.with_end(n);
@@ -51,7 +103,7 @@ where
 }
 
 /// Parse a hex escape.
-fn parse_hex_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<char, ParseError>
+fn parse_hex_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<(u32, Span), ParseError>
 where
     I: Iterator<Item = (usize, char)>,
 {
@@ -77,16 +129,7 @@ where
     }
 
     let span = it.peek().map(|(n, _)| span.with_end(*n)).unwrap_or(span);
-
-    if result > 0x7f {
-        return Err(ParseError::BadByteEscapeBounds { span });
-    }
-
-    if let Some(c) = std::char::from_u32(result) {
-        Ok(c)
-    } else {
-        Err(ParseError::BadByteEscape { span })
-    }
+    Ok((result, span))
 }
 
 /// Parse a unicode escape.
@@ -204,8 +247,8 @@ mod tests {
     fn test_parse_hex_escape() {
         assert!(parse_hex_escape(Span::empty(), input!("a")).is_err());
 
-        let c = parse_hex_escape(Span::empty(), input!("7f")).unwrap();
-        assert_eq!(c, '\x7f');
+        let (c, _) = parse_hex_escape(Span::empty(), input!("7f")).unwrap();
+        assert_eq!(c, 0x7f);
     }
 
     #[test]

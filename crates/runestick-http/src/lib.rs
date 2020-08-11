@@ -51,7 +51,7 @@
 //! }
 //! ```
 
-use runestick::packages::bytes::Bytes;
+use runestick::Bytes;
 
 #[derive(Debug)]
 struct Client {
@@ -83,7 +83,7 @@ impl RequestBuilder {
     }
 
     async fn body_bytes(self, bytes: Bytes) -> runestick::Result<Self> {
-        let bytes = bytes.into_inner();
+        let bytes = bytes.into_vec();
 
         Ok(Self {
             request: self.request.body(bytes),

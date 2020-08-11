@@ -62,6 +62,35 @@ impl FromValue for char {
     }
 }
 
+impl ReflectValueType for u8 {
+    type Owned = u8;
+
+    fn value_type() -> ValueType {
+        ValueType::Byte
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Byte
+    }
+}
+
+impl ToValue for u8 {
+    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+        Ok(Value::Byte(self))
+    }
+}
+
+impl FromValue for u8 {
+    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
+        match value {
+            Value::Byte(value) => Ok(value),
+            actual => Err(VmError::ExpectedByte {
+                actual: actual.type_info(vm)?,
+            }),
+        }
+    }
+}
+
 macro_rules! number_value_trait {
     ($ty:ty, $variant:ident) => {
         /// Convert a number into a value type.
@@ -112,7 +141,6 @@ macro_rules! number_value_trait {
     };
 }
 
-number_value_trait!(u8, U8);
 number_value_trait!(u32, U32);
 number_value_trait!(u64, U64);
 number_value_trait!(u128, U128);

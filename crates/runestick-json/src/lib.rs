@@ -31,8 +31,7 @@
 //! }
 //! ```
 
-use runestick::packages::bytes::Bytes;
-use runestick::{ContextError, Module, Value};
+use runestick::{Bytes, ContextError, Module, Value};
 
 fn from_bytes(bytes: &[u8]) -> runestick::Result<Value> {
     Ok(serde_json::from_slice(&bytes)?)
@@ -51,7 +50,7 @@ fn to_string(value: Value) -> runestick::Result<String> {
 /// Convert any value to a json string.
 fn to_bytes(value: Value) -> runestick::Result<Bytes> {
     let bytes = serde_json::to_vec(&value)?;
-    Ok(Bytes::from_bytes(bytes))
+    Ok(Bytes::from_vec(bytes))
 }
 
 /// Get the module for the bytes package.

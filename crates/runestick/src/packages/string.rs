@@ -1,12 +1,12 @@
 //! Package containing string functions.
 
+use crate::bytes::Bytes;
 use crate::context::{ContextError, Module};
 use crate::error::Error;
-use crate::packages::bytes::Bytes;
 
 /// into_bytes shim for strings.
 fn into_bytes(s: String) -> Bytes {
-    Bytes::from_bytes(s.into_bytes())
+    Bytes::from_vec(s.into_bytes())
 }
 
 fn char_at(s: &str, index: usize) -> Result<Option<char>, Error> {

@@ -61,7 +61,7 @@ impl Parse for LitNumber {
                 token,
             },
             _ => {
-                return Err(ParseError::ExpectedNumberError {
+                return Err(ParseError::ExpectedNumber {
                     actual: token.kind,
                     span: token.span,
                 })

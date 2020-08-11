@@ -9,23 +9,24 @@ use std::borrow::Cow;
 
 /// A string literal.
 #[derive(Debug, Clone)]
-pub struct LitStr {
+pub struct LitByteStr {
     /// The token corresponding to the literal.
     token: Token,
     /// If the string literal is escaped.
     escaped: bool,
 }
 
-impl LitStr {
+impl LitByteStr {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
         self.token.span
     }
 }
 
-impl LitStr {
-    fn parse_escaped(&self, span: Span, source: &str) -> Result<String, ParseError> {
-        let mut buffer = String::with_capacity(source.len());
+impl LitByteStr {
+    fn parse_escaped(&self, span: Span, source: &str) -> Result<Vec<u8>, ParseError> {
+        let mut buffer = Vec::with_capacity(source.len());
+
         let mut it = source
             .char_indices()
             .map(|(n, c)| (span.start + n, c))
@@ -33,10 +34,8 @@ impl LitStr {
 
         while let Some((n, c)) = it.next() {
             buffer.push(match c {
-                '\\' => {
-                    utils::parse_char_escape(span.with_start(n), &mut it, utils::WithBrace(false))?
-                }
-                c => c,
+                '\\' => utils::parse_byte_escape(span.with_start(n), &mut it)?,
+                c => c as u8,
             });
         }
 
@@ -44,17 +43,17 @@ impl LitStr {
     }
 }
 
-impl<'a> Resolve<'a> for LitStr {
-    type Output = Cow<'a, str>;
+impl<'a> Resolve<'a> for LitByteStr {
+    type Output = Cow<'a, [u8]>;
 
-    fn resolve(&self, source: Source<'a>) -> Result<Cow<'a, str>, ParseError> {
-        let span = self.token.span.narrow(1);
+    fn resolve(&self, source: Source<'a>) -> Result<Cow<'a, [u8]>, ParseError> {
+        let span = self.token.span.trim_start(2).trim_end(1);
         let string = source.source(span)?;
 
         Ok(if self.escaped {
             Cow::Owned(self.parse_escaped(span, string)?)
         } else {
-            Cow::Borrowed(string)
+            Cow::Borrowed(string.as_bytes())
         })
     }
 }
@@ -64,23 +63,23 @@ impl<'a> Resolve<'a> for LitStr {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{ParseAll, parse_all, ast};
+/// use rune::{parse_all, ast};
 ///
 /// # fn main() -> rune::Result<()> {
-/// let item = parse_all::<ast::LitStr>("\"hello world\"")?;
-/// assert_eq!(item.resolve()?, "hello world");
+/// let s = parse_all::<ast::LitByteStr>("b\"hello world\"")?;
+/// assert_eq!(&s.resolve()?[..], &b"hello world"[..]);
 ///
-/// let item = parse_all::<ast::LitStr>("\"hello\\nworld\"")?;
-/// assert_eq!(item.resolve()?, "hello\nworld");
+/// let s = parse_all::<ast::LitByteStr>("b\"hello\\nworld\"")?;
+/// assert_eq!(&s.resolve()?[..], &b"hello\nworld"[..]);
 /// # Ok(())
 /// # }
 /// ```
-impl Parse for LitStr {
+impl Parse for LitByteStr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let token = parser.token_next()?;
 
         match token.kind {
-            Kind::LitStr { escaped } => Ok(LitStr { token, escaped }),
+            Kind::LitByteStr { escaped } => Ok(Self { token, escaped }),
             _ => Err(ParseError::ExpectedString {
                 actual: token.kind,
                 span: token.span,

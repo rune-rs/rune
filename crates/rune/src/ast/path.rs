@@ -18,7 +18,7 @@ impl Path {
     /// Convert into an identifier used for instance calls.
     pub fn into_instance_call_ident(self) -> Result<ast::Ident, ParseError> {
         if !self.rest.is_empty() {
-            return Err(ParseError::PathCallInstanceError { span: self.span() });
+            return Err(ParseError::PathCallInstance { span: self.span() });
         }
 
         Ok(self.first)

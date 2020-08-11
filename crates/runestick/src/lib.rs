@@ -42,6 +42,7 @@ mod value;
 mod vm;
 #[macro_use]
 mod macros;
+mod bytes;
 mod error;
 mod future;
 mod hash;
@@ -52,6 +53,7 @@ pub mod tls;
 pub mod unit;
 
 pub use crate::any::Any;
+pub use crate::bytes::Bytes;
 pub use crate::context::{Context, ContextError, Item, Meta, MetaTuple, MetaType, Module};
 pub use crate::context::{
     ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, MUL, MUL_ASSIGN, NEXT, SUB, SUB_ASSIGN,

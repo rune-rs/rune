@@ -34,6 +34,14 @@ pub enum CompilationUnitError {
         /// The slot of the string.
         slot: usize,
     },
+    /// A static byte string was missing for the given hash and slot.
+    #[error("missing static byte string for hash `{hash}` and slot `{slot}`")]
+    StaticBytesMissing {
+        /// The hash of the byte string.
+        hash: Hash,
+        /// The slot of the byte string.
+        slot: usize,
+    },
     /// A static string was missing for the given hash and slot.
     #[error(
         "conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`"
@@ -45,6 +53,18 @@ pub enum CompilationUnitError {
         current: String,
         /// The existing static string that conflicted.
         existing: String,
+    },
+    /// A static byte string was missing for the given hash and slot.
+    #[error(
+        "conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`"
+    )]
+    StaticBytesHashConflict {
+        /// The hash of the byte string.
+        hash: Hash,
+        /// The static byte string that was inserted.
+        current: Vec<u8>,
+        /// The existing static byte string that conflicted.
+        existing: Vec<u8>,
     },
     /// A static object keys was missing for the given hash and slot.
     #[error("missing static object keys for hash `{hash}` and slot `{slot}`")]
@@ -155,11 +175,19 @@ impl Span {
         }
     }
 
-    /// Trim the start of the label by the given amount.
+    /// Trim the start of the span by the given amount.
     pub fn trim_start(self, amount: usize) -> Self {
         Self {
             start: usize::min(self.start.saturating_add(amount), self.end),
             end: self.end,
+        }
+    }
+
+    /// Trim the end of the span by the given amount.
+    pub fn trim_end(self, amount: usize) -> Self {
+        Self {
+            start: self.start,
+            end: usize::max(self.end.saturating_sub(amount), self.start),
         }
     }
 }
@@ -244,6 +272,10 @@ pub struct CompilationUnit {
     static_strings: Vec<String>,
     /// Reverse lookup for static strings.
     static_string_rev: HashMap<Hash, usize>,
+    /// A static byte string.
+    static_bytes: Vec<Vec<u8>>,
+    /// Reverse lookup for static byte strings.
+    static_bytes_rev: HashMap<Hash, usize>,
     /// Slots used for object keys.
     ///
     /// This is used when an object is used in a pattern match, to avoid having
@@ -396,6 +428,15 @@ impl CompilationUnit {
             .as_str())
     }
 
+    /// Lookup the static byte string by slot, if it exists.
+    pub fn lookup_bytes(&self, slot: usize) -> Result<&[u8], VmError> {
+        Ok(self
+            .static_bytes
+            .get(slot)
+            .ok_or_else(|| VmError::MissingStaticString { slot })?
+            .as_ref())
+    }
+
     /// Lookup the static object keys by slot, if it exists.
     pub fn lookup_object_keys(&self, slot: usize) -> Option<&[String]> {
         self.static_object_keys.get(slot).map(|keys| &keys[..])
@@ -430,6 +471,38 @@ impl CompilationUnit {
         let new_slot = self.static_strings.len();
         self.static_strings.push(current.to_owned());
         self.static_string_rev.insert(hash, new_slot);
+        Ok(new_slot)
+    }
+
+    /// Insert a static byte string and return its associated slot that can
+    /// later be looked up through [lookup_bytes][Self::lookup_bytes].
+    ///
+    /// Only uses up space if the static byte string is unique.
+    pub fn new_static_bytes(&mut self, current: &[u8]) -> Result<usize, CompilationUnitError> {
+        let hash = Hash::of(&current);
+
+        if let Some(existing_slot) = self.static_bytes_rev.get(&hash).copied() {
+            let existing = self.static_bytes.get(existing_slot).ok_or_else(|| {
+                CompilationUnitError::StaticBytesMissing {
+                    hash,
+                    slot: existing_slot,
+                }
+            })?;
+
+            if &**existing != current {
+                return Err(CompilationUnitError::StaticBytesHashConflict {
+                    hash,
+                    current: current.to_owned(),
+                    existing: existing.clone(),
+                });
+            }
+
+            return Ok(existing_slot);
+        }
+
+        let new_slot = self.static_bytes.len();
+        self.static_bytes.push(current.to_owned());
+        self.static_bytes_rev.insert(hash, new_slot);
         Ok(new_slot)
     }
 

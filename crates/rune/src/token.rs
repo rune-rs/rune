@@ -107,8 +107,15 @@ pub enum Kind {
     },
     /// A characer literal.
     LitChar,
+    /// A byte literal.
+    LitByte,
     /// A string literal, including escape sequences. Like `"hello\nworld"`.
     LitStr {
+        /// If the string literal contains escapes.
+        escaped: bool,
+    },
+    /// A byte string literal, including escape sequences. Like `b"hello\nworld"`.
+    LitByteStr {
         /// If the string literal contains escapes.
         escaped: bool,
     },
@@ -211,8 +218,10 @@ impl fmt::Display for Kind {
             Self::Label => write!(fmt, "label")?,
             Self::LitNumber { .. } => write!(fmt, "number")?,
             Self::LitStr { .. } => write!(fmt, "string")?,
+            Self::LitByteStr { .. } => write!(fmt, "byte string")?,
             Self::LitTemplate { .. } => write!(fmt, "template")?,
             Self::LitChar { .. } => write!(fmt, "char")?,
+            Self::LitByte { .. } => write!(fmt, "byte")?,
             Self::Open { delimiter } => write!(fmt, "{}", delimiter.open())?,
             Self::Close { delimiter } => write!(fmt, "{}", delimiter.close())?,
             Self::Underscore => write!(fmt, "_")?,

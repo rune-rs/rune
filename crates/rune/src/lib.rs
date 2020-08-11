@@ -49,6 +49,16 @@ pub struct ParseAll<'a, T> {
     pub item: T,
 }
 
+impl<'a, T> ParseAll<'a, T>
+where
+    T: Resolve<'a>,
+{
+    /// Resolve the item encapsulated in the parse.
+    pub fn resolve(&self) -> Result<T::Output, ParseError> {
+        self.item.resolve(self.source)
+    }
+}
+
 /// Parse the given input as the given type that implements
 /// [Parse][crate::traits::Parse].
 ///

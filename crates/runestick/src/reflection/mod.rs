@@ -2,6 +2,7 @@ use crate::any::Any;
 use crate::value::{OwnedValue, Value, ValueType, ValueTypeInfo, VecTuple};
 use crate::vm::{Vm, VmError};
 
+mod bytes;
 mod hash_map;
 mod object;
 mod option;

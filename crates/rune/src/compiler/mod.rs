@@ -345,6 +345,12 @@ impl<'a> Compiler<'a> {
             ast::Expr::LitStr(lit_str) => {
                 self.compile_lit_str(lit_str, needs_value)?;
             }
+            ast::Expr::LitByte(lit_char) => {
+                self.compile_lit_byte(lit_char, needs_value)?;
+            }
+            ast::Expr::LitByteStr(lit_str) => {
+                self.compile_lit_byte_str(lit_str, needs_value)?;
+            }
             ast::Expr::LitTemplate(lit_template) => {
                 self.compile_lit_template(lit_template, needs_value)?;
             }
@@ -440,12 +446,8 @@ impl<'a> Compiler<'a> {
     }
 
     /// Encode a char literal, like `'a'`.
-    fn compile_lit_char(
-        &mut self,
-        char_literal: &ast::LitChar,
-        needs_value: NeedsValue,
-    ) -> Result<()> {
-        let span = char_literal.span();
+    fn compile_lit_char(&mut self, lit_char: &ast::LitChar, needs_value: NeedsValue) -> Result<()> {
+        let span = lit_char.span();
         log::trace!("LitChar => {:?}", self.source.source(span)?);
 
         // NB: Elide the entire literal if it's not needed.
@@ -454,7 +456,7 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        let resolved_char = char_literal.resolve(self.source)?;
+        let resolved_char = lit_char.resolve(self.source)?;
         self.asm.push(Inst::Char { c: resolved_char }, span);
         Ok(())
     }
@@ -473,6 +475,43 @@ impl<'a> Compiler<'a> {
         let string = lit_str.resolve(self.source)?;
         let slot = self.unit.new_static_string(&*string)?;
         self.asm.push(Inst::String { slot }, span);
+        Ok(())
+    }
+
+    /// Encode a byte literal, like `b'a'`.
+    fn compile_lit_byte(&mut self, lit_byte: &ast::LitByte, needs_value: NeedsValue) -> Result<()> {
+        let span = lit_byte.span();
+        log::trace!("LitByte => {:?}", self.source.source(span)?);
+
+        // NB: Elide the entire literal if it's not needed.
+        if !*needs_value {
+            self.warnings.not_used(span, self.context());
+            return Ok(());
+        }
+
+        let b = lit_byte.resolve(self.source)?;
+        self.asm.push(Inst::Byte { b }, span);
+        Ok(())
+    }
+
+    /// Encode a byte string literal, like `b"foo bar"`.
+    fn compile_lit_byte_str(
+        &mut self,
+        lit_byte_str: &ast::LitByteStr,
+        needs_value: NeedsValue,
+    ) -> Result<()> {
+        let span = lit_byte_str.span();
+        log::trace!("LitByteStr => {:?}", self.source.source(span)?);
+
+        // NB: Elide the entire literal if it's not needed.
+        if !*needs_value {
+            self.warnings.not_used(span, self.context());
+            return Ok(());
+        }
+
+        let bytes = lit_byte_str.resolve(self.source)?;
+        let slot = self.unit.new_static_bytes(&*bytes)?;
+        self.asm.push(Inst::Bytes { slot }, span);
         Ok(())
     }
 
@@ -2048,10 +2087,19 @@ impl<'a> Compiler<'a> {
                 self.asm.push(Inst::IsUnit, span);
                 self.asm.jump_if(true_label, span);
             }
-            ast::Pat::PatChar(char_literal) => {
-                let span = char_literal.span();
+            ast::Pat::PatByte(lit_byte) => {
+                let span = lit_byte.span();
 
-                let character = char_literal.resolve(self.source)?;
+                let byte = lit_byte.resolve(self.source)?;
+
+                load(&mut self.asm);
+                self.asm.push(Inst::EqByte { byte }, span);
+                self.asm.jump_if(true_label, span);
+            }
+            ast::Pat::PatChar(lit_char) => {
+                let span = lit_char.span();
+
+                let character = lit_char.resolve(self.source)?;
 
                 load(&mut self.asm);
                 self.asm.push(Inst::EqCharacter { character }, span);

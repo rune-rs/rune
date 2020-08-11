@@ -63,14 +63,38 @@ pub enum ParseError {
     },
     /// Error encountered when we see a string escape sequence without a
     /// character being escaped.
-    #[error("expected string character")]
+    #[error("expected escape")]
     ExpectedStringEscape {
         /// Span that caused the error.
         span: Span,
     },
     /// Expected a string close but didn't see it.
-    #[error("expected string literal to be closed")]
-    ExpectedStringClose {
+    #[error("unterminated string literal")]
+    UnterminatedStrLit {
+        /// Span that caused the error.
+        span: Span,
+    },
+    /// Encountered an unterminated character literal.
+    #[error("unterminated character literal")]
+    UnterminatedCharLit {
+        /// The span of the unterminated literal.
+        span: Span,
+    },
+    /// Encountered an unterminated byte literal.
+    #[error("unterminated byte literal")]
+    UnterminatedByteLit {
+        /// The span of the unterminated literal.
+        span: Span,
+    },
+    /// Expected a character to be closed.
+    #[error("expected character literal to be closed")]
+    ExpectedCharClose {
+        /// Span that caused the error.
+        span: Span,
+    },
+    /// Expected a byte to be closed.
+    #[error("expected byte literal to be closed")]
+    ExpectedByteClose {
         /// Span that caused the error.
         span: Span,
     },
@@ -84,12 +108,6 @@ pub enum ParseError {
     /// character being escaped.
     #[error("expected character character")]
     ExpectedCharEscape {
-        /// Span that caused the error.
-        span: Span,
-    },
-    /// Expected a char close but didn't see it.
-    #[error("expected char literal to be closed")]
-    ExpectedCharClose {
         /// Span that caused the error.
         span: Span,
     },
@@ -113,7 +131,7 @@ pub enum ParseError {
     },
     /// Expected an expression but got something else.
     #[error("expected start of expression but got `{actual}`")]
-    ExpectedExprError {
+    ExpectedExpr {
         /// Span that caused the error.
         span: Span,
         /// The kind of the actual token we saw.
@@ -121,7 +139,7 @@ pub enum ParseError {
     },
     /// When we expect to see a loop (typically after a label).
     #[error("expected loop but got `{actual}")]
-    ExpectedLoopError {
+    ExpectedLoop {
         /// Span that caused the error.
         span: Span,
         /// The kind of the actual token we saw.
@@ -129,7 +147,7 @@ pub enum ParseError {
     },
     /// Expected a block expression but got something else.
     #[error("expected block expression but got `{actual}`")]
-    ExpectedBlockExprError {
+    ExpectedBlockExpr {
         /// Span that caused the error.
         span: Span,
         /// The kind of the actual token we saw.
@@ -145,7 +163,15 @@ pub enum ParseError {
     },
     /// Expected a number, but got something else.
     #[error("expected number but got `{actual}`")]
-    ExpectedNumberError {
+    ExpectedNumber {
+        /// Span that caused the error.
+        span: Span,
+        /// The kind of the actual token we saw.
+        actual: Kind,
+    },
+    /// Expected a byte, but got something else.
+    #[error("expected byte but got `{actual}`")]
+    ExpectedByte {
         /// Span that caused the error.
         span: Span,
         /// The kind of the actual token we saw.
@@ -153,7 +179,7 @@ pub enum ParseError {
     },
     /// Expected a char, but got something else.
     #[error("expected char but got `{actual}`")]
-    ExpectedCharError {
+    ExpectedChar {
         /// Span that caused the error.
         span: Span,
         /// The kind of the actual token we saw.
@@ -161,7 +187,7 @@ pub enum ParseError {
     },
     /// Expected a string, but got something else.
     #[error("expected string but got `{actual}`")]
-    ExpectedStringError {
+    ExpectedString {
         /// Span that caused the error.
         span: Span,
         /// The actual token kind which was not a string.
@@ -169,7 +195,7 @@ pub enum ParseError {
     },
     /// Expected an operator but got something else.
     #[error("expected operator (`+`, `-`, `/`, `*`) but got `{actual}`")]
-    ExpectedOperatorError {
+    ExpectedOperator {
         /// The location of the unexpected operator.
         span: Span,
         /// The actual token that was encountered instead of an operator.
@@ -177,7 +203,7 @@ pub enum ParseError {
     },
     /// Expected a boolean literal.
     #[error("expected `true` or `false` but got `{actual}`")]
-    ExpectedBoolError {
+    ExpectedBool {
         /// The location of the unexpected token.
         span: Span,
         /// The actual token that was encountered.
@@ -193,7 +219,7 @@ pub enum ParseError {
     },
     /// Trying to call an instance function consisting of a path.
     #[error("cannot call instance functions consisting of paths")]
-    PathCallInstanceError {
+    PathCallInstance {
         /// The location of the unexpected token.
         span: Span,
     },
@@ -231,8 +257,20 @@ pub enum ParseError {
     },
     /// A bad character literal.
     #[error("bad character literal")]
-    BadCharacterLiteral {
+    BadCharLiteral {
         /// Span containing the bad character literal.
+        span: Span,
+    },
+    /// A bad byte literal.
+    #[error("bad byte literal")]
+    BadByteLiteral {
+        /// Span containing the bad byte literal.
+        span: Span,
+    },
+    /// We tried to parse a unicode escape in a byte sequence.
+    #[error("unicode escapes are not supported as a byte or byte string")]
+    UnicodeEscapeNotSupported {
+        /// Where the bad escape is.
         span: Span,
     },
     /// Error when we encounter a bad unicode escape.
@@ -245,7 +283,15 @@ pub enum ParseError {
     #[error(
         "this form of character escape may only be used with characters in the range [\\x00-\\x7f]"
     )]
-    BadByteEscapeBounds {
+    UnsupportedUnicodeByteEscape {
+        /// Where the bad escape is.
+        span: Span,
+    },
+    /// Error when we encounter a bad byte escape in bounds.
+    #[error(
+        "this form of byte escape may only be used with characters in the range [\\x00-\\xff]"
+    )]
+    UnsupportedByteEscape {
         /// Where the bad escape is.
         span: Span,
     },
@@ -276,31 +322,38 @@ impl ParseError {
             Self::UnexpectedEof { span, .. } => span,
             Self::ExpectedEof { span, .. } => span,
             Self::ExpectedStringEscape { span, .. } => span,
+            Self::UnterminatedStrLit { span, .. } => span,
+            Self::UnterminatedCharLit { span, .. } => span,
+            Self::UnterminatedByteLit { span, .. } => span,
             Self::ExpectedCharEscape { span, .. } => span,
-            Self::ExpectedStringClose { span, .. } => span,
-            Self::ExpectedTemplateClose { span, .. } => span,
             Self::ExpectedCharClose { span, .. } => span,
+            Self::ExpectedByteClose { span, .. } => span,
+            Self::ExpectedTemplateClose { span, .. } => span,
             Self::TokenMismatch { span, .. } => span,
             Self::ExpectedPatError { span, .. } => span,
-            Self::ExpectedExprError { span, .. } => span,
-            Self::ExpectedLoopError { span, .. } => span,
-            Self::ExpectedBlockExprError { span, .. } => span,
+            Self::ExpectedExpr { span, .. } => span,
+            Self::ExpectedLoop { span, .. } => span,
+            Self::ExpectedBlockExpr { span, .. } => span,
             Self::UnexpectedChar { span, .. } => span,
-            Self::ExpectedNumberError { span, .. } => span,
-            Self::ExpectedCharError { span, .. } => span,
-            Self::ExpectedStringError { span, .. } => span,
-            Self::ExpectedOperatorError { span, .. } => span,
-            Self::ExpectedBoolError { span, .. } => span,
+            Self::ExpectedNumber { span, .. } => span,
+            Self::ExpectedByte { span, .. } => span,
+            Self::ExpectedChar { span, .. } => span,
+            Self::ExpectedString { span, .. } => span,
+            Self::ExpectedOperator { span, .. } => span,
+            Self::ExpectedBool { span, .. } => span,
             Self::ExpectedLitObjectKey { span, .. } => span,
-            Self::PathCallInstanceError { span, .. } => span,
+            Self::PathCallInstance { span, .. } => span,
             Self::ExpectedUnaryOperator { span, .. } => span,
             Self::PrecedenceGroupRequired { span, .. } => span,
             Self::BadSlice { span, .. } => span,
             Self::BadEscapeSequence { span, .. } => span,
             Self::IllegalNumberLiteral { span, .. } => span,
-            Self::BadCharacterLiteral { span, .. } => span,
+            Self::BadCharLiteral { span, .. } => span,
+            Self::BadByteLiteral { span, .. } => span,
+            Self::UnicodeEscapeNotSupported { span, .. } => span,
             Self::BadUnicodeEscape { span, .. } => span,
-            Self::BadByteEscapeBounds { span, .. } => span,
+            Self::UnsupportedUnicodeByteEscape { span, .. } => span,
+            Self::UnsupportedByteEscape { span, .. } => span,
             Self::BadByteEscape { span, .. } => span,
             Self::InvalidTemplateLiteral { span, .. } => span,
             Self::UnexpectedCloseBrace { span, .. } => span,
