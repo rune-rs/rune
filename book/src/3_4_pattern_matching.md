@@ -1,10 +1,10 @@
 # Pattern Matching
 
 In this section we will be discussing *Pattern Matching*.
-In other languages this might also be known as *unpacking* or *destructuring*.
 
 Pattern matching is a flexible mechanism that allows for validating the
-structure and type of the argument, while also assigning it to useful bindings.
+structure and type of the argument, while also destructing it to give easy
+access to what you need.
 
 Below are some examples of its most common use to match on branch conditions:
 
@@ -31,13 +31,13 @@ exactly equal to a literal.
 
 Literals take a number of form:
 
-* A literal unit, simply `()`. This is the default "value does not exist" value
-  for Rune.
-* A literal boolean, like `true`.
+* A literal unit, simply `()`.
+* A literal boolean, like `true` or `false`.
 * A literal character, like `'a'` or `'あ'`.
 * A literal integer, like `42`.
 * A string, like `"Steven Universe"`.
-* A vector, like the numbers `[4, 8, 15, 16, 23, 42]` or the empty `[]`.
+* A vector, like the numbers `[4, 8, 15, 16, 23, 42]` or the empty vector `[]`.
+* A tuple, like `("Steven Universe", 42)`.
 * An object, like the numbers `{"name": "Steven Universe"}` or the empty `{}`.
 
 Finally, literals can be *any* combination of the above.
@@ -45,16 +45,39 @@ Even `{"items": ["Sword", "Bow", "Axe"]}` is a literal that can be matched over.
 
 ## Match Bindings
 
-In terms of pattern matching, each value can also be replaced with an `_`, which
-tells Rune to *ignore* the value. Or a variable identifier like `name` which
-tells rune to bind the value to that variable.
+In a pattern, every literal value can also be replaced with an ignore directive
+or a binding.
+
+The ignore directive looks like an underscore `_`, which tells rune to *ignore*
+the value, allowing it to have any value.
+
+```rust,noplaypen
+fn test_ignore(vector) {
+    match vector {
+        [_, 42] => dbg("second item in vector is 42"),
+    }
+}
+```
+
+In contrast to ignoring, we cal also *bind* the value to a variable:
+
+```rust,noplaypen
+fn test_bind(vector) {
+    match vector {
+        [_, b] => dbg(`second item in vector is {b}`),
+    }
+}
+```
+
+Here are some more examples:
 
 * `[_, a, b]` which will ignore the first, but then capture the second and third
   element in the vector.
 * `{"name": name}` will capture the `name` value out of the specified object.
 
-The sequence `..` asks Rune to *ignore* any additional values that might be
-present when matching a vector or an object.
+Finally we can also add the sequence `..` to ask Rune to *ignore* any additional
+values in a collection that might be present when matching a vector or an
+object.
 
 ```rust,noplaypen
 /// Describe how fast the first car in the vector is.
