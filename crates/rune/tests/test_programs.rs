@@ -705,7 +705,7 @@ fn test_string_concat() {
         test! {
             String => r#"
             fn main() {
-                let foo = "foo";
+                let foo = String::from_str("foo");
                 foo += "/bar" + "/baz";
                 foo
             }

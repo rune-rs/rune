@@ -1019,6 +1019,18 @@ impl Vm {
         }
     }
 
+    /// Lookup the static string by slot, if it exists.
+    #[inline]
+    pub fn lookup_string(&self, slot: usize) -> Result<&str, VmError> {
+        self.unit.lookup_string(slot)
+    }
+
+    /// Lookup the static byte string by slot, if it exists.
+    #[inline]
+    pub fn lookup_bytes(&self, slot: usize) -> Result<&[u8], VmError> {
+        self.unit.lookup_bytes(slot)
+    }
+
     async fn op_await(&mut self) -> Result<(), VmError> {
         let value = self.pop()?;
 
@@ -1578,9 +1590,7 @@ impl Vm {
             Value::Integer(integer) => OwnedValue::Integer(integer),
             Value::Float(float) => OwnedValue::Float(float),
             Value::String(slot) => OwnedValue::String(self.string_take(slot)?),
-            Value::StaticString(slot) => {
-                OwnedValue::String(self.unit.lookup_string(slot)?.to_owned())
-            }
+            Value::StaticString(slot) => OwnedValue::String(self.lookup_string(slot)?.to_owned()),
             Value::Bytes(slot) => OwnedValue::Bytes(self.bytes_take(slot)?),
             Value::Vec(slot) => {
                 let vec = self.vec_take(slot)?;
@@ -1670,7 +1680,7 @@ impl Vm {
             Value::Integer(integer) => ValueRef::Integer(integer),
             Value::Float(float) => ValueRef::Float(float),
             Value::String(slot) => ValueRef::String(self.string_ref(slot)?),
-            Value::StaticString(slot) => ValueRef::StaticString(self.unit.lookup_string(slot)?),
+            Value::StaticString(slot) => ValueRef::StaticString(self.lookup_string(slot)?),
             Value::Bytes(slot) => ValueRef::Bytes(self.bytes_ref(slot)?),
             Value::Vec(slot) => {
                 let vec = self.vec_ref(slot)?;
@@ -1833,13 +1843,13 @@ impl Vm {
                 *a == *b
             }
             (Value::StaticString(a), Value::String(b)) => {
-                let a = self.unit.lookup_string(a)?;
+                let a = self.lookup_string(a)?;
                 let b = self.string_ref(b)?;
                 a == *b
             }
             (Value::String(a), Value::StaticString(b)) => {
                 let a = self.string_ref(a)?;
-                let b = self.unit.lookup_string(b)?;
+                let b = self.lookup_string(b)?;
                 *a == b
             }
             // fast string comparison: exact string slot.
@@ -1933,7 +1943,7 @@ impl Vm {
         while let Value::Object(target) = target {
             let index = match index {
                 Value::String(index) => self.string_take(index)?,
-                Value::StaticString(slot) => self.unit.lookup_string(slot)?.to_owned(),
+                Value::StaticString(slot) => self.lookup_string(slot)?.to_owned(),
                 _ => break,
             };
 
@@ -1983,7 +1993,7 @@ impl Vm {
                     string_ref = self.string_ref(index)?;
                     string_ref.as_str()
                 }
-                Value::StaticString(slot) => self.unit.lookup_string(slot)?,
+                Value::StaticString(slot) => self.lookup_string(slot)?,
                 _ => break,
             };
 
@@ -2075,7 +2085,7 @@ impl Vm {
 
         let value = match target {
             Value::Object(slot) => {
-                let index = self.unit.lookup_string(string_slot)?;
+                let index = self.lookup_string(string_slot)?;
 
                 let vec = self.object_ref(slot)?;
 
@@ -2130,7 +2140,7 @@ impl Vm {
                     buf.push_str(&*string);
                 }
                 Value::StaticString(slot) => {
-                    let string = self.unit.lookup_string(slot)?;
+                    let string = self.lookup_string(slot)?;
                     buf.push_str(string);
                 }
                 Value::Integer(integer) => {
@@ -2294,19 +2304,18 @@ impl Vm {
     #[inline]
     fn op_eq_static_string(&mut self, slot: usize) -> Result<(), VmError> {
         let value = self.stack.pop()?;
-        let string = self.unit.lookup_string(slot)?;
 
-        self.stack.push(Value::Bool(match value {
-            Value::String(slot) => {
-                let actual = self.string_ref(slot)?;
+        let equal = match value {
+            Value::String(actual) => {
+                let string = self.lookup_string(slot)?;
+                let actual = self.string_ref(actual)?;
                 *actual == string
             }
-            Value::StaticString(slot) => {
-                let actual = self.unit.lookup_string(slot)?;
-                actual == string
-            }
+            Value::StaticString(actual) => actual == slot,
             _ => false,
-        }));
+        };
+
+        self.stack.push(Value::Bool(equal));
 
         Ok(())
     }
@@ -2660,12 +2669,7 @@ impl Vm {
                 Inst::Byte { b } => {
                     self.push(Value::Byte(b));
                 }
-                Inst::String { slot } => {
-                    let string = self.unit.lookup_string(slot)?.to_owned();
-                    // TODO: do something sneaky to only allocate the static string once.
-                    let value = self.string_allocate(string);
-                    self.push(value);
-                }
+                Inst::String { slot } => self.push(Value::StaticString(slot)),
                 Inst::Bytes { slot } => {
                     let bytes = self.unit.lookup_bytes(slot)?.to_owned();
                     // TODO: do something sneaky to only allocate the static byte string once.

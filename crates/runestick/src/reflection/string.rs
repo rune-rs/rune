@@ -36,8 +36,13 @@ impl ToValue for String {
 
 impl FromValue for String {
     fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-        let slot = value.into_string(vm)?;
-        vm.string_take(slot)
+        match value {
+            Value::String(slot) => Ok(vm.string_take(slot)?),
+            Value::StaticString(slot) => Ok(vm.lookup_string(slot)?.to_owned()),
+            actual => Err(VmError::ExpectedString {
+                actual: actual.type_info(vm)?,
+            }),
+        }
     }
 }
 
