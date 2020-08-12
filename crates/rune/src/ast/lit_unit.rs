@@ -49,12 +49,8 @@ impl Peek for LitUnit {
         matches! {
             (p1.kind, p2.kind),
             (
-                Kind::Open {
-                    delimiter: Delimiter::Parenthesis,
-                },
-                Kind::Close {
-                    delimiter: Delimiter::Parenthesis,
-                },
+                Kind::Open(Delimiter::Parenthesis),
+                Kind::Close(Delimiter::Parenthesis),
             )
         }
     }

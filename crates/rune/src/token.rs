@@ -129,15 +129,11 @@ pub enum Kind {
         escaped: bool,
     },
     /// An open delimiter: `(`, `{`, or `[`.
-    Open {
-        /// The delimiter being opened.
-        delimiter: Delimiter,
-    },
+    Open(Delimiter),
     /// A close delimiter: `)`, `}`, or `]`.
-    Close {
-        /// The delimiter being closed.
-        delimiter: Delimiter,
-    },
+    Close(Delimiter),
+    /// A hash `#`.
+    Hash,
     /// A dot `.`.
     Dot,
     /// A scope `::`.
@@ -188,8 +184,6 @@ pub enum Kind {
     Not,
     /// Try operator `?`.
     Try,
-    /// A start object indicator `#{`.
-    StartObject,
     /// Double dots `..`.
     DotDot,
     /// And operator.
@@ -228,11 +222,12 @@ impl fmt::Display for Kind {
             Self::LitTemplate { .. } => write!(fmt, "template")?,
             Self::LitChar { .. } => write!(fmt, "char")?,
             Self::LitByte { .. } => write!(fmt, "byte")?,
-            Self::Open { delimiter } => write!(fmt, "{}", delimiter.open())?,
-            Self::Close { delimiter } => write!(fmt, "{}", delimiter.close())?,
+            Self::Open(delimiter) => write!(fmt, "{}", delimiter.open())?,
+            Self::Close(delimiter) => write!(fmt, "{}", delimiter.close())?,
             Self::Underscore => write!(fmt, "_")?,
             Self::Comma => write!(fmt, ",")?,
             Self::Colon => write!(fmt, ":")?,
+            Self::Hash => write!(fmt, "#")?,
             Self::Dot => write!(fmt, ".")?,
             Self::Scope => write!(fmt, "::")?,
             Self::SemiColon => write!(fmt, ";")?,
@@ -255,7 +250,6 @@ impl fmt::Display for Kind {
             Self::Gte => write!(fmt, ">=")?,
             Self::Not => write!(fmt, "!")?,
             Self::Try => write!(fmt, "?")?,
-            Self::StartObject => write!(fmt, "#{{")?,
             Self::DotDot => write!(fmt, "..")?,
             Self::And => write!(fmt, "&&")?,
             Self::Or => write!(fmt, "||")?,

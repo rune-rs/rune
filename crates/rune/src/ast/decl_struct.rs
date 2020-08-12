@@ -62,12 +62,8 @@ impl Parse for DeclStructBody {
         let token = parser.token_peek()?;
 
         Ok(match token.map(|t| t.kind) {
-            Some(Kind::Open {
-                delimiter: Delimiter::Parenthesis,
-            }) => Self::TupleBody(parser.parse()?),
-            Some(Kind::Open {
-                delimiter: Delimiter::Brace,
-            }) => Self::StructBody(parser.parse()?),
+            Some(Kind::Open(Delimiter::Parenthesis)) => Self::TupleBody(parser.parse()?),
+            Some(Kind::Open(Delimiter::Brace)) => Self::StructBody(parser.parse()?),
             _ => Self::EmptyBody(parser.parse()?),
         })
     }

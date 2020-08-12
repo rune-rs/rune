@@ -1,3 +1,4 @@
+use crate::collections::HashSet;
 use crate::context::Item;
 use std::fmt;
 
@@ -8,6 +9,8 @@ pub enum Meta {
     MetaTuple(MetaTuple),
     /// Metadata about a type.
     MetaType(MetaType),
+    /// An external type.
+    MetaExternal(MetaExternal),
 }
 
 impl fmt::Display for Meta {
@@ -19,6 +22,9 @@ impl fmt::Display for Meta {
             Self::MetaType(ty) => {
                 write!(fmt, "{item}", item = ty.item)?;
             }
+            Self::MetaExternal(ty) => {
+                write!(fmt, "{item}", item = ty.item)?;
+            }
         }
 
         Ok(())
@@ -27,9 +33,18 @@ impl fmt::Display for Meta {
 
 /// The metadata about a type.
 #[derive(Debug, Clone)]
+pub struct MetaExternal {
+    /// The path to the type.
+    pub item: Item,
+}
+
+/// The metadata about a type.
+#[derive(Debug, Clone)]
 pub struct MetaType {
     /// The path to the type.
     pub item: Item,
+    /// Fields associated with the type.
+    pub fields: HashSet<String>,
 }
 
 /// The metadata about a variant.

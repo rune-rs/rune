@@ -7,6 +7,36 @@ use crate::traits::{Parse, Resolve};
 use runestick::unit::Span;
 use std::borrow::Cow;
 
+/// A literal object identifier.
+#[derive(Debug, Clone)]
+pub enum LitObjectIdent {
+    /// An anonymous object.
+    Anonymous(ast::Hash),
+    /// A named object.
+    Named(ast::Path),
+}
+
+impl LitObjectIdent {
+    /// Get the span of the identifier.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Anonymous(hash) => hash.span(),
+            Self::Named(path) => path.span(),
+        }
+    }
+}
+
+impl Parse for LitObjectIdent {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let token = parser.token_peek_eof()?;
+
+        Ok(match token.kind {
+            Kind::Hash => Self::Anonymous(parser.parse()?),
+            _ => Self::Named(parser.parse()?),
+        })
+    }
+}
+
 /// Possible literal object keys.
 #[derive(Debug, Clone)]
 pub enum LitObjectKey {
@@ -70,8 +100,10 @@ impl<'a> Resolve<'a> for LitObjectKey {
 /// A number literal.
 #[derive(Debug, Clone)]
 pub struct LitObject {
+    /// An object identifier.
+    pub ident: LitObjectIdent,
     /// The open bracket.
-    pub open: ast::StartObject,
+    pub open: ast::OpenBrace,
     /// Items in the object declaration.
     pub items: Vec<(LitObjectKey, ast::Colon, ast::Expr)>,
     /// The close bracket.
@@ -84,30 +116,19 @@ pub struct LitObject {
 impl LitObject {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
+        self.ident.span().join(self.close.span())
     }
 
     /// Test if the entire expression is constant.
     pub fn is_const(&self) -> bool {
         self.is_const
     }
-}
 
-/// Parse an object literal.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::LitObject>("#{\"foo\": 42}")?;
-/// parse_all::<ast::LitObject>("#{\"foo\": 42,}")?;
-/// # Ok(())
-/// # }
-/// ```
-impl Parse for LitObject {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+    /// Parse a literal object with the given path.
+    pub fn parse_with_ident(
+        parser: &mut Parser<'_>,
+        ident: ast::LitObjectIdent,
+    ) -> Result<Self, ParseError> {
         let open = parser.parse()?;
 
         let mut items = Vec::new();
@@ -133,11 +154,31 @@ impl Parse for LitObject {
         }
 
         let close = parser.parse()?;
+
         Ok(Self {
+            ident,
             open,
             items,
             close,
             is_const,
         })
+    }
+}
+
+/// Parse an object literal.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::LitObject>("Foo {\"foo\": 42}").unwrap();
+/// parse_all::<ast::LitObject>("#{\"foo\": 42}").unwrap();
+/// parse_all::<ast::LitObject>("#{\"foo\": 42,}").unwrap();
+/// ```
+impl Parse for LitObject {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let ident = parser.parse()?;
+        Self::parse_with_ident(parser, ident)
     }
 }

@@ -8,7 +8,8 @@ use crate::reflection::{FromValue, IntoArgs};
 use crate::tls;
 use crate::unit::{CompilationUnit, UnitFnKind};
 use crate::value::{
-    OwnedTypedTuple, OwnedValue, Slot, TypedTuple, TypedTupleRef, Value, ValueRef, ValueTypeInfo,
+    Object, OwnedTypedObject, OwnedTypedTuple, OwnedValue, Slot, TypedObject, TypedObjectRef,
+    TypedTuple, TypedTupleRef, Value, ValueRef, ValueTypeInfo,
 };
 use std::any;
 use std::cell::UnsafeCell;
@@ -1142,14 +1143,14 @@ impl Vm {
 
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
-    fn do_copy(&mut self, offset: usize) -> Result<(), VmError> {
+    fn op_copy(&mut self, offset: usize) -> Result<(), VmError> {
         let value = self.stack.at_offset(offset)?;
         self.stack.push(value);
         Ok(())
     }
 
     /// Duplicate the value at the top of the stack.
-    fn do_dup(&mut self) -> Result<(), VmError> {
+    fn op_dup(&mut self) -> Result<(), VmError> {
         let value = self.stack.last()?;
         self.stack.push(value);
         Ok(())
@@ -1157,10 +1158,38 @@ impl Vm {
 
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
-    fn do_replace(&mut self, offset: usize) -> Result<(), VmError> {
+    fn op_replace(&mut self, offset: usize) -> Result<(), VmError> {
         let mut value = self.stack.pop()?;
         let stack_value = self.stack.at_offset_mut(offset)?;
         mem::swap(stack_value, &mut value);
+        Ok(())
+    }
+
+    fn op_gt(&mut self) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+        self.push(Value::Bool(primitive_ops!(self, a > b)));
+        Ok(())
+    }
+
+    fn op_gte(&mut self) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+        self.push(Value::Bool(primitive_ops!(self, a >= b)));
+        Ok(())
+    }
+
+    fn op_lt(&mut self) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+        self.push(Value::Bool(primitive_ops!(self, a < b)));
+        Ok(())
+    }
+
+    fn op_lte(&mut self) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+        self.push(Value::Bool(primitive_ops!(self, a <= b)));
         Ok(())
     }
 
@@ -1408,6 +1437,15 @@ impl Vm {
         typed_tuple_ref,
         typed_tuple_mut,
         typed_tuple_take,
+    }
+
+    impl_slot_functions! {
+        TypedObject,
+        TypedObject,
+        typed_object_allocate,
+        typed_object_ref,
+        typed_object_mut,
+        typed_object_take,
     }
 
     /// Get a reference of the external value of the given type and the given
@@ -1686,6 +1724,15 @@ impl Vm {
 
                 OwnedValue::Result(result)
             }
+            Value::TypedObject(slot) => {
+                let typed_object = self.typed_object_take(slot)?;
+                let object = value_take_object(self, typed_object.object)?;
+
+                OwnedValue::TypedObject(OwnedTypedObject {
+                    ty: typed_object.ty,
+                    object,
+                })
+            }
             Value::TypedTuple(slot) => {
                 let typed_tuple = self.typed_tuple_take(slot)?;
                 let tuple = value_take_tuple(self, &*typed_tuple.tuple)?;
@@ -1790,6 +1837,12 @@ impl Vm {
                     self.value_ref_typed_tuple_ref(typed_tuple.ty, &*typed_tuple.tuple)?;
                 ValueRef::TypedTuple(typed_tuple)
             }
+            Value::TypedObject(slot) => {
+                let typed_object = self.typed_object_ref(slot)?;
+                let typed_object =
+                    self.value_ref_typed_object_ref(typed_object.ty, &typed_object.object)?;
+                ValueRef::TypedObject(typed_object)
+            }
         })
     }
 
@@ -1845,6 +1898,21 @@ impl Vm {
             ty,
             tuple: output.into_boxed_slice(),
         })
+    }
+
+    /// Convert the given typed tuple values into a typed tuple.
+    fn value_ref_typed_object_ref<'vm>(
+        &'vm self,
+        ty: Hash,
+        object: &Object<Value>,
+    ) -> Result<TypedObjectRef<'vm>, VmError> {
+        let mut output = Object::with_capacity(object.len());
+
+        for (key, value) in object {
+            output.insert(key.clone(), self.value_ref(*value)?);
+        }
+
+        Ok(TypedObjectRef { ty, object: output })
     }
 
     /// Pop the last value on the stack and evaluate it as `T`.
@@ -1956,8 +2024,8 @@ impl Vm {
     /// Optimized inequality implementation.
     #[inline]
     fn op_neq(&mut self) -> Result<(), VmError> {
-        let a = self.stack.pop()?;
         let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
         self.push(Value::Bool(!self.value_ptr_eq(a, b)?));
         Ok(())
     }
@@ -2170,10 +2238,20 @@ impl Vm {
         let value = match target {
             Value::Object(slot) => {
                 let index = self.lookup_string(string_slot)?;
+                let object = self.object_ref(slot)?;
 
-                let vec = self.object_ref(slot)?;
+                match object.get(index).copied() {
+                    Some(value) => value,
+                    None => {
+                        return Err(VmError::ObjectIndexMissing { slot: string_slot });
+                    }
+                }
+            }
+            Value::TypedObject(slot) => {
+                let index = self.lookup_string(string_slot)?;
+                let typed_object = self.typed_object_ref(slot)?;
 
-                match vec.get(index).copied() {
+                match typed_object.object.get(index).copied() {
                     Some(value) => value,
                     None => {
                         return Err(VmError::ObjectIndexMissing { slot: string_slot });
@@ -2198,7 +2276,7 @@ impl Vm {
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
-        let mut object = HashMap::with_capacity(keys.len());
+        let mut object = Object::with_capacity(keys.len());
 
         for key in keys {
             let value = self.stack.pop()?;
@@ -2206,6 +2284,28 @@ impl Vm {
         }
 
         let value = self.object_allocate(object);
+        self.push(value);
+        Ok(())
+    }
+
+    /// Operation to allocate an object.
+    #[inline]
+    fn op_typed_object(&mut self, ty: Hash, slot: usize) -> Result<(), VmError> {
+        let keys = self
+            .unit
+            .lookup_object_keys(slot)
+            .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
+
+        let mut object = Object::with_capacity(keys.len());
+
+        for key in keys {
+            let value = self.stack.pop()?;
+            object.insert(key.clone(), value);
+        }
+
+        let object = TypedObject { ty, object };
+
+        let value = self.typed_object_allocate(object);
         self.push(value);
         Ok(())
     }
@@ -2300,12 +2400,16 @@ impl Vm {
 
     #[inline]
     fn op_is(&mut self, context: &Context) -> Result<(), VmError> {
-        let a = self.stack.pop()?;
         let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
 
         match (a, b) {
             (Value::TypedTuple(slot), Value::Type(hash)) => {
                 let matches = self.typed_tuple_ref(slot)?.ty == hash;
+                self.push(Value::Bool(matches))
+            }
+            (Value::TypedObject(slot), Value::Type(hash)) => {
+                let matches = self.typed_object_ref(slot)?.ty == hash;
                 self.push(Value::Bool(matches))
             }
             (Value::Option(slot), Value::Type(hash)) => {
@@ -2339,11 +2443,17 @@ impl Vm {
             (a, Value::Type(hash)) => {
                 let a = a.value_type(self)?;
 
-                let type_info = context
-                    .lookup_type(hash)
-                    .ok_or_else(|| VmError::MissingType { hash })?;
+                let value_type = match self.unit.lookup_type(hash) {
+                    Some(ty) => ty.value_type,
+                    None => {
+                        context
+                            .lookup_type(hash)
+                            .ok_or_else(|| VmError::MissingType { hash })?
+                            .value_type
+                    }
+                };
 
-                self.push(Value::Bool(a == type_info.value_type));
+                self.push(Value::Bool(a == value_type));
             }
             (a, b) => {
                 let a = a.type_info(self)?;
@@ -2398,8 +2508,8 @@ impl Vm {
     /// Operation associated with `and` instruction.
     #[inline]
     fn op_and(&mut self) -> Result<(), VmError> {
-        let a = self.stack.pop()?;
         let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
         let value = boolean_ops!(self, a && b);
         self.push(Value::Bool(value));
         Ok(())
@@ -2408,8 +2518,8 @@ impl Vm {
     /// Operation associated with `or` instruction.
     #[inline]
     fn op_or(&mut self) -> Result<(), VmError> {
-        let a = self.stack.pop()?;
         let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
         let value = boolean_ops!(self, a || b);
         self.push(Value::Bool(value));
         Ok(())
@@ -2447,6 +2557,40 @@ impl Vm {
         };
 
         self.push(Value::Bool(result.unwrap_or_default()));
+        Ok(())
+    }
+
+    #[inline]
+    fn op_match_object(
+        &mut self,
+        object_like: bool,
+        slot: usize,
+        exact: bool,
+    ) -> Result<(), VmError> {
+        let result = self.on_object_keys(object_like, slot, |object, keys| {
+            if exact {
+                if object.len() != keys.len() {
+                    return false;
+                }
+            } else {
+                if object.len() < keys.len() {
+                    return false;
+                }
+            }
+
+            let mut is_match = true;
+
+            for key in keys {
+                if !object.contains_key(key) {
+                    is_match = false;
+                    break;
+                }
+            }
+
+            is_match
+        })?;
+
+        self.stack.push(Value::Bool(result.unwrap_or_default()));
         Ok(())
     }
 
@@ -2504,9 +2648,14 @@ impl Vm {
     }
 
     #[inline]
-    fn match_object<F>(&mut self, slot: usize, f: F) -> Result<(), VmError>
+    fn on_object_keys<F, O>(
+        &mut self,
+        object_like: bool,
+        slot: usize,
+        f: F,
+    ) -> Result<Option<O>, VmError>
     where
-        F: FnOnce(&HashMap<String, Value>, usize) -> bool,
+        F: FnOnce(&Object<Value>, &[String]) -> O,
     {
         let value = self.stack.pop()?;
 
@@ -2515,30 +2664,17 @@ impl Vm {
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
-        let object = match value {
-            Value::Object(slot) => self.object_ref(slot)?,
-            _ => {
-                self.push(Value::Bool(false));
-                return Ok(());
+        Ok(match value {
+            Value::Object(slot) => {
+                let object = self.object_ref(slot)?;
+                Some(f(&*object, keys))
             }
-        };
-
-        if !f(&*object, keys.len()) {
-            self.push(Value::Bool(false));
-            return Ok(());
-        }
-
-        let mut is_match = true;
-
-        for key in keys {
-            if !object.contains_key(key) {
-                is_match = false;
-                break;
+            Value::TypedObject(slot) if object_like => {
+                let object = self.typed_object_ref(slot)?;
+                Some(f(&object.object, keys))
             }
-        }
-
-        self.push(Value::Bool(is_match));
-        Ok(())
+            _ => None,
+        })
     }
 
     /// Evaluate a single instruction.
@@ -2560,8 +2696,8 @@ impl Vm {
                     self.op_not()?;
                 }
                 Inst::Add => {
-                    let a = self.stack.pop()?;
                     let b = self.stack.pop()?;
+                    let a = self.stack.pop()?;
                     numeric_ops!(self, context, crate::ADD, +, a.checked_add(b), Overflow);
                 }
                 Inst::AddAssign { offset } => {
@@ -2574,8 +2710,8 @@ impl Vm {
                     *self.stack.at_offset_mut(offset)? = value;
                 }
                 Inst::Sub => {
-                    let a = self.stack.pop()?;
                     let b = self.stack.pop()?;
+                    let a = self.stack.pop()?;
                     numeric_ops!(self, context, crate::SUB, -, a.checked_sub(b), Underflow);
                 }
                 Inst::SubAssign { offset } => {
@@ -2587,8 +2723,8 @@ impl Vm {
                     *self.stack.at_offset_mut(offset)? = value;
                 }
                 Inst::Mul => {
-                    let a = self.stack.pop()?;
                     let b = self.stack.pop()?;
+                    let a = self.stack.pop()?;
                     numeric_ops!(self, context, crate::MUL, *, a.checked_mul(b), Overflow);
                 }
                 Inst::MulAssign { offset } => {
@@ -2600,8 +2736,8 @@ impl Vm {
                     *self.stack.at_offset_mut(offset)? = value;
                 }
                 Inst::Div => {
-                    let a = self.stack.pop()?;
                     let b = self.stack.pop()?;
+                    let a = self.stack.pop()?;
                     numeric_ops!(self, context, crate::DIV, /, a.checked_div(b), DivideByZero);
                 }
                 Inst::DivAssign { offset } => {
@@ -2713,33 +2849,25 @@ impl Vm {
                     self.push(Value::Float(number));
                 }
                 Inst::Copy { offset } => {
-                    self.do_copy(offset)?;
+                    self.op_copy(offset)?;
                 }
                 Inst::Dup => {
-                    self.do_dup()?;
+                    self.op_dup()?;
                 }
                 Inst::Replace { offset } => {
-                    self.do_replace(offset)?;
+                    self.op_replace(offset)?;
                 }
                 Inst::Gt => {
-                    let a = self.stack.pop()?;
-                    let b = self.stack.pop()?;
-                    self.push(Value::Bool(primitive_ops!(self, a > b)));
+                    self.op_gt()?;
                 }
                 Inst::Gte => {
-                    let a = self.stack.pop()?;
-                    let b = self.stack.pop()?;
-                    self.push(Value::Bool(primitive_ops!(self, a >= b)));
+                    self.op_gte()?;
                 }
                 Inst::Lt => {
-                    let a = self.stack.pop()?;
-                    let b = self.stack.pop()?;
-                    self.push(Value::Bool(primitive_ops!(self, a < b)));
+                    self.op_lt()?;
                 }
                 Inst::Lte => {
-                    let a = self.stack.pop()?;
-                    let b = self.stack.pop()?;
-                    self.push(Value::Bool(primitive_ops!(self, a <= b)));
+                    self.op_lte()?;
                 }
                 Inst::Eq => {
                     self.op_eq()?;
@@ -2785,6 +2913,9 @@ impl Vm {
                 }
                 Inst::Object { slot } => {
                     self.op_object(slot)?;
+                }
+                Inst::TypedObject { ty, slot } => {
+                    self.op_typed_object(ty, slot)?;
                 }
                 Inst::Type { hash } => {
                     self.push(Value::Type(hash));
@@ -2874,12 +3005,12 @@ impl Vm {
                 } => {
                     self.op_match_tuple(tuple_like, len, exact)?;
                 }
-                Inst::MatchObject { slot, exact } => {
-                    if exact {
-                        self.match_object(slot, |object, len| object.len() == len)?;
-                    } else {
-                        self.match_object(slot, |object, len| object.len() >= len)?;
-                    }
+                Inst::MatchObject {
+                    object_like,
+                    slot,
+                    exact,
+                } => {
+                    self.op_match_object(object_like, slot, exact)?;
                 }
                 Inst::Panic { reason } => {
                     return Err(VmError::Panic { reason });

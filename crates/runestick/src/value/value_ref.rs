@@ -3,6 +3,7 @@ use crate::bytes::Bytes;
 use crate::collections::HashMap;
 use crate::future::Future;
 use crate::hash::Hash;
+use crate::value::Object;
 use crate::vm::Ref;
 
 /// A typed tuple reference.
@@ -12,6 +13,15 @@ pub struct TypedTupleRef<'vm> {
     pub ty: Hash,
     /// The interior tuple.
     pub tuple: Box<[ValueRef<'vm>]>,
+}
+
+/// A typed object reference.
+#[derive(Debug)]
+pub struct TypedObjectRef<'vm> {
+    /// The hash of the typed object.
+    pub ty: Hash,
+    /// The interior object.
+    pub object: Object<ValueRef<'vm>>,
 }
 
 /// A value peeked out of the stack.
@@ -53,4 +63,6 @@ pub enum ValueRef<'vm> {
     Result(Result<Box<ValueRef<'vm>>, Box<ValueRef<'vm>>>),
     /// A typed tuple.
     TypedTuple(TypedTupleRef<'vm>),
+    /// A typed object.
+    TypedObject(TypedObjectRef<'vm>),
 }

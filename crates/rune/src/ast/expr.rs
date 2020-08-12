@@ -82,8 +82,6 @@ pub enum Expr {
     LitTuple(ast::LitTuple),
     /// A literal await.
     LitAwait(ast::Await),
-    /// A literal struct declaration.
-    LitStruct(ast::LitStruct),
     /// A grouped expression.
     ExprGroup(ast::ExprGroup),
     /// A binary expression.
@@ -145,7 +143,6 @@ impl Expr {
             Self::LitObject(expr) => expr.span(),
             Self::LitTuple(expr) => expr.span(),
             Self::LitAwait(expr) => expr.span(),
-            Self::LitStruct(expr) => expr.span(),
             Self::LitNumber(expr) => expr.span(),
             Self::LitByte(expr) => expr.span(),
             Self::LitChar(expr) => expr.span(),
@@ -211,8 +208,10 @@ impl Expr {
         let path = parser.parse::<Path>()?;
 
         if *eager_brace && parser.peek::<ast::OpenBrace>()? {
-            return Ok(Self::LitStruct(ast::LitStruct::parse_with_path(
-                parser, path,
+            let ident = ast::LitObjectIdent::Named(path);
+
+            return Ok(Self::LitObject(ast::LitObject::parse_with_ident(
+                parser, ident,
             )?));
         }
 
@@ -303,7 +302,7 @@ impl Expr {
                     }
                 });
             }
-            Kind::StartObject => Self::LitObject(parser.parse()?),
+            Kind::Hash => Self::LitObject(parser.parse()?),
             Kind::Await => Self::LitAwait(parser.parse()?),
             Kind::Not | Kind::Ampersand | Kind::Mul => Self::ExprUnary(parser.parse()?),
             Kind::While => Self::ExprWhile(parser.parse()?),
@@ -318,21 +317,15 @@ impl Expr {
             Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
             Kind::LitByteStr { .. } => Self::LitByteStr(parser.parse()?),
             Kind::LitTemplate { .. } => Self::LitTemplate(parser.parse()?),
-            Kind::Open {
-                delimiter: Delimiter::Parenthesis,
-            } => Self::parse_open_paren(parser)?,
-            Kind::Open {
-                delimiter: Delimiter::Bracket,
-            } => Self::LitVec(parser.parse()?),
-            Kind::Open {
-                delimiter: Delimiter::Brace,
-            } => Self::ExprBlock(parser.parse()?),
+            Kind::Open(Delimiter::Parenthesis) => Self::parse_open_paren(parser)?,
+            Kind::Open(Delimiter::Bracket) => Self::LitVec(parser.parse()?),
+            Kind::Open(Delimiter::Brace) => Self::ExprBlock(parser.parse()?),
             Kind::True | Kind::False => Self::LitBool(parser.parse()?),
             Kind::Ident => match parser.token_peek2()?.map(|t| t.kind) {
                 Some(kind) => match kind {
-                    Kind::Open {
-                        delimiter: Delimiter::Bracket,
-                    } if !*no_index => Self::parse_indexing_op(parser, eager_brace)?,
+                    Kind::Open(Delimiter::Bracket) if !*no_index => {
+                        Self::parse_indexing_op(parser, eager_brace)?
+                    }
                     _ => Self::parse_ident_start(parser, eager_brace)?,
                 },
                 None => Self::parse_ident_start(parser, eager_brace)?,
@@ -358,9 +351,7 @@ impl Expr {
     ) -> Result<Self, ParseError> {
         while let Some(token) = parser.token_peek()? {
             match token.kind {
-                Kind::Open {
-                    delimiter: Delimiter::Bracket,
-                } if !*no_index => {
+                Kind::Open(Delimiter::Bracket) if !*no_index => {
                     expr = Expr::ExprIndexGet(ExprIndexGet {
                         target: Box::new(expr),
                         open: parser.parse()?,
@@ -502,7 +493,7 @@ impl Peek for Expr {
         match t1.kind {
             Kind::Select => true,
             Kind::Label => matches!(t2.map(|t| t.kind), Some(Kind::Colon)),
-            Kind::StartObject => true,
+            Kind::Hash => true,
             Kind::Await => true,
             Kind::Not | Kind::Ampersand | Kind::Mul => true,
             Kind::While => true,
@@ -516,15 +507,9 @@ impl Peek for Expr {
             Kind::LitStr { .. } => true,
             Kind::LitByteStr { .. } => true,
             Kind::LitTemplate { .. } => true,
-            Kind::Open {
-                delimiter: Delimiter::Parenthesis,
-            } => true,
-            Kind::Open {
-                delimiter: Delimiter::Bracket,
-            } => true,
-            Kind::Open {
-                delimiter: Delimiter::Brace,
-            } => true,
+            Kind::Open(Delimiter::Parenthesis) => true,
+            Kind::Open(Delimiter::Bracket) => true,
+            Kind::Open(Delimiter::Brace) => true,
             Kind::True | Kind::False => true,
             Kind::Ident => true,
             Kind::Break => true,

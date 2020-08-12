@@ -42,6 +42,8 @@ pub enum ValueType {
     Result,
     /// A typed tuple,
     TypedTuple(Hash),
+    /// A typed object,
+    TypedObject(Hash),
 }
 
 #[cfg(test)]

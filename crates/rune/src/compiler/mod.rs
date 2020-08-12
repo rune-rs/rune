@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::collections::HashMap;
+use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
@@ -64,8 +64,16 @@ where
             meta
         }
         ast::DeclStructBody::StructBody(st) => {
+            let mut fields = HashSet::new();
+
+            for (ident, _) in &st.fields {
+                let ident = ident.resolve(source)?;
+                fields.insert(ident.to_owned());
+            }
+
             let meta = Meta::MetaType(MetaType {
                 item: Item::of(item),
+                fields,
             });
 
             let mut fields = HashMap::new();
@@ -434,9 +442,6 @@ impl<'a, 'm> Compiler<'a, 'm> {
             ast::Expr::LitAwait(lit_await) => {
                 self.compile_lit_await(lit_await, needs_value)?;
             }
-            ast::Expr::LitStruct(lit_struct) => {
-                self.compile_lit_struct(lit_struct, needs_value)?;
-            }
         }
 
         Ok(())
@@ -487,12 +492,14 @@ impl<'a, 'm> Compiler<'a, 'm> {
         }
 
         let mut keys = Vec::new();
+        let mut check_keys = Vec::new();
         let mut keys_dup = HashMap::new();
 
         for (key, _, _) in &lit_object.items {
             let span = key.span();
             let key = key.resolve(self.source)?;
             keys.push(key.to_string());
+            check_keys.push((key.to_string(), span));
 
             if let Some(existing) = keys_dup.insert(key, span) {
                 return Err(CompileError::DuplicateObjectKey {
@@ -521,7 +528,44 @@ impl<'a, 'm> Compiler<'a, 'm> {
 
         let slot = self.unit.new_static_object_keys(&keys)?;
 
-        self.asm.push(Inst::Object { slot }, span);
+        match &lit_object.ident {
+            ast::LitObjectIdent::Named(path) => {
+                let item = self.convert_path_to_item(path)?;
+
+                let meta = match self.lookup_meta(&item) {
+                    Some(meta) => meta,
+                    None => {
+                        return Err(CompileError::MissingType { span, item });
+                    }
+                };
+
+                let ty = match meta {
+                    Meta::MetaType(ty) => ty,
+                    _ => {
+                        return Err(CompileError::UnsupportedLitObject { span, item });
+                    }
+                };
+
+                let mut fields = ty.fields.clone();
+
+                for (field, span) in check_keys {
+                    if !fields.remove(&field) {
+                        return Err(CompileError::LitObjectNotField { span, field, item });
+                    }
+                }
+
+                for field in fields {
+                    return Err(CompileError::LitObjectMissingField { span, field, item });
+                }
+
+                let ty = Hash::of_type(&item);
+                self.asm.push(Inst::TypedObject { ty, slot }, span);
+            }
+            ast::LitObjectIdent::Anonymous(..) => {
+                self.asm.push(Inst::Object { slot }, span);
+            }
+        }
+
         Ok(())
     }
 
@@ -650,13 +694,6 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let span = await_.span();
         log::trace!("Await => {:?}", self.source.source(span)?);
         Err(CompileError::UnsupportedAwait { span })
-    }
-
-    /// Compile a struct literal.
-    fn compile_lit_struct(&mut self, await_: &ast::LitStruct, _: NeedsValue) -> Result<()> {
-        let span = await_.span();
-        log::trace!("LitStruct => {:?}", self.source.source(span)?);
-        Err(CompileError::internal("not implemented yet", span))
     }
 
     fn compile_lit_unit(&mut self, lit_unit: &ast::LitUnit, needs_value: NeedsValue) -> Result<()> {
@@ -1256,7 +1293,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 let hash = Hash::function(&item);
                 self.asm.push(Inst::Call { hash, args: 0 }, span);
             }
-            Meta::MetaTuple(..) | Meta::MetaType(..) => {
+            _ => {
                 let hash = Hash::of_type(&item);
                 self.asm.push(Inst::Type { hash }, span);
             }
@@ -1464,8 +1501,8 @@ impl<'a, 'm> Compiler<'a, 'm> {
             _ => (),
         }
 
-        self.compile_expr(&*expr_binary.rhs, NeedsValue(true))?;
         self.compile_expr(&*expr_binary.lhs, NeedsValue(true))?;
+        self.compile_expr(&*expr_binary.rhs, NeedsValue(true))?;
 
         match expr_binary.op {
             ast::BinOp::Add { .. } => {
@@ -1895,13 +1932,53 @@ impl<'a, 'm> Compiler<'a, 'm> {
     fn compile_pat_tuple(
         &mut self,
         scope: &mut Scope,
-        tuple_like: bool,
         pat_tuple: &ast::PatTuple,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span)?);
+
+        let tuple_like = if let Some(path) = &pat_tuple.path {
+            let item = self.convert_path_to_item(path)?;
+
+            let tuple = if let Some(meta) = self.lookup_meta(&item) {
+                match meta {
+                    Meta::MetaTuple(tuple) => tuple,
+                    _ => {
+                        return Err(CompileError::UnsupportedMetaPattern {
+                            meta: meta.clone(),
+                            span,
+                        })
+                    }
+                }
+            } else {
+                return Err(CompileError::UnsupportedPattern { span });
+            };
+
+            let count = pat_tuple.items.len();
+            let is_open = pat_tuple.open_pattern.is_some();
+
+            if !(tuple.args == count || count < tuple.args && is_open) {
+                return Err(CompileError::UnsupportedArgumentCount {
+                    span,
+                    meta: Meta::MetaTuple(tuple.clone()),
+                    expected: tuple.args,
+                    actual: count,
+                });
+            }
+
+            // test if function is a tuple match.
+            self.compile_pat_type_check(scope, &item, span, false_label, load)?;
+
+            if tuple.external {
+                self.compile_extern_tuple_match(scope, &item, span, false_label, load)?;
+            }
+
+            true
+        } else {
+            false
+        };
 
         self.compile_pat_match_tuple_len(
             scope,
@@ -1937,8 +2014,8 @@ impl<'a, 'm> Compiler<'a, 'm> {
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
         let type_hash = Hash::of_type(ty);
-        self.asm.push(Inst::Type { hash: type_hash }, span);
         load(self.asm);
+        self.asm.push(Inst::Type { hash: type_hash }, span);
         self.asm.push(Inst::Is, span);
 
         let check_true = self.asm.new_label("compile_pat_type_check_true");
@@ -1969,73 +2046,23 @@ impl<'a, 'm> Compiler<'a, 'm> {
         Ok(())
     }
 
-    /// Encode a vector pattern match.
-    fn compile_pat_tuple_type(
-        &mut self,
-        scope: &mut Scope,
-        pat_tuple_type: &ast::PatTupleType,
-        false_label: Label,
-        load: &dyn Fn(&mut Assembly),
-    ) -> Result<()> {
-        let span = pat_tuple_type.span();
-        log::trace!("PatTupleType => {:?}", self.source.source(span)?);
-
-        let item = self.convert_path_to_item(&pat_tuple_type.path)?;
-
-        let tuple = if let Some(meta) = self.lookup_meta(&item) {
-            match meta {
-                Meta::MetaTuple(tuple) => tuple,
-                Meta::MetaType(..) => {
-                    return Err(CompileError::UnsupportedMetaPattern {
-                        meta: meta.clone(),
-                        span,
-                    })
-                }
-            }
-        } else {
-            return Err(CompileError::UnsupportedPattern { span });
-        };
-
-        let count = pat_tuple_type.pat_tuple.items.len();
-        let is_open = pat_tuple_type.pat_tuple.open_pattern.is_some();
-
-        if !(tuple.args == count || count < tuple.args && is_open) {
-            return Err(CompileError::UnsupportedArgumentCount {
-                span,
-                meta: Meta::MetaTuple(tuple.clone()),
-                expected: tuple.args,
-                actual: count,
-            });
-        }
-
-        // test if function is a tuple match.
-        self.compile_pat_type_check(scope, &item, span, false_label, load)?;
-
-        if tuple.external {
-            self.compile_extern_tuple_match(scope, &item, span, false_label, load)?;
-        }
-
-        self.compile_pat_tuple(scope, true, &pat_tuple_type.pat_tuple, false_label, load)?;
-        Ok(())
-    }
-
     /// Encode an object pattern match.
     fn compile_pat_object(
         &mut self,
         scope: &mut Scope,
-        object: &ast::PatObject,
+        pat_object: &ast::PatObject,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
-        let span = object.span();
-        log::trace!("ObjectPat => {:?}", self.source.source(span)?);
+        let span = pat_object.span();
+        log::trace!("PatObject => {:?}", self.source.source(span)?);
 
         let mut string_slots = Vec::new();
 
         let mut keys_dup = HashMap::new();
         let mut keys = Vec::new();
 
-        for (item, _) in &object.items {
+        for (item, _) in &pat_object.items {
             let span = item.span();
 
             let key = item.key.resolve(self.source)?;
@@ -2046,36 +2073,47 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 return Err(CompileError::DuplicateObjectKey {
                     span,
                     existing,
-                    object: object.span(),
+                    object: pat_object.span(),
                 });
             }
         }
 
         let keys = self.unit.new_static_object_keys(&keys[..])?;
 
+        let object_like = match &pat_object.ident {
+            ast::LitObjectIdent::Named(path) => {
+                let span = path.span();
+
+                let item = self.convert_path_to_item(path)?;
+                let hash = Hash::of_type(&item);
+
+                load(&mut self.asm);
+                self.asm.push(Inst::Type { hash }, span);
+                self.asm.push(Inst::Is, span);
+
+                let type_true = self.asm.new_label("pat_object_type_true");
+
+                self.asm.jump_if(type_true, span);
+                self.locals_pop(scope.local_var_count, span);
+                self.asm.jump(false_label, span);
+                self.asm.label(type_true)?;
+                true
+            }
+            ast::LitObjectIdent::Anonymous(..) => false,
+        };
+
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed a vector.
-        {
-            load(&mut self.asm);
+        load(&mut self.asm);
 
-            if object.open_pattern.is_some() {
-                self.asm.push(
-                    Inst::MatchObject {
-                        slot: keys,
-                        exact: false,
-                    },
-                    span,
-                );
-            } else {
-                self.asm.push(
-                    Inst::MatchObject {
-                        slot: keys,
-                        exact: true,
-                    },
-                    span,
-                );
-            }
-        }
+        self.asm.push(
+            Inst::MatchObject {
+                object_like,
+                slot: keys,
+                exact: pat_object.open_pattern.is_none(),
+            },
+            span,
+        );
 
         let length_true = self.asm.new_label("pat_object_len_true");
 
@@ -2084,7 +2122,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         self.asm.jump(false_label, span);
         self.asm.label(length_true)?;
 
-        for ((item, _), slot) in object.items.iter().zip(string_slots) {
+        for ((item, _), slot) in pat_object.items.iter().zip(string_slots) {
             let span = item.span();
 
             if let Some((_, pat)) = &item.binding {
@@ -2109,6 +2147,54 @@ impl<'a, 'm> Compiler<'a, 'm> {
             }
         }
 
+        Ok(())
+    }
+
+    /// Compile a binding name that matches a known meta type.
+    fn compile_pat_meta_binding(
+        &mut self,
+        scope: &mut Scope,
+        item: Item,
+        span: Span,
+        meta: &Meta,
+        false_label: Label,
+        load: &dyn Fn(&mut Assembly),
+    ) -> Result<()> {
+        let tuple = match meta {
+            Meta::MetaTuple(tuple) => {
+                if tuple.args != 0 {
+                    return Err(CompileError::UnsupportedArgumentCount {
+                        meta: meta.clone(),
+                        actual: 0,
+                        expected: tuple.args,
+                        span,
+                    });
+                }
+
+                tuple
+            }
+            _ => {
+                return Err(CompileError::UnsupportedMetaPattern {
+                    meta: meta.clone(),
+                    span,
+                })
+            }
+        };
+
+        load(&mut self.asm);
+        let offset = scope.decl_anon(span);
+
+        let load = |asm: &mut Assembly| {
+            asm.push(Inst::Copy { offset }, span);
+        };
+
+        self.compile_pat_type_check(scope, &item, span, false_label, &load)?;
+
+        if tuple.external {
+            self.compile_extern_tuple_match(scope, &item, span, false_label, &load)?;
+        }
+
+        self.compile_pat_match_tuple_len(scope, false_label, true, tuple.args, true, span, &load)?;
         Ok(())
     }
 
@@ -2141,47 +2227,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 };
 
                 if let Some(meta) = self.lookup_meta(&item) {
-                    let tuple = match &meta {
-                        Meta::MetaTuple(tuple) if tuple.args != 0 => {
-                            return Err(CompileError::UnsupportedArgumentCount {
-                                meta: meta.clone(),
-                                actual: 0,
-                                expected: tuple.args,
-                                span,
-                            });
-                        }
-                        Meta::MetaTuple(tuple) => tuple,
-                        Meta::MetaType(..) => {
-                            return Err(CompileError::UnsupportedMetaPattern {
-                                meta: meta.clone(),
-                                span,
-                            })
-                        }
-                    };
-
-                    let offset = scope.decl_anon(span);
-                    load(&mut self.asm);
-
-                    let load = |asm: &mut Assembly| {
-                        asm.push(Inst::Copy { offset }, span);
-                    };
-
-                    self.compile_pat_type_check(scope, &item, span, false_label, &load)?;
-
-                    if tuple.external {
-                        self.compile_extern_tuple_match(scope, &item, span, false_label, &load)?;
-                    }
-
-                    self.compile_pat_match_tuple_len(
-                        scope,
-                        false_label,
-                        true,
-                        tuple.args,
-                        true,
-                        span,
-                        &load,
-                    )?;
-
+                    self.compile_pat_meta_binding(scope, item, span, &meta, false_label, load)?;
                     return Ok(true);
                 }
 
@@ -2264,18 +2310,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
                     asm.push(Inst::Copy { offset }, span);
                 };
 
-                self.compile_pat_tuple(scope, false, pat_tuple, false_label, &load)?;
-                return Ok(true);
-            }
-            ast::Pat::PatTupleType(pat_tuple_type) => {
-                let offset = scope.decl_anon(span);
-                load(&mut self.asm);
-
-                let load = |asm: &mut Assembly| {
-                    asm.push(Inst::Copy { offset }, span);
-                };
-
-                self.compile_pat_tuple_type(scope, pat_tuple_type, false_label, &load)?;
+                self.compile_pat_tuple(scope, pat_tuple, false_label, &load)?;
                 return Ok(true);
             }
             ast::Pat::PatObject(object) => {

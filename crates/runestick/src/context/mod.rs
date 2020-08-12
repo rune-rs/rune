@@ -10,7 +10,7 @@ mod meta;
 mod module;
 
 pub use self::item::Item;
-pub use self::meta::{Meta, MetaTuple, MetaType};
+pub use self::meta::{Meta, MetaExternal, MetaTuple, MetaType};
 pub use self::module::Module;
 use self::module::Variant;
 
@@ -360,7 +360,7 @@ impl Context {
             // reverse lookup for types.
             self.types_rev.insert(value_type, hash);
 
-            let meta = Meta::MetaType(MetaType { item: name.clone() });
+            let meta = Meta::MetaExternal(MetaExternal { item: name.clone() });
 
             if let Some(existing) = self.meta.insert(name.clone(), meta.clone()) {
                 return Err(ContextError::ConflictingMeta {

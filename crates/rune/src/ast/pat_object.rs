@@ -6,8 +6,10 @@ use runestick::unit::Span;
 /// An object pattern.
 #[derive(Debug, Clone)]
 pub struct PatObject {
+    /// The identifier of the object pattern.
+    pub ident: ast::LitObjectIdent,
     /// The open object marker.
-    pub open: ast::StartObject,
+    pub open: ast::OpenBrace,
     /// The items matched against.
     pub items: Vec<(PatObjectItem, Option<ast::Comma>)>,
     /// Indicates if the pattern is open or not.
@@ -19,12 +21,14 @@ pub struct PatObject {
 impl PatObject {
     /// Get the span of the pattern.
     pub fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
+        self.ident.span().join(self.close.span())
     }
-}
 
-impl Parse for PatObject {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+    /// Parse the object with an opening path.
+    pub fn parse_with_ident(
+        parser: &mut Parser<'_>,
+        ident: ast::LitObjectIdent,
+    ) -> Result<Self, ParseError> {
         let open = parser.parse()?;
         let mut items = Vec::new();
 
@@ -56,11 +60,19 @@ impl Parse for PatObject {
         let close = parser.parse()?;
 
         Ok(Self {
+            ident,
             open,
             items,
             close,
             open_pattern,
         })
+    }
+}
+
+impl Parse for PatObject {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let ident = parser.parse()?;
+        Self::parse_with_ident(parser, ident)
     }
 }
 

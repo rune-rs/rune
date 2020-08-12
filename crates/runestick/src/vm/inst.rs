@@ -463,6 +463,24 @@ pub enum Inst {
         /// The static slot of the object keys.
         slot: usize,
     },
+    /// Construct a push an object of the given type onto the stack. The number
+    /// of elements in the object are determined the slot of the object keys
+    /// `slot` and are popped from the stack.
+    ///
+    /// For each element, a value is popped corresponding to the object key.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value..>
+    /// => <object>
+    /// ```
+    TypedObject {
+        /// The type of the object to construct.
+        ty: Hash,
+        /// The static slot of the object keys.
+        slot: usize,
+    },
     /// Load a literal character.
     ///
     /// # Operation
@@ -542,8 +560,8 @@ pub enum Inst {
     /// # Operation
     ///
     /// ```text
-    /// <value>
     /// <type>
+    /// <value>
     /// => <boolean>
     /// ```
     Is,
@@ -708,6 +726,8 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     MatchObject {
+        /// Whether we support matching on object-like things.
+        object_like: bool,
         /// The slot of object keys to use.
         slot: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -870,6 +890,9 @@ impl fmt::Display for Inst {
             Self::Tuple { count } => {
                 write!(fmt, "tuple {}", count)?;
             }
+            Self::TypedObject { ty, slot } => {
+                write!(fmt, "typed-object {}, {}", ty, slot)?;
+            }
             Self::Object { slot } => {
                 write!(fmt, "object {}", slot)?;
             }
@@ -937,8 +960,12 @@ impl fmt::Display for Inst {
             } => {
                 write!(fmt, "match-tuple {}, {}, {}", tuple_like, len, exact)?;
             }
-            Self::MatchObject { slot, exact } => {
-                write!(fmt, "match-object {}, {}", slot, exact)?;
+            Self::MatchObject {
+                object_like,
+                slot,
+                exact,
+            } => {
+                write!(fmt, "match-object {}, {}, {}", object_like, slot, exact)?;
             }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;

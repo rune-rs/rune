@@ -2,7 +2,8 @@ use crate::ast;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
-use crate::traits::{Parse, Resolve};
+use crate::token::{Kind, Token};
+use crate::traits::{Parse, Peek, Resolve};
 use runestick::unit::Span;
 
 /// A path, where each element is separated by a `::`.
@@ -42,6 +43,20 @@ impl Path {
         }
 
         Ok(Self { first, rest })
+    }
+}
+
+impl Peek for Path {
+    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
+        let t1 = match t1 {
+            Some(t1) => t1,
+            None => return false,
+        };
+
+        match t1.kind {
+            Kind::Ident => true,
+            _ => false,
+        }
     }
 }
 

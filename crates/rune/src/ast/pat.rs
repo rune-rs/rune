@@ -26,8 +26,6 @@ pub enum Pat {
     PatVec(ast::PatVec),
     /// A tuple pattern.
     PatTuple(ast::PatTuple),
-    /// A pattern over a tuple type.
-    PatTupleType(ast::PatTupleType),
     /// An object pattern.
     PatObject(ast::PatObject),
 }
@@ -45,7 +43,6 @@ impl Pat {
             Self::PatIgnore(pat) => pat.span(),
             Self::PatVec(pat) => pat.span(),
             Self::PatTuple(pat) => pat.span(),
-            Self::PatTupleType(pat) => pat.span(),
             Self::PatObject(pat) => pat.span(),
         }
     }
@@ -54,13 +51,26 @@ impl Pat {
     pub fn parse_ident(parser: &mut Parser) -> Result<Self, ParseError> {
         let first = parser.parse()?;
 
-        if parser.peek::<ast::Scope>()? || parser.peek::<ast::OpenParen>()? {
-            let path = ast::Path::parse_with_first(parser, first)?;
+        if let Some(token) = parser.token_peek()? {
+            match token.kind {
+                Kind::Scope | Kind::Open(Delimiter::Parenthesis) | Kind::Open(Delimiter::Brace) => {
+                    let path = ast::Path::parse_with_first(parser, first)?;
 
-            return Ok(Self::PatTupleType(ast::PatTupleType {
-                path,
-                pat_tuple: parser.parse()?,
-            }));
+                    if parser.peek::<ast::OpenParen>()? {
+                        return Ok(Self::PatTuple(ast::PatTuple::parse_with_path(
+                            parser,
+                            Some(path),
+                        )?));
+                    }
+
+                    let ident = ast::LitObjectIdent::Named(path);
+
+                    return Ok(Self::PatObject(ast::PatObject::parse_with_ident(
+                        parser, ident,
+                    )?));
+                }
+                _ => (),
+            }
         }
 
         Ok(Self::PatBinding(first))
@@ -87,19 +97,15 @@ impl Parse for Pat {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            Kind::Open {
-                delimiter: Delimiter::Parenthesis,
-            } => {
+            Kind::Open(Delimiter::Parenthesis) => {
                 if parser.peek::<ast::LitUnit>()? {
                     Self::PatUnit(parser.parse()?)
                 } else {
                     Self::PatTuple(parser.parse()?)
                 }
             }
-            Kind::Open {
-                delimiter: Delimiter::Bracket,
-            } => Self::PatVec(parser.parse()?),
-            Kind::StartObject => Self::PatObject(parser.parse()?),
+            Kind::Open(Delimiter::Bracket) => Self::PatVec(parser.parse()?),
+            Kind::Hash => Self::PatObject(parser.parse()?),
             Kind::LitByte { .. } => Self::PatByte(parser.parse()?),
             Kind::LitChar { .. } => Self::PatChar(parser.parse()?),
             Kind::LitNumber { .. } => Self::PatNumber(parser.parse()?),
@@ -124,13 +130,9 @@ impl Peek for Pat {
         };
 
         match t1.kind {
-            Kind::Open {
-                delimiter: Delimiter::Parenthesis,
-            } => true,
-            Kind::Open {
-                delimiter: Delimiter::Bracket,
-            } => true,
-            Kind::StartObject => true,
+            Kind::Open(Delimiter::Parenthesis) => true,
+            Kind::Open(Delimiter::Bracket) => true,
+            Kind::Hash => true,
             Kind::LitByte { .. } => true,
             Kind::LitChar { .. } => true,
             Kind::LitNumber { .. } => true,

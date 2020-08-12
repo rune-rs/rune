@@ -3,6 +3,16 @@ use crate::bytes::Bytes;
 use crate::collections::HashMap;
 use crate::future::Future;
 use crate::hash::Hash;
+use crate::value::Object;
+
+/// A object value taken from the virtual machine.
+#[derive(Debug)]
+pub struct OwnedTypedObject {
+    /// The type of the object.
+    pub ty: Hash,
+    /// The content of the object.
+    pub object: Object<OwnedValue>,
+}
 
 /// A tuple value taken from the virtual machine.
 #[derive(Debug)]
@@ -48,6 +58,8 @@ pub enum OwnedValue {
     Option(Option<Box<OwnedValue>>),
     /// A result value.
     Result(Result<Box<OwnedValue>, Box<OwnedValue>>),
+    /// A typed object.
+    TypedObject(OwnedTypedObject),
     /// A typed tuple.
     TypedTuple(OwnedTypedTuple),
 }

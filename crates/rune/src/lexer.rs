@@ -553,10 +553,6 @@ impl<'a> Lexer<'a> {
                             it.next();
                             break Kind::Or;
                         }
-                        ('#', '{') => {
-                            it.next();
-                            break Kind::StartObject;
-                        }
                         ('.', '.') => {
                             it.next();
                             break Kind::DotDot;
@@ -583,27 +579,16 @@ impl<'a> Lexer<'a> {
                 }
 
                 break match c {
-                    '(' => Kind::Open {
-                        delimiter: Delimiter::Parenthesis,
-                    },
-                    ')' => Kind::Close {
-                        delimiter: Delimiter::Parenthesis,
-                    },
-                    '{' => Kind::Open {
-                        delimiter: Delimiter::Brace,
-                    },
-                    '}' => Kind::Close {
-                        delimiter: Delimiter::Brace,
-                    },
-                    '[' => Kind::Open {
-                        delimiter: Delimiter::Bracket,
-                    },
-                    ']' => Kind::Close {
-                        delimiter: Delimiter::Bracket,
-                    },
+                    '(' => Kind::Open(Delimiter::Parenthesis),
+                    ')' => Kind::Close(Delimiter::Parenthesis),
+                    '{' => Kind::Open(Delimiter::Brace),
+                    '}' => Kind::Close(Delimiter::Brace),
+                    '[' => Kind::Open(Delimiter::Bracket),
+                    ']' => Kind::Close(Delimiter::Bracket),
                     '_' => Kind::Underscore,
                     ',' => Kind::Comma,
                     ':' => Kind::Colon,
+                    '#' => Kind::Hash,
                     '.' => Kind::Dot,
                     ';' => Kind::SemiColon,
                     '=' => Kind::Eq,
@@ -769,7 +754,7 @@ mod tests {
             },
             Token {
                 span: Span::new(13, 14),
-                kind: Kind::Open { delimiter: Delimiter::Parenthesis },
+                kind: Kind::Open(Delimiter::Parenthesis),
             },
             Token {
                 span: Span::new(14, 16),
@@ -781,7 +766,7 @@ mod tests {
             },
             Token {
                 span: Span::new(16, 17),
-                kind: Kind::Close { delimiter: Delimiter::Parenthesis },
+                kind: Kind::Close(Delimiter::Parenthesis),
             },
         };
     }

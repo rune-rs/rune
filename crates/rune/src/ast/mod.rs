@@ -42,7 +42,6 @@ mod lit_char;
 mod lit_number;
 mod lit_object;
 mod lit_str;
-mod lit_struct;
 mod lit_template;
 mod lit_tuple;
 mod lit_unit;
@@ -51,7 +50,6 @@ mod parenthesized;
 mod pat;
 mod pat_object;
 mod pat_tuple;
-mod pat_tuple_type;
 mod pat_vec;
 mod path;
 pub(super) mod utils;
@@ -89,9 +87,8 @@ pub use self::lit_byte::LitByte;
 pub use self::lit_byte_str::LitByteStr;
 pub use self::lit_char::LitChar;
 pub use self::lit_number::{LitNumber, Number};
-pub use self::lit_object::{LitObject, LitObjectKey};
+pub use self::lit_object::{LitObject, LitObjectIdent, LitObjectKey};
 pub use self::lit_str::LitStr;
-pub use self::lit_struct::LitStruct;
 pub use self::lit_template::{LitTemplate, Template, TemplateComponent};
 pub use self::lit_tuple::LitTuple;
 pub use self::lit_unit::LitUnit;
@@ -100,7 +97,6 @@ pub use self::parenthesized::Parenthesized;
 pub use self::pat::Pat;
 pub use self::pat_object::{PatObject, PatObjectItem};
 pub use self::pat_tuple::PatTuple;
-pub use self::pat_tuple_type::PatTupleType;
 pub use self::pat_vec::PatVec;
 pub use self::path::Path;
 
@@ -160,12 +156,12 @@ decl_tokens! {
     (Let, Kind::Let),
     (Ident, Kind::Ident),
     (Label, Kind::Label),
-    (OpenParen, Kind::Open { delimiter: Delimiter::Parenthesis }),
-    (CloseParen, Kind::Close { delimiter: Delimiter::Parenthesis }),
-    (OpenBrace, Kind::Open { delimiter: Delimiter::Brace }),
-    (CloseBrace, Kind::Close { delimiter: Delimiter::Brace }),
-    (OpenBracket, Kind::Open { delimiter: Delimiter::Bracket }),
-    (CloseBracket, Kind::Close { delimiter: Delimiter::Bracket }),
+    (OpenParen, Kind::Open(Delimiter::Parenthesis)),
+    (CloseParen, Kind::Close(Delimiter::Parenthesis)),
+    (OpenBrace, Kind::Open(Delimiter::Brace)),
+    (CloseBrace, Kind::Close(Delimiter::Brace)),
+    (OpenBracket, Kind::Open(Delimiter::Bracket)),
+    (CloseBracket, Kind::Close(Delimiter::Bracket)),
     (Underscore, Kind::Underscore),
     (Comma, Kind::Comma),
     (Colon, Kind::Colon),
@@ -182,7 +178,7 @@ decl_tokens! {
     (Return, Kind::Return),
     (Star, Kind::Mul),
     (Rocket, Kind::Rocket),
-    (StartObject, Kind::StartObject),
+    (Hash, Kind::Hash),
     (DotDot, Kind::DotDot),
     (Await, Kind::Await),
     (Select, Kind::Select),

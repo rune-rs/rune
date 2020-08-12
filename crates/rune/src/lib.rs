@@ -87,4 +87,5 @@ where
 
 mod collections {
     pub use hashbrown::{hash_map, HashMap};
+    pub use hashbrown::{hash_set, HashSet};
 }

@@ -143,6 +143,34 @@ fn test_wrong_arguments() {
 }
 
 #[test]
+fn test_bad_struct_declaration() {
+    test_compile_error! {
+        r#"struct Foo { a, b } fn main() { Foo { a: 12 } }"#,
+        LitObjectMissingField { span, field, .. } => {
+            assert_eq!(span, Span::new(32, 45));
+            assert_eq!(field, "b");
+        }
+    };
+
+    test_compile_error! {
+        r#"struct Foo { a, b } fn main() { Foo { not_field: 12 } }"#,
+        LitObjectNotField { span, field, .. } => {
+            assert_eq!(span, Span::new(38, 47));
+            assert_eq!(field, "not_field");
+        }
+    };
+
+    test_compile_error! {
+        r#"fn main() { None(1) }"#,
+        UnsupportedArgumentCount { span, expected, actual, .. } => {
+            assert_eq!(span, Span::new(12, 19));
+            assert_eq!(expected, 0);
+            assert_eq!(actual, 1);
+        }
+    };
+}
+
+#[test]
 fn test_let_pattern_might_panic() {
     test_warnings! {
         r#"fn main() { let [0, 1, 3] = []; }"#,

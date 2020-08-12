@@ -4,9 +4,9 @@ mod value_ref;
 mod value_type;
 mod value_type_info;
 
-pub use self::owned_value::{OwnedTypedTuple, OwnedValue};
+pub use self::owned_value::{OwnedTypedObject, OwnedTypedTuple, OwnedValue};
 pub use self::slot::Slot;
-pub use self::value_ref::{TypedTupleRef, ValueRef};
+pub use self::value_ref::{TypedObjectRef, TypedTupleRef, ValueRef};
 pub use self::value_type::ValueType;
 pub use self::value_type_info::ValueTypeInfo;
 
@@ -32,6 +32,15 @@ pub struct TypedTuple {
     pub ty: Hash,
     /// Content of the tuple.
     pub tuple: Box<[Value]>,
+}
+
+/// An object with a well-defined type.
+#[derive(Debug)]
+pub struct TypedObject {
+    /// The type hash of the object.
+    pub ty: Hash,
+    /// Content of the object.
+    pub object: Object<Value>,
 }
 
 /// An entry on the stack.
@@ -74,6 +83,8 @@ pub enum Value {
     Result(Slot),
     /// A tuple with a well-defined type.
     TypedTuple(Slot),
+    /// An object with a well-defined type.
+    TypedObject(Slot),
 }
 
 impl Value {
@@ -189,6 +200,10 @@ impl Value {
                 let ty = vm.typed_tuple_ref(slot)?.ty;
                 ValueType::TypedTuple(ty)
             }
+            Self::TypedObject(slot) => {
+                let ty = vm.typed_tuple_ref(slot)?.ty;
+                ValueType::TypedObject(ty)
+            }
         })
     }
 
@@ -208,11 +223,18 @@ impl Value {
             Self::Tuple(..) => ValueTypeInfo::Tuple,
             Self::Object(..) => ValueTypeInfo::Object,
             Self::External(slot) => ValueTypeInfo::External(vm.slot_type_name(slot)?),
-            Self::Type(..) => ValueTypeInfo::Type,
+            Self::Type(hash) => ValueTypeInfo::Type(hash),
             Self::Future(..) => ValueTypeInfo::Future,
             Self::Option(..) => ValueTypeInfo::Option,
             Self::Result(..) => ValueTypeInfo::Result,
-            Self::TypedTuple(..) => ValueTypeInfo::TypedTuple,
+            Self::TypedObject(slot) => {
+                let ty = vm.typed_object_ref(slot)?.ty;
+                ValueTypeInfo::TypedObject(ty)
+            }
+            Self::TypedTuple(slot) => {
+                let ty = vm.typed_tuple_ref(slot)?.ty;
+                ValueTypeInfo::TypedTuple(ty)
+            }
         })
     }
 }

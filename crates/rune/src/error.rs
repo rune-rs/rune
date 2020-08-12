@@ -435,6 +435,14 @@ pub enum CompileError {
         /// The span of the missing label.
         span: Span,
     },
+    /// Encountered a unary operator we can't encode.
+    #[error("unsupported unary operator `{op}`")]
+    UnsupportedUnaryOp {
+        /// The span of the illegal operator use.
+        span: Span,
+        /// The operator.
+        op: ast::UnaryOp,
+    },
     /// Encountered a binary operator we can't encode.
     #[error("unsupported binary operator `{op}`")]
     UnsupportedBinaryOp {
@@ -443,13 +451,33 @@ pub enum CompileError {
         /// The operator.
         op: ast::BinOp,
     },
-    /// Encountered a unary operator we can't encode.
-    #[error("unsupported unary operator `{op}`")]
-    UnsupportedUnaryOp {
-        /// The span of the illegal operator use.
+    /// Cannot crate object literal of the given type.
+    #[error("type `{item}` is not an object")]
+    UnsupportedLitObject {
+        /// The span of the unsupported object.
         span: Span,
-        /// The operator.
-        op: ast::UnaryOp,
+        /// The path to the unsupported object.
+        item: Item,
+    },
+    /// Key is not present in the given type literal.
+    #[error("missing field `{field}` in declaration of `{item}`")]
+    LitObjectMissingField {
+        /// The span of the unsupported object.
+        span: Span,
+        /// They key that didn't exist.
+        field: String,
+        /// The related item.
+        item: Item,
+    },
+    /// Key is not present in the given type literal.
+    #[error("field `{field}` is not a field in `{item}`")]
+    LitObjectNotField {
+        /// The span of the unsupported object.
+        span: Span,
+        /// They key that is not a field.
+        field: String,
+        /// The related item.
+        item: Item,
     },
     /// When we encounter an expression that cannot be assigned to.
     #[error("cannot assign to expression")]
@@ -583,6 +611,7 @@ impl CompileError {
             Self::UnsupportedAwait { span, .. } => span,
             Self::UnsupportedUnaryOp { span, .. } => span,
             Self::UnsupportedBinaryOp { span, .. } => span,
+            Self::UnsupportedLitObject { span, .. } => span,
             Self::UnsupportedAssignExpr { span, .. } => span,
             Self::UnsupportedAssignBinOp { span, .. } => span,
             Self::UnsupportedSelectPattern { span, .. } => span,
@@ -595,6 +624,8 @@ impl CompileError {
             Self::MatchFloatInPattern { span, .. } => span,
             Self::DuplicateObjectKey { span, .. } => span,
             Self::NotFunction { span, .. } => span,
+            Self::LitObjectMissingField { span, .. } => span,
+            Self::LitObjectNotField { span, .. } => span,
         }
     }
 }

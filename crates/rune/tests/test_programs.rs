@@ -918,3 +918,27 @@ fn test_variants_as_functions() {
         3,
     };
 }
+
+#[test]
+fn test_struct_matching() {
+    assert_eq! {
+        test! {
+            i64 => r#"
+            struct Foo { a, b }
+
+            fn main() {
+                let foo = Foo {
+                    a: 1,
+                    b: 2,
+                };
+
+                match foo {
+                    Foo { a, b } => a + b,
+                    _ => 0,
+                }
+            }
+            "#
+        },
+        3,
+    };
+}

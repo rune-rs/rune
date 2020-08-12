@@ -7,6 +7,7 @@ use crate::collections::HashMap;
 use crate::context::Context;
 use crate::context::{Item, Meta};
 use crate::hash::Hash;
+use crate::value::ValueType;
 use crate::vm::{Inst, VmError};
 use std::fmt;
 use thiserror::Error;
@@ -19,6 +20,18 @@ pub enum CompilationUnitError {
     FunctionConflict {
         /// The signature of an already existing function.
         existing: UnitFnSignature,
+    },
+    /// Tried to add an use that conflicts with an existing one.
+    #[error("conflicting type already exists `{existing}`")]
+    TypeConflict {
+        /// The path to the existing type.
+        existing: Item,
+    },
+    /// Tried to add an unsupported meta item to a unit.
+    #[error("unsupported meta type for item `{existing}`")]
+    UnsupportedMeta {
+        /// The item used.
+        existing: Item,
     },
     /// Tried to add an use that conflicts with an existing one.
     #[error("conflicting use already exists `{existing}`")]
@@ -275,6 +288,15 @@ pub struct DebugInfo {
     pub label: Option<Label>,
 }
 
+/// Information on a type.
+#[derive(Debug)]
+pub struct UnitTypeInfo {
+    /// A type declared in a unit.
+    pub hash: Hash,
+    /// value type of the given type.
+    pub value_type: ValueType,
+}
+
 /// Instructions from a single source file.
 #[derive(Debug, Default)]
 pub struct CompilationUnit {
@@ -289,6 +311,8 @@ pub struct CompilationUnit {
     meta: HashMap<Item, Meta>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFnInfo>,
+    /// Declared types.
+    types: HashMap<Hash, UnitTypeInfo>,
     /// Function by address.
     functions_rev: HashMap<usize, Hash>,
     /// A static string.
@@ -384,6 +408,11 @@ impl CompilationUnit {
     /// Access the meta for the given language item.
     pub fn lookup_meta(&self, name: &Item) -> Option<Meta> {
         self.meta.get(name).cloned()
+    }
+
+    /// Access the type for the given language item.
+    pub fn lookup_type(&self, hash: Hash) -> Option<&UnitTypeInfo> {
+        self.types.get(&hash)
     }
 
     /// Access the function at the given instruction location.
@@ -623,7 +652,21 @@ impl CompilationUnit {
                     });
                 }
             }
-            _ => (),
+            Meta::MetaType(..) => {
+                let hash = Hash::of_type(&path);
+
+                let unit_type_info = UnitTypeInfo {
+                    hash,
+                    value_type: ValueType::TypedObject(hash),
+                };
+
+                if self.types.insert(hash, unit_type_info).is_some() {
+                    return Err(CompilationUnitError::TypeConflict { existing: path });
+                }
+            }
+            _ => {
+                return Err(CompilationUnitError::UnsupportedMeta { existing: path });
+            }
         };
 
         if let Some(_) = self.meta.insert(path.clone(), meta) {

@@ -30,19 +30,19 @@ pub enum ValueTypeInfo {
     /// Reference to a foreign type.
     External(&'static str),
     /// The type of a value.
-    Type,
+    Type(Hash),
     /// A pointer to the stack.
     Ptr,
-    /// A function.
-    Fn(Hash),
     /// A future.
     Future,
     /// An optional value.
     Option,
     /// A result value.
     Result,
+    /// A typed object.
+    TypedObject(Hash),
     /// A typed tuple.
-    TypedTuple,
+    TypedTuple(Hash),
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -84,14 +84,11 @@ impl fmt::Display for ValueTypeInfo {
             ValueTypeInfo::External(type_name) => {
                 write!(fmt, "{}", type_name)?;
             }
-            ValueTypeInfo::Type => {
-                write!(fmt, "type")?;
+            ValueTypeInfo::Type(hash) => {
+                write!(fmt, "type({})", hash)?;
             }
             ValueTypeInfo::Ptr => {
                 write!(fmt, "ptr")?;
-            }
-            ValueTypeInfo::Fn(hash) => {
-                write!(fmt, "fn({})", hash)?;
             }
             ValueTypeInfo::Future => {
                 write!(fmt, "future")?;
@@ -102,8 +99,11 @@ impl fmt::Display for ValueTypeInfo {
             ValueTypeInfo::Result => {
                 write!(fmt, "result")?;
             }
-            ValueTypeInfo::TypedTuple => {
-                write!(fmt, "typed-tuple")?;
+            ValueTypeInfo::TypedObject(ty) => {
+                write!(fmt, "typed-object({})", ty)?;
+            }
+            ValueTypeInfo::TypedTuple(ty) => {
+                write!(fmt, "typed-tuple({})", ty)?;
             }
         }
 
