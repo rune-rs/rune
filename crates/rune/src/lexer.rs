@@ -86,6 +86,8 @@ impl<'a> Lexer<'a> {
 
         let kind = match ident {
             "fn" => Kind::Fn,
+            "enum" => Kind::Enum,
+            "struct" => Kind::Struct,
             "let" => Kind::Let,
             "if" => Kind::If,
             "match" => Kind::Match,

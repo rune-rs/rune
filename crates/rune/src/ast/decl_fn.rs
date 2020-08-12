@@ -1,4 +1,4 @@
-use crate::ast::{Comma, ExprBlock, FnToken, Ident, Parenthesized};
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
@@ -8,13 +8,13 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub struct DeclFn {
     /// The `fn` token.
-    pub fn_: FnToken,
+    pub fn_: ast::Fn,
     /// The name of the function.
-    pub name: Ident,
+    pub name: ast::Ident,
     /// The arguments of the function.
-    pub args: Parenthesized<Ident, Comma>,
+    pub args: ast::Parenthesized<ast::Ident, ast::Comma>,
     /// The body of the function.
-    pub body: ExprBlock,
+    pub body: ast::ExprBlock,
 }
 
 impl DeclFn {

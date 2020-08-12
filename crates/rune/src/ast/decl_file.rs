@@ -1,4 +1,4 @@
-use crate::ast::{DeclFn, DeclUse};
+use crate::ast;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::token::Kind;
@@ -7,9 +7,13 @@ use crate::traits::Parse;
 /// A parsed file.
 pub struct DeclFile {
     /// Imports for the current file.
-    pub imports: Vec<DeclUse>,
+    pub imports: Vec<ast::DeclUse>,
     /// All function declarations in the file.
-    pub functions: Vec<DeclFn>,
+    pub functions: Vec<ast::DeclFn>,
+    /// Enum declarations.
+    pub enums: Vec<ast::DeclEnum>,
+    /// Struct declarations.
+    pub structs: Vec<ast::DeclStruct>,
 }
 
 /// Parse a file.
@@ -55,11 +59,19 @@ impl Parse for DeclFile {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let mut imports = Vec::new();
         let mut functions = Vec::new();
+        let mut enums = Vec::new();
+        let mut structs = Vec::new();
 
         while !parser.is_eof()? {
-            match parser.token_peek()?.map(|t| t.kind) {
-                Some(Kind::Use) => {
+            match parser.token_peek_eof()?.kind {
+                Kind::Use => {
                     imports.push(parser.parse()?);
+                }
+                Kind::Enum => {
+                    enums.push(parser.parse()?);
+                }
+                Kind::Struct => {
+                    structs.push(parser.parse()?);
                 }
                 _ => {
                     functions.push(parser.parse()?);
@@ -67,6 +79,11 @@ impl Parse for DeclFile {
             }
         }
 
-        Ok(Self { imports, functions })
+        Ok(Self {
+            imports,
+            functions,
+            enums,
+            structs,
+        })
     }
 }

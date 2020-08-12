@@ -60,6 +60,10 @@ impl Delimiter {
 pub enum Kind {
     /// An `fn` token.
     Fn,
+    /// An `enum` token.
+    Enum,
+    /// A `struct` token.
+    Struct,
     /// An `is` token.
     Is,
     /// A `let` token.
@@ -198,6 +202,8 @@ impl fmt::Display for Kind {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Fn => write!(fmt, "fn")?,
+            Self::Enum => write!(fmt, "enum")?,
+            Self::Struct => write!(fmt, "struct")?,
             Self::Is => write!(fmt, "is")?,
             Self::Let => write!(fmt, "let")?,
             Self::If => write!(fmt, "if")?,

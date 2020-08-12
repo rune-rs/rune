@@ -137,6 +137,14 @@ pub enum ParseError {
         /// The kind of the actual token we saw.
         actual: Kind,
     },
+    /// Expected an enum variant but got something else.
+    #[error("expected enum variant but got `{actual}`")]
+    ExpectedEnumVariant {
+        /// Span that caused the error.
+        span: Span,
+        /// The kind of the actual token we saw.
+        actual: Kind,
+    },
     /// When we expect to see a loop (typically after a label).
     #[error("expected loop but got `{actual}")]
     ExpectedLoop {
@@ -332,6 +340,7 @@ impl ParseError {
             Self::TokenMismatch { span, .. } => span,
             Self::ExpectedPatError { span, .. } => span,
             Self::ExpectedExpr { span, .. } => span,
+            Self::ExpectedEnumVariant { span, .. } => span,
             Self::ExpectedLoop { span, .. } => span,
             Self::ExpectedBlockExpr { span, .. } => span,
             Self::UnexpectedChar { span, .. } => span,

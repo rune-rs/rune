@@ -10,8 +10,10 @@ use runestick::unit::Span;
 mod call_fn;
 mod call_instance_fn;
 mod condition;
+mod decl_enum;
 mod decl_file;
 mod decl_fn;
+mod decl_struct;
 mod decl_use;
 mod expr;
 mod expr_await;
@@ -56,8 +58,10 @@ pub(super) mod utils;
 pub use self::call_fn::CallFn;
 pub use self::call_instance_fn::CallInstanceFn;
 pub use self::condition::Condition;
+pub use self::decl_enum::DeclEnum;
 pub use self::decl_file::DeclFile;
 pub use self::decl_fn::DeclFn;
+pub use self::decl_struct::{DeclStruct, DeclStructBody, EmptyBody, StructBody, TupleBody};
 pub use self::decl_use::DeclUse;
 pub use self::expr::Expr;
 pub use self::expr_await::ExprAwait;
@@ -145,7 +149,9 @@ macro_rules! decl_tokens {
 }
 
 decl_tokens! {
-    (FnToken, Kind::Fn),
+    (Fn, Kind::Fn),
+    (Enum, Kind::Enum),
+    (Struct, Kind::Struct),
     (If, Kind::If),
     (Match, Kind::Match),
     (Else, Kind::Else),
