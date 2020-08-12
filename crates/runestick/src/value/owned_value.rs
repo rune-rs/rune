@@ -4,8 +4,17 @@ use crate::collections::HashMap;
 use crate::future::Future;
 use crate::hash::Hash;
 
+/// A tuple value taken from the virtual machine.
 #[derive(Debug)]
-/// A value peeked out of the stack.
+pub struct OwnedTypedTuple {
+    /// The type of the tuple.
+    pub ty: Hash,
+    /// The content of the tuple.
+    pub tuple: Box<[OwnedValue]>,
+}
+
+/// A value taken from the virtual machine.
+#[derive(Debug)]
 pub enum OwnedValue {
     /// An empty unit.
     Unit,
@@ -33,12 +42,12 @@ pub enum OwnedValue {
     External(Any),
     /// A type to a different value.
     Type(Hash),
-    /// A function.
-    Fn(Hash),
     /// A future in the virtual machine.
     Future(Future),
     /// An optional value.
     Option(Option<Box<OwnedValue>>),
     /// A result value.
     Result(Result<Box<OwnedValue>, Box<OwnedValue>>),
+    /// A typed tuple.
+    TypedTuple(OwnedTypedTuple),
 }

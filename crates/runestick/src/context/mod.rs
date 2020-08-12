@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
 use crate::hash::Hash;
-use crate::value::{ValueType, ValueTypeInfo};
+use crate::value::{Value, ValueType, ValueTypeInfo};
 use crate::vm::{Vm, VmError};
 use std::fmt;
 use thiserror::Error;
@@ -17,6 +17,12 @@ use self::module::Variant;
 /// An error raised when building the context.
 #[derive(Debug, Error)]
 pub enum ContextError {
+    /// Conflicting `Option` types.
+    #[error("`Option` types are already present")]
+    OptionAlreadyPresent,
+    /// Conflicting `Result` types.
+    #[error("`Result` types are already present")]
+    ResultAlreadyPresent,
     /// A conflicting name.
     #[error("conflicting item `{item}`, inserted `{current}` while `{existing}` already existed")]
     ConflictingMeta {
@@ -209,6 +215,24 @@ pub struct VariantInfo {
     name: Item,
 }
 
+/// Specialized information on `Result` types.
+#[derive(Debug, Clone, Copy)]
+pub struct ResultTypes {
+    /// Type hash of the `Ok` variant.
+    pub ok_type: Hash,
+    /// Type hash of the `Err` variant.
+    pub err_type: Hash,
+}
+
+/// Specialized information on `Option` types.
+#[derive(Debug, Clone, Copy)]
+pub struct OptionTypes {
+    /// Type hash of the `Some` variant.
+    pub some_type: Hash,
+    /// Type hash of the `None` variant.
+    pub none_type: Hash,
+}
+
 /// Static run context visible to the virtual machine.
 ///
 /// This contains:
@@ -229,6 +253,10 @@ pub struct Context {
     types_rev: HashMap<ValueType, Hash>,
     /// Variants.
     variants: HashMap<Hash, VariantInfo>,
+    /// Specialized information on `Result` types, if available.
+    result_types: Option<ResultTypes>,
+    /// Specialized information on `Option` types, if available.
+    option_types: Option<OptionTypes>,
 }
 
 impl Context {
@@ -254,9 +282,19 @@ impl Context {
         Ok(this)
     }
 
+    /// Access the currently known option types.
+    pub fn option_types(&self) -> Option<&OptionTypes> {
+        self.option_types.as_ref()
+    }
+
+    /// Access the currently known result types.
+    pub fn result_types(&self) -> Option<&ResultTypes> {
+        self.result_types.as_ref()
+    }
+
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&self, name: &Item) -> Option<&Meta> {
-        self.meta.get(name)
+    pub fn lookup_meta(&self, name: &Item) -> Option<Meta> {
+        self.meta.get(name).cloned()
     }
 
     /// Iterate over all available functions
@@ -379,6 +417,7 @@ impl Context {
                     self.install_function(&name, variant.tuple_constructor, Some(variant.args))?;
 
                     let meta = Meta::MetaTuple(MetaTuple {
+                        external: true,
                         item: name.clone(),
                         args: variant.args,
                     });
@@ -431,6 +470,80 @@ impl Context {
             }
         }
 
+        if let Some(result_types) = module.result_types {
+            if self.result_types.is_some() {
+                return Err(ContextError::ResultAlreadyPresent);
+            }
+
+            let ok = module.path.join(&result_types.ok_type);
+            let err = module.path.join(&result_types.err_type);
+
+            self.result_types = Some(ResultTypes {
+                ok_type: Hash::of_type(&ok),
+                err_type: Hash::of_type(&err),
+            });
+
+            self.add_internal_tuple(ok, 1, |value: Value| Ok::<Value, Value>(value))?;
+            self.add_internal_tuple(err, 1, |value: Value| Err::<Value, Value>(value))?;
+        }
+
+        if let Some(option_types) = module.option_types {
+            if self.option_types.is_some() {
+                return Err(ContextError::ResultAlreadyPresent);
+            }
+
+            let some = module.path.join(&option_types.some_type);
+            let none = module.path.join(&option_types.none_type);
+
+            self.option_types = Some(OptionTypes {
+                some_type: Hash::of_type(&some),
+                none_type: Hash::of_type(&none),
+            });
+
+            self.add_internal_tuple(some, 1, |value: Value| Some(value))?;
+            self.add_internal_tuple(none, 0, || None::<Value>)?;
+        }
+
+        Ok(())
+    }
+
+    /// Add a piece of internal tuple meta.
+    fn add_internal_tuple<C, Args>(
+        &mut self,
+        item: Item,
+        args: usize,
+        constructor: C,
+    ) -> Result<(), ContextError>
+    where
+        C: self::module::Function<Args>,
+    {
+        let meta = Meta::MetaTuple(MetaTuple {
+            external: false,
+            item: item.clone(),
+            args,
+        });
+
+        if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
+            return Err(ContextError::ConflictingMeta {
+                item,
+                existing,
+                current: meta,
+            });
+        }
+
+        let constructor: Box<Handler> = Box::new(move |vm, args| constructor.vm_call(vm, args));
+
+        let hash = Hash::function(&item);
+        let signature = FnSignature::new_free(item.clone(), Some(args));
+
+        if let Some(old) = self.functions_info.insert(hash, signature) {
+            return Err(ContextError::ConflictingFunction {
+                signature: old,
+                hash,
+            });
+        }
+
+        self.functions.insert(hash, constructor);
         Ok(())
     }
 

@@ -35,6 +35,9 @@ pub struct MetaType {
 /// The metadata about a variant.
 #[derive(Debug, Clone)]
 pub struct MetaTuple {
+    /// If the tuple definition is external (native), or internal.
+    // TODO: remove once Result's and Option's are typed tuples.
+    pub external: bool,
     /// The path to the tuple.
     pub item: Item,
     /// The number of arguments the variant takes.

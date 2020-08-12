@@ -17,6 +17,14 @@ impl Item {
         }
     }
 
+    /// If the item only contains one element, return that element.
+    pub fn into_local(&self) -> Option<&str> {
+        match self.path.last() {
+            Some(last) if self.path.len() == 1 => Some(&*last),
+            _ => None,
+        }
+    }
+
     /// Construct a new item path.
     pub fn of<I>(iter: I) -> Self
     where

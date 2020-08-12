@@ -5,8 +5,17 @@ use crate::future::Future;
 use crate::hash::Hash;
 use crate::vm::Ref;
 
+/// A typed tuple reference.
 #[derive(Debug)]
+pub struct TypedTupleRef<'vm> {
+    /// The hash of the typed tuple.
+    pub ty: Hash,
+    /// The interior tuple.
+    pub tuple: Box<[ValueRef<'vm>]>,
+}
+
 /// A value peeked out of the stack.
+#[derive(Debug)]
 pub enum ValueRef<'vm> {
     /// An empty value indicating nothing.
     Unit,
@@ -36,12 +45,12 @@ pub enum ValueRef<'vm> {
     External(Ref<'vm, Any>),
     /// Reference to a value type.
     Type(Hash),
-    /// A function.
-    Fn(Hash),
     /// A future.
     Future(Ref<'vm, Future>),
     /// An optional value.
     Option(Option<Box<ValueRef<'vm>>>),
     /// A result value.
     Result(Result<Box<ValueRef<'vm>>, Box<ValueRef<'vm>>>),
+    /// A typed tuple.
+    TypedTuple(TypedTupleRef<'vm>),
 }

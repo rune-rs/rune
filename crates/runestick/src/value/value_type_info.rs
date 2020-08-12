@@ -41,6 +41,8 @@ pub enum ValueTypeInfo {
     Option,
     /// A result value.
     Result,
+    /// A typed tuple.
+    TypedTuple,
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -99,6 +101,9 @@ impl fmt::Display for ValueTypeInfo {
             }
             ValueTypeInfo::Result => {
                 write!(fmt, "result")?;
+            }
+            ValueTypeInfo::TypedTuple => {
+                write!(fmt, "typed-tuple")?;
             }
         }
 

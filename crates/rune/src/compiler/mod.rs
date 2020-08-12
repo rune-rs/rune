@@ -5,7 +5,7 @@ use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use runestick::unit::{Assembly, Label};
-use runestick::{Context, Hash, Inst, Item, Meta, Span};
+use runestick::{Context, Hash, Inst, Item, Meta, MetaTuple, MetaType, Span};
 
 mod loops;
 mod options;
@@ -34,6 +34,52 @@ impl std::ops::Deref for NeedsValue {
     }
 }
 
+/// Convert an ast declaration into a struct.
+fn ast_into_item_decl<I>(
+    item: I,
+    body: ast::DeclStructBody,
+    source: Source<'_>,
+) -> Result<Meta, CompileError>
+where
+    I: IntoIterator,
+    I::Item: AsRef<str>,
+{
+    Ok(match body {
+        ast::DeclStructBody::EmptyBody(..) => {
+            let meta = Meta::MetaTuple(MetaTuple {
+                external: false,
+                item: Item::of(item),
+                args: 0,
+            });
+
+            meta
+        }
+        ast::DeclStructBody::TupleBody(tuple) => {
+            let meta = Meta::MetaTuple(MetaTuple {
+                external: false,
+                item: Item::of(item),
+                args: tuple.fields.len(),
+            });
+
+            meta
+        }
+        ast::DeclStructBody::StructBody(st) => {
+            let meta = Meta::MetaType(MetaType {
+                item: Item::of(item),
+            });
+
+            let mut fields = HashMap::new();
+
+            for (index, (ident, _)) in st.fields.iter().enumerate() {
+                let ident = ident.resolve(source)?;
+                fields.insert(ident.to_owned(), index);
+            }
+
+            meta
+        }
+    })
+}
+
 impl<'a> crate::ParseAll<'a, ast::DeclFile> {
     /// Compile the parse with default options.
     pub fn compile(self, context: &Context) -> Result<(runestick::CompilationUnit, Warnings)> {
@@ -55,6 +101,24 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
         for import in file.imports {
             let name = import.path.resolve(source)?;
             unit.new_import(&name)?;
+        }
+
+        for en in file.enums {
+            let name = en.name.resolve(source)?;
+
+            for (variant, body, _) in en.variants {
+                let variant = variant.resolve(source)?;
+                let item = Item::of(&[name, variant]);
+                let meta = ast_into_item_decl(&item, body, source)?;
+                unit.new_item(&item, meta)?;
+            }
+        }
+
+        for (st, _) in file.structs {
+            let name = st.ident.resolve(source)?;
+            let item = Item::of(&[name]);
+            let meta = ast_into_item_decl(&item, st.body, source)?;
+            unit.new_item(&item, meta)?;
         }
 
         for f in file.functions {
@@ -85,11 +149,11 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
     }
 }
 
-struct Compiler<'a> {
+struct Compiler<'a, 'm> {
     /// The context we are compiling for.
-    context: &'a Context,
+    context: &'m Context,
     /// The compilation unit we are compiling for.
-    unit: &'a mut runestick::CompilationUnit,
+    unit: &'m mut runestick::CompilationUnit,
     /// The assembly we are generating.
     asm: &'a mut Assembly,
     /// Scopes defined in the compiler.
@@ -108,7 +172,7 @@ struct Compiler<'a> {
     warnings: &'a mut Warnings,
 }
 
-impl<'a> Compiler<'a> {
+impl<'a, 'm> Compiler<'a, 'm> {
     fn compile_decl_fn(&mut self, fn_decl: ast::DeclFn) -> Result<()> {
         let span = fn_decl.span();
         log::trace!("FnDecl => {:?}", self.source.source(span)?);
@@ -141,6 +205,19 @@ impl<'a> Compiler<'a> {
 
         self.scopes.pop_last(span)?;
         Ok(())
+    }
+
+    /// Access the meta for the given language item.
+    pub fn lookup_meta(&self, name: &Item) -> Option<Meta> {
+        if let Some(meta) = self.context.lookup_meta(name) {
+            return Some(meta);
+        }
+
+        if let Some(meta) = self.unit.lookup_meta(name) {
+            return Some(meta);
+        }
+
+        None
     }
 
     /// Pop locals by simply popping them.
@@ -1143,7 +1220,7 @@ impl<'a> Compiler<'a> {
             None => Item::of(&[binding]),
         };
 
-        let meta = match self.context.lookup_meta(&item) {
+        let meta = match self.lookup_meta(&item) {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::MissingLocal {
@@ -1153,7 +1230,7 @@ impl<'a> Compiler<'a> {
             }
         };
 
-        self.compile_meta(item, meta, span)
+        self.compile_meta(item, &meta, span)
     }
 
     /// Compile an item.
@@ -1185,14 +1262,14 @@ impl<'a> Compiler<'a> {
 
         let item = self.convert_path_to_item(path)?;
 
-        let meta = match self.context.lookup_meta(&item) {
+        let meta = match self.lookup_meta(&item) {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::MissingType { span, item });
             }
         };
 
-        self.compile_meta(item, meta, span)?;
+        self.compile_meta(item, &meta, span)?;
         Ok(())
     }
 
@@ -1230,8 +1307,8 @@ impl<'a> Compiler<'a> {
             self.compile_expr(expr, NeedsValue(true))?;
         }
 
-        if let Some(meta) = self.context.lookup_meta(&item) {
-            match meta {
+        if let Some(meta) = self.lookup_meta(&item) {
+            match &meta {
                 Meta::MetaTuple(tuple) if tuple.args != call_fn.args.items.len() => {
                     return Err(CompileError::UnsupportedArgumentCount {
                         span,
@@ -1245,7 +1322,18 @@ impl<'a> Compiler<'a> {
                     self.warnings
                         .remove_tuple_call_parens(span, tuple, self.context());
                 }
-                _ => (),
+                Meta::MetaTuple(..) => (),
+                _ => {
+                    return Err(CompileError::NotFunction { span });
+                }
+            }
+        }
+
+        if let Some(name) = item.into_local() {
+            if let Some(var) = self.scopes.last(span)?.get(name) {
+                self.asm.push(Inst::Copy { offset: var.offset }, span);
+                self.asm.push(Inst::CallFn { args }, span);
+                return Ok(());
             }
         }
 
@@ -1845,7 +1933,7 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn compile_pat_tuple_check(
+    fn compile_extern_tuple_match(
         &mut self,
         scope: &mut Scope,
         ty: &Item,
@@ -1878,9 +1966,9 @@ impl<'a> Compiler<'a> {
 
         let item = self.convert_path_to_item(&pat_tuple_type.path)?;
 
-        let variant = if let Some(meta) = self.context.lookup_meta(&item) {
+        let tuple = if let Some(meta) = self.lookup_meta(&item) {
             match meta {
-                Meta::MetaTuple(variant) => variant,
+                Meta::MetaTuple(tuple) => tuple,
                 Meta::MetaType(..) => {
                     return Err(CompileError::UnsupportedMetaPattern {
                         meta: meta.clone(),
@@ -1895,18 +1983,22 @@ impl<'a> Compiler<'a> {
         let count = pat_tuple_type.pat_tuple.items.len();
         let is_open = pat_tuple_type.pat_tuple.open_pattern.is_some();
 
-        if !(variant.args == count || count < variant.args && is_open) {
+        if !(tuple.args == count || count < tuple.args && is_open) {
             return Err(CompileError::UnsupportedArgumentCount {
                 span,
-                meta: Meta::MetaTuple(variant.clone()),
-                expected: variant.args,
+                meta: Meta::MetaTuple(tuple.clone()),
+                expected: tuple.args,
                 actual: count,
             });
         }
 
         // test if function is a tuple match.
         self.compile_pat_type_check(scope, &item, span, false_label, load)?;
-        self.compile_pat_tuple_check(scope, &item, span, false_label, load)?;
+
+        if tuple.external {
+            self.compile_extern_tuple_match(scope, &item, span, false_label, load)?;
+        }
+
         self.compile_pat_tuple(scope, true, &pat_tuple_type.pat_tuple, false_label, load)?;
         Ok(())
     }
@@ -2032,8 +2124,8 @@ impl<'a> Compiler<'a> {
                     None => Item::of(&[name]),
                 };
 
-                if let Some(meta) = self.context.lookup_meta(&item) {
-                    let tuple = match meta {
+                if let Some(meta) = self.lookup_meta(&item) {
+                    let tuple = match &meta {
                         Meta::MetaTuple(tuple) if tuple.args != 0 => {
                             return Err(CompileError::UnsupportedArgumentCount {
                                 meta: meta.clone(),
@@ -2059,7 +2151,11 @@ impl<'a> Compiler<'a> {
                     };
 
                     self.compile_pat_type_check(scope, &item, span, false_label, &load)?;
-                    self.compile_pat_tuple_check(scope, &item, span, false_label, &load)?;
+
+                    if tuple.external {
+                        self.compile_extern_tuple_match(scope, &item, span, false_label, &load)?;
+                    }
+
                     self.compile_pat_match_tuple_len(
                         scope,
                         false_label,

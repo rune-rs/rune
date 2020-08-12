@@ -4,9 +4,9 @@ mod value_ref;
 mod value_type;
 mod value_type_info;
 
-pub use self::owned_value::OwnedValue;
+pub use self::owned_value::{OwnedTypedTuple, OwnedValue};
 pub use self::slot::Slot;
-pub use self::value_ref::ValueRef;
+pub use self::value_ref::{TypedTupleRef, ValueRef};
 pub use self::value_type::ValueType;
 pub use self::value_type_info::ValueTypeInfo;
 
@@ -24,6 +24,15 @@ pub type Object<T> = crate::collections::HashMap<String, T>;
 /// [FromValue]: crate::FromValue
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VecTuple<I>(pub I);
+
+/// A tuple with a well-defined type.
+#[derive(Debug)]
+pub struct TypedTuple {
+    /// The type hash of the tuple.
+    pub ty: Hash,
+    /// Content of the tuple.
+    pub tuple: Box<[Value]>,
+}
 
 /// An entry on the stack.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -57,14 +66,14 @@ pub enum Value {
     External(Slot),
     /// A type.
     Type(Hash),
-    /// A function pointer.
-    Fn(Hash),
     /// A stored future.
     Future(Slot),
     /// An empty value indicating nothing.
     Option(Slot),
     /// A stored result in a slot.
     Result(Slot),
+    /// A tuple with a well-defined type.
+    TypedTuple(Slot),
 }
 
 impl Value {
@@ -173,10 +182,13 @@ impl Value {
             Self::Object(..) => ValueType::Object,
             Self::External(slot) => ValueType::External(vm.slot_type_id(slot)?),
             Self::Type(..) => ValueType::Type,
-            Self::Fn(hash) => ValueType::Fn(hash),
             Self::Future(..) => ValueType::Future,
             Self::Result(..) => ValueType::Result,
             Self::Option(..) => ValueType::Option,
+            Self::TypedTuple(slot) => {
+                let ty = vm.typed_tuple_ref(slot)?.ty;
+                ValueType::TypedTuple(ty)
+            }
         })
     }
 
@@ -197,10 +209,10 @@ impl Value {
             Self::Object(..) => ValueTypeInfo::Object,
             Self::External(slot) => ValueTypeInfo::External(vm.slot_type_name(slot)?),
             Self::Type(..) => ValueTypeInfo::Type,
-            Self::Fn(hash) => ValueTypeInfo::Fn(hash),
             Self::Future(..) => ValueTypeInfo::Future,
             Self::Option(..) => ValueTypeInfo::Option,
             Self::Result(..) => ValueTypeInfo::Result,
+            Self::TypedTuple(..) => ValueTypeInfo::TypedTuple,
         })
     }
 }

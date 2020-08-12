@@ -846,3 +846,75 @@ fn test_match_custom_tuple() {
         false,
     };
 }
+
+#[test]
+fn test_defined_tuple() {
+    assert_eq! {
+        test! {
+            i64 => r#"
+            struct MyType(a, b);
+
+            fn main() { match MyType(1, 2) { MyType(a, b) => a + b,  _ => 0 } }
+            "#
+        },
+        3,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            enum MyType { A(a, b), C(c), }
+
+            fn main() { match MyType::A(1, 2) { MyType::A(a, b) => a + b,  _ => 0 } }
+            "#
+        },
+        3,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            enum MyType { A(a, b), C(c), }
+
+            fn main() { match MyType::C(4) { MyType::A(a, b) => a + b,  _ => 0 } }
+            "#
+        },
+        0,
+    };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            enum MyType { A(a, b), C(c), }
+
+            fn main() { match MyType::C(4) { MyType::C(a) => a,  _ => 0 } }
+            "#
+        },
+        4,
+    };
+}
+
+#[test]
+fn test_variants_as_functions() {
+    assert_eq! {
+        test! {
+            i64 => r#"
+            enum Foo { A(a), B(b, c) }
+
+            fn construct_tuple(tuple) {
+                tuple(1, 2)
+            }
+
+            fn main() {
+                let foo = construct_tuple(Foo::B);
+
+                match foo {
+                    Foo::B(a, b) => a + b,
+                    _ => 0,
+                }
+            }
+            "#
+        },
+        3,
+    };
+}

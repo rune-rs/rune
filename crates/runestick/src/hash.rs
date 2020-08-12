@@ -13,7 +13,6 @@ impl Hash {
 
     const SEP: usize = 0x7f;
     const TYPE: usize = 1;
-    const FUNCTION: usize = 2;
     const INSTANCE_FUNCTION: usize = 3;
     const OBJECT_KEYS: usize = 4;
     const TUPLE_MATCH: usize = 5;
@@ -83,7 +82,7 @@ impl Hash {
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        Self::path(Self::FUNCTION, path)
+        Self::path(Self::TYPE, path)
     }
 
     /// Construct a hash to an instance function, where the instance is a

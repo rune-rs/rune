@@ -5,7 +5,7 @@
 
 use crate::collections::HashMap;
 use crate::context::Context;
-use crate::context::Item;
+use crate::context::{Item, Meta};
 use crate::hash::Hash;
 use crate::vm::{Inst, VmError};
 use std::fmt;
@@ -24,6 +24,12 @@ pub enum CompilationUnitError {
     #[error("conflicting use already exists `{existing}`")]
     ImportConflict {
         /// The signature of the old use.
+        existing: Item,
+    },
+    /// Tried to add an item that already exists.
+    #[error("item already exists `{existing}`")]
+    ItemConflict {
+        /// The existing item.
         existing: Item,
     },
     /// A static string was missing for the given hash and slot.
@@ -198,11 +204,26 @@ impl fmt::Display for Span {
     }
 }
 
+/// The kind of a registered function.
+#[derive(Debug)]
+pub enum UnitFnKind {
+    /// Offset to call a "real" function.
+    Offset {
+        /// Offset of the registered function.
+        offset: usize,
+    },
+    /// A tuple constructor.
+    Tuple {
+        /// The type of the tuple.
+        ty: Hash,
+    },
+}
+
 /// Information about a registered function.
 #[derive(Debug)]
 pub struct UnitFnInfo {
-    /// Offset into the instruction set.
-    pub offset: usize,
+    /// The kind of the registered function.
+    pub kind: UnitFnKind,
     /// Signature of the function.
     pub signature: UnitFnSignature,
 }
@@ -264,6 +285,8 @@ pub struct CompilationUnit {
     /// Only used to link against the current environment to make sure all
     /// required units are present.
     imports: HashMap<String, Item>,
+    /// Item metadata in the context.
+    meta: HashMap<Item, Meta>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFnInfo>,
     /// Function by address.
@@ -356,6 +379,11 @@ impl CompilationUnit {
         );
 
         this
+    }
+
+    /// Access the meta for the given language item.
+    pub fn lookup_meta(&self, name: &Item) -> Option<Meta> {
+        self.meta.get(name).cloned()
     }
 
     /// Access the function at the given instruction location.
@@ -545,17 +573,12 @@ impl CompilationUnit {
         self.functions.get(&hash)
     }
 
-    /// Lookup the location of a dynamic function.
-    pub fn lookup_offset(&self, hash: Hash) -> Option<usize> {
-        Some(self.functions.get(&hash)?.offset)
-    }
-
     /// Look up an use by name.
     pub fn lookup_import_by_name(&self, name: &str) -> Option<&Item> {
         self.imports.get(name)
     }
 
-    /// Declare a new use.
+    /// Declare a new import.
     pub fn new_import<I>(&mut self, path: I) -> Result<(), CompilationUnitError>
     where
         I: Copy + IntoIterator,
@@ -564,9 +587,49 @@ impl CompilationUnit {
         let path = Item::of(path);
 
         if let Some(last) = path.last() {
-            if let Some(old) = self.imports.insert(last.to_owned(), path) {
-                return Err(CompilationUnitError::ImportConflict { existing: old });
+            if let Some(existing) = self.imports.insert(last.to_owned(), path) {
+                return Err(CompilationUnitError::ImportConflict { existing });
             }
+        }
+
+        Ok(())
+    }
+
+    /// Declare a new struct.
+    pub fn new_item<I>(&mut self, path: I, meta: Meta) -> Result<(), CompilationUnitError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let path = Item::of(path);
+
+        match &meta {
+            Meta::MetaTuple(tuple) => {
+                let info = UnitFnInfo {
+                    kind: UnitFnKind::Tuple {
+                        ty: Hash::of_type(&path),
+                    },
+                    signature: UnitFnSignature {
+                        path: path.clone(),
+                        args: tuple.args,
+                    },
+                };
+
+                let hash = Hash::function(&path);
+
+                if let Some(old) = self.functions.insert(hash, info) {
+                    return Err(CompilationUnitError::FunctionConflict {
+                        existing: old.signature,
+                    });
+                }
+            }
+            _ => (),
+        };
+
+        if let Some(_) = self.meta.insert(path.clone(), meta) {
+            return Err(CompilationUnitError::ItemConflict {
+                existing: path.clone(),
+            });
         }
 
         Ok(())
@@ -595,7 +658,7 @@ impl CompilationUnit {
         self.functions_rev.insert(offset, hash);
 
         let info = UnitFnInfo {
-            offset,
+            kind: UnitFnKind::Offset { offset },
             signature: UnitFnSignature::new(path, args),
         };
 

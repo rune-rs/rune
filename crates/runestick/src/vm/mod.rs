@@ -6,8 +6,10 @@ use crate::future::{Future, SelectFuture};
 use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::tls;
-use crate::unit::CompilationUnit;
-use crate::value::{OwnedValue, Slot, Value, ValueRef, ValueTypeInfo};
+use crate::unit::{CompilationUnit, UnitFnKind};
+use crate::value::{
+    OwnedTypedTuple, OwnedValue, Slot, TypedTuple, TypedTupleRef, Value, ValueRef, ValueTypeInfo,
+};
 use std::any;
 use std::cell::UnsafeCell;
 use std::fmt;
@@ -710,11 +712,20 @@ macro_rules! call_fn {
     ($vm:expr, $hash:expr, $args:expr, $context:expr,  $update_ip:ident) => {
         let hash = $hash;
 
-        match $vm.unit.lookup_offset(hash) {
-            Some(loc) => {
-                $vm.push_call_frame(loc, $args)?;
-                $update_ip = false;
-            }
+        match $vm.unit.lookup(hash) {
+            Some(f) => match &f.kind {
+                UnitFnKind::Offset { offset } => {
+                    let offset = *offset;
+                    $vm.push_call_frame(offset, $args)?;
+                    $update_ip = false;
+                }
+                UnitFnKind::Tuple { ty } => {
+                    let ty = *ty;
+                    let args = f.signature.args;
+                    let value = $vm.allocate_typed_tuple(ty, $args, args)?;
+                    $vm.push(value);
+                }
+            },
             None => {
                 let handler = $context
                     .lookup(hash)
@@ -990,7 +1001,14 @@ impl Vm {
             });
         }
 
-        self.ip = function.offset;
+        let offset = match function.kind {
+            UnitFnKind::Offset { offset } => offset,
+            _ => {
+                return Err(VmError::MissingFunction { hash });
+            }
+        };
+
+        self.ip = offset;
         self.stack.clear();
 
         // Safety: we bind the lifetime of the arguments to the outgoing task,
@@ -1162,6 +1180,35 @@ impl Vm {
         self.stack.stack_top = offset;
         self.ip = new_ip;
         Ok(())
+    }
+
+    /// Construct a tuple.
+    #[inline]
+    fn allocate_typed_tuple(
+        &mut self,
+        ty: Hash,
+        call_args: usize,
+        args: usize,
+    ) -> Result<Value, VmError> {
+        if call_args != args {
+            return Err(VmError::ArgumentCountMismatch {
+                actual: call_args,
+                expected: args,
+            });
+        }
+
+        let mut tuple = Vec::new();
+
+        for _ in 0..args {
+            tuple.push(self.pop()?);
+        }
+
+        let slot = self.slot_allocate(TypedTuple {
+            ty,
+            tuple: tuple.into_boxed_slice(),
+        });
+
+        Ok(Value::TypedTuple(slot))
     }
 
     /// Pop a call frame and return it.
@@ -1352,6 +1399,15 @@ impl Vm {
         tuple_mut,
         tuple_take,
         tuple_clone,
+    }
+
+    impl_slot_functions! {
+        TypedTuple,
+        TypedTuple,
+        typed_tuple_allocate,
+        typed_tuple_ref,
+        typed_tuple_mut,
+        typed_tuple_take,
     }
 
     /// Get a reference of the external value of the given type and the given
@@ -1606,7 +1662,6 @@ impl Vm {
             }
             Value::External(slot) => OwnedValue::External(self.external_take_dyn(slot)?),
             Value::Type(ty) => OwnedValue::Type(ty),
-            Value::Fn(hash) => OwnedValue::Fn(hash),
             Value::Future(slot) => {
                 let future = self.external_take(slot)?;
                 OwnedValue::Future(future)
@@ -1630,6 +1685,15 @@ impl Vm {
                 };
 
                 OwnedValue::Result(result)
+            }
+            Value::TypedTuple(slot) => {
+                let typed_tuple = self.typed_tuple_take(slot)?;
+                let tuple = value_take_tuple(self, &*typed_tuple.tuple)?;
+
+                OwnedValue::TypedTuple(OwnedTypedTuple {
+                    ty: typed_tuple.ty,
+                    tuple,
+                })
             }
         });
 
@@ -1696,7 +1760,6 @@ impl Vm {
             }
             Value::External(slot) => ValueRef::External(self.external_ref_dyn(slot)?),
             Value::Type(ty) => ValueRef::Type(ty),
-            Value::Fn(hash) => ValueRef::Fn(hash),
             Value::Future(slot) => {
                 let future = self.external_ref(slot)?;
                 ValueRef::Future(future)
@@ -1721,11 +1784,17 @@ impl Vm {
 
                 ValueRef::Result(result)
             }
+            Value::TypedTuple(slot) => {
+                let typed_tuple = self.typed_tuple_ref(slot)?;
+                let typed_tuple =
+                    self.value_ref_typed_tuple_ref(typed_tuple.ty, &*typed_tuple.tuple)?;
+                ValueRef::TypedTuple(typed_tuple)
+            }
         })
     }
 
     /// Convert the given value pointers into an vec.
-    pub fn value_vec_ref<'vm>(&'vm self, values: &[Value]) -> Result<Vec<ValueRef<'vm>>, VmError> {
+    fn value_vec_ref<'vm>(&'vm self, values: &[Value]) -> Result<Vec<ValueRef<'vm>>, VmError> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
@@ -1736,10 +1805,7 @@ impl Vm {
     }
 
     /// Convert the given value pointers into a tuple.
-    pub fn value_tuple_ref<'vm>(
-        &'vm self,
-        values: &[Value],
-    ) -> Result<Box<[ValueRef<'vm>]>, VmError> {
+    fn value_tuple_ref<'vm>(&'vm self, values: &[Value]) -> Result<Box<[ValueRef<'vm>]>, VmError> {
         let mut output = Vec::with_capacity(values.len());
 
         for value in values.iter().copied() {
@@ -1750,7 +1816,7 @@ impl Vm {
     }
 
     /// Convert the given value pointers into an vec.
-    pub fn value_object_ref<'vm>(
+    fn value_object_ref<'vm>(
         &'vm self,
         object: &HashMap<String, Value>,
     ) -> Result<HashMap<String, ValueRef<'vm>>, VmError> {
@@ -1761,6 +1827,24 @@ impl Vm {
         }
 
         Ok(output)
+    }
+
+    /// Convert the given typed tuple values into a typed tuple.
+    fn value_ref_typed_tuple_ref<'vm>(
+        &'vm self,
+        ty: Hash,
+        tuple: &[Value],
+    ) -> Result<TypedTupleRef<'vm>, VmError> {
+        let mut output = Vec::with_capacity(tuple.len());
+
+        for value in tuple.iter().copied() {
+            output.push(self.value_ref(value)?);
+        }
+
+        Ok(TypedTupleRef {
+            ty,
+            tuple: output.into_boxed_slice(),
+        })
     }
 
     /// Pop the last value on the stack and evaluate it as `T`.
@@ -2220,6 +2304,38 @@ impl Vm {
         let b = self.stack.pop()?;
 
         match (a, b) {
+            (Value::TypedTuple(slot), Value::Type(hash)) => {
+                let matches = self.typed_tuple_ref(slot)?.ty == hash;
+                self.push(Value::Bool(matches))
+            }
+            (Value::Option(slot), Value::Type(hash)) => {
+                let option_types = *context
+                    .option_types()
+                    .ok_or_else(|| VmError::MissingType { hash })?;
+
+                let option = self.option_ref(slot)?;
+
+                let matches = match &*option {
+                    Some(..) => hash == option_types.some_type,
+                    None => hash == option_types.none_type,
+                };
+
+                self.push(Value::Bool(matches))
+            }
+            (Value::Result(slot), Value::Type(hash)) => {
+                let result_types = *context
+                    .result_types()
+                    .ok_or_else(|| VmError::MissingType { hash })?;
+
+                let result = self.result_ref(slot)?;
+
+                let matches = match &*result {
+                    Ok(..) => hash == result_types.ok_type,
+                    Err(..) => hash == result_types.err_type,
+                };
+
+                self.push(Value::Bool(matches))
+            }
             (a, Value::Type(hash)) => {
                 let a = a.value_type(self)?;
 
@@ -2379,6 +2495,10 @@ impl Vm {
                     None => f(&[]),
                 })
             }
+            Value::TypedTuple(slot) => {
+                let typed_tuple = self.typed_tuple_ref(slot)?;
+                Some(f(&*typed_tuple.tuple))
+            }
             _ => None,
         })
     }
@@ -2502,11 +2622,17 @@ impl Vm {
                     let ty = instance.value_type(self)?;
                     let hash = Hash::instance_function(ty, hash);
 
-                    match self.unit.lookup_offset(hash) {
-                        Some(loc) => {
-                            self.push_call_frame(loc, args)?;
-                            update_ip = false;
-                        }
+                    match self.unit.lookup(hash) {
+                        Some(info) => match &info.kind {
+                            UnitFnKind::Offset { offset } => {
+                                let offset = *offset;
+                                self.push_call_frame(offset, args)?;
+                                update_ip = false;
+                            }
+                            UnitFnKind::Tuple { .. } => {
+                                todo!("there are no instance tuple constructors")
+                            }
+                        },
                         None => {
                             let handler = match context.lookup(hash) {
                                 Some(handler) => handler,
@@ -2526,7 +2652,7 @@ impl Vm {
                     let function = self.stack.pop()?;
 
                     let hash = match function {
-                        Value::Fn(hash) => hash,
+                        Value::Type(hash) => hash,
                         actual => {
                             let actual_type = actual.type_info(self)?;
                             return Err(VmError::UnsupportedCallFn { actual_type });
@@ -2539,7 +2665,7 @@ impl Vm {
                     let instance = self.stack.pop()?;
                     let ty = instance.value_type(self)?;
                     let hash = Hash::instance_function(ty, hash);
-                    self.push(Value::Fn(hash));
+                    self.push(Value::Type(hash));
                 }
                 Inst::IndexGet => {
                     self.op_index_get(context)?;

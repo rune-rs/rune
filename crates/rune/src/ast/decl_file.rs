@@ -13,7 +13,7 @@ pub struct DeclFile {
     /// Enum declarations.
     pub enums: Vec<ast::DeclEnum>,
     /// Struct declarations.
-    pub structs: Vec<ast::DeclStruct>,
+    pub structs: Vec<(ast::DeclStruct, Option<ast::SemiColon>)>,
 }
 
 /// Parse a file.
@@ -71,7 +71,19 @@ impl Parse for DeclFile {
                     enums.push(parser.parse()?);
                 }
                 Kind::Struct => {
-                    structs.push(parser.parse()?);
+                    let st = parser.parse::<ast::DeclStruct>()?;
+
+                    let semi = match &st.body {
+                        ast::DeclStructBody::EmptyBody(..) => {
+                            Some(parser.parse::<ast::SemiColon>()?)
+                        }
+                        ast::DeclStructBody::TupleBody(..) => {
+                            Some(parser.parse::<ast::SemiColon>()?)
+                        }
+                        _ => None,
+                    };
+
+                    structs.push((st, semi));
                 }
                 _ => {
                     functions.push(parser.parse()?);

@@ -87,9 +87,9 @@ impl ser::Serialize for Value {
                 let option = vm.option_ref(slot).map_err(ser::Error::custom)?;
                 <Option<Value>>::serialize(&*option, serializer)
             }),
+            Value::TypedTuple(..) => Err(ser::Error::custom("cannot serialize tuple types")),
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
-            Value::Type(..) => Err(ser::Error::custom("cannot serialize type objects")),
-            Value::Fn(..) => Err(ser::Error::custom("cannot serialize fn objects")),
+            Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
             Value::External(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }

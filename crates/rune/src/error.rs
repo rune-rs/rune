@@ -549,6 +549,12 @@ pub enum CompileError {
         /// The object being defined.
         object: Span,
     },
+    /// Attempt to call something that is not a function.
+    #[error("cannot be called as a function")]
+    NotFunction {
+        /// The span of the unsupported function call.
+        span: Span,
+    },
 }
 
 impl CompileError {
@@ -588,6 +594,7 @@ impl CompileError {
             Self::ReturnLocalReferences { span, .. } => span,
             Self::MatchFloatInPattern { span, .. } => span,
             Self::DuplicateObjectKey { span, .. } => span,
+            Self::NotFunction { span, .. } => span,
         }
     }
 }

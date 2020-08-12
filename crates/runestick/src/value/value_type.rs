@@ -40,6 +40,8 @@ pub enum ValueType {
     Option,
     /// A result value.
     Result,
+    /// A typed tuple,
+    TypedTuple(Hash),
 }
 
 #[cfg(test)]

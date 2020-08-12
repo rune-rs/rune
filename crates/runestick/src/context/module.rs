@@ -11,6 +11,22 @@ use std::future;
 use crate::context::item::Item;
 use crate::context::{ContextError, Handler, IntoInstFnHash};
 
+/// Specialized information on `Result` types.
+pub struct ResultTypes {
+    ///Item of the `Ok` variant.
+    pub ok_type: Item,
+    ///Item of the `Err` variant.
+    pub err_type: Item,
+}
+
+/// Specialized information on `Option` types.
+pub struct OptionTypes {
+    /// Item of the `Some` variant.
+    pub some_type: Item,
+    /// Item of the `None` variant.
+    pub none_type: Item,
+}
+
 /// A tuple variant.
 pub(super) struct TupleVariant {
     /// Full name of the variant.
@@ -57,6 +73,10 @@ pub struct Module {
     pub(super) types: HashMap<ValueType, Type>,
     /// Registered variants.
     pub(super) variants: Vec<Variant>,
+    /// Registered result types.
+    pub(super) result_types: Option<ResultTypes>,
+    /// Registered option types.
+    pub(super) option_types: Option<OptionTypes>,
 }
 
 impl Module {
@@ -72,6 +92,8 @@ impl Module {
             instance_functions: Default::default(),
             types: Default::default(),
             variants: Default::default(),
+            result_types: None,
+            option_types: None,
         }
     }
 
@@ -88,6 +110,46 @@ impl Module {
             name,
             types: &mut self.types,
         }
+    }
+
+    /// Construct the option type.
+    pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
+    where
+        N: IntoIterator,
+        N::Item: AsRef<str>,
+    {
+        if self.option_types.is_some() {
+            return Err(ContextError::OptionAlreadyPresent);
+        }
+
+        let item = Item::of(name);
+
+        self.option_types = Some(OptionTypes {
+            none_type: item.extended("None"),
+            some_type: item.extended("Some"),
+        });
+
+        Ok(())
+    }
+
+    /// Construct the result type.
+    pub fn result<N>(&mut self, name: N) -> Result<(), ContextError>
+    where
+        N: IntoIterator,
+        N::Item: AsRef<str>,
+    {
+        if self.result_types.is_some() {
+            return Err(ContextError::ResultAlreadyPresent);
+        }
+
+        let item = Item::of(name);
+
+        self.result_types = Some(ResultTypes {
+            ok_type: item.extended("Ok"),
+            err_type: item.extended("Err"),
+        });
+
+        Ok(())
     }
 
     /// Register a variant.

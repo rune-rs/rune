@@ -86,5 +86,5 @@ where
 }
 
 mod collections {
-    pub use std::collections::{hash_map, HashMap};
+    pub use hashbrown::{hash_map, HashMap};
 }

@@ -24,6 +24,7 @@ thiserror = "1.0.20"
 log = "0.4.11"
 codespan-reporting = {version = "0.9.5", optional = true}
 slab = "0.4.2"
+hashbrown = "0.8.2"
 
 [dev-dependencies]
 futures-executor = "0.3.5"

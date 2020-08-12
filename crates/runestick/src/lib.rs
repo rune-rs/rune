@@ -66,7 +66,8 @@ pub use crate::reflection::{
 };
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
 pub use crate::value::{
-    Object, OwnedValue, Slot, Value, ValueRef, ValueType, ValueTypeInfo, VecTuple,
+    Object, OwnedTypedTuple, OwnedValue, Slot, TypedTuple, TypedTupleRef, Value, ValueRef,
+    ValueType, ValueTypeInfo, VecTuple,
 };
 pub use crate::vm::{Inst, Mut, Panic, RawMutGuard, RawRefGuard, Ref, Task, Vm, VmError};
 

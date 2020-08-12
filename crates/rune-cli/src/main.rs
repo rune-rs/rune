@@ -5,6 +5,8 @@ use std::io::Write as _;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use runestick::unit::UnitFnKind;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -190,7 +192,14 @@ async fn main() -> Result<()> {
         println!("# functions:");
 
         for (hash, f) in unit.iter_functions() {
-            println!("{} = {} (at: {})", hash, f.signature, f.offset);
+            match &f.kind {
+                UnitFnKind::Offset { offset } => {
+                    println!("{} = {} (at: {})", hash, f.signature, offset);
+                }
+                UnitFnKind::Tuple { .. } => {
+                    println!("{} = {} (tuple)", hash, f.signature);
+                }
+            }
         }
 
         println!("# strings:");
