@@ -434,6 +434,9 @@ impl<'a, 'm> Compiler<'a, 'm> {
             ast::Expr::LitAwait(lit_await) => {
                 self.compile_lit_await(lit_await, needs_value)?;
             }
+            ast::Expr::LitStruct(lit_struct) => {
+                self.compile_lit_struct(lit_struct, needs_value)?;
+            }
         }
 
         Ok(())
@@ -649,6 +652,13 @@ impl<'a, 'm> Compiler<'a, 'm> {
         Err(CompileError::UnsupportedAwait { span })
     }
 
+    /// Compile a struct literal.
+    fn compile_lit_struct(&mut self, await_: &ast::LitStruct, _: NeedsValue) -> Result<()> {
+        let span = await_.span();
+        log::trace!("LitStruct => {:?}", self.source.source(span)?);
+        Err(CompileError::internal("not implemented yet", span))
+    }
+
     fn compile_lit_unit(&mut self, lit_unit: &ast::LitUnit, needs_value: NeedsValue) -> Result<()> {
         let span = lit_unit.span();
         log::trace!("LitUnit => {:?}", self.source.source(span)?);
@@ -746,6 +756,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         log::trace!("ExprWhile => {:?}", self.source.source(span)?);
 
         let start_label = self.asm.new_label("while_test");
+        let then_label = self.asm.new_label("while_then");
         let end_label = self.asm.new_label("while_end");
         let break_label = self.asm.new_label("while_break");
 
@@ -757,15 +768,20 @@ impl<'a, 'm> Compiler<'a, 'm> {
         });
 
         self.asm.label(start_label)?;
-        self.compile_expr(&*expr_while.condition, NeedsValue(true))?;
-        self.asm.jump_if_not(end_label, span);
+
+        let then_scope = self.compile_condition(&expr_while.condition, then_label)?;
+        self.asm.jump(end_label, span);
+        self.asm.label(then_label)?;
+
+        let expected = self.scopes.push(then_scope);
         self.compile_expr_block(&*expr_while.body, NeedsValue(false))?;
+        self.clean_last_scope(span, expected, NeedsValue(false))?;
 
         self.asm.jump(start_label, span);
         self.asm.label(end_label)?;
 
         if *needs_value {
-            self.asm.push(Inst::Unit, expr_while.condition.span());
+            self.asm.push(Inst::Unit, span);
         }
 
         // NB: breaks produce their own value.

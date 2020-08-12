@@ -21,6 +21,18 @@ impl ops::Deref for NoIndex {
     }
 }
 
+/// Indicator that an expression should be parsed with an eager brace.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct EagerBrace(pub(super) bool);
+
+impl ops::Deref for EagerBrace {
+    type Target = bool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// A rune expression.
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -70,6 +82,8 @@ pub enum Expr {
     LitTuple(ast::LitTuple),
     /// A literal await.
     LitAwait(ast::Await),
+    /// A literal struct declaration.
+    LitStruct(ast::LitStruct),
     /// A grouped expression.
     ExprGroup(ast::ExprGroup),
     /// A binary expression.
@@ -131,6 +145,7 @@ impl Expr {
             Self::LitObject(expr) => expr.span(),
             Self::LitTuple(expr) => expr.span(),
             Self::LitAwait(expr) => expr.span(),
+            Self::LitStruct(expr) => expr.span(),
             Self::LitNumber(expr) => expr.span(),
             Self::LitByte(expr) => expr.span(),
             Self::LitChar(expr) => expr.span(),
@@ -169,9 +184,37 @@ impl Expr {
         }
     }
 
+    /// Parse an expression without an eager brace.
+    ///
+    /// This is used to solve a syntax ambiguity when parsing expressions that
+    /// are arguments to statements immediately followed by blocks. Like `if`,
+    /// `while`, and `match`.
+    pub(super) fn parse_without_eager_brace(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Self::parse_full(parser, NoIndex(false), EagerBrace(false))
+    }
+
+    /// Full, configurable parsing of an expression.
+    pub(super) fn parse_full(
+        parser: &mut Parser<'_>,
+        no_index: NoIndex,
+        eager_brace: EagerBrace,
+    ) -> Result<Self, ParseError> {
+        let lhs = Self::parse_primary(parser, no_index, eager_brace)?;
+        Ok(Self::parse_expr_binary(parser, lhs, 0, eager_brace)?)
+    }
+
     /// Parse expressions that start with an identifier.
-    pub fn parse_ident_start(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    pub(super) fn parse_ident_start(
+        parser: &mut Parser<'_>,
+        eager_brace: EagerBrace,
+    ) -> Result<Self, ParseError> {
         let path = parser.parse::<Path>()?;
+
+        if *eager_brace && parser.peek::<ast::OpenBrace>()? {
+            return Ok(Self::LitStruct(ast::LitStruct::parse_with_path(
+                parser, path,
+            )?));
+        }
 
         if !parser.peek::<OpenParen>()? {
             if path.rest.is_empty() {
@@ -194,7 +237,7 @@ impl Expr {
         }
 
         let open = parser.parse::<ast::OpenParen>()?;
-        let expr = parser.parse::<ast::Expr>()?;
+        let expr = ast::Expr::parse_full(parser, NoIndex(false), EagerBrace(true))?;
 
         if parser.peek::<ast::CloseParen>()? {
             return Ok(Expr::ExprGroup(ast::ExprGroup {
@@ -209,9 +252,12 @@ impl Expr {
     }
 
     /// Parse indexing operation.
-    pub fn parse_indexing_op(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    pub(super) fn parse_indexing_op(
+        parser: &mut Parser<'_>,
+        eager_brace: EagerBrace,
+    ) -> Result<Self, ParseError> {
         let index_get = ExprIndexGet {
-            target: Box::new(Self::parse_primary(parser, NoIndex(true))?),
+            target: Box::new(Self::parse_primary(parser, NoIndex(true), eager_brace)?),
             open: parser.parse()?,
             index: Box::new(parser.parse()?),
             close: parser.parse()?,
@@ -235,6 +281,7 @@ impl Expr {
     pub(super) fn parse_primary(
         parser: &mut Parser<'_>,
         no_index: NoIndex,
+        eager_brace: EagerBrace,
     ) -> Result<Self, ParseError> {
         let token = parser.token_peek_eof()?;
 
@@ -285,10 +332,10 @@ impl Expr {
                 Some(kind) => match kind {
                     Kind::Open {
                         delimiter: Delimiter::Bracket,
-                    } if !*no_index => Self::parse_indexing_op(parser)?,
-                    _ => Self::parse_ident_start(parser)?,
+                    } if !*no_index => Self::parse_indexing_op(parser, eager_brace)?,
+                    _ => Self::parse_ident_start(parser, eager_brace)?,
                 },
-                None => Self::parse_ident_start(parser)?,
+                None => Self::parse_ident_start(parser, eager_brace)?,
             },
             Kind::Break => Self::ExprBreak(parser.parse()?),
             Kind::Return => Self::ExprReturn(parser.parse()?),
@@ -333,6 +380,7 @@ impl Expr {
         parser: &mut Parser<'_>,
         mut lhs: Self,
         min_precedence: usize,
+        eager_brace: EagerBrace,
     ) -> Result<Self, ParseError> {
         let mut lookahead_tok = parser.token_peek()?;
 
@@ -355,7 +403,7 @@ impl Expr {
             };
 
             parser.token_next()?;
-            let mut rhs = Self::parse_primary(parser, NoIndex(false))?;
+            let mut rhs = Self::parse_primary(parser, NoIndex(false), eager_brace)?;
 
             lookahead_tok = parser.token_peek()?;
 
@@ -370,7 +418,7 @@ impl Expr {
                     _ => break,
                 };
 
-                rhs = Self::parse_expr_binary(parser, rhs, lh.precedence())?;
+                rhs = Self::parse_expr_binary(parser, rhs, lh.precedence(), eager_brace)?;
                 lookahead_tok = parser.token_peek()?;
             }
 
@@ -440,8 +488,7 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let lhs = Self::parse_primary(parser, NoIndex(false))?;
-        Ok(Self::parse_expr_binary(parser, lhs, 0)?)
+        Self::parse_full(parser, NoIndex(false), EagerBrace(true))
     }
 }
 

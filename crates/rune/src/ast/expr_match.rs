@@ -98,7 +98,7 @@ impl ExprMatch {
 impl Parse for ExprMatch {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let match_ = parser.parse()?;
-        let expr = Box::new(parser.parse()?);
+        let expr = Box::new(Expr::parse_without_eager_brace(parser)?);
 
         let open = parser.parse()?;
 

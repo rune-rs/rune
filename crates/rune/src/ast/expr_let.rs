@@ -22,6 +22,16 @@ impl ExprLet {
     pub fn span(&self) -> Span {
         self.let_.token.span.join(self.expr.span())
     }
+
+    /// Parse a let expression without eager bracing.
+    pub fn parse_without_eager_brace(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(Self {
+            let_: parser.parse()?,
+            pat: parser.parse()?,
+            eq: parser.parse()?,
+            expr: Box::new(Expr::parse_without_eager_brace(parser)?),
+        })
+    }
 }
 
 impl Parse for ExprLet {

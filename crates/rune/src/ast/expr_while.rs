@@ -1,4 +1,4 @@
-use crate::ast::{Colon, Expr, ExprBlock, Label, While};
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
@@ -8,13 +8,13 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub struct ExprWhile {
     /// A label for the while loop.
-    pub label: Option<(Label, Colon)>,
+    pub label: Option<(ast::Label, ast::Colon)>,
     /// The `while` keyword.
-    pub while_: While,
+    pub while_: ast::While,
     /// The name of the binding.
-    pub condition: Box<Expr>,
+    pub condition: ast::Condition,
     /// The body of the while loop.
-    pub body: Box<ExprBlock>,
+    pub body: Box<ast::ExprBlock>,
 }
 
 impl ExprWhile {
@@ -26,12 +26,12 @@ impl ExprWhile {
     /// Parse with the given label.
     pub fn parse_with_label(
         parser: &mut Parser<'_>,
-        label: Option<(Label, Colon)>,
+        label: Option<(ast::Label, ast::Colon)>,
     ) -> Result<Self, ParseError> {
         Ok(ExprWhile {
             label,
             while_: parser.parse()?,
-            condition: Box::new(parser.parse()?),
+            condition: parser.parse()?,
             body: Box::new(parser.parse()?),
         })
     }
@@ -39,7 +39,7 @@ impl ExprWhile {
 
 impl Parse for ExprWhile {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let label = if parser.peek::<Label>()? {
+        let label = if parser.peek::<ast::Label>()? {
             Some((parser.parse()?, parser.parse()?))
         } else {
             None

@@ -38,7 +38,7 @@ impl ExprFor {
             for_: parser.parse()?,
             var: parser.parse()?,
             in_: parser.parse()?,
-            iter: Box::new(parser.parse()?),
+            iter: Box::new(Expr::parse_without_eager_brace(parser)?),
             body: Box::new(parser.parse()?),
         })
     }

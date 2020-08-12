@@ -1,4 +1,4 @@
-use crate::ast::{Expr, ExprLet};
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::token::Kind;
@@ -9,9 +9,9 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub enum Condition {
     /// A regular expression.
-    Expr(Box<Expr>),
+    Expr(Box<ast::Expr>),
     /// A pattern match.
-    ExprLet(ExprLet),
+    ExprLet(ast::ExprLet),
 }
 
 impl Condition {
@@ -42,8 +42,8 @@ impl Parse for Condition {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            Kind::Let => Self::ExprLet(parser.parse()?),
-            _ => Self::Expr(Box::new(parser.parse()?)),
+            Kind::Let => Self::ExprLet(ast::ExprLet::parse_without_eager_brace(parser)?),
+            _ => Self::Expr(Box::new(ast::Expr::parse_without_eager_brace(parser)?)),
         })
     }
 }

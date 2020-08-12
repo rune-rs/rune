@@ -1,4 +1,4 @@
-use crate::ast::expr::NoIndex;
+use crate::ast::expr::{EagerBrace, NoIndex};
 use crate::ast::Expr;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
@@ -44,7 +44,11 @@ impl Parse for ExprUnary {
         Ok(Self {
             op,
             token,
-            expr: Box::new(Expr::parse_primary(parser, NoIndex(false))?),
+            expr: Box::new(Expr::parse_primary(
+                parser,
+                NoIndex(false),
+                EagerBrace(true),
+            )?),
         })
     }
 }
