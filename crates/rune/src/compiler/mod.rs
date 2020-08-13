@@ -495,11 +495,11 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let mut check_keys = Vec::new();
         let mut keys_dup = HashMap::new();
 
-        for (key, _, _) in &lit_object.items {
-            let span = key.span();
-            let key = key.resolve(self.source)?;
+        for assign in &lit_object.assignments {
+            let span = assign.span();
+            let key = assign.key.resolve(self.source)?;
             keys.push(key.to_string());
-            check_keys.push((key.to_string(), span));
+            check_keys.push((key.to_string(), assign.key.span()));
 
             if let Some(existing) = keys_dup.insert(key, span) {
                 return Err(CompileError::DuplicateObjectKey {
@@ -510,13 +510,24 @@ impl<'a, 'm> Compiler<'a, 'm> {
             }
         }
 
-        for (_, _, value) in lit_object.items.iter().rev() {
-            self.compile_expr(value, NeedsValue(true))?;
+        for assign in lit_object.assignments.iter().rev() {
+            let span = assign.span();
 
-            // Evaluate the expressions one by one, then pop them to cause any
-            // side effects (without creating an object).
-            if !*needs_value {
-                self.asm.push(Inst::Pop, span);
+            if let Some((_, expr)) = &assign.assign {
+                self.compile_expr(expr, NeedsValue(true))?;
+
+                // Evaluate the expressions one by one, then pop them to cause any
+                // side effects (without creating an object).
+                if !*needs_value {
+                    self.asm.push(Inst::Pop, span);
+                }
+            } else {
+                let key = assign.key.resolve(self.source)?;
+                let var = self.scopes.get_var(&*key, span)?;
+
+                if *needs_value {
+                    self.asm.push(Inst::Copy { offset: var.offset }, span);
+                }
             }
         }
 
@@ -1055,6 +1066,29 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 let var = self.scopes.get_var(name, ident.span())?;
                 var.offset
             }
+            ast::Expr::ExprBinary(expr_binary) => match (&*expr_binary.lhs, &*expr_binary.rhs) {
+                (ast::Expr::Ident(var), ast::Expr::Ident(field)) => {
+                    let parent_span = span;
+
+                    self.compile_expr(rhs, NeedsValue(true))?;
+
+                    let span = field.span();
+                    let field = field.resolve(self.source)?;
+                    let field = self.unit.new_static_string(field)?;
+                    self.asm.push(Inst::String { slot: field }, span);
+
+                    let span = var.span();
+                    let var = var.resolve(self.source)?;
+                    let var = self.scopes.get_var(var, span)?.offset;
+                    self.asm.push(Inst::Copy { offset: var }, span);
+
+                    self.asm.push(Inst::IndexSet, parent_span);
+                    return Ok(());
+                }
+                _ => {
+                    return Err(CompileError::UnsupportedAssignExpr { span });
+                }
+            },
             _ => {
                 return Err(CompileError::UnsupportedAssignExpr { span });
             }
@@ -2062,7 +2096,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let mut keys_dup = HashMap::new();
         let mut keys = Vec::new();
 
-        for (item, _) in &pat_object.items {
+        for (item, _) in &pat_object.fields {
             let span = item.span();
 
             let key = item.key.resolve(self.source)?;
@@ -2085,6 +2119,34 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 let span = path.span();
 
                 let item = self.convert_path_to_item(path)?;
+
+                let meta = match self.lookup_meta(&item) {
+                    Some(meta) => meta,
+                    None => {
+                        return Err(CompileError::MissingType { span, item });
+                    }
+                };
+
+                let ty = match meta {
+                    Meta::MetaType(ty) => ty,
+                    _ => {
+                        return Err(CompileError::UnsupportedMetaPattern { meta, span });
+                    }
+                };
+
+                for (field, _) in &pat_object.fields {
+                    let span = field.key.span();
+                    let key = field.key.resolve(self.source)?;
+
+                    if !ty.fields.contains(&*key) {
+                        return Err(CompileError::LitObjectNotField {
+                            span,
+                            field: key.to_string(),
+                            item,
+                        });
+                    }
+                }
+
                 let hash = Hash::of_type(&item);
 
                 load(&mut self.asm);
@@ -2122,7 +2184,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         self.asm.jump(false_label, span);
         self.asm.label(length_true)?;
 
-        for ((item, _), slot) in pat_object.items.iter().zip(string_slots) {
+        for ((item, _), slot) in pat_object.fields.iter().zip(string_slots) {
             let span = item.span();
 
             if let Some((_, pat)) = &item.binding {

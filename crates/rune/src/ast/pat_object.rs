@@ -10,8 +10,8 @@ pub struct PatObject {
     pub ident: ast::LitObjectIdent,
     /// The open object marker.
     pub open: ast::OpenBrace,
-    /// The items matched against.
-    pub items: Vec<(PatObjectItem, Option<ast::Comma>)>,
+    /// The fields matched against.
+    pub fields: Vec<(PatObjectItem, Option<ast::Comma>)>,
     /// Indicates if the pattern is open or not.
     pub open_pattern: Option<ast::DotDot>,
     /// The close brace.
@@ -30,7 +30,7 @@ impl PatObject {
         ident: ast::LitObjectIdent,
     ) -> Result<Self, ParseError> {
         let open = parser.parse()?;
-        let mut items = Vec::new();
+        let mut fields = Vec::new();
 
         let mut is_open = true;
 
@@ -44,7 +44,7 @@ impl PatObject {
             };
 
             is_open = comma.is_some();
-            items.push((item, comma));
+            fields.push((item, comma));
 
             if !is_open {
                 break;
@@ -62,7 +62,7 @@ impl PatObject {
         Ok(Self {
             ident,
             open,
-            items,
+            fields,
             close,
             open_pattern,
         })

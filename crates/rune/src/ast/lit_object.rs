@@ -37,6 +37,61 @@ impl Parse for LitObjectIdent {
     }
 }
 
+/// A literal object field.
+#[derive(Debug, Clone)]
+pub struct LitObjectFieldAssign {
+    /// The key of the field.
+    pub key: LitObjectKey,
+    /// The assigned expression of the field.
+    pub assign: Option<(ast::Colon, ast::Expr)>,
+}
+
+impl LitObjectFieldAssign {
+    /// Get the span of the assignment.
+    pub fn span(&self) -> Span {
+        if let Some((_, expr)) = &self.assign {
+            self.key.span().join(expr.span())
+        } else {
+            self.key.span()
+        }
+    }
+
+    /// Check if assignment is constant or not.
+    pub fn is_const(&self) -> bool {
+        match &self.assign {
+            Some((_, expr)) => expr.is_const(),
+            None => false,
+        }
+    }
+}
+
+/// Parse an object literal.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::LitObjectFieldAssign>("\"foo\": 42").unwrap();
+/// parse_all::<ast::LitObjectFieldAssign>("\"foo\": 42").unwrap();
+/// parse_all::<ast::LitObjectFieldAssign>("\"foo\": 42").unwrap();
+/// ```
+impl Parse for LitObjectFieldAssign {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let key = parser.parse()?;
+
+        let assign = if parser.peek::<ast::Colon>()? {
+            let colon = parser.parse()?;
+            let expr = parser.parse::<ast::Expr>()?;
+            Some((colon, expr))
+        } else {
+            None
+        };
+
+        Ok(Self { key, assign })
+    }
+}
+
 /// Possible literal object keys.
 #[derive(Debug, Clone)]
 pub enum LitObjectKey {
@@ -105,7 +160,7 @@ pub struct LitObject {
     /// The open bracket.
     pub open: ast::OpenBrace,
     /// Items in the object declaration.
-    pub items: Vec<(LitObjectKey, ast::Colon, ast::Expr)>,
+    pub assignments: Vec<LitObjectFieldAssign>,
     /// The close bracket.
     pub close: ast::CloseBrace,
     /// Indicates if the object is completely literal and cannot have side
@@ -131,20 +186,18 @@ impl LitObject {
     ) -> Result<Self, ParseError> {
         let open = parser.parse()?;
 
-        let mut items = Vec::new();
+        let mut assignments = Vec::new();
 
         let mut is_const = true;
 
         while !parser.peek::<ast::CloseBrace>()? {
-            let key = parser.parse()?;
-            let colon = parser.parse()?;
-            let expr = parser.parse::<ast::Expr>()?;
+            let assign = parser.parse::<LitObjectFieldAssign>()?;
 
-            if !expr.is_const() {
+            if !assign.is_const() {
                 is_const = false;
             }
 
-            items.push((key, colon, expr));
+            assignments.push(assign);
 
             if parser.peek::<ast::Comma>()? {
                 parser.parse::<ast::Comma>()?;
@@ -158,7 +211,7 @@ impl LitObject {
         Ok(Self {
             ident,
             open,
-            items,
+            assignments,
             close,
             is_const,
         })

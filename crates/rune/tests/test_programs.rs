@@ -941,4 +941,27 @@ fn test_struct_matching() {
         },
         3,
     };
+
+    assert_eq! {
+        test! {
+            i64 => r#"
+            struct Foo { a, b }
+
+            fn main() {
+                let b = 2;
+
+                let foo = Foo {
+                    a: 1,
+                    b,
+                };
+
+                match foo {
+                    Foo { a, b } => a + b,
+                    _ => 0,
+                }
+            }
+            "#
+        },
+        3,
+    };
 }

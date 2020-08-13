@@ -522,6 +522,9 @@ pub enum VmError {
     /// Error raised when the branch register is empty.
     #[error("branch register empty")]
     BranchEmpty {},
+    /// Missing a struct field.
+    #[error("missing struct field")]
+    MissingStructField,
 }
 
 impl VmError {
@@ -2092,16 +2095,46 @@ impl Vm {
 
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
-        while let Value::Object(target) = target {
-            let index = match index {
-                Value::String(index) => self.string_take(index)?,
-                Value::StaticString(slot) => self.lookup_string(slot)?.to_owned(),
-                _ => break,
-            };
+        loop {
+            match target {
+                Value::Object(slot) => {
+                    let index = match index {
+                        Value::String(index) => self.string_take(index)?,
+                        Value::StaticString(slot) => self.lookup_string(slot)?.to_owned(),
+                        _ => break,
+                    };
 
-            let mut object = self.object_mut(target)?;
-            object.insert(index, value);
-            return Ok(());
+                    let mut object = self.object_mut(slot)?;
+                    object.insert(index, value);
+                    return Ok(());
+                }
+                Value::TypedObject(object_slot) => {
+                    // NB: local storage for string.
+                    let local_field;
+
+                    let (field, mut object) = match index {
+                        Value::String(index) => {
+                            local_field = self.string_take(index)?;
+                            let object = self.typed_object_mut(object_slot)?;
+                            (local_field.as_str(), object)
+                        }
+                        Value::StaticString(slot) => {
+                            let field = self.unit.lookup_string(slot)?;
+                            let object = self.typed_object_mut(object_slot)?;
+                            (field, object)
+                        }
+                        _ => break,
+                    };
+
+                    if let Some(v) = object.object.get_mut(field) {
+                        *v = value;
+                        return Ok(());
+                    }
+
+                    return Err(VmError::MissingStructField);
+                }
+                _ => break,
+            }
         }
 
         let ty = target.value_type(self)?;

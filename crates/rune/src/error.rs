@@ -470,7 +470,7 @@ pub enum CompileError {
         item: Item,
     },
     /// Key is not present in the given type literal.
-    #[error("field `{field}` is not a field in `{item}`")]
+    #[error("`{field}` is not a field in `{item}`")]
     LitObjectNotField {
         /// The span of the unsupported object.
         span: Span,
