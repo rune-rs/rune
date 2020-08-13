@@ -286,13 +286,24 @@ pub enum Inst {
         /// The number of entries in the stack to pop.
         count: usize,
     },
-    /// Push a variable from a location `offset` relative to the current call
+    /// Copy a variable from a location `offset` relative to the current call
     /// frame.
     ///
-    /// A copy is very cheap. It simply means pushing a reference to the stack
-    /// and increasing a reference count.
+    /// A copy is very cheap. It simply means pushing a reference to the stack.
     Copy {
         /// Offset to copy value from.
+        offset: usize,
+    },
+    /// Drop the value in the given frame offset, cleaning out it's slot in
+    /// memory.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => *noop*
+    /// ```
+    Drop {
+        /// Frame offset to drop.
         offset: usize,
     },
     /// Duplicate the value at the top of the stack.
@@ -758,6 +769,9 @@ pub enum Inst {
 impl fmt::Display for Inst {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Drop { offset } => {
+                write!(fmt, "drop {}", offset)?;
+            }
             Self::Not => {
                 write!(fmt, "not")?;
             }

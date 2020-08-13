@@ -344,6 +344,14 @@ impl Runtime {
 
                         *span
                     }
+                    CompileError::MovedLocal { span, moved_at, .. } => {
+                        labels.push(
+                            Label::secondary(source_file, moved_at.start..moved_at.end)
+                                .with_message("moved here"),
+                        );
+
+                        *span
+                    }
                     error => error.span(),
                 },
                 RuntimeError::ParseError { error } => error.span(),

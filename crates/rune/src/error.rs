@@ -406,12 +406,22 @@ pub enum CompileError {
         existing_span: Span,
     },
     /// Error for missing local variables.
-    #[error("missing local variable `{name}`")]
+    #[error("missing variable `{name}`")]
     MissingLocal {
         /// Span where the error occured.
         span: Span,
-        /// Name of the missing local.
+        /// Name of the missing variable.
         name: String,
+    },
+    /// Error for moved local variables.
+    #[error("variable `{name}` has been moved")]
+    MovedLocal {
+        /// Span where the error occured.
+        span: Span,
+        /// Name of the moved variable.
+        name: String,
+        /// Where it was moved.
+        moved_at: Span,
     },
     /// Error for missing types.
     #[error("no type matching `{item}`")]
@@ -604,6 +614,7 @@ impl CompileError {
             Self::ParseError { error, .. } => error.span(),
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
+            Self::MovedLocal { span, .. } => span,
             Self::MissingType { span, .. } => span,
             Self::MissingModule { span, .. } => span,
             Self::MissingLabel { span, .. } => span,

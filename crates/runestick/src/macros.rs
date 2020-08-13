@@ -9,6 +9,24 @@
 #[macro_export]
 macro_rules! decl_external {
     ($external:ty) => {
+        $crate::decl_internal!($external);
+
+        impl $crate::FromValue for $external {
+            fn from_value(
+                value: $crate::Value,
+                vm: &mut $crate::Vm,
+            ) -> Result<Self, $crate::VmError> {
+                let slot = value.into_external(vm)?;
+                vm.external_take::<$external>(slot)
+            }
+        }
+    };
+}
+
+/// Implement the value trait for an internal type.
+#[macro_export]
+macro_rules! decl_internal {
+    ($external:ty) => {
         impl $crate::ReflectValueType for $external {
             type Owned = $external;
 
@@ -66,16 +84,6 @@ macro_rules! decl_external {
                 vm: &mut $crate::Vm,
             ) -> Result<$crate::Value, $crate::VmError> {
                 Ok(vm.external_allocate_mut_ptr(self))
-            }
-        }
-
-        impl $crate::FromValue for $external {
-            fn from_value(
-                value: $crate::Value,
-                vm: &mut $crate::Vm,
-            ) -> Result<Self, $crate::VmError> {
-                let slot = value.into_external(vm)?;
-                vm.external_take::<$external>(slot)
             }
         }
 

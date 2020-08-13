@@ -965,3 +965,40 @@ fn test_struct_matching() {
         3,
     };
 }
+
+#[test]
+fn test_iter_drop() {
+    assert_eq! {
+        test! {
+            i64 => r#"
+            fn main() {
+                let sum = 0;
+                let values = [1, 2, 3, 4];
+
+                for v in values.iter() {
+                    break;
+                }
+
+                values.push(5);
+
+                for v in values.iter() {
+                    sum += v;
+
+                    if v == 2 {
+                        break;
+                    }
+                }
+
+                values.push(6);
+
+                for v in values.iter() {
+                    sum += v;
+                }
+
+                sum
+            }
+            "#
+        },
+        24,
+    };
+}

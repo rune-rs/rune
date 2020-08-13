@@ -2,12 +2,18 @@ use crate::value::Slot;
 use crate::vm::VmError;
 use std::cell::Cell;
 use std::fmt;
+use std::marker;
 use std::ops;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(super) struct Access(Cell<isize>);
 
 impl Access {
+    /// Construct a new default access.
+    pub const fn new() -> Self {
+        Self(Cell::new(0))
+    }
+
     /// Test if we have shared access without modifying the internal count.
     #[inline]
     pub(super) fn test_shared(&self, slot: Slot) -> Result<(), VmError> {
@@ -74,6 +80,12 @@ impl Drop for RawRefGuard {
     }
 }
 
+/// A raw guard for borrowed values.
+pub(super) struct RawRef<T: ?Sized> {
+    pub(super) value: *const T,
+    pub(super) guard: RawRefGuard,
+}
+
 /// Guard for a value borrowed from a slot in the virtual machine.
 ///
 /// These guards are necessary, since we need to guarantee certain forms of
@@ -86,8 +98,8 @@ impl Drop for RawRefGuard {
 ///
 /// [clear]: [crate::Vm::clear]
 pub struct Ref<'a, T: ?Sized + 'a> {
-    pub(super) value: &'a T,
-    pub(super) raw: RawRefGuard,
+    pub(super) raw: RawRef<T>,
+    pub(super) _marker: marker::PhantomData<&'a T>,
 }
 
 impl<'a, T: ?Sized> Ref<'a, T> {
@@ -105,7 +117,21 @@ impl<'a, T: ?Sized> Ref<'a, T> {
     ///
     /// [clear]: [crate::Vm::clear]
     pub unsafe fn unsafe_into_ref(this: Self) -> (*const T, RawRefGuard) {
-        (this.value, this.raw)
+        (this.raw.value, this.raw.guard)
+    }
+
+    /// Try to map the interior reference the reference.
+    pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<Ref<'a, U>, E>
+    where
+        M: FnOnce(&T) -> Result<&U, E>,
+    {
+        let value = m(unsafe { &*this.raw.value })?;
+        let guard = this.raw.guard;
+
+        Ok(Ref {
+            raw: RawRef { value, guard },
+            _marker: marker::PhantomData,
+        })
     }
 }
 
@@ -113,7 +139,7 @@ impl<T: ?Sized> ops::Deref for Ref<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.value
+        unsafe { &*self.raw.value }
     }
 }
 
@@ -122,7 +148,7 @@ where
     T: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self.value, fmt)
+        fmt::Debug::fmt(&**self, fmt)
     }
 }
 
@@ -137,6 +163,12 @@ impl Drop for RawMutGuard {
     }
 }
 
+/// A raw guard for exclusively borrowed values.
+pub(super) struct RawMut<T: ?Sized> {
+    pub(super) value: *mut T,
+    pub(super) guard: RawMutGuard,
+}
+
 /// Guard for a value exclusively borrowed from a slot in the virtual machine.
 ///
 /// These guards are necessary, since we need to guarantee certain forms of
@@ -147,8 +179,8 @@ impl Drop for RawMutGuard {
 ///
 /// See [clear][crate::Vm::clear] for more information.
 pub struct Mut<'a, T: ?Sized> {
-    pub(super) value: &'a mut T,
-    pub(super) raw: RawMutGuard,
+    pub(super) raw: RawMut<T>,
+    pub(super) _marker: marker::PhantomData<&'a mut T>,
 }
 
 impl<'a, T: ?Sized> Mut<'a, T> {
@@ -166,7 +198,21 @@ impl<'a, T: ?Sized> Mut<'a, T> {
     ///
     /// [clear]: [crate::Vm::clear]
     pub unsafe fn unsafe_into_mut(this: Self) -> (*mut T, RawMutGuard) {
-        (this.value, this.raw)
+        (this.raw.value, this.raw.guard)
+    }
+
+    /// Map the mutable reference.
+    pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<Mut<'a, U>, E>
+    where
+        M: FnOnce(&mut T) -> Result<&mut U, E>,
+    {
+        let value = m(unsafe { &mut *this.raw.value })?;
+        let guard = this.raw.guard;
+
+        Ok(Mut {
+            raw: RawMut { value, guard },
+            _marker: marker::PhantomData,
+        })
     }
 }
 
@@ -174,12 +220,21 @@ impl<T: ?Sized> ops::Deref for Mut<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.value
+        unsafe { &*self.raw.value }
     }
 }
 
 impl<T: ?Sized> ops::DerefMut for Mut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value
+        unsafe { &mut *self.raw.value }
+    }
+}
+
+impl<T: ?Sized> fmt::Debug for Mut<'_, T>
+where
+    T: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, fmt)
     }
 }

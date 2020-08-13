@@ -14,7 +14,7 @@ use crate::value::{
 use std::any;
 use std::cell::UnsafeCell;
 use std::fmt;
-use std::marker::PhantomData;
+use std::marker;
 use std::mem;
 use std::sync::Arc;
 use thiserror::Error;
@@ -25,6 +25,7 @@ mod slots;
 
 use self::access::Access;
 pub use self::access::{Mut, RawMutGuard, RawRefGuard, Ref};
+use self::access::{RawMut, RawRef};
 pub use self::inst::{Inst, Panic};
 use self::slots::Slots;
 
@@ -85,6 +86,9 @@ pub enum VmError {
         /// The reason for the panic.
         reason: Panic,
     },
+    /// Error raised when trying to access moved value.
+    #[error("trying to access value that has been moved")]
+    Moved,
     /// The virtual machine panicked for a specific reason.
     #[error("panicked `{reason}`")]
     CustomPanic {
@@ -1025,7 +1029,7 @@ impl Vm {
         Ok(Task {
             vm: self,
             context,
-            _marker: PhantomData,
+            _marker: marker::PhantomData,
         })
     }
 
@@ -1037,7 +1041,7 @@ impl Vm {
         Task {
             vm: self,
             context,
-            _marker: PhantomData,
+            _marker: marker::PhantomData,
         }
     }
 
@@ -1149,6 +1153,17 @@ impl Vm {
     fn op_copy(&mut self, offset: usize) -> Result<(), VmError> {
         let value = self.stack.at_offset(offset)?;
         self.stack.push(value);
+        Ok(())
+    }
+
+    #[inline]
+    fn op_drop(&mut self, offset: usize) -> Result<(), VmError> {
+        let value = self.stack.at_offset(offset)?;
+
+        if let Some(slot) = value.into_slot() {
+            self.external_take_dyn(slot)?;
+        }
+
         Ok(())
     }
 
@@ -1270,7 +1285,7 @@ impl Vm {
     {
         self.slots.insert(Holder {
             generation,
-            access: Box::new(Access::default()),
+            access: Box::new(Access::new()),
             value: UnsafeCell::new(Any::new(value)),
         })
     }
@@ -1322,7 +1337,7 @@ impl Vm {
 
         let index = self.slots.insert(Holder {
             generation,
-            access: Box::new(Access::default()),
+            access: Box::new(Access::new()),
             value: UnsafeCell::new(any),
         });
 
@@ -1347,7 +1362,7 @@ impl Vm {
 
         let index = self.slots.insert(Holder {
             generation,
-            access: Box::new(Access::default()),
+            access: Box::new(Access::new()),
             value: UnsafeCell::new(any),
         });
 
@@ -1485,10 +1500,13 @@ impl Vm {
             };
 
             Ok(Ref {
-                value: &*(value as *const T),
-                raw: RawRefGuard {
-                    access: &*holder.access,
+                raw: RawRef {
+                    value: value as *const T,
+                    guard: RawRefGuard {
+                        access: &*holder.access,
+                    },
                 },
+                _marker: marker::PhantomData,
             })
         }
     }
@@ -1530,10 +1548,13 @@ impl Vm {
             };
 
             Ok(Mut {
-                value: &mut *(value as *mut T),
-                raw: RawMutGuard {
-                    access: &*holder.access,
+                raw: RawMut {
+                    value: value as *mut T,
+                    guard: RawMutGuard {
+                        access: &*holder.access,
+                    },
                 },
+                _marker: marker::PhantomData,
             })
         }
     }
@@ -1645,10 +1666,13 @@ impl Vm {
         // the reference cast is safe, and we wrap the return value in a
         // guard which ensures the needed access level.
         Ok(Ref {
-            value: unsafe { &*holder.value.get() },
-            raw: RawRefGuard {
-                access: &*holder.access,
+            raw: RawRef {
+                value: holder.value.get(),
+                guard: RawRefGuard {
+                    access: &*holder.access,
+                },
             },
+            _marker: marker::PhantomData,
         })
     }
 
@@ -2184,9 +2208,10 @@ impl Vm {
 
             let value = {
                 let object = self.object_ref(target)?;
-                object.get(index).copied().unwrap_or_default()
+                object.get(index).copied()
             };
 
+            let value = self.option_allocate(value);
             self.push(value);
             return Ok(());
         }
@@ -2884,6 +2909,9 @@ impl Vm {
                 Inst::Copy { offset } => {
                     self.op_copy(offset)?;
                 }
+                Inst::Drop { offset } => {
+                    self.op_drop(offset)?;
+                }
                 Inst::Dup => {
                     self.op_dup()?;
                 }
@@ -3086,7 +3114,7 @@ pub struct Task<'a, T> {
     /// Functions collection associated with the task.
     context: Arc<Context>,
     /// Hold the type of the task.
-    _marker: PhantomData<(&'a (), T)>,
+    _marker: marker::PhantomData<(&'a (), T)>,
 }
 
 impl<'a, T> Task<'a, T>

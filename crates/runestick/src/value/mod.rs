@@ -88,6 +88,25 @@ pub enum Value {
 }
 
 impl Value {
+    /// Convert into a slot if it's stored in a slot.
+    #[inline]
+    pub fn into_slot(self) -> Option<Slot> {
+        match self {
+            Self::String(slot) => Some(slot),
+            Self::Bytes(slot) => Some(slot),
+            Self::Vec(slot) => Some(slot),
+            Self::Tuple(slot) => Some(slot),
+            Self::Object(slot) => Some(slot),
+            Self::External(slot) => Some(slot),
+            Self::Future(slot) => Some(slot),
+            Self::Option(slot) => Some(slot),
+            Self::Result(slot) => Some(slot),
+            Self::TypedTuple(slot) => Some(slot),
+            Self::TypedObject(slot) => Some(slot),
+            _ => None,
+        }
+    }
+
     /// Try to coerce value reference into a result.
     #[inline]
     pub fn into_result(self, vm: &Vm) -> Result<Slot, VmError> {
@@ -236,12 +255,6 @@ impl Value {
                 ValueTypeInfo::TypedTuple(ty)
             }
         })
-    }
-}
-
-impl Default for Value {
-    fn default() -> Self {
-        Self::Unit
     }
 }
 

@@ -18,6 +18,8 @@ pub(super) struct Loop {
     pub(super) total_var_count: usize,
     /// If the loop needs a value.
     pub(super) needs_value: NeedsValue,
+    /// Locals to drop when breaking.
+    pub(super) drop: Option<usize>,
 }
 
 pub(super) struct Loops {
@@ -63,25 +65,39 @@ impl Loops {
         &self,
         source: Source<'_>,
         expected: ast::Label,
-    ) -> Result<Loop> {
+    ) -> Result<(Loop, Vec<usize>)> {
         use crate::traits::Resolve as _;
 
         let span = expected.span();
         let expected = expected.resolve(source)?;
+        let mut to_drop = Vec::new();
 
         for l in self.loops.iter().rev() {
+            to_drop.extend(l.drop);
+
             let label = match l.label {
                 Some(label) => label,
-                None => continue,
+                None => {
+                    continue;
+                }
             };
 
             let label = label.resolve(source)?;
 
             if expected == label {
-                return Ok(*l);
+                return Ok((*l, to_drop));
             }
         }
 
         Err(CompileError::MissingLabel { span })
+    }
+}
+
+impl<'a> IntoIterator for &'a Loops {
+    type IntoIter = std::slice::Iter<'a, Loop>;
+    type Item = &'a Loop;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.loops.iter()
     }
 }
