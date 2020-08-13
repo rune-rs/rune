@@ -12,3 +12,5 @@
   - [Vectors](./4_2_vectors.md)
   - [Objects](./4_3_objects.md)
   - [Tuples](./4_4_tuples.md)
+- [Structs](./5_structs.md)
+- [Enums](./6_enums.md)

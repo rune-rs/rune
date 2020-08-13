@@ -13,6 +13,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty(&["unit"]).build::<()>()?;
     module.ty(&["bool"]).build::<bool>()?;
     module.ty(&["char"]).build::<char>()?;
+    module.ty(&["byte"]).build::<u8>()?;
 
     module.raw_fn(&["dbg"], |vm, args| {
         for n in 0..args {

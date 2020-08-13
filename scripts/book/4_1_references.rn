@@ -1,0 +1,6 @@
+fn main() {
+    let a = String::new();
+    a.push_str("Hello World");
+    let b = a;
+    dbg(a, b);
+}

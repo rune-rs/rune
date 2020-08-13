@@ -356,6 +356,8 @@ impl CompilationUnit {
         this.imports
             .insert(String::from("bool"), Item::of(&["std", "bool"]));
         this.imports
+            .insert(String::from("byte"), Item::of(&["std", "byte"]));
+        this.imports
             .insert(String::from("char"), Item::of(&["std", "char"]));
         this.imports
             .insert(String::from("int"), Item::of(&["std", "int"]));

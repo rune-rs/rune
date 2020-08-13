@@ -13,6 +13,7 @@ fn main() {
     assert(() is unit, "units should be units");
     assert(true is bool, "bools should be bools");
     assert('a' is char, "chars should be chars");
+    assert(b'a' is byte, "bytes should be bytes");
     assert(42 is int, "integers should be integers");
     assert(42.1 is float, "floats should be floats");
     assert("hello" is String, "strings should be strings");
@@ -25,7 +26,7 @@ Conversely, the type check would fail if it's not valid:
 
 ```text
 error: virtual machine error
-  ┌─ .\scripts\book\4_2_bad_type_check.rn:4:5
+  ┌─ .\scripts\book\4_bad_type_check.rn:4:5
   │
 4 │     assert(["hello", "world"] is String, "vectors should be strings");
   │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

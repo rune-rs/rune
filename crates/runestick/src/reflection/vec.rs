@@ -1,6 +1,6 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::{RawRefGuard, Ref, Vm, VmError};
+use crate::vm::{Mut, RawMutGuard, RawRefGuard, Ref, Vm, VmError};
 
 impl<T> ReflectValueType for Vec<T> {
     type Owned = Vec<T>;
@@ -70,6 +70,23 @@ impl<'a> UnsafeFromValue for &'a Vec<Value> {
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         &*output
+    }
+}
+
+impl<'a> UnsafeFromValue for &'a mut Vec<Value> {
+    type Output = *mut Vec<Value>;
+    type Guard = RawMutGuard;
+
+    unsafe fn unsafe_from_value(
+        value: Value,
+        vm: &mut Vm,
+    ) -> Result<(Self::Output, Self::Guard), VmError> {
+        let slot = value.into_vec(vm)?;
+        Ok(Mut::unsafe_into_mut(vm.vec_mut(slot)?))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &mut *output
     }
 }
 

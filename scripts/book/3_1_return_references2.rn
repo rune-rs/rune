@@ -1,9 +1,0 @@
-fn function(n) {
-    let local = 2;
-    *n = &local;
-}
-
-fn main() {
-    let foo = 1;
-    function(&foo);
-}

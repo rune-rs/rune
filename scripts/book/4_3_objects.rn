@@ -1,0 +1,7 @@
+fn main() {
+    let values = #{};
+    values["first"] = "bar";
+    values["second"] = 42;
+
+    dbg(values);
+}

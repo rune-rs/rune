@@ -1,0 +1,9 @@
+fn main() {
+    let values = Vec::new();
+    values.push("Hello");
+    values.push(42);
+
+    while let Some(v) = values.pop() {
+        dbg(v);
+    }
+}
