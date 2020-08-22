@@ -272,6 +272,36 @@ pub enum Inst {
         /// The number of elements to pop from the stack.
         count: usize,
     },
+    /// If the stop of the stack is true, will pop the given `count` entries on
+    /// the stack and jump to the given offset.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <bool>
+    /// => *noop*
+    /// ```
+    PopAndJumpIf {
+        /// The number of entries to pop of the condition is true.
+        count: usize,
+        /// The offset to jump if the condition is true.
+        offset: isize,
+    },
+    /// If the stop of the stack is false, will pop the given `count` entries on
+    /// the stack and jump to the given offset.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <bool>
+    /// => *noop*
+    /// ```
+    PopAndJumpIfNot {
+        /// The number of entries to pop of the condition is true.
+        count: usize,
+        /// The offset to jump if the condition is true.
+        offset: isize,
+    },
     /// Clean the stack by keeping the top of it, and popping `count` values
     /// under it.
     ///
@@ -843,6 +873,12 @@ impl fmt::Display for Inst {
             }
             Self::PopN { count } => {
                 write!(fmt, "pop-n {}", count)?;
+            }
+            Self::PopAndJumpIf { count, offset } => {
+                write!(fmt, "pop-and-jump-if {}, {}", count, offset)?;
+            }
+            Self::PopAndJumpIfNot { count, offset } => {
+                write!(fmt, "pop-and-jump-if-not {}, {}", count, offset)?;
             }
             Self::Clean { count } => {
                 write!(fmt, "clean {}", count)?;

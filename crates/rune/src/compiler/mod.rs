@@ -1781,9 +1781,9 @@ impl<'a, 'm> Compiler<'a, 'm> {
             if let Some((_, condition)) = &branch.condition {
                 let span = condition.span();
                 self.compile_expr(&*condition, NeedsValue(true), DoMove(false))?;
-                self.asm.jump_if(branch_label, span);
-                self.locals_pop(scope.local_var_count, span);
-                self.asm.jump(match_false, span);
+                self.asm
+                    .pop_and_jump_if_not(scope.local_var_count, match_false, span);
+                self.asm.jump(branch_label, span);
             }
 
             self.asm.jump(branch_label, span);
@@ -1843,11 +1843,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
     }
 
     /// Compile a try expression.
-    fn compile_expr_try(
-        &mut self,
-        expr_try: &ast::ExprTry,
-        _needs_value: NeedsValue,
-    ) -> Result<()> {
+    fn compile_expr_try(&mut self, expr_try: &ast::ExprTry, needs_value: NeedsValue) -> Result<()> {
         let span = expr_try.span();
         log::trace!("ExprTry => {:?}", self.source.source(span)?);
 
@@ -1864,7 +1860,12 @@ impl<'a, 'm> Compiler<'a, 'm> {
         self.asm.push(Inst::Return, span);
 
         self.asm.label(not_error)?;
-        self.asm.push(Inst::ResultUnwrap, span);
+
+        if *needs_value {
+            self.asm.push(Inst::ResultUnwrap, span);
+        } else {
+            self.asm.push(Inst::Pop, span);
+        }
 
         Ok(())
     }
@@ -1950,24 +1951,18 @@ impl<'a, 'm> Compiler<'a, 'm> {
 
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed a vector.
-        {
-            load(&mut self.asm);
+        load(&mut self.asm);
 
-            self.asm.push(
-                Inst::MatchVec {
-                    len: pat_vec.items.len(),
-                    exact: pat_vec.open_pattern.is_none(),
-                },
-                span,
-            );
-        }
+        self.asm.push(
+            Inst::MatchVec {
+                len: pat_vec.items.len(),
+                exact: pat_vec.open_pattern.is_none(),
+            },
+            span,
+        );
 
-        let length_true = self.asm.new_label("pat_vec_len_true");
-
-        self.asm.jump_if(length_true, span);
-        self.locals_pop(scope.local_var_count, span);
-        self.asm.jump(false_label, span);
-        self.asm.label(length_true)?;
+        self.asm
+            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
 
         for (index, (pat, _)) in pat_vec.items.iter().enumerate() {
             let span = pat.span();
@@ -2006,12 +2001,8 @@ impl<'a, 'm> Compiler<'a, 'm> {
             span,
         );
 
-        let length_true = self.asm.new_label("pat_tuple_len_true");
-
-        self.asm.jump_if(length_true, span);
-        self.locals_pop(scope.local_var_count, span);
-        self.asm.jump(false_label, span);
-        self.asm.label(length_true)?;
+        self.asm
+            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
         Ok(())
     }
 
@@ -2104,12 +2095,8 @@ impl<'a, 'm> Compiler<'a, 'm> {
         load(self.asm);
         self.asm.push(Inst::Type { hash: type_hash }, span);
         self.asm.push(Inst::Is, span);
-
-        let check_true = self.asm.new_label("compile_pat_type_check_true");
-        self.asm.jump_if(check_true, span);
-        self.locals_pop(scope.local_var_count, span);
-        self.asm.jump(false_label, span);
-        self.asm.label(check_true)?;
+        self.asm
+            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
         Ok(())
     }
 
@@ -2124,12 +2111,8 @@ impl<'a, 'm> Compiler<'a, 'm> {
         load(self.asm);
         let hash = Hash::tuple_match(ty);
         self.asm.push(Inst::Call { hash, args: 0 }, span);
-
-        let check_true = self.asm.new_label("tuple_match_true");
-        self.asm.jump_if(check_true, span);
-        self.locals_pop(scope.local_var_count, span);
-        self.asm.jump(false_label, span);
-        self.asm.label(check_true)?;
+        self.asm
+            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
         Ok(())
     }
 
@@ -2205,13 +2188,8 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 load(&mut self.asm);
                 self.asm.push(Inst::Type { hash }, span);
                 self.asm.push(Inst::Is, span);
-
-                let type_true = self.asm.new_label("pat_object_type_true");
-
-                self.asm.jump_if(type_true, span);
-                self.locals_pop(scope.local_var_count, span);
-                self.asm.jump(false_label, span);
-                self.asm.label(type_true)?;
+                self.asm
+                    .pop_and_jump_if_not(scope.local_var_count, false_label, span);
                 true
             }
             ast::LitObjectIdent::Anonymous(..) => false,
@@ -2230,12 +2208,8 @@ impl<'a, 'm> Compiler<'a, 'm> {
             span,
         );
 
-        let length_true = self.asm.new_label("pat_object_len_true");
-
-        self.asm.jump_if(length_true, span);
-        self.locals_pop(scope.local_var_count, span);
-        self.asm.jump(false_label, span);
-        self.asm.label(length_true)?;
+        self.asm
+            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
 
         for ((item, _), slot) in pat_object.fields.iter().zip(string_slots) {
             let span = item.span();

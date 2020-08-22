@@ -870,6 +870,21 @@ impl Stack {
         self.stack.pop().ok_or_else(|| VmError::StackEmpty)
     }
 
+    /// Pop the given number of elements from the stack.
+    pub fn popn(&mut self, count: usize) -> Result<(), VmError> {
+        if self.stack.len().saturating_sub(self.stack_top) < count {
+            return Err(VmError::PopOutOfBounds {
+                frame: self.stack_top,
+            });
+        }
+
+        for _ in 0..count {
+            self.stack.pop();
+        }
+
+        Ok(())
+    }
+
     /// Get the length of the stack.
     pub fn len(&self) -> usize {
         self.stack.len()
@@ -1136,6 +1151,40 @@ impl Vm {
             self.stack.pop()?;
         }
 
+        Ok(())
+    }
+
+    /// pop-and-jump-if instruction.
+    fn op_pop_and_jump_if(
+        &mut self,
+        count: usize,
+        offset: isize,
+        update_ip: &mut bool,
+    ) -> Result<(), VmError> {
+        if !pop!(self, Bool) {
+            return Ok(());
+        }
+
+        self.stack.popn(count)?;
+        self.modify_ip(offset)?;
+        *update_ip = false;
+        Ok(())
+    }
+
+    /// pop-and-jump-if-not instruction.
+    fn op_pop_and_jump_if_not(
+        &mut self,
+        count: usize,
+        offset: isize,
+        update_ip: &mut bool,
+    ) -> Result<(), VmError> {
+        if pop!(self, Bool) {
+            return Ok(());
+        }
+
+        self.stack.popn(count)?;
+        self.modify_ip(offset)?;
+        *update_ip = false;
         Ok(())
     }
 
@@ -2896,6 +2945,12 @@ impl Vm {
                 }
                 Inst::PopN { count } => {
                     self.op_popn(count)?;
+                }
+                Inst::PopAndJumpIf { count, offset } => {
+                    self.op_pop_and_jump_if(count, offset, &mut update_ip)?;
+                }
+                Inst::PopAndJumpIfNot { count, offset } => {
+                    self.op_pop_and_jump_if_not(count, offset, &mut update_ip)?;
                 }
                 Inst::Clean { count } => {
                     self.op_clean(count)?;

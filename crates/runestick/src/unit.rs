@@ -749,6 +749,17 @@ impl CompilationUnit {
                     self.instructions
                         .push(Inst::JumpIfBranch { branch, offset });
                 }
+                AssemblyInst::PopAndJumpIf { count, label } => {
+                    comment = Some(format!("label:{}", label).into_boxed_str());
+                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    self.instructions.push(Inst::PopAndJumpIf { count, offset });
+                }
+                AssemblyInst::PopAndJumpIfNot { count, label } => {
+                    comment = Some(format!("label:{}", label).into_boxed_str());
+                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    self.instructions
+                        .push(Inst::PopAndJumpIfNot { count, offset });
+                }
                 AssemblyInst::Raw { raw } => {
                     self.instructions.push(raw);
                 }
@@ -819,6 +830,8 @@ enum AssemblyInst {
     JumpIf { label: Label },
     JumpIfNot { label: Label },
     JumpIfBranch { branch: usize, label: Label },
+    PopAndJumpIf { count: usize, label: Label },
+    PopAndJumpIfNot { count: usize, label: Label },
     Raw { raw: Inst },
 }
 
@@ -893,6 +906,18 @@ impl Assembly {
     pub fn jump_if_branch(&mut self, branch: usize, label: Label, span: Span) {
         self.instructions
             .push((AssemblyInst::JumpIfBranch { branch, label }, span));
+    }
+
+    /// Add a pop-and-jump-if instruction to a label.
+    pub fn pop_and_jump_if(&mut self, count: usize, label: Label, span: Span) {
+        self.instructions
+            .push((AssemblyInst::PopAndJumpIf { count, label }, span));
+    }
+
+    /// Add a pop-and-jump-if-not instruction to a label.
+    pub fn pop_and_jump_if_not(&mut self, count: usize, label: Label, span: Span) {
+        self.instructions
+            .push((AssemblyInst::PopAndJumpIfNot { count, label }, span));
     }
 
     /// Push a raw instruction.
