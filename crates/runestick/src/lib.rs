@@ -42,6 +42,7 @@ mod value;
 mod vm;
 #[macro_use]
 mod macros;
+mod access;
 mod bytes;
 mod error;
 mod future;
@@ -49,9 +50,11 @@ mod hash;
 pub mod packages;
 mod reflection;
 mod serde;
-pub mod tls;
+mod shared;
+mod shared_ptr;
 pub mod unit;
 
+pub use crate::access::{Mut, NotAccessibleMut, NotAccessibleRef, Ref};
 pub use crate::any::Any;
 pub use crate::bytes::Bytes;
 pub use crate::context::{Context, ContextError, Item, Meta, MetaTuple, MetaType, Module};
@@ -64,12 +67,14 @@ pub use crate::hash::Hash;
 pub use crate::reflection::{
     FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue, UnsafeToValue,
 };
+pub use crate::shared::{RawStrongMutGuard, RawStrongRefGuard, Shared, StrongMut, StrongRef};
+pub use crate::shared_ptr::SharedPtr;
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
 pub use crate::value::{
-    Object, OwnedTypedObject, OwnedTypedTuple, OwnedValue, Slot, TypedTuple, TypedTupleRef, Value,
-    ValueRef, ValueType, ValueTypeInfo, VecTuple,
+    Object, RawValueMutGuard, RawValueRefGuard, TypedTuple, Value, ValueType, ValueTypeInfo,
+    VecTuple,
 };
-pub use crate::vm::{Inst, Mut, Panic, RawMutGuard, RawRefGuard, Ref, Task, Vm, VmError};
+pub use crate::vm::{Inst, Panic, Task, Vm, VmError};
 
 mod collections {
     pub use hashbrown::HashMap;

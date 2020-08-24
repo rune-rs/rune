@@ -2,7 +2,7 @@
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::{Integer, Vm, VmError};
+use crate::vm::{Integer, VmError};
 
 impl ReflectValueType for bool {
     type Owned = bool;
@@ -17,17 +17,17 @@ impl ReflectValueType for bool {
 }
 
 impl ToValue for bool {
-    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(Value::Bool(self))
     }
 }
 
 impl FromValue for bool {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         match value {
             Value::Bool(value) => Ok(value),
             actual => Err(VmError::ExpectedBoolean {
-                actual: actual.type_info(vm)?,
+                actual: actual.type_info()?,
             }),
         }
     }
@@ -46,17 +46,17 @@ impl ReflectValueType for char {
 }
 
 impl ToValue for char {
-    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(Value::Char(self))
     }
 }
 
 impl FromValue for char {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         match value {
             Value::Char(value) => Ok(value),
             actual => Err(VmError::ExpectedChar {
-                actual: actual.type_info(vm)?,
+                actual: actual.type_info()?,
             }),
         }
     }
@@ -75,17 +75,17 @@ impl ReflectValueType for u8 {
 }
 
 impl ToValue for u8 {
-    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(Value::Byte(self))
     }
 }
 
 impl FromValue for u8 {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         match value {
             Value::Byte(value) => Ok(value),
             actual => Err(VmError::ExpectedByte {
-                actual: actual.type_info(vm)?,
+                actual: actual.type_info()?,
             }),
         }
     }
@@ -107,7 +107,7 @@ macro_rules! number_value_trait {
         }
 
         impl ToValue for $ty {
-            fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+            fn to_value(self) -> Result<Value, VmError> {
                 use std::convert::TryInto as _;
 
                 match self.try_into() {
@@ -121,7 +121,7 @@ macro_rules! number_value_trait {
         }
 
         impl FromValue for $ty {
-            fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
+            fn from_value(value: Value) -> Result<Self, VmError> {
                 use std::convert::TryInto as _;
 
                 match value {
@@ -133,7 +133,7 @@ macro_rules! number_value_trait {
                         }),
                     },
                     actual => Err(VmError::ExpectedInteger {
-                        actual: actual.type_info(vm)?,
+                        actual: actual.type_info()?,
                     }),
                 }
             }
@@ -165,17 +165,17 @@ impl ReflectValueType for f64 {
 }
 
 impl ToValue for f64 {
-    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(Value::Float(self))
     }
 }
 
 impl FromValue for f64 {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         match value {
             Value::Float(number) => Ok(number),
             actual => Err(VmError::ExpectedFloat {
-                actual: actual.type_info(vm)?,
+                actual: actual.type_info()?,
             }),
         }
     }
@@ -195,17 +195,17 @@ impl ReflectValueType for f32 {
 }
 
 impl ToValue for f32 {
-    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(Value::Float(self as f64))
     }
 }
 
 impl FromValue for f32 {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         match value {
             Value::Float(number) => Ok(number as f32),
             actual => Err(VmError::ExpectedFloat {
-                actual: actual.type_info(vm)?,
+                actual: actual.type_info()?,
             }),
         }
     }

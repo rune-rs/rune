@@ -1,5 +1,4 @@
-use crate::any::Any;
-use crate::value::{OwnedValue, Value, ValueType, ValueTypeInfo, VecTuple};
+use crate::value::{Value, ValueType, ValueTypeInfo, VecTuple};
 use crate::vm::{Vm, VmError};
 
 mod bytes;
@@ -42,7 +41,7 @@ pub trait ReflectValueType: Sized {
 /// Trait for converting types into values.
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError>;
+    fn to_value(self) -> Result<Value, VmError>;
 }
 
 /// Trait for unsafe conversion of value types into values.
@@ -54,13 +53,13 @@ pub trait UnsafeToValue {
     /// The caller of this function need to make sure that the value converted
     /// doesn't outlive the virtual machine which uses it, since it might be
     /// encoded as a raw pointer in the slots of the virtual machine.
-    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<Value, VmError>;
+    unsafe fn unsafe_to_value(self) -> Result<Value, VmError>;
 }
 
 /// Trait for converting from a value.
 pub trait FromValue: Sized {
     /// Try to convert to the given type, from the given value.
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError>;
+    fn from_value(value: Value) -> Result<Self, VmError>;
 }
 
 /// A potentially unsafe conversion for value conversion.
@@ -83,10 +82,7 @@ pub trait UnsafeFromValue: Sized {
     ///
     /// You must also make sure that the returned value does not outlive the
     /// guard.
-    unsafe fn unsafe_from_value(
-        value: Value,
-        vm: &mut Vm,
-    ) -> Result<(Self::Output, Self::Guard), VmError>;
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError>;
 
     /// Coerce the output of an unsafe from value into the final output type.
     ///
@@ -107,8 +103,8 @@ where
     type Output = T;
     type Guard = ();
 
-    unsafe fn unsafe_from_value(value: Value, vm: &mut Vm) -> Result<(Self, Self::Guard), VmError> {
-        Ok((T::from_value(value, vm)?, ()))
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self, Self::Guard), VmError> {
+        Ok((T::from_value(value)?, ()))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -120,33 +116,20 @@ impl<T> UnsafeToValue for T
 where
     T: ToValue,
 {
-    unsafe fn unsafe_to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
-        self.to_value(vm)
+    unsafe fn unsafe_to_value(self) -> Result<Value, VmError> {
+        self.to_value()
     }
 }
 
 impl FromValue for Value {
-    fn from_value(value: Value, _: &mut Vm) -> Result<Self, VmError> {
-        Ok(value)
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.clone())
     }
 }
 
 impl ToValue for Value {
-    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(self)
-    }
-}
-
-impl FromValue for OwnedValue {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-        vm.value_take(value)
-    }
-}
-
-impl FromValue for Any {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-        let slot = value.into_external(vm)?;
-        vm.external_take_dyn(slot)
     }
 }
 
@@ -178,14 +161,14 @@ macro_rules! impl_into_args {
         }
     };
 
-    (@push $vm:expr, [] $($var:ident)*) => {
+    (@push $vm:ident, [] $($var:ident)*) => {
         $(
-            let $var = $var.unsafe_to_value($vm)?;
+            let $var = $var.unsafe_to_value()?;
             $vm.push($var);
         )*
     };
 
-    (@push $vm:expr, [$first:ident $($rest:ident)*] $($var:ident)*) => {
+    (@push $vm:ident, [$first:ident $($rest:ident)*] $($var:ident)*) => {
         impl_into_args!(@push $vm, [$($rest)*] $first $($var)*)
     };
 }
@@ -215,23 +198,23 @@ macro_rules! impl_from_value_tuple_vec {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-                let slot = value.into_vec(vm)?;
-                let tuple = vm.vec_clone(slot)?;
+            fn from_value(value: Value) -> Result<Self, VmError> {
+                let vec = value.into_vec()?;
+                let vec = vec.take()?;
 
-                if tuple.len() != $count {
+                if vec.len() != $count {
                     return Err(VmError::ExpectedTupleLength {
-                        actual: tuple.len(),
+                        actual: vec.len(),
                         expected: $count,
                     });
                 }
 
                 #[allow(unused_mut, unused_variables)]
-                let mut it = tuple.iter();
+                let mut it = vec.into_iter();
 
                 $(
                     let $var: $ty = match it.next() {
-                        Some(value) => <$ty>::from_value(*value, vm)?,
+                        Some(value) => <$ty>::from_value(value)?,
                         None => {
                             return Err(VmError::IterationError);
                         },

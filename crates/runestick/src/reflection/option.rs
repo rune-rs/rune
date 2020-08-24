@@ -1,8 +1,9 @@
 //! Trait implementations for Option<T>.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
+use crate::shared::{RawStrongRefGuard, Shared, StrongRef};
 use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::{RawRefGuard, Ref, Vm, VmError};
+use crate::vm::VmError;
 
 impl<T> ReflectValueType for Option<T> {
     type Owned = Option<T>;
@@ -32,14 +33,14 @@ impl<T> ToValue for Option<T>
 where
     T: ToValue,
 {
-    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
-        Ok(match self {
+    fn to_value(self) -> Result<Value, VmError> {
+        Ok(Value::Option(Shared::new(match self {
             Some(some) => {
-                let value = some.to_value(vm)?;
-                vm.option_allocate(Some(value))
+                let value = some.to_value()?;
+                Some(value)
             }
-            None => vm.option_allocate(None),
-        })
+            None => None,
+        })))
     }
 }
 
@@ -47,18 +48,14 @@ impl<T> FromValue for Option<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         match value {
-            Value::Option(slot) => {
-                let option = vm.option_take(slot)?;
-
-                Ok(match option {
-                    Some(some) => Some(T::from_value(some, vm)?),
-                    None => None,
-                })
-            }
+            Value::Option(option) => Ok(match option.take()? {
+                Some(some) => Some(T::from_value(some)?),
+                None => None,
+            }),
             actual => Err(VmError::ExpectedOption {
-                actual: actual.type_info(vm)?,
+                actual: actual.type_info()?,
             }),
         }
     }
@@ -66,14 +63,11 @@ where
 
 impl<'a> UnsafeFromValue for &'a Option<Value> {
     type Output = *const Option<Value>;
-    type Guard = RawRefGuard;
+    type Guard = RawStrongRefGuard;
 
-    unsafe fn unsafe_from_value(
-        value: Value,
-        vm: &mut Vm,
-    ) -> Result<(Self::Output, Self::Guard), VmError> {
-        let slot = value.into_option(vm)?;
-        Ok(Ref::unsafe_into_ref(vm.option_ref(slot)?))
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+        let option = value.into_option()?;
+        Ok(StrongRef::into_raw(option.strong_ref()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

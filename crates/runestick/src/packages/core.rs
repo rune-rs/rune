@@ -17,7 +17,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.raw_fn(&["dbg"], |vm, args| {
         for n in 0..args {
-            match vm.pop().and_then(|v| vm.value_ref(v)) {
+            match vm.pop() {
                 Ok(value) => {
                     println!("{} = {:?}", n, value);
                 }

@@ -188,13 +188,6 @@ fn test_break_as_value() {
             assert_eq!(span, Span::new(27, 32));
         }
     };
-
-    test_warnings! {
-        r#"fn main() { loop { break } }"#,
-        NotUsed { span, .. } => {
-            assert_eq!(span, Span::new(19, 24));
-        }
-    };
 }
 
 #[test]

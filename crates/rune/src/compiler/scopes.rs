@@ -11,8 +11,6 @@ pub(super) struct Var {
     name: String,
     /// Token assocaited with the variable.
     span: Span,
-    /// Flag indicating that the variable has been moved.
-    pub(super) moved: Option<Span>,
 }
 
 /// A locally declared variable.
@@ -63,7 +61,6 @@ impl Scope {
             offset: self.total_var_count,
             name: name.to_owned(),
             span,
-            moved: None,
         };
 
         self.total_var_count += 1;
@@ -92,7 +89,6 @@ impl Scope {
                 offset,
                 name: name.to_owned(),
                 span,
-                moved: None,
             },
         );
 
@@ -115,15 +111,6 @@ impl Scope {
     /// Access the variable with the given name.
     pub(super) fn get(&self, name: &str) -> Option<&Var> {
         if let Some(var) = self.locals.get(name) {
-            return Some(var);
-        }
-
-        None
-    }
-
-    /// Access the variable mutably with the given name.
-    pub(super) fn get_mut(&mut self, name: &str) -> Option<&mut Var> {
-        if let Some(var) = self.locals.get_mut(name) {
             return Some(var);
         }
 
@@ -152,17 +139,9 @@ impl Scopes {
 
     /// Try to get the local with the given name. Returns `None` if it's
     /// missing.
-    pub(super) fn try_get_var(&self, name: &str, span: Span) -> Result<Option<&Var>> {
+    pub(super) fn try_get_var(&self, name: &str) -> Result<Option<&Var>> {
         for scope in self.scopes.iter().rev() {
             if let Some(var) = scope.get(name) {
-                if let Some(moved_at) = var.moved {
-                    return Err(CompileError::MovedLocal {
-                        name: name.to_owned(),
-                        span,
-                        moved_at,
-                    });
-                }
-
                 return Ok(Some(var));
             }
         }
@@ -172,34 +151,13 @@ impl Scopes {
 
     /// Get the local with the given name.
     pub(super) fn get_var(&self, name: &str, span: Span) -> Result<&Var> {
-        match self.try_get_var(name, span)? {
+        match self.try_get_var(name)? {
             Some(var) => Ok(var),
             None => Err(CompileError::MissingLocal {
                 name: name.to_owned(),
                 span,
             }),
         }
-    }
-
-    /// Try to get the local mutably with the given name. Returns `None` if it's
-    /// missing.
-    pub(super) fn try_move_var(&mut self, name: &str, span: Span) -> Result<Option<&Var>> {
-        for scope in self.scopes.iter_mut().rev() {
-            if let Some(var) = scope.get_mut(name) {
-                if let Some(moved_at) = var.moved {
-                    return Err(CompileError::MovedLocal {
-                        name: name.to_owned(),
-                        span,
-                        moved_at,
-                    });
-                }
-
-                var.moved = Some(span);
-                return Ok(Some(var));
-            }
-        }
-
-        Ok(None)
     }
 
     /// Get the local with the given name.

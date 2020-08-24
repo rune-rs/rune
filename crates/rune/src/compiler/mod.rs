@@ -34,18 +34,6 @@ impl std::ops::Deref for NeedsValue {
     }
 }
 
-/// Flag to indicate if the expression should result in a move.
-#[derive(Debug, Clone, Copy)]
-struct DoMove(bool);
-
-impl std::ops::Deref for DoMove {
-    type Target = bool;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 /// Convert an ast declaration into a struct.
 fn ast_into_item_decl<I>(
     item: I,
@@ -208,11 +196,11 @@ impl<'a, 'm> Compiler<'a, 'm> {
         }
 
         for (expr, _) in &fn_decl.body.exprs {
-            self.compile_expr(expr, NeedsValue(false), DoMove(false))?;
+            self.compile_expr(expr, NeedsValue(false))?;
         }
 
         if let Some(expr) = &fn_decl.body.trailing_expr {
-            self.compile_expr(expr, NeedsValue(true), DoMove(false))?;
+            self.compile_expr(expr, NeedsValue(true))?;
 
             let total_var_count = self.scopes.last(span)?.total_var_count;
             self.locals_clean(total_var_count, span);
@@ -289,15 +277,11 @@ impl<'a, 'm> Compiler<'a, 'm> {
 
         for (expr, _) in &block.exprs {
             // NB: terminated expressions do not need to produce a value.
-            self.compile_expr(expr, NeedsValue(false), DoMove(false))?;
+            self.compile_expr(expr, NeedsValue(false))?;
         }
 
         if let Some(expr) = &block.trailing_expr {
-            if !*needs_value {
-                self.warnings.not_used(expr.span(), self.context());
-            }
-
-            self.compile_expr(expr, needs_value, DoMove(true))?;
+            self.compile_expr(expr, needs_value)?;
         }
 
         let scope = self.scopes.pop(span, scopes_count)?;
@@ -345,7 +329,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let total_var_count = self.scopes.last(span)?.total_var_count;
 
         if let Some(expr) = &return_expr.expr {
-            self.compile_expr(&*expr, NeedsValue(true), DoMove(true))?;
+            self.compile_expr(&*expr, NeedsValue(true))?;
             self.locals_clean(total_var_count, span);
             self.asm.push(Inst::Return, span);
         } else {
@@ -357,12 +341,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
     }
 
     /// Encode an expression.
-    fn compile_expr(
-        &mut self,
-        expr: &ast::Expr,
-        needs_value: NeedsValue,
-        do_move: DoMove,
-    ) -> Result<()> {
+    fn compile_expr(&mut self, expr: &ast::Expr, needs_value: NeedsValue) -> Result<()> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span)?);
 
@@ -380,7 +359,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 self.compile_expr_let(expr_let, needs_value)?;
             }
             ast::Expr::ExprGroup(expr) => {
-                self.compile_expr(&*expr.expr, needs_value, do_move)?;
+                self.compile_expr(&*expr.expr, needs_value)?;
             }
             ast::Expr::ExprUnary(expr_unary) => {
                 self.compile_expr_unary(expr_unary, needs_value)?;
@@ -419,7 +398,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 self.compile_expr_select(expr_select, needs_value)?;
             }
             ast::Expr::Ident(ident) => {
-                self.compile_ident(ident, needs_value, do_move)?;
+                self.compile_ident(ident, needs_value)?;
             }
             ast::Expr::Path(path) => {
                 self.compile_path(path, needs_value)?;
@@ -483,7 +462,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let count = lit_vec.items.len();
 
         for expr in lit_vec.items.iter().rev() {
-            self.compile_expr(expr, NeedsValue(true), DoMove(false))?;
+            self.compile_expr(expr, NeedsValue(true))?;
 
             // Evaluate the expressions one by one, then pop them to cause any
             // side effects (without creating an object).
@@ -538,7 +517,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
             let span = assign.span();
 
             if let Some((_, expr)) = &assign.assign {
-                self.compile_expr(expr, NeedsValue(true), DoMove(false))?;
+                self.compile_expr(expr, NeedsValue(true))?;
 
                 // Evaluate the expressions one by one, then pop them to cause any
                 // side effects (without creating an object).
@@ -703,11 +682,11 @@ impl<'a, 'm> Compiler<'a, 'm> {
             match c {
                 ast::TemplateComponent::String(string) => {
                     let slot = self.unit.new_static_string(&string)?;
-                    self.asm.push(Inst::StaticString { slot }, span);
+                    self.asm.push(Inst::String { slot }, span);
                     self.scopes.last_mut(span)?.decl_anon(span);
                 }
                 ast::TemplateComponent::Expr(expr) => {
-                    self.compile_expr(expr, NeedsValue(true), DoMove(false))?;
+                    self.compile_expr(expr, NeedsValue(true))?;
                     self.scopes.last_mut(span)?.decl_anon(span);
                 }
             }
@@ -759,7 +738,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         }
 
         for (expr, _) in lit_tuple.items.iter().rev() {
-            self.compile_expr(expr, NeedsValue(true), DoMove(false))?;
+            self.compile_expr(expr, NeedsValue(true))?;
         }
 
         self.asm.push(
@@ -877,7 +856,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let iter_offset = loop_scope.decl_anon(span);
         let loop_scope_expected = self.scopes.push(loop_scope);
 
-        self.compile_expr(&*expr_for.iter, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(&*expr_for.iter, NeedsValue(true))?;
 
         let loop_count = self.loops.push(Loop {
             label: expr_for.label.map(|(label, _)| label),
@@ -1054,7 +1033,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         log::trace!("ExprLet => {:?}", self.source.source(span)?);
 
         // NB: assignments "move" the value being assigned.
-        self.compile_expr(&*expr_let.expr, NeedsValue(true), DoMove(true))?;
+        self.compile_expr(&*expr_let.expr, NeedsValue(true))?;
 
         let mut scope = self.scopes.pop_unchecked(span)?;
 
@@ -1106,7 +1085,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 (ast::Expr::Ident(var), ast::Expr::Ident(field)) => {
                     let parent_span = span;
 
-                    self.compile_expr(rhs, NeedsValue(true), DoMove(false))?;
+                    self.compile_expr(rhs, NeedsValue(true))?;
 
                     let span = field.span();
                     let field = field.resolve(self.source)?;
@@ -1130,7 +1109,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
             }
         };
 
-        self.compile_expr(rhs, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(rhs, NeedsValue(true))?;
 
         match bin_op {
             ast::BinOp::Assign => {
@@ -1184,7 +1163,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
                         _ => break,
                     };
 
-                    self.compile_expr(lhs, NeedsValue(true), DoMove(false))?;
+                    self.compile_expr(lhs, NeedsValue(true))?;
                     self.asm.push(Inst::TupleIndexGet { index }, span);
 
                     if !*needs_value {
@@ -1198,7 +1177,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
                     let field = ident.resolve(self.source)?;
                     let slot = self.unit.new_static_string(field)?;
 
-                    self.compile_expr(lhs, NeedsValue(true), DoMove(false))?;
+                    self.compile_expr(lhs, NeedsValue(true))?;
                     self.asm.push(Inst::ObjectSlotIndexGet { slot }, span);
 
                     if !*needs_value {
@@ -1223,8 +1202,8 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let span = expr_index_get.span();
         log::trace!("ExprIndexGet => {:?}", self.source.source(span)?);
 
-        self.compile_expr(&*expr_index_get.index, NeedsValue(true), DoMove(false))?;
-        self.compile_expr(&*expr_index_get.target, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(&*expr_index_get.index, NeedsValue(true))?;
+        self.compile_expr(&*expr_index_get.target, NeedsValue(true))?;
         self.asm.push(Inst::IndexGet, span);
 
         // NB: we still need to perform the operation since it might have side
@@ -1259,7 +1238,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let (last_loop, to_drop, has_value) = if let Some(expr) = &expr_break.expr {
             match expr {
                 ast::ExprBreakValue::Expr(expr) => {
-                    self.compile_expr(&*expr, current_loop.needs_value, DoMove(false))?;
+                    self.compile_expr(&*expr, current_loop.needs_value)?;
                     (current_loop, current_loop.drop.into_iter().collect(), true)
                 }
                 ast::ExprBreakValue::Label(label) => {
@@ -1307,9 +1286,9 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let span = expr_index_set.span();
         log::trace!("ExprIndexSet => {:?}", self.source.source(span)?);
 
-        self.compile_expr(&*expr_index_set.value, NeedsValue(true), DoMove(false))?;
-        self.compile_expr(&*expr_index_set.index, NeedsValue(true), DoMove(false))?;
-        self.compile_expr(&*expr_index_set.target, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(&*expr_index_set.value, NeedsValue(true))?;
+        self.compile_expr(&*expr_index_set.index, NeedsValue(true))?;
+        self.compile_expr(&*expr_index_set.target, NeedsValue(true))?;
         self.asm.push(Inst::IndexSet, span);
 
         // Encode a unit in case a value is needed.
@@ -1321,12 +1300,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
     }
 
     /// Encode a local copy.
-    fn compile_ident(
-        &mut self,
-        ident: &ast::Ident,
-        needs_value: NeedsValue,
-        do_move: DoMove,
-    ) -> Result<()> {
+    fn compile_ident(&mut self, ident: &ast::Ident, needs_value: NeedsValue) -> Result<()> {
         let span = ident.span();
         log::trace!("Ident => {:?}", self.source.source(span)?);
 
@@ -1339,16 +1313,9 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let binding = ident.resolve(self.source)?;
 
         loop {
-            let var = if *do_move {
-                match self.scopes.try_move_var(binding, span)? {
-                    Some(var) => var,
-                    None => break,
-                }
-            } else {
-                match self.scopes.try_get_var(binding, span)? {
-                    Some(var) => var,
-                    None => break,
-                }
+            let var = match self.scopes.try_get_var(binding)? {
+                Some(var) => var,
+                None => break,
             };
 
             self.asm.push(Inst::Copy { offset: var.offset }, span);
@@ -1444,7 +1411,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let item = self.convert_path_to_item(&call_fn.name)?;
 
         for (expr, _) in call_fn.args.items.iter().rev() {
-            self.compile_expr(expr, NeedsValue(true), DoMove(false))?;
+            self.compile_expr(expr, NeedsValue(true))?;
         }
 
         if let Some(meta) = self.lookup_meta(&item) {
@@ -1500,10 +1467,10 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let args = call_instance_fn.args.items.len();
 
         for (expr, _) in call_instance_fn.args.items.iter().rev() {
-            self.compile_expr(expr, NeedsValue(true), DoMove(false))?;
+            self.compile_expr(expr, NeedsValue(true))?;
         }
 
-        self.compile_expr(&*call_instance_fn.instance, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(&*call_instance_fn.instance, NeedsValue(true))?;
 
         let name = call_instance_fn.name.resolve(self.source)?;
         let hash = Hash::of(name);
@@ -1532,7 +1499,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
             return Ok(());
         }
 
-        self.compile_expr(&*expr_unary.expr, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(&*expr_unary.expr, NeedsValue(true))?;
 
         match expr_unary.op {
             ast::UnaryOp::Not { .. } => {
@@ -1588,8 +1555,8 @@ impl<'a, 'm> Compiler<'a, 'm> {
             _ => (),
         }
 
-        self.compile_expr(&*expr_binary.lhs, NeedsValue(true), DoMove(false))?;
-        self.compile_expr(&*expr_binary.rhs, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(&*expr_binary.lhs, NeedsValue(true))?;
+        self.compile_expr(&*expr_binary.rhs, NeedsValue(true))?;
 
         match expr_binary.op {
             ast::BinOp::Add { .. } => {
@@ -1657,7 +1624,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
             ast::Condition::Expr(expr) => {
                 let span = expr.span();
 
-                self.compile_expr(&*expr, NeedsValue(true), DoMove(false))?;
+                self.compile_expr(&*expr, NeedsValue(true))?;
                 self.asm.jump_if(then_label, span);
 
                 Ok(self.scopes.last(span)?.child())
@@ -1668,7 +1635,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
                 let false_label = self.asm.new_label("if_condition_false");
 
                 let mut scope = self.scopes.last(span)?.child();
-                self.compile_expr(&*expr_let.expr, NeedsValue(true), DoMove(false))?;
+                self.compile_expr(&*expr_let.expr, NeedsValue(true))?;
 
                 let load = |_: &mut Assembly| {};
 
@@ -1754,7 +1721,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let new_scope = self.scopes.last(span)?.child();
         let expected_scopes = self.scopes.push(new_scope);
 
-        self.compile_expr(&*expr_match.expr, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(&*expr_match.expr, NeedsValue(true))?;
         // Offset of the expression.
         let offset = self
             .scopes
@@ -1780,7 +1747,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
 
             if let Some((_, condition)) = &branch.condition {
                 let span = condition.span();
-                self.compile_expr(&*condition, NeedsValue(true), DoMove(false))?;
+                self.compile_expr(&*condition, NeedsValue(true))?;
                 self.asm
                     .pop_and_jump_if_not(scope.local_var_count, match_false, span);
                 self.asm.jump(branch_label, span);
@@ -1808,7 +1775,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
             self.asm.label(*label)?;
 
             let expected = self.scopes.push(scope.clone());
-            self.compile_expr(&*branch.body, needs_value, DoMove(false))?;
+            self.compile_expr(&*branch.body, needs_value)?;
             self.clean_last_scope(span, expected, needs_value)?;
 
             if it.peek().is_some() {
@@ -1832,7 +1799,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let span = expr_await.span();
         log::trace!("ExprAwait => {:?}", self.source.source(span)?);
 
-        self.compile_expr(&*expr_await.expr, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(&*expr_await.expr, NeedsValue(true))?;
         self.asm.push(Inst::Await, span);
 
         if !*needs_value {
@@ -1849,7 +1816,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
 
         let not_error = self.asm.new_label("try_not_error");
 
-        self.compile_expr(&*expr_try.expr, NeedsValue(true), DoMove(false))?;
+        self.compile_expr(&*expr_try.expr, NeedsValue(true))?;
         self.asm.push(Inst::Dup, span);
         self.asm.push(Inst::IsErr, span);
         self.asm.jump_if_not(not_error, span);
@@ -1891,7 +1858,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         }
 
         for (_, branch) in branches.iter().rev() {
-            self.compile_expr(&branch.expr, NeedsValue(true), DoMove(false))?;
+            self.compile_expr(&branch.expr, NeedsValue(true))?;
         }
 
         self.asm.push(Inst::Select { len }, span);
@@ -1924,7 +1891,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
 
             // Set up a new scope with the binding.
             let expected = self.scopes.push(scope);
-            self.compile_expr(&*branch.body, needs_value, DoMove(false))?;
+            self.compile_expr(&*branch.body, needs_value)?;
             self.clean_last_scope(span, expected, needs_value)?;
             self.asm.jump(end_label, span);
         }

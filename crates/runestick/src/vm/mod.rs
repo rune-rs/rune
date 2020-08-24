@@ -1,33 +1,21 @@
-use crate::any::Any;
 use crate::bytes::Bytes;
-use crate::collections::HashMap;
 use crate::context::Context;
-use crate::future::{Future, SelectFuture};
+use crate::future::SelectFuture;
 use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
-use crate::tls;
+use crate::shared::{Shared, StrongMut};
 use crate::unit::{CompilationUnit, UnitFnKind};
-use crate::value::{
-    Object, OwnedTypedObject, OwnedTypedTuple, OwnedValue, Slot, TypedObject, TypedObjectRef,
-    TypedTuple, TypedTupleRef, Value, ValueRef, ValueTypeInfo,
-};
+use crate::value::{Object, TypedObject, TypedTuple, Value, ValueTypeInfo};
 use std::any;
-use std::cell::UnsafeCell;
 use std::fmt;
 use std::marker;
 use std::mem;
-use std::sync::Arc;
 use thiserror::Error;
 
-mod access;
 mod inst;
-mod slots;
 
-use self::access::Access;
-pub use self::access::{Mut, RawMutGuard, RawRefGuard, Ref};
-use self::access::{RawMut, RawRef};
 pub use self::inst::{Inst, Panic};
-use self::slots::Slots;
+use crate::access::AccessError;
 
 /// A type-erased rust number.
 #[derive(Debug, Clone, Copy)]
@@ -86,9 +74,13 @@ pub enum VmError {
         /// The reason for the panic.
         reason: Panic,
     },
-    /// Error raised when trying to access moved value.
-    #[error("trying to access value that has been moved")]
-    Moved,
+    /// Trying to access an inaccessible reference.
+    #[error("failed to access value: {error}")]
+    AccessError {
+        /// Source error.
+        #[from]
+        error: AccessError,
+    },
     /// The virtual machine panicked for a specific reason.
     #[error("panicked `{reason}`")]
     CustomPanic {
@@ -104,13 +96,6 @@ pub enum VmError {
     /// The virtual machine encountered a divide-by-zero.
     #[error("division by zero")]
     DivideByZero,
-    /// Error raised in a user-defined function.
-    #[error("error in user-defined function: {error}")]
-    UserError {
-        /// Source error.
-        #[from]
-        error: crate::error::Error,
-    },
     /// Failure to lookup function.
     #[error("missing function with hash `{hash}`")]
     MissingFunction {
@@ -196,26 +181,22 @@ pub enum VmError {
         actual: ValueTypeInfo,
     },
     /// Indicates a failure to convert from one type to another.
-    #[error("failed to convert stack value from `{from}` to `{to}`")]
+    #[error("failed to convert stack value to `{to}`: {error}")]
     StackConversionError {
         /// The source of the error.
         #[source]
         error: Box<VmError>,
-        /// The actual type to be converted.
-        from: ValueTypeInfo,
         /// The expected type to convert towards.
         to: &'static str,
     },
     /// Failure to convert from one type to another.
-    #[error("failed to convert argument #{arg} from `{from}` to `{to}`")]
+    #[error("failed to convert argument #{arg} to `{to}`: {error}")]
     ArgumentConversionError {
         /// The underlying stack error.
         #[source]
         error: Box<VmError>,
         /// The argument location that was converted.
         arg: usize,
-        /// The value type we attempted to convert from.
-        from: ValueTypeInfo,
         /// The native type we attempt to convert to.
         to: &'static str,
     },
@@ -349,27 +330,9 @@ pub enum VmError {
         /// CallFrame offset that we tried to pop.
         frame: usize,
     },
-    /// The given slot is missing.
-    #[error("missing slot `{slot}`")]
-    SlotMissing {
-        /// The slot that was missing.
-        slot: Slot,
-    },
-    /// The given slot is inaccessible.
-    #[error("`{slot}` is inaccessible for exclusive access")]
-    SlotInaccessibleExclusive {
-        /// The slot that could not be accessed.
-        slot: Slot,
-    },
-    /// The given slot is inaccessible.
-    #[error("`{slot}` is inaccessible for shared access")]
-    SlotInaccessibleShared {
-        /// The slot that could not be accessed.
-        slot: Slot,
-    },
     /// Error raised when we expect a specific external type but got another.
     #[error("expected slot `{expected}`, but found `{actual}`")]
-    UnexpectedSlotType {
+    UnexpectedValueType {
         /// The type that was expected.
         expected: &'static str,
         /// The type that was found.
@@ -496,9 +459,6 @@ pub enum VmError {
         /// The actual type found.
         actual: ValueTypeInfo,
     },
-    /// Error raised when we expected a managed value with a specific slot.
-    #[error("slot type is incompatible with expected")]
-    IncompatibleSlot,
     /// Failure to convert a number into an integer.
     #[error("failed to convert value `{from}` to integer `{to}`")]
     ValueToIntegerCoercionError {
@@ -551,7 +511,7 @@ macro_rules! pop {
             other => {
                 return Err(VmError::StackTopTypeError {
                     expected: ValueTypeInfo::$variant,
-                    actual: other.type_info($vm)?,
+                    actual: other.type_info()?,
                 })
             }
         }
@@ -568,8 +528,8 @@ macro_rules! primitive_ops {
             (Value::Float($a), Value::Float($b)) => $a $op $b,
             (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
-                lhs: lhs.type_info($vm)?,
-                rhs: rhs.type_info($vm)?,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
             }),
         }
     }
@@ -582,8 +542,8 @@ macro_rules! boolean_ops {
             (Value::Bool($a), Value::Bool($b)) => $a $op $b,
             (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
                 op: stringify!($op),
-                lhs: lhs.type_info($vm)?,
-                rhs: rhs.type_info($vm)?,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
             }),
         }
     }
@@ -615,7 +575,7 @@ macro_rules! numeric_ops {
                 $vm.push(Value::Float(check_float!($a $op $b, $error)));
             },
             (lhs, rhs) => {
-                let ty = lhs.value_type($vm)?;
+                let ty = lhs.value_type()?;
                 let hash = Hash::instance_function(ty, *$fn);
 
                 let handler = match $context.lookup(hash) {
@@ -623,8 +583,8 @@ macro_rules! numeric_ops {
                     None => {
                         return Err(VmError::UnsupportedBinaryOperation {
                             op: stringify!($op),
-                            lhs: lhs.type_info($vm)?,
-                            rhs: rhs.type_info($vm)?,
+                            lhs: lhs.type_info()?,
+                            rhs: rhs.type_info()?,
                         });
                     }
                 };
@@ -651,7 +611,7 @@ macro_rules! assign_ops {
                 check_float!($a $op $b, $error)
             }),
             (lhs, rhs) => {
-                let ty = lhs.value_type($vm)?;
+                let ty = lhs.value_type()?;
                 let hash = Hash::instance_function(ty, *$fn);
 
                 let handler = match $context.lookup(hash) {
@@ -659,46 +619,20 @@ macro_rules! assign_ops {
                     None => {
                         return Err(VmError::UnsupportedBinaryOperation {
                             op: stringify!($op),
-                            lhs: lhs.type_info($vm)?,
-                            rhs: rhs.type_info($vm)?,
+                            lhs: lhs.type_info()?,
+                            rhs: rhs.type_info()?,
                         });
                     }
                 };
 
                 $vm.push(rhs);
-                $vm.push(lhs);
+                $vm.push(lhs.clone());
                 handler($vm, 1)?;
                 $vm.pop()?;
                 lhs
             }
         }
     }
-}
-
-/// The holder of an external value.
-///
-/// This behaves a lot like RefCell, but with some extra tricks up its sleeve,
-/// like the ability to construct raw access guards. See [Ref] and [Mut].
-#[derive(Debug)]
-struct Holder {
-    /// The generation this holder was created for.
-    ///
-    /// Slots referencing this holder encoder the generation, so a slot will
-    /// become invalid if the generation between the holder and the slot does
-    /// not match.
-    generation: usize,
-    /// How the external is accessed (if it is accessed).
-    /// This only happens during function calls, and the function callee is
-    /// responsible for unwinding the access.
-    ///
-    /// Note that this is allocated on the heap, because guards referencing it
-    /// will use (unsafe) pointers to it, and we can't have it move.
-    /// Other safety guarantees of the virtual machinea asserts that the holder
-    /// is not deallocates as well.
-    access: Box<Access>,
-    /// The value being held. Guarded by the `access` field to determine if it
-    /// can be access shared or exclusively.
-    value: UnsafeCell<Any>,
 }
 
 /// A call frame.
@@ -717,10 +651,10 @@ struct CallFrame {
 }
 
 macro_rules! call_fn {
-    ($vm:expr, $hash:expr, $args:expr, $context:expr,  $update_ip:ident) => {
+    ($vm:expr, $unit:expr, $hash:expr, $args:expr, $context:expr,  $update_ip:ident) => {
         let hash = $hash;
 
-        match $vm.unit.lookup(hash) {
+        match $unit.lookup(hash) {
             Some(f) => match &f.kind {
                 UnitFnKind::Offset { offset } => {
                     let offset = *offset;
@@ -742,53 +676,6 @@ macro_rules! call_fn {
                 handler($vm, $args)?;
             }
         }
-    };
-}
-
-/// Implements slot functions for a given type.
-///
-/// This provides typed convenience functions over the typical:
-/// * [slot_allocate]
-/// * [external_ref]
-/// * [external_mut]
-/// * [external_take]
-/// * [external_clone]
-macro_rules! impl_slot_functions {
-    (
-        $ty:ty,
-        $slot:ident,
-        $allocate_fn:ident,
-        $ref_fn:ident,
-        $mut_fn:ident,
-        $take_fn:ident,
-        $($clone_fn:ident,)?
-    ) => {
-        /// Allocate a value and return its ptr.
-        pub fn $allocate_fn(&mut self, value: $ty) -> Value {
-            Value::$slot(self.slot_allocate(value))
-        }
-
-        /// Get a reference of the value at the given slot.
-        pub fn $ref_fn(&self, slot: Slot) -> Result<Ref<'_, $ty>, VmError> {
-            self.external_ref::<$ty>(slot)
-        }
-
-        /// Get a reference of the value at the given slot.
-        pub fn $mut_fn(&self, slot: Slot) -> Result<Mut<'_, $ty>, VmError> {
-            self.external_mut::<$ty>(slot)
-        }
-
-        /// Take the value at the given slot.
-        pub fn $take_fn(&mut self, slot: Slot) -> Result<$ty, VmError> {
-            self.external_take::<$ty>(slot)
-        }
-
-        $(
-            /// Get a cloned value from the given slot.
-            pub fn $clone_fn(&self, slot: Slot) -> Result<$ty, VmError> {
-                self.external_clone::<$ty>(slot)
-            }
-        )*
     };
 }
 
@@ -816,26 +703,20 @@ impl Stack {
     }
 
     /// Peek the top of the stack.
-    fn peek(&mut self) -> Result<Value, VmError> {
-        self.stack
-            .last()
-            .copied()
-            .ok_or_else(|| VmError::StackEmpty)
+    fn peek(&mut self) -> Result<&Value, VmError> {
+        self.stack.last().ok_or_else(|| VmError::StackEmpty)
     }
 
     /// Get the last position on the stack.
-    pub fn last(&self) -> Result<Value, VmError> {
-        self.stack
-            .last()
-            .copied()
-            .ok_or_else(|| VmError::StackEmpty)
+    pub fn last(&self) -> Result<&Value, VmError> {
+        self.stack.last().ok_or_else(|| VmError::StackEmpty)
     }
 
     /// Access the value at the given frame offset.
-    fn at_offset(&self, offset: usize) -> Result<Value, VmError> {
+    fn at_offset(&self, offset: usize) -> Result<&Value, VmError> {
         self.stack_top
             .checked_add(offset)
-            .and_then(|n| self.stack.get(n).copied())
+            .and_then(|n| self.stack.get(n))
             .ok_or_else(|| VmError::StackOutOfBounds)
     }
 
@@ -885,14 +766,19 @@ impl Stack {
         Ok(())
     }
 
+    /// Test if the stack is empty.
+    pub fn is_empty(&self) -> bool {
+        self.stack.is_empty()
+    }
+
     /// Get the length of the stack.
     pub fn len(&self) -> usize {
         self.stack.len()
     }
 
     /// Iterate over the stack.
-    pub fn iter(&self) -> impl Iterator<Item = Value> + '_ {
-        self.stack.iter().copied()
+    pub fn iter(&self) -> impl Iterator<Item = &Value> + '_ {
+        self.stack.iter()
     }
 }
 
@@ -906,34 +792,23 @@ pub struct Vm {
     exited: bool,
     /// Frames relative to the stack.
     call_frames: Vec<CallFrame>,
-    /// Slots with external values.
-    slots: Slots,
     /// Generation used for allocated objects.
     generation: usize,
-    /// The compilation unit associated with the virtual machine.
-    pub(crate) unit: Arc<CompilationUnit>,
     /// The `branch` registry used for certain operations.
     branch: Option<usize>,
 }
 
 impl Vm {
     /// Construct a new runestick virtual machine.
-    pub fn new(unit: Arc<CompilationUnit>) -> Self {
+    pub fn new() -> Self {
         Self {
             ip: 0,
             stack: Stack::new(),
             exited: false,
             call_frames: Vec::new(),
-            slots: Slots::new(),
             generation: 0,
-            unit,
             branch: None,
         }
-    }
-
-    /// Access the underlying compilation unit.
-    pub fn unit(&self) -> &CompilationUnit {
-        &*self.unit
     }
 
     /// Reset this virtual machine, freeing all memory used.
@@ -941,7 +816,7 @@ impl Vm {
     /// # Safety
     ///
     /// Any unsafe references constructed through the following methods:
-    /// * [Mut::unsafe_into_mut]
+    /// * [StrongMut::into_raw]
     /// * [Ref::unsafe_into_ref]
     ///
     /// Must not outlive a call to clear, nor this virtual machine.
@@ -950,7 +825,6 @@ impl Vm {
         self.exited = false;
         self.stack.clear();
         self.call_frames.clear();
-        self.slots.clear();
         self.generation = 0;
     }
 
@@ -985,22 +859,15 @@ impl Vm {
 
     /// Iterate over the stack, producing the value associated with each stack
     /// item.
-    pub fn iter_stack_debug(
-        &self,
-    ) -> impl Iterator<Item = (Value, Result<ValueRef<'_>, VmError>)> + '_ {
-        let mut it = self.stack.iter();
-
-        std::iter::from_fn(move || {
-            let value_ref = it.next()?;
-            let value = self.value_ref(value_ref);
-            Some((value_ref, value))
-        })
+    pub fn iter_stack_debug(&self) -> impl Iterator<Item = &Value> + '_ {
+        self.stack.iter()
     }
 
     /// Call the given function in the given compilation unit.
     pub fn call_function<'a, A: 'a, T, I>(
-        mut self,
-        context: Arc<Context>,
+        &'a mut self,
+        unit: &'a CompilationUnit,
+        context: &'a Context,
         name: I,
         args: A,
     ) -> Result<Task<'a, T>, VmError>
@@ -1012,8 +879,7 @@ impl Vm {
     {
         let hash = Hash::function(name);
 
-        let function = self
-            .unit
+        let function = unit
             .lookup(hash)
             .ok_or_else(|| VmError::MissingFunction { hash })?;
 
@@ -1038,63 +904,51 @@ impl Vm {
         // ensuring that the task won't outlive any potentially passed in
         // references.
         unsafe {
-            args.into_args(&mut self)?;
+            args.into_args(self)?;
         }
 
         Ok(Task {
             vm: self,
+            unit,
             context,
             _marker: marker::PhantomData,
         })
     }
 
     /// Run the given program on the virtual machine.
-    pub fn run<'a, T>(self, context: Arc<Context>) -> Task<'a, T>
+    pub fn run<'a, T>(&'a mut self, unit: &'a CompilationUnit, context: &'a Context) -> Task<'a, T>
     where
         T: FromValue,
     {
         Task {
             vm: self,
+            unit,
             context,
             _marker: marker::PhantomData,
         }
     }
 
-    /// Lookup the static string by slot, if it exists.
-    #[inline]
-    pub fn lookup_string(&self, slot: usize) -> Result<&str, VmError> {
-        self.unit.lookup_string(slot)
-    }
-
-    /// Lookup the static byte string by slot, if it exists.
-    #[inline]
-    pub fn lookup_bytes(&self, slot: usize) -> Result<&[u8], VmError> {
-        self.unit.lookup_bytes(slot)
-    }
-
     async fn op_await(&mut self) -> Result<(), VmError> {
         let value = self.pop()?;
 
-        let future = match value {
-            Value::Future(slot) => self.future_take(slot)?,
+        let mut future = match &value {
+            Value::Future(future) => future.get_mut()?,
             actual => {
                 return Err(VmError::ExpectedFuture {
-                    actual: actual.type_info(self)?,
+                    actual: actual.type_info()?,
                 })
             }
         };
 
-        unsafe {
-            tls::InjectVm::new(self, future).await?;
-        }
-
+        let value = (&mut *future).await?;
+        self.stack.push(value);
         Ok(())
     }
 
     async fn op_select(&mut self, len: usize) -> Result<(), VmError> {
         use futures::stream::StreamExt as _;
 
-        let branch = {
+        let (branch, value) = {
             let mut futures = futures::stream::FuturesUnordered::new();
             let mut guards = Vec::new();
 
@@ -1102,10 +956,10 @@ impl Vm {
                 let value = self.stack.pop()?;
 
                 let future = match value {
-                    Value::Future(slot) => self.future_mut(slot)?,
+                    Value::Future(future) => future.strong_mut()?,
                     actual => {
                         return Err(VmError::ExpectedFuture {
-                            actual: actual.type_info(self)?,
+                            actual: actual.type_info()?,
                         })
                     }
                 };
@@ -1118,7 +972,7 @@ impl Vm {
                 // can assert that nothing is invalidate for the duration of this
                 // select.
                 unsafe {
-                    let (raw_future, guard) = Mut::unsafe_into_mut(future);
+                    let (raw_future, guard) = StrongMut::into_raw(future);
                     futures.push(SelectFuture::new_unchecked(raw_future, index));
                     guards.push(guard);
                 };
@@ -1129,12 +983,13 @@ impl Vm {
                 return Ok(());
             }
 
-            let result = unsafe { tls::InjectVm::new(self, futures.next()).await.unwrap() };
-            let index = result?;
+            let result = futures.next().await.unwrap();
+            let (index, value) = result?;
             drop(guards);
-            index
+            (index, value)
         };
 
+        self.stack.push(value);
         self.branch = Some(branch);
         Ok(())
     }
@@ -1200,25 +1055,20 @@ impl Vm {
     /// Copy a value from a position relative to the top of the stack, to the
     /// top of the stack.
     fn op_copy(&mut self, offset: usize) -> Result<(), VmError> {
-        let value = self.stack.at_offset(offset)?;
+        let value = self.stack.at_offset(offset)?.clone();
         self.stack.push(value);
         Ok(())
     }
 
     #[inline]
     fn op_drop(&mut self, offset: usize) -> Result<(), VmError> {
-        let value = self.stack.at_offset(offset)?;
-
-        if let Some(slot) = value.into_slot() {
-            self.external_take_dyn(slot)?;
-        }
-
+        let _ = self.stack.at_offset(offset)?;
         Ok(())
     }
 
     /// Duplicate the value at the top of the stack.
     fn op_dup(&mut self) -> Result<(), VmError> {
-        let value = self.stack.last()?;
+        let value = self.stack.last()?.clone();
         self.stack.push(value);
         Ok(())
     }
@@ -1299,12 +1149,12 @@ impl Vm {
             tuple.push(self.pop()?);
         }
 
-        let slot = self.slot_allocate(TypedTuple {
+        let typed_tuple = Shared::new(TypedTuple {
             ty,
             tuple: tuple.into_boxed_slice(),
         });
 
-        Ok(Value::TypedTuple(slot))
+        Ok(Value::TypedTuple(typed_tuple))
     }
 
     /// Pop a call frame and return it.
@@ -1328,669 +1178,6 @@ impl Vm {
         Ok(false)
     }
 
-    fn internal_allocate<T>(&mut self, generation: usize, value: T) -> usize
-    where
-        T: any::Any,
-    {
-        self.slots.insert(Holder {
-            generation,
-            access: Box::new(Access::new()),
-            value: UnsafeCell::new(Any::new(value)),
-        })
-    }
-
-    fn generation(&mut self) -> usize {
-        let g = self.generation;
-        self.generation += 1;
-        g
-    }
-
-    /// Allocate and insert an external and return its reference.
-    ///
-    /// This will leak memory unless the reference is pushed onto the stack to
-    /// be managed.
-    pub fn slot_allocate<T>(&mut self, value: T) -> Slot
-    where
-        T: any::Any,
-    {
-        let generation = self.generation();
-        Slot::new(generation, self.internal_allocate(generation, value))
-    }
-
-    /// Allocate and insert an external and return its reference.
-    ///
-    /// This will leak memory unless the reference is pushed onto the stack to
-    /// be managed.
-    pub fn external_allocate<T>(&mut self, value: T) -> Value
-    where
-        T: any::Any,
-    {
-        Value::External(self.slot_allocate(value))
-    }
-
-    /// Allocate an external slot for the given reference.
-    ///
-    /// # Safety
-    ///
-    /// If the pointer was constructed from a reference, the reference passed in
-    /// MUST NOT be used again until the VM has been cleared using
-    /// [clear][Self::clear] since the VM is actively aliasing the reference for
-    /// the duration of its life.
-    pub unsafe fn external_allocate_ptr<T>(&mut self, value: *const T) -> Value
-    where
-        T: any::Any,
-    {
-        let generation = self.generation();
-
-        let any = Any::from_ptr(value);
-
-        let index = self.slots.insert(Holder {
-            generation,
-            access: Box::new(Access::new()),
-            value: UnsafeCell::new(any),
-        });
-
-        Value::External(Slot::new(generation, index))
-    }
-
-    /// Allocate an external slot for the given mutable reference.
-    ///
-    /// # Safety
-    ///
-    /// If the pointer was constructed from a reference, the reference passed in
-    /// MUST NOT be used again until the VM has been cleared using
-    /// [clear][Self::clear] since the VM is actively aliasing the reference for
-    /// the duration of its life.
-    pub unsafe fn external_allocate_mut_ptr<T>(&mut self, value: *mut T) -> Value
-    where
-        T: any::Any,
-    {
-        let generation = self.generation();
-
-        let any = Any::from_mut_ptr(value);
-
-        let index = self.slots.insert(Holder {
-            generation,
-            access: Box::new(Access::new()),
-            value: UnsafeCell::new(any),
-        });
-
-        Value::External(Slot::new(generation, index))
-    }
-
-    impl_slot_functions! {
-        Bytes,
-        Bytes,
-        bytes_allocate,
-        bytes_ref,
-        bytes_mut,
-        bytes_take,
-        bytes_clone,
-    }
-
-    impl_slot_functions! {
-        String,
-        String,
-        string_allocate,
-        string_ref,
-        string_mut,
-        string_take,
-        string_clone,
-    }
-
-    impl_slot_functions! {
-        Vec<Value>,
-        Vec,
-        vec_allocate,
-        vec_ref,
-        vec_mut,
-        vec_take,
-        vec_clone,
-    }
-
-    impl_slot_functions! {
-        HashMap<String, Value>,
-        Object,
-        object_allocate,
-        object_ref,
-        object_mut,
-        object_take,
-        object_clone,
-    }
-
-    impl_slot_functions! {
-        Future,
-        Future,
-        future_allocate,
-        future_ref,
-        future_mut,
-        future_take,
-    }
-
-    impl_slot_functions! {
-        Result<Value, Value>,
-        Result,
-        result_allocate,
-        result_ref,
-        result_mut,
-        result_take,
-        result_clone,
-    }
-
-    impl_slot_functions! {
-        Option<Value>,
-        Option,
-        option_allocate,
-        option_ref,
-        option_mut,
-        option_take,
-        option_clone,
-    }
-
-    impl_slot_functions! {
-        Box<[Value]>,
-        Tuple,
-        tuple_allocate,
-        tuple_ref,
-        tuple_mut,
-        tuple_take,
-        tuple_clone,
-    }
-
-    impl_slot_functions! {
-        TypedTuple,
-        TypedTuple,
-        typed_tuple_allocate,
-        typed_tuple_ref,
-        typed_tuple_mut,
-        typed_tuple_take,
-    }
-
-    impl_slot_functions! {
-        TypedObject,
-        TypedObject,
-        typed_object_allocate,
-        typed_object_ref,
-        typed_object_mut,
-        typed_object_take,
-    }
-
-    /// Get a reference of the external value of the given type and the given
-    /// slot.
-    pub fn external_ref<T>(&self, slot: Slot) -> Result<Ref<'_, T>, VmError>
-    where
-        T: any::Any,
-    {
-        let holder = self
-            .slots
-            .get(slot.into_usize(), slot.into_generation())
-            .ok_or_else(|| VmError::SlotMissing { slot })?;
-
-        holder.access.shared(slot)?;
-
-        // Safety: We have the necessary level of ownership to guarantee that
-        // the reference cast is safe, and we wrap the return value in a
-        // guard which ensures the needed access level.
-        unsafe {
-            let value = match (*holder.value.get()).as_ptr(any::TypeId::of::<T>()) {
-                Some(value) => value,
-                None => {
-                    let actual = (*holder.value.get()).type_name();
-
-                    // NB: Immediately unshare because the cast failed and we
-                    // won't be maintaining access to the type.
-                    holder.access.release_shared();
-
-                    return Err(VmError::UnexpectedSlotType {
-                        expected: any::type_name::<T>(),
-                        actual,
-                    });
-                }
-            };
-
-            Ok(Ref {
-                raw: RawRef {
-                    value: value as *const T,
-                    guard: RawRefGuard {
-                        access: &*holder.access,
-                    },
-                },
-                _marker: marker::PhantomData,
-            })
-        }
-    }
-
-    /// Get a mutable reference of the external value of the given type and the
-    /// given slot.
-    ///
-    /// Mark the given value as mutably used, preventing it from being used
-    /// again.
-    pub fn external_mut<T>(&self, slot: Slot) -> Result<Mut<'_, T>, VmError>
-    where
-        T: any::Any,
-    {
-        let holder = self
-            .slots
-            .get(slot.into_usize(), slot.into_generation())
-            .ok_or_else(|| VmError::SlotMissing { slot })?;
-
-        holder.access.exclusive(slot)?;
-
-        // Safety: We have the necessary level of ownership to guarantee that
-        // the reference cast is safe, and we wrap the return value in a
-        // guard which ensures the needed access level.
-        unsafe {
-            let value = match (*holder.value.get()).as_mut_ptr(any::TypeId::of::<T>()) {
-                Some(value) => value,
-                None => {
-                    let actual = (*holder.value.get()).type_name();
-
-                    // NB: Immediately unshare because the cast failed and we
-                    // won't be maintaining access to the type.
-                    holder.access.release_exclusive();
-
-                    return Err(VmError::UnexpectedSlotType {
-                        expected: any::type_name::<T>(),
-                        actual,
-                    });
-                }
-            };
-
-            Ok(Mut {
-                raw: RawMut {
-                    value: value as *mut T,
-                    guard: RawMutGuard {
-                        access: &*holder.access,
-                    },
-                },
-                _marker: marker::PhantomData,
-            })
-        }
-    }
-
-    /// Get a clone of the given external.
-    pub fn external_clone<T: Clone + any::Any>(&self, slot: Slot) -> Result<T, VmError> {
-        let holder = self
-            .slots
-            .get(slot.into_usize(), slot.into_generation())
-            .ok_or_else(|| VmError::SlotMissing { slot })?;
-
-        // NB: we don't need a guard here since we're only using the reference
-        // for the duration of this function.
-        holder.access.test_shared(slot)?;
-
-        // Safety: We have the necessary level of ownership to guarantee that
-        // the reference cast is safe, and we wrap the return value in a
-        // guard which ensures the needed access level.
-        unsafe {
-            let value = match (*holder.value.get()).as_ptr(any::TypeId::of::<T>()) {
-                Some(value) => &*(value as *const T),
-                None => {
-                    let actual = (*holder.value.get()).type_name();
-
-                    return Err(VmError::UnexpectedSlotType {
-                        expected: any::type_name::<T>(),
-                        actual,
-                    });
-                }
-            };
-
-            Ok(value.clone())
-        }
-    }
-
-    /// Try to convert the value.
-    ///
-    /// Returns the value which we couldn't convert in case it cannot be converted.
-    fn take_value<T>(value: Any) -> Result<T, Any>
-    where
-        T: 'static,
-    {
-        // Safety: The conversion is fully checked through the invariants
-        // provided by our custom `Any` implementaiton.
-        //
-        // `as_mut_ptr` ensures that the type of the boxed value matches the
-        // expected type.
-        unsafe {
-            match value.take_mut_ptr(any::TypeId::of::<T>()) {
-                Ok(ptr) => Ok(*Box::from_raw(ptr as *mut T)),
-                Err(any) => Err(any),
-            }
-        }
-    }
-
-    /// Take an external value from the virtual machine by its slot.
-    pub fn external_take<T>(&mut self, slot: Slot) -> Result<T, VmError>
-    where
-        T: any::Any,
-    {
-        // NB: don't need to perform a runtime check because this function
-        // requires exclusive access to the virtual machine, at which point it's
-        // impossible for live references to slots to be out unless unsafe
-        // functions have been used in an unsound manner.
-        let holder = match self.slots.remove(slot.into_usize(), slot.into_generation()) {
-            Some(holder) => holder,
-            None => {
-                return Err(VmError::SlotMissing { slot });
-            }
-        };
-
-        match Self::take_value(holder.value.into_inner()) {
-            Ok(value) => Ok(value),
-            Err(value) => Err(VmError::UnexpectedSlotType {
-                expected: any::type_name::<T>(),
-                actual: value.type_name(),
-            }),
-        }
-    }
-
-    fn external_with_dyn<F, T>(&self, slot: Slot, f: F) -> Result<T, VmError>
-    where
-        F: FnOnce(&Any) -> T,
-    {
-        let holder = self
-            .slots
-            .get(slot.into_usize(), slot.into_generation())
-            .ok_or_else(|| VmError::SlotMissing { slot })?;
-
-        holder.access.test_shared(slot)?;
-
-        // Safety: We have the necessary level of ownership to guarantee that
-        // the reference cast is safe, and we wrap the return value in a
-        // guard which ensures the needed access level.
-        Ok(f(unsafe { &*holder.value.get() }))
-    }
-
-    /// Get a reference of the external value of the given type and the given
-    /// slot.
-    pub fn external_ref_dyn(&self, slot: Slot) -> Result<Ref<'_, Any>, VmError> {
-        let holder = self
-            .slots
-            .get(slot.into_usize(), slot.into_generation())
-            .ok_or_else(|| VmError::SlotMissing { slot })?;
-
-        holder.access.shared(slot)?;
-
-        // Safety: We have the necessary level of ownership to guarantee that
-        // the reference cast is safe, and we wrap the return value in a
-        // guard which ensures the needed access level.
-        Ok(Ref {
-            raw: RawRef {
-                value: holder.value.get(),
-                guard: RawRefGuard {
-                    access: &*holder.access,
-                },
-            },
-            _marker: marker::PhantomData,
-        })
-    }
-
-    /// Take an external value by dyn, assuming you have exlusive access to it.
-    pub fn external_take_dyn(&mut self, slot: Slot) -> Result<Any, VmError> {
-        let holder = match self.slots.remove(slot.into_usize(), slot.into_generation()) {
-            Some(holder) => holder,
-            None => {
-                return Err(VmError::SlotMissing { slot });
-            }
-        };
-
-        // Safety: We have the necessary level of ownership to guarantee that
-        // the reference cast is safe, and we wrap the return value in a
-        // guard which ensures the needed access level.
-        Ok(holder.value.into_inner())
-    }
-
-    /// Access the type name of the slot.
-    pub fn slot_type_name(&self, slot: Slot) -> Result<&'static str, VmError> {
-        self.external_with_dyn(slot, |e| e.type_name())
-    }
-
-    /// Access the type id of the slot.
-    pub fn slot_type_id(&self, slot: Slot) -> Result<any::TypeId, VmError> {
-        self.external_with_dyn(slot, |e| e.type_id())
-    }
-
-    /// Convert a value reference into an owned value.
-    pub fn value_take(&mut self, value: Value) -> Result<OwnedValue, VmError> {
-        return Ok(match value {
-            Value::Unit => OwnedValue::Unit,
-            Value::Bool(boolean) => OwnedValue::Bool(boolean),
-            Value::Byte(b) => OwnedValue::Byte(b),
-            Value::Char(c) => OwnedValue::Char(c),
-            Value::Integer(integer) => OwnedValue::Integer(integer),
-            Value::Float(float) => OwnedValue::Float(float),
-            Value::String(slot) => OwnedValue::String(self.string_take(slot)?),
-            Value::StaticString(slot) => OwnedValue::String(self.lookup_string(slot)?.to_owned()),
-            Value::Bytes(slot) => OwnedValue::Bytes(self.bytes_take(slot)?),
-            Value::Vec(slot) => {
-                let vec = self.vec_take(slot)?;
-                OwnedValue::Vec(value_take_vec(self, vec)?)
-            }
-            Value::Tuple(slot) => {
-                let tuple = self.tuple_take(slot)?;
-                OwnedValue::Tuple(value_take_tuple(self, &*tuple)?)
-            }
-            Value::Object(slot) => {
-                let object = self.object_take(slot)?;
-                OwnedValue::Object(value_take_object(self, object)?)
-            }
-            Value::External(slot) => OwnedValue::External(self.external_take_dyn(slot)?),
-            Value::Type(ty) => OwnedValue::Type(ty),
-            Value::Future(slot) => {
-                let future = self.external_take(slot)?;
-                OwnedValue::Future(future)
-            }
-            Value::Option(slot) => {
-                let option = self.external_take(slot)?;
-
-                let option = match option {
-                    Some(slot) => Some(Box::new(self.value_take(slot)?)),
-                    None => None,
-                };
-
-                OwnedValue::Option(option)
-            }
-            Value::Result(slot) => {
-                let result = self.external_take(slot)?;
-
-                let result = match result {
-                    Ok(slot) => Ok(Box::new(self.value_take(slot)?)),
-                    Err(slot) => Err(Box::new(self.value_take(slot)?)),
-                };
-
-                OwnedValue::Result(result)
-            }
-            Value::TypedObject(slot) => {
-                let typed_object = self.typed_object_take(slot)?;
-                let object = value_take_object(self, typed_object.object)?;
-
-                OwnedValue::TypedObject(OwnedTypedObject {
-                    ty: typed_object.ty,
-                    object,
-                })
-            }
-            Value::TypedTuple(slot) => {
-                let typed_tuple = self.typed_tuple_take(slot)?;
-                let tuple = value_take_tuple(self, &*typed_tuple.tuple)?;
-
-                OwnedValue::TypedTuple(OwnedTypedTuple {
-                    ty: typed_tuple.ty,
-                    tuple,
-                })
-            }
-        });
-
-        /// Convert into an owned vec.
-        fn value_take_vec(vm: &mut Vm, values: Vec<Value>) -> Result<Vec<OwnedValue>, VmError> {
-            let mut output = Vec::with_capacity(values.len());
-
-            for value in values {
-                output.push(vm.value_take(value)?);
-            }
-
-            Ok(output)
-        }
-
-        /// Convert into an owned tuple.
-        fn value_take_tuple(vm: &mut Vm, values: &[Value]) -> Result<Box<[OwnedValue]>, VmError> {
-            let mut output = Vec::with_capacity(values.len());
-
-            for value in values.iter() {
-                output.push(vm.value_take(*value)?);
-            }
-
-            Ok(output.into_boxed_slice())
-        }
-
-        /// Convert into an owned object.
-        fn value_take_object(
-            vm: &mut Vm,
-            object: HashMap<String, Value>,
-        ) -> Result<HashMap<String, OwnedValue>, VmError> {
-            let mut output = HashMap::with_capacity(object.len());
-
-            for (key, value) in object {
-                output.insert(key, vm.value_take(value)?);
-            }
-
-            Ok(output)
-        }
-    }
-
-    /// Convert the given ptr into a type-erase ValueRef.
-    pub fn value_ref(&self, value: Value) -> Result<ValueRef<'_>, VmError> {
-        Ok(match value {
-            Value::Unit => ValueRef::Unit,
-            Value::Bool(boolean) => ValueRef::Bool(boolean),
-            Value::Byte(b) => ValueRef::Byte(b),
-            Value::Char(c) => ValueRef::Char(c),
-            Value::Integer(integer) => ValueRef::Integer(integer),
-            Value::Float(float) => ValueRef::Float(float),
-            Value::String(slot) => ValueRef::String(self.string_ref(slot)?),
-            Value::StaticString(slot) => ValueRef::StaticString(self.lookup_string(slot)?),
-            Value::Bytes(slot) => ValueRef::Bytes(self.bytes_ref(slot)?),
-            Value::Vec(slot) => {
-                let vec = self.vec_ref(slot)?;
-                ValueRef::Vec(self.value_vec_ref(&*vec)?)
-            }
-            Value::Tuple(slot) => {
-                let tuple = self.tuple_ref(slot)?;
-                ValueRef::Tuple(self.value_tuple_ref(&*tuple)?)
-            }
-            Value::Object(slot) => {
-                let object = self.object_ref(slot)?;
-                ValueRef::Object(self.value_object_ref(&*object)?)
-            }
-            Value::External(slot) => ValueRef::External(self.external_ref_dyn(slot)?),
-            Value::Type(ty) => ValueRef::Type(ty),
-            Value::Future(slot) => {
-                let future = self.external_ref(slot)?;
-                ValueRef::Future(future)
-            }
-            Value::Option(slot) => {
-                let option = self.option_ref(slot)?;
-
-                let option = match *option {
-                    Some(some) => Some(self.value_ref(some)?),
-                    None => None,
-                };
-
-                ValueRef::Option(Box::new(option))
-            }
-            Value::Result(slot) => {
-                let result = self.result_ref(slot)?;
-
-                let result = match *result {
-                    Ok(ok) => Ok(self.value_ref(ok)?),
-                    Err(err) => Err(self.value_ref(err)?),
-                };
-
-                ValueRef::Result(Box::new(result))
-            }
-            Value::TypedTuple(slot) => {
-                let typed_tuple = self.typed_tuple_ref(slot)?;
-                let typed_tuple =
-                    self.value_ref_typed_tuple_ref(typed_tuple.ty, &*typed_tuple.tuple)?;
-                ValueRef::TypedTuple(typed_tuple)
-            }
-            Value::TypedObject(slot) => {
-                let typed_object = self.typed_object_ref(slot)?;
-                let typed_object =
-                    self.value_ref_typed_object_ref(typed_object.ty, &typed_object.object)?;
-                ValueRef::TypedObject(typed_object)
-            }
-        })
-    }
-
-    /// Convert the given value pointers into an vec.
-    fn value_vec_ref<'vm>(&'vm self, values: &[Value]) -> Result<Vec<ValueRef<'vm>>, VmError> {
-        let mut output = Vec::with_capacity(values.len());
-
-        for value in values.iter().copied() {
-            output.push(self.value_ref(value)?);
-        }
-
-        Ok(output)
-    }
-
-    /// Convert the given value pointers into a tuple.
-    fn value_tuple_ref<'vm>(&'vm self, values: &[Value]) -> Result<Box<[ValueRef<'vm>]>, VmError> {
-        let mut output = Vec::with_capacity(values.len());
-
-        for value in values.iter().copied() {
-            output.push(self.value_ref(value)?);
-        }
-
-        Ok(output.into_boxed_slice())
-    }
-
-    /// Convert the given value pointers into an vec.
-    fn value_object_ref<'vm>(
-        &'vm self,
-        object: &HashMap<String, Value>,
-    ) -> Result<HashMap<String, ValueRef<'vm>>, VmError> {
-        let mut output = HashMap::with_capacity(object.len());
-
-        for (key, value) in object.iter() {
-            output.insert(key.to_owned(), self.value_ref(*value)?);
-        }
-
-        Ok(output)
-    }
-
-    /// Convert the given typed tuple values into a typed tuple.
-    fn value_ref_typed_tuple_ref<'vm>(
-        &'vm self,
-        ty: Hash,
-        tuple: &[Value],
-    ) -> Result<TypedTupleRef<'vm>, VmError> {
-        let mut output = Vec::with_capacity(tuple.len());
-
-        for value in tuple.iter().copied() {
-            output.push(self.value_ref(value)?);
-        }
-
-        Ok(TypedTupleRef {
-            ty,
-            tuple: output.into_boxed_slice(),
-        })
-    }
-
-    /// Convert the given typed tuple values into a typed tuple.
-    fn value_ref_typed_object_ref<'vm>(
-        &'vm self,
-        ty: Hash,
-        object: &Object<Value>,
-    ) -> Result<TypedObjectRef<'vm>, VmError> {
-        let mut output = Object::with_capacity(object.len());
-
-        for (key, value) in object {
-            output.insert(key.clone(), self.value_ref(*value)?);
-        }
-
-        Ok(TypedObjectRef { ty, object: output })
-    }
-
     /// Pop the last value on the stack and evaluate it as `T`.
     fn pop_decode<T>(&mut self) -> Result<T, VmError>
     where
@@ -1998,14 +1185,11 @@ impl Vm {
     {
         let value = self.stack.pop()?;
 
-        let value = match T::from_value(value, self) {
+        let value = match T::from_value(value) {
             Ok(value) => value,
             Err(error) => {
-                let type_info = value.type_info(self)?;
-
                 return Err(VmError::StackConversionError {
                     error: Box::new(error),
-                    from: type_info,
                     to: any::type_name::<T>(),
                 });
             }
@@ -2021,7 +1205,7 @@ impl Vm {
     ///
     /// Note: External types are compared by their slot, but should eventually
     /// use a dynamically resolve equality function.
-    fn value_ptr_eq(&self, a: Value, b: Value) -> Result<bool, VmError> {
+    fn value_ptr_eq(&self, a: &Value, b: &Value) -> Result<bool, VmError> {
         Ok(match (a, b) {
             (Value::Unit, Value::Unit) => true,
             (Value::Char(a), Value::Char(b)) => a == b,
@@ -2029,14 +1213,14 @@ impl Vm {
             (Value::Integer(a), Value::Integer(b)) => a == b,
             (Value::Float(a), Value::Float(b)) => a == b,
             (Value::Vec(a), Value::Vec(b)) => {
-                let a = self.vec_ref(a)?;
-                let b = self.vec_ref(b)?;
+                let a = a.get_ref()?;
+                let b = b.get_ref()?;
 
                 if a.len() != b.len() {
                     return Ok(false);
                 }
 
-                for (a, b) in a.iter().copied().zip(b.iter().copied()) {
+                for (a, b) in a.iter().zip(b.iter()) {
                     if !self.value_ptr_eq(a, b)? {
                         return Ok(false);
                     }
@@ -2045,8 +1229,8 @@ impl Vm {
                 true
             }
             (Value::Object(a), Value::Object(b)) => {
-                let a = self.object_ref(a)?;
-                let b = self.object_ref(b)?;
+                let a = a.get_ref()?;
+                let b = b.get_ref()?;
 
                 if a.len() != b.len() {
                     return Ok(false);
@@ -2058,7 +1242,7 @@ impl Vm {
                         None => return Ok(false),
                     };
 
-                    if !self.value_ptr_eq(*a, *b)? {
+                    if !self.value_ptr_eq(a, b)? {
                         return Ok(false);
                     }
                 }
@@ -2066,24 +1250,23 @@ impl Vm {
                 true
             }
             (Value::String(a), Value::String(b)) => {
-                let a = self.string_ref(a)?;
-                let b = self.string_ref(b)?;
+                let a = a.get_ref()?;
+                let b = b.get_ref()?;
                 *a == *b
             }
             (Value::StaticString(a), Value::String(b)) => {
-                let a = self.lookup_string(a)?;
-                let b = self.string_ref(b)?;
-                a == *b
+                let b = b.get_ref()?;
+                &***a == *b
             }
             (Value::String(a), Value::StaticString(b)) => {
-                let a = self.string_ref(a)?;
-                let b = self.lookup_string(b)?;
-                *a == b
+                let a = a.get_ref()?;
+                *a == &***b
             }
             // fast string comparison: exact string slot.
             (Value::StaticString(a), Value::StaticString(b)) => a == b,
             // fast external comparison by slot.
-            (Value::External(a), Value::External(b)) => a == b,
+            // TODO: implement ptr equals.
+            // (Value::External(a), Value::External(b)) => a == b,
             _ => false,
         })
     }
@@ -2093,7 +1276,7 @@ impl Vm {
     fn op_eq(&mut self) -> Result<(), VmError> {
         let a = self.stack.pop()?;
         let b = self.stack.pop()?;
-        self.push(Value::Bool(self.value_ptr_eq(a, b)?));
+        self.push(Value::Bool(self.value_ptr_eq(&a, &b)?));
         Ok(())
     }
 
@@ -2102,7 +1285,7 @@ impl Vm {
     fn op_neq(&mut self) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
-        self.push(Value::Bool(!self.value_ptr_eq(a, b)?));
+        self.push(Value::Bool(!self.value_ptr_eq(&a, &b)?));
         Ok(())
     }
 
@@ -2123,7 +1306,7 @@ impl Vm {
             vec.push(self.stack.pop()?);
         }
 
-        let value = self.vec_allocate(vec);
+        let value = Value::Vec(Shared::new(vec));
         self.push(value);
         Ok(())
     }
@@ -2138,8 +1321,8 @@ impl Vm {
         }
 
         let tuple = tuple.into_boxed_slice();
-        let value = self.slot_allocate(tuple);
-        self.push(Value::Tuple(value));
+        let value = Value::Tuple(Shared::new(tuple));
+        self.push(value);
         Ok(())
     }
 
@@ -2150,7 +1333,7 @@ impl Vm {
         let value = match value {
             Value::Bool(value) => Value::Bool(!value),
             other => {
-                let operand = other.type_info(self)?;
+                let operand = other.type_info()?;
                 return Err(VmError::UnsupportedUnaryOperation { op: "!", operand });
             }
         };
@@ -2169,37 +1352,33 @@ impl Vm {
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
         loop {
-            match target {
-                Value::Object(slot) => {
+            match &target {
+                Value::Object(object) => {
                     let index = match index {
-                        Value::String(index) => self.string_take(index)?,
-                        Value::StaticString(slot) => self.lookup_string(slot)?.to_owned(),
+                        Value::String(string) => string.get_ref()?.to_owned(),
+                        Value::StaticString(string) => string.as_ref().clone(),
                         _ => break,
                     };
 
-                    let mut object = self.object_mut(slot)?;
+                    let mut object = object.get_mut()?;
                     object.insert(index, value);
                     return Ok(());
                 }
-                Value::TypedObject(object_slot) => {
+                Value::TypedObject(typed_object) => {
+                    let mut typed_object = typed_object.get_mut()?;
                     // NB: local storage for string.
                     let local_field;
 
-                    let (field, mut object) = match index {
-                        Value::String(index) => {
-                            local_field = self.string_take(index)?;
-                            let object = self.typed_object_mut(object_slot)?;
-                            (local_field.as_str(), object)
+                    let field = match &index {
+                        Value::String(string) => {
+                            local_field = string.get_ref()?;
+                            local_field.as_str()
                         }
-                        Value::StaticString(slot) => {
-                            let field = self.unit.lookup_string(slot)?;
-                            let object = self.typed_object_mut(object_slot)?;
-                            (field, object)
-                        }
+                        Value::StaticString(string) => string.as_ref(),
                         _ => break,
                     };
 
-                    if let Some(v) = object.object.get_mut(field) {
+                    if let Some(v) = typed_object.object.get_mut(field) {
                         *v = value;
                         return Ok(());
                     }
@@ -2210,15 +1389,15 @@ impl Vm {
             }
         }
 
-        let ty = target.value_type(self)?;
+        let ty = target.value_type()?;
         let hash = Hash::instance_function(ty, *crate::INDEX_SET);
 
         let handler = match context.lookup(hash) {
             Some(handler) => handler,
             None => {
-                let target_type = target.type_info(self)?;
-                let index_type = index.type_info(self)?;
-                let value_type = value.type_info(self)?;
+                let target_type = target.type_info()?;
+                let index_type = index.type_info()?;
+                let value_type = value.type_info()?;
 
                 return Err(VmError::UnsupportedIndexSet {
                     target_type,
@@ -2243,36 +1422,33 @@ impl Vm {
 
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
-        while let Value::Object(target) = target {
+        while let Value::Object(target) = &target {
             let string_ref;
 
-            let index = match index {
-                Value::String(index) => {
-                    string_ref = self.string_ref(index)?;
+            let index = match &index {
+                Value::String(string) => {
+                    string_ref = string.get_ref()?;
                     string_ref.as_str()
                 }
-                Value::StaticString(slot) => self.lookup_string(slot)?,
+                Value::StaticString(string) => string.as_ref(),
                 _ => break,
             };
 
-            let value = {
-                let object = self.object_ref(target)?;
-                object.get(index).copied()
-            };
+            let value = target.get_ref()?.get(index).cloned();
 
-            let value = self.option_allocate(value);
+            let value = Value::Option(Shared::new(value));
             self.push(value);
             return Ok(());
         }
 
-        let ty = target.value_type(self)?;
+        let ty = target.value_type()?;
         let hash = Hash::instance_function(ty, *crate::INDEX_GET);
 
         let handler = match context.lookup(hash) {
             Some(handler) => handler,
             None => {
-                let target_type = target.type_info(self)?;
-                let index_type = index.type_info(self)?;
+                let target_type = target.type_info()?;
+                let index_type = index.type_info()?;
 
                 return Err(VmError::UnsupportedIndexGet {
                     target_type,
@@ -2293,10 +1469,10 @@ impl Vm {
         let target = self.stack.pop()?;
 
         let value = match target {
-            Value::Vec(slot) => {
-                let vec = self.vec_ref(slot)?;
+            Value::Vec(vec) => {
+                let vec = vec.get_ref()?;
 
-                match vec.get(index).copied() {
+                match vec.get(index).cloned() {
                     Some(value) => value,
                     None => {
                         return Err(VmError::VecIndexMissing { index });
@@ -2304,7 +1480,7 @@ impl Vm {
                 }
             }
             target_type => {
-                let target_type = target_type.type_info(self)?;
+                let target_type = target_type.type_info()?;
                 return Err(VmError::UnsupportedVecIndexGet { target_type });
             }
         };
@@ -2318,17 +1494,17 @@ impl Vm {
     fn op_tuple_index_get(&mut self, index: usize) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        let result = self.on_tuple(value, true, |tuple| {
+        let result = self.on_tuple(&value, true, |tuple| {
             tuple
                 .get(index)
-                .copied()
+                .cloned()
                 .ok_or_else(|| VmError::TupleIndexMissing { index })
         })?;
 
         let result = match result {
             Some(result) => result,
             None => {
-                let target_type = value.type_info(self)?;
+                let target_type = value.type_info()?;
                 return Err(VmError::UnsupportedTupleIndexGet { target_type });
             }
         };
@@ -2339,26 +1515,30 @@ impl Vm {
 
     /// Perform a specialized index get operation on an object.
     #[inline]
-    fn op_object_slot_index_get(&mut self, string_slot: usize) -> Result<(), VmError> {
+    fn op_object_slot_index_get(
+        &mut self,
+        unit: &CompilationUnit,
+        string_slot: usize,
+    ) -> Result<(), VmError> {
         let target = self.stack.pop()?;
 
         let value = match target {
-            Value::Object(slot) => {
-                let index = self.lookup_string(string_slot)?;
-                let object = self.object_ref(slot)?;
+            Value::Object(object) => {
+                let index = unit.lookup_string(string_slot)?;
+                let object = object.get_ref()?;
 
-                match object.get(index).copied() {
+                match object.get(&***index).cloned() {
                     Some(value) => value,
                     None => {
                         return Err(VmError::ObjectIndexMissing { slot: string_slot });
                     }
                 }
             }
-            Value::TypedObject(slot) => {
-                let index = self.lookup_string(string_slot)?;
-                let typed_object = self.typed_object_ref(slot)?;
+            Value::TypedObject(typed_object) => {
+                let index = unit.lookup_string(string_slot)?;
+                let typed_object = typed_object.get_ref()?;
 
-                match typed_object.object.get(index).copied() {
+                match typed_object.object.get(&***index).cloned() {
                     Some(value) => value,
                     None => {
                         return Err(VmError::ObjectIndexMissing { slot: string_slot });
@@ -2366,7 +1546,7 @@ impl Vm {
                 }
             }
             target_type => {
-                let target_type = target_type.type_info(self)?;
+                let target_type = target_type.type_info()?;
                 return Err(VmError::UnsupportedObjectSlotIndexGet { target_type });
             }
         };
@@ -2377,9 +1557,8 @@ impl Vm {
 
     /// Operation to allocate an object.
     #[inline]
-    fn op_object(&mut self, slot: usize) -> Result<(), VmError> {
-        let keys = self
-            .unit
+    fn op_object(&mut self, unit: &CompilationUnit, slot: usize) -> Result<(), VmError> {
+        let keys = unit
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
@@ -2390,16 +1569,20 @@ impl Vm {
             object.insert(key.clone(), value);
         }
 
-        let value = self.object_allocate(object);
+        let value = Value::Object(Shared::new(object));
         self.push(value);
         Ok(())
     }
 
     /// Operation to allocate an object.
     #[inline]
-    fn op_typed_object(&mut self, ty: Hash, slot: usize) -> Result<(), VmError> {
-        let keys = self
-            .unit
+    fn op_typed_object(
+        &mut self,
+        unit: &CompilationUnit,
+        ty: Hash,
+        slot: usize,
+    ) -> Result<(), VmError> {
+        let keys = unit
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
@@ -2411,8 +1594,7 @@ impl Vm {
         }
 
         let object = TypedObject { ty, object };
-
-        let value = self.typed_object_allocate(object);
+        let value = Value::TypedObject(Shared::new(object));
         self.push(value);
         Ok(())
     }
@@ -2426,13 +1608,11 @@ impl Vm {
             let value = self.stack.pop()?;
 
             match value {
-                Value::String(slot) => {
-                    let string = self.string_ref(slot)?;
-                    buf.push_str(&*string);
+                Value::String(string) => {
+                    buf.push_str(&*string.get_ref()?);
                 }
-                Value::StaticString(slot) => {
-                    let string = self.lookup_string(slot)?;
-                    buf.push_str(string);
+                Value::StaticString(string) => {
+                    buf.push_str(string.as_ref());
                 }
                 Value::Integer(integer) => {
                     let mut buffer = itoa::Buffer::new();
@@ -2443,15 +1623,14 @@ impl Vm {
                     buf.push_str(buffer.format(float));
                 }
                 actual => {
-                    let actual = actual.type_info(self)?;
+                    let actual = actual.type_info()?;
 
                     return Err(VmError::UnsupportedStringConcatArgument { actual });
                 }
             }
         }
 
-        let value = self.string_allocate(buf);
-        self.push(value);
+        self.push(Value::String(Shared::new(buf)));
         Ok(())
     }
 
@@ -2459,25 +1638,25 @@ impl Vm {
     fn op_result_unwrap(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        let result = match value {
-            Value::Result(slot) => self.result_take(slot)?,
+        let result = match &value {
+            Value::Result(result) => result.get_ref()?,
             actual => {
                 return Err(VmError::ExpectedResult {
-                    actual: actual.type_info(self)?,
+                    actual: actual.type_info()?,
                 })
             }
         };
 
-        let value = match result {
+        let value = match &*result {
             Ok(ok) => ok,
             Err(error) => {
                 return Err(VmError::ExpectedResultOk {
-                    error: error.type_info(self)?,
+                    error: error.type_info()?,
                 })
             }
         };
 
-        self.stack.push(value);
+        self.stack.push(value.clone());
         Ok(())
     }
 
@@ -2485,46 +1664,46 @@ impl Vm {
     fn op_option_unwrap(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        let option = match value {
-            Value::Option(slot) => self.option_take(slot)?,
+        let option = match &value {
+            Value::Option(option) => option.get_ref()?,
             actual => {
                 return Err(VmError::ExpectedOption {
-                    actual: actual.type_info(self)?,
+                    actual: actual.type_info()?,
                 })
             }
         };
 
-        let value = match option {
+        let value = match &*option {
             Some(some) => some,
             None => {
                 return Err(VmError::ExpectedOptionSome);
             }
         };
 
-        self.stack.push(value);
+        self.stack.push(value.clone());
         Ok(())
     }
 
     #[inline]
-    fn op_is(&mut self, context: &Context) -> Result<(), VmError> {
+    fn op_is(&mut self, unit: &CompilationUnit, context: &Context) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
 
         match (a, b) {
-            (Value::TypedTuple(slot), Value::Type(hash)) => {
-                let matches = self.typed_tuple_ref(slot)?.ty == hash;
+            (Value::TypedTuple(typed_tuple), Value::Type(hash)) => {
+                let matches = typed_tuple.get_ref()?.ty == hash;
                 self.push(Value::Bool(matches))
             }
-            (Value::TypedObject(slot), Value::Type(hash)) => {
-                let matches = self.typed_object_ref(slot)?.ty == hash;
+            (Value::TypedObject(typed_object), Value::Type(hash)) => {
+                let matches = typed_object.get_ref()?.ty == hash;
                 self.push(Value::Bool(matches))
             }
-            (Value::Option(slot), Value::Type(hash)) => {
+            (Value::Option(option), Value::Type(hash)) => {
                 let option_types = *context
                     .option_types()
                     .ok_or_else(|| VmError::MissingType { hash })?;
 
-                let option = self.option_ref(slot)?;
+                let option = option.get_ref()?;
 
                 let matches = match &*option {
                     Some(..) => hash == option_types.some_type,
@@ -2533,12 +1712,12 @@ impl Vm {
 
                 self.push(Value::Bool(matches))
             }
-            (Value::Result(slot), Value::Type(hash)) => {
+            (Value::Result(result), Value::Type(hash)) => {
                 let result_types = *context
                     .result_types()
                     .ok_or_else(|| VmError::MissingType { hash })?;
 
-                let result = self.result_ref(slot)?;
+                let result = result.get_ref()?;
 
                 let matches = match &*result {
                     Ok(..) => hash == result_types.ok_type,
@@ -2548,9 +1727,9 @@ impl Vm {
                 self.push(Value::Bool(matches))
             }
             (a, Value::Type(hash)) => {
-                let a = a.value_type(self)?;
+                let a = a.value_type()?;
 
-                let value_type = match self.unit.lookup_type(hash) {
+                let value_type = match unit.lookup_type(hash) {
                     Some(ty) => ty.value_type,
                     None => {
                         context
@@ -2563,8 +1742,8 @@ impl Vm {
                 self.push(Value::Bool(a == value_type));
             }
             (a, b) => {
-                let a = a.type_info(self)?;
-                let b = b.type_info(self)?;
+                let a = a.type_info()?;
+                let b = b.type_info()?;
 
                 return Err(VmError::UnsupportedIs {
                     value_type: a,
@@ -2582,10 +1761,10 @@ impl Vm {
         let value = self.stack.pop()?;
 
         self.push(Value::Bool(match value {
-            Value::Result(slot) => self.result_ref(slot)?.is_err(),
+            Value::Result(result) => result.get_ref()?.is_err(),
             actual => {
                 return Err(VmError::ExpectedResult {
-                    actual: actual.type_info(self)?,
+                    actual: actual.type_info()?,
                 })
             }
         }));
@@ -2601,10 +1780,10 @@ impl Vm {
         let value = self.stack.pop()?;
 
         self.push(Value::Bool(match value {
-            Value::Option(slot) => self.option_ref(slot)?.is_none(),
+            Value::Option(option) => option.get_ref()?.is_none(),
             actual => {
                 return Err(VmError::ExpectedOption {
-                    actual: actual.type_info(self)?,
+                    actual: actual.type_info()?,
                 })
             }
         }));
@@ -2635,16 +1814,19 @@ impl Vm {
     /// Test if the top of stack is equal to the string at the given static
     /// string location.
     #[inline]
-    fn op_eq_static_string(&mut self, slot: usize) -> Result<(), VmError> {
+    fn op_eq_static_string(&mut self, unit: &CompilationUnit, slot: usize) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
         let equal = match value {
             Value::String(actual) => {
-                let string = self.lookup_string(slot)?;
-                let actual = self.string_ref(actual)?;
-                *actual == string
+                let string = unit.lookup_string(slot)?;
+                let actual = actual.get_ref()?;
+                *actual == &***string
             }
-            Value::StaticString(actual) => actual == slot,
+            Value::StaticString(actual) => {
+                let string = unit.lookup_string(slot)?;
+                &**actual == &***string
+            }
             _ => false,
         };
 
@@ -2658,9 +1840,9 @@ impl Vm {
         let value = self.pop()?;
 
         let result = if exact {
-            self.on_tuple(value, tuple_like, |tuple| tuple.len() == len)?
+            self.on_tuple(&value, tuple_like, |tuple| tuple.len() == len)?
         } else {
-            self.on_tuple(value, tuple_like, |tuple| tuple.len() >= len)?
+            self.on_tuple(&value, tuple_like, |tuple| tuple.len() >= len)?
         };
 
         self.push(Value::Bool(result.unwrap_or_default()));
@@ -2670,11 +1852,12 @@ impl Vm {
     #[inline]
     fn op_match_object(
         &mut self,
+        unit: &CompilationUnit,
         object_like: bool,
         slot: usize,
         exact: bool,
     ) -> Result<(), VmError> {
-        let result = self.on_object_keys(object_like, slot, |object, keys| {
+        let result = self.on_object_keys(unit, object_like, slot, |object, keys| {
             if exact {
                 if object.len() != keys.len() {
                     return false;
@@ -2709,7 +1892,7 @@ impl Vm {
         let value = self.stack.pop()?;
 
         self.push(Value::Bool(match value {
-            Value::Vec(slot) => f(&*self.vec_ref(slot)?),
+            Value::Vec(vec) => f(&*vec.get_ref()?),
             _ => false,
         }));
 
@@ -2717,12 +1900,19 @@ impl Vm {
     }
 
     #[inline]
-    fn on_tuple<F, O>(&mut self, value: Value, tuple_like: bool, f: F) -> Result<Option<O>, VmError>
+    fn on_tuple<F, O>(
+        &mut self,
+        value: &Value,
+        tuple_like: bool,
+        f: F,
+    ) -> Result<Option<O>, VmError>
     where
         F: FnOnce(&[Value]) -> O,
     {
-        if let Value::Tuple(slot) = value {
-            return Ok(Some(f(&*self.tuple_ref(slot)?)));
+        use std::slice;
+
+        if let Value::Tuple(tuple) = value {
+            return Ok(Some(f(&*tuple.get_ref()?)));
         }
 
         if !tuple_like {
@@ -2730,24 +1920,24 @@ impl Vm {
         }
 
         Ok(match value {
-            Value::Result(slot) => {
-                let result = self.result_ref(slot)?;
+            Value::Result(result) => {
+                let result = result.get_ref()?;
 
                 Some(match &*result {
-                    Ok(ok) => f(&[*ok]),
-                    Err(err) => f(&[*err]),
+                    Ok(ok) => f(slice::from_ref(ok)),
+                    Err(err) => f(slice::from_ref(err)),
                 })
             }
-            Value::Option(slot) => {
-                let option = self.option_ref(slot)?;
+            Value::Option(option) => {
+                let option = option.get_ref()?;
 
                 Some(match &*option {
-                    Some(some) => f(&[*some]),
+                    Some(some) => f(slice::from_ref(some)),
                     None => f(&[]),
                 })
             }
-            Value::TypedTuple(slot) => {
-                let typed_tuple = self.typed_tuple_ref(slot)?;
+            Value::TypedTuple(typed_tuple) => {
+                let typed_tuple = typed_tuple.get_ref()?;
                 Some(f(&*typed_tuple.tuple))
             }
             _ => None,
@@ -2757,6 +1947,7 @@ impl Vm {
     #[inline]
     fn on_object_keys<F, O>(
         &mut self,
+        unit: &CompilationUnit,
         object_like: bool,
         slot: usize,
         f: F,
@@ -2766,19 +1957,18 @@ impl Vm {
     {
         let value = self.stack.pop()?;
 
-        let keys = self
-            .unit
+        let keys = unit
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
         Ok(match value {
-            Value::Object(slot) => {
-                let object = self.object_ref(slot)?;
+            Value::Object(object) => {
+                let object = object.get_ref()?;
                 Some(f(&*object, keys))
             }
-            Value::TypedObject(slot) if object_like => {
-                let object = self.typed_object_ref(slot)?;
-                Some(f(&object.object, keys))
+            Value::TypedObject(typed_object) if object_like => {
+                let typed_object = typed_object.get_ref()?;
+                Some(f(&typed_object.object, keys))
             }
             _ => None,
         })
@@ -2787,12 +1977,12 @@ impl Vm {
     /// Evaluate a single instruction.
     pub async fn run_for(
         &mut self,
+        unit: &CompilationUnit,
         context: &Context,
         mut limit: Option<usize>,
     ) -> Result<(), VmError> {
         while !self.exited {
-            let inst = *self
-                .unit
+            let inst = *unit
                 .instruction_at(self.ip)
                 .ok_or_else(|| VmError::IpOutOfBounds)?;
 
@@ -2809,7 +1999,7 @@ impl Vm {
                 }
                 Inst::AddAssign { offset } => {
                     let arg = self.stack.pop()?;
-                    let value = self.stack.at_offset(offset)?;
+                    let value = self.stack.at_offset(offset)?.clone();
                     let value = assign_ops! {
                         self, context, crate::ADD_ASSIGN, +, value.checked_add(arg), Overflow
                     };
@@ -2823,7 +2013,7 @@ impl Vm {
                 }
                 Inst::SubAssign { offset } => {
                     let arg = self.stack.pop()?;
-                    let value = self.stack.at_offset(offset)?;
+                    let value = self.stack.at_offset(offset)?.clone();
                     let value = assign_ops! {
                         self, context, crate::SUB_ASSIGN, -, value.checked_sub(arg), Underflow
                     };
@@ -2836,7 +2026,7 @@ impl Vm {
                 }
                 Inst::MulAssign { offset } => {
                     let arg = self.stack.pop()?;
-                    let value = self.stack.at_offset(offset)?;
+                    let value = self.stack.at_offset(offset)?.clone();
                     let value = assign_ops! {
                         self, context, crate::MUL_ASSIGN, *, value.checked_mul(arg), Overflow
                     };
@@ -2849,7 +2039,7 @@ impl Vm {
                 }
                 Inst::DivAssign { offset } => {
                     let arg = self.stack.pop()?;
-                    let value = self.stack.at_offset(offset)?;
+                    let value = self.stack.at_offset(offset)?.clone();
                     let value = assign_ops! {
                         self, context, crate::DIV_ASSIGN, /, value.checked_div(arg), DivideByZero
                     };
@@ -2858,14 +2048,14 @@ impl Vm {
                 // NB: we inline function calls because it helps Rust optimize
                 // the async plumbing.
                 Inst::Call { hash, args } => {
-                    call_fn!(self, hash, args, context, update_ip);
+                    call_fn!(self, unit, hash, args, context, update_ip);
                 }
                 Inst::CallInstance { hash, args } => {
-                    let instance = self.stack.peek()?;
-                    let ty = instance.value_type(self)?;
+                    let instance = self.stack.peek()?.clone();
+                    let ty = instance.value_type()?;
                     let hash = Hash::instance_function(ty, hash);
 
-                    match self.unit.lookup(hash) {
+                    match unit.lookup(hash) {
                         Some(info) => match &info.kind {
                             UnitFnKind::Offset { offset } => {
                                 let offset = *offset;
@@ -2881,7 +2071,7 @@ impl Vm {
                                 Some(handler) => handler,
                                 None => {
                                     return Err(VmError::MissingInstanceFunction {
-                                        instance: instance.type_info(self)?,
+                                        instance: instance.type_info()?,
                                         hash,
                                     });
                                 }
@@ -2897,16 +2087,16 @@ impl Vm {
                     let hash = match function {
                         Value::Type(hash) => hash,
                         actual => {
-                            let actual_type = actual.type_info(self)?;
+                            let actual_type = actual.type_info()?;
                             return Err(VmError::UnsupportedCallFn { actual_type });
                         }
                     };
 
-                    call_fn!(self, hash, args, context, update_ip);
+                    call_fn!(self, unit, hash, args, context, update_ip);
                 }
                 Inst::LoadInstanceFn { hash } => {
                     let instance = self.stack.pop()?;
-                    let ty = instance.value_type(self)?;
+                    let ty = instance.value_type()?;
                     let hash = Hash::instance_function(ty, hash);
                     self.push(Value::Type(hash));
                 }
@@ -2920,7 +2110,7 @@ impl Vm {
                     self.op_tuple_index_get(index)?;
                 }
                 Inst::ObjectSlotIndexGet { slot } => {
-                    self.op_object_slot_index_get(slot)?;
+                    self.op_object_slot_index_get(unit, slot)?;
                 }
                 Inst::IndexSet => {
                     self.op_index_set(context)?;
@@ -3028,10 +2218,10 @@ impl Vm {
                     self.op_tuple(count)?;
                 }
                 Inst::Object { slot } => {
-                    self.op_object(slot)?;
+                    self.op_object(unit, slot)?;
                 }
                 Inst::TypedObject { ty, slot } => {
-                    self.op_typed_object(ty, slot)?;
+                    self.op_typed_object(unit, ty, slot)?;
                 }
                 Inst::Type { hash } => {
                     self.push(Value::Type(hash));
@@ -3042,21 +2232,22 @@ impl Vm {
                 Inst::Byte { b } => {
                     self.push(Value::Byte(b));
                 }
-                Inst::String { slot } => self.push(Value::StaticString(slot)),
-                Inst::Bytes { slot } => {
-                    let bytes = self.unit.lookup_bytes(slot)?.to_owned();
-                    // TODO: do something sneaky to only allocate the static byte string once.
-                    let value = self.bytes_allocate(Bytes::from_vec(bytes));
-                    self.push(value);
+                Inst::String { slot } => {
+                    let string = unit.lookup_string(slot)?;
+                    let value = Value::StaticString(string.clone());
+                    self.push(value)
                 }
-                Inst::StaticString { slot } => {
-                    self.push(Value::StaticString(slot));
+                Inst::Bytes { slot } => {
+                    let bytes = unit.lookup_bytes(slot)?.to_owned();
+                    // TODO: do something sneaky to only allocate the static byte string once.
+                    let value = Value::Bytes(Shared::new(Bytes::from_vec(bytes)));
+                    self.push(value);
                 }
                 Inst::StringConcat { len, size_hint } => {
                     self.op_string_concat(len, size_hint)?;
                 }
                 Inst::Is => {
-                    self.op_is(context)?;
+                    self.op_is(unit, context)?;
                 }
                 Inst::IsUnit => {
                     let value = self.stack.pop()?;
@@ -3105,7 +2296,7 @@ impl Vm {
                     }));
                 }
                 Inst::EqStaticString { slot } => {
-                    self.op_eq_static_string(slot)?;
+                    self.op_eq_static_string(unit, slot)?;
                 }
                 Inst::MatchVec { len, exact } => {
                     if exact {
@@ -3126,7 +2317,7 @@ impl Vm {
                     slot,
                     exact,
                 } => {
-                    self.op_match_object(object_like, slot, exact)?;
+                    self.op_match_object(unit, object_like, slot, exact)?;
                 }
                 Inst::Panic { reason } => {
                     return Err(VmError::Panic { reason });
@@ -3157,51 +2348,57 @@ impl fmt::Debug for Vm {
             .field("exited", &self.exited)
             .field("stack", &self.stack)
             .field("call_frames", &self.call_frames)
-            .field("slots", &"Slots")
             .finish()
     }
 }
 
 /// The task of a unit being run.
 pub struct Task<'a, T> {
-    /// The virtual machine of the task.
-    vm: Vm,
+    /// The virtual machine associated with the task.
+    vm: &'a mut Vm,
+    /// The compilation unit.
+    unit: &'a CompilationUnit,
     /// Functions collection associated with the task.
-    context: Arc<Context>,
-    /// Hold the type of the task.
-    _marker: marker::PhantomData<(&'a (), T)>,
+    context: &'a Context,
+    /// Marker holding output type.
+    _marker: marker::PhantomData<&'a mut T>,
 }
 
 impl<'a, T> Task<'a, T>
 where
     T: FromValue,
 {
-    /// Access the underlying vm.
+    /// Get access to the underlying virtual machine.
     pub fn vm(&self) -> &Vm {
-        &self.vm
+        self.vm
+    }
+
+    /// Get access to the used compilation unit.
+    pub fn unit(&self) -> &CompilationUnit {
+        self.unit
     }
 
     /// Run the given task to completion.
     pub async fn run_to_completion(&mut self) -> Result<T, VmError> {
         while !self.vm.exited {
-            match self.vm.run_for(&*self.context, None).await {
+            match self.vm.run_for(self.unit, self.context, None).await {
                 Ok(()) => (),
                 Err(e) => return Err(e),
             }
         }
 
-        match self.vm.pop_decode() {
-            Ok(value) => Ok(value),
-            Err(e) => Err(e),
-        }
+        let value = self.vm.pop_decode()?;
+        debug_assert!(self.vm.stack.is_empty());
+        Ok(value)
     }
 
     /// Step the given task until the return value is available.
     pub async fn step(&mut self) -> Result<Option<T>, VmError> {
-        self.vm.run_for(&*self.context, Some(1)).await?;
+        self.vm.run_for(self.unit, self.context, Some(1)).await?;
 
         if self.vm.exited {
             let value = self.vm.pop_decode()?;
+            debug_assert!(self.vm.stack.is_empty());
             return Ok(Some(value));
         }
 
@@ -3211,7 +2408,7 @@ where
 
 impl<T> Drop for Task<'_, T> {
     fn drop(&mut self) {
-        // NB: this is critical for safety, since the slots might contain
+        // NB: this is critical for safety, since the stack might contain
         // references passed in externally which are tied to our lifetime ('a).
         self.vm.clear();
     }

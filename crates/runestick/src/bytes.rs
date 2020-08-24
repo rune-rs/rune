@@ -25,7 +25,7 @@ impl Bytes {
     }
 
     /// Convert into vector.
-    pub fn into_vec(self) -> Vec<u8> {
+    pub fn as_vec(self) -> Vec<u8> {
         self.bytes
     }
 

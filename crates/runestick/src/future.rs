@@ -1,6 +1,7 @@
 use crate::reflection::ToValue;
+use crate::shared::Shared;
 use crate::value::Value;
-use crate::vm::{Vm, VmError};
+use crate::vm::VmError;
 use std::fmt;
 /// A future which can be unsafely polled.
 use std::future;
@@ -11,7 +12,7 @@ use std::task::{Context, Poll};
 /// A type-erased future that can only be unsafely polled in combination with
 /// the virtual machine that created it.
 pub struct Future {
-    future: Option<NonNull<dyn future::Future<Output = Result<(), VmError>>>>,
+    future: Option<NonNull<dyn future::Future<Output = Result<Value, VmError>>>>,
 }
 
 impl Future {
@@ -26,7 +27,7 @@ impl Future {
     /// A future constructed through this must **only** be polled while any
     /// data it references is **live**.
     pub unsafe fn new_unchecked(
-        future: *mut dyn future::Future<Output = Result<(), VmError>>,
+        future: *mut dyn future::Future<Output = Result<Value, VmError>>,
     ) -> Self {
         Self {
             future: Some(NonNull::new_unchecked(future)),
@@ -42,9 +43,8 @@ impl Future {
 }
 
 impl ToValue for Future {
-    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
-        let slot = vm.slot_allocate(self);
-        Ok(Value::Future(slot))
+    fn to_value(self) -> Result<Value, VmError> {
+        Ok(Value::Future(Shared::new(self)))
     }
 }
 
@@ -57,7 +57,7 @@ impl fmt::Debug for Future {
 }
 
 impl future::Future for Future {
-    type Output = Result<(), VmError>;
+    type Output = Result<Value, VmError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -112,7 +112,7 @@ impl SelectFuture {
 }
 
 impl future::Future for SelectFuture {
-    type Output = Result<usize, VmError>;
+    type Output = Result<(usize, Value), VmError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -123,7 +123,7 @@ impl future::Future for SelectFuture {
 
         match result {
             Poll::Ready(result) => match result {
-                Ok(()) => Poll::Ready(Ok(this.index)),
+                Ok(value) => Poll::Ready(Ok((this.index, value))),
                 Err(e) => Poll::Ready(Err(e)),
             },
             Poll::Pending => Poll::Pending,

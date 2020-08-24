@@ -10,8 +10,8 @@ use std::fmt;
 /// it's equivalent.
 #[repr(C)]
 pub struct Any {
-    data: *const (),
     vtable: &'static Vtable,
+    data: *const (),
 }
 
 impl fmt::Debug for Any {
@@ -42,71 +42,6 @@ impl Any {
 
         unsafe fn drop_impl<T>(this: *const ()) {
             Box::from_raw(this as *mut () as *mut T);
-        }
-    }
-
-    /// Construct a new any from a pointer.
-    ///
-    /// # Safety
-    ///
-    /// It is up to the caller to make sure that whatever data is pointed to is
-    /// valid for the duration of the `Any`.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let value = 1u32;
-    /// let any = unsafe { runestick::Any::from_ptr(&value) };
-    /// assert!(any.is::<u32>());
-    /// assert_eq!(Some(&1u32), any.downcast_ref());
-    /// ```
-    pub unsafe fn from_ptr<T>(data: *const T) -> Self
-    where
-        T: any::Any,
-    {
-        Any {
-            vtable: &Vtable {
-                drop: noop_drop_impl::<T>,
-                as_ptr: as_ptr_impl::<T>,
-                as_mut_ptr: unsupported_as_mut::<T>,
-                take_mut_ptr: unsupported_as_mut::<T>,
-                type_name: any::type_name::<T>,
-                type_id: any::TypeId::of::<T>,
-            },
-            data: data as *const (),
-        }
-    }
-
-    /// Construct a new any from a mutable pointer.
-    ///
-    /// # Safety
-    ///
-    /// It is up to the caller to make sure that whatever data is pointed to is
-    /// valid for the duration of the `Any`.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let mut value = 1u32;
-    /// let mut any = unsafe { runestick::Any::from_mut_ptr(&mut value) };
-    /// assert!(any.is::<u32>());
-    /// *any.downcast_mut::<u32>().unwrap() = 2;
-    /// assert_eq!(Some(&2u32), any.downcast_ref());
-    /// ```
-    pub unsafe fn from_mut_ptr<T>(data: *mut T) -> Self
-    where
-        T: any::Any,
-    {
-        Any {
-            vtable: &Vtable {
-                drop: noop_drop_impl::<T>,
-                as_ptr: as_ptr_impl::<T>,
-                as_mut_ptr: as_mut_ptr_impl::<T>,
-                take_mut_ptr: unsupported_as_mut::<T>,
-                type_name: any::type_name::<T>,
-                type_id: any::TypeId::of::<T>,
-            },
-            data: data as *mut (),
         }
     }
 
@@ -171,15 +106,15 @@ impl Any {
     }
 
     /// Attempt to perform a conversion to a raw pointer.
-    pub fn as_ptr(&self, expected_type: any::TypeId) -> Option<*const ()> {
+    pub fn as_ptr(&self, expected: any::TypeId) -> Option<*const ()> {
         // Safety: invariants are checked at construction time.
-        unsafe { (self.vtable.as_ptr)(self.data, expected_type) }
+        unsafe { (self.vtable.as_ptr)(self.data, expected) }
     }
 
     /// Attempt to perform a conversion to a raw mutable pointer.
-    pub fn as_mut_ptr(&mut self, expected_type: any::TypeId) -> Option<*mut ()> {
+    pub fn as_mut_ptr(&mut self, expected: any::TypeId) -> Option<*mut ()> {
         // Safety: invariants are checked at construction time.
-        unsafe { (self.vtable.as_mut_ptr)(self.data, expected_type) }
+        unsafe { (self.vtable.as_mut_ptr)(self.data, expected) }
     }
 
     /// Attempt to perform a conversion to a raw mutable pointer with the intent
@@ -187,13 +122,13 @@ impl Any {
     ///
     /// If the conversion is not possible, we return a reconstructed `Any` as
     /// the error variant.
-    pub fn take_mut_ptr(self, expected_type: any::TypeId) -> Result<*mut (), Self> {
+    pub fn take_mut_ptr(self, expected: any::TypeId) -> Result<*mut (), Self> {
         use std::mem::ManuallyDrop;
 
         let this = ManuallyDrop::new(self);
 
         // Safety: invariants are checked at construction time.
-        match unsafe { (this.vtable.take_mut_ptr)(this.data, expected_type) } {
+        match unsafe { (this.vtable.take_mut_ptr)(this.data, expected) } {
             Some(data) => Ok(data),
             None => Err(ManuallyDrop::into_inner(this)),
         }
@@ -221,9 +156,9 @@ impl Drop for Any {
 }
 
 type DropFn = unsafe fn(*const ());
-type AsPtrFn = unsafe fn(*const (), expected_type: any::TypeId) -> Option<*const ()>;
-type AsMutPtrFn = unsafe fn(*const (), expected_type: any::TypeId) -> Option<*mut ()>;
-type TakeMutPtrFn = unsafe fn(*const (), expected_type: any::TypeId) -> Option<*mut ()>;
+type AsPtrFn = unsafe fn(*const (), expected: any::TypeId) -> Option<*const ()>;
+type AsMutPtrFn = unsafe fn(*const (), expected: any::TypeId) -> Option<*mut ()>;
+type TakeMutPtrFn = unsafe fn(*const (), expected: any::TypeId) -> Option<*mut ()>;
 type TypeNameFn = fn() -> &'static str;
 type TypeIdFn = fn() -> any::TypeId;
 
@@ -250,36 +185,24 @@ struct Vtable {
     type_id: TypeIdFn,
 }
 
-unsafe fn noop_drop_impl<T>(_: *const ()) {
-    // noop since we have a wrapped pointer that doesn't need to be
-    // dropped.
-}
-
-fn as_ptr_impl<T>(this: *const (), expected_type: any::TypeId) -> Option<*const ()>
+fn as_ptr_impl<T>(this: *const (), expected: any::TypeId) -> Option<*const ()>
 where
     T: any::Any,
 {
-    if expected_type == any::TypeId::of::<T>() {
+    if expected == any::TypeId::of::<T>() {
         Some(this)
     } else {
         None
     }
 }
 
-fn as_mut_ptr_impl<T>(this: *const (), expected_type: any::TypeId) -> Option<*mut ()>
+fn as_mut_ptr_impl<T>(this: *const (), expected: any::TypeId) -> Option<*mut ()>
 where
     T: any::Any,
 {
-    if expected_type == any::TypeId::of::<T>() {
+    if expected == any::TypeId::of::<T>() {
         Some(this as *mut ())
     } else {
         None
     }
-}
-
-fn unsupported_as_mut<T>(_: *const (), _: any::TypeId) -> Option<*mut ()>
-where
-    T: any::Any,
-{
-    None
 }

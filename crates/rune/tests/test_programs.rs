@@ -1,16 +1,15 @@
 use futures_executor::block_on;
 use runestick::VmError::*;
-use std::sync::Arc;
 
-async fn run_main<T>(source: &str) -> runestick::Result<T>
+async fn run_main<T>(source: &str) -> Result<T, Box<dyn std::error::Error>>
 where
     T: runestick::FromValue,
 {
     let context = runestick::Context::with_default_packages()?;
     let (unit, _) = rune::compile(&context, source)?;
-    let vm = runestick::Vm::new(Arc::new(unit));
-    let context = Arc::new(runestick::Context::with_default_packages()?);
-    let mut task: runestick::Task<T> = vm.call_function(context, &["main"], ())?;
+    let mut vm = runestick::Vm::new();
+    let context = runestick::Context::with_default_packages()?;
+    let mut task: runestick::Task<T> = vm.call_function(&unit, &context, &["main"], ())?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }

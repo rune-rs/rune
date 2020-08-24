@@ -9,7 +9,6 @@ use std::fs;
 use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use thiserror::Error;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
@@ -106,7 +105,7 @@ pub enum DiagnosticsError {
 
 /// A rune runtime, which simplifies embedding and using rune.
 pub struct Runtime {
-    context: Arc<runestick::Context>,
+    context: runestick::Context,
     files: SlabFiles,
     options: Options,
     errors: Vec<(usize, RuntimeError)>,
@@ -116,9 +115,9 @@ pub struct Runtime {
 impl Runtime {
     /// Construct a new runtime with the default context.
     pub fn new() -> Result<Self, runestick::ContextError> {
-        Ok(Self::with_context(Arc::new(
+        Ok(Self::with_context(
             runestick::Context::with_default_packages()?,
-        )))
+        ))
     }
 
     /// Indicate that the runtime has issues it can report with
@@ -128,7 +127,7 @@ impl Runtime {
     }
 
     /// Construct a new runtime with a custom context.
-    pub fn with_context(context: Arc<runestick::Context>) -> Self {
+    pub fn with_context(context: runestick::Context) -> Self {
         Self {
             context,
             files: SlabFiles::new(),
@@ -140,12 +139,12 @@ impl Runtime {
 
     /// Access the underlying context of the runtime.
     pub fn context(&self) -> &runestick::Context {
-        &*self.context
+        &self.context
     }
 
     /// Get the unit associated with the given file id.
-    pub fn unit(&self, file_id: usize) -> Option<Arc<runestick::CompilationUnit>> {
-        self.files.get(file_id)?.unit.as_ref().cloned()
+    pub fn unit(&self, file_id: usize) -> Option<&runestick::CompilationUnit> {
+        self.files.get(file_id)?.unit.as_ref()
     }
 
     /// Call the given function in the given named file.
@@ -153,6 +152,7 @@ impl Runtime {
     /// Returns the associated task and the file id associated with the unit.
     pub fn call_function<'a, A, T, I>(
         &'a self,
+        vm: &'a mut runestick::Vm,
         file_id: usize,
         name: I,
         args: A,
@@ -167,11 +167,9 @@ impl Runtime {
             .files
             .get(file_id)
             .and_then(|file| file.unit.as_ref())
-            .cloned()
             .ok_or_else(|| CallFunctionError::MissingUnit { file_id })?;
 
-        let vm = runestick::Vm::new(unit);
-        Ok(vm.call_function(self.context.clone(), name, args)?)
+        Ok(vm.call_function(unit, &self.context, name, args)?)
     }
 
     /// Register the runtime error.
@@ -240,7 +238,7 @@ impl Runtime {
             }
         };
 
-        let (unit, warnings) = match unit.compile_with_options(&*self.context, &self.options) {
+        let (unit, warnings) = match unit.compile_with_options(&self.context, &self.options) {
             Ok(unit) => unit,
             Err(e) => {
                 self.errors.push((file_id, e.into()));
@@ -255,13 +253,13 @@ impl Runtime {
         let mut errors = LinkerErrors::new();
 
         if !unit.link(&self.context, &mut errors) {
-            file.unit = Some(Arc::new(unit));
+            file.unit = Some(unit);
             self.errors
                 .push((file_id, RuntimeError::LinkError { errors }));
             return Err(LoadError::LinkError);
         }
 
-        file.unit = Some(Arc::new(unit));
+        file.unit = Some(unit);
         Ok(file_id)
     }
 
@@ -340,14 +338,6 @@ impl Runtime {
                         labels.push(
                             Label::secondary(source_file, object.start..object.end)
                                 .with_message("object being defined here"),
-                        );
-
-                        *span
-                    }
-                    CompileError::MovedLocal { span, moved_at, .. } => {
-                        labels.push(
-                            Label::secondary(source_file, moved_at.start..moved_at.end)
-                                .with_message("moved here"),
                         );
 
                         *span
@@ -484,7 +474,7 @@ impl Runtime {
 
 struct File {
     file: SimpleFile<String, String>,
-    unit: Option<Arc<runestick::CompilationUnit>>,
+    unit: Option<runestick::CompilationUnit>,
 }
 
 struct SlabFiles {

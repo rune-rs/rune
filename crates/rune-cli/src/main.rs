@@ -3,7 +3,6 @@ use std::env;
 use std::error::Error;
 use std::io::Write as _;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use runestick::unit::UnitFnKind;
 
@@ -27,7 +26,7 @@ async fn main() -> Result<()> {
     context.install(runestick_json::module()?)?;
     context.install(runestick_time::module()?)?;
 
-    let mut runtime = rune::Runtime::with_context(Arc::new(context));
+    let mut runtime = rune::Runtime::with_context(context);
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -217,8 +216,10 @@ async fn main() -> Result<()> {
         println!("---");
     }
 
-    let mut task: runestick::Task<runestick::OwnedValue> =
-        runtime.call_function(file_id, &["main"], ())?;
+    let mut vm = runestick::Vm::new();
+
+    let mut task: runestick::Task<runestick::Value> =
+        runtime.call_function(&mut vm, file_id, &["main"], ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {
@@ -269,7 +270,7 @@ async fn main() -> Result<()> {
     if dump_vm {
         println!("# stack dump after completion");
 
-        for (n, (_, value)) in task.vm().iter_stack_debug().enumerate() {
+        for (n, value) in task.vm().iter_stack_debug().enumerate() {
             println!("{} = {:?}", n, value);
         }
 
@@ -302,9 +303,9 @@ where
         {
             let mut out = out.lock();
 
-            let debug = task.vm().unit().debug_info_at(task.vm().ip());
+            let debug = task.unit().debug_info_at(task.vm().ip());
 
-            if let Some((hash, function)) = task.vm().unit().function_at(task.vm().ip()) {
+            if let Some((hash, function)) = task.unit().function_at(task.vm().ip()) {
                 writeln!(out, "fn {} ({}):", function.signature, hash)?;
             }
 
@@ -314,7 +315,7 @@ where
                 }
             }
 
-            if let Some(inst) = task.vm().unit().instruction_at(task.vm().ip()) {
+            if let Some(inst) = task.unit().instruction_at(task.vm().ip()) {
                 write!(out, "  {:04} = {}", task.vm().ip(), inst)?;
             } else {
                 write!(out, "  {:04} = *out of bounds*", task.vm().ip())?;
@@ -339,7 +340,7 @@ where
         if dump_vm {
             writeln!(out, "# stack dump")?;
 
-            for (n, (_, value)) in task.vm().iter_stack_debug().enumerate() {
+            for (n, value) in task.vm().iter_stack_debug().enumerate() {
                 writeln!(out, "{} = {:?}", n, value)?;
             }
 

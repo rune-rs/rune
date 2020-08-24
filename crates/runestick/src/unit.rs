@@ -10,6 +10,7 @@ use crate::hash::Hash;
 use crate::value::ValueType;
 use crate::vm::{Inst, VmError};
 use std::fmt;
+use std::rc::Rc;
 use thiserror::Error;
 
 /// Errors raised when building a new unit.
@@ -316,7 +317,7 @@ pub struct CompilationUnit {
     /// Function by address.
     functions_rev: HashMap<usize, Hash>,
     /// A static string.
-    static_strings: Vec<String>,
+    static_strings: Vec<Rc<String>>,
     /// Reverse lookup for static strings.
     static_string_rev: HashMap<Hash, usize>,
     /// A static byte string.
@@ -439,7 +440,7 @@ impl CompilationUnit {
 
         std::iter::from_fn(move || {
             let s = it.next()?;
-            Some((Hash::of(s), s.as_str()))
+            Some((Hash::of(s), s.as_ref().as_ref()))
         })
     }
 
@@ -479,12 +480,11 @@ impl CompilationUnit {
     }
 
     /// Lookup the static string by slot, if it exists.
-    pub fn lookup_string(&self, slot: usize) -> Result<&str, VmError> {
+    pub fn lookup_string(&self, slot: usize) -> Result<&Rc<String>, VmError> {
         Ok(self
             .static_strings
             .get(slot)
-            .ok_or_else(|| VmError::MissingStaticString { slot })?
-            .as_str())
+            .ok_or_else(|| VmError::MissingStaticString { slot })?)
     }
 
     /// Lookup the static byte string by slot, if it exists.
@@ -516,11 +516,11 @@ impl CompilationUnit {
                 }
             })?;
 
-            if existing != current {
+            if &**existing != current {
                 return Err(CompilationUnitError::StaticStringHashConflict {
                     hash,
                     current: current.to_owned(),
-                    existing: existing.clone(),
+                    existing: existing.as_ref().clone(),
                 });
             }
 
@@ -528,7 +528,7 @@ impl CompilationUnit {
         }
 
         let new_slot = self.static_strings.len();
-        self.static_strings.push(current.to_owned());
+        self.static_strings.push(Rc::new(String::from(current)));
         self.static_string_rev.insert(hash, new_slot);
         Ok(new_slot)
     }

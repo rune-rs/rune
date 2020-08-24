@@ -1,9 +1,7 @@
 use crate::bytes::Bytes;
 use crate::collections::HashMap;
-use crate::error;
-use crate::tls;
+use crate::shared::Shared;
 use crate::value::Value;
-use crate::vm::VmError;
 use serde::{de, ser};
 use std::fmt;
 
@@ -32,27 +30,24 @@ impl ser::Serialize for Value {
         use serde::ser::SerializeMap as _;
         use serde::ser::SerializeSeq as _;
 
-        match *self {
+        match self {
             Value::Unit => serializer.serialize_unit(),
-            Value::Bool(b) => serializer.serialize_bool(b),
-            Value::Char(c) => serializer.serialize_char(c),
-            Value::Byte(c) => serializer.serialize_u8(c),
-            Value::Integer(integer) => serializer.serialize_i64(integer),
-            Value::Float(float) => serializer.serialize_f64(float),
-            Value::StaticString(slot) => tls::with_vm(|vm| {
-                let string = vm.unit.lookup_string(slot).map_err(ser::Error::custom)?;
-                serializer.serialize_str(string)
-            }),
-            Value::String(slot) => tls::with_vm(|vm| {
-                let string = vm.string_ref(slot).map_err(ser::Error::custom)?;
+            Value::Bool(b) => serializer.serialize_bool(*b),
+            Value::Char(c) => serializer.serialize_char(*c),
+            Value::Byte(c) => serializer.serialize_u8(*c),
+            Value::Integer(integer) => serializer.serialize_i64(*integer),
+            Value::Float(float) => serializer.serialize_f64(*float),
+            Value::StaticString(string) => serializer.serialize_str(string.as_ref()),
+            Value::String(string) => {
+                let string = string.get_ref().map_err(ser::Error::custom)?;
                 serializer.serialize_str(&*string)
-            }),
-            Value::Bytes(slot) => tls::with_vm(|vm| {
-                let bytes = vm.bytes_ref(slot).map_err(ser::Error::custom)?;
+            }
+            Value::Bytes(bytes) => {
+                let bytes = bytes.get_ref().map_err(ser::Error::custom)?;
                 serializer.serialize_bytes(&*bytes)
-            }),
-            Value::Vec(slot) => tls::with_vm(|vm| {
-                let vec = vm.vec_ref(slot).map_err(ser::Error::custom)?;
+            }
+            Value::Vec(vec) => {
+                let vec = vec.get_ref().map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
 
                 for value in &*vec {
@@ -60,11 +55,9 @@ impl ser::Serialize for Value {
                 }
 
                 serializer.end()
-            }),
-            Value::Tuple(slot) => tls::with_vm(|vm| {
-                let tuple = vm
-                    .external_ref::<Box<[Value]>>(slot)
-                    .map_err(ser::Error::custom)?;
+            }
+            Value::Tuple(tuple) => {
+                let tuple = tuple.get_ref().map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
 
                 for value in tuple.iter() {
@@ -72,9 +65,9 @@ impl ser::Serialize for Value {
                 }
 
                 serializer.end()
-            }),
-            Value::Object(slot) => tls::with_vm(|vm| {
-                let object = vm.object_ref(slot).map_err(ser::Error::custom)?;
+            }
+            Value::Object(object) => {
+                let object = object.get_ref().map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_map(Some(object.len()))?;
 
                 for (key, value) in &*object {
@@ -82,28 +75,18 @@ impl ser::Serialize for Value {
                 }
 
                 serializer.end()
-            }),
-            Value::Option(slot) => tls::with_vm(|vm| {
-                let option = vm.option_ref(slot).map_err(ser::Error::custom)?;
+            }
+            Value::Option(option) => {
+                let option = option.get_ref().map_err(ser::Error::custom)?;
                 <Option<Value>>::serialize(&*option, serializer)
-            }),
+            }
             Value::TypedTuple(..) => Err(ser::Error::custom("cannot serialize tuple types")),
             Value::TypedObject(..) => Err(ser::Error::custom("cannot serialize object types")),
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
             Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
             Value::External(..) => Err(ser::Error::custom("cannot serialize external objects")),
-        }
-    }
-}
-
-impl de::Error for VmError {
-    fn custom<T>(msg: T) -> Self
-    where
-        T: fmt::Display,
-    {
-        VmError::UserError {
-            error: error::Error::msg(msg.to_string()),
+            Value::Ptr(..) => Err(ser::Error::custom("cannot serialize pointers")),
         }
     }
 }
@@ -122,7 +105,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm| Ok(vm.string_allocate(value.to_owned())))
+        Ok(Value::String(Shared::new(value.to_owned())))
     }
 
     #[inline]
@@ -130,7 +113,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm| Ok(vm.string_allocate(value)))
+        Ok(Value::String(Shared::new(value)))
     }
 
     #[inline]
@@ -138,7 +121,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm| Ok(vm.external_allocate(Bytes::from_vec(v.to_vec()))))
+        Ok(Value::Bytes(Shared::new(Bytes::from_vec(v.to_vec()))))
     }
 
     #[inline]
@@ -146,7 +129,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         E: de::Error,
     {
-        tls::with_vm(|vm| Ok(vm.external_allocate(Bytes::from_vec(v))))
+        Ok(Value::Bytes(Shared::new(Bytes::from_vec(v))))
     }
 
     #[inline]
@@ -264,7 +247,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
             vec.push(elem);
         }
 
-        tls::with_vm(|vm| Ok(vm.vec_allocate(vec)))
+        Ok(Value::Vec(Shared::new(vec)))
     }
 
     #[inline]
@@ -278,6 +261,6 @@ impl<'de> de::Visitor<'de> for VmVisitor {
             object.insert(key, value);
         }
 
-        tls::with_vm(|vm| Ok(vm.object_allocate(object)))
+        Ok(Value::Object(Shared::new(object)))
     }
 }

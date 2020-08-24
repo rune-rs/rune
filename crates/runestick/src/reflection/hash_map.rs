@@ -1,6 +1,7 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
+use crate::shared::Shared;
 use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::{Vm, VmError};
+use crate::vm::VmError;
 
 macro_rules! impl_map {
     ($($tt:tt)*) => {
@@ -20,14 +21,14 @@ macro_rules! impl_map {
         where
             T: FromValue,
         {
-            fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-                let slot = value.into_vec(vm)?;
-                let object = vm.object_take(slot)?;
+            fn from_value(value: Value) -> Result<Self, VmError> {
+                let object = value.into_object()?;
+                let object = object.take()?;
 
                 let mut output = $($tt)*::with_capacity(object.len());
 
                 for (key, value) in object {
-                    output.insert(key, T::from_value(value, vm)?);
+                    output.insert(key, T::from_value(value)?);
                 }
 
                 Ok(output)
@@ -38,14 +39,14 @@ macro_rules! impl_map {
         where
             T: ToValue,
         {
-            fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
-                let mut object = crate::collections::HashMap::with_capacity(self.len());
+            fn to_value(self) -> Result<Value, VmError> {
+                let mut output = crate::collections::HashMap::with_capacity(self.len());
 
                 for (key, value) in self {
-                    object.insert(key, value.to_value(vm)?);
+                    output.insert(key, value.to_value()?);
                 }
 
-                Ok(vm.object_allocate(object))
+                Ok(Value::Object(Shared::new(output)))
             }
         }
     }

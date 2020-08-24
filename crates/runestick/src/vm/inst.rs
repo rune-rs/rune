@@ -566,18 +566,6 @@ pub enum Inst {
         /// The static byte string slot to load the string from.
         slot: usize,
     },
-    /// Load a static, unmodifiable string from the given static string slot
-    /// onto the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <value>
-    /// ```
-    StaticString {
-        /// The static slot to load the string from.
-        slot: usize,
-    },
     /// Pop the given number of values from the stack, and concatenate a string
     /// from them.
     ///
@@ -951,9 +939,6 @@ impl fmt::Display for Inst {
             }
             Self::Bytes { slot } => {
                 write!(fmt, "bytes {}", slot)?;
-            }
-            Self::StaticString { slot } => {
-                write!(fmt, "static-string {}", slot)?;
             }
             Self::StringConcat { len, size_hint } => {
                 write!(fmt, "string-concat {}, {}", len, size_hint)?;

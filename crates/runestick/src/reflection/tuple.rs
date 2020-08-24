@@ -1,8 +1,9 @@
 //! Trait implementation for decoding tuples.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
+use crate::shared::Shared;
 use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::{Vm, VmError};
+use crate::vm::VmError;
 
 impl ReflectValueType for () {
     type Owned = ();
@@ -17,17 +18,17 @@ impl ReflectValueType for () {
 }
 
 impl ToValue for () {
-    fn to_value(self, _vm: &mut Vm) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(Value::Unit)
     }
 }
 
 impl FromValue for () {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         match value {
             Value::Unit => Ok(()),
             actual => Err(VmError::ExpectedUnit {
-                actual: actual.type_info(vm)?,
+                actual: actual.type_info()?,
             }),
         }
     }
@@ -47,9 +48,9 @@ macro_rules! impl_from_value_tuple {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-                let slot = value.into_tuple(vm)?;
-                let tuple = vm.tuple_clone(slot)?;
+            fn from_value(value: Value) -> Result<Self, VmError> {
+                let tuple = value.into_tuple()?;
+                let tuple = tuple.take()?;
 
                 if tuple.len() != $count {
                     return Err(VmError::ExpectedTupleLength {
@@ -59,11 +60,11 @@ macro_rules! impl_from_value_tuple {
                 }
 
                 #[allow(unused_mut, unused_variables)]
-                let mut it = tuple.iter();
+                let mut it = Vec::from(tuple).into_iter();
 
                 $(
-                    let $var: $ty = match it.next() {
-                        Some(value) => <$ty>::from_value(*value, vm)?,
+                    let $var = match it.next() {
+                        Some(value) => <$ty>::from_value(value)?,
                         None => {
                             return Err(VmError::IterationError);
                         },
@@ -78,10 +79,10 @@ macro_rules! impl_from_value_tuple {
         where
             $($ty: ToValue,)*
         {
-            fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
+            fn to_value(self) -> Result<Value, VmError> {
                 let ($($var,)*) = self;
-                $(let $var = $var.to_value(vm)?;)*
-                Ok(vm.tuple_allocate(vec![$($var,)*].into_boxed_slice()))
+                $(let $var = $var.to_value()?;)*
+                Ok(Value::Tuple(Shared::new(vec![$($var,)*].into_boxed_slice())))
             }
         }
     };

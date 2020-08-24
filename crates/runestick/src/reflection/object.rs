@@ -1,6 +1,7 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
+use crate::shared::{RawStrongRefGuard, Shared, StrongRef};
 use crate::value::{Object, Value, ValueType, ValueTypeInfo};
-use crate::vm::{RawRefGuard, Ref, Vm, VmError};
+use crate::vm::VmError;
 
 impl<T> ReflectValueType for Object<T> {
     type Owned = Object<T>;
@@ -42,29 +43,27 @@ impl<T> FromValue for Object<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Value, vm: &mut Vm) -> Result<Self, VmError> {
-        let slot = value.into_object(vm)?;
-        let value = vm.object_take(slot)?;
-        let mut object = Object::with_capacity(value.len());
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        let object = value.into_object()?;
+        let object = object.take()?;
+        let mut output = Object::with_capacity(object.len());
 
-        for (key, value) in value {
-            object.insert(key, T::from_value(value, vm)?);
+        for (key, value) in object {
+            output.insert(key, T::from_value(value)?);
         }
 
-        Ok(object)
+        Ok(output)
     }
 }
 
 impl<'a> UnsafeFromValue for &'a Object<Value> {
     type Output = *const Object<Value>;
-    type Guard = RawRefGuard;
+    type Guard = RawStrongRefGuard;
 
-    unsafe fn unsafe_from_value(
-        value: Value,
-        vm: &mut Vm,
-    ) -> Result<(Self::Output, Self::Guard), VmError> {
-        let slot = value.into_object(vm)?;
-        Ok(Ref::unsafe_into_ref(vm.object_ref(slot)?))
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+        let object = value.into_object()?;
+        let object = object.strong_ref()?;
+        Ok(StrongRef::into_raw(object))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -76,13 +75,13 @@ impl<T> ToValue for Object<T>
 where
     T: ToValue,
 {
-    fn to_value(self, vm: &mut Vm) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, VmError> {
         let mut object = Object::with_capacity(self.len());
 
         for (key, value) in self {
-            object.insert(key, value.to_value(vm)?);
+            object.insert(key, value.to_value()?);
         }
 
-        Ok(vm.object_allocate(object))
+        Ok(Value::Object(Shared::new(object)))
     }
 }

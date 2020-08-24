@@ -83,7 +83,7 @@ impl RequestBuilder {
     }
 
     async fn body_bytes(self, bytes: Bytes) -> runestick::Result<Self> {
-        let bytes = bytes.into_vec();
+        let bytes = bytes.as_vec();
 
         Ok(Self {
             request: self.request.body(bytes),
