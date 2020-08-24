@@ -58,9 +58,9 @@ pub enum ValueRef<'vm> {
     /// A future.
     Future(Ref<'vm, Future>),
     /// An optional value.
-    Option(Option<Box<ValueRef<'vm>>>),
+    Option(Box<Option<ValueRef<'vm>>>),
     /// A result value.
-    Result(Result<Box<ValueRef<'vm>>, Box<ValueRef<'vm>>>),
+    Result(Box<Result<ValueRef<'vm>, ValueRef<'vm>>>),
     /// A typed tuple.
     TypedTuple(TypedTupleRef<'vm>),
     /// A typed object.

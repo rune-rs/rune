@@ -1891,21 +1891,21 @@ impl Vm {
                 let option = self.option_ref(slot)?;
 
                 let option = match *option {
-                    Some(some) => Some(Box::new(self.value_ref(some)?)),
+                    Some(some) => Some(self.value_ref(some)?),
                     None => None,
                 };
 
-                ValueRef::Option(option)
+                ValueRef::Option(Box::new(option))
             }
             Value::Result(slot) => {
                 let result = self.result_ref(slot)?;
 
                 let result = match *result {
-                    Ok(ok) => Ok(Box::new(self.value_ref(ok)?)),
-                    Err(err) => Err(Box::new(self.value_ref(err)?)),
+                    Ok(ok) => Ok(self.value_ref(ok)?),
+                    Err(err) => Err(self.value_ref(err)?),
                 };
 
-                ValueRef::Result(result)
+                ValueRef::Result(Box::new(result))
             }
             Value::TypedTuple(slot) => {
                 let typed_tuple = self.typed_tuple_ref(slot)?;
