@@ -192,8 +192,8 @@ async fn main() -> Result<()> {
 
         for (hash, f) in unit.iter_functions() {
             match &f.kind {
-                UnitFnKind::Offset { offset } => {
-                    println!("{} = {} (at: {})", hash, f.signature, offset);
+                UnitFnKind::Offset { offset, call } => {
+                    println!("{} = {} (at: {}) ({})", hash, f.signature, offset, call);
                 }
                 UnitFnKind::Tuple { .. } => {
                     println!("{} = {} (tuple)", hash, f.signature);

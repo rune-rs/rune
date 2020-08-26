@@ -7,6 +7,8 @@ use runestick::unit::Span;
 /// A function.
 #[derive(Debug, Clone)]
 pub struct DeclFn {
+    /// The optional `async` keyword.
+    pub async_: Option<ast::Async>,
     /// The `fn` token.
     pub fn_: ast::Fn,
     /// The name of the function.
@@ -31,21 +33,22 @@ impl DeclFn {
 /// ```rust
 /// use rune::{ParseAll, parse_all, ast, Resolve as _};
 ///
-/// # fn main() -> rune::Result<()> {
-/// let ParseAll { item, .. } = parse_all::<ast::DeclFn>("fn hello() {}")?;
+/// parse_all::<ast::DeclFn>("async fn hello() {}").unwrap();
+/// assert!(parse_all::<ast::DeclFn>("fn async hello() {}").is_err());
+///
+/// let ParseAll { item, .. } = parse_all::<ast::DeclFn>("fn hello() {}").unwrap();
 /// assert_eq!(item.args.items.len(), 0);
 ///
-/// let ParseAll  { source, item } = parse_all::<ast::DeclFn>("fn hello(foo, bar) {}")?;
+/// let ParseAll  { source, item } = parse_all::<ast::DeclFn>("fn hello(foo, bar) {}").unwrap();
 /// assert_eq!(item.args.items.len(), 2);
-/// assert_eq!(item.name.resolve(source)?, "hello");
-/// assert_eq!(item.args.items[0].0.resolve(source)?, "foo");
-/// assert_eq!(item.args.items[1].0.resolve(source)?, "bar");
-/// # Ok(())
-/// # }
+/// assert_eq!(item.name.resolve(source).unwrap(), "hello");
+/// assert_eq!(item.args.items[0].0.resolve(source).unwrap(), "foo");
+/// assert_eq!(item.args.items[1].0.resolve(source).unwrap(), "bar");
 /// ```
 impl Parse for DeclFn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         Ok(Self {
+            async_: parser.parse()?,
             fn_: parser.parse()?,
             name: parser.parse()?,
             args: parser.parse()?,

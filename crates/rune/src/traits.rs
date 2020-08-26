@@ -12,6 +12,20 @@ where
     fn parse(parser: &mut Parser) -> Result<Self, ParseError>;
 }
 
+/// Parse implementation for something that can be optionally parsed.
+impl<T> Parse for Option<T>
+where
+    T: Parse + Peek,
+{
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(if parser.peek::<T>()? {
+            Some(parser.parse()?)
+        } else {
+            None
+        })
+    }
+}
+
 /// Implemented by tokens that can be peeked for.
 pub trait Peek {
     /// Peek the parser for the given token.

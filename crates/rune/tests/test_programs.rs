@@ -1003,3 +1003,25 @@ fn test_iter_drop() {
         24,
     };
 }
+
+#[test]
+fn test_async_fn() {
+    assert_eq! {
+        test! {
+            i64 => r#"
+            async fn foo(a, b) {
+                b / a
+            }
+
+            fn bar(a, b) {
+                b / a
+            }
+
+            fn main() {
+                foo(2, 4).await + bar(2, 8)
+            }
+            "#
+        },
+        6,
+    };
+}

@@ -103,7 +103,9 @@ impl<'a> Lexer<'a> {
             "break" => Kind::Break,
             "return" => Kind::Return,
             "await" => Kind::Await,
+            "async" => Kind::Async,
             "select" => Kind::Select,
+            "default" => Kind::Default,
             _ => Kind::Ident,
         };
 

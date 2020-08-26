@@ -436,7 +436,8 @@ pub enum Inst {
     /// Compares the `branch` register with `value`, and if they match performs
     /// the jump to offset.
     ///
-    /// This will clear the `branch` register.
+    /// This will clear the `branch` register if the branch index matches.
+    /// If the branch registry is not set, this does nothing.
     JumpIfBranch {
         /// The branch value to compare against.
         branch: usize,

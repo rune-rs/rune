@@ -218,6 +218,33 @@ impl fmt::Display for Span {
     }
 }
 
+/// How the function is called.
+///
+/// Async functions create a sub-context and immediately return futures.
+#[derive(Debug, Clone, Copy)]
+pub enum UnitFnCall {
+    /// Functions are immediately called (and control handed over).
+    Immediate,
+    /// Function is `async` and returns a future that must be await:ed to make
+    /// progress.
+    Async,
+}
+
+impl fmt::Display for UnitFnCall {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Immediate => {
+                write!(fmt, "immediate")?;
+            }
+            Self::Async => {
+                write!(fmt, "async")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /// The kind of a registered function.
 #[derive(Debug)]
 pub enum UnitFnKind {
@@ -225,6 +252,8 @@ pub enum UnitFnKind {
     Offset {
         /// Offset of the registered function.
         offset: usize,
+        /// The way the function is called.
+        call: UnitFnCall,
     },
     /// A tuple constructor.
     Tuple {
@@ -691,6 +720,7 @@ impl CompilationUnit {
         path: I,
         args: usize,
         assembly: Assembly,
+        call: UnitFnCall,
     ) -> Result<(), CompilationUnitError>
     where
         I: IntoIterator,
@@ -703,7 +733,7 @@ impl CompilationUnit {
         self.functions_rev.insert(offset, hash);
 
         let info = UnitFnInfo {
-            kind: UnitFnKind::Offset { offset },
+            kind: UnitFnKind::Offset { offset, call },
             signature: UnitFnSignature::new(path, args),
         };
 

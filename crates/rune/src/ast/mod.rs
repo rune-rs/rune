@@ -181,7 +181,9 @@ decl_tokens! {
     (Hash, Kind::Hash),
     (DotDot, Kind::DotDot),
     (Await, Kind::Await),
+    (Async, Kind::Async),
     (Select, Kind::Select),
+    (Default, Kind::Default),
     (Try, Kind::Try),
 }
 

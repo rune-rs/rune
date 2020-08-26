@@ -412,21 +412,6 @@ impl Runtime {
 
                         context
                     }
-                    Warning::ReturnDoesNotProduceValue { span, context, .. } => {
-                        labels.push(
-                            Label::secondary(source_file, span.start..span.end)
-                                .with_message("a return does not produce a value"),
-                        );
-
-                        let mut note = String::new();
-                        writeln!(note, "Consider wrapping in a block:")?;
-                        writeln!(note, "{{")?;
-                        writeln!(note, "    return;")?;
-                        writeln!(note, "}}")?;
-                        notes.push(note);
-
-                        context
-                    }
                     Warning::RemoveTupleCallParams {
                         span,
                         variant,

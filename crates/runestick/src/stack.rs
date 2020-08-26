@@ -46,6 +46,11 @@ impl Stack {
         }
     }
 
+    /// Reverse the stack.
+    pub fn reverse(&mut self) {
+        self.stack.reverse();
+    }
+
     /// Clear the current stack.
     pub fn clear(&mut self) {
         self.stack.clear();
@@ -137,6 +142,8 @@ impl Stack {
     /// that it is in bounds of the stack.
     ///
     /// This is used internally when returning from a call frame.
+    ///
+    /// Returns the old stack top.
     pub(crate) fn push_stack_top(&mut self, count: usize) -> Result<usize, StackError> {
         let new_stack_top = self
             .stack
@@ -144,8 +151,7 @@ impl Stack {
             .checked_sub(count)
             .ok_or_else(|| StackError::StackOutOfBounds)?;
 
-        self.stack_top = new_stack_top;
-        Ok(self.stack_top)
+        Ok(std::mem::replace(&mut self.stack_top, new_stack_top))
     }
 
     // Assert that the stack frame has been restored to the previous top

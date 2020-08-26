@@ -94,8 +94,12 @@ pub enum Kind {
     Return,
     /// The `await` keyword.
     Await,
+    /// The `async` keyword.
+    Async,
     /// The `select` keyword.
     Select,
+    /// The `default` keyword.
+    Default,
     /// An identifier.
     Ident,
     /// A label, like `'loop`.
@@ -213,7 +217,9 @@ impl fmt::Display for Kind {
             Self::Break => write!(fmt, "break")?,
             Self::Return => write!(fmt, "return")?,
             Self::Await => write!(fmt, "await")?,
+            Self::Async => write!(fmt, "async")?,
             Self::Select => write!(fmt, "select")?,
+            Self::Default => write!(fmt, "default")?,
             Self::Ident => write!(fmt, "ident")?,
             Self::Label => write!(fmt, "label")?,
             Self::LitNumber { .. } => write!(fmt, "number")?,

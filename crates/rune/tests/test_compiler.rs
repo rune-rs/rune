@@ -209,13 +209,3 @@ fn test_remove_variant_parens() {
         }
     };
 }
-
-#[test]
-fn test_return_does_not_produce_value() {
-    test_warnings! {
-        r#"fn main() { let value = return; }"#,
-        ReturnDoesNotProduceValue { span, .. } => {
-            assert_eq!(span, Span::new(24, 30));
-        }
-    };
-}

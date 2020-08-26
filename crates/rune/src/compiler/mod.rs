@@ -4,7 +4,7 @@ use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
-use runestick::unit::{Assembly, Label};
+use runestick::unit::{Assembly, Label, UnitFnCall};
 use runestick::{Context, Hash, Inst, Item, Meta, MetaTuple, MetaType, Span};
 
 mod loops;
@@ -149,8 +149,15 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                 warnings: &mut warnings,
             };
 
+            let call = if f.async_.is_some() {
+                UnitFnCall::Async
+            } else {
+                UnitFnCall::Immediate
+            };
+
             compiler.compile_decl_fn(f)?;
-            unit.new_function(&[name], count, assembly)?;
+
+            unit.new_function(&[name], count, assembly, call)?;
         }
 
         Ok((unit, warnings))
@@ -307,15 +314,10 @@ impl<'a, 'm> Compiler<'a, 'm> {
     fn compile_expr_return(
         &mut self,
         return_expr: &ast::ExprReturn,
-        needs_value: NeedsValue,
+        _needs_value: NeedsValue,
     ) -> Result<()> {
         let span = return_expr.span();
         log::trace!("Return => {:?}", self.source.source(span)?);
-
-        if *needs_value {
-            self.warnings
-                .return_does_not_produce_value(span, self.context());
-        }
 
         // NB: drop any loop temporaries.
         for l in &self.loops {
@@ -1851,6 +1853,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
         let mut branches = Vec::new();
 
         let end_label = self.asm.new_label("select_end");
+        let default_branch = self.asm.new_label("select_default");
 
         for (branch, _) in &expr_select.branches {
             let label = self.asm.new_label("select_branch");
@@ -1863,8 +1866,12 @@ impl<'a, 'm> Compiler<'a, 'm> {
 
         self.asm.push(Inst::Select { len }, span);
 
-        for (branch, (label, b)) in branches.iter().enumerate() {
-            self.asm.jump_if_branch(branch, *label, b.span());
+        for (branch, (label, _)) in branches.iter().enumerate() {
+            self.asm.jump_if_branch(branch, *label, span);
+        }
+
+        if expr_select.default_branch.is_some() {
+            self.asm.jump(default_branch, span);
         }
 
         if *needs_value {
@@ -1894,6 +1901,11 @@ impl<'a, 'm> Compiler<'a, 'm> {
             self.compile_expr(&*branch.body, needs_value)?;
             self.clean_last_scope(span, expected, needs_value)?;
             self.asm.jump(end_label, span);
+        }
+
+        if let Some((branch, _)) = &expr_select.default_branch {
+            self.asm.label(default_branch)?;
+            self.compile_expr(&branch.body, needs_value)?;
         }
 
         self.asm.label(end_label)?;

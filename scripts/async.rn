@@ -1,26 +1,35 @@
 use http;
 
-fn test(timeout) {
+async fn test(timeout, helpful_hint) {
     let request = http::get(`http://httpstat.us/200?sleep={timeout}`);
     let timeout = time::delay_for(time::Duration::from_secs(2));
 
     let result = select {
+        _ = timeout => return Err("timeout"),
         res = request => res?,
-        _ = timeout => {
-            return Err("timeout");
-        }
     };
 
-    dbg(result.text().await?);
-    Ok(())
+    Ok((result.text().await?, helpful_hint))
 }
 
 fn main() {
-    if let Err("timeout") = test(1000) {
-        dbg("request timed out");
-    }
+    let a = test(1000, "first call");
+    let b = test(5000, "second call");
 
-    if let Err("timeout") = test(5000) {
-        dbg("request timed out");
+    loop {
+        let res = select {
+            res = a => res,
+            res = b => res,
+        };
+
+        match res {
+            () => break,
+            Ok((text, helpful_hint)) => {
+                dbg(`{text}: {helpful_hint}`);
+            }
+            Err("timeout") => {
+                dbg("request timed out");
+            }
+        }
     }
 }

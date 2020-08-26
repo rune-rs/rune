@@ -1,12 +1,13 @@
 use crate::bytes::Bytes;
 use crate::context::Context;
+use crate::future::Future;
 use crate::future::SelectFuture;
 use crate::hash::Hash;
 use crate::panic::Panic;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::shared::{Shared, StrongMut};
 use crate::stack::{Stack, StackError};
-use crate::unit::{CompilationUnit, UnitFnKind};
+use crate::unit::{CompilationUnit, UnitFnCall, UnitFnKind};
 use crate::value::{Object, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo};
 use std::any;
 use std::fmt;
@@ -269,9 +270,6 @@ pub enum VmError {
         /// The expected vector length.
         expected: usize,
     },
-    /// Error raised when the branch register is empty.
-    #[error("branch register empty")]
-    BranchEmpty,
     /// Missing a struct field.
     #[error("missing struct field")]
     MissingStructField,
@@ -514,7 +512,9 @@ impl Vm {
         }
 
         let offset = match function.kind {
-            UnitFnKind::Offset { offset } => offset,
+            // NB: we ignore the calling convention.
+            // everything is just async when called externally.
+            UnitFnKind::Offset { offset, .. } => offset,
             _ => {
                 return Err(VmError::MissingFunction { hash });
             }
@@ -722,19 +722,7 @@ impl Vm {
 
     /// Construct a tuple.
     #[inline]
-    fn allocate_typed_tuple(
-        &mut self,
-        ty: Hash,
-        call_args: usize,
-        args: usize,
-    ) -> Result<Value, VmError> {
-        if call_args != args {
-            return Err(VmError::ArgumentCountMismatch {
-                actual: call_args,
-                expected: args,
-            });
-        }
-
+    fn allocate_typed_tuple(&mut self, ty: Hash, args: usize) -> Result<Value, VmError> {
         let mut tuple = Vec::new();
 
         for _ in 0..args {
@@ -913,12 +901,12 @@ impl Vm {
         offset: isize,
         update_ip: &mut bool,
     ) -> Result<(), VmError> {
-        let current = self.branch.ok_or_else(|| VmError::BranchEmpty)?;
-
-        if current == branch {
-            self.branch = None;
-            self.modify_ip(offset)?;
-            *update_ip = false;
+        if let Some(current) = self.branch {
+            if current == branch {
+                self.branch = None;
+                self.modify_ip(offset)?;
+                *update_ip = false;
+            }
         }
 
         Ok(())
@@ -1631,6 +1619,67 @@ impl Vm {
         })
     }
 
+    /// Construct a future from calling an async function.
+    ///
+    /// # Safety
+    ///
+    /// Calling this function erased the lifetime of the unit and context.
+    ///
+    /// These will be stored as part of the future on the stack, and hence the
+    /// future on the stack must not outlive the unit and context.
+    unsafe fn call_async_fn(
+        &mut self,
+        unit: *const CompilationUnit,
+        context: *const Context,
+        offset: usize,
+        args: usize,
+    ) -> Result<Future, VmError> {
+        let mut vm = Self::new();
+
+        for _ in 0..args {
+            vm.stack.push(self.stack.pop()?);
+        }
+
+        vm.stack.reverse();
+        vm.ip = offset;
+
+        let future = Box::leak(Box::new(async move {
+            let mut task = vm.run::<Value>(&*unit, &*context);
+            task.run_to_completion().await
+        }));
+
+        Ok(Future::new_unchecked(future))
+    }
+
+    fn call_offset_fn(
+        &mut self,
+        unit: &CompilationUnit,
+        context: &Context,
+        offset: usize,
+        call: UnitFnCall,
+        args: usize,
+        update_ip: &mut bool,
+    ) -> Result<(), VmError> {
+        match call {
+            UnitFnCall::Async => {
+                // Safety: future is pushed to the stack, and the stack
+                // is purged when the task driving the virtual machine
+                // is dropped.
+                //
+                // The task holds onto references to both the unit and
+                // the context.
+                let future = unsafe { self.call_async_fn(unit, context, offset, args)? };
+                self.stack.push(Value::Future(Shared::new(future)));
+            }
+            UnitFnCall::Immediate => {
+                self.push_call_frame(offset, args)?;
+                *update_ip = false;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Implementation of a function call.
     fn call_fn(
         &mut self,
@@ -1641,19 +1690,26 @@ impl Vm {
         update_ip: &mut bool,
     ) -> Result<(), VmError> {
         match unit.lookup(hash) {
-            Some(f) => match &f.kind {
-                UnitFnKind::Offset { offset } => {
-                    let offset = *offset;
-                    self.push_call_frame(offset, args)?;
-                    *update_ip = false;
+            Some(info) => {
+                if info.signature.args != args {
+                    return Err(VmError::ArgumentCountMismatch {
+                        actual: args,
+                        expected: info.signature.args,
+                    });
                 }
-                UnitFnKind::Tuple { ty } => {
-                    let ty = *ty;
-                    let args = f.signature.args;
-                    let value = self.allocate_typed_tuple(ty, args, args)?;
-                    self.stack.push(value);
+
+                match &info.kind {
+                    UnitFnKind::Offset { offset, call } => {
+                        self.call_offset_fn(unit, context, *offset, *call, args, update_ip)?;
+                    }
+                    UnitFnKind::Tuple { ty } => {
+                        let ty = *ty;
+                        let args = info.signature.args;
+                        let value = self.allocate_typed_tuple(ty, args)?;
+                        self.stack.push(value);
+                    }
                 }
-            },
+            }
             None => {
                 let handler = context
                     .lookup(hash)
@@ -1680,14 +1736,21 @@ impl Vm {
         let hash = Hash::instance_function(ty, hash);
 
         match unit.lookup(hash) {
-            Some(info) => match &info.kind {
-                UnitFnKind::Offset { offset } => {
-                    let offset = *offset;
-                    self.push_call_frame(offset, args)?;
-                    *update_ip = false;
+            Some(info) => {
+                if info.signature.args != args {
+                    return Err(VmError::ArgumentCountMismatch {
+                        actual: args,
+                        expected: info.signature.args,
+                    });
                 }
-                UnitFnKind::Tuple { .. } => todo!("there are no instance tuple constructors"),
-            },
+
+                match &info.kind {
+                    UnitFnKind::Offset { offset, call } => {
+                        self.call_offset_fn(unit, context, *offset, *call, args, update_ip)?;
+                    }
+                    UnitFnKind::Tuple { .. } => todo!("there are no instance tuple constructors"),
+                }
+            }
             None => {
                 let handler = match context.lookup(hash) {
                     Some(handler) => handler,
