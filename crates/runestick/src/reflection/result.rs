@@ -1,9 +1,9 @@
 //! Trait implementations for `Result` types.
 
+use crate::panic::Panic;
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::shared::{RawStrongRefGuard, Shared, StrongRef};
-use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::VmError;
+use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
 
 impl<T, E> ReflectValueType for Result<T, E> {
     type Owned = Result<T, E>;
@@ -29,12 +29,27 @@ impl<'a, T, E> ReflectValueType for &'a Result<T, E> {
     }
 }
 
+impl<T> ToValue for Result<T, Panic>
+where
+    T: ToValue,
+{
+    fn to_value(self) -> Result<Value, ValueError> {
+        match self {
+            Ok(ok) => {
+                let ok = ok.to_value()?;
+                Ok(Value::Result(Shared::new(Ok(ok))))
+            }
+            Err(reason) => Err(ValueError::Panic { reason }),
+        }
+    }
+}
+
 impl<T, E> ToValue for Result<T, E>
 where
     T: ToValue,
     E: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, ValueError> {
         Ok(match self {
             Ok(ok) => {
                 let ok = ok.to_value()?;
@@ -48,34 +63,16 @@ where
     }
 }
 
-/// Specialized implementation for directly raising VmError's.
-impl<T> ToValue for Result<T, VmError>
-where
-    T: ToValue,
-{
-    fn to_value(self) -> Result<Value, VmError> {
-        match self {
-            Ok(ok) => Ok(Value::Result(Shared::new(Ok(ok.to_value()?)))),
-            Err(err) => Err(err),
-        }
-    }
-}
-
 impl<T, E> FromValue for Result<T, E>
 where
     T: FromValue,
     E: FromValue,
 {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        match value {
-            Value::Result(result) => Ok(match result.take()? {
-                Ok(ok) => Ok(T::from_value(ok)?),
-                Err(err) => Err(E::from_value(err)?),
-            }),
-            actual => Err(VmError::ExpectedOption {
-                actual: actual.type_info()?,
-            }),
-        }
+    fn from_value(value: Value) -> Result<Self, ValueError> {
+        Ok(match value.into_result()?.take()? {
+            Ok(ok) => Ok(T::from_value(ok)?),
+            Err(err) => Err(E::from_value(err)?),
+        })
     }
 }
 
@@ -83,7 +80,7 @@ impl<'a> UnsafeFromValue for &'a Result<Value, Value> {
     type Output = *const Result<Value, Value>;
     type Guard = RawStrongRefGuard;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let result = value.into_result()?;
         let result = result.strong_ref()?;
         Ok(StrongRef::into_raw(result))

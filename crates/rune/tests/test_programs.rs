@@ -580,7 +580,9 @@ fn test_bad_pattern() {
             let [] = [1, 2, 3];
         }
         "#,
-        Panic { reason: runestick::Panic::UnmatchedPattern } => {}
+        Panic { reason } => {
+            assert_eq!(reason.to_string(), "pattern did not match");
+        }
     );
 }
 

@@ -1049,7 +1049,7 @@ impl<'a, 'm> Compiler<'a, 'm> {
             self.asm.label(false_label)?;
             self.asm.push(
                 Inst::Panic {
-                    reason: runestick::Panic::UnmatchedPattern,
+                    reason: runestick::PanicReason::UnmatchedPattern,
                 },
                 span,
             );

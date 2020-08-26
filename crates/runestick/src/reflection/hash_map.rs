@@ -1,7 +1,6 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::shared::Shared;
-use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::VmError;
+use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
 
 macro_rules! impl_map {
     ($($tt:tt)*) => {
@@ -21,7 +20,7 @@ macro_rules! impl_map {
         where
             T: FromValue,
         {
-            fn from_value(value: Value) -> Result<Self, VmError> {
+            fn from_value(value: Value) -> Result<Self, ValueError> {
                 let object = value.into_object()?;
                 let object = object.take()?;
 
@@ -39,7 +38,7 @@ macro_rules! impl_map {
         where
             T: ToValue,
         {
-            fn to_value(self) -> Result<Value, VmError> {
+            fn to_value(self) -> Result<Value, ValueError> {
                 let mut output = crate::collections::HashMap::with_capacity(self.len());
 
                 for (key, value) in self {

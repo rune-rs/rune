@@ -1,7 +1,6 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::shared::{RawStrongMutGuard, RawStrongRefGuard, Shared, StrongMut, StrongRef};
-use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::VmError;
+use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
 
 impl<T> ReflectValueType for Vec<T> {
     type Owned = Vec<T>;
@@ -43,7 +42,7 @@ impl<T> FromValue for Vec<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
         let vec = value.into_vec()?;
         let vec = vec.take()?;
 
@@ -61,7 +60,7 @@ impl<'a> UnsafeFromValue for &'a Vec<Value> {
     type Output = *const Vec<Value>;
     type Guard = RawStrongRefGuard;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let vec = value.into_vec()?;
         Ok(StrongRef::into_raw(vec.strong_ref()?))
     }
@@ -75,7 +74,7 @@ impl<'a> UnsafeFromValue for &'a mut Vec<Value> {
     type Output = *mut Vec<Value>;
     type Guard = RawStrongMutGuard;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let vec = value.into_vec()?;
         Ok(StrongMut::into_raw(vec.strong_mut()?))
     }
@@ -89,7 +88,7 @@ impl<T> ToValue for Vec<T>
 where
     T: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, ValueError> {
         let mut vec = Vec::with_capacity(self.len());
 
         for value in self {

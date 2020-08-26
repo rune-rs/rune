@@ -8,12 +8,155 @@ use crate::any::Any;
 use crate::bytes::Bytes;
 use crate::future::Future;
 use crate::hash::Hash;
+use crate::panic::Panic;
 use crate::shared;
 use crate::shared::Shared;
 use crate::shared_ptr::SharedPtr;
-use crate::vm::VmError;
 use std::any;
+use std::fmt;
 use std::rc::Rc;
+use thiserror::Error;
+
+/// Value raised when interacting with a value.
+#[derive(Debug, Error)]
+pub enum ValueError {
+    /// The virtual machine panicked for a specific reason.
+    #[error("panicked `{reason}`")]
+    Panic {
+        /// The reason for the panic.
+        reason: Panic,
+    },
+    /// Trying to access an inaccessible reference.
+    #[error("failed to access value: {error}")]
+    AccessError {
+        /// Source error.
+        #[from]
+        error: access::AccessError,
+    },
+    /// Error raised when we expected a object.
+    #[error("expected a object but found `{actual}`")]
+    ExpectedObject {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected an external value.
+    #[error("expected a external value but found `{actual}`")]
+    ExpectedExternal {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a managed value.
+    #[error("expected an external, vector, object, or string, but found `{actual}`")]
+    ExpectedManaged {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a future.
+    #[error("expected future, but found `{actual}`")]
+    ExpectedFuture {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when expecting a unit.
+    #[error("expected unit, but found `{actual}`")]
+    ExpectedUnit {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when expecting an option.
+    #[error("expected option, but found `{actual}`")]
+    ExpectedOption {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expecting a result.
+    #[error("expected result, but found `{actual}`")]
+    ExpectedResult {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a boolean value.
+    #[error("expected booleant, but found `{actual}`")]
+    ExpectedBoolean {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a byte value.
+    #[error("expected byte, but found `{actual}`")]
+    ExpectedByte {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a char value.
+    #[error("expected char, but found `{actual}`")]
+    ExpectedChar {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when an integer value was expected.
+    #[error("expected integer, but found `{actual}`")]
+    ExpectedInteger {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a float value.
+    #[error("expected float, but found `{actual}`")]
+    ExpectedFloat {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a string.
+    #[error("expected a string but found `{actual}`")]
+    ExpectedString {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a byte string.
+    #[error("expected a byte string but found `{actual}`")]
+    ExpectedBytes {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a vector.
+    #[error("expected a vector but found `{actual}`")]
+    ExpectedVec {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a tuple.
+    #[error("expected a tuple but found `{actual}`")]
+    ExpectedTuple {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Failure to convert a number into an integer.
+    #[error("failed to convert value `{from}` to integer `{to}`")]
+    ValueToIntegerCoercionError {
+        /// Number we tried to convert from.
+        from: Integer,
+        /// Number type we tried to convert to.
+        to: &'static str,
+    },
+    /// Failure to convert an integer into a value.
+    #[error("failed to convert integer `{from}` to value `{to}`")]
+    IntegerToValueCoercionError {
+        /// Number we tried to convert from.
+        from: Integer,
+        /// Number type we tried to convert to.
+        to: &'static str,
+    },
+    /// Error raised when we expected an tuple of the given length.
+    #[error("expected a tuple of length `{expected}`, but found one with length `{actual}`")]
+    ExpectedTupleLength {
+        /// The actual length observed.
+        actual: usize,
+        /// The expected tuple length.
+        expected: usize,
+    },
+    /// Internal error that happens when we run out of items in a list.
+    #[error("unexpectedly ran out of items to iterate over")]
+    IterationError,
+}
 
 /// The type of an object.
 pub type Object<T> = crate::collections::HashMap<String, T>;
@@ -123,100 +266,166 @@ impl Value {
         Self::Ptr(Shared::new(SharedPtr::from_mut_ptr(ptr)))
     }
 
-    /// Try to coerce value reference into a boolean.
+    /// Try to coerce value into a unit.
     #[inline]
-    pub fn into_bool(self) -> Result<bool, VmError> {
+    pub fn into_unit(self) -> Result<(), ValueError> {
+        match self {
+            Value::Unit => Ok(()),
+            actual => Err(ValueError::ExpectedUnit {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
+    /// Try to coerce value into a boolean.
+    #[inline]
+    pub fn into_bool(self) -> Result<bool, ValueError> {
         match self {
             Self::Bool(b) => Ok(b),
-            actual => Err(VmError::ExpectedBoolean {
+            actual => Err(ValueError::ExpectedBoolean {
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value reference into a result.
+    /// Try to coerce value into a byte.
     #[inline]
-    pub fn into_result(self) -> Result<Shared<Result<Value, Value>>, VmError> {
+    pub fn into_byte(self) -> Result<u8, ValueError> {
+        match self {
+            Self::Byte(b) => Ok(b),
+            actual => Err(ValueError::ExpectedByte {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
+    /// Try to coerce value into a character.
+    #[inline]
+    pub fn into_char(self) -> Result<char, ValueError> {
+        match self {
+            Self::Char(c) => Ok(c),
+            actual => Err(ValueError::ExpectedChar {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
+    /// Try to coerce value into an integer.
+    #[inline]
+    pub fn into_integer(self) -> Result<i64, ValueError> {
+        match self {
+            Self::Integer(integer) => Ok(integer),
+            actual => Err(ValueError::ExpectedInteger {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
+    /// Try to coerce value into a float.
+    #[inline]
+    pub fn into_float(self) -> Result<f64, ValueError> {
+        match self {
+            Self::Float(float) => Ok(float),
+            actual => Err(ValueError::ExpectedFloat {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
+    /// Try to coerce value into a result.
+    #[inline]
+    pub fn into_result(self) -> Result<Shared<Result<Value, Value>>, ValueError> {
         match self {
             Self::Result(result) => Ok(result),
-            actual => Err(VmError::ExpectedResult {
+            actual => Err(ValueError::ExpectedResult {
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value reference into an option.
+    /// Try to coerce value into a future.
     #[inline]
-    pub fn into_option(self) -> Result<Shared<Option<Value>>, VmError> {
+    pub fn into_future(self) -> Result<Shared<Future>, ValueError> {
+        match self {
+            Value::Future(future) => Ok(future),
+            actual => Err(ValueError::ExpectedFuture {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
+    /// Try to coerce value into an option.
+    #[inline]
+    pub fn into_option(self) -> Result<Shared<Option<Value>>, ValueError> {
         match self {
             Self::Option(option) => Ok(option),
-            actual => Err(VmError::ExpectedOption {
+            actual => Err(ValueError::ExpectedOption {
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value reference into a string.
+    /// Try to coerce value into a string.
     #[inline]
-    pub fn into_string(self) -> Result<Shared<String>, VmError> {
+    pub fn into_string(self) -> Result<Shared<String>, ValueError> {
         match self {
             Self::String(string) => Ok(string),
-            actual => Err(VmError::ExpectedString {
+            actual => Err(ValueError::ExpectedString {
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value reference into bytes.
+    /// Try to coerce value into bytes.
     #[inline]
-    pub fn into_bytes(self) -> Result<Shared<Bytes>, VmError> {
+    pub fn into_bytes(self) -> Result<Shared<Bytes>, ValueError> {
         match self {
             Self::Bytes(bytes) => Ok(bytes),
-            actual => Err(VmError::ExpectedBytes {
+            actual => Err(ValueError::ExpectedBytes {
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value reference into a vector.
+    /// Try to coerce value into a vector.
     #[inline]
-    pub fn into_vec(self) -> Result<Shared<Vec<Value>>, VmError> {
+    pub fn into_vec(self) -> Result<Shared<Vec<Value>>, ValueError> {
         match self {
             Self::Vec(vec) => Ok(vec),
-            actual => Err(VmError::ExpectedVec {
+            actual => Err(ValueError::ExpectedVec {
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value reference into a tuple.
+    /// Try to coerce value into a tuple.
     #[inline]
-    pub fn into_tuple(self) -> Result<Shared<Box<[Value]>>, VmError> {
+    pub fn into_tuple(self) -> Result<Shared<Box<[Value]>>, ValueError> {
         match self {
             Self::Tuple(tuple) => Ok(tuple),
-            actual => Err(VmError::ExpectedTuple {
+            actual => Err(ValueError::ExpectedTuple {
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value reference into an object.
+    /// Try to coerce value into an object.
     #[inline]
-    pub fn into_object(self) -> Result<Shared<Object<Value>>, VmError> {
+    pub fn into_object(self) -> Result<Shared<Object<Value>>, ValueError> {
         match self {
             Self::Object(object) => Ok(object),
-            actual => Err(VmError::ExpectedObject {
+            actual => Err(ValueError::ExpectedObject {
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value reference into an external.
+    /// Try to coerce value into an external.
     #[inline]
-    pub fn into_external(self) -> Result<Shared<Any>, VmError> {
+    pub fn into_external(self) -> Result<Shared<Any>, ValueError> {
         match self {
             Self::External(any) => Ok(any),
-            actual => Err(VmError::ExpectedExternal {
+            actual => Err(ValueError::ExpectedExternal {
                 actual: actual.type_info()?,
             }),
         }
@@ -224,7 +433,9 @@ impl Value {
 
     /// Try to coerce value into an external ref and an associated guard.
     #[inline]
-    pub unsafe fn unsafe_into_external_ref<T>(self) -> Result<(*const T, RawValueRefGuard), VmError>
+    pub unsafe fn unsafe_into_external_ref<T>(
+        self,
+    ) -> Result<(*const T, RawValueRefGuard), ValueError>
     where
         T: any::Any,
     {
@@ -241,7 +452,7 @@ impl Value {
                 let guard = RawValueRefGuard::RawRefGuard(guard);
                 Ok((data, guard))
             }
-            actual => Err(VmError::ExpectedExternal {
+            actual => Err(ValueError::ExpectedExternal {
                 actual: actual.type_info()?,
             }),
         }
@@ -249,7 +460,9 @@ impl Value {
 
     /// Try to coerce value into an external ref and an associated guard.
     #[inline]
-    pub unsafe fn unsafe_into_external_mut<T>(self) -> Result<(*mut T, RawValueMutGuard), VmError>
+    pub unsafe fn unsafe_into_external_mut<T>(
+        self,
+    ) -> Result<(*mut T, RawValueMutGuard), ValueError>
     where
         T: any::Any,
     {
@@ -266,14 +479,14 @@ impl Value {
                 let guard = RawValueMutGuard::RawMutGuard(guard);
                 Ok((data, guard))
             }
-            actual => Err(VmError::ExpectedExternal {
+            actual => Err(ValueError::ExpectedExternal {
                 actual: actual.type_info()?,
             }),
         }
     }
 
     /// Get the type information for the current value.
-    pub fn value_type(&self) -> Result<ValueType, VmError> {
+    pub fn value_type(&self) -> Result<ValueType, ValueError> {
         Ok(match self {
             Self::Unit => ValueType::Unit,
             Self::Bool(..) => ValueType::Bool,
@@ -299,7 +512,7 @@ impl Value {
     }
 
     /// Get the type information for the current value.
-    pub fn type_info(&self) -> Result<ValueTypeInfo, VmError> {
+    pub fn type_info(&self) -> Result<ValueTypeInfo, ValueError> {
         Ok(match self {
             Self::Unit => ValueTypeInfo::Unit,
             Self::Bool(..) => ValueTypeInfo::Bool,
@@ -339,6 +552,54 @@ pub enum RawValueMutGuard {
     RawStrongMutGuard(shared::RawStrongMutGuard),
     /// The guard from an external reference.
     RawMutGuard(access::RawMutGuard),
+}
+
+/// A type-erased rust number.
+#[derive(Debug, Clone, Copy)]
+pub enum Integer {
+    /// `u8`
+    U8(u8),
+    /// `u16`
+    U16(u16),
+    /// `u32`
+    U32(u32),
+    /// `u64`
+    U64(u64),
+    /// `u128`
+    U128(u128),
+    /// `i8`
+    I8(i8),
+    /// `i16`
+    I16(i16),
+    /// `i32`
+    I32(i32),
+    /// `i64`
+    I64(i64),
+    /// `i128`
+    I128(i128),
+    /// `isize`
+    Isize(isize),
+    /// `usize`
+    Usize(usize),
+}
+
+impl fmt::Display for Integer {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::U8(n) => write!(fmt, "{}u8", n),
+            Self::U16(n) => write!(fmt, "{}u16", n),
+            Self::U32(n) => write!(fmt, "{}u32", n),
+            Self::U64(n) => write!(fmt, "{}u64", n),
+            Self::U128(n) => write!(fmt, "{}u128", n),
+            Self::I8(n) => write!(fmt, "{}i8", n),
+            Self::I16(n) => write!(fmt, "{}i16", n),
+            Self::I32(n) => write!(fmt, "{}i32", n),
+            Self::I64(n) => write!(fmt, "{}i64", n),
+            Self::I128(n) => write!(fmt, "{}i128", n),
+            Self::Isize(n) => write!(fmt, "{}isize", n),
+            Self::Usize(n) => write!(fmt, "{}usize", n),
+        }
+    }
 }
 
 #[cfg(test)]

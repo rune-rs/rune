@@ -2,69 +2,22 @@ use crate::bytes::Bytes;
 use crate::context::Context;
 use crate::future::SelectFuture;
 use crate::hash::Hash;
+use crate::panic::Panic;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::shared::{Shared, StrongMut};
 use crate::stack::{Stack, StackError};
 use crate::unit::{CompilationUnit, UnitFnKind};
-use crate::value::{Object, TypedObject, TypedTuple, Value, ValueTypeInfo};
+use crate::value::{Object, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo};
 use std::any;
 use std::fmt;
 use std::marker;
 use std::mem;
 use thiserror::Error;
 
-mod inst;
+pub(crate) mod inst;
 
-pub use self::inst::{Inst, Panic};
+pub use self::inst::{Inst, PanicReason};
 use crate::access::AccessError;
-
-/// A type-erased rust number.
-#[derive(Debug, Clone, Copy)]
-pub enum Integer {
-    /// `u8`
-    U8(u8),
-    /// `u16`
-    U16(u16),
-    /// `u32`
-    U32(u32),
-    /// `u64`
-    U64(u64),
-    /// `u128`
-    U128(u128),
-    /// `i8`
-    I8(i8),
-    /// `i16`
-    I16(i16),
-    /// `i32`
-    I32(i32),
-    /// `i64`
-    I64(i64),
-    /// `i128`
-    I128(i128),
-    /// `isize`
-    Isize(isize),
-    /// `usize`
-    Usize(usize),
-}
-
-impl fmt::Display for Integer {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::U8(n) => write!(fmt, "{}u8", n),
-            Self::U16(n) => write!(fmt, "{}u16", n),
-            Self::U32(n) => write!(fmt, "{}u32", n),
-            Self::U64(n) => write!(fmt, "{}u64", n),
-            Self::U128(n) => write!(fmt, "{}u128", n),
-            Self::I8(n) => write!(fmt, "{}i8", n),
-            Self::I16(n) => write!(fmt, "{}i16", n),
-            Self::I32(n) => write!(fmt, "{}i32", n),
-            Self::I64(n) => write!(fmt, "{}i64", n),
-            Self::I128(n) => write!(fmt, "{}i128", n),
-            Self::Isize(n) => write!(fmt, "{}isize", n),
-            Self::Usize(n) => write!(fmt, "{}usize", n),
-        }
-    }
-}
 
 /// Errors raised by the execution of the virtual machine.
 #[derive(Debug, Error)]
@@ -88,6 +41,13 @@ pub enum VmError {
         /// Source error.
         #[from]
         error: AccessError,
+    },
+    /// Error raised when trying to access a value.
+    #[error("value error: {error}")]
+    ValueError {
+        /// Source error.
+        #[from]
+        error: ValueError,
     },
     /// The virtual machine panicked for a specific reason.
     #[error("panicked `{reason}`")]
@@ -118,20 +78,6 @@ pub enum VmError {
         /// Hash of function to look up.
         hash: Hash,
     },
-    /// Failure to lookup module.
-    #[error("missing module with hash `{module}`")]
-    MissingModule {
-        /// Hash of module to look up.
-        module: Hash,
-    },
-    /// Failure to lookup function in a module.
-    #[error("missing function with hash `{hash}` in module with hash `{module}`")]
-    MissingModuleFunction {
-        /// Module that was looked up.
-        module: Hash,
-        /// Function that could not be found.
-        hash: Hash,
-    },
     /// Instruction pointer went out-of-bounds.
     #[error("instruction pointer is out-of-bounds")]
     IpOutOfBounds,
@@ -152,12 +98,6 @@ pub enum VmError {
         op: &'static str,
         /// Operand.
         operand: ValueTypeInfo,
-    },
-    /// Unsupported argument to object-exact-keys.
-    #[error("unsupported object key `{actual}`")]
-    UnsupportedObjectKey {
-        /// The encountered argument.
-        actual: ValueTypeInfo,
     },
     /// Unsupported argument to string-concat
     #[error("unsupported string-concat argument `{actual}`")]
@@ -182,7 +122,7 @@ pub enum VmError {
     StackConversionError {
         /// The source of the error.
         #[source]
-        error: Box<VmError>,
+        error: ValueError,
         /// The expected type to convert towards.
         to: &'static str,
     },
@@ -191,7 +131,7 @@ pub enum VmError {
     ArgumentConversionError {
         /// The underlying stack error.
         #[source]
-        error: Box<VmError>,
+        error: ValueError,
         /// The argument location that was converted.
         arg: usize,
         /// The native type we attempt to convert to.
@@ -210,7 +150,7 @@ pub enum VmError {
     ReturnConversionError {
         /// Error describing the failed conversion.
         #[source]
-        error: Box<VmError>,
+        error: ValueError,
         /// Type of the return value we attempted to convert.
         ret: &'static str,
     },
@@ -280,16 +220,6 @@ pub enum VmError {
         /// Hash of the type missing.
         hash: Hash,
     },
-    /// Attempting to assign an illegal pointer.
-    #[error(
-        "pointer cannot be changed to point to a lower stack address `{value_ptr} > {target_ptr}`"
-    )]
-    IllegalPtrReplace {
-        /// The target ptr being assigned to.
-        target_ptr: usize,
-        /// The value ptr we are trying to assign.
-        value_ptr: usize,
-    },
     /// Encountered a value that could not be called as a function
     #[error("`{actual_type}` cannot be called since it's not a function")]
     UnsupportedCallFn {
@@ -314,10 +244,6 @@ pub enum VmError {
         /// The static string slot corresponding to the index that is missing.
         slot: usize,
     },
-
-    /// Internal error that happens when we run out of items in a list.
-    #[error("unexpectedly ran out of items to iterate over")]
-    IterationError,
     /// Error raised when we expect a specific external type but got another.
     #[error("expected slot `{expected}`, but found `{actual}`")]
     UnexpectedValueType {
@@ -326,80 +252,14 @@ pub enum VmError {
         /// The type that was found.
         actual: &'static str,
     },
-    /// Error raised when expecting a unit.
-    #[error("expected unit, but found `{actual}`")]
-    ExpectedUnit {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when expecting an option.
-    #[error("expected option, but found `{actual}`")]
-    ExpectedOption {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
     /// Error raised when we fail to unwrap an option.
     #[error("expected some value, but found none")]
     ExpectedOptionSome,
-    /// Error raised when we expecting a result.
-    #[error("expected result, but found `{actual}`")]
-    ExpectedResult {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
     /// Error raised when we expecting an ok result.
     #[error("expected ok result, but found error `{error}`")]
     ExpectedResultOk {
         /// The error found.
         error: ValueTypeInfo,
-    },
-    /// Error raised when we expected a boolean value.
-    #[error("expected booleant, but found `{actual}`")]
-    ExpectedBoolean {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a byte value.
-    #[error("expected byte, but found `{actual}`")]
-    ExpectedByte {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a char value.
-    #[error("expected char, but found `{actual}`")]
-    ExpectedChar {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when an integer value was expected.
-    #[error("expected integer, but found `{actual}`")]
-    ExpectedInteger {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a float value.
-    #[error("expected float, but found `{actual}`")]
-    ExpectedFloat {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a string.
-    #[error("expected a string but found `{actual}`")]
-    ExpectedString {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a byte string.
-    #[error("expected a byte string but found `{actual}`")]
-    ExpectedBytes {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a vector.
-    #[error("expected a vector but found `{actual}`")]
-    ExpectedVec {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
     },
     /// Error raised when we expected a vector of the given length.
     #[error("expected a vector of length `{expected}`, but found one with length `{actual}`")]
@@ -408,60 +268,6 @@ pub enum VmError {
         actual: usize,
         /// The expected vector length.
         expected: usize,
-    },
-    /// Error raised when we expected a tuple.
-    #[error("expected a tuple but found `{actual}`")]
-    ExpectedTuple {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected an tuple of the given length.
-    #[error("expected a tuple of length `{expected}`, but found one with length `{actual}`")]
-    ExpectedTupleLength {
-        /// The actual length observed.
-        actual: usize,
-        /// The expected tuple length.
-        expected: usize,
-    },
-    /// Error raised when we expected a object.
-    #[error("expected a object but found `{actual}`")]
-    ExpectedObject {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected an external value.
-    #[error("expected a external value but found `{actual}`")]
-    ExpectedExternal {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a managed value.
-    #[error("expected an external, vector, object, or string, but found `{actual}`")]
-    ExpectedManaged {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a future.
-    #[error("expected future, but found `{actual}`")]
-    ExpectedFuture {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Failure to convert a number into an integer.
-    #[error("failed to convert value `{from}` to integer `{to}`")]
-    ValueToIntegerCoercionError {
-        /// Number we tried to convert from.
-        from: Integer,
-        /// Number type we tried to convert to.
-        to: &'static str,
-    },
-    /// Failure to convert an integer into a value.
-    #[error("failed to convert integer `{from}` to value `{to}`")]
-    IntegerToValueCoercionError {
-        /// Number we tried to convert from.
-        from: Integer,
-        /// Number type we tried to convert to.
-        to: &'static str,
     },
     /// Error raised when the branch register is empty.
     #[error("branch register empty")]
@@ -746,17 +552,8 @@ impl Vm {
     }
 
     async fn op_await(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let mut future = match &value {
-            Value::Future(future) => future.get_mut()?,
-            actual => {
-                return Err(VmError::ExpectedFuture {
-                    actual: actual.type_info()?,
-                })
-            }
-        };
-
+        let future = self.stack.pop()?.into_future()?;
+        let mut future = future.strong_mut()?;
         let value = (&mut *future).await?;
         self.stack.push(value);
         Ok(())
@@ -770,16 +567,8 @@ impl Vm {
             let mut guards = Vec::new();
 
             for index in 0..len {
-                let value = self.stack.pop()?;
-
-                let future = match value {
-                    Value::Future(future) => future.strong_mut()?,
-                    actual => {
-                        return Err(VmError::ExpectedFuture {
-                            actual: actual.type_info()?,
-                        })
-                    }
-                };
+                let future = self.stack.pop()?.into_future()?;
+                let future = future.strong_mut()?;
 
                 if future.is_completed() {
                     continue;
@@ -986,7 +775,7 @@ impl Vm {
             Ok(value) => value,
             Err(error) => {
                 return Err(VmError::StackConversionError {
-                    error: Box::new(error),
+                    error,
                     to: any::type_name::<T>(),
                 });
             }
@@ -1538,16 +1327,8 @@ impl Vm {
 
     #[inline]
     fn op_result_unwrap(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let result = match &value {
-            Value::Result(result) => result.get_ref()?,
-            actual => {
-                return Err(VmError::ExpectedResult {
-                    actual: actual.type_info()?,
-                })
-            }
-        };
+        let result = self.stack.pop()?.into_result()?;
+        let result = result.get_ref()?;
 
         let value = match &*result {
             Ok(ok) => ok,
@@ -1564,16 +1345,8 @@ impl Vm {
 
     #[inline]
     fn op_option_unwrap(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        let option = match &value {
-            Value::Option(option) => option.get_ref()?,
-            actual => {
-                return Err(VmError::ExpectedOption {
-                    actual: actual.type_info()?,
-                })
-            }
-        };
+        let option = self.stack.pop()?.into_option()?;
+        let option = option.get_ref()?;
 
         let value = match &*option {
             Some(some) => some,
@@ -1660,17 +1433,8 @@ impl Vm {
     /// Test if the top of the stack is an error.
     #[inline]
     fn op_is_err(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        self.stack.push(Value::Bool(match value {
-            Value::Result(result) => result.get_ref()?.is_err(),
-            actual => {
-                return Err(VmError::ExpectedResult {
-                    actual: actual.type_info()?,
-                })
-            }
-        }));
-
+        let is_err = self.stack.pop()?.into_result()?.get_ref().is_err();
+        self.stack.push(Value::Bool(is_err));
         Ok(())
     }
 
@@ -1679,17 +1443,8 @@ impl Vm {
     /// TODO: optimize the layout of optional values to make this easier.
     #[inline]
     fn op_is_none(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-
-        self.stack.push(Value::Bool(match value {
-            Value::Option(option) => option.get_ref()?.is_none(),
-            actual => {
-                return Err(VmError::ExpectedOption {
-                    actual: actual.type_info()?,
-                })
-            }
-        }));
-
+        let is_none = self.stack.pop()?.into_option()?.get_ref()?.is_none();
+        self.stack.push(Value::Bool(is_none));
         Ok(())
     }
 
@@ -1951,6 +1706,27 @@ impl Vm {
         Ok(())
     }
 
+    fn op_call_fn(
+        &mut self,
+        unit: &CompilationUnit,
+        context: &Context,
+        args: usize,
+        update_ip: &mut bool,
+    ) -> Result<(), VmError> {
+        let function = self.stack.pop()?;
+
+        let hash = match function {
+            Value::Type(hash) => hash,
+            actual => {
+                let actual_type = actual.type_info()?;
+                return Err(VmError::UnsupportedCallFn { actual_type });
+            }
+        };
+
+        self.call_fn(unit, context, hash, args, update_ip)?;
+        Ok(())
+    }
+
     /// Evaluate a single instruction.
     pub async fn run_for(
         &mut self,
@@ -2021,17 +1797,7 @@ impl Vm {
                     self.op_call_instance(unit, context, hash, args, &mut update_ip)?;
                 }
                 Inst::CallFn { args } => {
-                    let function = self.stack.pop()?;
-
-                    let hash = match function {
-                        Value::Type(hash) => hash,
-                        actual => {
-                            let actual_type = actual.type_info()?;
-                            return Err(VmError::UnsupportedCallFn { actual_type });
-                        }
-                    };
-
-                    self.call_fn(unit, context, hash, args, &mut update_ip)?;
+                    self.op_call_fn(unit, context, args, &mut update_ip)?;
                 }
                 Inst::LoadInstanceFn { hash } => {
                     self.op_load_instance_fn(hash)?;
@@ -2239,7 +2005,9 @@ impl Vm {
                     self.op_match_object(unit, object_like, slot, exact)?;
                 }
                 Inst::Panic { reason } => {
-                    return Err(VmError::Panic { reason });
+                    return Err(VmError::Panic {
+                        reason: Panic::from(reason),
+                    });
                 }
             }
 

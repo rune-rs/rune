@@ -3,16 +3,22 @@
 //! Contains functions such as:
 //! * `assert` assert that a value is true.
 
-use crate::context::{ContextError, Module};
-use crate::vm::VmError;
+use crate::{ContextError, Module, Panic};
+use std::fmt;
+
+#[derive(Debug)]
+struct AssertionFailed(String);
+
+impl fmt::Display for AssertionFailed {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "assertion failed `{}`", self.0)
+    }
+}
 
 /// Assert that a value is true.
-fn assert(value: bool, message: &str) -> Result<(), VmError> {
+fn assert(value: bool, message: &str) -> Result<(), Panic> {
     if !value {
-        return Err(VmError::custom_panic(format!(
-            "assertion failed: {}",
-            message
-        )));
+        return Err(Panic::msg(AssertionFailed(message.to_string())));
     }
 
     Ok(())

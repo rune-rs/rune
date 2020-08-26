@@ -12,7 +12,7 @@ macro_rules! decl_external {
         $crate::decl_internal!($external);
 
         impl $crate::FromValue for $external {
-            fn from_value(value: $crate::Value) -> Result<Self, $crate::VmError> {
+            fn from_value(value: $crate::Value) -> Result<Self, $crate::ValueError> {
                 let any = value.into_external()?;
                 let any = any.downcast_take::<$external>()?;
                 Ok(any)
@@ -62,7 +62,7 @@ macro_rules! decl_internal {
         }
 
         impl $crate::ToValue for $external {
-            fn to_value(self) -> Result<$crate::Value, $crate::VmError> {
+            fn to_value(self) -> Result<$crate::Value, $crate::ValueError> {
                 let any = $crate::Any::new(self);
                 let shared = $crate::Shared::new(any);
                 Ok($crate::Value::External(shared))
@@ -70,13 +70,13 @@ macro_rules! decl_internal {
         }
 
         impl<'a> $crate::UnsafeToValue for &'a $external {
-            unsafe fn unsafe_to_value(self) -> Result<$crate::Value, $crate::VmError> {
+            unsafe fn unsafe_to_value(self) -> Result<$crate::Value, $crate::ValueError> {
                 Ok($crate::Value::from_ptr(self))
             }
         }
 
         impl<'a> $crate::UnsafeToValue for &'a mut $external {
-            unsafe fn unsafe_to_value(self) -> Result<$crate::Value, $crate::VmError> {
+            unsafe fn unsafe_to_value(self) -> Result<$crate::Value, $crate::ValueError> {
                 Ok($crate::Value::from_mut_ptr(self))
             }
         }
@@ -87,7 +87,7 @@ macro_rules! decl_internal {
 
             unsafe fn unsafe_from_value(
                 value: $crate::Value,
-            ) -> Result<(Self::Output, Self::Guard), $crate::VmError> {
+            ) -> Result<(Self::Output, Self::Guard), $crate::ValueError> {
                 Ok(value.unsafe_into_external_ref()?)
             }
 
@@ -102,7 +102,7 @@ macro_rules! decl_internal {
 
             unsafe fn unsafe_from_value(
                 value: $crate::Value,
-            ) -> Result<(Self::Output, Self::Guard), $crate::VmError> {
+            ) -> Result<(Self::Output, Self::Guard), $crate::ValueError> {
                 Ok(value.unsafe_into_external_mut()?)
             }
 

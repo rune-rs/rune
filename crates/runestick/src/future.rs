@@ -1,6 +1,6 @@
 use crate::reflection::ToValue;
 use crate::shared::Shared;
-use crate::value::Value;
+use crate::value::{Value, ValueError};
 use crate::vm::VmError;
 use std::fmt;
 /// A future which can be unsafely polled.
@@ -43,7 +43,7 @@ impl Future {
 }
 
 impl ToValue for Future {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, ValueError> {
         Ok(Value::Future(Shared::new(self)))
     }
 }

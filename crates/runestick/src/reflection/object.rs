@@ -1,7 +1,6 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::shared::{RawStrongRefGuard, Shared, StrongRef};
-use crate::value::{Object, Value, ValueType, ValueTypeInfo};
-use crate::vm::VmError;
+use crate::value::{Object, Value, ValueError, ValueType, ValueTypeInfo};
 
 impl<T> ReflectValueType for Object<T> {
     type Owned = Object<T>;
@@ -43,7 +42,7 @@ impl<T> FromValue for Object<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
         let object = value.into_object()?;
         let object = object.take()?;
         let mut output = Object::with_capacity(object.len());
@@ -60,7 +59,7 @@ impl<'a> UnsafeFromValue for &'a Object<Value> {
     type Output = *const Object<Value>;
     type Guard = RawStrongRefGuard;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let object = value.into_object()?;
         let object = object.strong_ref()?;
         Ok(StrongRef::into_raw(object))
@@ -75,7 +74,7 @@ impl<T> ToValue for Object<T>
 where
     T: ToValue,
 {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, ValueError> {
         let mut object = Object::with_capacity(self.len());
 
         for (key, value) in self {

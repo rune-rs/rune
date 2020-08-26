@@ -48,6 +48,7 @@ mod error;
 mod future;
 mod hash;
 pub mod packages;
+mod panic;
 mod reflection;
 mod serde;
 mod shared;
@@ -65,6 +66,7 @@ pub use crate::context::{
 pub use crate::error::{Error, Result};
 pub use crate::future::Future;
 pub use crate::hash::Hash;
+pub use crate::panic::Panic;
 pub use crate::reflection::{
     FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue, UnsafeToValue,
 };
@@ -73,10 +75,10 @@ pub use crate::shared_ptr::SharedPtr;
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
 pub use crate::value::{
-    Object, RawValueMutGuard, RawValueRefGuard, TypedTuple, Value, ValueType, ValueTypeInfo,
-    VecTuple,
+    Object, RawValueMutGuard, RawValueRefGuard, TypedTuple, Value, ValueError, ValueType,
+    ValueTypeInfo, VecTuple,
 };
-pub use crate::vm::{Inst, Panic, Task, Vm, VmError};
+pub use crate::vm::{Inst, PanicReason, Task, Vm, VmError};
 
 mod collections {
     pub use hashbrown::HashMap;

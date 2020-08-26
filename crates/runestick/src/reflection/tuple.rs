@@ -2,8 +2,7 @@
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue};
 use crate::shared::Shared;
-use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::VmError;
+use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
 
 impl ReflectValueType for () {
     type Owned = ();
@@ -18,19 +17,14 @@ impl ReflectValueType for () {
 }
 
 impl ToValue for () {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, ValueError> {
         Ok(Value::Unit)
     }
 }
 
 impl FromValue for () {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        match value {
-            Value::Unit => Ok(()),
-            actual => Err(VmError::ExpectedUnit {
-                actual: actual.type_info()?,
-            }),
-        }
+    fn from_value(value: Value) -> Result<Self, ValueError> {
+        Ok(value.into_unit()?)
     }
 }
 
@@ -48,12 +42,12 @@ macro_rules! impl_from_value_tuple {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: Value) -> Result<Self, VmError> {
+            fn from_value(value: Value) -> Result<Self, ValueError> {
                 let tuple = value.into_tuple()?;
                 let tuple = tuple.take()?;
 
                 if tuple.len() != $count {
-                    return Err(VmError::ExpectedTupleLength {
+                    return Err(ValueError::ExpectedTupleLength {
                         actual: tuple.len(),
                         expected: $count,
                     });
@@ -66,7 +60,7 @@ macro_rules! impl_from_value_tuple {
                     let $var = match it.next() {
                         Some(value) => <$ty>::from_value(value)?,
                         None => {
-                            return Err(VmError::IterationError);
+                            return Err(ValueError::IterationError);
                         },
                     };
                 )*
@@ -79,7 +73,7 @@ macro_rules! impl_from_value_tuple {
         where
             $($ty: ToValue,)*
         {
-            fn to_value(self) -> Result<Value, VmError> {
+            fn to_value(self) -> Result<Value, ValueError> {
                 let ($($var,)*) = self;
                 $(let $var = $var.to_value()?;)*
                 Ok(Value::Tuple(Shared::new(vec![$($var,)*].into_boxed_slice())))

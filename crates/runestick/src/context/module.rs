@@ -715,7 +715,7 @@ macro_rules! impl_register {
             Ok($ret) => $ret,
             Err(error) => {
                 return Err(VmError::ReturnConversionError {
-                    error: Box::new(error),
+                    error,
                     ret: type_name::<$ty>()
                 });
             }
@@ -731,7 +731,7 @@ macro_rules! impl_register {
                 Ok(v) => v,
                 Err(error) => {
                     return Err(VmError::ArgumentConversionError {
-                        error: Box::new(error),
+                        error,
                         arg: $count - $num,
                         to: type_name::<$ty>(),
                     });
@@ -746,7 +746,7 @@ macro_rules! impl_register {
             Ok(v) => v,
             Err(error) => {
                 return Err(VmError::ArgumentConversionError {
-                    error: Box::new(error),
+                    error,
                     arg: 0,
                     to: type_name::<Instance>()
                 });
@@ -758,7 +758,7 @@ macro_rules! impl_register {
                 Ok(v) => v,
                 Err(error) => {
                     return Err(VmError::ArgumentConversionError {
-                        error: Box::new(error),
+                        error,
                         arg: 1 + $count - $num,
                         to: type_name::<$ty>()
                     });

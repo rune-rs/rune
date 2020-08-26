@@ -1,5 +1,5 @@
 use crate::stack::Stack;
-use crate::value::{Value, ValueType, ValueTypeInfo, VecTuple};
+use crate::value::{Value, ValueError, ValueType, ValueTypeInfo, VecTuple};
 use crate::vm::VmError;
 
 mod bytes;
@@ -42,7 +42,7 @@ pub trait ReflectValueType: Sized {
 /// Trait for converting types into values.
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self) -> Result<Value, VmError>;
+    fn to_value(self) -> Result<Value, ValueError>;
 }
 
 /// Trait for unsafe conversion of value types into values.
@@ -54,13 +54,13 @@ pub trait UnsafeToValue {
     /// The caller of this function need to make sure that the value converted
     /// doesn't outlive the virtual machine which uses it, since it might be
     /// encoded as a raw pointer in the slots of the virtual machine.
-    unsafe fn unsafe_to_value(self) -> Result<Value, VmError>;
+    unsafe fn unsafe_to_value(self) -> Result<Value, ValueError>;
 }
 
 /// Trait for converting from a value.
 pub trait FromValue: Sized {
     /// Try to convert to the given type, from the given value.
-    fn from_value(value: Value) -> Result<Self, VmError>;
+    fn from_value(value: Value) -> Result<Self, ValueError>;
 }
 
 /// A potentially unsafe conversion for value conversion.
@@ -83,7 +83,7 @@ pub trait UnsafeFromValue: Sized {
     ///
     /// You must also make sure that the returned value does not outlive the
     /// guard.
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError>;
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError>;
 
     /// Coerce the output of an unsafe from value into the final output type.
     ///
@@ -104,7 +104,7 @@ where
     type Output = T;
     type Guard = ();
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self, Self::Guard), VmError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self, Self::Guard), ValueError> {
         Ok((T::from_value(value)?, ()))
     }
 
@@ -117,19 +117,19 @@ impl<T> UnsafeToValue for T
 where
     T: ToValue,
 {
-    unsafe fn unsafe_to_value(self) -> Result<Value, VmError> {
+    unsafe fn unsafe_to_value(self) -> Result<Value, ValueError> {
         self.to_value()
     }
 }
 
 impl FromValue for Value {
-    fn from_value(value: Value) -> Result<Self, VmError> {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
         Ok(value.clone())
     }
 }
 
 impl ToValue for Value {
-    fn to_value(self) -> Result<Value, VmError> {
+    fn to_value(self) -> Result<Value, ValueError> {
         Ok(self)
     }
 }
@@ -199,12 +199,12 @@ macro_rules! impl_from_value_tuple_vec {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: Value) -> Result<Self, VmError> {
+            fn from_value(value: Value) -> Result<Self, ValueError> {
                 let vec = value.into_vec()?;
                 let vec = vec.take()?;
 
                 if vec.len() != $count {
-                    return Err(VmError::ExpectedTupleLength {
+                    return Err(ValueError::ExpectedTupleLength {
                         actual: vec.len(),
                         expected: $count,
                     });
@@ -217,7 +217,7 @@ macro_rules! impl_from_value_tuple_vec {
                     let $value: $ty = match it.next() {
                         Some(value) => <$ty>::from_value(value)?,
                         None => {
-                            return Err(VmError::IterationError);
+                            return Err(ValueError::IterationError);
                         },
                     };
                 )*

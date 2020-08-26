@@ -3,14 +3,14 @@ use std::fmt;
 
 /// The reason why a panic was invoked in the virtual machine.
 #[derive(Debug, Clone, Copy)]
-pub enum Panic {
+pub enum PanicReason {
     /// Not implemented.
     NotImplemented,
     /// A pattern didn't match where it unconditionally has to.
     UnmatchedPattern,
 }
 
-impl Panic {
+impl PanicReason {
     /// The identifier of the panic.
     fn ident(&self) -> &'static str {
         match *self {
@@ -20,7 +20,7 @@ impl Panic {
     }
 }
 
-impl fmt::Display for Panic {
+impl fmt::Display for PanicReason {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::NotImplemented => write!(fmt, "functionality has not been implemented yet")?,
@@ -779,8 +779,8 @@ pub enum Inst {
     /// This should only be used during testing or extreme scenarios that are
     /// completely unrecoverable.
     Panic {
-        /// The mark of the panic.
-        reason: Panic,
+        /// The reason for the panic.
+        reason: PanicReason,
     },
 }
 
