@@ -123,6 +123,17 @@ impl Value {
         Self::Ptr(Shared::new(SharedPtr::from_mut_ptr(ptr)))
     }
 
+    /// Try to coerce value reference into a boolean.
+    #[inline]
+    pub fn into_bool(self) -> Result<bool, VmError> {
+        match self {
+            Self::Bool(b) => Ok(b),
+            actual => Err(VmError::ExpectedBoolean {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
     /// Try to coerce value reference into a result.
     #[inline]
     pub fn into_result(self) -> Result<Shared<Result<Value, Value>>, VmError> {

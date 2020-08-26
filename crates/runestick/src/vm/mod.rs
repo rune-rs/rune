@@ -172,14 +172,6 @@ pub enum VmError {
         /// Slot which is missing a static object keys.
         slot: usize,
     },
-    /// Saw an unexpected stack value.
-    #[error("unexpected stack value, expected `{expected}` but was `{actual}`")]
-    StackTopTypeError {
-        /// The type that was expected.
-        expected: ValueTypeInfo,
-        /// The type observed.
-        actual: ValueTypeInfo,
-    },
     /// Indicates a failure to convert from one type to another.
     #[error("failed to convert stack value to `{to}`: {error}")]
     StackConversionError {
@@ -485,7 +477,7 @@ pub enum VmError {
     },
     /// Error raised when the branch register is empty.
     #[error("branch register empty")]
-    BranchEmpty {},
+    BranchEmpty,
     /// Missing a struct field.
     #[error("missing struct field")]
     MissingStructField,
@@ -501,21 +493,6 @@ impl VmError {
             reason: reason.to_string(),
         }
     }
-}
-
-/// Pop and type check a value off the stack.
-macro_rules! pop {
-    ($vm:expr, $variant:ident) => {
-        match $vm.pop()? {
-            Value::$variant(b) => b,
-            other => {
-                return Err(VmError::StackTopTypeError {
-                    expected: ValueTypeInfo::$variant,
-                    actual: other.type_info()?,
-                })
-            }
-        }
-    };
 }
 
 /// Generate a primitive combination of operations.
@@ -650,35 +627,6 @@ struct CallFrame {
     stack_top: usize,
 }
 
-macro_rules! call_fn {
-    ($vm:expr, $unit:expr, $hash:expr, $args:expr, $context:expr,  $update_ip:ident) => {
-        let hash = $hash;
-
-        match $unit.lookup(hash) {
-            Some(f) => match &f.kind {
-                UnitFnKind::Offset { offset } => {
-                    let offset = *offset;
-                    $vm.push_call_frame(offset, $args)?;
-                    $update_ip = false;
-                }
-                UnitFnKind::Tuple { ty } => {
-                    let ty = *ty;
-                    let args = f.signature.args;
-                    let value = $vm.allocate_typed_tuple(ty, $args, args)?;
-                    $vm.push(value);
-                }
-            },
-            None => {
-                let handler = $context
-                    .lookup(hash)
-                    .ok_or_else(|| VmError::MissingFunction { hash })?;
-
-                handler($vm, $args)?;
-            }
-        }
-    };
-}
-
 #[derive(Debug)]
 pub struct Stack {
     /// The current stack of values.
@@ -792,8 +740,6 @@ pub struct Vm {
     exited: bool,
     /// Frames relative to the stack.
     call_frames: Vec<CallFrame>,
-    /// Generation used for allocated objects.
-    generation: usize,
     /// The `branch` registry used for certain operations.
     branch: Option<usize>,
 }
@@ -806,7 +752,6 @@ impl Vm {
             stack: Stack::new(),
             exited: false,
             call_frames: Vec::new(),
-            generation: 0,
             branch: None,
         }
     }
@@ -825,17 +770,14 @@ impl Vm {
         self.exited = false;
         self.stack.clear();
         self.call_frames.clear();
-        self.generation = 0;
     }
 
-    /// Push an unmanaged reference.
-    ///
-    /// The reference count of the value being referenced won't be modified.
+    /// Push dynamic a value on the stack.
     pub fn push(&mut self, value: Value) {
         self.stack.push(value);
     }
 
-    /// Pop a reference to a value from the stack.
+    /// Pop a dynamic value from the stack.
     pub fn pop(&mut self) -> Result<Value, VmError> {
         self.stack.pop()
     }
@@ -1016,7 +958,7 @@ impl Vm {
         offset: isize,
         update_ip: &mut bool,
     ) -> Result<(), VmError> {
-        if !pop!(self, Bool) {
+        if !self.stack.pop()?.into_bool()? {
             return Ok(());
         }
 
@@ -1033,7 +975,7 @@ impl Vm {
         offset: isize,
         update_ip: &mut bool,
     ) -> Result<(), VmError> {
-        if pop!(self, Bool) {
+        if self.stack.pop()?.into_bool()? {
             return Ok(());
         }
 
@@ -1297,6 +1239,47 @@ impl Vm {
         Ok(())
     }
 
+    /// Perform a conditional jump operation.
+    #[inline]
+    fn op_jump_if(&mut self, offset: isize, update_ip: &mut bool) -> Result<(), VmError> {
+        if self.stack.pop()?.into_bool()? {
+            self.modify_ip(offset)?;
+            *update_ip = false;
+        }
+
+        Ok(())
+    }
+
+    /// Perform a conditional jump operation.
+    #[inline]
+    fn op_jump_if_not(&mut self, offset: isize, update_ip: &mut bool) -> Result<(), VmError> {
+        if !self.stack.pop()?.into_bool()? {
+            self.modify_ip(offset)?;
+            *update_ip = false;
+        }
+
+        Ok(())
+    }
+
+    /// Perform a branch-conditional jump operation.
+    #[inline]
+    fn op_jump_if_branch(
+        &mut self,
+        branch: usize,
+        offset: isize,
+        update_ip: &mut bool,
+    ) -> Result<(), VmError> {
+        let current = self.branch.ok_or_else(|| VmError::BranchEmpty)?;
+
+        if current == branch {
+            self.branch = None;
+            self.modify_ip(offset)?;
+            *update_ip = false;
+        }
+
+        Ok(())
+    }
+
     /// Construct a new vec.
     #[inline]
     fn op_vec(&mut self, count: usize) -> Result<(), VmError> {
@@ -1339,6 +1322,38 @@ impl Vm {
         };
 
         self.push(value);
+        Ok(())
+    }
+
+    #[inline]
+    fn op_add(&mut self, context: &Context) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+        numeric_ops!(self, context, crate::ADD, +, a.checked_add(b), Overflow);
+        Ok(())
+    }
+
+    #[inline]
+    fn op_sub(&mut self, context: &Context) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+        numeric_ops!(self, context, crate::SUB, -, a.checked_sub(b), Underflow);
+        Ok(())
+    }
+
+    #[inline]
+    fn op_mul(&mut self, context: &Context) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+        numeric_ops!(self, context, crate::MUL, *, a.checked_mul(b), Overflow);
+        Ok(())
+    }
+
+    #[inline]
+    fn op_div(&mut self, context: &Context) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+        numeric_ops!(self, context, crate::DIV, /, a.checked_div(b), DivideByZero);
         Ok(())
     }
 
@@ -1411,6 +1426,30 @@ impl Vm {
         self.push(index);
         self.push(target);
         handler(self, 2)?;
+        Ok(())
+    }
+
+    #[inline]
+    fn op_return(&mut self) -> Result<(), VmError> {
+        let return_value = self.stack.pop()?;
+        self.exited = self.pop_call_frame()?;
+        self.push(return_value);
+        Ok(())
+    }
+
+    #[inline]
+    fn op_return_unit(&mut self) -> Result<(), VmError> {
+        self.exited = self.pop_call_frame()?;
+        self.push(Value::Unit);
+        Ok(())
+    }
+
+    #[inline]
+    fn op_load_instance_fn(&mut self, hash: Hash) -> Result<(), VmError> {
+        let instance = self.stack.pop()?;
+        let ty = instance.value_type()?;
+        let hash = Hash::instance_function(ty, hash);
+        self.stack.push(Value::Type(hash));
         Ok(())
     }
 
@@ -1596,6 +1635,14 @@ impl Vm {
         let object = TypedObject { ty, object };
         let value = Value::TypedObject(Shared::new(object));
         self.push(value);
+        Ok(())
+    }
+
+    #[inline]
+    fn op_string(&mut self, unit: &CompilationUnit, slot: usize) -> Result<(), VmError> {
+        let string = unit.lookup_string(slot)?;
+        let value = Value::StaticString(string.clone());
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1974,6 +2021,81 @@ impl Vm {
         })
     }
 
+    /// Implementation of a function call.
+    fn call_fn(
+        &mut self,
+        unit: &CompilationUnit,
+        context: &Context,
+        hash: Hash,
+        args: usize,
+        update_ip: &mut bool,
+    ) -> Result<(), VmError> {
+        match unit.lookup(hash) {
+            Some(f) => match &f.kind {
+                UnitFnKind::Offset { offset } => {
+                    let offset = *offset;
+                    self.push_call_frame(offset, args)?;
+                    *update_ip = false;
+                }
+                UnitFnKind::Tuple { ty } => {
+                    let ty = *ty;
+                    let args = f.signature.args;
+                    let value = self.allocate_typed_tuple(ty, args, args)?;
+                    self.stack.push(value);
+                }
+            },
+            None => {
+                let handler = context
+                    .lookup(hash)
+                    .ok_or_else(|| VmError::MissingFunction { hash })?;
+
+                handler(self, args)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    fn op_call_instance(
+        &mut self,
+        unit: &CompilationUnit,
+        context: &Context,
+        hash: Hash,
+        args: usize,
+        update_ip: &mut bool,
+    ) -> Result<(), VmError> {
+        let instance = self.stack.peek()?.clone();
+        let ty = instance.value_type()?;
+        let hash = Hash::instance_function(ty, hash);
+
+        match unit.lookup(hash) {
+            Some(info) => match &info.kind {
+                UnitFnKind::Offset { offset } => {
+                    let offset = *offset;
+                    self.push_call_frame(offset, args)?;
+                    *update_ip = false;
+                }
+                UnitFnKind::Tuple { .. } => todo!("there are no instance tuple constructors"),
+            },
+            None => {
+                let handler = match context.lookup(hash) {
+                    Some(handler) => handler,
+                    None => {
+                        return Err(VmError::MissingInstanceFunction {
+                            instance: instance.type_info()?,
+                            hash,
+                        });
+                    }
+                };
+
+                handler(self, args)?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Evaluate a single instruction.
     pub async fn run_for(
         &mut self,
@@ -1993,9 +2115,7 @@ impl Vm {
                     self.op_not()?;
                 }
                 Inst::Add => {
-                    let b = self.stack.pop()?;
-                    let a = self.stack.pop()?;
-                    numeric_ops!(self, context, crate::ADD, +, a.checked_add(b), Overflow);
+                    self.op_add(context)?;
                 }
                 Inst::AddAssign { offset } => {
                     let arg = self.stack.pop()?;
@@ -2007,9 +2127,7 @@ impl Vm {
                     *self.stack.at_offset_mut(offset)? = value;
                 }
                 Inst::Sub => {
-                    let b = self.stack.pop()?;
-                    let a = self.stack.pop()?;
-                    numeric_ops!(self, context, crate::SUB, -, a.checked_sub(b), Underflow);
+                    self.op_sub(context)?;
                 }
                 Inst::SubAssign { offset } => {
                     let arg = self.stack.pop()?;
@@ -2020,9 +2138,7 @@ impl Vm {
                     *self.stack.at_offset_mut(offset)? = value;
                 }
                 Inst::Mul => {
-                    let b = self.stack.pop()?;
-                    let a = self.stack.pop()?;
-                    numeric_ops!(self, context, crate::MUL, *, a.checked_mul(b), Overflow);
+                    self.op_mul(context)?;
                 }
                 Inst::MulAssign { offset } => {
                     let arg = self.stack.pop()?;
@@ -2033,9 +2149,7 @@ impl Vm {
                     *self.stack.at_offset_mut(offset)? = value;
                 }
                 Inst::Div => {
-                    let b = self.stack.pop()?;
-                    let a = self.stack.pop()?;
-                    numeric_ops!(self, context, crate::DIV, /, a.checked_div(b), DivideByZero);
+                    self.op_div(context)?;
                 }
                 Inst::DivAssign { offset } => {
                     let arg = self.stack.pop()?;
@@ -2045,41 +2159,11 @@ impl Vm {
                     };
                     *self.stack.at_offset_mut(offset)? = value;
                 }
-                // NB: we inline function calls because it helps Rust optimize
-                // the async plumbing.
                 Inst::Call { hash, args } => {
-                    call_fn!(self, unit, hash, args, context, update_ip);
+                    self.call_fn(unit, context, hash, args, &mut update_ip)?;
                 }
                 Inst::CallInstance { hash, args } => {
-                    let instance = self.stack.peek()?.clone();
-                    let ty = instance.value_type()?;
-                    let hash = Hash::instance_function(ty, hash);
-
-                    match unit.lookup(hash) {
-                        Some(info) => match &info.kind {
-                            UnitFnKind::Offset { offset } => {
-                                let offset = *offset;
-                                self.push_call_frame(offset, args)?;
-                                update_ip = false;
-                            }
-                            UnitFnKind::Tuple { .. } => {
-                                todo!("there are no instance tuple constructors")
-                            }
-                        },
-                        None => {
-                            let handler = match context.lookup(hash) {
-                                Some(handler) => handler,
-                                None => {
-                                    return Err(VmError::MissingInstanceFunction {
-                                        instance: instance.type_info()?,
-                                        hash,
-                                    });
-                                }
-                            };
-
-                            handler(self, args)?;
-                        }
-                    }
+                    self.op_call_instance(unit, context, hash, args, &mut update_ip)?;
                 }
                 Inst::CallFn { args } => {
                     let function = self.stack.pop()?;
@@ -2092,13 +2176,10 @@ impl Vm {
                         }
                     };
 
-                    call_fn!(self, unit, hash, args, context, update_ip);
+                    self.call_fn(unit, context, hash, args, &mut update_ip)?;
                 }
                 Inst::LoadInstanceFn { hash } => {
-                    let instance = self.stack.pop()?;
-                    let ty = instance.value_type()?;
-                    let hash = Hash::instance_function(ty, hash);
-                    self.push(Value::Type(hash));
+                    self.op_load_instance_fn(hash)?;
                 }
                 Inst::IndexGet => {
                     self.op_index_get(context)?;
@@ -2116,13 +2197,10 @@ impl Vm {
                     self.op_index_set(context)?;
                 }
                 Inst::Return => {
-                    let return_value = self.stack.pop()?;
-                    self.exited = self.pop_call_frame()?;
-                    self.push(return_value);
+                    self.op_return()?;
                 }
                 Inst::ReturnUnit => {
-                    self.exited = self.pop_call_frame()?;
-                    self.push(Value::Unit);
+                    self.op_return_unit()?;
                 }
                 Inst::Await => {
                     self.op_await().await?;
@@ -2185,25 +2263,13 @@ impl Vm {
                     self.op_jump(offset, &mut update_ip)?;
                 }
                 Inst::JumpIf { offset } => {
-                    if pop!(self, Bool) {
-                        self.modify_ip(offset)?;
-                        update_ip = false;
-                    }
+                    self.op_jump_if(offset, &mut update_ip)?;
                 }
                 Inst::JumpIfNot { offset } => {
-                    if !pop!(self, Bool) {
-                        self.modify_ip(offset)?;
-                        update_ip = false;
-                    }
+                    self.op_jump_if_not(offset, &mut update_ip)?;
                 }
                 Inst::JumpIfBranch { branch, offset } => {
-                    if let Some(current) = self.branch {
-                        if current == branch {
-                            self.branch = None;
-                            self.modify_ip(offset)?;
-                            update_ip = false;
-                        }
-                    }
+                    self.op_jump_if_branch(branch, offset, &mut update_ip)?;
                 }
                 Inst::Unit => {
                     self.push(Value::Unit);
@@ -2224,24 +2290,22 @@ impl Vm {
                     self.op_typed_object(unit, ty, slot)?;
                 }
                 Inst::Type { hash } => {
-                    self.push(Value::Type(hash));
+                    self.stack.push(Value::Type(hash));
                 }
                 Inst::Char { c } => {
-                    self.push(Value::Char(c));
+                    self.stack.push(Value::Char(c));
                 }
                 Inst::Byte { b } => {
-                    self.push(Value::Byte(b));
+                    self.stack.push(Value::Byte(b));
                 }
                 Inst::String { slot } => {
-                    let string = unit.lookup_string(slot)?;
-                    let value = Value::StaticString(string.clone());
-                    self.push(value)
+                    self.op_string(unit, slot)?;
                 }
                 Inst::Bytes { slot } => {
                     let bytes = unit.lookup_bytes(slot)?.to_owned();
                     // TODO: do something sneaky to only allocate the static byte string once.
                     let value = Value::Bytes(Shared::new(Bytes::from_vec(bytes)));
-                    self.push(value);
+                    self.stack.push(value);
                 }
                 Inst::StringConcat { len, size_hint } => {
                     self.op_string_concat(len, size_hint)?;
@@ -2251,7 +2315,7 @@ impl Vm {
                 }
                 Inst::IsUnit => {
                     let value = self.stack.pop()?;
-                    self.push(Value::Bool(matches!(value, Value::Unit)));
+                    self.stack.push(Value::Bool(matches!(value, Value::Unit)));
                 }
                 Inst::IsErr => {
                     self.op_is_err()?;
