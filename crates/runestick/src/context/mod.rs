@@ -1,7 +1,8 @@
 use crate::collections::HashMap;
 use crate::hash::Hash;
+use crate::stack::Stack;
 use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::{Vm, VmError};
+use crate::vm::VmError;
 use std::fmt;
 use thiserror::Error;
 
@@ -87,7 +88,7 @@ pub enum ContextError {
 }
 
 /// A function handler.
-pub(crate) type Handler = dyn Fn(&mut Vm, usize) -> Result<(), VmError>;
+pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError>;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
@@ -531,7 +532,8 @@ impl Context {
             });
         }
 
-        let constructor: Box<Handler> = Box::new(move |vm, args| constructor.vm_call(vm, args));
+        let constructor: Box<Handler> =
+            Box::new(move |stack, args| constructor.fn_call(stack, args));
 
         let hash = Hash::function(&item);
         let signature = FnSignature::new_free(item.clone(), Some(args));

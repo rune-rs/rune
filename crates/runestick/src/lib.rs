@@ -52,6 +52,7 @@ mod reflection;
 mod serde;
 mod shared;
 mod shared_ptr;
+mod stack;
 pub mod unit;
 
 pub use crate::access::{Mut, NotAccessibleMut, NotAccessibleRef, Ref};
@@ -69,6 +70,7 @@ pub use crate::reflection::{
 };
 pub use crate::shared::{RawStrongMutGuard, RawStrongRefGuard, Shared, StrongMut, StrongRef};
 pub use crate::shared_ptr::SharedPtr;
+pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
 pub use crate::value::{
     Object, RawValueMutGuard, RawValueRefGuard, TypedTuple, Value, ValueType, ValueTypeInfo,

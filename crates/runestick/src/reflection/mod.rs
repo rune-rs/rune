@@ -1,5 +1,6 @@
+use crate::stack::Stack;
 use crate::value::{Value, ValueType, ValueTypeInfo, VecTuple};
-use crate::vm::{Vm, VmError};
+use crate::vm::VmError;
 
 mod bytes;
 mod hash_map;
@@ -13,14 +14,14 @@ mod vec;
 
 /// Trait for converting arguments into values.
 pub trait IntoArgs {
-    /// Encode arguments to the vm.
+    /// Encode arguments into a stack.
     ///
     /// # Safety
     ///
-    /// This has the ability to encode references into the virtual machine.
-    /// The caller must ensure that the virtual machine is cleared with
-    /// [clear][Vm::clear] before the references are no longer valid.
-    unsafe fn into_args(self, vm: &mut Vm) -> Result<(), VmError>;
+    /// This has the ability to encode references into the stack.
+    /// The caller must ensure that the stack is cleared with
+    /// [clear][Stack::clear] before the references are no longer valid.
+    unsafe fn into_args(self, stack: &mut Stack) -> Result<(), VmError>;
 
     /// The number of arguments.
     fn count() -> usize;
@@ -138,20 +139,20 @@ macro_rules! impl_into_args {
         impl_into_args!{@impl 0,}
     };
 
-    ({$ty:ident, $var:ident, $count:expr}, $({$l_ty:ident, $l_var:ident, $l_count:expr},)*) => {
-        impl_into_args!{@impl $count, {$ty, $var, $count}, $({$l_ty, $l_var, $l_count},)*}
-        impl_into_args!{$({$l_ty, $l_var, $l_count},)*}
+    ({$ty:ident, $value:ident, $count:expr}, $({$l_ty:ident, $l_value:ident, $l_count:expr},)*) => {
+        impl_into_args!{@impl $count, {$ty, $value, $count}, $({$l_ty, $l_value, $l_count},)*}
+        impl_into_args!{$({$l_ty, $l_value, $l_count},)*}
     };
 
-    (@impl $count:expr, $({$ty:ident, $var:ident, $ignore_count:expr},)*) => {
+    (@impl $count:expr, $({$ty:ident, $value:ident, $ignore_count:expr},)*) => {
         impl<$($ty,)*> IntoArgs for ($($ty,)*)
         where
             $($ty: UnsafeToValue + std::fmt::Debug,)*
         {
             #[allow(unused)]
-            unsafe fn into_args(self, vm: &mut Vm) -> Result<(), VmError> {
-                let ($($var,)*) = self;
-                impl_into_args!(@push vm, [$($var)*]);
+            unsafe fn into_args(self, stack: &mut Stack) -> Result<(), VmError> {
+                let ($($value,)*) = self;
+                impl_into_args!(@push stack, [$($value)*]);
                 Ok(())
             }
 
@@ -161,15 +162,15 @@ macro_rules! impl_into_args {
         }
     };
 
-    (@push $vm:ident, [] $($var:ident)*) => {
+    (@push $stack:ident, [] $($value:ident)*) => {
         $(
-            let $var = $var.unsafe_to_value()?;
-            $vm.push($var);
+            let $value = $value.unsafe_to_value()?;
+            $stack.push($value);
         )*
     };
 
-    (@push $vm:ident, [$first:ident $($rest:ident)*] $($var:ident)*) => {
-        impl_into_args!(@push $vm, [$($rest)*] $first $($var)*)
+    (@push $vm:ident, [$first:ident $($rest:ident)*] $($value:ident)*) => {
+        impl_into_args!(@push $vm, [$($rest)*] $first $($value)*)
     };
 }
 
@@ -188,12 +189,12 @@ macro_rules! impl_from_value_tuple_vec {
     () => {
     };
 
-    ({$ty:ident, $var:ident, $count:expr}, $({$l_ty:ident, $l_var:ident, $l_count:expr},)*) => {
-        impl_from_value_tuple_vec!{@impl $count, {$ty, $var, $count}, $({$l_ty, $l_var, $l_count},)*}
-        impl_from_value_tuple_vec!{$({$l_ty, $l_var, $l_count},)*}
+    ({$ty:ident, $value:ident, $count:expr}, $({$l_ty:ident, $l_value:ident, $l_count:expr},)*) => {
+        impl_from_value_tuple_vec!{@impl $count, {$ty, $value, $count}, $({$l_ty, $l_value, $l_count},)*}
+        impl_from_value_tuple_vec!{$({$l_ty, $l_value, $l_count},)*}
     };
 
-    (@impl $count:expr, $({$ty:ident, $var:ident, $ignore_count:expr},)*) => {
+    (@impl $count:expr, $({$ty:ident, $value:ident, $ignore_count:expr},)*) => {
         impl<$($ty,)*> FromValue for VecTuple<($($ty,)*)>
         where
             $($ty: FromValue,)*
@@ -213,7 +214,7 @@ macro_rules! impl_from_value_tuple_vec {
                 let mut it = vec.into_iter();
 
                 $(
-                    let $var: $ty = match it.next() {
+                    let $value: $ty = match it.next() {
                         Some(value) => <$ty>::from_value(value)?,
                         None => {
                             return Err(VmError::IterationError);
@@ -221,7 +222,7 @@ macro_rules! impl_from_value_tuple_vec {
                     };
                 )*
 
-                Ok(VecTuple(($($var,)*)))
+                Ok(VecTuple(($($value,)*)))
             }
         }
     };

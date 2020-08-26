@@ -4,6 +4,7 @@ use crate::future::SelectFuture;
 use crate::hash::Hash;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::shared::{Shared, StrongMut};
+use crate::stack::{Stack, StackError};
 use crate::unit::{CompilationUnit, UnitFnKind};
 use crate::value::{Object, TypedObject, TypedTuple, Value, ValueTypeInfo};
 use std::any;
@@ -73,6 +74,13 @@ pub enum VmError {
     Panic {
         /// The reason for the panic.
         reason: Panic,
+    },
+    /// Error raised when interacting with the stack.
+    #[error("stack error: {error}")]
+    StackError {
+        /// The source error.
+        #[from]
+        error: StackError,
     },
     /// Trying to access an inaccessible reference.
     #[error("failed to access value: {error}")]
@@ -157,9 +165,6 @@ pub enum VmError {
         /// The encountered argument.
         actual: ValueTypeInfo,
     },
-    /// Attempt to access out-of-bounds stack item.
-    #[error("tried to access an out-of-bounds stack entry")]
-    StackOutOfBounds,
     /// Indicates that a static string is missing for the given slot.
     #[error("static string slot `{slot}` does not exist")]
     MissingStaticString {
@@ -313,15 +318,6 @@ pub enum VmError {
     /// Internal error that happens when we run out of items in a list.
     #[error("unexpectedly ran out of items to iterate over")]
     IterationError,
-    /// stack is empty
-    #[error("stack is empty")]
-    StackEmpty,
-    /// Attempt to pop outside of current frame offset.
-    #[error("attempted to pop beyond current stack frame `{frame}`")]
-    PopOutOfBounds {
-        /// CallFrame offset that we tried to pop.
-        frame: usize,
-    },
     /// Error raised when we expect a specific external type but got another.
     #[error("expected slot `{expected}`, but found `{actual}`")]
     UnexpectedValueType {
@@ -467,14 +463,6 @@ pub enum VmError {
         /// Number type we tried to convert to.
         to: &'static str,
     },
-    /// We encountered a corrupted stack frame.
-    #[error("stack size `{stack_top}` starts before the current stack frame `{frame_at}`")]
-    CorruptedStackFrame {
-        /// The size of the stack.
-        stack_top: usize,
-        /// The location of the stack frame.
-        frame_at: usize,
-    },
     /// Error raised when the branch register is empty.
     #[error("branch register empty")]
     BranchEmpty,
@@ -541,7 +529,7 @@ macro_rules! numeric_ops {
     ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
             (Value::Integer($a), Value::Integer($b)) => {
-                $vm.push(Value::Integer({
+                $vm.stack.push(Value::Integer({
                     match $a.$checked_op($b) {
                         Some(value) => value,
                         None => return Err(VmError::$error),
@@ -549,7 +537,7 @@ macro_rules! numeric_ops {
                 }));
             },
             (Value::Float($a), Value::Float($b)) => {
-                $vm.push(Value::Float(check_float!($a $op $b, $error)));
+                $vm.stack.push(Value::Float(check_float!($a $op $b, $error)));
             },
             (lhs, rhs) => {
                 let ty = lhs.value_type()?;
@@ -566,9 +554,9 @@ macro_rules! numeric_ops {
                     }
                 };
 
-                $vm.push(rhs);
-                $vm.push(lhs);
-                handler($vm, 1)?;
+                $vm.stack.push(rhs);
+                $vm.stack.push(lhs);
+                handler(&mut $vm.stack, 1)?;
             },
         }
     }
@@ -602,10 +590,10 @@ macro_rules! assign_ops {
                     }
                 };
 
-                $vm.push(rhs);
-                $vm.push(lhs.clone());
-                handler($vm, 1)?;
-                $vm.pop()?;
+                $vm.stack.push(rhs);
+                $vm.stack.push(lhs.clone());
+                handler(&mut $vm.stack, 1)?;
+                $vm.stack.pop()?;
                 lhs
             }
         }
@@ -625,109 +613,6 @@ struct CallFrame {
     /// I.e. a function should not be able to manipulate the size of any other
     /// stack than its own.
     stack_top: usize,
-}
-
-#[derive(Debug)]
-pub struct Stack {
-    /// The current stack of values.
-    stack: Vec<Value>,
-    /// The top of the current stack frame.
-    stack_top: usize,
-}
-
-impl Stack {
-    /// Construct a new stack.
-    pub fn new() -> Self {
-        Self {
-            stack: Vec::new(),
-            stack_top: 0,
-        }
-    }
-
-    /// Clear the current stack.
-    pub fn clear(&mut self) {
-        self.stack.clear();
-        self.stack_top = 0;
-    }
-
-    /// Peek the top of the stack.
-    fn peek(&mut self) -> Result<&Value, VmError> {
-        self.stack.last().ok_or_else(|| VmError::StackEmpty)
-    }
-
-    /// Get the last position on the stack.
-    pub fn last(&self) -> Result<&Value, VmError> {
-        self.stack.last().ok_or_else(|| VmError::StackEmpty)
-    }
-
-    /// Access the value at the given frame offset.
-    fn at_offset(&self, offset: usize) -> Result<&Value, VmError> {
-        self.stack_top
-            .checked_add(offset)
-            .and_then(|n| self.stack.get(n))
-            .ok_or_else(|| VmError::StackOutOfBounds)
-    }
-
-    /// Get the offset at the given location.
-    fn at_offset_mut(&mut self, offset: usize) -> Result<&mut Value, VmError> {
-        let n = match self.stack_top.checked_add(offset) {
-            Some(n) => n,
-            None => return Err(VmError::StackOutOfBounds),
-        };
-
-        match self.stack.get_mut(n) {
-            Some(value) => Ok(value),
-            None => Err(VmError::StackOutOfBounds),
-        }
-    }
-
-    /// Push an unmanaged reference.
-    ///
-    /// The reference count of the value being referenced won't be modified.
-    pub fn push(&mut self, value: Value) {
-        self.stack.push(value);
-    }
-
-    /// Pop a reference to a value from the stack.
-    pub fn pop(&mut self) -> Result<Value, VmError> {
-        if self.stack.len() == self.stack_top {
-            return Err(VmError::PopOutOfBounds {
-                frame: self.stack_top,
-            });
-        }
-
-        self.stack.pop().ok_or_else(|| VmError::StackEmpty)
-    }
-
-    /// Pop the given number of elements from the stack.
-    pub fn popn(&mut self, count: usize) -> Result<(), VmError> {
-        if self.stack.len().saturating_sub(self.stack_top) < count {
-            return Err(VmError::PopOutOfBounds {
-                frame: self.stack_top,
-            });
-        }
-
-        for _ in 0..count {
-            self.stack.pop();
-        }
-
-        Ok(())
-    }
-
-    /// Test if the stack is empty.
-    pub fn is_empty(&self) -> bool {
-        self.stack.is_empty()
-    }
-
-    /// Get the length of the stack.
-    pub fn len(&self) -> usize {
-        self.stack.len()
-    }
-
-    /// Iterate over the stack.
-    pub fn iter(&self) -> impl Iterator<Item = &Value> + '_ {
-        self.stack.iter()
-    }
 }
 
 /// A stack which references variables indirectly from a slab.
@@ -770,16 +655,6 @@ impl Vm {
         self.exited = false;
         self.stack.clear();
         self.call_frames.clear();
-    }
-
-    /// Push dynamic a value on the stack.
-    pub fn push(&mut self, value: Value) {
-        self.stack.push(value);
-    }
-
-    /// Pop a dynamic value from the stack.
-    pub fn pop(&mut self) -> Result<Value, VmError> {
-        self.stack.pop()
     }
 
     /// Access the current instruction pointer.
@@ -846,7 +721,7 @@ impl Vm {
         // ensuring that the task won't outlive any potentially passed in
         // references.
         unsafe {
-            args.into_args(self)?;
+            args.into_args(&mut self.stack)?;
         }
 
         Ok(Task {
@@ -871,7 +746,7 @@ impl Vm {
     }
 
     async fn op_await(&mut self) -> Result<(), VmError> {
-        let value = self.pop()?;
+        let value = self.stack.pop()?;
 
         let mut future = match &value {
             Value::Future(future) => future.get_mut()?,
@@ -938,16 +813,7 @@ impl Vm {
 
     /// Pop a number of values from the stack.
     fn op_popn(&mut self, n: usize) -> Result<(), VmError> {
-        if self.stack.len().saturating_sub(self.stack.stack_top) < n {
-            return Err(VmError::PopOutOfBounds {
-                frame: self.stack.stack_top,
-            });
-        }
-
-        for _ in 0..n {
-            self.stack.pop()?;
-        }
-
+        self.stack.popn(n)?;
         Ok(())
     }
 
@@ -990,7 +856,7 @@ impl Vm {
     fn op_clean(&mut self, n: usize) -> Result<(), VmError> {
         let value = self.stack.pop()?;
         self.op_popn(n)?;
-        self.push(value);
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1027,45 +893,40 @@ impl Vm {
     fn op_gt(&mut self) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
-        self.push(Value::Bool(primitive_ops!(self, a > b)));
+        self.stack.push(Value::Bool(primitive_ops!(self, a > b)));
         Ok(())
     }
 
     fn op_gte(&mut self) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
-        self.push(Value::Bool(primitive_ops!(self, a >= b)));
+        self.stack.push(Value::Bool(primitive_ops!(self, a >= b)));
         Ok(())
     }
 
     fn op_lt(&mut self) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
-        self.push(Value::Bool(primitive_ops!(self, a < b)));
+        self.stack.push(Value::Bool(primitive_ops!(self, a < b)));
         Ok(())
     }
 
     fn op_lte(&mut self) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
-        self.push(Value::Bool(primitive_ops!(self, a <= b)));
+        self.stack.push(Value::Bool(primitive_ops!(self, a <= b)));
         Ok(())
     }
 
     /// Push a new call frame.
     fn push_call_frame(&mut self, new_ip: usize, args: usize) -> Result<(), VmError> {
-        let offset = self
-            .stack
-            .len()
-            .checked_sub(args)
-            .ok_or_else(|| VmError::StackOutOfBounds)?;
+        let stack_top = self.stack.push_stack_top(args)?;
 
         self.call_frames.push(CallFrame {
             ip: self.ip,
-            stack_top: self.stack.stack_top,
+            stack_top,
         });
 
-        self.stack.stack_top = offset;
         self.ip = new_ip;
         Ok(())
     }
@@ -1088,7 +949,7 @@ impl Vm {
         let mut tuple = Vec::new();
 
         for _ in 0..args {
-            tuple.push(self.pop()?);
+            tuple.push(self.stack.pop()?);
         }
 
         let typed_tuple = Shared::new(TypedTuple {
@@ -1101,21 +962,15 @@ impl Vm {
 
     /// Pop a call frame and return it.
     fn pop_call_frame(&mut self) -> Result<bool, VmError> {
-        // Assert that the stack frame has been restored to the previous top
-        // at the point of return.
-        if self.stack.len() != self.stack.stack_top {
-            return Err(VmError::CorruptedStackFrame {
-                stack_top: self.stack.len(),
-                frame_at: self.stack.stack_top,
-            });
-        }
-
         let frame = match self.call_frames.pop() {
             Some(frame) => frame,
-            None => return Ok(true),
+            None => {
+                self.stack.check_stack_top()?;
+                return Ok(true);
+            }
         };
 
-        self.stack.stack_top = frame.stack_top;
+        self.stack.pop_stack_top(frame.stack_top)?;
         self.ip = frame.ip;
         Ok(false)
     }
@@ -1218,7 +1073,7 @@ impl Vm {
     fn op_eq(&mut self) -> Result<(), VmError> {
         let a = self.stack.pop()?;
         let b = self.stack.pop()?;
-        self.push(Value::Bool(self.value_ptr_eq(&a, &b)?));
+        self.stack.push(Value::Bool(self.value_ptr_eq(&a, &b)?));
         Ok(())
     }
 
@@ -1227,7 +1082,7 @@ impl Vm {
     fn op_neq(&mut self) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
-        self.push(Value::Bool(!self.value_ptr_eq(&a, &b)?));
+        self.stack.push(Value::Bool(!self.value_ptr_eq(&a, &b)?));
         Ok(())
     }
 
@@ -1290,7 +1145,7 @@ impl Vm {
         }
 
         let value = Value::Vec(Shared::new(vec));
-        self.push(value);
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1305,7 +1160,7 @@ impl Vm {
 
         let tuple = tuple.into_boxed_slice();
         let value = Value::Tuple(Shared::new(tuple));
-        self.push(value);
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1321,7 +1176,7 @@ impl Vm {
             }
         };
 
-        self.push(value);
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1422,10 +1277,10 @@ impl Vm {
             }
         };
 
-        self.push(value);
-        self.push(index);
-        self.push(target);
-        handler(self, 2)?;
+        self.stack.push(value);
+        self.stack.push(index);
+        self.stack.push(target);
+        handler(&mut self.stack, 2)?;
         Ok(())
     }
 
@@ -1433,14 +1288,14 @@ impl Vm {
     fn op_return(&mut self) -> Result<(), VmError> {
         let return_value = self.stack.pop()?;
         self.exited = self.pop_call_frame()?;
-        self.push(return_value);
+        self.stack.push(return_value);
         Ok(())
     }
 
     #[inline]
     fn op_return_unit(&mut self) -> Result<(), VmError> {
         self.exited = self.pop_call_frame()?;
-        self.push(Value::Unit);
+        self.stack.push(Value::Unit);
         Ok(())
     }
 
@@ -1476,7 +1331,7 @@ impl Vm {
             let value = target.get_ref()?.get(index).cloned();
 
             let value = Value::Option(Shared::new(value));
-            self.push(value);
+            self.stack.push(value);
             return Ok(());
         }
 
@@ -1496,9 +1351,9 @@ impl Vm {
             }
         };
 
-        self.push(index);
-        self.push(target);
-        handler(self, 1)?;
+        self.stack.push(index);
+        self.stack.push(target);
+        handler(&mut self.stack, 1)?;
         Ok(())
     }
 
@@ -1524,7 +1379,7 @@ impl Vm {
             }
         };
 
-        self.push(value);
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1548,7 +1403,7 @@ impl Vm {
             }
         };
 
-        self.push(result?);
+        self.stack.push(result?);
         Ok(())
     }
 
@@ -1590,7 +1445,7 @@ impl Vm {
             }
         };
 
-        self.push(value);
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1609,7 +1464,7 @@ impl Vm {
         }
 
         let value = Value::Object(Shared::new(object));
-        self.push(value);
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1634,7 +1489,7 @@ impl Vm {
 
         let object = TypedObject { ty, object };
         let value = Value::TypedObject(Shared::new(object));
-        self.push(value);
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1677,7 +1532,7 @@ impl Vm {
             }
         }
 
-        self.push(Value::String(Shared::new(buf)));
+        self.stack.push(Value::String(Shared::new(buf)));
         Ok(())
     }
 
@@ -1739,11 +1594,11 @@ impl Vm {
         match (a, b) {
             (Value::TypedTuple(typed_tuple), Value::Type(hash)) => {
                 let matches = typed_tuple.get_ref()?.ty == hash;
-                self.push(Value::Bool(matches))
+                self.stack.push(Value::Bool(matches))
             }
             (Value::TypedObject(typed_object), Value::Type(hash)) => {
                 let matches = typed_object.get_ref()?.ty == hash;
-                self.push(Value::Bool(matches))
+                self.stack.push(Value::Bool(matches))
             }
             (Value::Option(option), Value::Type(hash)) => {
                 let option_types = *context
@@ -1757,7 +1612,7 @@ impl Vm {
                     None => hash == option_types.none_type,
                 };
 
-                self.push(Value::Bool(matches))
+                self.stack.push(Value::Bool(matches))
             }
             (Value::Result(result), Value::Type(hash)) => {
                 let result_types = *context
@@ -1771,7 +1626,7 @@ impl Vm {
                     Err(..) => hash == result_types.err_type,
                 };
 
-                self.push(Value::Bool(matches))
+                self.stack.push(Value::Bool(matches))
             }
             (a, Value::Type(hash)) => {
                 let a = a.value_type()?;
@@ -1786,7 +1641,7 @@ impl Vm {
                     }
                 };
 
-                self.push(Value::Bool(a == value_type));
+                self.stack.push(Value::Bool(a == value_type));
             }
             (a, b) => {
                 let a = a.type_info()?;
@@ -1807,7 +1662,7 @@ impl Vm {
     fn op_is_err(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        self.push(Value::Bool(match value {
+        self.stack.push(Value::Bool(match value {
             Value::Result(result) => result.get_ref()?.is_err(),
             actual => {
                 return Err(VmError::ExpectedResult {
@@ -1826,7 +1681,7 @@ impl Vm {
     fn op_is_none(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        self.push(Value::Bool(match value {
+        self.stack.push(Value::Bool(match value {
             Value::Option(option) => option.get_ref()?.is_none(),
             actual => {
                 return Err(VmError::ExpectedOption {
@@ -1844,7 +1699,7 @@ impl Vm {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
         let value = boolean_ops!(self, a && b);
-        self.push(Value::Bool(value));
+        self.stack.push(Value::Bool(value));
         Ok(())
     }
 
@@ -1854,7 +1709,7 @@ impl Vm {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
         let value = boolean_ops!(self, a || b);
-        self.push(Value::Bool(value));
+        self.stack.push(Value::Bool(value));
         Ok(())
     }
 
@@ -1884,7 +1739,7 @@ impl Vm {
 
     #[inline]
     fn op_match_tuple(&mut self, tuple_like: bool, len: usize, exact: bool) -> Result<(), VmError> {
-        let value = self.pop()?;
+        let value = self.stack.pop()?;
 
         let result = if exact {
             self.on_tuple(&value, tuple_like, |tuple| tuple.len() == len)?
@@ -1892,7 +1747,7 @@ impl Vm {
             self.on_tuple(&value, tuple_like, |tuple| tuple.len() >= len)?
         };
 
-        self.push(Value::Bool(result.unwrap_or_default()));
+        self.stack.push(Value::Bool(result.unwrap_or_default()));
         Ok(())
     }
 
@@ -1938,7 +1793,7 @@ impl Vm {
     {
         let value = self.stack.pop()?;
 
-        self.push(Value::Bool(match value {
+        self.stack.push(Value::Bool(match value {
             Value::Vec(vec) => f(&*vec.get_ref()?),
             _ => false,
         }));
@@ -2049,7 +1904,7 @@ impl Vm {
                     .lookup(hash)
                     .ok_or_else(|| VmError::MissingFunction { hash })?;
 
-                handler(self, args)?;
+                handler(&mut self.stack, args)?;
             }
         }
 
@@ -2089,7 +1944,7 @@ impl Vm {
                     }
                 };
 
-                handler(self, args)?;
+                handler(&mut self.stack, args)?;
             }
         }
 
@@ -2224,10 +2079,10 @@ impl Vm {
                     self.op_clean(count)?;
                 }
                 Inst::Integer { number } => {
-                    self.push(Value::Integer(number));
+                    self.stack.push(Value::Integer(number));
                 }
                 Inst::Float { number } => {
-                    self.push(Value::Float(number));
+                    self.stack.push(Value::Float(number));
                 }
                 Inst::Copy { offset } => {
                     self.op_copy(offset)?;
@@ -2272,10 +2127,10 @@ impl Vm {
                     self.op_jump_if_branch(branch, offset, &mut update_ip)?;
                 }
                 Inst::Unit => {
-                    self.push(Value::Unit);
+                    self.stack.push(Value::Unit);
                 }
                 Inst::Bool { value } => {
-                    self.push(Value::Bool(value));
+                    self.stack.push(Value::Bool(value));
                 }
                 Inst::Vec { count } => {
                     self.op_vec(count)?;
@@ -2338,7 +2193,7 @@ impl Vm {
                 Inst::EqByte { byte } => {
                     let value = self.stack.pop()?;
 
-                    self.push(Value::Bool(match value {
+                    self.stack.push(Value::Bool(match value {
                         Value::Byte(actual) => actual == byte,
                         _ => false,
                     }));
@@ -2346,7 +2201,7 @@ impl Vm {
                 Inst::EqCharacter { character } => {
                     let value = self.stack.pop()?;
 
-                    self.push(Value::Bool(match value {
+                    self.stack.push(Value::Bool(match value {
                         Value::Char(actual) => actual == character,
                         _ => false,
                     }));
@@ -2354,7 +2209,7 @@ impl Vm {
                 Inst::EqInteger { integer } => {
                     let value = self.stack.pop()?;
 
-                    self.push(Value::Bool(match value {
+                    self.stack.push(Value::Bool(match value {
                         Value::Integer(actual) => actual == integer,
                         _ => false,
                     }));

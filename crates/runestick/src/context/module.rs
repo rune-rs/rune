@@ -2,8 +2,9 @@ use crate::collections::HashMap;
 use crate::future::Future;
 use crate::hash::Hash;
 use crate::reflection::{ReflectValueType, ToValue, UnsafeFromValue};
+use crate::stack::Stack;
 use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::{Vm, VmError};
+use crate::vm::VmError;
 use std::any::type_name;
 use std::future;
 
@@ -206,7 +207,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler: Box<Handler> = Box::new(move |stack, args| f.fn_call(stack, args));
         self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
@@ -238,7 +239,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler: Box<Handler> = Box::new(move |stack, args| f.fn_call(stack, args));
         self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
@@ -247,7 +248,7 @@ impl Module {
     /// machine.
     pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<(), ContextError>
     where
-        for<'vm> F: 'static + Copy + Fn(&'vm mut Vm, usize) -> Result<(), VmError> + Send + Sync,
+        F: 'static + Copy + Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync,
         N: IntoIterator,
         N::Item: AsRef<str>,
     {
@@ -257,7 +258,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| f(vm, args));
+        let handler: Box<Handler> = Box::new(move |stack, args| f(stack, args));
         self.functions.insert(name, (handler, None));
         Ok(())
     }
@@ -311,7 +312,7 @@ impl Module {
             });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler: Box<Handler> = Box::new(move |stack, args| f.fn_call(stack, args));
 
         let instance_function = InstanceFunction {
             handler,
@@ -372,7 +373,7 @@ impl Module {
             });
         }
 
-        let handler: Box<Handler> = Box::new(move |vm, args| f.vm_call(vm, args));
+        let handler: Box<Handler> = Box::new(move |stack, args| f.fn_call(stack, args));
 
         let instance_function = InstanceFunction {
             handler,
@@ -443,9 +444,10 @@ where
         Constructor: Function<C, Return = Match::Owned>,
     {
         let name = Item::of(self.name);
-        let tuple_match: Box<Handler> = Box::new(move |vm, args| tuple_match.vm_call(vm, args));
+        let tuple_match: Box<Handler> =
+            Box::new(move |stack, args| tuple_match.fn_call(stack, args));
         let tuple_constructor: Box<Handler> =
-            Box::new(move |vm, args| tuple_constructor.vm_call(vm, args));
+            Box::new(move |stack, args| tuple_constructor.fn_call(stack, args));
         let value_type = Match::instance_value_type();
         let value_type_info = Match::instance_value_type_info();
 
@@ -469,7 +471,7 @@ pub trait Function<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
+    fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_function][Context::async_function] function.
@@ -480,7 +482,7 @@ pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
+    fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [inst_fn][Context::inst_fn] function.
@@ -499,7 +501,7 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     fn instance_value_type_info() -> ValueTypeInfo;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
+    fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [async_inst_fn][Context::async_inst_fn] function.
@@ -518,7 +520,7 @@ pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
     fn instance_value_type_info() -> ValueTypeInfo;
 
     /// Perform the vm call.
-    fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError>;
+    fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
 macro_rules! impl_register {
@@ -545,18 +547,18 @@ macro_rules! impl_register {
                 $count
             }
 
-            fn vm_call(
+            fn fn_call(
                 self,
-                vm: &mut Vm,
+                stack: &mut Stack,
                 args: usize
             ) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
-                $(let $var = vm.pop()?;)*
+                $(let $var = stack.pop()?;)*
 
-                // Safety: We hold a reference to the Vm, so we can
+                // Safety: We hold a reference to the stack, so we can
                 // guarantee that it won't be modified.
                 //
-                // The scope is also necessary, since we mutably access `vm`
+                // The scope is also necessary, since we mutably access `stack`
                 // when we return below.
                 #[allow(unused)]
                 let ret = unsafe {
@@ -564,7 +566,7 @@ macro_rules! impl_register {
                     self($(<$ty>::to_arg($var.0),)*)
                 };
 
-                impl_register!{@return vm, ret, Return}
+                impl_register!{@return stack, ret, Return}
                 Ok(())
             }
         }
@@ -582,13 +584,13 @@ macro_rules! impl_register {
                 $count
             }
 
-            fn vm_call(
+            fn fn_call(
                 self,
-                vm: &mut Vm,
+                stack: &mut Stack,
                 args: usize
             ) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
-                $(let $var = vm.pop()?;)*
+                $(let $var = stack.pop()?;)*
 
                 // Safety: Future is owned and will only be called within the
                 // context of the virtual machine, which will provide
@@ -607,7 +609,7 @@ macro_rules! impl_register {
                     Future::new_unchecked(Box::into_raw(future))
                 };
 
-                impl_register!{@return vm, ret, Return}
+                impl_register!{@return stack, ret, Return}
                 Ok(())
             }
         }
@@ -635,15 +637,15 @@ macro_rules! impl_register {
                 Instance::value_type_info()
             }
 
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
+            fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
-                let inst = vm.pop()?;
-                $(let $var = vm.pop()?;)*
+                let inst = stack.pop()?;
+                $(let $var = stack.pop()?;)*
 
-                // Safety: We hold a reference to the Vm, so we can
+                // Safety: We hold a reference to the stack, so we can
                 // guarantee that it won't be modified.
                 //
-                // The scope is also necessary, since we mutably access `vm`
+                // The scope is also necessary, since we mutably access `stack`
                 // when we return below.
                 #[allow(unused)]
                 let ret = unsafe {
@@ -651,7 +653,7 @@ macro_rules! impl_register {
                     self(Instance::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*)
                 };
 
-                impl_register!{@return vm, ret, Return}
+                impl_register!{@return stack, ret, Return}
                 Ok(())
             }
         }
@@ -680,10 +682,10 @@ macro_rules! impl_register {
                 Instance::value_type_info()
             }
 
-            fn vm_call(self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
+            fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
-                let inst = vm.pop()?;
-                $(let $var = vm.pop()?;)*
+                let inst = stack.pop()?;
+                $(let $var = stack.pop()?;)*
 
                 // Safety: Future is owned and will only be called within the
                 // context of the virtual machine, which will provide
@@ -702,13 +704,13 @@ macro_rules! impl_register {
                     Future::new_unchecked(Box::into_raw(future))
                 };
 
-                impl_register!{@return vm, ret, Return}
+                impl_register!{@return stack, ret, Return}
                 Ok(())
             }
         }
     };
 
-    (@return $vm:ident, $ret:ident, $ty:ty) => {
+    (@return $stack:ident, $ret:ident, $ty:ty) => {
         let $ret = match $ret.to_value() {
             Ok($ret) => $ret,
             Err(error) => {
@@ -719,7 +721,7 @@ macro_rules! impl_register {
             }
         };
 
-        $vm.push($ret);
+        $stack.push($ret);
     };
 
     // Expand to function variable bindings.
