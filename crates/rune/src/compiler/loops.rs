@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::compiler::{NeedsValue, Result};
+use crate::compiler::{Needs, Result};
 use crate::error::CompileError;
 use crate::source::Source;
 use runestick::unit::{Label, Span};
@@ -17,7 +17,7 @@ pub(super) struct Loop {
     /// The number of variables observed at the start of the loop.
     pub(super) total_var_count: usize,
     /// If the loop needs a value.
-    pub(super) needs_value: NeedsValue,
+    pub(super) needs: Needs,
     /// Locals to drop when breaking.
     pub(super) drop: Option<usize>,
 }

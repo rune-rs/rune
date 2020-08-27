@@ -97,7 +97,9 @@ impl Scope {
         offset
     }
 
-    /// Insert a new local, and return the old one if there's a conflict.
+    /// Declare an anonymous variable.
+    ///
+    /// This is used if cleanup is required in the middle of an expression.
     pub(super) fn decl_anon(&mut self, span: Span) -> usize {
         let offset = self.total_var_count;
 
@@ -106,6 +108,25 @@ impl Scope {
         self.total_var_count += 1;
         self.local_var_count += 1;
         offset
+    }
+
+    /// Undeclare the last anonymous variable.
+    pub(super) fn undecl_anon(&mut self, n: usize, span: Span) -> Result<(), CompileError> {
+        for _ in 0..n {
+            self.anon.pop();
+        }
+
+        self.total_var_count = self
+            .total_var_count
+            .checked_sub(n)
+            .ok_or_else(|| CompileError::internal("totals out of bounds", span))?;
+
+        self.local_var_count = self
+            .local_var_count
+            .checked_sub(n)
+            .ok_or_else(|| CompileError::internal("locals out of bounds", span))?;
+
+        Ok(())
     }
 
     /// Access the variable with the given name.

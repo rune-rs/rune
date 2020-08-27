@@ -68,7 +68,7 @@ pub enum BinOp {
     Lte,
     /// The dot operator.
     Dot,
-    /// The instanceof test.
+    /// The `is` test.
     Is,
     /// Assign operator.
     Assign,

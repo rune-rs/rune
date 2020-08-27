@@ -359,6 +359,12 @@ impl Expr {
                         close: parser.parse()?,
                     });
                 }
+                Kind::Try => {
+                    expr = Expr::ExprTry(ExprTry {
+                        expr: Box::new(expr),
+                        try_: parser.parse()?,
+                    });
+                }
                 _ => break,
             }
         }
@@ -376,16 +382,6 @@ impl Expr {
         let mut lookahead_tok = parser.token_peek()?;
 
         loop {
-            // NB: consume try operators.
-            while let Some(Kind::Try) = lookahead_tok.map(|t| t.kind) {
-                lhs = Expr::ExprTry(ExprTry {
-                    expr: Box::new(lhs),
-                    try_: parser.parse()?,
-                });
-
-                lookahead_tok = parser.token_peek()?;
-            }
-
             let lookahead = lookahead_tok.and_then(BinOp::from_token);
 
             let (op, token) = match lookahead {
