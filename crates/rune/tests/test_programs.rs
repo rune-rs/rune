@@ -1103,3 +1103,25 @@ fn test_complex_field_access() {
         Some(42),
     };
 }
+
+#[test]
+fn test_index_get() {
+    assert_eq! {
+        test! {
+            i64 => r#"
+            struct Named(a, b, c);
+            enum Enum { Named(a, b, c) }
+
+            fn a() { [1, 2, 3] }
+            fn b() { (2, 3, 4) }
+            fn c() { Named(3, 4, 5) }
+            fn d() { Enum::Named(4, 5, 6) }
+
+            fn main() {
+                (a())[1] + (b())[1] + (c())[1] + (d())[1] + (a()).2 + (b()).2 + (c()).2 + (d()).2
+            }
+            "#
+        },
+        32,
+    };
+}

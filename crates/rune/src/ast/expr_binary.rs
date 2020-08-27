@@ -95,8 +95,11 @@ impl BinOp {
     /// even if they have the same precedence.
     pub(super) fn is_assoc(self, other: Self) -> bool {
         match (self, other) {
+            (Self::Mul, Self::Mul) => true,
             (Self::Mul, Self::Div) => true,
             (Self::Div, Self::Mul) => true,
+            (Self::Add, Self::Add) => true,
+            (Self::Sub, Self::Sub) => true,
             (Self::Add, Self::Sub) => true,
             (Self::Sub, Self::Add) => true,
             _ => false,
