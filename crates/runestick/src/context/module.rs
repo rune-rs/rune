@@ -13,7 +13,9 @@ use crate::context::{ContextError, Handler, IntoInstFnHash};
 
 /// Specialized information on `Result` types.
 pub struct ResultTypes {
-    ///Item of the `Ok` variant.
+    /// The result type.
+    pub result_type: Item,
+    /// Item of the `Ok` variant.
     pub ok_type: Item,
     ///Item of the `Err` variant.
     pub err_type: Item,
@@ -21,6 +23,8 @@ pub struct ResultTypes {
 
 /// Specialized information on `Option` types.
 pub struct OptionTypes {
+    /// Item of the option type.
+    pub option_type: Item,
     /// Item of the `Some` variant.
     pub some_type: Item,
     /// Item of the `None` variant.
@@ -119,11 +123,12 @@ impl Module {
             return Err(ContextError::OptionAlreadyPresent);
         }
 
-        let item = Item::of(name);
+        let option_type = Item::of(name);
 
         self.option_types = Some(OptionTypes {
-            none_type: item.extended("None"),
-            some_type: item.extended("Some"),
+            none_type: option_type.extended("None"),
+            some_type: option_type.extended("Some"),
+            option_type,
         });
 
         Ok(())
@@ -139,11 +144,12 @@ impl Module {
             return Err(ContextError::ResultAlreadyPresent);
         }
 
-        let item = Item::of(name);
+        let result_type = Item::of(name);
 
         self.result_types = Some(ResultTypes {
-            ok_type: item.extended("Ok"),
-            err_type: item.extended("Err"),
+            ok_type: result_type.extended("Ok"),
+            err_type: result_type.extended("Err"),
+            result_type,
         });
 
         Ok(())

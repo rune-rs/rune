@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::collections::HashMap;
+use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
@@ -68,11 +68,13 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
 
         for en in file.enums {
             let name = en.name.resolve(source)?;
+            let enum_item = Item::of(&[name]);
+            query.new_enum(enum_item.clone());
 
             for (variant, body, _) in en.variants {
                 let variant = variant.resolve(source)?;
                 let item = Item::of(&[name, variant]);
-                query.new_variant(item, body);
+                query.new_variant(item, enum_item.clone(), body);
             }
         }
 
@@ -499,34 +501,65 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     }
                 };
 
-                let ty = match meta {
-                    Meta::MetaType(ty) => ty,
+                match meta {
+                    Meta::MetaObject { object } => {
+                        check_object_fields(object.fields.as_ref(), check_keys, span, item)?;
+
+                        let hash = Hash::of_type(&object.item);
+                        self.asm.push(Inst::TypedObject { hash, slot }, span);
+                    }
+                    Meta::MetaObjectVariant { enum_item, object } => {
+                        check_object_fields(object.fields.as_ref(), check_keys, span, item)?;
+
+                        let enum_hash = Hash::of_type(&enum_item);
+                        let hash = Hash::of_type(&object.item);
+
+                        self.asm.push(
+                            Inst::VariantObject {
+                                enum_hash,
+                                hash,
+                                slot,
+                            },
+                            span,
+                        );
+                    }
                     _ => {
                         return Err(CompileError::UnsupportedLitObject { span, item });
                     }
                 };
-
-                let mut fields = ty.fields.clone();
-
-                for (field, span) in check_keys {
-                    if !fields.remove(&field) {
-                        return Err(CompileError::LitObjectNotField { span, field, item });
-                    }
-                }
-
-                for field in fields {
-                    return Err(CompileError::LitObjectMissingField { span, field, item });
-                }
-
-                let ty = Hash::of_type(&item);
-                self.asm.push(Inst::TypedObject { ty, slot }, span);
             }
             ast::LitObjectIdent::Anonymous(..) => {
                 self.asm.push(Inst::Object { slot }, span);
             }
         }
 
-        Ok(())
+        return Ok(());
+
+        fn check_object_fields(
+            fields: Option<&HashSet<String>>,
+            check_keys: Vec<(String, Span)>,
+            span: Span,
+            item: Item,
+        ) -> Result<(), CompileError> {
+            let mut fields = match fields {
+                Some(fields) => fields.clone(),
+                None => {
+                    return Err(CompileError::MissingType { span, item });
+                }
+            };
+
+            for (field, span) in check_keys {
+                if !fields.remove(&field) {
+                    return Err(CompileError::LitObjectNotField { span, field, item });
+                }
+            }
+
+            for field in fields {
+                return Err(CompileError::LitObjectMissingField { span, field, item });
+            }
+
+            Ok(())
+        }
     }
 
     /// Encode a char literal, like `'a'`.
@@ -1246,12 +1279,17 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let meta = match self.lookup_meta(&item, span)? {
             Some(meta) => meta,
-            None => {
-                return Err(CompileError::MissingLocal {
-                    name: binding.to_owned(),
-                    span,
-                });
-            }
+            None => match needs {
+                Needs::Type => {
+                    return Err(CompileError::MissingType { span, item });
+                }
+                _ => {
+                    return Err(CompileError::MissingLocal {
+                        name: binding.to_owned(),
+                        span,
+                    });
+                }
+            },
         };
 
         self.compile_meta(item, &meta, span, needs)
@@ -1260,7 +1298,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     /// Compile an item.
     fn compile_meta(&mut self, item: Item, meta: &Meta, span: Span, needs: Needs) -> Result<()> {
         match (needs, meta) {
-            (Needs::Value, Meta::MetaTuple(tuple)) if tuple.args == 0 => {
+            (Needs::Value, Meta::MetaTuple { tuple }) if tuple.args == 0 => {
                 let hash = Hash::function(&item);
                 self.asm.push(Inst::Call { hash, args: 0 }, span);
             }
@@ -1334,20 +1372,22 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         if let Some(meta) = self.lookup_meta(&item, call_fn.name.span())? {
             match &meta {
-                Meta::MetaTuple(tuple) if tuple.args != call_fn.args.items.len() => {
-                    return Err(CompileError::UnsupportedArgumentCount {
-                        span,
-                        meta: meta.clone(),
-                        expected: tuple.args,
-                        actual: call_fn.args.items.len(),
-                    });
+                Meta::MetaTuple { tuple } | Meta::MetaTupleVariant { tuple, .. } => {
+                    if tuple.args != call_fn.args.items.len() {
+                        return Err(CompileError::UnsupportedArgumentCount {
+                            span,
+                            meta: meta.clone(),
+                            expected: tuple.args,
+                            actual: call_fn.args.items.len(),
+                        });
+                    }
+
+                    if tuple.args == 0 {
+                        let tuple = call_fn.name.span();
+                        self.warnings
+                            .remove_tuple_call_parens(span, tuple, self.context());
+                    }
                 }
-                Meta::MetaTuple(tuple) if tuple.args == 0 => {
-                    let tuple = call_fn.name.span();
-                    self.warnings
-                        .remove_tuple_call_parens(span, tuple, self.context());
-                }
-                Meta::MetaTuple(..) => (),
                 _ => {
                     return Err(CompileError::NotFunction { span });
                 }
@@ -1900,7 +1940,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
             let tuple = if let Some(meta) = self.lookup_meta(&item, path.span())? {
                 match meta {
-                    Meta::MetaTuple(tuple) => tuple,
+                    Meta::MetaTuple { tuple } => tuple,
+                    Meta::MetaTupleVariant { tuple, .. } => tuple,
                     _ => {
                         return Err(CompileError::UnsupportedMetaPattern {
                             meta: meta.clone(),
@@ -1918,7 +1959,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
             if !(tuple.args == count || count < tuple.args && is_open) {
                 return Err(CompileError::UnsupportedArgumentCount {
                     span,
-                    meta: Meta::MetaTuple(tuple.clone()),
+                    meta: Meta::MetaTuple {
+                        tuple: tuple.clone(),
+                    },
                     expected: tuple.args,
                     actual: count,
                 });
@@ -2002,9 +2045,18 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     }
                 };
 
-                let ty = match meta {
-                    Meta::MetaType(ty) => ty,
+                let object = match &meta {
+                    Meta::MetaObject { object } => object,
+                    Meta::MetaObjectVariant { object, .. } => object,
                     _ => {
+                        return Err(CompileError::UnsupportedMetaPattern { meta, span });
+                    }
+                };
+
+                let fields = match &object.fields {
+                    Some(fields) => fields,
+                    None => {
+                        // NB: might want to describe that field composition is unknown because it is an external meta item.
                         return Err(CompileError::UnsupportedMetaPattern { meta, span });
                     }
                 };
@@ -2013,7 +2065,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     let span = field.key.span();
                     let key = field.key.resolve(self.source)?;
 
-                    if !ty.fields.contains(&*key) {
+                    if !fields.contains(&*key) {
                         return Err(CompileError::LitObjectNotField {
                             span,
                             field: key.to_string(),
@@ -2083,18 +2135,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
         let tuple = match meta {
-            Meta::MetaTuple(tuple) => {
-                if tuple.args != 0 {
-                    return Err(CompileError::UnsupportedArgumentCount {
-                        meta: meta.clone(),
-                        actual: 0,
-                        expected: tuple.args,
-                        span,
-                    });
-                }
-
-                tuple
-            }
+            Meta::MetaTuple { tuple } => tuple,
+            Meta::MetaTupleVariant { tuple, .. } => tuple,
             _ => {
                 return Err(CompileError::UnsupportedMetaPattern {
                     meta: meta.clone(),
@@ -2102,6 +2144,15 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 })
             }
         };
+
+        if tuple.args != 0 {
+            return Err(CompileError::UnsupportedArgumentCount {
+                meta: meta.clone(),
+                actual: 0,
+                expected: tuple.args,
+                span,
+            });
+        }
 
         load(&mut self.asm);
         let offset = scope.decl_anon(span);

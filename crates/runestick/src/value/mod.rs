@@ -174,7 +174,7 @@ pub struct VecTuple<I>(pub I);
 #[derive(Debug)]
 pub struct TypedTuple {
     /// The type hash of the tuple.
-    pub ty: Hash,
+    pub hash: Hash,
     /// Content of the tuple.
     pub tuple: Box<[Value]>,
 }
@@ -182,7 +182,25 @@ pub struct TypedTuple {
 impl TypedTuple {
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> ValueTypeInfo {
-        ValueTypeInfo::TypedTuple(self.ty)
+        ValueTypeInfo::TypedTuple(self.hash)
+    }
+}
+
+/// A tuple with a well-defined type as a variant of an enum.
+#[derive(Debug)]
+pub struct VariantTuple {
+    /// The type hash of the enum.
+    pub enum_hash: Hash,
+    /// The variant type hash of the tuple.
+    pub hash: Hash,
+    /// Content of the tuple.
+    pub tuple: Box<[Value]>,
+}
+
+impl VariantTuple {
+    /// Get type info for the typed tuple.
+    pub fn type_info(&self) -> ValueTypeInfo {
+        ValueTypeInfo::VariantTuple(self.enum_hash, self.hash)
     }
 }
 
@@ -190,7 +208,7 @@ impl TypedTuple {
 #[derive(Debug)]
 pub struct TypedObject {
     /// The type hash of the object.
-    pub ty: Hash,
+    pub hash: Hash,
     /// Content of the object.
     pub object: Object<Value>,
 }
@@ -198,7 +216,25 @@ pub struct TypedObject {
 impl TypedObject {
     /// Get type info for the typed object.
     pub fn type_info(&self) -> ValueTypeInfo {
-        ValueTypeInfo::TypedObject(self.ty)
+        ValueTypeInfo::TypedObject(self.hash)
+    }
+}
+
+/// An object with a well-defined variant of an enum.
+#[derive(Debug)]
+pub struct VariantObject {
+    /// The type hash of the enum.
+    pub enum_hash: Hash,
+    /// The type variant hash.
+    pub hash: Hash,
+    /// Content of the object.
+    pub object: Object<Value>,
+}
+
+impl VariantObject {
+    /// Get type info for the typed object.
+    pub fn type_info(&self) -> ValueTypeInfo {
+        ValueTypeInfo::VariantObject(self.enum_hash, self.hash)
     }
 }
 
@@ -246,8 +282,12 @@ pub enum Value {
     Result(Shared<Result<Value, Value>>),
     /// A tuple with a well-defined type.
     TypedTuple(Shared<TypedTuple>),
+    /// A tuple variant with a well-defined type.
+    VariantTuple(Shared<VariantTuple>),
     /// An object with a well-defined type.
     TypedObject(Shared<TypedObject>),
+    /// An object variant with a well-defined type.
+    VariantObject(Shared<VariantObject>),
     /// An external value.
     External(Shared<Any>),
     /// A shared pointer. This is what's used when a reference is passed into
@@ -518,8 +558,26 @@ impl Value {
             Self::Future(..) => ValueType::Future,
             Self::Result(..) => ValueType::Result,
             Self::Option(..) => ValueType::Option,
-            Self::TypedObject(object) => ValueType::TypedObject(object.get_ref()?.ty),
-            Self::TypedTuple(tuple) => ValueType::TypedTuple(tuple.get_ref()?.ty),
+            Self::TypedObject(object) => ValueType::TypedObject {
+                hash: object.get_ref()?.hash,
+            },
+            Self::VariantObject(object) => {
+                let object = object.get_ref()?;
+                ValueType::VariantObject {
+                    enum_hash: object.enum_hash,
+                    hash: object.hash,
+                }
+            }
+            Self::TypedTuple(tuple) => ValueType::TypedTuple {
+                hash: tuple.get_ref()?.hash,
+            },
+            Self::VariantTuple(tuple) => {
+                let tuple = tuple.get_ref()?;
+                ValueType::VariantTuple {
+                    enum_hash: tuple.enum_hash,
+                    hash: tuple.hash,
+                }
+            }
             Self::External(any) => ValueType::External(any.get_ref()?.type_id()),
             Self::Ptr(ptr) => ValueType::External(ptr.get_ref()?.type_id()),
         })
@@ -545,7 +603,9 @@ impl Value {
             Self::Option(..) => ValueTypeInfo::Option,
             Self::Result(..) => ValueTypeInfo::Result,
             Self::TypedObject(object) => object.get_ref()?.type_info(),
+            Self::VariantObject(object) => object.get_ref()?.type_info(),
             Self::TypedTuple(tuple) => tuple.get_ref()?.type_info(),
+            Self::VariantTuple(tuple) => tuple.get_ref()?.type_info(),
             Self::External(external) => ValueTypeInfo::External(external.get_ref()?.type_name()),
             Self::Ptr(ptr) => ValueTypeInfo::External(ptr.get_ref()?.type_name()),
         })

@@ -41,8 +41,12 @@ pub enum ValueTypeInfo {
     Result,
     /// A typed object.
     TypedObject(Hash),
+    /// A typed object variant.
+    VariantObject(Hash, Hash),
     /// A typed tuple.
     TypedTuple(Hash),
+    /// A typed tuple variant.
+    VariantTuple(Hash, Hash),
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -102,8 +106,14 @@ impl fmt::Display for ValueTypeInfo {
             ValueTypeInfo::TypedObject(ty) => {
                 write!(fmt, "typed-object({})", ty)?;
             }
+            ValueTypeInfo::VariantObject(ty, variant_type) => {
+                write!(fmt, "variant-object({}, {})", ty, variant_type)?;
+            }
             ValueTypeInfo::TypedTuple(ty) => {
                 write!(fmt, "typed-tuple({})", ty)?;
+            }
+            ValueTypeInfo::VariantTuple(ty, variant_type) => {
+                write!(fmt, "variant-tuple({}, {})", ty, variant_type)?;
             }
         }
 

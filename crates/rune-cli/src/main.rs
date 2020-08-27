@@ -198,6 +198,9 @@ async fn main() -> Result<()> {
                 UnitFnKind::Tuple { .. } => {
                     println!("{} = {} (tuple)", hash, f.signature);
                 }
+                UnitFnKind::TupleVariant { .. } => {
+                    println!("{} = {} (tuple)", hash, f.signature);
+                }
             }
         }
 

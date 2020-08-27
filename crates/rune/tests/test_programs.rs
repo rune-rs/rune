@@ -1125,3 +1125,71 @@ fn test_index_get() {
         32,
     };
 }
+
+#[test]
+fn test_variant_typing() {
+    assert_eq! {
+        test! {
+            bool => r#"fn main() { Err(0) is Result }"#
+        },
+        true,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"fn main() { Ok(0) is Result }"#
+        },
+        true,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"fn main() { Err(0) is Err }"#
+        },
+        false,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"fn main() { Some(0) is Option }"#
+        },
+        true,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"fn main() { None is Option }"#
+        },
+        true,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"
+            enum Custom { A, B(a) }
+            fn main() { Custom::A is Custom }
+            "#
+        },
+        true,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"
+            enum Custom { A, B(a) }
+            fn main() { Custom::B(42) is Custom }
+            "#
+        },
+        true,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"
+            enum Custom { A, B(a) }
+            fn main() { Custom::A is Option }
+            "#
+        },
+        false,
+    };
+}

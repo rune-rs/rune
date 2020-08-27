@@ -31,6 +31,38 @@ impl fmt::Display for PanicReason {
     }
 }
 
+/// Typecheck a specific option variant.
+#[derive(Debug, Clone, Copy)]
+pub enum OptionVariant {
+    Some,
+    None,
+}
+
+impl fmt::Display for OptionVariant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Some => write!(f, "Some"),
+            Self::None => write!(f, "None"),
+        }
+    }
+}
+
+/// Typecheck a specific result variant.
+#[derive(Debug, Clone, Copy)]
+pub enum ResultVariant {
+    Ok,
+    Err,
+}
+
+impl fmt::Display for ResultVariant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ok => write!(f, "Ok"),
+            Self::Err => write!(f, "Err"),
+        }
+    }
+}
+
 /// An encoded type check.
 #[derive(Debug, Clone, Copy)]
 pub enum TypeCheck {
@@ -43,23 +75,26 @@ pub enum TypeCheck {
     /// Matches a vector.
     Vec,
     /// An option type.
-    Option,
+    Option(OptionVariant),
     /// A result type.
-    Result,
+    Result(ResultVariant),
     /// Matches the type with the corresponding hash.
     Type(Hash),
+    /// Matches the variant with the corresponding hash.
+    Variant(Hash),
 }
 
 impl fmt::Display for TypeCheck {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unit => write!(fmt, "unit"),
-            Self::Tuple => write!(fmt, "tuple"),
-            Self::Object => write!(fmt, "object"),
-            Self::Vec => write!(fmt, "vec"),
-            Self::Option => write!(fmt, "option"),
-            Self::Result => write!(fmt, "result"),
-            Self::Type(hash) => write!(fmt, "type({})", hash),
+            Self::Unit => write!(fmt, "Unit"),
+            Self::Tuple => write!(fmt, "Tuple"),
+            Self::Object => write!(fmt, "Object"),
+            Self::Vec => write!(fmt, "Vec"),
+            Self::Option(variant) => write!(fmt, "Option::{}", variant),
+            Self::Result(variant) => write!(fmt, "Result::{}", variant),
+            Self::Type(hash) => write!(fmt, "Type({})", hash),
+            Self::Variant(hash) => write!(fmt, "Variant({})", hash),
         }
     }
 }
@@ -552,7 +587,27 @@ pub enum Inst {
     /// ```
     TypedObject {
         /// The type of the object to construct.
-        ty: Hash,
+        hash: Hash,
+        /// The static slot of the object keys.
+        slot: usize,
+    },
+    /// Construct a push an object of the given type onto the stack. The number
+    /// of elements in the object are determined the slot of the object keys
+    /// `slot` and are popped from the stack.
+    ///
+    /// For each element, a value is popped corresponding to the object key.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value..>
+    /// => <object>
+    /// ```
+    VariantObject {
+        /// The enum the variant belongs to.
+        enum_hash: Hash,
+        /// The type of the object to construct.
+        hash: Hash,
         /// The static slot of the object keys.
         slot: usize,
     },
@@ -929,8 +984,15 @@ impl fmt::Display for Inst {
             Self::Tuple { count } => {
                 write!(fmt, "tuple {}", count)?;
             }
-            Self::TypedObject { ty, slot } => {
-                write!(fmt, "typed-object {}, {}", ty, slot)?;
+            Self::TypedObject { hash, slot } => {
+                write!(fmt, "typed-object {}, {}", hash, slot)?;
+            }
+            Self::VariantObject {
+                enum_hash,
+                hash,
+                slot,
+            } => {
+                write!(fmt, "variant-object {}, {}, {}", enum_hash, hash, slot)?;
             }
             Self::Object { slot } => {
                 write!(fmt, "object {}", slot)?;

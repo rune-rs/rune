@@ -40,10 +40,30 @@ pub enum ValueType {
     Option,
     /// A result value.
     Result,
-    /// A typed tuple,
-    TypedTuple(Hash),
-    /// A typed object,
-    TypedObject(Hash),
+    /// A typed tuple.
+    TypedTuple {
+        /// The type hash corresponding to the type.
+        hash: Hash,
+    },
+    /// A typed tuple variant.
+    VariantTuple {
+        /// The type hash of the enum the variant belongs to.
+        enum_hash: Hash,
+        /// The type hash of the variant.
+        hash: Hash,
+    },
+    /// A typed object.
+    TypedObject {
+        /// The type hash corresponding to the type.
+        hash: Hash,
+    },
+    /// A typed object variant.
+    VariantObject {
+        /// The type hash of the enum the variant belongs to.
+        enum_hash: Hash,
+        /// The type hash of the variant.
+        hash: Hash,
+    },
 }
 
 #[cfg(test)]
@@ -54,7 +74,7 @@ mod tests {
     fn test_size() {
         assert_eq! {
             std::mem::size_of::<ValueType>(),
-            16,
+            24,
         };
     }
 }

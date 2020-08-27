@@ -2,7 +2,7 @@ use crate::collections::HashMap;
 use crate::hash::Hash;
 use crate::stack::Stack;
 use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::{TypeCheck, VmError};
+use crate::vm::{OptionVariant, ResultVariant, TypeCheck, VmError};
 use std::fmt;
 use thiserror::Error;
 
@@ -11,7 +11,7 @@ mod meta;
 mod module;
 
 pub use self::item::Item;
-pub use self::meta::{Meta, MetaExternal, MetaTuple, MetaType};
+pub use self::meta::{Meta, MetaObject, MetaTuple};
 pub use self::module::Module;
 use self::module::Variant;
 
@@ -203,24 +203,6 @@ pub struct VariantInfo {
     name: Item,
 }
 
-/// Specialized information on `Result` types.
-#[derive(Debug, Clone, Copy)]
-pub struct ResultTypes {
-    /// Type hash of the `Ok` variant.
-    pub ok_type: Hash,
-    /// Type hash of the `Err` variant.
-    pub err_type: Hash,
-}
-
-/// Specialized information on `Option` types.
-#[derive(Debug, Clone, Copy)]
-pub struct OptionTypes {
-    /// Type hash of the `Some` variant.
-    pub some_type: Hash,
-    /// Type hash of the `None` variant.
-    pub none_type: Hash,
-}
-
 /// Static run context visible to the virtual machine.
 ///
 /// This contains:
@@ -242,9 +224,9 @@ pub struct Context {
     /// Variants.
     variants: HashMap<Hash, VariantInfo>,
     /// Specialized information on `Result` types, if available.
-    result_types: Option<ResultTypes>,
+    result_type: Option<Hash>,
     /// Specialized information on `Option` types, if available.
-    option_types: Option<OptionTypes>,
+    option_type: Option<Hash>,
     /// Custom type checks for specific items.
     type_checks: HashMap<Item, TypeCheck>,
 }
@@ -278,13 +260,13 @@ impl Context {
     }
 
     /// Access the currently known option types.
-    pub fn option_types(&self) -> Option<&OptionTypes> {
-        self.option_types.as_ref()
+    pub fn option_type(&self) -> Option<Hash> {
+        self.option_type
     }
 
     /// Access the currently known result types.
-    pub fn result_types(&self) -> Option<&ResultTypes> {
-        self.result_types.as_ref()
+    pub fn result_type(&self) -> Option<Hash> {
+        self.result_type
     }
 
     /// Access the meta for the given language item.
@@ -355,7 +337,12 @@ impl Context {
             // reverse lookup for types.
             self.types_rev.insert(value_type, hash);
 
-            let meta = Meta::MetaExternal(MetaExternal { item: name.clone() });
+            let meta = Meta::MetaObject {
+                object: MetaObject {
+                    item: name.clone(),
+                    fields: None,
+                },
+            };
 
             if let Some(existing) = self.meta.insert(name.clone(), meta.clone()) {
                 return Err(ContextError::ConflictingMeta {
@@ -411,11 +398,12 @@ impl Context {
 
                     self.install_function(&name, variant.tuple_constructor, Some(variant.args))?;
 
-                    let meta = Meta::MetaTuple(MetaTuple {
-                        external: true,
-                        item: name.clone(),
-                        args: variant.args,
-                    });
+                    let meta = Meta::MetaTuple {
+                        tuple: MetaTuple {
+                            item: name.clone(),
+                            args: variant.args,
+                        },
+                    };
 
                     if let Some(existing) = self.meta.insert(name.clone(), meta.clone()) {
                         return Err(ContextError::ConflictingMeta {
@@ -451,41 +439,86 @@ impl Context {
         }
 
         if let Some(result_types) = module.result_types {
-            if self.result_types.is_some() {
+            if self.result_type.is_some() {
                 return Err(ContextError::ResultAlreadyPresent);
             }
 
+            let result_type = module.path.join(&result_types.result_type);
             let ok = module.path.join(&result_types.ok_type);
             let err = module.path.join(&result_types.err_type);
 
-            self.result_types = Some(ResultTypes {
-                ok_type: Hash::of_type(&ok),
-                err_type: Hash::of_type(&err),
-            });
+            let meta = Meta::MetaEnum {
+                item: result_type.clone(),
+            };
 
-            self.type_checks.insert(ok.clone(), TypeCheck::Result);
-            self.type_checks.insert(err.clone(), TypeCheck::Result);
+            if let Some(existing) = self.meta.insert(result_type.clone(), meta.clone()) {
+                return Err(ContextError::ConflictingMeta {
+                    item: result_type,
+                    existing,
+                    current: meta,
+                });
+            }
+
+            let hash = Hash::of_type(&result_type);
+            self.result_type = Some(hash);
+
+            self.type_checks
+                .insert(ok.clone(), TypeCheck::Result(ResultVariant::Ok));
+            self.type_checks
+                .insert(err.clone(), TypeCheck::Result(ResultVariant::Err));
             self.add_internal_tuple(ok, 1, |value: Value| Ok::<Value, Value>(value))?;
             self.add_internal_tuple(err, 1, |value: Value| Err::<Value, Value>(value))?;
+
+            self.types.insert(
+                hash,
+                TypeInfo {
+                    name: result_type,
+                    value_type: ValueType::Result,
+                    value_type_info: ValueTypeInfo::Result,
+                },
+            );
         }
 
         if let Some(option_types) = module.option_types {
-            if self.option_types.is_some() {
+            if self.option_type.is_some() {
                 return Err(ContextError::ResultAlreadyPresent);
             }
 
+            let option_type = module.path.join(&option_types.option_type);
             let some = module.path.join(&option_types.some_type);
             let none = module.path.join(&option_types.none_type);
 
-            self.option_types = Some(OptionTypes {
-                some_type: Hash::of_type(&some),
-                none_type: Hash::of_type(&none),
-            });
+            let meta = Meta::MetaEnum {
+                item: option_type.clone(),
+            };
 
-            self.type_checks.insert(some.clone(), TypeCheck::Option);
-            self.type_checks.insert(none.clone(), TypeCheck::Option);
+            if let Some(existing) = self.meta.insert(option_type.clone(), meta.clone()) {
+                return Err(ContextError::ConflictingMeta {
+                    item: option_type,
+                    existing,
+                    current: meta,
+                });
+            }
+
+            let hash = Hash::of_type(&option_type);
+
+            self.option_type = Some(hash);
+
+            self.type_checks
+                .insert(some.clone(), TypeCheck::Option(OptionVariant::Some));
+            self.type_checks
+                .insert(none.clone(), TypeCheck::Option(OptionVariant::None));
             self.add_internal_tuple(some, 1, |value: Value| Some(value))?;
             self.add_internal_tuple(none, 0, || None::<Value>)?;
+
+            self.types.insert(
+                hash,
+                TypeInfo {
+                    name: option_type,
+                    value_type: ValueType::Option,
+                    value_type_info: ValueTypeInfo::Option,
+                },
+            );
         }
 
         Ok(())
@@ -501,11 +534,12 @@ impl Context {
     where
         C: self::module::Function<Args>,
     {
-        let meta = Meta::MetaTuple(MetaTuple {
-            external: false,
-            item: item.clone(),
-            args,
-        });
+        let meta = Meta::MetaTuple {
+            tuple: MetaTuple {
+                item: item.clone(),
+                args,
+            },
+        };
 
         if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
             return Err(ContextError::ConflictingMeta {

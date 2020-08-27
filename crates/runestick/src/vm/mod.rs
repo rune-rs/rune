@@ -8,7 +8,10 @@ use crate::reflection::{FromValue, IntoArgs};
 use crate::shared::{Shared, StrongMut};
 use crate::stack::{Stack, StackError};
 use crate::unit::{CompilationUnit, UnitFnCall, UnitFnKind};
-use crate::value::{Integer, Object, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo};
+use crate::value::{
+    Integer, Object, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo, VariantObject,
+    VariantTuple,
+};
 use std::any;
 use std::fmt;
 use std::marker;
@@ -18,7 +21,7 @@ use thiserror::Error;
 
 pub(crate) mod inst;
 
-pub use self::inst::{Inst, PanicReason, TypeCheck};
+pub use self::inst::{Inst, OptionVariant, PanicReason, ResultVariant, TypeCheck};
 use crate::access::AccessError;
 
 /// Errors raised by the execution of the virtual machine.
@@ -749,7 +752,7 @@ impl Vm {
 
     /// Construct a tuple.
     #[inline]
-    fn allocate_typed_tuple(&mut self, ty: Hash, args: usize) -> Result<Value, VmError> {
+    fn allocate_typed_tuple(&mut self, hash: Hash, args: usize) -> Result<Value, VmError> {
         let mut tuple = Vec::new();
 
         for _ in 0..args {
@@ -757,11 +760,34 @@ impl Vm {
         }
 
         let typed_tuple = Shared::new(TypedTuple {
-            ty,
+            hash,
             tuple: tuple.into_boxed_slice(),
         });
 
         Ok(Value::TypedTuple(typed_tuple))
+    }
+
+    /// Construct a tuple variant.
+    #[inline]
+    fn allocate_tuple_variant(
+        &mut self,
+        enum_hash: Hash,
+        hash: Hash,
+        args: usize,
+    ) -> Result<Value, VmError> {
+        let mut tuple = Vec::new();
+
+        for _ in 0..args {
+            tuple.push(self.stack.pop()?);
+        }
+
+        let typed_tuple = Shared::new(VariantTuple {
+            enum_hash,
+            hash,
+            tuple: tuple.into_boxed_slice(),
+        });
+
+        Ok(Value::VariantTuple(typed_tuple))
     }
 
     /// Pop a call frame and return it.
@@ -1026,31 +1052,26 @@ impl Vm {
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
         loop {
+            // NB: local storage for string.
+            let local_field;
+
+            let field = match &index {
+                Value::String(string) => {
+                    local_field = string.get_ref()?;
+                    local_field.as_str()
+                }
+                Value::StaticString(string) => string.as_ref(),
+                _ => break,
+            };
+
             match &target {
                 Value::Object(object) => {
-                    let index = match index {
-                        Value::String(string) => string.get_ref()?.to_owned(),
-                        Value::StaticString(string) => string.as_ref().clone(),
-                        _ => break,
-                    };
-
                     let mut object = object.get_mut()?;
-                    object.insert(index, value);
+                    object.insert(field.to_owned(), value);
                     return Ok(());
                 }
                 Value::TypedObject(typed_object) => {
                     let mut typed_object = typed_object.get_mut()?;
-                    // NB: local storage for string.
-                    let local_field;
-
-                    let field = match &index {
-                        Value::String(string) => {
-                            local_field = string.get_ref()?;
-                            local_field.as_str()
-                        }
-                        Value::StaticString(string) => string.as_ref(),
-                        _ => break,
-                    };
 
                     if let Some(v) = typed_object.object.get_mut(field) {
                         *v = value;
@@ -1060,6 +1081,19 @@ impl Vm {
                     return Err(VmError::MissingField {
                         field: field.to_owned(),
                         target: typed_object.type_info(),
+                    });
+                }
+                Value::VariantObject(variant_object) => {
+                    let mut variant_object = variant_object.get_mut()?;
+
+                    if let Some(v) = variant_object.object.get_mut(field) {
+                        *v = value;
+                        return Ok(());
+                    }
+
+                    return Err(VmError::MissingField {
+                        field: field.to_owned(),
+                        target: variant_object.type_info(),
                     });
                 }
                 _ => break,
@@ -1120,6 +1154,7 @@ impl Vm {
         let value = match &target {
             Value::Object(target) => target.get_ref()?.get(field).cloned(),
             Value::TypedObject(target) => target.get_ref()?.object.get(field).cloned(),
+            Value::VariantObject(target) => target.get_ref()?.object.get(field).cloned(),
             _ => return Ok(false),
         };
 
@@ -1163,6 +1198,10 @@ impl Vm {
             Value::TypedTuple(typed_tuple) => {
                 let typed_tuple = typed_tuple.get_ref()?;
                 typed_tuple.tuple.get(index).cloned()
+            }
+            Value::VariantTuple(variant_tuple) => {
+                let variant_tuple = variant_tuple.get_ref()?;
+                variant_tuple.tuple.get(index).cloned()
             }
             _ => return Ok(false),
         };
@@ -1318,6 +1357,17 @@ impl Vm {
                     }
                 }
             }
+            Value::VariantObject(variant_object) => {
+                let index = unit.lookup_string(string_slot)?;
+                let variant_object = variant_object.get_ref()?;
+
+                match variant_object.object.get(&***index).cloned() {
+                    Some(value) => value,
+                    None => {
+                        return Err(VmError::ObjectIndexMissing { slot: string_slot });
+                    }
+                }
+            }
             target_type => {
                 let target_type = target_type.type_info()?;
                 return Err(VmError::UnsupportedObjectSlotIndexGet { target_type });
@@ -1352,7 +1402,7 @@ impl Vm {
     fn op_typed_object(
         &mut self,
         unit: &Rc<CompilationUnit>,
-        ty: Hash,
+        hash: Hash,
         slot: usize,
     ) -> Result<(), VmError> {
         let keys = unit
@@ -1366,8 +1416,38 @@ impl Vm {
             object.insert(key.clone(), value);
         }
 
-        let object = TypedObject { ty, object };
+        let object = TypedObject { hash, object };
         let value = Value::TypedObject(Shared::new(object));
+        self.stack.push(value);
+        Ok(())
+    }
+
+    /// Operation to allocate an object.
+    #[inline]
+    fn op_variant_object(
+        &mut self,
+        unit: &Rc<CompilationUnit>,
+        enum_hash: Hash,
+        hash: Hash,
+        slot: usize,
+    ) -> Result<(), VmError> {
+        let keys = unit
+            .lookup_object_keys(slot)
+            .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
+
+        let mut object = Object::with_capacity(keys.len());
+
+        for key in keys {
+            let value = self.stack.pop()?;
+            object.insert(key.clone(), value);
+        }
+
+        let object = VariantObject {
+            enum_hash,
+            hash,
+            object,
+        };
+        let value = Value::VariantObject(Shared::new(object));
         self.stack.push(value);
         Ok(())
     }
@@ -1450,48 +1530,38 @@ impl Vm {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
 
-        match (a, b) {
-            (Value::TypedTuple(typed_tuple), Value::Type(hash)) => {
-                let matches = typed_tuple.get_ref()?.ty == hash;
-                self.stack.push(Value::Bool(matches))
+        let hash = match b {
+            Value::Type(hash) => hash,
+            _ => {
+                return Err(VmError::UnsupportedIs {
+                    value_type: a.type_info()?,
+                    test_type: b.type_info()?,
+                });
             }
-            (Value::TypedObject(typed_object), Value::Type(hash)) => {
-                let matches = typed_object.get_ref()?.ty == hash;
-                self.stack.push(Value::Bool(matches))
-            }
-            (Value::Option(option), Value::Type(hash)) => {
-                let option_types = *context
-                    .option_types()
+        };
+
+        let matches = match a {
+            Value::TypedObject(typed_object) => typed_object.get_ref()?.hash == hash,
+            Value::TypedTuple(typed_tuple) => typed_tuple.get_ref()?.hash == hash,
+            Value::VariantObject(variant_object) => variant_object.get_ref()?.enum_hash == hash,
+            Value::VariantTuple(variant_tuple) => variant_tuple.get_ref()?.enum_hash == hash,
+            Value::Option(..) => {
+                let option_type = context
+                    .option_type()
                     .ok_or_else(|| VmError::MissingType { hash })?;
 
-                let option = option.get_ref()?;
-
-                let matches = match &*option {
-                    Some(..) => hash == option_types.some_type,
-                    None => hash == option_types.none_type,
-                };
-
-                self.stack.push(Value::Bool(matches))
+                option_type == hash
             }
-            (Value::Result(result), Value::Type(hash)) => {
-                let result_types = *context
-                    .result_types()
+            Value::Result(..) => {
+                let result_type = context
+                    .result_type()
                     .ok_or_else(|| VmError::MissingType { hash })?;
 
-                let result = result.get_ref()?;
-
-                let matches = match &*result {
-                    Ok(..) => hash == result_types.ok_type,
-                    Err(..) => hash == result_types.err_type,
-                };
-
-                self.stack.push(Value::Bool(matches))
+                result_type == hash
             }
-            (a, Value::Type(hash)) => {
-                let a = a.value_type()?;
-
+            a => {
                 let value_type = match unit.lookup_type(hash) {
-                    Some(ty) => ty.value_type,
+                    Some(info) => info.value_type,
                     None => {
                         context
                             .lookup_type(hash)
@@ -1500,19 +1570,11 @@ impl Vm {
                     }
                 };
 
-                self.stack.push(Value::Bool(a == value_type));
+                a.value_type()? == value_type
             }
-            (a, b) => {
-                let a = a.type_info()?;
-                let b = b.type_info()?;
+        };
 
-                return Err(VmError::UnsupportedIs {
-                    value_type: a,
-                    test_type: b,
-                });
-            }
-        }
-
+        self.stack.push(Value::Bool(matches));
         Ok(())
     }
 
@@ -1654,30 +1716,41 @@ impl Vm {
         Ok(match (ty, value) {
             (inst::TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&*tuple.get_ref()?)),
             (inst::TypeCheck::Vec, Value::Vec(vec)) => Some(f(&*vec.get_ref()?)),
-            (inst::TypeCheck::Result, Value::Result(result)) => {
+            (inst::TypeCheck::Result(v), Value::Result(result)) => {
                 let result = result.get_ref()?;
 
-                Some(match &*result {
-                    Ok(ok) => f(slice::from_ref(ok)),
-                    Err(err) => f(slice::from_ref(err)),
+                Some(match (v, &*result) {
+                    (inst::ResultVariant::Ok, Ok(ok)) => f(slice::from_ref(ok)),
+                    (inst::ResultVariant::Err, Err(err)) => f(slice::from_ref(err)),
+                    _ => return Ok(None),
                 })
             }
-            (inst::TypeCheck::Option, Value::Option(option)) => {
+            (inst::TypeCheck::Option(v), Value::Option(option)) => {
                 let option = option.get_ref()?;
 
-                Some(match &*option {
-                    Some(some) => f(slice::from_ref(some)),
-                    None => f(&[]),
+                Some(match (v, &*option) {
+                    (inst::OptionVariant::Some, Some(some)) => f(slice::from_ref(some)),
+                    (inst::OptionVariant::None, None) => f(&[]),
+                    _ => return Ok(None),
                 })
             }
-            (inst::TypeCheck::Type(ty), Value::TypedTuple(typed_tuple)) => {
+            (inst::TypeCheck::Type(hash), Value::TypedTuple(typed_tuple)) => {
                 let typed_tuple = typed_tuple.get_ref()?;
 
-                if typed_tuple.ty != ty {
+                if typed_tuple.hash != hash {
                     return Ok(None);
                 }
 
                 Some(f(&*typed_tuple.tuple))
+            }
+            (inst::TypeCheck::Type(hash), Value::VariantTuple(variant_tuple)) => {
+                let variant_tuple = variant_tuple.get_ref()?;
+
+                if variant_tuple.hash != hash {
+                    return Ok(None);
+                }
+
+                Some(f(&*variant_tuple.tuple))
             }
             (inst::TypeCheck::Unit, Value::Unit) => Some(f(&[])),
             _ => None,
@@ -1701,22 +1774,29 @@ impl Vm {
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
-        Ok(match (ty, value) {
+        match (ty, value) {
             (TypeCheck::Object, Value::Object(object)) => {
                 let object = object.get_ref()?;
-                Some(f(&*object, keys))
+                return Ok(Some(f(&*object, keys)));
             }
-            (TypeCheck::Type(ty), Value::TypedObject(typed_object)) => {
+            (TypeCheck::Type(hash), Value::TypedObject(typed_object)) => {
                 let typed_object = typed_object.get_ref()?;
 
-                if typed_object.ty != ty {
-                    return Ok(None);
+                if typed_object.hash == hash {
+                    return Ok(Some(f(&typed_object.object, keys)));
                 }
-
-                Some(f(&typed_object.object, keys))
             }
-            _ => None,
-        })
+            (TypeCheck::Variant(hash), Value::VariantObject(variant_object)) => {
+                let variant_object = variant_object.get_ref()?;
+
+                if variant_object.hash == hash {
+                    return Ok(Some(f(&variant_object.object, keys)));
+                }
+            }
+            _ => (),
+        }
+
+        Ok(None)
     }
 
     /// Construct a future from calling an async function.
@@ -1797,10 +1877,14 @@ impl Vm {
                     UnitFnKind::Offset { offset, call } => {
                         self.call_offset_fn(unit, context, *offset, *call, args, update_ip)?;
                     }
-                    UnitFnKind::Tuple { ty } => {
-                        let ty = *ty;
+                    UnitFnKind::Tuple { hash } => {
                         let args = info.signature.args;
-                        let value = self.allocate_typed_tuple(ty, args)?;
+                        let value = self.allocate_typed_tuple(*hash, args)?;
+                        self.stack.push(value);
+                    }
+                    UnitFnKind::TupleVariant { enum_hash, hash } => {
+                        let args = info.signature.args;
+                        let value = self.allocate_tuple_variant(*enum_hash, *hash, args)?;
                         self.stack.push(value);
                     }
                 }
@@ -1844,6 +1928,9 @@ impl Vm {
                         self.call_offset_fn(unit, context, *offset, *call, args, update_ip)?;
                     }
                     UnitFnKind::Tuple { .. } => todo!("there are no instance tuple constructors"),
+                    UnitFnKind::TupleVariant { .. } => {
+                        todo!("there are no instance tuple constructors")
+                    }
                 }
             }
             None => {
@@ -2065,8 +2152,15 @@ impl Vm {
                 Inst::Object { slot } => {
                     self.op_object(unit, slot)?;
                 }
-                Inst::TypedObject { ty, slot } => {
-                    self.op_typed_object(unit, ty, slot)?;
+                Inst::TypedObject { hash, slot } => {
+                    self.op_typed_object(unit, hash, slot)?;
+                }
+                Inst::VariantObject {
+                    enum_hash,
+                    hash,
+                    slot,
+                } => {
+                    self.op_variant_object(unit, enum_hash, hash, slot)?;
                 }
                 Inst::Type { hash } => {
                     self.stack.push(Value::Type(hash));

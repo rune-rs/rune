@@ -258,7 +258,14 @@ pub enum UnitFnKind {
     /// A tuple constructor.
     Tuple {
         /// The type of the tuple.
-        ty: Hash,
+        hash: Hash,
+    },
+    /// A tuple variant constructor.
+    TupleVariant {
+        /// The hash of the enum type.
+        enum_hash: Hash,
+        /// The hash of the variant.
+        hash: Hash,
     },
 }
 
@@ -656,54 +663,122 @@ impl CompilationUnit {
     }
 
     /// Declare a new struct.
-    pub fn new_item<I>(&mut self, path: I, meta: Meta) -> Result<(), CompilationUnitError>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
-        let path = Item::of(path);
+    pub fn new_item(&mut self, meta: Meta) -> Result<(), CompilationUnitError> {
+        let path = match &meta {
+            Meta::MetaTuple { tuple } => {
+                let hash = Hash::function(&tuple.item);
 
-        match &meta {
-            Meta::MetaTuple(tuple) => {
                 let info = UnitFnInfo {
-                    kind: UnitFnKind::Tuple {
-                        ty: Hash::of_type(&path),
-                    },
+                    kind: UnitFnKind::Tuple { hash },
                     signature: UnitFnSignature {
-                        path: path.clone(),
+                        path: tuple.item.clone(),
                         args: tuple.args,
                     },
                 };
-
-                let hash = Hash::function(&path);
 
                 if let Some(old) = self.functions.insert(hash, info) {
                     return Err(CompilationUnitError::FunctionConflict {
                         existing: old.signature,
                     });
                 }
-            }
-            Meta::MetaType(..) => {
-                let hash = Hash::of_type(&path);
 
-                let unit_type_info = UnitTypeInfo {
+                let info = UnitTypeInfo {
                     hash,
-                    value_type: ValueType::TypedObject(hash),
+                    value_type: ValueType::TypedTuple { hash },
                 };
 
-                if self.types.insert(hash, unit_type_info).is_some() {
-                    return Err(CompilationUnitError::TypeConflict { existing: path });
+                if self.types.insert(hash, info).is_some() {
+                    return Err(CompilationUnitError::TypeConflict {
+                        existing: tuple.item.clone(),
+                    });
                 }
+
+                tuple.item.clone()
             }
-            _ => {
-                return Err(CompilationUnitError::UnsupportedMeta { existing: path });
+            Meta::MetaTupleVariant { enum_item, tuple } => {
+                let enum_hash = Hash::of_type(enum_item);
+                let hash = Hash::of_type(&tuple.item);
+
+                let info = UnitFnInfo {
+                    kind: UnitFnKind::TupleVariant { enum_hash, hash },
+                    signature: UnitFnSignature {
+                        path: tuple.item.clone(),
+                        args: tuple.args,
+                    },
+                };
+
+                if let Some(old) = self.functions.insert(hash, info) {
+                    return Err(CompilationUnitError::FunctionConflict {
+                        existing: old.signature,
+                    });
+                }
+
+                let info = UnitTypeInfo {
+                    hash,
+                    value_type: ValueType::VariantTuple { enum_hash, hash },
+                };
+
+                if self.types.insert(hash, info).is_some() {
+                    return Err(CompilationUnitError::TypeConflict {
+                        existing: tuple.item.clone(),
+                    });
+                }
+
+                tuple.item.clone()
+            }
+            Meta::MetaObject { object } => {
+                let hash = Hash::of_type(&object.item);
+
+                let info = UnitTypeInfo {
+                    hash,
+                    value_type: ValueType::TypedObject { hash },
+                };
+
+                if self.types.insert(hash, info).is_some() {
+                    return Err(CompilationUnitError::TypeConflict {
+                        existing: object.item.clone(),
+                    });
+                }
+
+                object.item.clone()
+            }
+            Meta::MetaObjectVariant { enum_item, object } => {
+                let hash = Hash::of_type(&object.item);
+                let enum_hash = Hash::of_type(enum_item);
+
+                let info = UnitTypeInfo {
+                    hash,
+                    value_type: ValueType::VariantObject { enum_hash, hash },
+                };
+
+                if self.types.insert(hash, info).is_some() {
+                    return Err(CompilationUnitError::TypeConflict {
+                        existing: object.item.clone(),
+                    });
+                }
+
+                object.item.clone()
+            }
+            Meta::MetaEnum { item } => {
+                let hash = Hash::of_type(item);
+
+                let info = UnitTypeInfo {
+                    hash,
+                    value_type: ValueType::Type,
+                };
+
+                if self.types.insert(hash, info).is_some() {
+                    return Err(CompilationUnitError::TypeConflict {
+                        existing: item.clone(),
+                    });
+                }
+
+                item.clone()
             }
         };
 
         if let Some(_) = self.meta.insert(path.clone(), meta) {
-            return Err(CompilationUnitError::ItemConflict {
-                existing: path.clone(),
-            });
+            return Err(CompilationUnitError::ItemConflict { existing: path });
         }
 
         Ok(())

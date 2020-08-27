@@ -59,7 +59,7 @@ pub mod unit;
 pub use crate::access::{Mut, NotAccessibleMut, NotAccessibleRef, Ref};
 pub use crate::any::Any;
 pub use crate::bytes::Bytes;
-pub use crate::context::{Context, ContextError, Item, Meta, MetaTuple, MetaType, Module};
+pub use crate::context::{Context, ContextError, Item, Meta, MetaObject, MetaTuple, Module};
 pub use crate::context::{
     ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, MUL, MUL_ASSIGN, NEXT, SUB, SUB_ASSIGN,
 };

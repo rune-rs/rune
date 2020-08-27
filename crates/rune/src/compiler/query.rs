@@ -3,9 +3,10 @@ use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
-use runestick::{CompilationUnit, Item, Meta, MetaTuple, MetaType, Span};
+use runestick::{CompilationUnit, Item, Meta, MetaObject, MetaTuple, Span};
 
 pub enum Entry {
+    Enum,
     Struct(Struct),
     Variant(Variant),
 }
@@ -22,13 +23,16 @@ impl Struct {
 }
 
 pub struct Variant {
+    /// Item of the enum type.
+    enum_item: Item,
+    /// Ast for declaration.
     ast: ast::DeclStructBody,
 }
 
 impl Variant {
     /// Construct a new variant.
-    pub fn new(ast: ast::DeclStructBody) -> Self {
-        Self { ast }
+    pub fn new(enum_item: Item, ast: ast::DeclStructBody) -> Self {
+        Self { enum_item, ast }
     }
 }
 
@@ -46,14 +50,20 @@ impl<'a> Query<'a> {
         }
     }
 
+    /// Add a new enum item.
+    pub fn new_enum(&mut self, item: Item) {
+        self.items.insert(item, Entry::Enum);
+    }
+
     /// Add a new struct item that can be queried.
     pub fn new_struct(&mut self, item: Item, ast: ast::DeclStruct) {
         self.items.insert(item, Entry::Struct(Struct::new(ast)));
     }
 
     /// Add a new variant item that can be queried.
-    pub fn new_variant(&mut self, item: Item, ast: ast::DeclStructBody) {
-        self.items.insert(item, Entry::Variant(Variant::new(ast)));
+    pub fn new_variant(&mut self, item: Item, enum_item: Item, ast: ast::DeclStructBody) {
+        self.items
+            .insert(item, Entry::Variant(Variant::new(enum_item, ast)));
     }
 
     /// Query for the given meta item.
@@ -75,13 +85,19 @@ impl<'a> Query<'a> {
         };
 
         match entry {
+            Entry::Enum => {
+                unit.new_item(Meta::MetaEnum { item: item.clone() })?;
+            }
             Entry::Variant(variant) => {
-                let meta = self.ast_into_item_decl(&item, variant.ast)?;
-                unit.new_item(&item, meta)?;
+                // Assert that everything is built for the enum.
+                self.query_meta(unit, &variant.enum_item, span)?;
+
+                let meta = self.ast_into_item_decl(&item, variant.ast, Some(variant.enum_item))?;
+                unit.new_item(meta)?;
             }
             Entry::Struct(st) => {
-                let meta = self.ast_into_item_decl(&item, st.ast.body)?;
-                unit.new_item(&item, meta)?;
+                let meta = self.ast_into_item_decl(&item, st.ast.body, None)?;
+                unit.new_item(meta)?;
             }
         }
 
@@ -96,25 +112,30 @@ impl<'a> Query<'a> {
         &self,
         item: &Item,
         body: ast::DeclStructBody,
+        enum_item: Option<Item>,
     ) -> Result<Meta, CompileError> {
         Ok(match body {
             ast::DeclStructBody::EmptyBody(..) => {
-                let meta = Meta::MetaTuple(MetaTuple {
-                    external: false,
+                let tuple = MetaTuple {
                     item: item.clone(),
                     args: 0,
-                });
+                };
 
-                meta
+                match enum_item {
+                    Some(enum_item) => Meta::MetaTupleVariant { enum_item, tuple },
+                    None => Meta::MetaTuple { tuple },
+                }
             }
             ast::DeclStructBody::TupleBody(tuple) => {
-                let meta = Meta::MetaTuple(MetaTuple {
-                    external: false,
+                let tuple = MetaTuple {
                     item: item.clone(),
                     args: tuple.fields.len(),
-                });
+                };
 
-                meta
+                match enum_item {
+                    Some(enum_item) => Meta::MetaTupleVariant { enum_item, tuple },
+                    None => Meta::MetaTuple { tuple },
+                }
             }
             ast::DeclStructBody::StructBody(st) => {
                 let mut fields = HashSet::new();
@@ -124,19 +145,15 @@ impl<'a> Query<'a> {
                     fields.insert(ident.to_owned());
                 }
 
-                let meta = Meta::MetaType(MetaType {
+                let object = MetaObject {
                     item: item.clone(),
-                    fields,
-                });
+                    fields: Some(fields),
+                };
 
-                let mut fields = HashMap::new();
-
-                for (index, (ident, _)) in st.fields.iter().enumerate() {
-                    let ident = ident.resolve(self.source)?;
-                    fields.insert(ident.to_owned(), index);
+                match enum_item {
+                    Some(enum_item) => Meta::MetaObjectVariant { enum_item, object },
+                    None => Meta::MetaObject { object },
                 }
-
-                meta
             }
         })
     }
