@@ -1,13 +1,15 @@
 use http;
 
+struct Timeout;
+
 async fn test(timeout, helpful_hint) {
     let request = http::get(`http://httpstat.us/200?sleep={timeout}`);
     let timeout = time::delay_for(time::Duration::from_secs(2));
 
     let result = select {
-        _ = timeout => return Err("timeout"),
-        res = request => res?,
-    };
+        _ = timeout => Err(Timeout),
+        res = request => res,
+    }?;
 
     Ok((result.text().await?, helpful_hint))
 }
@@ -27,7 +29,7 @@ fn main() {
             Ok((text, helpful_hint)) => {
                 dbg(`{text}: {helpful_hint}`);
             }
-            Err("timeout") => {
+            Err(Timeout) => {
                 dbg("request timed out");
             }
         }

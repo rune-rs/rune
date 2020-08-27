@@ -1422,7 +1422,7 @@ impl Vm {
     /// Test if the top of the stack is an error.
     #[inline]
     fn op_is_err(&mut self) -> Result<(), VmError> {
-        let is_err = self.stack.pop()?.into_result()?.get_ref().is_err();
+        let is_err = self.stack.pop()?.into_result()?.get_ref()?.is_err();
         self.stack.push(Value::Bool(is_err));
         Ok(())
     }
