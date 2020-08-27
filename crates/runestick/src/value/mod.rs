@@ -179,6 +179,13 @@ pub struct TypedTuple {
     pub tuple: Box<[Value]>,
 }
 
+impl TypedTuple {
+    /// Get type info for the typed tuple.
+    pub fn type_info(&self) -> ValueTypeInfo {
+        ValueTypeInfo::TypedTuple(self.ty)
+    }
+}
+
 /// An object with a well-defined type.
 #[derive(Debug)]
 pub struct TypedObject {
@@ -186,6 +193,13 @@ pub struct TypedObject {
     pub ty: Hash,
     /// Content of the object.
     pub object: Object<Value>,
+}
+
+impl TypedObject {
+    /// Get type info for the typed object.
+    pub fn type_info(&self) -> ValueTypeInfo {
+        ValueTypeInfo::TypedObject(self.ty)
+    }
 }
 
 /// An entry on the stack.
@@ -530,8 +544,8 @@ impl Value {
             Self::Future(..) => ValueTypeInfo::Future,
             Self::Option(..) => ValueTypeInfo::Option,
             Self::Result(..) => ValueTypeInfo::Result,
-            Self::TypedObject(object) => ValueTypeInfo::TypedObject(object.get_ref()?.ty),
-            Self::TypedTuple(tuple) => ValueTypeInfo::TypedTuple(tuple.get_ref()?.ty),
+            Self::TypedObject(object) => object.get_ref()?.type_info(),
+            Self::TypedTuple(tuple) => tuple.get_ref()?.type_info(),
             Self::External(external) => ValueTypeInfo::External(external.get_ref()?.type_name()),
             Self::Ptr(ptr) => ValueTypeInfo::External(ptr.get_ref()?.type_name()),
         })

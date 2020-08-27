@@ -1085,3 +1085,21 @@ fn test_binop_override() {
         (true, false),
     };
 }
+
+#[test]
+fn test_complex_field_access() {
+    assert_eq! {
+        test! {
+            Option<i64> => r#"
+            fn foo() {
+                #{hello: #{world: 42}}
+            }
+
+            fn main() {
+                Some((foo()).hello["world"])
+            }
+            "#
+        },
+        Some(42),
+    };
+}

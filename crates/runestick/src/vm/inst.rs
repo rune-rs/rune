@@ -625,7 +625,10 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     IsUnit,
-    /// Test if the top of the stack is an error.
+    /// Test if the top of the stack is a value.
+    ///
+    /// This expects the top of the stack to be an `option` or a `result`,
+    /// and it is a value if these are either `Some` or `Ok`.
     ///
     /// # Operation
     ///
@@ -633,8 +636,8 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    IsErr,
-    /// Test if the top of the stack is none.
+    IsValue,
+    /// Test if the top of the stack is an anonymous object.
     ///
     /// # Operation
     ///
@@ -642,7 +645,25 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    IsNone,
+    IsObject,
+    /// Test if the top of the stack is an anonymous tuple.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    IsTuple,
+    /// Test if the top of the stack is a vector.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <boolean>
+    /// ```
+    IsVec,
     /// Unwrap a result from the top of the stack.
     /// This causes a vm error if the top of the stack is not an ok result.
     ///
@@ -652,18 +673,7 @@ pub enum Inst {
     /// <result>
     /// => <value>
     /// ```
-    ResultUnwrap,
-    /// Unwrap an option from the top of the stack.
-    /// This causes a vm error if the top of the stack is not an option with
-    /// something in it.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <result>
-    /// => <value>
-    /// ```
-    OptionUnwrap,
+    Unwrap,
     /// Test if the top of the stack is a specific byte.
     ///
     /// # Operation
@@ -712,22 +722,6 @@ pub enum Inst {
         /// The slot to test against.
         slot: usize,
     },
-    /// Test that the top of the stack is a vector with the given length
-    /// requirements.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
-    MatchVec {
-        /// The minimum length to test for.
-        len: usize,
-        /// Whether the operation should check exact `true` or minimum length
-        /// `false`.
-        exact: bool,
-    },
     /// Test that the top of the stack is a tuple with the given length
     /// requirements.
     ///
@@ -738,8 +732,6 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     MatchTuple {
-        /// Support matches on tuple-like objects.
-        tuple_like: bool,
         /// The minimum length to test for.
         len: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -756,8 +748,6 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     MatchObject {
-        /// Whether we support matching on object-like things.
-        object_like: bool,
         /// The slot of object keys to use.
         slot: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -962,17 +952,20 @@ impl fmt::Display for Inst {
             Self::IsUnit => {
                 write!(fmt, "is-unit")?;
             }
-            Self::IsErr => {
-                write!(fmt, "is-err")?;
+            Self::IsValue => {
+                write!(fmt, "is-value")?;
             }
-            Self::IsNone => {
-                write!(fmt, "is-none")?;
+            Self::IsObject => {
+                write!(fmt, "is-object")?;
             }
-            Self::ResultUnwrap => {
-                write!(fmt, "result-unwrap")?;
+            Self::IsTuple => {
+                write!(fmt, "is-tuple")?;
             }
-            Self::OptionUnwrap => {
-                write!(fmt, "option-unwrap")?;
+            Self::IsVec => {
+                write!(fmt, "is-vec")?;
+            }
+            Self::Unwrap => {
+                write!(fmt, "unwrap")?;
             }
             Self::EqByte { byte } => {
                 write!(fmt, "eq-byte {:?}", byte)?;
@@ -986,22 +979,11 @@ impl fmt::Display for Inst {
             Self::EqStaticString { slot } => {
                 write!(fmt, "eq-static-string {}", slot)?;
             }
-            Self::MatchVec { len, exact } => {
-                write!(fmt, "match-vec {}, {}", len, exact)?;
+            Self::MatchTuple { len, exact } => {
+                write!(fmt, "match-tuple {}, {}", len, exact)?;
             }
-            Self::MatchTuple {
-                tuple_like,
-                len,
-                exact,
-            } => {
-                write!(fmt, "match-tuple {}, {}, {}", tuple_like, len, exact)?;
-            }
-            Self::MatchObject {
-                object_like,
-                slot,
-                exact,
-            } => {
-                write!(fmt, "match-object {}, {}, {}", object_like, slot, exact)?;
+            Self::MatchObject { slot, exact } => {
+                write!(fmt, "match-object {}, {}", slot, exact)?;
             }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;

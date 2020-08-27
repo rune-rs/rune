@@ -8,7 +8,7 @@ use crate::reflection::{FromValue, IntoArgs};
 use crate::shared::{Shared, StrongMut};
 use crate::stack::{Stack, StackError};
 use crate::unit::{CompilationUnit, UnitFnCall, UnitFnKind};
-use crate::value::{Object, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo};
+use crate::value::{Integer, Object, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo};
 use std::any;
 use std::fmt;
 use std::marker;
@@ -254,15 +254,6 @@ pub enum VmError {
         /// The type that was found.
         actual: &'static str,
     },
-    /// Error raised when we fail to unwrap an option.
-    #[error("expected some value, but found none")]
-    ExpectedOptionSome,
-    /// Error raised when we expecting an ok result.
-    #[error("expected ok result, but found error `{error}`")]
-    ExpectedResultOk {
-        /// The error found.
-        error: ValueTypeInfo,
-    },
     /// Error raised when we expected a vector of the given length.
     #[error("expected a vector of length `{expected}`, but found one with length `{actual}`")]
     ExpectedVecLength {
@@ -271,9 +262,44 @@ pub enum VmError {
         /// The expected vector length.
         expected: usize,
     },
+    /// Tried to access an index that was missing on a type.
+    #[error("missing index `{}` on `{target}`")]
+    MissingIndex {
+        /// Type where field did not exist.
+        target: ValueTypeInfo,
+        /// Index that we tried to access.
+        index: Integer,
+    },
     /// Missing a struct field.
-    #[error("missing struct field")]
-    MissingStructField,
+    #[error("missing field `{field}` on `{target}`")]
+    MissingField {
+        /// Type where field did not exist.
+        target: ValueTypeInfo,
+        /// Field that was missing.
+        field: String,
+    },
+    /// Error raised when we try to unwrap something that is not an option or
+    /// result.
+    #[error("expected result or option with value to unwrap, but got `{actual}`")]
+    UnsupportedUnwrap {
+        /// The actual operand.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we try to unwrap an Option that is not Some.
+    #[error("expected Some value, but got `None`")]
+    UnsupportedUnwrapNone,
+    /// Error raised when we try to unwrap a Result that is not Ok.
+    #[error("expected Ok value, but got `Err({err})`")]
+    UnsupportedUnwrapErr {
+        /// The error variant.
+        err: ValueTypeInfo,
+    },
+    /// Value is not supported for `is-value` test.
+    #[error("expected result or option as value, but got `{actual}`")]
+    UnsupportedIsValueOperand {
+        /// The actual operand.
+        actual: ValueTypeInfo,
+    },
 }
 
 impl VmError {
@@ -1031,7 +1057,10 @@ impl Vm {
                         return Ok(());
                     }
 
-                    return Err(VmError::MissingStructField);
+                    return Err(VmError::MissingField {
+                        field: field.to_owned(),
+                        target: typed_object.type_info(),
+                    });
                 }
                 _ => break,
             }
@@ -1086,6 +1115,72 @@ impl Vm {
         Ok(())
     }
 
+    /// Implementation of getting a string index on an object-like type.
+    fn try_object_like_index_get(&mut self, target: &Value, field: &str) -> Result<bool, VmError> {
+        let value = match &target {
+            Value::Object(target) => target.get_ref()?.get(field).cloned(),
+            Value::TypedObject(target) => target.get_ref()?.object.get(field).cloned(),
+            _ => return Ok(false),
+        };
+
+        let value = match value {
+            Some(value) => value,
+            None => {
+                return Err(VmError::MissingField {
+                    target: target.type_info()?,
+                    field: field.to_owned(),
+                });
+            }
+        };
+
+        self.stack.push(value);
+        Ok(true)
+    }
+
+    /// Implementation of getting a string index on an object-like type.
+    fn try_tuple_like_index_get(&mut self, target: &Value, index: usize) -> Result<bool, VmError> {
+        let value = match target {
+            Value::Unit => None,
+            Value::Tuple(tuple) => tuple.get_ref()?.get(index).cloned(),
+            Value::Vec(vec) => vec.get_ref()?.get(index).cloned(),
+            Value::Result(result) => {
+                let result = result.get_ref()?;
+
+                match &*result {
+                    Ok(ok) if index == 0 => Some(ok.clone()),
+                    Err(err) if index == 0 => Some(err.clone()),
+                    _ => None,
+                }
+            }
+            Value::Option(option) => {
+                let option = option.get_ref()?;
+
+                match &*option {
+                    Some(some) if index == 0 => Some(some.clone()),
+                    _ => None,
+                }
+            }
+            Value::TypedTuple(typed_tuple) => {
+                let typed_tuple = typed_tuple.get_ref()?;
+                typed_tuple.tuple.get(index).cloned()
+            }
+            _ => return Ok(false),
+        };
+
+        let value = match value {
+            Some(value) => value.clone(),
+            None => {
+                return Err(VmError::MissingIndex {
+                    target: target.type_info()?,
+                    index: Integer::Usize(index),
+                });
+            }
+        };
+
+        self.stack.push(value);
+        Ok(true)
+    }
+
     /// Perform an index get operation.
     #[inline]
     fn op_index_get(&mut self, context: &Rc<Context>) -> Result<(), VmError> {
@@ -1094,23 +1189,39 @@ impl Vm {
 
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
-        while let Value::Object(target) = &target {
-            let string_ref;
-
-            let index = match &index {
+        loop {
+            match &index {
                 Value::String(string) => {
-                    string_ref = string.get_ref()?;
-                    string_ref.as_str()
+                    let string_ref = string.get_ref()?;
+
+                    if self.try_object_like_index_get(&target, string_ref.as_str())? {
+                        return Ok(());
+                    }
                 }
-                Value::StaticString(string) => string.as_ref(),
+                Value::StaticString(string) => {
+                    if self.try_object_like_index_get(&target, string.as_ref())? {
+                        return Ok(());
+                    }
+                }
+                Value::Integer(index) => {
+                    use std::convert::TryInto as _;
+
+                    let index = match (*index).try_into() {
+                        Ok(index) => index,
+                        Err(..) => {
+                            return Err(VmError::MissingIndex {
+                                target: target.type_info()?,
+                                index: Integer::I64(*index),
+                            });
+                        }
+                    };
+
+                    if self.try_tuple_like_index_get(&target, index)? {
+                        return Ok(());
+                    }
+                }
                 _ => break,
             };
-
-            let value = target.get_ref()?.get(index).cloned();
-
-            let value = Value::Option(Shared::new(value));
-            self.stack.push(value);
-            return Ok(());
         }
 
         let ty = target.value_type()?;
@@ -1166,22 +1277,12 @@ impl Vm {
     fn op_tuple_index_get(&mut self, index: usize) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        let result = self.on_tuple(&value, true, |tuple| {
-            tuple
-                .get(index)
-                .cloned()
-                .ok_or_else(|| VmError::TupleIndexMissing { index })
-        })?;
+        if !self.try_tuple_like_index_get(&value, index)? {
+            return Err(VmError::UnsupportedTupleIndexGet {
+                target_type: value.type_info()?,
+            });
+        }
 
-        let result = match result {
-            Some(result) => result,
-            None => {
-                let target_type = value.type_info()?;
-                return Err(VmError::UnsupportedTupleIndexGet { target_type });
-            }
-        };
-
-        self.stack.push(result?);
         Ok(())
     }
 
@@ -1315,32 +1416,28 @@ impl Vm {
     }
 
     #[inline]
-    fn op_result_unwrap(&mut self) -> Result<(), VmError> {
-        let result = self.stack.pop()?.into_result()?;
-        let result = result.get_ref()?;
+    fn op_unwrap(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
 
-        let value = match &*result {
-            Ok(ok) => ok,
-            Err(error) => {
-                return Err(VmError::ExpectedResultOk {
-                    error: error.type_info()?,
-                })
-            }
-        };
-
-        self.stack.push(value.clone());
-        Ok(())
-    }
-
-    #[inline]
-    fn op_option_unwrap(&mut self) -> Result<(), VmError> {
-        let option = self.stack.pop()?.into_option()?;
-        let option = option.get_ref()?;
-
-        let value = match &*option {
-            Some(some) => some,
-            None => {
-                return Err(VmError::ExpectedOptionSome);
+        let value = match value {
+            Value::Option(option) => match option.take()? {
+                Some(value) => value,
+                None => {
+                    return Err(VmError::UnsupportedUnwrapNone);
+                }
+            },
+            Value::Result(result) => match result.take()? {
+                Ok(value) => value,
+                Err(err) => {
+                    return Err(VmError::UnsupportedUnwrapErr {
+                        err: err.type_info()?,
+                    });
+                }
+            },
+            other => {
+                return Err(VmError::UnsupportedUnwrap {
+                    actual: other.type_info()?,
+                });
             }
         };
 
@@ -1421,19 +1518,47 @@ impl Vm {
 
     /// Test if the top of the stack is an error.
     #[inline]
-    fn op_is_err(&mut self) -> Result<(), VmError> {
-        let is_err = self.stack.pop()?.into_result()?.get_ref()?.is_err();
-        self.stack.push(Value::Bool(is_err));
+    fn op_is_value(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        let is_value = match value {
+            Value::Result(result) => result.get_ref()?.is_ok(),
+            Value::Option(option) => option.get_ref()?.is_some(),
+            other => {
+                return Err(VmError::UnsupportedIsValueOperand {
+                    actual: other.type_info()?,
+                })
+            }
+        };
+
+        self.stack.push(Value::Bool(is_value));
         Ok(())
     }
 
-    /// Test if the top of the stack is none.
-    ///
-    /// TODO: optimize the layout of optional values to make this easier.
+    /// Test if the top of the stack is an anonymous object.
     #[inline]
-    fn op_is_none(&mut self) -> Result<(), VmError> {
-        let is_none = self.stack.pop()?.into_option()?.get_ref()?.is_none();
-        self.stack.push(Value::Bool(is_none));
+    fn op_is_object(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+        self.stack
+            .push(Value::Bool(matches!(value, Value::Object(..))));
+        Ok(())
+    }
+
+    /// Test if the top of the stack is an anonymous tuple.
+    #[inline]
+    fn op_is_tuple(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+        self.stack
+            .push(Value::Bool(matches!(value, Value::Tuple(..))));
+        Ok(())
+    }
+
+    /// Test if the top of the stack is a vector.
+    #[inline]
+    fn op_is_vec(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+        self.stack
+            .push(Value::Bool(matches!(value, Value::Vec(..))));
         Ok(())
     }
 
@@ -1486,14 +1611,16 @@ impl Vm {
     }
 
     #[inline]
-    fn op_match_tuple(&mut self, tuple_like: bool, len: usize, exact: bool) -> Result<(), VmError> {
+    fn op_match_tuple(&mut self, len: usize, exact: bool) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        let result = if exact {
-            self.on_tuple(&value, tuple_like, |tuple| tuple.len() == len)?
-        } else {
-            self.on_tuple(&value, tuple_like, |tuple| tuple.len() >= len)?
-        };
+        let result = self.on_tuple(&value, move |tuple| {
+            if exact {
+                tuple.len() == len
+            } else {
+                tuple.len() >= len
+            }
+        })?;
 
         self.stack.push(Value::Bool(result.unwrap_or_default()));
         Ok(())
@@ -1503,11 +1630,10 @@ impl Vm {
     fn op_match_object(
         &mut self,
         unit: &Rc<CompilationUnit>,
-        object_like: bool,
         slot: usize,
         exact: bool,
     ) -> Result<(), VmError> {
-        let result = self.on_object_keys(unit, object_like, slot, |object, keys| {
+        let result = self.on_object_keys(unit, slot, |object, keys| {
             if exact {
                 if object.len() != keys.len() {
                     return false;
@@ -1535,41 +1661,15 @@ impl Vm {
     }
 
     #[inline]
-    fn match_vec<F>(&mut self, f: F) -> Result<(), VmError>
-    where
-        F: FnOnce(&Vec<Value>) -> bool,
-    {
-        let value = self.stack.pop()?;
-
-        self.stack.push(Value::Bool(match value {
-            Value::Vec(vec) => f(&*vec.get_ref()?),
-            _ => false,
-        }));
-
-        Ok(())
-    }
-
-    #[inline]
-    fn on_tuple<F, O>(
-        &mut self,
-        value: &Value,
-        tuple_like: bool,
-        f: F,
-    ) -> Result<Option<O>, VmError>
+    fn on_tuple<F, O>(&mut self, value: &Value, f: F) -> Result<Option<O>, VmError>
     where
         F: FnOnce(&[Value]) -> O,
     {
         use std::slice;
 
-        if let Value::Tuple(tuple) = value {
-            return Ok(Some(f(&*tuple.get_ref()?)));
-        }
-
-        if !tuple_like {
-            return Ok(None);
-        }
-
         Ok(match value {
+            Value::Tuple(tuple) => Some(f(&*tuple.get_ref()?)),
+            Value::Vec(vec) => Some(f(&*vec.get_ref()?)),
             Value::Result(result) => {
                 let result = result.get_ref()?;
 
@@ -1590,6 +1690,7 @@ impl Vm {
                 let typed_tuple = typed_tuple.get_ref()?;
                 Some(f(&*typed_tuple.tuple))
             }
+            Value::Unit => Some(f(&[])),
             _ => None,
         })
     }
@@ -1598,7 +1699,6 @@ impl Vm {
     fn on_object_keys<F, O>(
         &mut self,
         unit: &Rc<CompilationUnit>,
-        object_like: bool,
         slot: usize,
         f: F,
     ) -> Result<Option<O>, VmError>
@@ -1616,7 +1716,7 @@ impl Vm {
                 let object = object.get_ref()?;
                 Some(f(&*object, keys))
             }
-            Value::TypedObject(typed_object) if object_like => {
+            Value::TypedObject(typed_object) => {
                 let typed_object = typed_object.get_ref()?;
                 Some(f(&typed_object.object, keys))
             }
@@ -2001,17 +2101,20 @@ impl Vm {
                     let value = self.stack.pop()?;
                     self.stack.push(Value::Bool(matches!(value, Value::Unit)));
                 }
-                Inst::IsErr => {
-                    self.op_is_err()?;
+                Inst::IsValue => {
+                    self.op_is_value()?;
                 }
-                Inst::IsNone => {
-                    self.op_is_none()?;
+                Inst::IsObject => {
+                    self.op_is_object()?;
                 }
-                Inst::ResultUnwrap => {
-                    self.op_result_unwrap()?;
+                Inst::IsTuple => {
+                    self.op_is_tuple()?;
                 }
-                Inst::OptionUnwrap => {
-                    self.op_option_unwrap()?;
+                Inst::IsVec => {
+                    self.op_is_vec()?;
+                }
+                Inst::Unwrap => {
+                    self.op_unwrap()?;
                 }
                 Inst::And => {
                     self.op_and()?;
@@ -2046,26 +2149,11 @@ impl Vm {
                 Inst::EqStaticString { slot } => {
                     self.op_eq_static_string(unit, slot)?;
                 }
-                Inst::MatchVec { len, exact } => {
-                    if exact {
-                        self.match_vec(|vec| vec.len() == len)?;
-                    } else {
-                        self.match_vec(|vec| vec.len() >= len)?;
-                    }
+                Inst::MatchTuple { len, exact } => {
+                    self.op_match_tuple(len, exact)?;
                 }
-                Inst::MatchTuple {
-                    tuple_like,
-                    len,
-                    exact,
-                } => {
-                    self.op_match_tuple(tuple_like, len, exact)?;
-                }
-                Inst::MatchObject {
-                    object_like,
-                    slot,
-                    exact,
-                } => {
-                    self.op_match_object(unit, object_like, slot, exact)?;
+                Inst::MatchObject { slot, exact } => {
+                    self.op_match_object(unit, slot, exact)?;
                 }
                 Inst::Panic { reason } => {
                     return Err(VmError::Panic {

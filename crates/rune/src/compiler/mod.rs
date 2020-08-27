@@ -874,8 +874,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 },
                 expr_for.var.span(),
             );
-            self.asm.push(Inst::IsNone, expr_for.span());
-            self.asm.jump_if(end_label, expr_for.span());
+            self.asm.push(Inst::IsValue, expr_for.span());
+            self.asm.jump_if_not(end_label, expr_for.span());
             self.asm.push(
                 Inst::Copy {
                     offset: binding_offset,
@@ -883,7 +883,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 expr_for.var.span(),
             );
             // unwrap the optional value.
-            self.asm.push(Inst::OptionUnwrap, expr_for.span());
+            self.asm.push(Inst::Unwrap, expr_for.span());
             self.asm.push(
                 Inst::Replace {
                     offset: binding_offset,
@@ -1731,8 +1731,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         self.compile_expr(&*expr_try.expr, Needs::Value)?;
         self.asm.push(Inst::Dup, span);
-        self.asm.push(Inst::IsErr, span);
-        self.asm.jump_if_not(not_error, span);
+        self.asm.push(Inst::IsValue, span);
+        self.asm.jump_if(not_error, span);
 
         // Clean up all locals so far and return from the current function.
         let total_var_count = self.scopes.last(span)?.total_var_count;
@@ -1742,7 +1742,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         self.asm.label(not_error)?;
 
         if needs.value() {
-            self.asm.push(Inst::ResultUnwrap, span);
+            self.asm.push(Inst::Unwrap, span);
         } else {
             self.asm.push(Inst::Pop, span);
         }
@@ -1835,12 +1835,17 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = pat_vec.span();
         log::trace!("PatVec => {:?}", self.source.source(span)?);
 
+        load(self.asm);
+        self.asm.push(Inst::IsVec, span);
+        self.asm
+            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
+
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed a vector.
         load(&mut self.asm);
 
         self.asm.push(
-            Inst::MatchVec {
+            Inst::MatchTuple {
                 len: pat_vec.items.len(),
                 exact: pat_vec.open_pattern.is_none(),
             },
@@ -1868,7 +1873,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         scope: &mut Scope,
         false_label: Label,
-        tuple_like: bool,
         len: usize,
         exact: bool,
         span: Span,
@@ -1878,14 +1882,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         // that it is indeed a tuple.
         load(&mut self.asm);
 
-        self.asm.push(
-            Inst::MatchTuple {
-                tuple_like,
-                len,
-                exact,
-            },
-            span,
-        );
+        self.asm.push(Inst::MatchTuple { len, exact }, span);
 
         self.asm
             .pop_and_jump_if_not(scope.local_var_count, false_label, span);
@@ -1903,7 +1900,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span)?);
 
-        let tuple_like = if let Some(path) = &pat_tuple.path {
+        if let Some(path) = &pat_tuple.path {
             let item = self.convert_path_to_item(path)?;
 
             let tuple = if let Some(meta) = self.lookup_meta(&item, path.span())? {
@@ -1938,16 +1935,16 @@ impl<'a, 'source> Compiler<'a, 'source> {
             if tuple.external {
                 self.compile_extern_tuple_match(scope, &item, span, false_label, load)?;
             }
-
-            true
         } else {
-            false
+            load(self.asm);
+            self.asm.push(Inst::IsTuple, span);
+            self.asm
+                .pop_and_jump_if_not(scope.local_var_count, false_label, span);
         };
 
         self.compile_pat_match_tuple_len(
             scope,
             false_label,
-            tuple_like,
             pat_tuple.items.len(),
             pat_tuple.open_pattern.is_none(),
             span,
@@ -2036,7 +2033,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let keys = self.unit.new_static_object_keys(&keys[..])?;
 
-        let object_like = match &pat_object.ident {
+        match &pat_object.ident {
             ast::LitObjectIdent::Named(path) => {
                 let span = path.span();
                 let item = self.convert_path_to_item(path)?;
@@ -2075,9 +2072,13 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 self.asm.push(Inst::Is, span);
                 self.asm
                     .pop_and_jump_if_not(scope.local_var_count, false_label, span);
-                true
             }
-            ast::LitObjectIdent::Anonymous(..) => false,
+            ast::LitObjectIdent::Anonymous(..) => {
+                load(&mut self.asm);
+                self.asm.push(Inst::IsObject, span);
+                self.asm
+                    .pop_and_jump_if_not(scope.local_var_count, false_label, span);
+            }
         };
 
         // Copy the temporary and check that its length matches the pattern and
@@ -2086,7 +2087,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         self.asm.push(
             Inst::MatchObject {
-                object_like,
                 slot: keys,
                 exact: pat_object.open_pattern.is_none(),
             },
@@ -2168,7 +2168,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             self.compile_extern_tuple_match(scope, &item, span, false_label, &load)?;
         }
 
-        self.compile_pat_match_tuple_len(scope, false_label, true, tuple.args, true, span, &load)?;
+        self.compile_pat_match_tuple_len(scope, false_label, tuple.args, true, span, &load)?;
         Ok(())
     }
 
