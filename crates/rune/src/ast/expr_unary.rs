@@ -1,4 +1,4 @@
-use crate::ast::expr::{EagerBrace, NoIndex};
+use crate::ast::expr::{EagerBrace, FieldAccess};
 use crate::ast::Expr;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
@@ -46,8 +46,8 @@ impl Parse for ExprUnary {
             token,
             expr: Box::new(Expr::parse_primary(
                 parser,
-                NoIndex(false),
                 EagerBrace(true),
+                FieldAccess(true),
             )?),
         })
     }
@@ -68,7 +68,7 @@ impl UnaryOp {
     /// Convert a unary operator from a token.
     pub fn from_token(token: Token) -> Result<Self, ParseError> {
         Ok(match token.kind {
-            Kind::Not => Self::Not,
+            Kind::Bang => Self::Not,
             Kind::Ampersand => Self::Ref,
             Kind::Mul => Self::Deref,
             actual => {

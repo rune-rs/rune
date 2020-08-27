@@ -16,13 +16,15 @@ pub struct Path {
 }
 
 impl Path {
-    /// Convert into an identifier used for instance calls.
-    pub fn into_instance_call_ident(self) -> Result<ast::Ident, ParseError> {
+    /// Convert into an identifier used for field access calls.
+    ///
+    /// This is only allowed if there are no other path components.
+    pub fn try_into_ident(self) -> Option<ast::Ident> {
         if !self.rest.is_empty() {
-            return Err(ParseError::PathCallInstance { span: self.span() });
+            return None;
         }
 
-        Ok(self.first)
+        Some(self.first)
     }
 
     /// Calculate the full span of the path.

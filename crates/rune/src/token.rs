@@ -66,6 +66,8 @@ pub enum Kind {
     Struct,
     /// An `is` token.
     Is,
+    /// An `not` token.
+    Not,
     /// A `let` token.
     Let,
     /// An `if` token.
@@ -184,8 +186,8 @@ pub enum Kind {
     Lte,
     /// Greater than or equal comparison `>=`.
     Gte,
-    /// Not operator `!`.
-    Not,
+    /// Bang operator `!`.
+    Bang,
     /// Try operator `?`.
     Try,
     /// Double dots `..`.
@@ -203,6 +205,7 @@ impl fmt::Display for Kind {
             Self::Enum => write!(fmt, "enum")?,
             Self::Struct => write!(fmt, "struct")?,
             Self::Is => write!(fmt, "is")?,
+            Self::Not => write!(fmt, "not")?,
             Self::Let => write!(fmt, "let")?,
             Self::If => write!(fmt, "if")?,
             Self::Match => write!(fmt, "match")?,
@@ -254,7 +257,7 @@ impl fmt::Display for Kind {
             Self::Gt => write!(fmt, ">")?,
             Self::Lte => write!(fmt, "<=")?,
             Self::Gte => write!(fmt, ">=")?,
-            Self::Not => write!(fmt, "!")?,
+            Self::Bang => write!(fmt, "!")?,
             Self::Try => write!(fmt, "?")?,
             Self::DotDot => write!(fmt, "..")?,
             Self::And => write!(fmt, "&&")?,

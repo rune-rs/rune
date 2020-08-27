@@ -1,7 +1,8 @@
 use crate::ast;
 use crate::ast::{
-    BinOp, CallFn, CallInstanceFn, Colon, Dot, Eq, ExprAwait, ExprBinary, ExprFor, ExprIndexGet,
-    ExprIndexSet, ExprLoop, ExprTry, ExprWhile, Label, LitUnit, OpenParen, Path,
+    BinOp, CallFn, CallInstanceFn, Colon, Eq, ExprAwait, ExprBinary, ExprField, ExprFieldAccess,
+    ExprFor, ExprIndexGet, ExprIndexSet, ExprLoop, ExprTry, ExprWhile, Label, LitUnit, OpenParen,
+    Path,
 };
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
@@ -10,10 +11,11 @@ use crate::traits::{Parse, Peek};
 use runestick::unit::Span;
 use std::ops;
 
+/// Indicator that an expression should be parsed with an eager brace.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct NoIndex(pub(super) bool);
+pub(super) struct EagerBrace(pub(super) bool);
 
-impl ops::Deref for NoIndex {
+impl ops::Deref for EagerBrace {
     type Target = bool;
 
     fn deref(&self) -> &Self::Target {
@@ -21,11 +23,11 @@ impl ops::Deref for NoIndex {
     }
 }
 
-/// Indicator that an expression should be parsed with an eager brace.
+/// Indicates if field accesses should be parsed or not.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct EagerBrace(pub(super) bool);
+pub(super) struct FieldAccess(pub(super) bool);
 
-impl ops::Deref for EagerBrace {
+impl ops::Deref for FieldAccess {
     type Target = bool;
 
     fn deref(&self) -> &Self::Target {
@@ -58,6 +60,8 @@ pub enum Expr {
     CallFn(ast::CallFn),
     /// An instance function call,
     CallInstanceFn(ast::CallInstanceFn),
+    /// A field access on an expression.
+    ExprFieldAccess(ast::ExprFieldAccess),
     /// A unit expression.
     LitUnit(ast::LitUnit),
     /// A boolean literal.
@@ -80,8 +84,6 @@ pub enum Expr {
     LitObject(ast::LitObject),
     /// A literal tuple declaration.
     LitTuple(ast::LitTuple),
-    /// A literal await.
-    LitAwait(ast::Await),
     /// A grouped expression.
     ExprGroup(ast::ExprGroup),
     /// A binary expression.
@@ -137,12 +139,12 @@ impl Expr {
             Self::Path(path) => path.span(),
             Self::CallFn(expr) => expr.span(),
             Self::CallInstanceFn(expr) => expr.span(),
+            Self::ExprFieldAccess(expr) => expr.span(),
             Self::LitUnit(unit) => unit.span(),
             Self::LitBool(b) => b.span(),
             Self::LitVec(expr) => expr.span(),
             Self::LitObject(expr) => expr.span(),
             Self::LitTuple(expr) => expr.span(),
-            Self::LitAwait(expr) => expr.span(),
             Self::LitNumber(expr) => expr.span(),
             Self::LitByte(expr) => expr.span(),
             Self::LitChar(expr) => expr.span(),
@@ -187,16 +189,16 @@ impl Expr {
     /// are arguments to statements immediately followed by blocks. Like `if`,
     /// `while`, and `match`.
     pub(super) fn parse_without_eager_brace(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_full(parser, NoIndex(false), EagerBrace(false))
+        Self::parse_full(parser, EagerBrace(false), FieldAccess(true))
     }
 
     /// Full, configurable parsing of an expression.
     pub(super) fn parse_full(
         parser: &mut Parser<'_>,
-        no_index: NoIndex,
         eager_brace: EagerBrace,
+        field_access: FieldAccess,
     ) -> Result<Self, ParseError> {
-        let lhs = Self::parse_primary(parser, no_index, eager_brace)?;
+        let lhs = Self::parse_primary(parser, eager_brace, field_access)?;
         Ok(Self::parse_expr_binary(parser, lhs, 0, eager_brace)?)
     }
 
@@ -236,7 +238,7 @@ impl Expr {
         }
 
         let open = parser.parse::<ast::OpenParen>()?;
-        let expr = ast::Expr::parse_full(parser, NoIndex(false), EagerBrace(true))?;
+        let expr = ast::Expr::parse_full(parser, EagerBrace(true), FieldAccess(true))?;
 
         if parser.peek::<ast::CloseParen>()? {
             return Ok(Expr::ExprGroup(ast::ExprGroup {
@@ -250,37 +252,11 @@ impl Expr {
         Ok(Expr::LitTuple(lit_tuple))
     }
 
-    /// Parse indexing operation.
-    pub(super) fn parse_indexing_op(
-        parser: &mut Parser<'_>,
-        eager_brace: EagerBrace,
-    ) -> Result<Self, ParseError> {
-        let index_get = ExprIndexGet {
-            target: Box::new(Self::parse_primary(parser, NoIndex(true), eager_brace)?),
-            open: parser.parse()?,
-            index: Box::new(parser.parse()?),
-            close: parser.parse()?,
-        };
-
-        Ok(if parser.peek::<Eq>()? {
-            Self::ExprIndexSet(ExprIndexSet {
-                target: index_get.target,
-                open: index_get.open,
-                index: index_get.index,
-                close: index_get.close,
-                eq: parser.parse()?,
-                value: Box::new(parser.parse()?),
-            })
-        } else {
-            Self::ExprIndexGet(index_get)
-        })
-    }
-
     /// Parse a single expression value.
     pub(super) fn parse_primary(
         parser: &mut Parser<'_>,
-        no_index: NoIndex,
         eager_brace: EagerBrace,
+        field_access: FieldAccess,
     ) -> Result<Self, ParseError> {
         let token = parser.token_peek_eof()?;
 
@@ -303,8 +279,7 @@ impl Expr {
                 });
             }
             Kind::Hash => Self::LitObject(parser.parse()?),
-            Kind::Await => Self::LitAwait(parser.parse()?),
-            Kind::Not | Kind::Ampersand | Kind::Mul => Self::ExprUnary(parser.parse()?),
+            Kind::Bang | Kind::Ampersand | Kind::Mul => Self::ExprUnary(parser.parse()?),
             Kind::While => Self::ExprWhile(parser.parse()?),
             Kind::Loop => Self::ExprLoop(parser.parse()?),
             Kind::For => Self::ExprFor(parser.parse()?),
@@ -321,15 +296,7 @@ impl Expr {
             Kind::Open(Delimiter::Bracket) => Self::LitVec(parser.parse()?),
             Kind::Open(Delimiter::Brace) => Self::ExprBlock(parser.parse()?),
             Kind::True | Kind::False => Self::LitBool(parser.parse()?),
-            Kind::Ident => match parser.token_peek2()?.map(|t| t.kind) {
-                Some(kind) => match kind {
-                    Kind::Open(Delimiter::Bracket) if !*no_index => {
-                        Self::parse_indexing_op(parser, eager_brace)?
-                    }
-                    _ => Self::parse_ident_start(parser, eager_brace)?,
-                },
-                None => Self::parse_ident_start(parser, eager_brace)?,
-            },
+            Kind::Ident => Self::parse_ident_start(parser, eager_brace)?,
             Kind::Break => Self::ExprBreak(parser.parse()?),
             Kind::Return => Self::ExprReturn(parser.parse()?),
             _ => {
@@ -340,30 +307,104 @@ impl Expr {
             }
         };
 
-        Ok(Self::parse_expr_chain(parser, expr, no_index)?)
+        if !*field_access {
+            return Ok(expr);
+        }
+
+        Ok(Self::parse_field_access(parser, expr)?)
     }
 
     /// Parse an expression chain.
-    fn parse_expr_chain(
-        parser: &mut Parser<'_>,
-        mut expr: Self,
-        no_index: NoIndex,
-    ) -> Result<Self, ParseError> {
+    fn parse_field_access(parser: &mut Parser<'_>, mut expr: Self) -> Result<Self, ParseError> {
         while let Some(token) = parser.token_peek()? {
             match token.kind {
-                Kind::Open(Delimiter::Bracket) if !*no_index => {
-                    expr = Expr::ExprIndexGet(ExprIndexGet {
+                Kind::Open(Delimiter::Bracket) => {
+                    let index_get = ExprIndexGet {
                         target: Box::new(expr),
                         open: parser.parse()?,
                         index: Box::new(parser.parse()?),
                         close: parser.parse()?,
-                    });
+                    };
+
+                    if parser.peek::<Eq>()? {
+                        return Ok(Self::ExprIndexSet(ExprIndexSet {
+                            target: index_get.target,
+                            open: index_get.open,
+                            index: index_get.index,
+                            close: index_get.close,
+                            eq: parser.parse()?,
+                            value: Box::new(parser.parse()?),
+                        }));
+                    }
+
+                    expr = Self::ExprIndexGet(index_get);
                 }
                 Kind::Try => {
                     expr = Expr::ExprTry(ExprTry {
                         expr: Box::new(expr),
                         try_: parser.parse()?,
                     });
+                }
+                Kind::Dot => {
+                    let dot = parser.parse()?;
+                    let token = parser.token_peek()?;
+
+                    if let Some(token) = token {
+                        match token.kind {
+                            Kind::Await => {
+                                expr = Expr::ExprAwait(ExprAwait {
+                                    expr: Box::new(expr),
+                                    dot,
+                                    await_: parser.parse()?,
+                                });
+
+                                continue;
+                            }
+                            _ => (),
+                        }
+                    }
+
+                    let next = Expr::parse_primary(parser, EagerBrace(false), FieldAccess(false))?;
+
+                    let span = match next {
+                        Expr::CallFn(call_fn) => {
+                            let span = call_fn.span();
+
+                            if let Some(name) = call_fn.name.try_into_ident() {
+                                expr = Expr::CallInstanceFn(CallInstanceFn {
+                                    instance: Box::new(expr),
+                                    dot,
+                                    name,
+                                    args: call_fn.args,
+                                });
+
+                                continue;
+                            };
+
+                            span
+                        }
+                        Expr::Ident(ident) => {
+                            expr = Expr::ExprFieldAccess(ExprFieldAccess {
+                                expr: Box::new(expr),
+                                dot,
+                                expr_field: ExprField::Ident(ident),
+                            });
+
+                            continue;
+                        }
+                        Expr::LitNumber(n) => {
+                            expr = Expr::ExprFieldAccess(ExprFieldAccess {
+                                expr: Box::new(expr),
+                                dot,
+                                expr_field: ExprField::LitNumber(n),
+                            });
+
+                            continue;
+                        }
+                        other => other.span(),
+                    };
+
+                    return Err(ParseError::UnsupportedFieldAccess { span });
                 }
                 _ => break,
             }
@@ -390,7 +431,7 @@ impl Expr {
             };
 
             parser.token_next()?;
-            let mut rhs = Self::parse_primary(parser, NoIndex(false), eager_brace)?;
+            let mut rhs = Self::parse_primary(parser, eager_brace, FieldAccess(true))?;
 
             lookahead_tok = parser.token_peek()?;
 
@@ -409,28 +450,11 @@ impl Expr {
                 lookahead_tok = parser.token_peek()?;
             }
 
-            lhs = match (op, rhs) {
-                (BinOp::Dot, Expr::CallFn(call_fn)) => {
-                    let name = call_fn.name.into_instance_call_ident()?;
-
-                    Expr::CallInstanceFn(CallInstanceFn {
-                        instance: Box::new(lhs),
-                        dot: Dot { token },
-                        name,
-                        args: call_fn.args,
-                    })
-                }
-                (BinOp::Dot, Expr::LitAwait(await_)) => Expr::ExprAwait(ExprAwait {
-                    expr: Box::new(lhs),
-                    dot: Dot { token },
-                    await_,
-                }),
-                (op, rhs) => Expr::ExprBinary(ExprBinary {
-                    lhs: Box::new(lhs),
-                    op,
-                    rhs: Box::new(rhs),
-                }),
-            }
+            lhs = Expr::ExprBinary(ExprBinary {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            });
         }
 
         Ok(lhs)
@@ -475,7 +499,7 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_full(parser, NoIndex(false), EagerBrace(true))
+        Self::parse_full(parser, EagerBrace(true), FieldAccess(true))
     }
 }
 
@@ -491,7 +515,7 @@ impl Peek for Expr {
             Kind::Label => matches!(t2.map(|t| t.kind), Some(Kind::Colon)),
             Kind::Hash => true,
             Kind::Await => true,
-            Kind::Not | Kind::Ampersand | Kind::Mul => true,
+            Kind::Bang | Kind::Ampersand | Kind::Mul => true,
             Kind::While => true,
             Kind::Loop => true,
             Kind::For => true,

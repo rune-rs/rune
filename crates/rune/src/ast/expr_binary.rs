@@ -66,8 +66,6 @@ pub enum BinOp {
     Gte,
     /// Less-than or equal check.
     Lte,
-    /// The dot operator.
-    Dot,
     /// The `is` test.
     Is,
     /// Assign operator.
@@ -90,7 +88,6 @@ impl BinOp {
             Self::Add | Self::Sub => 5,
             Self::Div | Self::Mul => 6,
             Self::Is => 7,
-            Self::Dot => 8,
         }
     }
 
@@ -102,7 +99,6 @@ impl BinOp {
             (Self::Div, Self::Mul) => true,
             (Self::Add, Self::Sub) => true,
             (Self::Sub, Self::Add) => true,
-            (Self::Dot, Self::Dot) => true,
             _ => false,
         }
     }
@@ -124,7 +120,6 @@ impl BinOp {
             Kind::Gt => Self::Gt,
             Kind::Lte => Self::Lte,
             Kind::Gte => Self::Gte,
-            Kind::Dot => Self::Dot,
             Kind::Is => Self::Is,
             Kind::Eq => Self::Assign,
             Kind::And => Self::And,
@@ -180,9 +175,6 @@ impl fmt::Display for BinOp {
             }
             Self::Lte => {
                 write!(fmt, "<=")?;
-            }
-            Self::Dot => {
-                write!(fmt, ".")?;
             }
             Self::Is => {
                 write!(fmt, "is")?;

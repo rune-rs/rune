@@ -359,6 +359,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
             ast::Expr::CallInstanceFn(call_instance_fn) => {
                 self.compile_call_instance_fn(call_instance_fn, needs)?;
             }
+            ast::Expr::ExprFieldAccess(expr_field_access) => {
+                self.compile_expr_field_access(expr_field_access, needs)?;
+            }
             ast::Expr::LitUnit(lit_unit) => {
                 self.compile_lit_unit(lit_unit, needs)?;
             }
@@ -391,9 +394,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
             ast::Expr::LitTemplate(lit_template) => {
                 self.compile_lit_template(lit_template, needs)?;
-            }
-            ast::Expr::LitAwait(lit_await) => {
-                self.compile_lit_await(lit_await, needs)?;
             }
         }
 
@@ -644,12 +644,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let _ = self.scopes.pop(span, expected)?;
         Ok(())
-    }
-
-    fn compile_lit_await(&mut self, await_: &ast::Await, _: Needs) -> Result<()> {
-        let span = await_.span();
-        log::trace!("Await => {:?}", self.source.source(span)?);
-        Err(CompileError::UnsupportedAwait { span })
     }
 
     fn compile_lit_unit(&mut self, lit_unit: &ast::LitUnit, needs: Needs) -> Result<()> {
@@ -1066,21 +1060,22 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Compile field access for the given expression.
-    fn compile_field_access(
+    fn compile_expr_field_access(
         &mut self,
-        lhs: &ast::Expr,
-        rhs: &ast::Expr,
+        expr_field_access: &ast::ExprFieldAccess,
         needs: Needs,
     ) -> Result<()> {
         use std::convert::TryFrom as _;
 
-        let span = lhs.span().join(rhs.span());
+        let span = expr_field_access.span();
+
+        self.compile_expr(&*expr_field_access.expr, Needs::Value)?;
 
         // This loop is actually useful.
         #[allow(clippy::never_loop)]
         loop {
-            match rhs {
-                ast::Expr::LitNumber(n) => {
+            match &expr_field_access.expr_field {
+                ast::ExprField::LitNumber(n) => {
                     let index = match n.resolve(self.source)? {
                         ast::Number::Integer(n) if n >= 0 => match usize::try_from(n) {
                             Ok(n) => n,
@@ -1089,7 +1084,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
                         _ => break,
                     };
 
-                    self.compile_expr(lhs, Needs::Value)?;
                     self.asm.push(Inst::TupleIndexGet { index }, span);
 
                     if !needs.value() {
@@ -1099,11 +1093,10 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
                     return Ok(());
                 }
-                ast::Expr::Ident(ident) => {
+                ast::ExprField::Ident(ident) => {
                     let field = ident.resolve(self.source)?;
                     let slot = self.unit.new_static_string(field)?;
 
-                    self.compile_expr(lhs, Needs::Value)?;
                     self.asm.push(Inst::ObjectSlotIndexGet { slot }, span);
 
                     if !needs.value() {
@@ -1113,7 +1106,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
                     return Ok(());
                 }
-                _ => break,
             }
         }
 
@@ -1464,10 +1456,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     expr_binary.op,
                     needs,
                 )?;
-                return Ok(());
-            }
-            ast::BinOp::Dot => {
-                self.compile_field_access(&*expr_binary.lhs, &*expr_binary.rhs, needs)?;
                 return Ok(());
             }
             _ => (),

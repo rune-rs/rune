@@ -22,11 +22,14 @@ mod expr_block;
 mod expr_break;
 mod expr_else;
 mod expr_else_if;
+mod expr_field_access;
 mod expr_for;
 mod expr_group;
 mod expr_if;
 mod expr_index_get;
 mod expr_index_set;
+mod expr_is;
+mod expr_is_not;
 mod expr_let;
 mod expr_loop;
 mod expr_match;
@@ -69,11 +72,14 @@ pub use self::expr_block::ExprBlock;
 pub use self::expr_break::{ExprBreak, ExprBreakValue};
 pub use self::expr_else::ExprElse;
 pub use self::expr_else_if::ExprElseIf;
+pub use self::expr_field_access::{ExprField, ExprFieldAccess};
 pub use self::expr_for::ExprFor;
 pub use self::expr_group::ExprGroup;
 pub use self::expr_if::ExprIf;
 pub use self::expr_index_get::ExprIndexGet;
 pub use self::expr_index_set::ExprIndexSet;
+pub use self::expr_is::ExprIs;
+pub use self::expr_is_not::ExprIsNot;
 pub use self::expr_let::ExprLet;
 pub use self::expr_loop::ExprLoop;
 pub use self::expr_match::{ExprMatch, ExprMatchBranch};
@@ -148,6 +154,8 @@ macro_rules! decl_tokens {
 
 decl_tokens! {
     (Fn, Kind::Fn),
+    (Is, Kind::Is),
+    (Not, Kind::Not),
     (Enum, Kind::Enum),
     (Struct, Kind::Struct),
     (If, Kind::If),

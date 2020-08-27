@@ -100,6 +100,7 @@ impl<'a> Lexer<'a> {
             "true" => Kind::True,
             "false" => Kind::False,
             "is" => Kind::Is,
+            "not" => Kind::Not,
             "break" => Kind::Break,
             "return" => Kind::Return,
             "await" => Kind::Await,
@@ -601,7 +602,7 @@ impl<'a> Lexer<'a> {
                     '&' => Kind::Ampersand,
                     '>' => Kind::Gt,
                     '<' => Kind::Lt,
-                    '!' => Kind::Not,
+                    '!' => Kind::Bang,
                     '?' => Kind::Try,
                     'a'..='z' | 'A'..='Z' => {
                         return self.next_ident(&mut it, start);

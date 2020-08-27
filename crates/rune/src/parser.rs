@@ -72,11 +72,6 @@ impl<'a> Parser<'a> {
         self.p1
     }
 
-    /// Peek the next token.
-    pub(crate) fn token_peek2(&mut self) -> Result<Option<Token>, ParseError> {
-        self.p2
-    }
-
     /// Consume the next token from the lexer.
     pub(crate) fn token_next(&mut self) -> Result<Token, ParseError> {
         let token = std::mem::replace(&mut self.p3, self.lexer.next());

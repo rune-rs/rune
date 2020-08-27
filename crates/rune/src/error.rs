@@ -225,12 +225,6 @@ pub enum ParseError {
         /// The actual token that was encountered.
         actual: Kind,
     },
-    /// Trying to call an instance function consisting of a path.
-    #[error("cannot call instance functions consisting of paths")]
-    PathCallInstance {
-        /// The location of the unexpected token.
-        span: Span,
-    },
     /// Expected a unary operator.
     #[error("expected unary operator (`!`) but got `{actual}`")]
     ExpectedUnaryOperator {
@@ -321,6 +315,12 @@ pub enum ParseError {
         /// Where the brace was encountered.
         span: Span,
     },
+    /// When we encounter an expression that cannot be used in a chained manner.
+    #[error("unsupported field access")]
+    UnsupportedFieldAccess {
+        /// Span of the expression that can't be used in a chain.
+        span: Span,
+    },
 }
 
 impl ParseError {
@@ -351,7 +351,6 @@ impl ParseError {
             Self::ExpectedOperator { span, .. } => span,
             Self::ExpectedBool { span, .. } => span,
             Self::ExpectedLitObjectKey { span, .. } => span,
-            Self::PathCallInstance { span, .. } => span,
             Self::ExpectedUnaryOperator { span, .. } => span,
             Self::PrecedenceGroupRequired { span, .. } => span,
             Self::BadSlice { span, .. } => span,
@@ -366,6 +365,7 @@ impl ParseError {
             Self::BadByteEscape { span, .. } => span,
             Self::InvalidTemplateLiteral { span, .. } => span,
             Self::UnexpectedCloseBrace { span, .. } => span,
+            Self::UnsupportedFieldAccess { span, .. } => span,
         }
     }
 }
