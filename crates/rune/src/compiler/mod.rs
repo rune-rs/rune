@@ -349,9 +349,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
             ast::Expr::ExprSelect(expr_select) => {
                 self.compile_expr_select(expr_select, needs)?;
             }
-            ast::Expr::Ident(ident) => {
-                self.compile_ident(ident, needs)?;
-            }
             ast::Expr::Path(path) => {
                 self.compile_path(path, needs)?;
             }
@@ -1028,38 +1025,45 @@ impl<'a, 'source> Compiler<'a, 'source> {
     ) -> Result<()> {
         let span = lhs.span().join(rhs.span());
 
-        let offset = match lhs {
-            ast::Expr::Ident(ident) => {
-                let name = ident.resolve(self.source)?;
-                let var = self.scopes.get_var(name, ident.span())?;
-                var.offset
-            }
-            ast::Expr::ExprBinary(expr_binary) => match (&*expr_binary.lhs, &*expr_binary.rhs) {
-                (ast::Expr::Ident(var), ast::Expr::Ident(field)) => {
-                    let parent_span = span;
+        let offset = loop {
+            match lhs {
+                ast::Expr::Path(path) => {
+                    let item = self.convert_path_to_item(path)?;
 
-                    self.compile_expr(rhs, Needs::Value)?;
-
-                    let span = field.span();
-                    let field = field.resolve(self.source)?;
-                    let field = self.unit.new_static_string(field)?;
-                    self.asm.push(Inst::String { slot: field }, span);
-
-                    let span = var.span();
-                    let var = var.resolve(self.source)?;
-                    let var = self.scopes.get_var(var, span)?.offset;
-                    self.asm.push(Inst::Copy { offset: var }, span);
-
-                    self.asm.push(Inst::IndexSet, parent_span);
-                    return Ok(());
+                    if let Some(local) = item.as_local() {
+                        let var = self.scopes.get_var(local, path.span())?;
+                        break var.offset;
+                    }
                 }
-                _ => {
-                    return Err(CompileError::UnsupportedAssignExpr { span });
+                ast::Expr::ExprBinary(expr_binary) => {
+                    match (&*expr_binary.lhs, &*expr_binary.rhs) {
+                        (ast::Expr::Path(var), ast::Expr::Path(field)) => {
+                            let field_span = field.span();
+                            let var_span = var.span();
+
+                            let var = self.convert_path_to_item(var)?;
+                            let field = self.convert_path_to_item(field)?;
+
+                            if let (Some(var), Some(field)) = (var.as_local(), field.as_local()) {
+                                self.compile_expr(rhs, Needs::Value)?;
+
+                                let field = self.unit.new_static_string(field)?;
+                                self.asm.push(Inst::String { slot: field }, field_span);
+
+                                let var = self.scopes.get_var(var, var_span)?.offset;
+                                self.asm.push(Inst::Copy { offset: var }, var_span);
+
+                                self.asm.push(Inst::IndexSet, span);
+                                return Ok(());
+                            }
+                        }
+                        _ => (),
+                    }
                 }
-            },
-            _ => {
-                return Err(CompileError::UnsupportedAssignExpr { span });
-            }
+                _ => (),
+            };
+
+            return Err(CompileError::UnsupportedAssignExpr { span });
         };
 
         self.compile_expr(rhs, Needs::Value)?;
@@ -1246,53 +1250,14 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    /// Encode a local copy.
-    fn compile_ident(&mut self, ident: &ast::Ident, needs: Needs) -> Result<()> {
-        let span = ident.span();
-        log::trace!("Ident => {:?}", self.source.source(span)?);
-
-        // NB: avoid the encode completely if it is not needed.
-        if !needs.value() {
-            self.warnings.not_used(span, self.context());
-            return Ok(());
-        }
-
-        let binding = ident.resolve(self.source)?;
-
-        if let Needs::Value = needs {
-            if let Some(var) = self.scopes.try_get_var(binding)? {
-                self.asm.push(Inst::Copy { offset: var.offset }, span);
-                return Ok(());
-            }
-        }
-
-        let item = match self.unit.lookup_import_by_name(binding).cloned() {
-            Some(item) => item,
-            None => Item::of(&[binding]),
-        };
-
-        let meta = match self.lookup_meta(&item, span)? {
-            Some(meta) => meta,
-            None => match needs {
-                Needs::Type => {
-                    return Err(CompileError::MissingType { span, item });
-                }
-                _ => {
-                    return Err(CompileError::MissingLocal {
-                        name: binding.to_owned(),
-                        span,
-                    });
-                }
-            },
-        };
-
-        self.compile_meta(item, &meta, span, needs)
-    }
-
     /// Compile an item.
     fn compile_meta(&mut self, item: Item, meta: &Meta, span: Span, needs: Needs) -> Result<()> {
         match (needs, meta) {
             (Needs::Value, Meta::MetaTuple { tuple }) if tuple.args == 0 => {
+                let hash = Hash::function(&item);
+                self.asm.push(Inst::Call { hash, args: 0 }, span);
+            }
+            (Needs::Value, Meta::MetaTupleVariant { tuple, .. }) if tuple.args == 0 => {
                 let hash = Hash::function(&item);
                 self.asm.push(Inst::Call { hash, args: 0 }, span);
             }
@@ -1318,11 +1283,28 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let item = self.convert_path_to_item(path)?;
 
-        let meta = match self.lookup_meta(&item, path.span())? {
-            Some(meta) => meta,
-            None => {
-                return Err(CompileError::MissingType { span, item });
+        if let Needs::Value = needs {
+            if let Some(local) = item.as_local() {
+                if let Some(var) = self.scopes.try_get_var(local)? {
+                    self.asm.push(Inst::Copy { offset: var.offset }, span);
+                    return Ok(());
+                }
             }
+        }
+
+        let meta = match self.lookup_meta(&item, span)? {
+            Some(meta) => meta,
+            None => match (needs, item.as_local()) {
+                (Needs::Value, Some(local)) => {
+                    return Err(CompileError::MissingLocal {
+                        name: local.to_owned(),
+                        span,
+                    });
+                }
+                _ => {
+                    return Err(CompileError::MissingType { span, item });
+                }
+            },
         };
 
         self.compile_meta(item, &meta, span, needs)?;
@@ -1699,13 +1681,25 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
             self.compile_pat(&mut scope, &branch.pat, match_false, &load)?;
 
-            if let Some((_, condition)) = &branch.condition {
+            let scope = if let Some((_, condition)) = &branch.condition {
                 let span = condition.span();
+
+                let parent_guard = self.scopes.push(scope);
+                let scope = self.scopes.last(span)?.child();
+                let guard = self.scopes.push(scope);
+
                 self.compile_expr(&*condition, Needs::Value)?;
+                self.clean_last_scope(span, guard, Needs::Value)?;
+                let scope = self.scopes.pop(span, parent_guard)?;
+
                 self.asm
                     .pop_and_jump_if_not(scope.local_var_count, match_false, span);
+
                 self.asm.jump(branch_label, span);
-            }
+                scope
+            } else {
+                scope
+            };
 
             self.asm.jump(branch_label, span);
             self.asm.label(match_false)?;
@@ -1829,15 +1823,26 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
             let mut scope = self.scopes.last(span)?.child();
 
-            match &branch.pat {
-                ast::Pat::PatBinding(binding) => {
-                    let name = binding.resolve(self.source)?;
-                    scope.decl_var(name, span);
+            loop {
+                match &branch.pat {
+                    ast::Pat::PatPath(path) => {
+                        let item = self.convert_path_to_item(&path.path)?;
+
+                        if let Some(local) = item.as_local() {
+                            scope.decl_var(local, span);
+                            break;
+                        }
+                    }
+                    ast::Pat::PatIgnore(..) => {
+                        self.asm.push(Inst::Pop, span);
+                        break;
+                    }
+                    _ => (),
                 }
-                ast::Pat::PatIgnore(..) => {
-                    self.asm.push(Inst::Pop, span);
-                }
-                other => return Err(CompileError::UnsupportedSelectPattern { span: other.span() }),
+
+                return Err(CompileError::UnsupportedSelectPattern {
+                    span: branch.span(),
+                });
             }
 
             // Set up a new scope with the binding.
@@ -1878,7 +1883,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         self.asm.push(
             Inst::MatchSequence {
-                ty: TypeCheck::Vec,
+                type_check: TypeCheck::Vec,
                 len: pat_vec.items.len(),
                 exact: pat_vec.open_pattern.is_none(),
             },
@@ -1906,7 +1911,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         scope: &mut Scope,
         false_label: Label,
-        ty: TypeCheck,
+        type_check: TypeCheck,
         len: usize,
         exact: bool,
         span: Span,
@@ -1915,7 +1920,14 @@ impl<'a, 'source> Compiler<'a, 'source> {
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed a tuple.
         load(&mut self.asm);
-        self.asm.push(Inst::MatchSequence { ty, len, exact }, span);
+        self.asm.push(
+            Inst::MatchSequence {
+                type_check,
+                len,
+                exact,
+            },
+            span,
+        );
         self.asm
             .pop_and_jump_if_not(scope.local_var_count, false_label, span);
         Ok(())
@@ -1932,13 +1944,19 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span)?);
 
-        let ty = if let Some(path) = &pat_tuple.path {
+        let type_check = if let Some(path) = &pat_tuple.path {
             let item = self.convert_path_to_item(path)?;
 
-            let tuple = if let Some(meta) = self.lookup_meta(&item, path.span())? {
+            let (tuple, type_check) = if let Some(meta) = self.lookup_meta(&item, path.span())? {
                 match meta {
-                    Meta::MetaTuple { tuple } => tuple,
-                    Meta::MetaTupleVariant { tuple, .. } => tuple,
+                    Meta::MetaTuple { tuple } => {
+                        let type_check = TypeCheck::Type(Hash::of_type(&tuple.item));
+                        (tuple, type_check)
+                    }
+                    Meta::MetaTupleVariant { tuple, .. } => {
+                        let type_check = TypeCheck::Variant(Hash::of_type(&tuple.item));
+                        (tuple, type_check)
+                    }
                     _ => return Err(CompileError::UnsupportedMetaPattern { meta, span }),
                 }
             } else {
@@ -1960,8 +1978,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
 
             match self.context.type_check_for(&item) {
-                Some(ty) => ty,
-                None => TypeCheck::Type(Hash::of_type(&item)),
+                Some(type_check) => type_check,
+                None => type_check,
             }
         } else {
             TypeCheck::Tuple
@@ -1970,7 +1988,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         self.compile_pat_match_seq(
             scope,
             false_label,
-            ty,
+            type_check,
             pat_tuple.items.len(),
             pat_tuple.open_pattern.is_none(),
             span,
@@ -2025,7 +2043,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let keys = self.unit.new_static_object_keys(&keys[..])?;
 
-        let ty = match &pat_object.ident {
+        let type_check = match &pat_object.ident {
             ast::LitObjectIdent::Named(path) => {
                 let span = path.span();
                 let item = self.convert_path_to_item(path)?;
@@ -2037,9 +2055,15 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     }
                 };
 
-                let object = match &meta {
-                    Meta::MetaObject { object } => object,
-                    Meta::MetaObjectVariant { object, .. } => object,
+                let (object, type_check) = match &meta {
+                    Meta::MetaObject { object } => {
+                        let type_check = TypeCheck::Type(Hash::of_type(&object.item));
+                        (object, type_check)
+                    }
+                    Meta::MetaObjectVariant { object, .. } => {
+                        let type_check = TypeCheck::Variant(Hash::of_type(&object.item));
+                        (object, type_check)
+                    }
                     _ => {
                         return Err(CompileError::UnsupportedMetaPattern { meta, span });
                     }
@@ -2066,8 +2090,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     }
                 }
 
-                let hash = Hash::of_type(&item);
-                TypeCheck::Type(hash)
+                type_check
             }
             ast::LitObjectIdent::Anonymous(..) => TypeCheck::Object,
         };
@@ -2078,7 +2101,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         self.asm.push(
             Inst::MatchObject {
-                ty,
+                type_check,
                 slot: keys,
                 exact: pat_object.open_pattern.is_none(),
             },
@@ -2120,15 +2143,16 @@ impl<'a, 'source> Compiler<'a, 'source> {
     fn compile_pat_meta_binding(
         &mut self,
         scope: &mut Scope,
-        item: Item,
         span: Span,
         meta: &Meta,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
-        let tuple = match meta {
-            Meta::MetaTuple { tuple } => tuple,
-            Meta::MetaTupleVariant { tuple, .. } => tuple,
+        let (tuple, type_check) = match meta {
+            Meta::MetaTuple { tuple } => (tuple, TypeCheck::Type(Hash::of_type(&tuple.item))),
+            Meta::MetaTupleVariant { tuple, .. } => {
+                (tuple, TypeCheck::Variant(Hash::of_type(&tuple.item)))
+            }
             _ => {
                 return Err(CompileError::UnsupportedMetaPattern {
                     meta: meta.clone(),
@@ -2153,9 +2177,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
             asm.push(Inst::Copy { offset }, span);
         };
 
-        let ty = match self.context.type_check_for(&item) {
+        let ty = match self.context.type_check_for(&tuple.item) {
             Some(ty) => ty,
-            None => TypeCheck::Type(Hash::of_type(&item)),
+            None => type_check,
         };
 
         self.compile_pat_match_seq(scope, false_label, ty, tuple.args, true, span, &load)?;
@@ -2181,22 +2205,25 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let true_label = self.asm.new_label("pat_true");
 
         match pat {
-            ast::Pat::PatBinding(binding) => {
-                let span = binding.span();
-                let name = binding.resolve(self.source)?;
+            ast::Pat::PatPath(path) => {
+                let span = path.span();
 
-                let item = match self.unit.lookup_import_by_name(name).cloned() {
-                    Some(item) => item,
-                    None => Item::of(&[name]),
-                };
+                let item = self.convert_path_to_item(&path.path)?;
 
                 if let Some(meta) = self.lookup_meta(&item, span)? {
-                    self.compile_pat_meta_binding(scope, item, span, &meta, false_label, load)?;
+                    self.compile_pat_meta_binding(scope, span, &meta, false_label, load)?;
                     return Ok(true);
                 }
 
+                let ident = match item.as_local() {
+                    Some(ident) => ident,
+                    None => {
+                        return Err(CompileError::UnsupportedPattern { span });
+                    }
+                };
+
                 load(&mut self.asm);
-                scope.decl_var(name, span);
+                scope.decl_var(&ident, span);
                 return Ok(false);
             }
             ast::Pat::PatIgnore(..) => {

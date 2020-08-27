@@ -52,8 +52,6 @@ pub enum Expr {
     ExprIf(ast::ExprIf),
     /// An match expression.
     ExprMatch(ast::ExprMatch),
-    /// An empty expression.
-    Ident(ast::Ident),
     /// An path expression.
     Path(ast::Path),
     /// A function call,
@@ -135,7 +133,6 @@ impl Expr {
             Self::ExprIndexSet(expr) => expr.span(),
             Self::ExprIf(expr) => expr.span(),
             Self::ExprMatch(expr) => expr.span(),
-            Self::Ident(expr) => expr.span(),
             Self::Path(path) => path.span(),
             Self::CallFn(expr) => expr.span(),
             Self::CallInstanceFn(expr) => expr.span(),
@@ -218,10 +215,6 @@ impl Expr {
         }
 
         if !parser.peek::<OpenParen>()? {
-            if path.rest.is_empty() {
-                return Ok(Self::Ident(path.first));
-            }
-
             return Ok(Self::Path(path));
         }
 
@@ -380,14 +373,20 @@ impl Expr {
 
                             span
                         }
-                        Expr::Ident(ident) => {
-                            expr = Expr::ExprFieldAccess(ExprFieldAccess {
-                                expr: Box::new(expr),
-                                dot,
-                                expr_field: ExprField::Ident(ident),
-                            });
+                        Expr::Path(path) => {
+                            let span = path.span();
 
-                            continue;
+                            if let Some(ident) = path.try_into_ident() {
+                                expr = Expr::ExprFieldAccess(ExprFieldAccess {
+                                    expr: Box::new(expr),
+                                    dot,
+                                    expr_field: ExprField::Ident(ident),
+                                });
+
+                                continue;
+                            }
+
+                            span
                         }
                         Expr::LitNumber(n) => {
                             expr = Expr::ExprFieldAccess(ExprFieldAccess {

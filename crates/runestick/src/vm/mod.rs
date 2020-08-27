@@ -1692,11 +1692,11 @@ impl Vm {
     fn op_match_object(
         &mut self,
         unit: &Rc<CompilationUnit>,
-        ty: TypeCheck,
+        type_check: TypeCheck,
         slot: usize,
         exact: bool,
     ) -> Result<(), VmError> {
-        let result = self.on_object_keys(unit, ty, slot, |object, keys| {
+        let result = self.on_object_keys(unit, type_check, slot, |object, keys| {
             if exact {
                 if object.len() != keys.len() {
                     return false;
@@ -1763,7 +1763,7 @@ impl Vm {
 
                 Some(f(&*typed_tuple.tuple))
             }
-            (inst::TypeCheck::Type(hash), Value::VariantTuple(variant_tuple)) => {
+            (inst::TypeCheck::Variant(hash), Value::VariantTuple(variant_tuple)) => {
                 let variant_tuple = variant_tuple.get_ref()?;
 
                 if variant_tuple.hash != hash {
@@ -1781,7 +1781,7 @@ impl Vm {
     fn on_object_keys<F, O>(
         &mut self,
         unit: &Rc<CompilationUnit>,
-        ty: TypeCheck,
+        type_check: TypeCheck,
         slot: usize,
         f: F,
     ) -> Result<Option<O>, VmError>
@@ -1794,7 +1794,7 @@ impl Vm {
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
-        match (ty, value) {
+        match (type_check, value) {
             (TypeCheck::Object, Value::Object(object)) => {
                 let object = object.get_ref()?;
                 return Ok(Some(f(&*object, keys)));
@@ -2252,11 +2252,19 @@ impl Vm {
                 Inst::EqStaticString { slot } => {
                     self.op_eq_static_string(unit, slot)?;
                 }
-                Inst::MatchSequence { ty, len, exact } => {
-                    self.op_match_sequence(ty, len, exact)?;
+                Inst::MatchSequence {
+                    type_check,
+                    len,
+                    exact,
+                } => {
+                    self.op_match_sequence(type_check, len, exact)?;
                 }
-                Inst::MatchObject { ty, slot, exact } => {
-                    self.op_match_object(unit, ty, slot, exact)?;
+                Inst::MatchObject {
+                    type_check,
+                    slot,
+                    exact,
+                } => {
+                    self.op_match_object(unit, type_check, slot, exact)?;
                 }
                 Inst::Panic { reason } => {
                     return Err(VmError::Panic {

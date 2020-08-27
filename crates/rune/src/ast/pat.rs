@@ -11,7 +11,7 @@ pub enum Pat {
     /// An ignored binding `_`.
     PatIgnore(ast::Underscore),
     /// A variable binding `n`.
-    PatBinding(ast::Ident),
+    PatPath(ast::PatPath),
     /// A literal unit.
     PatUnit(ast::LitUnit),
     /// A literal byte.
@@ -39,7 +39,7 @@ impl Pat {
             Self::PatChar(pat) => pat.span(),
             Self::PatNumber(pat) => pat.span(),
             Self::PatString(pat) => pat.span(),
-            Self::PatBinding(pat) => pat.span(),
+            Self::PatPath(pat) => pat.span(),
             Self::PatIgnore(pat) => pat.span(),
             Self::PatVec(pat) => pat.span(),
             Self::PatTuple(pat) => pat.span(),
@@ -56,24 +56,37 @@ impl Pat {
                 Kind::Scope | Kind::Open(Delimiter::Parenthesis) | Kind::Open(Delimiter::Brace) => {
                     let path = ast::Path::parse_with_first(parser, first)?;
 
-                    if parser.peek::<ast::OpenParen>()? {
-                        return Ok(Self::PatTuple(ast::PatTuple::parse_with_path(
-                            parser,
-                            Some(path),
-                        )?));
+                    if let Some(t) = parser.token_peek()? {
+                        match t.kind {
+                            Kind::Open(Delimiter::Parenthesis) => {
+                                return Ok(Self::PatTuple(ast::PatTuple::parse_with_path(
+                                    parser,
+                                    Some(path),
+                                )?));
+                            }
+                            Kind::Open(Delimiter::Brace) => {
+                                let ident = ast::LitObjectIdent::Named(path);
+
+                                return Ok(Self::PatObject(ast::PatObject::parse_with_ident(
+                                    parser, ident,
+                                )?));
+                            }
+                            _ => (),
+                        }
                     }
 
-                    let ident = ast::LitObjectIdent::Named(path);
-
-                    return Ok(Self::PatObject(ast::PatObject::parse_with_ident(
-                        parser, ident,
-                    )?));
+                    return Ok(Self::PatPath(ast::PatPath { path }));
                 }
                 _ => (),
             }
         }
 
-        Ok(Self::PatBinding(first))
+        Ok(Self::PatPath(ast::PatPath {
+            path: ast::Path {
+                first,
+                rest: Default::default(),
+            },
+        }))
     }
 }
 

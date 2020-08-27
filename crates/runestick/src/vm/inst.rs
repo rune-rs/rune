@@ -805,7 +805,7 @@ pub enum Inst {
     /// ```
     MatchSequence {
         /// Type constraints that the sequence must match.
-        ty: TypeCheck,
+        type_check: TypeCheck,
         /// The minimum length to test for.
         len: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -823,7 +823,7 @@ pub enum Inst {
     /// ```
     MatchObject {
         /// Type constraints that the object must match.
-        ty: TypeCheck,
+        type_check: TypeCheck,
         /// The slot of object keys to use.
         slot: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -1056,11 +1056,19 @@ impl fmt::Display for Inst {
             Self::EqStaticString { slot } => {
                 write!(fmt, "eq-static-string {}", slot)?;
             }
-            Self::MatchSequence { ty, len, exact } => {
-                write!(fmt, "match-tuple {}, {}, {}", ty, len, exact)?;
+            Self::MatchSequence {
+                type_check,
+                len,
+                exact,
+            } => {
+                write!(fmt, "match-sequence {}, {}, {}", type_check, len, exact)?;
             }
-            Self::MatchObject { ty, slot, exact } => {
-                write!(fmt, "match-object {}, {}, {}", ty, slot, exact)?;
+            Self::MatchObject {
+                type_check,
+                slot,
+                exact,
+            } => {
+                write!(fmt, "match-object {}, {}, {}", type_check, slot, exact)?;
             }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;

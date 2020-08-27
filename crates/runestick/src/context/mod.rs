@@ -93,6 +93,8 @@ pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError>;
 /// Information on a specific type.
 #[derive(Debug, Clone)]
 pub struct TypeInfo {
+    /// The type check used for the current type.
+    pub type_check: TypeCheck,
     /// The name of the type.
     pub name: Item,
     /// The value type of the type.
@@ -227,8 +229,6 @@ pub struct Context {
     result_type: Option<Hash>,
     /// Specialized information on `Option` types, if available.
     option_type: Option<Hash>,
-    /// Custom type checks for specific items.
-    type_checks: HashMap<Item, TypeCheck>,
 }
 
 impl Context {
@@ -237,9 +237,10 @@ impl Context {
         Context::default()
     }
 
-    /// Compile a special type check.
+    /// Use the specified type check.
     pub fn type_check_for(&self, item: &Item) -> Option<TypeCheck> {
-        self.type_checks.get(item).copied()
+        let ty = self.types.get(&Hash::of_type(item))?;
+        Some(ty.type_check)
     }
 
     /// Construct a new collection of functions with default packages installed.
@@ -322,6 +323,7 @@ impl Context {
             let hash = Hash::of_type(&name);
 
             let type_info = TypeInfo {
+                type_check: TypeCheck::Type(hash),
                 name: name.clone(),
                 value_type,
                 value_type_info: ty.value_type_info,
@@ -395,7 +397,6 @@ impl Context {
             match variant {
                 Variant::TupleVariant(variant) => {
                     let name = module.path.join(&variant.name);
-
                     self.install_function(&name, variant.tuple_constructor, Some(variant.args))?;
 
                     let meta = Meta::MetaTuple {
@@ -423,6 +424,7 @@ impl Context {
                     }
 
                     let type_info = TypeInfo {
+                        type_check: TypeCheck::Variant(hash),
                         name,
                         value_type: variant.value_type,
                         value_type_info: variant.value_type_info,
@@ -462,17 +464,34 @@ impl Context {
             let hash = Hash::of_type(&result_type);
             self.result_type = Some(hash);
 
-            self.type_checks
-                .insert(ok.clone(), TypeCheck::Result(ResultVariant::Ok));
-            self.type_checks
-                .insert(err.clone(), TypeCheck::Result(ResultVariant::Err));
-            self.add_internal_tuple(ok, 1, Ok::<Value, Value>)?;
-            self.add_internal_tuple(err, 1, Err::<Value, Value>)?;
+            self.add_internal_tuple(ok.clone(), 1, Ok::<Value, Value>)?;
+            self.add_internal_tuple(err.clone(), 1, Err::<Value, Value>)?;
 
             self.types.insert(
                 hash,
                 TypeInfo {
+                    type_check: TypeCheck::Type(hash),
                     name: result_type,
+                    value_type: ValueType::Result,
+                    value_type_info: ValueTypeInfo::Result,
+                },
+            );
+
+            self.types.insert(
+                Hash::of_type(&ok),
+                TypeInfo {
+                    type_check: TypeCheck::Result(ResultVariant::Ok),
+                    name: ok,
+                    value_type: ValueType::Result,
+                    value_type_info: ValueTypeInfo::Result,
+                },
+            );
+
+            self.types.insert(
+                Hash::of_type(&err),
+                TypeInfo {
+                    type_check: TypeCheck::Result(ResultVariant::Err),
+                    name: err,
                     value_type: ValueType::Result,
                     value_type_info: ValueTypeInfo::Result,
                 },
@@ -504,17 +523,34 @@ impl Context {
 
             self.option_type = Some(hash);
 
-            self.type_checks
-                .insert(some.clone(), TypeCheck::Option(OptionVariant::Some));
-            self.type_checks
-                .insert(none.clone(), TypeCheck::Option(OptionVariant::None));
-            self.add_internal_tuple(some, 1, Some::<Value>)?;
-            self.add_internal_tuple(none, 0, || None::<Value>)?;
+            self.add_internal_tuple(some.clone(), 1, Some::<Value>)?;
+            self.add_internal_tuple(none.clone(), 0, || None::<Value>)?;
 
             self.types.insert(
                 hash,
                 TypeInfo {
+                    type_check: TypeCheck::Type(hash),
                     name: option_type,
+                    value_type: ValueType::Option,
+                    value_type_info: ValueTypeInfo::Option,
+                },
+            );
+
+            self.types.insert(
+                Hash::of_type(&some),
+                TypeInfo {
+                    type_check: TypeCheck::Option(OptionVariant::Some),
+                    name: some,
+                    value_type: ValueType::Option,
+                    value_type_info: ValueTypeInfo::Option,
+                },
+            );
+
+            self.types.insert(
+                Hash::of_type(&none),
+                TypeInfo {
+                    type_check: TypeCheck::Option(OptionVariant::None),
+                    name: none,
                     value_type: ValueType::Option,
                     value_type_info: ValueTypeInfo::Option,
                 },
