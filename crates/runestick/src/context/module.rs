@@ -1,6 +1,7 @@
 use crate::collections::HashMap;
 use crate::future::Future;
 use crate::hash::Hash;
+use crate::item::Component;
 use crate::reflection::{ReflectValueType, ToValue, UnsafeFromValue};
 use crate::stack::Stack;
 use crate::value::{Value, ValueType, ValueTypeInfo};
@@ -8,8 +9,8 @@ use crate::vm::VmError;
 use std::any::type_name;
 use std::future;
 
-use crate::context::item::Item;
 use crate::context::{ContextError, Handler, IntoInstFnHash};
+use crate::item::Item;
 
 /// Specialized information on `Result` types.
 pub struct ResultTypes {
@@ -85,7 +86,7 @@ impl Module {
     pub fn new<I>(path: I) -> Self
     where
         I: IntoIterator,
-        I::Item: AsRef<str>,
+        I::Item: Into<Component>,
     {
         Self {
             path: Item::of(path),
@@ -105,7 +106,7 @@ impl Module {
     pub fn ty<N>(&mut self, name: N) -> TypeBuilder<'_, N>
     where
         N: IntoIterator,
-        N::Item: AsRef<str>,
+        N::Item: Into<Component>,
     {
         TypeBuilder {
             name,
@@ -117,7 +118,7 @@ impl Module {
     pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
-        N::Item: AsRef<str>,
+        N::Item: Into<Component>,
     {
         if self.option_types.is_some() {
             return Err(ContextError::OptionAlreadyPresent);
@@ -138,7 +139,7 @@ impl Module {
     pub fn result<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
-        N::Item: AsRef<str>,
+        N::Item: Into<Component>,
     {
         if self.result_types.is_some() {
             return Err(ContextError::ResultAlreadyPresent);
@@ -162,7 +163,7 @@ impl Module {
     pub fn variant<N>(&mut self, name: N) -> VariantBuilder<'_, N>
     where
         N: IntoIterator,
-        N::Item: AsRef<str>,
+        N::Item: Into<Component>,
     {
         VariantBuilder {
             name,
@@ -202,7 +203,7 @@ impl Module {
     where
         Func: Function<Args>,
         N: IntoIterator,
-        N::Item: AsRef<str>,
+        N::Item: Into<Component>,
     {
         let name = Item::of(name);
 
@@ -234,7 +235,7 @@ impl Module {
     where
         Func: AsyncFunction<Args>,
         N: IntoIterator,
-        N::Item: AsRef<str>,
+        N::Item: Into<Component>,
     {
         let name = Item::of(name);
 
@@ -253,7 +254,7 @@ impl Module {
     where
         F: 'static + Copy + Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync,
         N: IntoIterator,
-        N::Item: AsRef<str>,
+        N::Item: Into<Component>,
     {
         let name = Item::of(name);
 
@@ -400,7 +401,7 @@ pub struct TypeBuilder<'a, N> {
 impl<N> TypeBuilder<'_, N>
 where
     N: IntoIterator,
-    N::Item: AsRef<str>,
+    N::Item: Into<Component>,
 {
     /// Construct a new type, specifying which type it is with the parameter.
     pub fn build<T>(self) -> Result<(), ContextError>
@@ -437,7 +438,7 @@ pub struct VariantBuilder<'a, N> {
 impl<N> VariantBuilder<'_, N>
 where
     N: IntoIterator,
-    N::Item: AsRef<str>,
+    N::Item: Into<Component>,
 {
     /// Perform a tuple match.
     pub fn tuple<Constructor, C>(self, tuple_constructor: Constructor)

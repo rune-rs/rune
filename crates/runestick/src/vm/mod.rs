@@ -3,6 +3,7 @@ use crate::context::Context;
 use crate::future::Future;
 use crate::future::SelectFuture;
 use crate::hash::Hash;
+use crate::item::Component;
 use crate::panic::Panic;
 use crate::reflection::{FromValue, IntoArgs};
 use crate::shared::{Shared, StrongMut};
@@ -525,7 +526,7 @@ impl Vm {
     ) -> Result<Task<'a, T>, VmError>
     where
         I: IntoIterator,
-        I::Item: AsRef<str>,
+        I::Item: AsRef<Component>,
         A: 'a + IntoArgs,
         T: FromValue,
     {

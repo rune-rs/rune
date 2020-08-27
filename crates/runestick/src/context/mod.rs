@@ -1,16 +1,15 @@
 use crate::collections::HashMap;
 use crate::hash::Hash;
+use crate::item::Item;
 use crate::stack::Stack;
 use crate::value::{Value, ValueType, ValueTypeInfo};
 use crate::vm::{OptionVariant, ResultVariant, TypeCheck, VmError};
 use std::fmt;
 use thiserror::Error;
 
-mod item;
 mod meta;
 mod module;
 
-pub use self::item::Item;
 pub use self::meta::{Meta, MetaObject, MetaTuple};
 pub use self::module::Module;
 use self::module::Variant;

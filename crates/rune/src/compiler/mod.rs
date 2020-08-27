@@ -5,7 +5,7 @@ use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use runestick::unit::{Assembly, Label, UnitFnCall};
-use runestick::{Context, Hash, Inst, Item, Meta, Span, TypeCheck};
+use runestick::{Component, Context, Hash, Inst, Item, Meta, Span, TypeCheck};
 
 mod loops;
 mod options;
@@ -1313,9 +1313,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
     /// Convert a path to an item.
     fn convert_path_to_item(&self, path: &ast::Path) -> Result<Item> {
-        let local = path.first.resolve(self.source)?;
+        let local = Component::from(path.first.resolve(self.source)?);
 
-        let imported = match self.unit.lookup_import_by_name(local).cloned() {
+        let imported = match self.unit.lookup_import_by_name(&local).cloned() {
             Some(path) => path,
             None => Item::of(&[local]),
         };
@@ -1323,14 +1323,10 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let mut rest = Vec::new();
 
         for (_, part) in &path.rest {
-            rest.push(part.resolve(self.source)?);
+            rest.push(Component::String(part.resolve(self.source)?.to_owned()));
         }
 
-        let it = imported
-            .into_iter()
-            .map(String::as_str)
-            .chain(rest.into_iter());
-
+        let it = imported.into_iter().chain(rest.into_iter());
         Ok(Item::of(it))
     }
 

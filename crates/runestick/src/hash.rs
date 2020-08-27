@@ -1,4 +1,5 @@
 use crate::value::ValueType;
+use crate::Component;
 use std::fmt;
 use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
 use twox_hash::XxHash64;
@@ -44,14 +45,13 @@ impl Hash {
     fn path<I>(kind: usize, path: I) -> Self
     where
         I: IntoIterator,
-        I::Item: AsRef<str>,
+        I::Item: AsRef<Component>,
     {
         let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
         kind.hash(&mut hasher);
 
         for part in path {
             part.as_ref().hash(&mut hasher);
-            Self::SEP.hash(&mut hasher);
         }
 
         Self(hasher.finish())
@@ -61,7 +61,7 @@ impl Hash {
     pub fn of_type<I>(path: I) -> Self
     where
         I: IntoIterator,
-        I::Item: AsRef<str>,
+        I::Item: AsRef<Component>,
     {
         Self::path(Self::TYPE, path)
     }
@@ -70,7 +70,7 @@ impl Hash {
     pub fn function<I>(path: I) -> Self
     where
         I: IntoIterator,
-        I::Item: AsRef<str>,
+        I::Item: AsRef<Component>,
     {
         Self::path(Self::TYPE, path)
     }

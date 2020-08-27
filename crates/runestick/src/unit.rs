@@ -4,9 +4,9 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
-use crate::context::Context;
-use crate::context::{Item, Meta};
+use crate::context::{Context, Meta};
 use crate::hash::Hash;
+use crate::item::{Component, Item};
 use crate::value::ValueType;
 use crate::vm::{Inst, VmError};
 use std::fmt;
@@ -343,7 +343,7 @@ pub struct CompilationUnit {
     ///
     /// Only used to link against the current environment to make sure all
     /// required units are present.
-    imports: HashMap<String, Item>,
+    imports: HashMap<Component, Item>,
     /// Item metadata in the context.
     meta: HashMap<Item, Meta>,
     /// Where functions are located in the collection of instructions.
@@ -387,57 +387,57 @@ impl CompilationUnit {
     pub fn with_default_prelude() -> Self {
         let mut this = Self::new();
         this.imports
-            .insert(String::from("dbg"), Item::of(&["std", "dbg"]));
+            .insert(Component::from("dbg"), Item::of(&["std", "dbg"]));
         this.imports
-            .insert(String::from("unit"), Item::of(&["std", "unit"]));
+            .insert(Component::from("unit"), Item::of(&["std", "unit"]));
         this.imports
-            .insert(String::from("bool"), Item::of(&["std", "bool"]));
+            .insert(Component::from("bool"), Item::of(&["std", "bool"]));
         this.imports
-            .insert(String::from("byte"), Item::of(&["std", "byte"]));
+            .insert(Component::from("byte"), Item::of(&["std", "byte"]));
         this.imports
-            .insert(String::from("char"), Item::of(&["std", "char"]));
+            .insert(Component::from("char"), Item::of(&["std", "char"]));
         this.imports
-            .insert(String::from("int"), Item::of(&["std", "int"]));
+            .insert(Component::from("int"), Item::of(&["std", "int"]));
         this.imports
-            .insert(String::from("float"), Item::of(&["std", "float"]));
+            .insert(Component::from("float"), Item::of(&["std", "float"]));
         this.imports.insert(
-            String::from("Object"),
+            Component::from("Object"),
             Item::of(&["std", "object", "Object"]),
         );
         this.imports
-            .insert(String::from("Vec"), Item::of(&["std", "vec", "Vec"]));
+            .insert(Component::from("Vec"), Item::of(&["std", "vec", "Vec"]));
         this.imports.insert(
-            String::from("String"),
+            Component::from("String"),
             Item::of(&["std", "string", "String"]),
         );
 
         this.imports.insert(
-            String::from("Result"),
+            Component::from("Result"),
             Item::of(&["std", "result", "Result"]),
         );
 
         this.imports.insert(
-            String::from("Err"),
+            Component::from("Err"),
             Item::of(&["std", "result", "Result", "Err"]),
         );
 
         this.imports.insert(
-            String::from("Ok"),
+            Component::from("Ok"),
             Item::of(&["std", "result", "Result", "Ok"]),
         );
 
         this.imports.insert(
-            String::from("Option"),
+            Component::from("Option"),
             Item::of(&["std", "option", "Option"]),
         );
 
         this.imports.insert(
-            String::from("Some"),
+            Component::from("Some"),
             Item::of(&["std", "option", "Option", "Some"]),
         );
 
         this.imports.insert(
-            String::from("None"),
+            Component::from("None"),
             Item::of(&["std", "option", "Option", "None"]),
         );
 
@@ -506,12 +506,12 @@ impl CompilationUnit {
     }
 
     /// Iterate over known imports.
-    pub fn iter_imports<'a>(&'a self) -> impl Iterator<Item = (&'a str, &'a Item)> + '_ {
+    pub fn iter_imports<'a>(&'a self) -> impl Iterator<Item = (&'a Component, &'a Item)> + '_ {
         let mut it = self.imports.iter();
 
         std::iter::from_fn(move || {
             let (k, v) = it.next()?;
-            Some((k.as_str(), v))
+            Some((k, v))
         })
     }
 
@@ -641,7 +641,7 @@ impl CompilationUnit {
     }
 
     /// Look up an use by name.
-    pub fn lookup_import_by_name(&self, name: &str) -> Option<&Item> {
+    pub fn lookup_import_by_name(&self, name: &Component) -> Option<&Item> {
         self.imports.get(name)
     }
 
@@ -649,12 +649,12 @@ impl CompilationUnit {
     pub fn new_import<I>(&mut self, path: I) -> Result<(), CompilationUnitError>
     where
         I: Copy + IntoIterator,
-        I::Item: AsRef<str>,
+        I::Item: Into<Component>,
     {
         let path = Item::of(path);
 
         if let Some(last) = path.last() {
-            if let Some(existing) = self.imports.insert(last.to_owned(), path) {
+            if let Some(existing) = self.imports.insert(last.clone(), path) {
                 return Err(CompilationUnitError::ImportConflict { existing });
             }
         }
@@ -799,7 +799,7 @@ impl CompilationUnit {
     ) -> Result<(), CompilationUnitError>
     where
         I: IntoIterator,
-        I::Item: AsRef<str>,
+        I::Item: Into<Component>,
     {
         let offset = self.instructions.len();
         let path = Item::of(path);

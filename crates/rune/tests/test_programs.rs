@@ -1,4 +1,5 @@
 use futures_executor::block_on;
+use runestick::Item;
 use runestick::VmError::*;
 use std::rc::Rc;
 
@@ -11,7 +12,7 @@ where
     let mut vm = runestick::Vm::new();
     let unit = Rc::new(unit);
     let context = Rc::new(runestick::Context::with_default_packages()?);
-    let mut task: runestick::Task<T> = vm.call_function(unit, context, &["main"], ())?;
+    let mut task: runestick::Task<T> = vm.call_function(unit, context, Item::of(&["main"]), ())?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }

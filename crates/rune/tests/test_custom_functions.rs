@@ -1,4 +1,5 @@
 use futures_executor::block_on;
+use runestick::Item;
 use std::rc::Rc;
 
 async fn run_main<T, A>(context: Rc<runestick::Context>, source: &str, args: A) -> rune::Result<T>
@@ -9,7 +10,8 @@ where
     let (unit, _) = rune::compile(&*context, source)?;
     let mut vm = runestick::Vm::new();
     let unit = Rc::new(unit);
-    let mut task: runestick::Task<T> = vm.call_function(unit, context.clone(), &["main"], args)?;
+    let mut task: runestick::Task<T> =
+        vm.call_function(unit, context.clone(), Item::of(&["main"]), args)?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }

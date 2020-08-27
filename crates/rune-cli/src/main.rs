@@ -5,6 +5,7 @@ use std::io::Write as _;
 use std::path::PathBuf;
 
 use runestick::unit::UnitFnKind;
+use runestick::Item;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -222,7 +223,7 @@ async fn main() -> Result<()> {
     let mut vm = runestick::Vm::new();
 
     let mut task: runestick::Task<runestick::Value> =
-        runtime.call_function(&mut vm, file_id, &["main"], ())?;
+        runtime.call_function(&mut vm, file_id, Item::of(&["main"]), ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {

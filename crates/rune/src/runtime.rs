@@ -1,6 +1,7 @@
 use crate::compiler::{Options, Warning, Warnings};
 use crate::error::{CompileError, ConfigurationError, ParseError};
 use runestick::unit::{LinkerError, LinkerErrors, Span};
+use runestick::Component;
 use slab::Slab;
 use std::error::Error as _;
 use std::fmt;
@@ -160,7 +161,7 @@ impl Runtime {
     ) -> Result<runestick::Task<'a, T>, CallFunctionError>
     where
         I: IntoIterator,
-        I::Item: AsRef<str>,
+        I::Item: AsRef<Component>,
         A: 'a + runestick::IntoArgs,
         T: runestick::FromValue,
     {
