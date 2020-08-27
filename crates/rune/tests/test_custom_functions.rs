@@ -1,13 +1,15 @@
 use futures_executor::block_on;
+use std::rc::Rc;
 
-async fn run_main<T, A>(context: &runestick::Context, source: &str, args: A) -> rune::Result<T>
+async fn run_main<T, A>(context: Rc<runestick::Context>, source: &str, args: A) -> rune::Result<T>
 where
     T: runestick::FromValue,
     A: runestick::IntoArgs,
 {
     let (unit, _) = rune::compile(&*context, source)?;
     let mut vm = runestick::Vm::new();
-    let mut task: runestick::Task<T> = vm.call_function(&unit, context, &["main"], args)?;
+    let unit = Rc::new(unit);
+    let mut task: runestick::Task<T> = vm.call_function(unit, context.clone(), &["main"], args)?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }
@@ -19,10 +21,11 @@ fn test_custom_functions() {
 
     let mut context = runestick::Context::new();
     context.install(module).unwrap();
+    let context = Rc::new(context);
 
     assert_eq! {
         block_on(run_main::<i64, _>(
-            &context,
+            context,
             r#"
                 fn main() {
                     test()
@@ -52,12 +55,13 @@ fn test_passed_in_reference() {
 
     let mut context = runestick::Context::new();
     context.install(module).unwrap();
+    let context = Rc::new(context);
 
     let a = Thing(19);
     let mut b = Thing(21);
 
     let a = block_on(run_main::<Thing, _>(
-        &context,
+        context,
         r#"fn main(a, b) { test(a, b) }"#,
         (a, &mut b),
     ))

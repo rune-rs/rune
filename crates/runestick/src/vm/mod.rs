@@ -13,6 +13,7 @@ use std::any;
 use std::fmt;
 use std::marker;
 use std::mem;
+use std::rc::Rc;
 use thiserror::Error;
 
 pub(crate) mod inst;
@@ -487,8 +488,8 @@ impl Vm {
     /// Call the given function in the given compilation unit.
     pub fn call_function<'a, A: 'a, T, I>(
         &'a mut self,
-        unit: &'a CompilationUnit,
-        context: &'a Context,
+        unit: Rc<CompilationUnit>,
+        context: Rc<Context>,
         name: I,
         args: A,
     ) -> Result<Task<'a, T>, VmError>
@@ -539,7 +540,7 @@ impl Vm {
     }
 
     /// Run the given program on the virtual machine.
-    pub fn run<'a, T>(&'a mut self, unit: &'a CompilationUnit, context: &'a Context) -> Task<'a, T>
+    pub fn run<'a, T>(&'a mut self, unit: Rc<CompilationUnit>, context: Rc<Context>) -> Task<'a, T>
     where
         T: FromValue,
     {
@@ -958,7 +959,7 @@ impl Vm {
     }
 
     #[inline]
-    fn op_add(&mut self, context: &Context) -> Result<(), VmError> {
+    fn op_add(&mut self, context: &Rc<Context>) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
         numeric_ops!(self, context, crate::ADD, +, a.checked_add(b), Overflow);
@@ -966,7 +967,7 @@ impl Vm {
     }
 
     #[inline]
-    fn op_sub(&mut self, context: &Context) -> Result<(), VmError> {
+    fn op_sub(&mut self, context: &Rc<Context>) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
         numeric_ops!(self, context, crate::SUB, -, a.checked_sub(b), Underflow);
@@ -974,7 +975,7 @@ impl Vm {
     }
 
     #[inline]
-    fn op_mul(&mut self, context: &Context) -> Result<(), VmError> {
+    fn op_mul(&mut self, context: &Rc<Context>) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
         numeric_ops!(self, context, crate::MUL, *, a.checked_mul(b), Overflow);
@@ -982,7 +983,7 @@ impl Vm {
     }
 
     #[inline]
-    fn op_div(&mut self, context: &Context) -> Result<(), VmError> {
+    fn op_div(&mut self, context: &Rc<Context>) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
         numeric_ops!(self, context, crate::DIV, /, a.checked_div(b), DivideByZero);
@@ -991,7 +992,7 @@ impl Vm {
 
     /// Perform an index set operation.
     #[inline]
-    fn op_index_set(&mut self, context: &Context) -> Result<(), VmError> {
+    fn op_index_set(&mut self, context: &Rc<Context>) -> Result<(), VmError> {
         let target = self.stack.pop()?;
         let index = self.stack.pop()?;
         let value = self.stack.pop()?;
@@ -1087,7 +1088,7 @@ impl Vm {
 
     /// Perform an index get operation.
     #[inline]
-    fn op_index_get(&mut self, context: &Context) -> Result<(), VmError> {
+    fn op_index_get(&mut self, context: &Rc<Context>) -> Result<(), VmError> {
         let target = self.stack.pop()?;
         let index = self.stack.pop()?;
 
@@ -1188,7 +1189,7 @@ impl Vm {
     #[inline]
     fn op_object_slot_index_get(
         &mut self,
-        unit: &CompilationUnit,
+        unit: &Rc<CompilationUnit>,
         string_slot: usize,
     ) -> Result<(), VmError> {
         let target = self.stack.pop()?;
@@ -1228,7 +1229,7 @@ impl Vm {
 
     /// Operation to allocate an object.
     #[inline]
-    fn op_object(&mut self, unit: &CompilationUnit, slot: usize) -> Result<(), VmError> {
+    fn op_object(&mut self, unit: &Rc<CompilationUnit>, slot: usize) -> Result<(), VmError> {
         let keys = unit
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
@@ -1249,7 +1250,7 @@ impl Vm {
     #[inline]
     fn op_typed_object(
         &mut self,
-        unit: &CompilationUnit,
+        unit: &Rc<CompilationUnit>,
         ty: Hash,
         slot: usize,
     ) -> Result<(), VmError> {
@@ -1271,7 +1272,7 @@ impl Vm {
     }
 
     #[inline]
-    fn op_string(&mut self, unit: &CompilationUnit, slot: usize) -> Result<(), VmError> {
+    fn op_string(&mut self, unit: &Rc<CompilationUnit>, slot: usize) -> Result<(), VmError> {
         let string = unit.lookup_string(slot)?;
         let value = Value::StaticString(string.clone());
         self.stack.push(value);
@@ -1348,7 +1349,7 @@ impl Vm {
     }
 
     #[inline]
-    fn op_is(&mut self, unit: &CompilationUnit, context: &Context) -> Result<(), VmError> {
+    fn op_is(&mut self, unit: &Rc<CompilationUnit>, context: &Rc<Context>) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
 
@@ -1459,7 +1460,11 @@ impl Vm {
     /// Test if the top of stack is equal to the string at the given static
     /// string location.
     #[inline]
-    fn op_eq_static_string(&mut self, unit: &CompilationUnit, slot: usize) -> Result<(), VmError> {
+    fn op_eq_static_string(
+        &mut self,
+        unit: &Rc<CompilationUnit>,
+        slot: usize,
+    ) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
         let equal = match value {
@@ -1497,7 +1502,7 @@ impl Vm {
     #[inline]
     fn op_match_object(
         &mut self,
-        unit: &CompilationUnit,
+        unit: &Rc<CompilationUnit>,
         object_like: bool,
         slot: usize,
         exact: bool,
@@ -1592,7 +1597,7 @@ impl Vm {
     #[inline]
     fn on_object_keys<F, O>(
         &mut self,
-        unit: &CompilationUnit,
+        unit: &Rc<CompilationUnit>,
         object_like: bool,
         slot: usize,
         f: F,
@@ -1620,20 +1625,13 @@ impl Vm {
     }
 
     /// Construct a future from calling an async function.
-    ///
-    /// # Safety
-    ///
-    /// Calling this function erased the lifetime of the unit and context.
-    ///
-    /// These will be stored as part of the future on the stack, and hence the
-    /// future on the stack must not outlive the unit and context.
-    unsafe fn call_async_fn(
+    fn call_async_fn(
         &mut self,
-        unit: *const CompilationUnit,
-        context: *const Context,
+        unit: Rc<CompilationUnit>,
+        context: Rc<Context>,
         offset: usize,
         args: usize,
-    ) -> Result<Future, VmError> {
+    ) -> Result<(), VmError> {
         let mut vm = Self::new();
 
         for _ in 0..args {
@@ -1644,17 +1642,26 @@ impl Vm {
         vm.ip = offset;
 
         let future = Box::leak(Box::new(async move {
-            let mut task = vm.run::<Value>(&*unit, &*context);
+            let mut task = vm.run::<Value>(unit, context);
             task.run_to_completion().await
         }));
 
-        Ok(Future::new_unchecked(future))
+        // Safety: future is pushed to the stack, and the stack is purged when
+        // the task driving the virtual machine is dropped.
+        // This ensures that the future doesn't outlive any references it uses
+        // living on the stack.
+        unsafe {
+            let future = Future::new_unchecked(future);
+            self.stack.push(Value::Future(Shared::new(future)));
+        }
+
+        Ok(())
     }
 
     fn call_offset_fn(
         &mut self,
-        unit: &CompilationUnit,
-        context: &Context,
+        unit: &Rc<CompilationUnit>,
+        context: &Rc<Context>,
         offset: usize,
         call: UnitFnCall,
         args: usize,
@@ -1662,14 +1669,7 @@ impl Vm {
     ) -> Result<(), VmError> {
         match call {
             UnitFnCall::Async => {
-                // Safety: future is pushed to the stack, and the stack
-                // is purged when the task driving the virtual machine
-                // is dropped.
-                //
-                // The task holds onto references to both the unit and
-                // the context.
-                let future = unsafe { self.call_async_fn(unit, context, offset, args)? };
-                self.stack.push(Value::Future(Shared::new(future)));
+                self.call_async_fn(unit.clone(), context.clone(), offset, args)?;
             }
             UnitFnCall::Immediate => {
                 self.push_call_frame(offset, args)?;
@@ -1683,8 +1683,8 @@ impl Vm {
     /// Implementation of a function call.
     fn call_fn(
         &mut self,
-        unit: &CompilationUnit,
-        context: &Context,
+        unit: &Rc<CompilationUnit>,
+        context: &Rc<Context>,
         hash: Hash,
         args: usize,
         update_ip: &mut bool,
@@ -1725,8 +1725,8 @@ impl Vm {
     #[inline]
     fn op_call_instance(
         &mut self,
-        unit: &CompilationUnit,
-        context: &Context,
+        unit: &Rc<CompilationUnit>,
+        context: &Rc<Context>,
         hash: Hash,
         args: usize,
         update_ip: &mut bool,
@@ -1771,8 +1771,8 @@ impl Vm {
 
     fn op_call_fn(
         &mut self,
-        unit: &CompilationUnit,
-        context: &Context,
+        unit: &Rc<CompilationUnit>,
+        context: &Rc<Context>,
         args: usize,
         update_ip: &mut bool,
     ) -> Result<(), VmError> {
@@ -1791,10 +1791,10 @@ impl Vm {
     }
 
     /// Evaluate a single instruction.
-    pub async fn run_for(
+    async fn run_for(
         &mut self,
-        unit: &CompilationUnit,
-        context: &Context,
+        unit: &Rc<CompilationUnit>,
+        context: &Rc<Context>,
         mut limit: Option<usize>,
     ) -> Result<(), VmError> {
         while !self.exited {
@@ -2107,9 +2107,9 @@ pub struct Task<'a, T> {
     /// The virtual machine associated with the task.
     vm: &'a mut Vm,
     /// The compilation unit.
-    unit: &'a CompilationUnit,
+    unit: Rc<CompilationUnit>,
     /// Functions collection associated with the task.
-    context: &'a Context,
+    context: Rc<Context>,
     /// Marker holding output type.
     _marker: marker::PhantomData<&'a mut T>,
 }
@@ -2125,13 +2125,13 @@ where
 
     /// Get access to the used compilation unit.
     pub fn unit(&self) -> &CompilationUnit {
-        self.unit
+        &*self.unit
     }
 
     /// Run the given task to completion.
     pub async fn run_to_completion(&mut self) -> Result<T, VmError> {
         while !self.vm.exited {
-            match self.vm.run_for(self.unit, self.context, None).await {
+            match self.vm.run_for(&self.unit, &self.context, None).await {
                 Ok(()) => (),
                 Err(e) => return Err(e),
             }
@@ -2144,7 +2144,7 @@ where
 
     /// Step the given task until the return value is available.
     pub async fn step(&mut self) -> Result<Option<T>, VmError> {
-        self.vm.run_for(self.unit, self.context, Some(1)).await?;
+        self.vm.run_for(&self.unit, &self.context, Some(1)).await?;
 
         if self.vm.exited {
             let value = self.vm.pop_decode()?;

@@ -9,6 +9,7 @@ use std::fs;
 use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use thiserror::Error;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
@@ -105,7 +106,7 @@ pub enum DiagnosticsError {
 
 /// A rune runtime, which simplifies embedding and using rune.
 pub struct Runtime {
-    context: runestick::Context,
+    context: Rc<runestick::Context>,
     files: SlabFiles,
     options: Options,
     errors: Vec<(usize, RuntimeError)>,
@@ -129,7 +130,7 @@ impl Runtime {
     /// Construct a new runtime with a custom context.
     pub fn with_context(context: runestick::Context) -> Self {
         Self {
-            context,
+            context: Rc::new(context),
             files: SlabFiles::new(),
             options: crate::Options::default(),
             errors: Vec::new(),
@@ -143,7 +144,7 @@ impl Runtime {
     }
 
     /// Get the unit associated with the given file id.
-    pub fn unit(&self, file_id: usize) -> Option<&runestick::CompilationUnit> {
+    pub fn unit(&self, file_id: usize) -> Option<&Rc<runestick::CompilationUnit>> {
         self.files.get(file_id)?.unit.as_ref()
     }
 
@@ -169,7 +170,7 @@ impl Runtime {
             .and_then(|file| file.unit.as_ref())
             .ok_or_else(|| CallFunctionError::MissingUnit { file_id })?;
 
-        Ok(vm.call_function(unit, &self.context, name, args)?)
+        Ok(vm.call_function(unit.clone(), self.context.clone(), name, args)?)
     }
 
     /// Register the runtime error.
@@ -253,13 +254,13 @@ impl Runtime {
         let mut errors = LinkerErrors::new();
 
         if !unit.link(&self.context, &mut errors) {
-            file.unit = Some(unit);
+            file.unit = Some(Rc::new(unit));
             self.errors
                 .push((file_id, RuntimeError::LinkError { errors }));
             return Err(LoadError::LinkError);
         }
 
-        file.unit = Some(unit);
+        file.unit = Some(Rc::new(unit));
         Ok(file_id)
     }
 
@@ -459,7 +460,7 @@ impl Runtime {
 
 struct File {
     file: SimpleFile<String, String>,
-    unit: Option<runestick::CompilationUnit>,
+    unit: Option<Rc<runestick::CompilationUnit>>,
 }
 
 struct SlabFiles {
