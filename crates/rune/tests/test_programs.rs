@@ -1073,16 +1073,22 @@ fn test_binop_override() {
     // won't be used as an empty tuple constructor.
     assert_eq! {
         test! {
-            (bool, bool) => r#"
+            (bool, bool, bool, bool) => r#"
             struct Timeout;
 
             fn main() {
                 let timeout = Timeout;
-                (timeout is Timeout, !(timeout is Timeout))
+
+                (
+                    timeout is Timeout,
+                    timeout is not Timeout,
+                    !(timeout is Timeout),
+                    !(timeout is not Timeout),
+                )
             }
             "#
         },
-        (true, false),
+        (true, false, false, true),
     };
 }
 
@@ -1191,5 +1197,15 @@ fn test_variant_typing() {
             "#
         },
         false,
+    };
+
+    assert_eq! {
+        test! {
+            bool => r#"
+            enum Custom { A, B(a) }
+            fn main() { Custom::A is not Option }
+            "#
+        },
+        true,
     };
 }

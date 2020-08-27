@@ -1,8 +1,6 @@
 use crate::ast::Expr;
-use crate::error::{ParseError, Result};
-use crate::parser::Parser;
 use crate::token::{Kind, Token};
-use crate::traits::{Parse, Peek};
+use crate::traits::Peek;
 use runestick::unit::Span;
 use std::fmt;
 
@@ -68,6 +66,8 @@ pub enum BinOp {
     Lte,
     /// The `is` test.
     Is,
+    /// The `is not` test.
+    IsNot,
     /// Assign operator.
     Assign,
     /// And `&&` operator.
@@ -87,7 +87,7 @@ impl BinOp {
             Self::Eq | Self::Neq | Self::Gt | Self::Lt | Self::Gte | Self::Lte => 4,
             Self::Add | Self::Sub => 5,
             Self::Div | Self::Mul => 6,
-            Self::Is => 7,
+            Self::Is | Self::IsNot => 7,
         }
     }
 
@@ -107,8 +107,8 @@ impl BinOp {
     }
 
     /// Convert from a token.
-    pub(super) fn from_token(token: Token) -> Option<(BinOp, Token)> {
-        let op = match token.kind {
+    pub(super) fn from_token((t1, t2): (Token, Option<Token>)) -> Option<(BinOp, Span)> {
+        let op = match t1.kind {
             Kind::Add => Self::Add,
             Kind::AddAssign => Self::AddAssign,
             Kind::Sub => Self::Sub,
@@ -123,14 +123,33 @@ impl BinOp {
             Kind::Gt => Self::Gt,
             Kind::Lte => Self::Lte,
             Kind::Gte => Self::Gte,
-            Kind::Is => Self::Is,
+            Kind::Is => {
+                match t2 {
+                    Some(t2) => {
+                        if let Kind::Not = t2.kind {
+                            return Some((Self::IsNot, t1.span.join(t2.span)));
+                        }
+                    }
+                    _ => (),
+                }
+
+                Self::Is
+            }
             Kind::Eq => Self::Assign,
             Kind::And => Self::And,
             Kind::Or => Self::Or,
             _ => return None,
         };
 
-        Some((op, token))
+        Some((op, t1.span))
+    }
+
+    /// Get how many tokens to advance for this operator.
+    pub(crate) fn advance(&self) -> usize {
+        match self {
+            Self::IsNot => 2,
+            _ => 1,
+        }
     }
 }
 
@@ -182,6 +201,9 @@ impl fmt::Display for BinOp {
             Self::Is => {
                 write!(fmt, "is")?;
             }
+            Self::IsNot => {
+                write!(fmt, "is not")?;
+            }
             Self::Assign => {
                 write!(fmt, "=")?;
             }
@@ -194,22 +216,6 @@ impl fmt::Display for BinOp {
         }
 
         Ok(())
-    }
-}
-
-impl Parse for BinOp {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
-
-        Ok(match Self::from_token(token) {
-            Some((op, _)) => op,
-            None => {
-                return Err(ParseError::ExpectedOperator {
-                    span: token.span,
-                    actual: token.kind,
-                })
-            }
-        })
     }
 }
 

@@ -1543,6 +1543,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
             ast::BinOp::Is { .. } => {
                 self.asm.push(Inst::Is, span);
             }
+            ast::BinOp::IsNot { .. } => {
+                self.asm.push(Inst::IsNot, span);
+            }
             ast::BinOp::And { .. } => {
                 self.asm.push(Inst::And, span);
             }
@@ -1567,7 +1570,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         /// operator.
         fn rhs_needs_of(op: ast::BinOp) -> Needs {
             match op {
-                ast::BinOp::Is => Needs::Type,
+                ast::BinOp::Is | ast::BinOp::IsNot => Needs::Type,
                 _ => Needs::Value,
             }
         }

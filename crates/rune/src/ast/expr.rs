@@ -420,7 +420,7 @@ impl Expr {
         min_precedence: usize,
         eager_brace: EagerBrace,
     ) -> Result<Self, ParseError> {
-        let mut lookahead_tok = parser.token_peek()?;
+        let mut lookahead_tok = parser.token_peek_pair()?;
 
         loop {
             let lookahead = lookahead_tok.and_then(BinOp::from_token);
@@ -430,10 +430,13 @@ impl Expr {
                 _ => break,
             };
 
-            parser.token_next()?;
+            for _ in 0..op.advance() {
+                parser.token_next()?;
+            }
+
             let mut rhs = Self::parse_primary(parser, eager_brace, FieldAccess(true))?;
 
-            lookahead_tok = parser.token_peek()?;
+            lookahead_tok = parser.token_peek_pair()?;
 
             loop {
                 let (lh, _) = match lookahead_tok.and_then(BinOp::from_token) {
@@ -447,7 +450,7 @@ impl Expr {
                 };
 
                 rhs = Self::parse_expr_binary(parser, rhs, lh.precedence(), eager_brace)?;
-                lookahead_tok = parser.token_peek()?;
+                lookahead_tok = parser.token_peek_pair()?;
             }
 
             lhs = Expr::ExprBinary(ExprBinary {

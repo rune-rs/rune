@@ -1525,8 +1525,12 @@ impl Vm {
         Ok(())
     }
 
-    #[inline]
-    fn op_is(&mut self, unit: &Rc<CompilationUnit>, context: &Rc<Context>) -> Result<(), VmError> {
+    /// Internal implementation of the instance check.
+    fn is_instance(
+        &mut self,
+        unit: &Rc<CompilationUnit>,
+        context: &Rc<Context>,
+    ) -> Result<bool, VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
 
@@ -1540,7 +1544,7 @@ impl Vm {
             }
         };
 
-        let matches = match a {
+        let is_instance = match a {
             Value::TypedObject(typed_object) => typed_object.get_ref()?.hash == hash,
             Value::TypedTuple(typed_tuple) => typed_tuple.get_ref()?.hash == hash,
             Value::VariantObject(variant_object) => variant_object.get_ref()?.enum_hash == hash,
@@ -1574,7 +1578,24 @@ impl Vm {
             }
         };
 
-        self.stack.push(Value::Bool(matches));
+        Ok(is_instance)
+    }
+
+    #[inline]
+    fn op_is(&mut self, unit: &Rc<CompilationUnit>, context: &Rc<Context>) -> Result<(), VmError> {
+        let is_instance = self.is_instance(unit, context)?;
+        self.stack.push(Value::Bool(is_instance));
+        Ok(())
+    }
+
+    #[inline]
+    fn op_is_not(
+        &mut self,
+        unit: &Rc<CompilationUnit>,
+        context: &Rc<Context>,
+    ) -> Result<(), VmError> {
+        let is_instance = self.is_instance(unit, context)?;
+        self.stack.push(Value::Bool(!is_instance));
         Ok(())
     }
 
@@ -2185,6 +2206,9 @@ impl Vm {
                 }
                 Inst::Is => {
                     self.op_is(unit, context)?;
+                }
+                Inst::IsNot => {
+                    self.op_is_not(unit, context)?;
                 }
                 Inst::IsUnit => {
                     let value = self.stack.pop()?;

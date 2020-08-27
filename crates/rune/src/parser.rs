@@ -72,6 +72,14 @@ impl<'a> Parser<'a> {
         self.p1
     }
 
+    /// Peek the next two tokens.
+    pub(crate) fn token_peek_pair(&mut self) -> Result<Option<(Token, Option<Token>)>, ParseError> {
+        Ok(match self.p1? {
+            Some(p1) => Some((p1, self.p2?)),
+            None => None,
+        })
+    }
+
     /// Consume the next token from the lexer.
     pub(crate) fn token_next(&mut self) -> Result<Token, ParseError> {
         let token = std::mem::replace(&mut self.p3, self.lexer.next());

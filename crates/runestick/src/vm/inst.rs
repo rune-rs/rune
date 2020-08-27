@@ -683,6 +683,17 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     Is,
+    /// Test if the top of the stack is not an instance of the second item on
+    /// the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <type>
+    /// <value>
+    /// => <boolean>
+    /// ```
+    IsNot,
     /// Pop two values from the stack and test if they are both boolean true.
     ///
     /// # Operation
@@ -1014,6 +1025,9 @@ impl fmt::Display for Inst {
             }
             Self::Is => {
                 write!(fmt, "is")?;
+            }
+            Self::IsNot => {
+                write!(fmt, "is-not")?;
             }
             Self::And => {
                 write!(fmt, "and")?;
