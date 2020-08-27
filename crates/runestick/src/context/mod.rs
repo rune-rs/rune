@@ -2,7 +2,7 @@ use crate::collections::HashMap;
 use crate::hash::Hash;
 use crate::stack::Stack;
 use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::VmError;
+use crate::vm::{TypeCheck, VmError};
 use std::fmt;
 use thiserror::Error;
 
@@ -127,11 +127,6 @@ pub enum FnSignature {
         /// Information on the self type.
         self_type_info: ValueTypeInfo,
     },
-    /// A tuple match function for the type at the given path.
-    TupleMatch {
-        /// The path of the item the function relates to.
-        path: Item,
-    },
 }
 
 impl FnSignature {
@@ -153,11 +148,6 @@ impl FnSignature {
             args,
             self_type_info,
         }
-    }
-
-    /// Construct a new function signature.
-    pub fn new_tuple_match(path: Item) -> Self {
-        Self::TupleMatch { path }
     }
 }
 
@@ -201,9 +191,6 @@ impl fmt::Display for FnSignature {
                 }
 
                 write!(fmt, ")")?;
-            }
-            Self::TupleMatch { path } => {
-                write!(fmt, "{} (tuple match)", path)?;
             }
         }
 
@@ -258,12 +245,19 @@ pub struct Context {
     result_types: Option<ResultTypes>,
     /// Specialized information on `Option` types, if available.
     option_types: Option<OptionTypes>,
+    /// Custom type checks for specific items.
+    type_checks: HashMap<Item, TypeCheck>,
 }
 
 impl Context {
     /// Construct a new empty collection of functions.
     pub fn new() -> Self {
         Context::default()
+    }
+
+    /// Compile a special type check.
+    pub fn type_check_for(&self, item: &Item) -> Option<TypeCheck> {
+        self.type_checks.get(item).copied()
     }
 
     /// Construct a new collection of functions with default packages installed.
@@ -432,21 +426,6 @@ impl Context {
                     }
 
                     let hash = Hash::of_type(&name);
-                    let tuple_match_hash = Hash::tuple_match(&name);
-
-                    {
-                        let signature = FnSignature::new_tuple_match(name.clone());
-
-                        if let Some(old) = self.functions_info.insert(hash, signature) {
-                            return Err(ContextError::ConflictingFunction {
-                                signature: old,
-                                hash,
-                            });
-                        }
-
-                        self.functions.insert(tuple_match_hash, variant.tuple_match);
-                    }
-
                     let variant_info = VariantInfo { name: variant.name };
 
                     if let Some(variant_info) = self.variants.insert(hash, variant_info) {
@@ -484,6 +463,8 @@ impl Context {
                 err_type: Hash::of_type(&err),
             });
 
+            self.type_checks.insert(ok.clone(), TypeCheck::Result);
+            self.type_checks.insert(err.clone(), TypeCheck::Result);
             self.add_internal_tuple(ok, 1, |value: Value| Ok::<Value, Value>(value))?;
             self.add_internal_tuple(err, 1, |value: Value| Err::<Value, Value>(value))?;
         }
@@ -501,6 +482,8 @@ impl Context {
                 none_type: Hash::of_type(&none),
             });
 
+            self.type_checks.insert(some.clone(), TypeCheck::Option);
+            self.type_checks.insert(none.clone(), TypeCheck::Option);
             self.add_internal_tuple(some, 1, |value: Value| Some(value))?;
             self.add_internal_tuple(none, 0, || None::<Value>)?;
         }

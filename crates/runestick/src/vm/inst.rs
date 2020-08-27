@@ -31,6 +31,39 @@ impl fmt::Display for PanicReason {
     }
 }
 
+/// An encoded type check.
+#[derive(Debug, Clone, Copy)]
+pub enum TypeCheck {
+    /// Matches a unit type.
+    Unit,
+    /// Matches an anonymous tuple.
+    Tuple,
+    /// Matches an anonymous object.
+    Object,
+    /// Matches a vector.
+    Vec,
+    /// An option type.
+    Option,
+    /// A result type.
+    Result,
+    /// Matches the type with the corresponding hash.
+    Type(Hash),
+}
+
+impl fmt::Display for TypeCheck {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unit => write!(fmt, "unit"),
+            Self::Tuple => write!(fmt, "tuple"),
+            Self::Object => write!(fmt, "object"),
+            Self::Vec => write!(fmt, "vec"),
+            Self::Option => write!(fmt, "option"),
+            Self::Result => write!(fmt, "result"),
+            Self::Type(hash) => write!(fmt, "type({})", hash),
+        }
+    }
+}
+
 /// An operation in the stack-based virtual machine.
 #[derive(Debug, Clone, Copy)]
 pub enum Inst {
@@ -637,33 +670,6 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     IsValue,
-    /// Test if the top of the stack is an anonymous object.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
-    IsObject,
-    /// Test if the top of the stack is an anonymous tuple.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
-    IsTuple,
-    /// Test if the top of the stack is a vector.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
-    IsVec,
     /// Unwrap a result from the top of the stack.
     /// This causes a vm error if the top of the stack is not an ok result.
     ///
@@ -731,7 +737,9 @@ pub enum Inst {
     /// <value>
     /// => <boolean>
     /// ```
-    MatchTuple {
+    MatchSequence {
+        /// Type constraints that the sequence must match.
+        ty: TypeCheck,
         /// The minimum length to test for.
         len: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -748,6 +756,8 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     MatchObject {
+        /// Type constraints that the object must match.
+        ty: TypeCheck,
         /// The slot of object keys to use.
         slot: usize,
         /// Whether the operation should check exact `true` or minimum length
@@ -955,15 +965,6 @@ impl fmt::Display for Inst {
             Self::IsValue => {
                 write!(fmt, "is-value")?;
             }
-            Self::IsObject => {
-                write!(fmt, "is-object")?;
-            }
-            Self::IsTuple => {
-                write!(fmt, "is-tuple")?;
-            }
-            Self::IsVec => {
-                write!(fmt, "is-vec")?;
-            }
             Self::Unwrap => {
                 write!(fmt, "unwrap")?;
             }
@@ -979,11 +980,11 @@ impl fmt::Display for Inst {
             Self::EqStaticString { slot } => {
                 write!(fmt, "eq-static-string {}", slot)?;
             }
-            Self::MatchTuple { len, exact } => {
-                write!(fmt, "match-tuple {}, {}", len, exact)?;
+            Self::MatchSequence { ty, len, exact } => {
+                write!(fmt, "match-tuple {}, {}, {}", ty, len, exact)?;
             }
-            Self::MatchObject { slot, exact } => {
-                write!(fmt, "match-object {}, {}", slot, exact)?;
+            Self::MatchObject { ty, slot, exact } => {
+                write!(fmt, "match-object {}, {}, {}", ty, slot, exact)?;
             }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;

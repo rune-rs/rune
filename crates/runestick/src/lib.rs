@@ -78,7 +78,7 @@ pub use crate::value::{
     Object, RawValueMutGuard, RawValueRefGuard, TypedTuple, Value, ValueError, ValueType,
     ValueTypeInfo, VecTuple,
 };
-pub use crate::vm::{Inst, PanicReason, Task, Vm, VmError};
+pub use crate::vm::{Inst, PanicReason, Task, TypeCheck, Vm, VmError};
 
 mod collections {
     pub use hashbrown::HashMap;

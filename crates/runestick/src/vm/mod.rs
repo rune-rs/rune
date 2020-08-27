@@ -18,7 +18,7 @@ use thiserror::Error;
 
 pub(crate) mod inst;
 
-pub use self::inst::{Inst, PanicReason};
+pub use self::inst::{Inst, PanicReason, TypeCheck};
 use crate::access::AccessError;
 
 /// Errors raised by the execution of the virtual machine.
@@ -1535,33 +1535,6 @@ impl Vm {
         Ok(())
     }
 
-    /// Test if the top of the stack is an anonymous object.
-    #[inline]
-    fn op_is_object(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-        self.stack
-            .push(Value::Bool(matches!(value, Value::Object(..))));
-        Ok(())
-    }
-
-    /// Test if the top of the stack is an anonymous tuple.
-    #[inline]
-    fn op_is_tuple(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-        self.stack
-            .push(Value::Bool(matches!(value, Value::Tuple(..))));
-        Ok(())
-    }
-
-    /// Test if the top of the stack is a vector.
-    #[inline]
-    fn op_is_vec(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
-        self.stack
-            .push(Value::Bool(matches!(value, Value::Vec(..))));
-        Ok(())
-    }
-
     /// Operation associated with `and` instruction.
     #[inline]
     fn op_and(&mut self) -> Result<(), VmError> {
@@ -1611,10 +1584,15 @@ impl Vm {
     }
 
     #[inline]
-    fn op_match_tuple(&mut self, len: usize, exact: bool) -> Result<(), VmError> {
+    fn op_match_sequence(
+        &mut self,
+        ty: inst::TypeCheck,
+        len: usize,
+        exact: bool,
+    ) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        let result = self.on_tuple(&value, move |tuple| {
+        let result = self.on_tuple(ty, &value, move |tuple| {
             if exact {
                 tuple.len() == len
             } else {
@@ -1630,10 +1608,11 @@ impl Vm {
     fn op_match_object(
         &mut self,
         unit: &Rc<CompilationUnit>,
+        ty: TypeCheck,
         slot: usize,
         exact: bool,
     ) -> Result<(), VmError> {
-        let result = self.on_object_keys(unit, slot, |object, keys| {
+        let result = self.on_object_keys(unit, ty, slot, |object, keys| {
             if exact {
                 if object.len() != keys.len() {
                     return false;
@@ -1661,16 +1640,21 @@ impl Vm {
     }
 
     #[inline]
-    fn on_tuple<F, O>(&mut self, value: &Value, f: F) -> Result<Option<O>, VmError>
+    fn on_tuple<F, O>(
+        &mut self,
+        ty: inst::TypeCheck,
+        value: &Value,
+        f: F,
+    ) -> Result<Option<O>, VmError>
     where
         F: FnOnce(&[Value]) -> O,
     {
         use std::slice;
 
-        Ok(match value {
-            Value::Tuple(tuple) => Some(f(&*tuple.get_ref()?)),
-            Value::Vec(vec) => Some(f(&*vec.get_ref()?)),
-            Value::Result(result) => {
+        Ok(match (ty, value) {
+            (inst::TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&*tuple.get_ref()?)),
+            (inst::TypeCheck::Vec, Value::Vec(vec)) => Some(f(&*vec.get_ref()?)),
+            (inst::TypeCheck::Result, Value::Result(result)) => {
                 let result = result.get_ref()?;
 
                 Some(match &*result {
@@ -1678,7 +1662,7 @@ impl Vm {
                     Err(err) => f(slice::from_ref(err)),
                 })
             }
-            Value::Option(option) => {
+            (inst::TypeCheck::Option, Value::Option(option)) => {
                 let option = option.get_ref()?;
 
                 Some(match &*option {
@@ -1686,11 +1670,16 @@ impl Vm {
                     None => f(&[]),
                 })
             }
-            Value::TypedTuple(typed_tuple) => {
+            (inst::TypeCheck::Type(ty), Value::TypedTuple(typed_tuple)) => {
                 let typed_tuple = typed_tuple.get_ref()?;
+
+                if typed_tuple.ty != ty {
+                    return Ok(None);
+                }
+
                 Some(f(&*typed_tuple.tuple))
             }
-            Value::Unit => Some(f(&[])),
+            (inst::TypeCheck::Unit, Value::Unit) => Some(f(&[])),
             _ => None,
         })
     }
@@ -1699,6 +1688,7 @@ impl Vm {
     fn on_object_keys<F, O>(
         &mut self,
         unit: &Rc<CompilationUnit>,
+        ty: TypeCheck,
         slot: usize,
         f: F,
     ) -> Result<Option<O>, VmError>
@@ -1711,13 +1701,18 @@ impl Vm {
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
 
-        Ok(match value {
-            Value::Object(object) => {
+        Ok(match (ty, value) {
+            (TypeCheck::Object, Value::Object(object)) => {
                 let object = object.get_ref()?;
                 Some(f(&*object, keys))
             }
-            Value::TypedObject(typed_object) => {
+            (TypeCheck::Type(ty), Value::TypedObject(typed_object)) => {
                 let typed_object = typed_object.get_ref()?;
+
+                if typed_object.ty != ty {
+                    return Ok(None);
+                }
+
                 Some(f(&typed_object.object, keys))
             }
             _ => None,
@@ -2104,15 +2099,6 @@ impl Vm {
                 Inst::IsValue => {
                     self.op_is_value()?;
                 }
-                Inst::IsObject => {
-                    self.op_is_object()?;
-                }
-                Inst::IsTuple => {
-                    self.op_is_tuple()?;
-                }
-                Inst::IsVec => {
-                    self.op_is_vec()?;
-                }
                 Inst::Unwrap => {
                     self.op_unwrap()?;
                 }
@@ -2149,11 +2135,11 @@ impl Vm {
                 Inst::EqStaticString { slot } => {
                     self.op_eq_static_string(unit, slot)?;
                 }
-                Inst::MatchTuple { len, exact } => {
-                    self.op_match_tuple(len, exact)?;
+                Inst::MatchSequence { ty, len, exact } => {
+                    self.op_match_sequence(ty, len, exact)?;
                 }
-                Inst::MatchObject { slot, exact } => {
-                    self.op_match_object(unit, slot, exact)?;
+                Inst::MatchObject { ty, slot, exact } => {
+                    self.op_match_object(unit, ty, slot, exact)?;
                 }
                 Inst::Panic { reason } => {
                     return Err(VmError::Panic {

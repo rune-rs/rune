@@ -31,9 +31,6 @@ pub struct OptionTypes {
 pub(super) struct TupleVariant {
     /// Full name of the variant.
     pub(super) name: Item,
-    /// Function to use when testing if variant is a tuple that can be matched
-    /// over.
-    pub(super) tuple_match: Box<Handler>,
     /// Function to use when constructing a tuple.
     pub(super) tuple_constructor: Box<Handler>,
     /// The value type of the type.
@@ -437,23 +434,19 @@ where
     N::Item: AsRef<str>,
 {
     /// Perform a tuple match.
-    pub fn tuple<Match, M, Constructor, C>(self, tuple_match: Match, tuple_constructor: Constructor)
+    pub fn tuple<Constructor, C>(self, tuple_constructor: Constructor)
     where
-        Match: InstFn<M, Return = bool>,
-        Match::Owned: ReflectValueType,
-        Constructor: Function<C, Return = Match::Owned>,
+        Constructor: Function<C>,
+        Constructor::Return: ReflectValueType,
     {
         let name = Item::of(self.name);
-        let tuple_match: Box<Handler> =
-            Box::new(move |stack, args| tuple_match.fn_call(stack, args));
         let tuple_constructor: Box<Handler> =
             Box::new(move |stack, args| tuple_constructor.fn_call(stack, args));
-        let value_type = Match::instance_value_type();
-        let value_type_info = Match::instance_value_type_info();
+        let value_type = <Constructor::Return as ReflectValueType>::value_type();
+        let value_type_info = <Constructor::Return as ReflectValueType>::value_type_info();
 
         self.variants.push(Variant::TupleVariant(TupleVariant {
             name,
-            tuple_match,
             tuple_constructor,
             value_type,
             value_type_info,

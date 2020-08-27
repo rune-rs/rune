@@ -5,7 +5,7 @@ use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use runestick::unit::{Assembly, Label, UnitFnCall};
-use runestick::{Context, Hash, Inst, Item, Meta, Span};
+use runestick::{Context, Hash, Inst, Item, Meta, Span, TypeCheck};
 
 mod loops;
 mod options;
@@ -1835,17 +1835,13 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = pat_vec.span();
         log::trace!("PatVec => {:?}", self.source.source(span)?);
 
-        load(self.asm);
-        self.asm.push(Inst::IsVec, span);
-        self.asm
-            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
-
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed a vector.
         load(&mut self.asm);
 
         self.asm.push(
-            Inst::MatchTuple {
+            Inst::MatchSequence {
+                ty: TypeCheck::Vec,
                 len: pat_vec.items.len(),
                 exact: pat_vec.open_pattern.is_none(),
             },
@@ -1869,10 +1865,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_pat_match_tuple_len(
+    fn compile_pat_match_seq(
         &mut self,
         scope: &mut Scope,
         false_label: Label,
+        ty: TypeCheck,
         len: usize,
         exact: bool,
         span: Span,
@@ -1881,9 +1878,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed a tuple.
         load(&mut self.asm);
-
-        self.asm.push(Inst::MatchTuple { len, exact }, span);
-
+        self.asm.push(Inst::MatchSequence { ty, len, exact }, span);
         self.asm
             .pop_and_jump_if_not(scope.local_var_count, false_label, span);
         Ok(())
@@ -1900,7 +1895,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span)?);
 
-        if let Some(path) = &pat_tuple.path {
+        let ty = if let Some(path) = &pat_tuple.path {
             let item = self.convert_path_to_item(path)?;
 
             let tuple = if let Some(meta) = self.lookup_meta(&item, path.span())? {
@@ -1929,22 +1924,18 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 });
             }
 
-            // test if function is a tuple match.
-            self.compile_pat_type_check(scope, &item, span, false_label, load)?;
-
-            if tuple.external {
-                self.compile_extern_tuple_match(scope, &item, span, false_label, load)?;
+            match self.context.type_check_for(&item) {
+                Some(ty) => ty,
+                None => TypeCheck::Type(Hash::of_type(&item)),
             }
         } else {
-            load(self.asm);
-            self.asm.push(Inst::IsTuple, span);
-            self.asm
-                .pop_and_jump_if_not(scope.local_var_count, false_label, span);
+            TypeCheck::Tuple
         };
 
-        self.compile_pat_match_tuple_len(
+        self.compile_pat_match_seq(
             scope,
             false_label,
+            ty,
             pat_tuple.items.len(),
             pat_tuple.open_pattern.is_none(),
             span,
@@ -1962,40 +1953,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
             self.compile_pat(scope, &*pat, false_label, &load)?;
         }
 
-        Ok(())
-    }
-
-    /// Type check the given name.
-    fn compile_pat_type_check(
-        &mut self,
-        scope: &mut Scope,
-        ty: &Item,
-        span: Span,
-        false_label: Label,
-        load: &dyn Fn(&mut Assembly),
-    ) -> Result<()> {
-        let type_hash = Hash::of_type(ty);
-        load(self.asm);
-        self.asm.push(Inst::Type { hash: type_hash }, span);
-        self.asm.push(Inst::Is, span);
-        self.asm
-            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
-        Ok(())
-    }
-
-    fn compile_extern_tuple_match(
-        &mut self,
-        scope: &mut Scope,
-        ty: &Item,
-        span: Span,
-        false_label: Label,
-        load: &dyn Fn(&mut Assembly),
-    ) -> Result<()> {
-        load(self.asm);
-        let hash = Hash::tuple_match(ty);
-        self.asm.push(Inst::Call { hash, args: 0 }, span);
-        self.asm
-            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
         Ok(())
     }
 
@@ -2033,7 +1990,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let keys = self.unit.new_static_object_keys(&keys[..])?;
 
-        match &pat_object.ident {
+        let ty = match &pat_object.ident {
             ast::LitObjectIdent::Named(path) => {
                 let span = path.span();
                 let item = self.convert_path_to_item(path)?;
@@ -2066,19 +2023,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 }
 
                 let hash = Hash::of_type(&item);
-
-                load(&mut self.asm);
-                self.asm.push(Inst::Type { hash }, span);
-                self.asm.push(Inst::Is, span);
-                self.asm
-                    .pop_and_jump_if_not(scope.local_var_count, false_label, span);
+                TypeCheck::Type(hash)
             }
-            ast::LitObjectIdent::Anonymous(..) => {
-                load(&mut self.asm);
-                self.asm.push(Inst::IsObject, span);
-                self.asm
-                    .pop_and_jump_if_not(scope.local_var_count, false_label, span);
-            }
+            ast::LitObjectIdent::Anonymous(..) => TypeCheck::Object,
         };
 
         // Copy the temporary and check that its length matches the pattern and
@@ -2087,6 +2034,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         self.asm.push(
             Inst::MatchObject {
+                ty,
                 slot: keys,
                 exact: pat_object.open_pattern.is_none(),
             },
@@ -2162,13 +2110,12 @@ impl<'a, 'source> Compiler<'a, 'source> {
             asm.push(Inst::Copy { offset }, span);
         };
 
-        self.compile_pat_type_check(scope, &item, span, false_label, &load)?;
+        let ty = match self.context.type_check_for(&item) {
+            Some(ty) => ty,
+            None => TypeCheck::Type(Hash::of_type(&item)),
+        };
 
-        if tuple.external {
-            self.compile_extern_tuple_match(scope, &item, span, false_label, &load)?;
-        }
-
-        self.compile_pat_match_tuple_len(scope, false_label, tuple.args, true, span, &load)?;
+        self.compile_pat_match_seq(scope, false_label, ty, tuple.args, true, span, &load)?;
         Ok(())
     }
 
