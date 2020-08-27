@@ -27,7 +27,7 @@ pub enum StackError {
 }
 
 /// The stack of the virtual machine, where all values are stored.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Stack {
     /// The current stack of values.
     stack: Vec<Value>,
@@ -39,7 +39,7 @@ pub struct Stack {
 
 impl Stack {
     /// Construct a new stack.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             stack: Vec::new(),
             stack_top: 0,

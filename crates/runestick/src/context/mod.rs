@@ -466,8 +466,8 @@ impl Context {
                 .insert(ok.clone(), TypeCheck::Result(ResultVariant::Ok));
             self.type_checks
                 .insert(err.clone(), TypeCheck::Result(ResultVariant::Err));
-            self.add_internal_tuple(ok, 1, |value: Value| Ok::<Value, Value>(value))?;
-            self.add_internal_tuple(err, 1, |value: Value| Err::<Value, Value>(value))?;
+            self.add_internal_tuple(ok, 1, Ok::<Value, Value>)?;
+            self.add_internal_tuple(err, 1, Err::<Value, Value>)?;
 
             self.types.insert(
                 hash,
@@ -508,7 +508,7 @@ impl Context {
                 .insert(some.clone(), TypeCheck::Option(OptionVariant::Some));
             self.type_checks
                 .insert(none.clone(), TypeCheck::Option(OptionVariant::None));
-            self.add_internal_tuple(some, 1, |value: Value| Some(value))?;
+            self.add_internal_tuple(some, 1, Some::<Value>)?;
             self.add_internal_tuple(none, 0, || None::<Value>)?;
 
             self.types.insert(
@@ -553,7 +553,7 @@ impl Context {
             Box::new(move |stack, args| constructor.fn_call(stack, args));
 
         let hash = Hash::function(&item);
-        let signature = FnSignature::new_free(item.clone(), Some(args));
+        let signature = FnSignature::new_free(item, Some(args));
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {

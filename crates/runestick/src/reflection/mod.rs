@@ -124,7 +124,7 @@ where
 
 impl FromValue for Value {
     fn from_value(value: Value) -> Result<Self, ValueError> {
-        Ok(value.clone())
+        Ok(value)
     }
 }
 

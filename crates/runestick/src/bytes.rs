@@ -13,7 +13,7 @@ pub struct Bytes {
 
 impl Bytes {
     /// Construct a new bytes container.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Bytes { bytes: Vec::new() }
     }
 
@@ -25,7 +25,7 @@ impl Bytes {
     }
 
     /// Convert into vector.
-    pub fn as_vec(self) -> Vec<u8> {
+    pub fn into_vec(self) -> Vec<u8> {
         self.bytes
     }
 
@@ -42,6 +42,11 @@ impl Bytes {
     /// Do something with the bytes.
     pub fn extend_str(&mut self, s: &str) {
         self.bytes.extend(s.as_bytes());
+    }
+
+    /// Test if the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
     }
 
     /// Get the length of the bytes collection.

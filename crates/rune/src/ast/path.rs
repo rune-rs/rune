@@ -55,10 +55,7 @@ impl Peek for Path {
             None => return false,
         };
 
-        match t1.kind {
-            Kind::Ident => true,
-            _ => false,
-        }
+        matches!(t1.kind, Kind::Ident)
     }
 }
 

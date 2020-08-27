@@ -14,6 +14,18 @@ impl<T> ReflectValueType for Vec<T> {
     }
 }
 
+impl<'a> ReflectValueType for &'a [Value] {
+    type Owned = Vec<Value>;
+
+    fn value_type() -> ValueType {
+        ValueType::Vec
+    }
+
+    fn value_type_info() -> ValueTypeInfo {
+        ValueTypeInfo::Vec
+    }
+}
+
 impl<'a, T> ReflectValueType for &'a Vec<T> {
     type Owned = Vec<T>;
 
@@ -53,6 +65,21 @@ where
         }
 
         Ok(output)
+    }
+}
+
+impl<'a> UnsafeFromValue for &'a [Value] {
+    type Output = *const [Value];
+    type Guard = RawStrongRefGuard;
+
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+        let vec = value.into_vec()?;
+        let (vec, guard) = StrongRef::into_raw(vec.strong_ref()?);
+        Ok((&**vec, guard))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &*output
     }
 }
 

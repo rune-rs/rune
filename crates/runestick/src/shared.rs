@@ -309,10 +309,10 @@ impl Shared<Any> {
                     // time now that the value hasn't been valid for.
                     ptr::write(inner.data.get(), any);
 
-                    return Err(AccessError::UnexpectedType {
+                    Err(AccessError::UnexpectedType {
                         actual,
                         expected: any::type_name::<T>(),
-                    });
+                    })
                 }
             }
         }

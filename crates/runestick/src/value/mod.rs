@@ -486,6 +486,14 @@ impl Value {
     }
 
     /// Try to coerce value into an external ref and an associated guard.
+    ///
+    /// # Safety
+    ///
+    /// This coerces a strong guard to the value into its raw components.
+    ///
+    /// It is up to the caller to ensure that the returned pointer does not
+    /// outlive the returned guard, not the virtual machine the value belongs
+    /// to.
     #[inline]
     pub unsafe fn unsafe_into_external_ref<T>(
         self,
@@ -513,6 +521,14 @@ impl Value {
     }
 
     /// Try to coerce value into an external ref and an associated guard.
+    ///
+    /// # Safety
+    ///
+    /// This coerces a strong guard to the value into its raw components.
+    ///
+    /// It is up to the caller to ensure that the returned pointer does not
+    /// outlive the returned guard, not the virtual machine the value belongs
+    /// to.
     #[inline]
     pub unsafe fn unsafe_into_external_mut<T>(
         self,

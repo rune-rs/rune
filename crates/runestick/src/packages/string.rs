@@ -31,7 +31,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty(&["String"]).build::<String>()?;
 
-    module.function(&["String", "from_str"], |s: &str| String::from(s))?;
+    module.function(&["String", "from_str"], <String as From<&str>>::from)?;
     module.function(&["String", "new"], String::new)?;
     module.function(&["String", "with_capacity"], String::with_capacity)?;
 

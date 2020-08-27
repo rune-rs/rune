@@ -12,7 +12,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.function(&["Bytes", "with_capacity"], Bytes::with_capacity)?;
     module.function(&["Bytes", "from_vec"], Bytes::from_vec)?;
 
-    module.inst_fn("as_vec", Bytes::as_vec)?;
+    module.inst_fn("into_vec", Bytes::into_vec)?;
     module.inst_fn("extend", Bytes::extend)?;
     module.inst_fn("extend_str", Bytes::extend_str)?;
     module.inst_fn("pop", Bytes::pop)?;

@@ -450,6 +450,7 @@ struct CallFrame {
 }
 
 /// A stack which references variables indirectly from a slab.
+#[derive(Debug, Clone)]
 pub struct Vm {
     /// The current instruction pointer.
     ip: usize,
@@ -465,7 +466,7 @@ pub struct Vm {
 
 impl Vm {
     /// Construct a new runestick virtual machine.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             ip: 0,
             stack: Stack::new(),
@@ -883,11 +884,11 @@ impl Vm {
             }
             (Value::StaticString(a), Value::String(b)) => {
                 let b = b.get_ref()?;
-                &***a == *b
+                ***a == *b
             }
             (Value::String(a), Value::StaticString(b)) => {
                 let a = a.get_ref()?;
-                *a == &***b
+                *a == ***b
             }
             // fast string comparison: exact string slot.
             (Value::StaticString(a), Value::StaticString(b)) => a == b,
@@ -1207,7 +1208,7 @@ impl Vm {
         };
 
         let value = match value {
-            Some(value) => value.clone(),
+            Some(value) => value,
             None => {
                 return Err(VmError::MissingIndex {
                     target: target.type_info()?,
@@ -1521,7 +1522,7 @@ impl Vm {
             }
         };
 
-        self.stack.push(value.clone());
+        self.stack.push(value);
         Ok(())
     }
 
@@ -1652,11 +1653,11 @@ impl Vm {
             Value::String(actual) => {
                 let string = unit.lookup_string(slot)?;
                 let actual = actual.get_ref()?;
-                *actual == &***string
+                *actual == ***string
             }
             Value::StaticString(actual) => {
                 let string = unit.lookup_string(slot)?;
-                &**actual == &***string
+                **actual == ***string
             }
             _ => false,
         };
@@ -1700,10 +1701,8 @@ impl Vm {
                 if object.len() != keys.len() {
                     return false;
                 }
-            } else {
-                if object.len() < keys.len() {
-                    return false;
-                }
+            } else if object.len() < keys.len() {
+                return false;
             }
 
             let mut is_match = true;
@@ -2280,17 +2279,6 @@ impl Vm {
         }
 
         Ok(())
-    }
-}
-
-impl fmt::Debug for Vm {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("Vm")
-            .field("ip", &self.ip)
-            .field("exited", &self.exited)
-            .field("stack", &self.stack)
-            .field("call_frames", &self.call_frames)
-            .finish()
     }
 }
 

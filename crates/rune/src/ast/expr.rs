@@ -350,17 +350,14 @@ impl Expr {
                     let token = parser.token_peek()?;
 
                     if let Some(token) = token {
-                        match token.kind {
-                            Kind::Await => {
-                                expr = Expr::ExprAwait(ExprAwait {
-                                    expr: Box::new(expr),
-                                    dot,
-                                    await_: parser.parse()?,
-                                });
+                        if let Kind::Await = token.kind {
+                            expr = Expr::ExprAwait(ExprAwait {
+                                expr: Box::new(expr),
+                                dot,
+                                await_: parser.parse()?,
+                            });
 
-                                continue;
-                            }
-                            _ => (),
+                            continue;
                         }
                     }
 

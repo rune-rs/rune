@@ -554,7 +554,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 }
             }
 
-            for field in fields {
+            if let Some(field) = fields.into_iter().next() {
                 return Err(CompileError::LitObjectMissingField { span, field, item });
             }
 
@@ -1259,17 +1259,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let binding = ident.resolve(self.source)?;
 
-        match needs {
-            Needs::Value => loop {
-                let var = match self.scopes.try_get_var(binding)? {
-                    Some(var) => var,
-                    None => break,
-                };
-
+        if let Needs::Value = needs {
+            if let Some(var) = self.scopes.try_get_var(binding)? {
                 self.asm.push(Inst::Copy { offset: var.offset }, span);
                 return Ok(());
-            },
-            _ => (),
+            }
         }
 
         let item = match self.unit.lookup_import_by_name(binding).cloned() {
@@ -1394,7 +1388,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
         }
 
-        if let Some(name) = item.into_local() {
+        if let Some(name) = item.as_local() {
             if let Some(var) = self.scopes.last(span)?.get(name) {
                 self.asm.push(Inst::Copy { offset: var.offset }, span);
                 self.asm.push(Inst::CallFn { args }, span);
@@ -1945,12 +1939,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 match meta {
                     Meta::MetaTuple { tuple } => tuple,
                     Meta::MetaTupleVariant { tuple, .. } => tuple,
-                    _ => {
-                        return Err(CompileError::UnsupportedMetaPattern {
-                            meta: meta.clone(),
-                            span,
-                        })
-                    }
+                    _ => return Err(CompileError::UnsupportedMetaPattern { meta, span }),
                 }
             } else {
                 return Err(CompileError::UnsupportedPattern { span });

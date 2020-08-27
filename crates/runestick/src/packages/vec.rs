@@ -8,16 +8,17 @@ pub struct Iter {
     iter: std::vec::IntoIter<Value>,
 }
 
-impl Iter {
-    /// Iterate over the next value.
-    pub fn next(&mut self) -> Option<Value> {
+impl Iterator for Iter {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Value> {
         self.iter.next()
     }
 }
 
-fn vec_iter(vec: &Vec<Value>) -> Iter {
+fn vec_iter(vec: &[Value]) -> Iter {
     Iter {
-        iter: vec.clone().into_iter(),
+        iter: vec.to_vec().into_iter(),
     }
 }
 

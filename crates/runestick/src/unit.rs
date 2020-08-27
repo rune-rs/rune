@@ -552,7 +552,7 @@ impl CompilationUnit {
                 }
             })?;
 
-            if &**existing != current {
+            if **existing != current {
                 return Err(CompilationUnitError::StaticStringHashConflict {
                     hash,
                     current: current.to_owned(),
@@ -777,7 +777,7 @@ impl CompilationUnit {
             }
         };
 
-        if let Some(_) = self.meta.insert(path.clone(), meta) {
+        if self.meta.insert(path.clone(), meta).is_some() {
             return Err(CompilationUnitError::ItemConflict { existing: path });
         }
 

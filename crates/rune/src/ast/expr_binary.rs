@@ -124,13 +124,10 @@ impl BinOp {
             Kind::Lte => Self::Lte,
             Kind::Gte => Self::Gte,
             Kind::Is => {
-                match t2 {
-                    Some(t2) => {
-                        if let Kind::Not = t2.kind {
-                            return Some((Self::IsNot, t1.span.join(t2.span)));
-                        }
+                if let Some(t2) = t2 {
+                    if let Kind::Not = t2.kind {
+                        return Some((Self::IsNot, t1.span.join(t2.span)));
                     }
-                    _ => (),
                 }
 
                 Self::Is
