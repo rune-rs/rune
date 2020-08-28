@@ -62,7 +62,8 @@ pub use crate::any::Any;
 pub use crate::bytes::Bytes;
 pub use crate::context::{Context, ContextError, Meta, MetaObject, MetaTuple, Module};
 pub use crate::context::{
-    ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, MUL, MUL_ASSIGN, NEXT, SUB, SUB_ASSIGN,
+    ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, FMT_DISPLAY, INDEX_GET, INDEX_SET, MUL, MUL_ASSIGN, NEXT,
+    SUB, SUB_ASSIGN,
 };
 pub use crate::error::{Error, Result};
 pub use crate::future::Future;
@@ -70,7 +71,7 @@ pub use crate::hash::Hash;
 pub use crate::item::{Component, Item};
 pub use crate::panic::Panic;
 pub use crate::reflection::{
-    FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue, UnsafeToValue,
+    FromValue, ReflectValueType, ToValue, UnsafeFromValue, UnsafeIntoArgs, UnsafeToValue,
 };
 pub use crate::shared::{RawStrongMutGuard, RawStrongRefGuard, Shared, StrongMut, StrongRef};
 pub use crate::shared_ptr::SharedPtr;

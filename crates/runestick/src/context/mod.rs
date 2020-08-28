@@ -722,3 +722,9 @@ pub const DIV_ASSIGN: FnHash = FnHash {
     name: "div_assign",
     hash: Hash(0x4dd087a8281c04e6),
 };
+
+/// Function used for a fmt::Display::fmt implementation.
+pub const FMT_DISPLAY: FnHash = FnHash {
+    name: "fmt",
+    hash: Hash(0x811b62957ea9d9f9),
+};

@@ -4,6 +4,11 @@ use crate::panic::Panic;
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
 use crate::shared::{RawStrongRefGuard, Shared, StrongRef};
 use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
+use std::fmt;
+use std::io;
+
+decl_external!(fmt::Error);
+decl_external!(io::Error);
 
 impl<T, E> ReflectValueType for Result<T, E> {
     type Owned = Result<T, E>;

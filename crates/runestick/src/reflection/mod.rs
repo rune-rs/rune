@@ -12,8 +12,10 @@ mod string;
 mod tuple;
 mod vec;
 
-/// Trait for converting arguments into values.
-pub trait IntoArgs {
+/// Trait for converting arguments into values unsafely.
+///
+/// This has the ability to encode references.
+pub trait UnsafeIntoArgs {
     /// Encode arguments into a stack.
     ///
     /// # Safety
@@ -21,7 +23,7 @@ pub trait IntoArgs {
     /// This has the ability to encode references into the stack.
     /// The caller must ensure that the stack is cleared with
     /// [clear][Stack::clear] before the references are no longer valid.
-    unsafe fn into_args(self, stack: &mut Stack) -> Result<(), VmError>;
+    unsafe fn unsafe_into_args(self, stack: &mut Stack) -> Result<(), VmError>;
 
     /// The number of arguments.
     fn count() -> usize;
@@ -134,6 +136,12 @@ impl ToValue for Value {
     }
 }
 
+impl ToValue for &Value {
+    fn to_value(self) -> Result<Value, ValueError> {
+        Ok(self.clone())
+    }
+}
+
 macro_rules! impl_into_args {
     () => {
         impl_into_args!{@impl 0,}
@@ -145,12 +153,12 @@ macro_rules! impl_into_args {
     };
 
     (@impl $count:expr, $({$ty:ident, $value:ident, $ignore_count:expr},)*) => {
-        impl<$($ty,)*> IntoArgs for ($($ty,)*)
+        impl<$($ty,)*> UnsafeIntoArgs for ($($ty,)*)
         where
             $($ty: UnsafeToValue + std::fmt::Debug,)*
         {
             #[allow(unused)]
-            unsafe fn into_args(self, stack: &mut Stack) -> Result<(), VmError> {
+            unsafe fn unsafe_into_args(self, stack: &mut Stack) -> Result<(), VmError> {
                 let ($($value,)*) = self;
                 impl_into_args!(@push stack, [$($value)*]);
                 Ok(())

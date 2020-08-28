@@ -636,12 +636,36 @@ pub enum RawValueRefGuard {
     RawRefGuard(access::RawRefGuard),
 }
 
+impl From<shared::RawStrongRefGuard> for RawValueRefGuard {
+    fn from(guard: shared::RawStrongRefGuard) -> Self {
+        Self::RawStrongRefGuard(guard)
+    }
+}
+
+impl From<access::RawRefGuard> for RawValueRefGuard {
+    fn from(guard: access::RawRefGuard) -> Self {
+        Self::RawRefGuard(guard)
+    }
+}
+
 /// A raw guard for a reference to a value.
 pub enum RawValueMutGuard {
     /// The guard from an internally held value.
     RawStrongMutGuard(shared::RawStrongMutGuard),
     /// The guard from an external reference.
     RawMutGuard(access::RawMutGuard),
+}
+
+impl From<shared::RawStrongMutGuard> for RawValueMutGuard {
+    fn from(guard: shared::RawStrongMutGuard) -> Self {
+        Self::RawStrongMutGuard(guard)
+    }
+}
+
+impl From<access::RawMutGuard> for RawValueMutGuard {
+    fn from(guard: access::RawMutGuard) -> Self {
+        Self::RawMutGuard(guard)
+    }
 }
 
 /// A type-erased rust number.

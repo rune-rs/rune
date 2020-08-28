@@ -162,7 +162,7 @@ impl Runtime {
     where
         I: IntoIterator,
         I::Item: AsRef<Component>,
-        A: 'a + runestick::IntoArgs,
+        A: 'a + runestick::UnsafeIntoArgs,
         T: runestick::FromValue,
     {
         let unit = self

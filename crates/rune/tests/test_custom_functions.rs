@@ -5,7 +5,7 @@ use std::rc::Rc;
 async fn run_main<T, A>(context: Rc<runestick::Context>, source: &str, args: A) -> rune::Result<T>
 where
     T: runestick::FromValue,
-    A: runestick::IntoArgs,
+    A: runestick::UnsafeIntoArgs,
 {
     let (unit, _) = rune::compile(&*context, source)?;
     let mut vm = runestick::Vm::new();

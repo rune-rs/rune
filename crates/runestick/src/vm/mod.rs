@@ -5,7 +5,7 @@ use crate::future::SelectFuture;
 use crate::hash::Hash;
 use crate::item::Component;
 use crate::panic::Panic;
-use crate::reflection::{FromValue, IntoArgs};
+use crate::reflection::{FromValue, UnsafeIntoArgs};
 use crate::shared::{Shared, StrongMut};
 use crate::stack::{Stack, StackError};
 use crate::unit::{CompilationUnit, UnitFnCall, UnitFnKind};
@@ -399,7 +399,7 @@ macro_rules! numeric_ops {
 
 /// Generate a primitive combination of operations.
 macro_rules! assign_ops {
-    ($vm:expr, $context:expr, $fn:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
+    ($vm:expr, $context:expr, $hash:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
         match ($a, $b) {
             (Value::Integer($a), Value::Integer($b)) => Value::Integer({
                 match $a.$checked_op($b) {
@@ -411,23 +411,14 @@ macro_rules! assign_ops {
                 check_float!($a $op $b, $error)
             }),
             (lhs, rhs) => {
-                let ty = lhs.value_type()?;
-                let hash = Hash::instance_function(ty, *$fn);
+                if !$vm.call_instance_fn($context, *$hash, &lhs, (&rhs,))? {
+                    return Err(VmError::UnsupportedBinaryOperation {
+                        op: stringify!($op),
+                        lhs: lhs.type_info()?,
+                        rhs: rhs.type_info()?,
+                    });
+                }
 
-                let handler = match $context.lookup(hash) {
-                    Some(handler) => handler,
-                    None => {
-                        return Err(VmError::UnsupportedBinaryOperation {
-                            op: stringify!($op),
-                            lhs: lhs.type_info()?,
-                            rhs: rhs.type_info()?,
-                        });
-                    }
-                };
-
-                $vm.stack.push(rhs);
-                $vm.stack.push(lhs.clone());
-                handler(&mut $vm.stack, 1)?;
                 $vm.stack.pop()?;
                 lhs
             }
@@ -527,7 +518,7 @@ impl Vm {
     where
         I: IntoIterator,
         I::Item: AsRef<Component>,
-        A: 'a + IntoArgs,
+        A: 'a + UnsafeIntoArgs,
         T: FromValue,
     {
         let hash = Hash::function(name);
@@ -556,10 +547,9 @@ impl Vm {
         self.stack.clear();
 
         // Safety: we bind the lifetime of the arguments to the outgoing task,
-        // ensuring that the task won't outlive any potentially passed in
-        // references.
+        // ensuring that the task won't outlive any references passed in.
         unsafe {
-            args.into_args(&mut self.stack)?;
+            args.unsafe_into_args(&mut self.stack)?;
         }
 
         Ok(Task {
@@ -630,6 +620,36 @@ impl Vm {
         self.stack.push(value);
         self.branch = Some(branch);
         Ok(())
+    }
+
+    fn call_instance_fn<A>(
+        &mut self,
+        context: &Context,
+        hash: Hash,
+        instance: &Value,
+        args: A,
+    ) -> Result<bool, VmError>
+    where
+        A: UnsafeIntoArgs,
+    {
+        let ty = instance.value_type()?;
+        let hash = Hash::instance_function(ty, hash);
+
+        let handler = match context.lookup(hash) {
+            Some(handler) => handler,
+            None => return Ok(false),
+        };
+
+        // Safety: This function can only be called inside the virtual machine,
+        // which is guaranteed to not outlive the stack. Allowing us to safely
+        // encode reference into it.
+        unsafe {
+            args.unsafe_into_args(&mut self.stack)?;
+        }
+
+        self.stack.push(instance.clone());
+        handler(&mut self.stack, 1)?;
+        Ok(true)
     }
 
     /// Pop a number of values from the stack.
@@ -1464,7 +1484,12 @@ impl Vm {
 
     /// Optimize operation to perform string concatenation.
     #[inline]
-    fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
+    fn op_string_concat(
+        &mut self,
+        context: &Rc<Context>,
+        len: usize,
+        size_hint: usize,
+    ) -> Result<(), VmError> {
         let mut buf = String::with_capacity(size_hint);
 
         for _ in 0..len {
@@ -1486,15 +1511,19 @@ impl Vm {
                     buf.push_str(buffer.format(float));
                 }
                 actual => {
-                    let actual = actual.type_info()?;
+                    if !self.call_instance_fn(context, *crate::FMT_DISPLAY, &actual, (&mut buf,))? {
+                        return Err(VmError::UnsupportedStringConcatArgument {
+                            actual: actual.type_info()?,
+                        });
+                    }
 
-                    return Err(VmError::UnsupportedStringConcatArgument { actual });
+                    self.stack.pop()?;
                 }
             }
         }
 
         self.stack.push(Value::String(Shared::new(buf)));
-        Ok(())
+        return Ok(());
     }
 
     #[inline]
@@ -2202,7 +2231,7 @@ impl Vm {
                     self.stack.push(value);
                 }
                 Inst::StringConcat { len, size_hint } => {
-                    self.op_string_concat(len, size_hint)?;
+                    self.op_string_concat(context, len, size_hint)?;
                 }
                 Inst::Is => {
                     self.op_is(unit, context)?;
