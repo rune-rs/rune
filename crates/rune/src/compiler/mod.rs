@@ -1157,6 +1157,20 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let span = expr_field_access.span();
 
+        // Optimizations!
+        //
+        // TODO: perform deferred compilation for expressions instead, so we can
+        // e.g. inspect if it compiles down to a local access instead of
+        // climbing the ast like we do here.
+        match (&*expr_field_access.expr, &expr_field_access.expr_field) {
+            (ast::Expr::Path(path), ast::ExprField::LitNumber(n)) => {
+                if try_immediate_field_access_optimization(self, span, path, n, needs)? {
+                    return Ok(());
+                }
+            }
+            _ => (),
+        }
+
         self.compile_expr(&*expr_field_access.expr, Needs::Value)?;
 
         // This loop is actually useful.
@@ -1197,7 +1211,52 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
         }
 
-        Err(CompileError::UnsupportedFieldAccess { span })
+        return Err(CompileError::UnsupportedFieldAccess { span });
+
+        fn try_immediate_field_access_optimization(
+            this: &mut Compiler<'_, '_>,
+            span: Span,
+            path: &ast::Path,
+            n: &ast::LitNumber,
+            needs: Needs,
+        ) -> Result<bool, CompileError> {
+            let ident = match path.try_as_ident() {
+                Some(ident) => ident,
+                None => return Ok(false),
+            };
+
+            let ident = ident.resolve(this.source)?;
+
+            let index = match n.resolve(this.source)? {
+                ast::Number::Integer(n) => n,
+                _ => return Ok(false),
+            };
+
+            let index = match usize::try_from(index) {
+                Ok(index) => index,
+                Err(..) => return Ok(false),
+            };
+
+            let var = match this.scopes.try_get_var(ident)? {
+                Some(var) => var,
+                None => return Ok(false),
+            };
+
+            this.asm.push(
+                Inst::TupleIndexGetAt {
+                    offset: var.offset,
+                    index,
+                },
+                span,
+            );
+
+            if !needs.value() {
+                this.warnings.not_used(span, this.context());
+                this.asm.push(Inst::Pop, span);
+            }
+
+            Ok(true)
+        }
     }
 
     fn compile_expr_index_get(

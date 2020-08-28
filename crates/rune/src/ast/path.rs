@@ -27,6 +27,17 @@ impl Path {
         Some(self.first)
     }
 
+    /// Borrow as an identifier used for field access calls.
+    ///
+    /// This is only allowed if there are no other path components.
+    pub fn try_as_ident(&self) -> Option<&ast::Ident> {
+        if !self.rest.is_empty() {
+            return None;
+        }
+
+        Some(&self.first)
+    }
+
     /// Calculate the full span of the path.
     pub fn span(&self) -> Span {
         match self.rest.last() {
