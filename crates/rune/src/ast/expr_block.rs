@@ -1,4 +1,4 @@
-use crate::ast::{CloseBrace, Expr, OpenBrace, SemiColon};
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
@@ -8,13 +8,13 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub struct ExprBlock {
     /// The close brace.
-    pub open: OpenBrace,
+    pub open: ast::OpenBrace,
     /// Expressions in the block.
-    pub exprs: Vec<(Expr, Option<SemiColon>)>,
+    pub exprs: Vec<(ast::Expr, Option<ast::SemiColon>)>,
     /// Test if the expression is trailing.
-    pub trailing_expr: Option<Box<Expr>>,
+    pub trailing_expr: Option<Box<ast::Expr>>,
     /// The close brace.
-    pub close: CloseBrace,
+    pub close: ast::CloseBrace,
 }
 
 impl ExprBlock {
@@ -79,44 +79,33 @@ impl Parse for ExprBlock {
         let open = parser.parse()?;
         let mut trailing_expr = None;
 
-        // Last expression is of a type that evaluates to a value.
-        let mut last_expr_with_value = false;
+        while !parser.peek::<ast::CloseBrace>()? {
+            let (expr, semi_colon) = if parser.peek::<ast::Decl>()? {
+                let decl: ast::Decl = parser.parse()?;
+                let semi_colon = decl.needs_semi_colon() || parser.peek::<ast::SemiColon>()?;
+                (ast::Expr::Decl(decl), semi_colon)
+            } else {
+                let expr: ast::Expr = parser.parse()?;
+                (expr, parser.peek::<ast::SemiColon>()?)
+            };
 
-        while !parser.peek::<CloseBrace>()? {
-            last_expr_with_value = false;
-            let expr: Expr = parser.parse()?;
+            let semi_colon = if semi_colon {
+                Some(parser.parse()?)
+            } else {
+                None
+            };
 
-            if parser.peek::<SemiColon>()? {
-                exprs.push((expr, Some(parser.parse::<SemiColon>()?)));
-                continue;
+            if parser.peek::<ast::CloseBrace>()? {
+                if semi_colon.is_none() {
+                    trailing_expr = Some(Box::new(expr));
+                } else {
+                    exprs.push((expr, semi_colon));
+                }
+
+                break;
             }
 
-            // expressions where it's allowed not to have a trailing
-            // semi-colon.
-            match &expr {
-                Expr::ExprWhile(..) | Expr::ExprLoop(..) | Expr::ExprFor(..) => {
-                    exprs.push((expr, None));
-                    continue;
-                }
-                Expr::ExprIf(..) => {
-                    last_expr_with_value = true;
-                    exprs.push((expr, None));
-                    continue;
-                }
-                Expr::ExprMatch(..) => {
-                    last_expr_with_value = true;
-                    exprs.push((expr, None));
-                    continue;
-                }
-                _ => (),
-            }
-
-            trailing_expr = Some(Box::new(expr));
-            break;
-        }
-
-        if last_expr_with_value {
-            trailing_expr = exprs.pop().map(|(expr, _)| Box::new(expr));
+            exprs.push((expr, semi_colon));
         }
 
         let close = parser.parse()?;

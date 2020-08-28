@@ -6,13 +6,18 @@ use crate::traits::Resolve as _;
 use crate::ParseAll;
 use runestick::unit::{Assembly, Label, UnitFnCall};
 use runestick::{Component, Context, Hash, Inst, Item, Meta, Span, TypeCheck};
+use std::cell::RefCell;
+use std::rc::Rc;
 
+mod index;
+mod items;
 mod loops;
 mod options;
 mod query;
 mod scopes;
 mod warning;
 
+pub(self) use self::items::Items;
 use self::loops::{Loop, Loops};
 pub use self::options::Options;
 pub use self::query::Query;
@@ -57,45 +62,34 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
 
         let mut warnings = Warnings::new();
 
-        let mut unit = runestick::CompilationUnit::with_default_prelude();
+        let unit = Rc::new(RefCell::new(
+            runestick::CompilationUnit::with_default_prelude(),
+        ));
 
-        for import in file.imports {
-            let name = import.path.resolve(source)?;
-            unit.new_import(&name)?;
-        }
+        let mut query = query::Query::new(source, unit.clone());
 
-        let mut query = query::Query::new(source);
-
-        for en in file.enums {
-            let name = en.name.resolve(source)?;
-            let enum_item = Item::of(&[name]);
-            query.new_enum(enum_item.clone());
-
-            for (variant, body, _) in en.variants {
-                let variant = variant.resolve(source)?;
-                let item = Item::of(&[name, variant]);
-                query.new_variant(item, enum_item.clone(), body);
+        for (decl, semi_colon) in file.decls {
+            if let Some(semi_colon) = semi_colon {
+                if !decl.needs_semi_colon() {
+                    warnings.uneccessary_semi_colon(semi_colon.span());
+                }
             }
+
+            query.process_decl(decl)?;
         }
 
-        for (st, _) in file.structs {
-            let name = st.ident.resolve(source)?;
-            let item = Item::of(&[name]);
-            query.new_struct(item, st);
-        }
+        while let Some((item, f)) = query.functions.pop_front() {
+            let span = f.ast.span();
+            let count = f.ast.args.items.len();
 
-        for f in file.functions {
-            let span = f.span();
-            let name = f.name.resolve(source)?;
-            let count = f.args.items.len();
-
-            let mut assembly = unit.new_assembly();
+            let mut asm = unit.borrow().new_assembly();
 
             let mut compiler = Compiler {
                 context,
                 query: &mut query,
-                unit: &mut unit,
-                asm: &mut assembly,
+                asm: &mut asm,
+                items: Items::new(item.as_vec()),
+                unit: unit.clone(),
                 scopes: Scopes::new(),
                 contexts: vec![span],
                 source,
@@ -105,18 +99,23 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                 warnings: &mut warnings,
             };
 
-            let call = if f.async_.is_some() {
+            let call = if f.ast.async_.is_some() {
                 UnitFnCall::Async
             } else {
                 UnitFnCall::Immediate
             };
 
-            compiler.compile_decl_fn(f)?;
-
-            unit.new_function(&[name], count, assembly, call)?;
+            compiler.compile_decl_fn(f.ast)?;
+            unit.borrow_mut().new_function(item, count, asm, call)?;
         }
 
-        Ok((unit, warnings))
+        // query holds a reference to the unit, we need to drop it.
+        drop(query);
+
+        let unit = Rc::try_unwrap(unit)
+            .map_err(|_| CompileError::internal("unit is not exlusively held", Span::empty()))?;
+
+        Ok((unit.into_inner(), warnings))
     }
 }
 
@@ -125,10 +124,12 @@ struct Compiler<'a, 'source> {
     context: &'a Context,
     /// Query system to compile required items.
     query: &'a mut Query<'source>,
-    /// The compilation unit we are compiling for.
-    unit: &'a mut runestick::CompilationUnit,
     /// The assembly we are generating.
     asm: &'a mut Assembly,
+    /// Item builder.
+    items: Items,
+    /// The compilation unit we are compiling for.
+    unit: Rc<RefCell<runestick::CompilationUnit>>,
     /// Scopes defined in the compiler.
     scopes: Scopes,
     /// Context for which to emit warnings.
@@ -149,6 +150,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     fn compile_decl_fn(&mut self, fn_decl: ast::DeclFn) -> Result<()> {
         let span = fn_decl.span();
         log::trace!("FnDecl => {:?}", self.source.source(span)?);
+        let item_guard = self.items.push_block();
 
         for (arg, _) in fn_decl.args.items.iter().rev() {
             let name = arg.resolve(self.source)?;
@@ -177,6 +179,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         }
 
         self.scopes.pop_last(span)?;
+        self.items.pop(item_guard, span)?;
         Ok(())
     }
 
@@ -186,8 +189,26 @@ impl<'a, 'source> Compiler<'a, 'source> {
             return Ok(Some(meta));
         }
 
-        if let Some(meta) = self.query.query_meta(self.unit, name, span)? {
-            return Ok(Some(meta));
+        if let Some(local) = name.as_local() {
+            let mut current = self.items.item();
+
+            loop {
+                current.push(local);
+
+                if let Some(meta) = self.query.query_meta(&current, span)? {
+                    return Ok(Some(meta));
+                }
+
+                current.pop();
+
+                if current.pop().is_none() {
+                    break;
+                }
+            }
+        } else {
+            if let Some(meta) = self.query.query_meta(name, span)? {
+                return Ok(Some(meta));
+            }
         }
 
         Ok(None)
@@ -227,6 +248,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     fn compile_expr_block(&mut self, block: &ast::ExprBlock, needs: Needs) -> Result<()> {
         let span = block.span();
         log::trace!("ExprBlock => {:?}", self.source.source(span)?);
+        let item_guard = self.items.push_block();
 
         self.contexts.push(span);
 
@@ -261,6 +283,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
         self.contexts
             .pop()
             .ok_or_else(|| CompileError::internal("missing parent context", span))?;
+
+        self.items.pop(item_guard, span)?;
         Ok(())
     }
 
@@ -394,6 +418,10 @@ impl<'a, 'source> Compiler<'a, 'source> {
             ast::Expr::LitTemplate(lit_template) => {
                 self.compile_lit_template(lit_template, needs)?;
             }
+            // NB: declarations are not used in this compilation stage.
+            // They have been separately indexed and will be built when queried
+            // for.
+            ast::Expr::Decl(..) => (),
         }
 
         Ok(())
@@ -485,7 +513,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             return Ok(());
         }
 
-        let slot = self.unit.new_static_object_keys(&keys)?;
+        let slot = self.unit.borrow_mut().new_static_object_keys(&keys)?;
 
         match &lit_object.ident {
             ast::LitObjectIdent::Named(path) => {
@@ -500,13 +528,23 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
                 match meta {
                     Meta::MetaObject { object } => {
-                        check_object_fields(object.fields.as_ref(), check_keys, span, item)?;
+                        check_object_fields(
+                            object.fields.as_ref(),
+                            check_keys,
+                            span,
+                            &object.item,
+                        )?;
 
                         let hash = Hash::of_type(&object.item);
                         self.asm.push(Inst::TypedObject { hash, slot }, span);
                     }
                     Meta::MetaObjectVariant { enum_item, object } => {
-                        check_object_fields(object.fields.as_ref(), check_keys, span, item)?;
+                        check_object_fields(
+                            object.fields.as_ref(),
+                            check_keys,
+                            span,
+                            &object.item,
+                        )?;
 
                         let enum_hash = Hash::of_type(&enum_item);
                         let hash = Hash::of_type(&object.item);
@@ -520,8 +558,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
                             span,
                         );
                     }
-                    _ => {
-                        return Err(CompileError::UnsupportedLitObject { span, item });
+                    meta => {
+                        return Err(CompileError::UnsupportedLitObject {
+                            span,
+                            item: meta.item().clone(),
+                        });
                     }
                 };
             }
@@ -536,23 +577,34 @@ impl<'a, 'source> Compiler<'a, 'source> {
             fields: Option<&HashSet<String>>,
             check_keys: Vec<(String, Span)>,
             span: Span,
-            item: Item,
+            item: &Item,
         ) -> Result<(), CompileError> {
             let mut fields = match fields {
                 Some(fields) => fields.clone(),
                 None => {
-                    return Err(CompileError::MissingType { span, item });
+                    return Err(CompileError::MissingType {
+                        span,
+                        item: item.clone(),
+                    });
                 }
             };
 
             for (field, span) in check_keys {
                 if !fields.remove(&field) {
-                    return Err(CompileError::LitObjectNotField { span, field, item });
+                    return Err(CompileError::LitObjectNotField {
+                        span,
+                        field,
+                        item: item.clone(),
+                    });
                 }
             }
 
             if let Some(field) = fields.into_iter().next() {
-                return Err(CompileError::LitObjectMissingField { span, field, item });
+                return Err(CompileError::LitObjectMissingField {
+                    span,
+                    field,
+                    item: item.clone(),
+                });
             }
 
             Ok(())
@@ -587,7 +639,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         }
 
         let string = lit_str.resolve(self.source)?;
-        let slot = self.unit.new_static_string(&*string)?;
+        let slot = self.unit.borrow_mut().new_static_string(&*string)?;
         self.asm.push(Inst::String { slot }, span);
         Ok(())
     }
@@ -620,7 +672,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         }
 
         let bytes = lit_byte_str.resolve(self.source)?;
-        let slot = self.unit.new_static_bytes(&*bytes)?;
+        let slot = self.unit.borrow_mut().new_static_bytes(&*bytes)?;
         self.asm.push(Inst::Bytes { slot }, span);
         Ok(())
     }
@@ -653,7 +705,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         for c in template.components.iter().rev() {
             match c {
                 ast::TemplateComponent::String(string) => {
-                    let slot = self.unit.new_static_string(&string)?;
+                    let slot = self.unit.borrow_mut().new_static_string(&string)?;
                     self.asm.push(Inst::String { slot }, span);
                     self.scopes.last_mut(span)?.decl_anon(span);
                 }
@@ -1047,7 +1099,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                             if let (Some(var), Some(field)) = (var.as_local(), field.as_local()) {
                                 self.compile_expr(rhs, Needs::Value)?;
 
-                                let field = self.unit.new_static_string(field)?;
+                                let field = self.unit.borrow_mut().new_static_string(field)?;
                                 self.asm.push(Inst::String { slot: field }, field_span);
 
                                 let var = self.scopes.get_var(var, var_span)?.offset;
@@ -1132,7 +1184,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 }
                 ast::ExprField::Ident(ident) => {
                     let field = ident.resolve(self.source)?;
-                    let slot = self.unit.new_static_string(field)?;
+                    let slot = self.unit.borrow_mut().new_static_string(field)?;
 
                     self.asm.push(Inst::ObjectSlotIndexGet { slot }, span);
 
@@ -1251,18 +1303,18 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Compile an item.
-    fn compile_meta(&mut self, item: Item, meta: &Meta, span: Span, needs: Needs) -> Result<()> {
+    fn compile_meta(&mut self, meta: &Meta, span: Span, needs: Needs) -> Result<()> {
         match (needs, meta) {
             (Needs::Value, Meta::MetaTuple { tuple }) if tuple.args == 0 => {
-                let hash = Hash::function(&item);
+                let hash = Hash::function(&tuple.item);
                 self.asm.push(Inst::Call { hash, args: 0 }, span);
             }
             (Needs::Value, Meta::MetaTupleVariant { tuple, .. }) if tuple.args == 0 => {
-                let hash = Hash::function(&item);
+                let hash = Hash::function(&tuple.item);
                 self.asm.push(Inst::Call { hash, args: 0 }, span);
             }
-            _ => {
-                let hash = Hash::of_type(&item);
+            (_, meta) => {
+                let hash = Hash::of_type(meta.item());
                 self.asm.push(Inst::Type { hash }, span);
             }
         }
@@ -1307,15 +1359,34 @@ impl<'a, 'source> Compiler<'a, 'source> {
             },
         };
 
-        self.compile_meta(item, &meta, span, needs)?;
+        self.compile_meta(&meta, span, needs)?;
         Ok(())
+    }
+
+    /// Lookup the given local name.
+    fn lookup_import_by_name(&self, local: &Component) -> Option<Item> {
+        let unit = self.unit.borrow();
+
+        let mut base = self.items.item();
+
+        loop {
+            if let Some(item) = unit.lookup_import_by_name(&base, &local).cloned() {
+                return Some(item);
+            }
+
+            if base.pop().is_none() {
+                break;
+            }
+        }
+
+        None
     }
 
     /// Convert a path to an item.
     fn convert_path_to_item(&self, path: &ast::Path) -> Result<Item> {
         let local = Component::from(path.first.resolve(self.source)?);
 
-        let imported = match self.unit.lookup_import_by_name(&local).cloned() {
+        let imported = match self.lookup_import_by_name(&local) {
             Some(path) => path,
             None => Item::of(&[local]),
         };
@@ -1341,8 +1412,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
         }
 
         let item = self.convert_path_to_item(&call_fn.name)?;
+        let a = self.lookup_meta(&item, call_fn.name.span())?;
 
-        if let Some(meta) = self.lookup_meta(&item, call_fn.name.span())? {
+        let item = if let Some(meta) = a {
             match &meta {
                 Meta::MetaTuple { tuple } | Meta::MetaTupleVariant { tuple, .. } => {
                     if tuple.args != call_fn.args.items.len() {
@@ -1359,12 +1431,17 @@ impl<'a, 'source> Compiler<'a, 'source> {
                         self.warnings
                             .remove_tuple_call_parens(span, tuple, self.context());
                     }
+
+                    tuple.item.clone()
                 }
+                Meta::MetaFunction { item } => item.clone(),
                 _ => {
                     return Err(CompileError::NotFunction { span });
                 }
             }
-        }
+        } else {
+            item
+        };
 
         if let Some(name) = item.as_local() {
             if let Some(var) = self.scopes.last(span)?.get(name) {
@@ -1973,7 +2050,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 });
             }
 
-            match self.context.type_check_for(&item) {
+            match self.context.type_check_for(&tuple.item) {
                 Some(type_check) => type_check,
                 None => type_check,
             }
@@ -2025,7 +2102,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             let span = item.span();
 
             let key = item.key.resolve(self.source)?;
-            string_slots.push(self.unit.new_static_string(&*key)?);
+            string_slots.push(self.unit.borrow_mut().new_static_string(&*key)?);
             keys.push(key.to_string());
 
             if let Some(existing) = keys_dup.insert(key, span) {
@@ -2037,7 +2114,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
         }
 
-        let keys = self.unit.new_static_object_keys(&keys[..])?;
+        let keys = self.unit.borrow_mut().new_static_object_keys(&keys[..])?;
 
         let type_check = match &pat_object.ident {
             ast::LitObjectIdent::Named(path) => {
@@ -2081,7 +2158,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                         return Err(CompileError::LitObjectNotField {
                             span,
                             field: key.to_string(),
-                            item,
+                            item: object.item.clone(),
                         });
                     }
                 }
@@ -2271,7 +2348,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 let span = pat_string.span();
 
                 let string = pat_string.resolve(self.source)?;
-                let slot = self.unit.new_static_string(&*string)?;
+                let slot = self.unit.borrow_mut().new_static_string(&*string)?;
 
                 load(&mut self.asm);
                 self.asm.push(Inst::EqStaticString { slot }, span);

@@ -102,6 +102,8 @@ pub enum Expr {
     ExprTry(ast::ExprTry),
     /// A select expression.
     ExprSelect(ast::ExprSelect),
+    /// A declaration.
+    Decl(ast::Decl),
 }
 
 impl Expr {
@@ -158,6 +160,7 @@ impl Expr {
             Self::ExprAwait(ret) => ret.span(),
             Self::ExprTry(ret) => ret.span(),
             Self::ExprSelect(ret) => ret.span(),
+            Self::Decl(decl) => decl.span(),
         }
     }
 

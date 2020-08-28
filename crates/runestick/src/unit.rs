@@ -343,7 +343,7 @@ pub struct CompilationUnit {
     ///
     /// Only used to link against the current environment to make sure all
     /// required units are present.
-    imports: HashMap<Component, Item>,
+    imports: HashMap<(Item, Component), Item>,
     /// Item metadata in the context.
     meta: HashMap<Item, Meta>,
     /// Where functions are located in the collection of instructions.
@@ -386,58 +386,74 @@ impl CompilationUnit {
     /// Construct a new unit with the default prelude.
     pub fn with_default_prelude() -> Self {
         let mut this = Self::new();
-        this.imports
-            .insert(Component::from("dbg"), Item::of(&["std", "dbg"]));
-        this.imports
-            .insert(Component::from("unit"), Item::of(&["std", "unit"]));
-        this.imports
-            .insert(Component::from("bool"), Item::of(&["std", "bool"]));
-        this.imports
-            .insert(Component::from("byte"), Item::of(&["std", "byte"]));
-        this.imports
-            .insert(Component::from("char"), Item::of(&["std", "char"]));
-        this.imports
-            .insert(Component::from("int"), Item::of(&["std", "int"]));
-        this.imports
-            .insert(Component::from("float"), Item::of(&["std", "float"]));
         this.imports.insert(
-            Component::from("Object"),
+            (Item::empty(), Component::from("dbg")),
+            Item::of(&["std", "dbg"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("unit")),
+            Item::of(&["std", "unit"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("bool")),
+            Item::of(&["std", "bool"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("byte")),
+            Item::of(&["std", "byte"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("char")),
+            Item::of(&["std", "char"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("int")),
+            Item::of(&["std", "int"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("float")),
+            Item::of(&["std", "float"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("Object")),
             Item::of(&["std", "object", "Object"]),
         );
-        this.imports
-            .insert(Component::from("Vec"), Item::of(&["std", "vec", "Vec"]));
         this.imports.insert(
-            Component::from("String"),
+            (Item::empty(), Component::from("Vec")),
+            Item::of(&["std", "vec", "Vec"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("String")),
             Item::of(&["std", "string", "String"]),
         );
 
         this.imports.insert(
-            Component::from("Result"),
+            (Item::empty(), Component::from("Result")),
             Item::of(&["std", "result", "Result"]),
         );
 
         this.imports.insert(
-            Component::from("Err"),
+            (Item::empty(), Component::from("Err")),
             Item::of(&["std", "result", "Result", "Err"]),
         );
 
         this.imports.insert(
-            Component::from("Ok"),
+            (Item::empty(), Component::from("Ok")),
             Item::of(&["std", "result", "Result", "Ok"]),
         );
 
         this.imports.insert(
-            Component::from("Option"),
+            (Item::empty(), Component::from("Option")),
             Item::of(&["std", "option", "Option"]),
         );
 
         this.imports.insert(
-            Component::from("Some"),
+            (Item::empty(), Component::from("Some")),
             Item::of(&["std", "option", "Option", "Some"]),
         );
 
         this.imports.insert(
-            Component::from("None"),
+            (Item::empty(), Component::from("None")),
             Item::of(&["std", "option", "Option", "None"]),
         );
 
@@ -509,9 +525,14 @@ impl CompilationUnit {
     pub fn iter_imports<'a>(&'a self) -> impl Iterator<Item = (&'a Component, &'a Item)> + '_ {
         let mut it = self.imports.iter();
 
-        std::iter::from_fn(move || {
-            let (k, v) = it.next()?;
-            Some((k, v))
+        std::iter::from_fn(move || loop {
+            let ((item, k), v) = it.next()?;
+
+            if !item.is_empty() {
+                continue;
+            }
+
+            return Some((k, v));
         })
     }
 
@@ -641,12 +662,12 @@ impl CompilationUnit {
     }
 
     /// Look up an use by name.
-    pub fn lookup_import_by_name(&self, name: &Component) -> Option<&Item> {
-        self.imports.get(name)
+    pub fn lookup_import_by_name(&self, item: &Item, name: &Component) -> Option<&Item> {
+        self.imports.get(&(item.clone(), name.clone()))
     }
 
     /// Declare a new import.
-    pub fn new_import<I>(&mut self, path: I) -> Result<(), CompilationUnitError>
+    pub fn new_import<I>(&mut self, item: Item, path: I) -> Result<(), CompilationUnitError>
     where
         I: Copy + IntoIterator,
         I::Item: Into<Component>,
@@ -654,7 +675,7 @@ impl CompilationUnit {
         let path = Item::of(path);
 
         if let Some(last) = path.last() {
-            if let Some(existing) = self.imports.insert(last.clone(), path) {
+            if let Some(existing) = self.imports.insert((item, last.clone()), path) {
                 return Err(CompilationUnitError::ImportConflict { existing });
             }
         }
@@ -775,6 +796,7 @@ impl CompilationUnit {
 
                 item.clone()
             }
+            Meta::MetaFunction { item } => item.clone(),
         };
 
         if self.meta.insert(path.clone(), meta).is_some() {
@@ -785,7 +807,7 @@ impl CompilationUnit {
     }
 
     /// Construct a new empty assembly associated with the current unit.
-    pub fn new_assembly(&mut self) -> Assembly {
+    pub fn new_assembly(&self) -> Assembly {
         Assembly::new(self.label_count)
     }
 

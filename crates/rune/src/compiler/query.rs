@@ -1,14 +1,20 @@
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
+use crate::compiler::index::{FunctionIndexer, Index as _};
+use crate::compiler::Items;
 use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
-use runestick::{CompilationUnit, Item, Meta, MetaObject, MetaTuple, Span};
+use runestick::{CompilationUnit, Component, Item, Meta, MetaObject, MetaTuple, Span};
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
 
-pub enum Entry {
+pub(super) enum Entry {
     Enum,
     Struct(Struct),
     Variant(Variant),
+    Function(Function),
 }
 
 pub struct Struct {
@@ -36,18 +42,73 @@ impl Variant {
     }
 }
 
+pub(super) struct Function {
+    /// Ast for declaration.
+    pub(super) ast: ast::DeclFn,
+}
+
+impl Function {
+    /// Construct a new function.
+    pub(super) fn new(ast: ast::DeclFn) -> Self {
+        Self { ast }
+    }
+}
+
 pub struct Query<'a> {
-    source: Source<'a>,
+    pub(super) source: Source<'a>,
+    pub(super) functions: VecDeque<(Item, Function)>,
     items: HashMap<Item, Entry>,
+    pub(super) unit: Rc<RefCell<CompilationUnit>>,
 }
 
 impl<'a> Query<'a> {
     /// Construct a new compilation context.
-    pub fn new(source: Source<'a>) -> Self {
+    pub fn new(source: Source<'a>, unit: Rc<RefCell<CompilationUnit>>) -> Self {
         Self {
             source,
+            functions: VecDeque::new(),
             items: HashMap::new(),
+            unit,
         }
+    }
+
+    /// Process a single declaration.
+    pub fn process_decl(&mut self, decl: ast::Decl) -> Result<(), CompileError> {
+        match decl {
+            ast::Decl::DeclUse(import) => {
+                let name = import.path.resolve(self.source)?;
+                self.unit.borrow_mut().new_import(Item::empty(), &name)?;
+            }
+            ast::Decl::DeclEnum(en) => {
+                let name = en.name.resolve(self.source)?;
+                let enum_item = Item::of(&[name]);
+                self.new_enum(enum_item.clone());
+
+                for (variant, body, _) in en.variants {
+                    let variant = variant.resolve(self.source)?;
+                    let item = Item::of(&[name, variant]);
+                    self.new_variant(item, enum_item.clone(), body);
+                }
+            }
+            ast::Decl::DeclStruct(st) => {
+                let name = st.ident.resolve(self.source)?;
+                let item = Item::of(&[name]);
+                self.new_struct(item, st);
+            }
+            ast::Decl::DeclFn(f) => {
+                let name = f.name.resolve(self.source)?;
+
+                let items = Items::new(vec![Component::from(name)]);
+                let item = items.item();
+
+                let mut indexer = FunctionIndexer { items, query: self };
+
+                indexer.index(&f)?;
+                self.functions.push_back((item, Function::new(f)));
+            }
+        }
+
+        Ok(())
     }
 
     /// Add a new enum item.
@@ -66,16 +127,16 @@ impl<'a> Query<'a> {
             .insert(item, Entry::Variant(Variant::new(enum_item, ast)));
     }
 
+    /// Add a new function that can be queried for.
+    pub fn new_function(&mut self, item: Item, ast: ast::DeclFn) {
+        self.items.insert(item, Entry::Function(Function::new(ast)));
+    }
+
     /// Query for the given meta item.
-    pub fn query_meta(
-        &mut self,
-        unit: &mut CompilationUnit,
-        item: &Item,
-        span: Span,
-    ) -> Result<Option<Meta>, CompileError> {
+    pub fn query_meta(&mut self, item: &Item, span: Span) -> Result<Option<Meta>, CompileError> {
         let item = Item::of(item);
 
-        if let Some(meta) = unit.lookup_meta(&item) {
+        if let Some(meta) = self.unit.borrow().lookup_meta(&item) {
             return Ok(Some(meta));
         }
 
@@ -86,22 +147,30 @@ impl<'a> Query<'a> {
 
         match entry {
             Entry::Enum => {
-                unit.new_item(Meta::MetaEnum { item: item.clone() })?;
+                self.unit
+                    .borrow_mut()
+                    .new_item(Meta::MetaEnum { item: item.clone() })?;
             }
             Entry::Variant(variant) => {
                 // Assert that everything is built for the enum.
-                self.query_meta(unit, &variant.enum_item, span)?;
+                self.query_meta(&variant.enum_item, span)?;
 
                 let meta = self.ast_into_item_decl(&item, variant.ast, Some(variant.enum_item))?;
-                unit.new_item(meta)?;
+                self.unit.borrow_mut().new_item(meta)?;
             }
             Entry::Struct(st) => {
                 let meta = self.ast_into_item_decl(&item, st.ast.body, None)?;
-                unit.new_item(meta)?;
+                self.unit.borrow_mut().new_item(meta)?;
+            }
+            Entry::Function(f) => {
+                self.functions.push_back((item.clone(), f));
+                self.unit
+                    .borrow_mut()
+                    .new_item(Meta::MetaFunction { item: item.clone() })?;
             }
         }
 
-        match unit.lookup_meta(&item) {
+        match self.unit.borrow().lookup_meta(&item) {
             Some(meta) => Ok(Some(meta)),
             None => Err(CompileError::MissingType { span, item }),
         }

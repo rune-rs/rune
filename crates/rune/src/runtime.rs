@@ -437,6 +437,14 @@ impl Runtime {
 
                         context
                     }
+                    Warning::UnecessarySemiColon { span } => {
+                        labels.push(
+                            Label::primary(source_file, span.start..span.end)
+                                .with_message("unnecessary semicolon"),
+                        );
+
+                        None
+                    }
                 };
 
                 if let Some(context) = context {

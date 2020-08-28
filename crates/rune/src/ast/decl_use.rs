@@ -1,17 +1,23 @@
-use crate::ast::{Path, SemiColon, Use};
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
+use runestick::Span;
 
 /// An imported declaration.
 #[derive(Debug, Clone)]
 pub struct DeclUse {
     /// The use token.
-    pub use_: Use,
+    pub use_: ast::Use,
     /// The name of the imported module.
-    pub path: Path,
-    /// Trailing semi-colon.
-    pub semi_colon: SemiColon,
+    pub path: ast::Path,
+}
+
+impl DeclUse {
+    /// Get the span for the declaration.
+    pub fn span(&self) -> Span {
+        self.use_.span().join(self.path.span())
+    }
 }
 
 /// Parsing an use declaration.
@@ -33,7 +39,6 @@ impl Parse for DeclUse {
         Ok(Self {
             use_: parser.parse()?,
             path: parser.parse()?,
-            semi_colon: parser.parse()?,
         })
     }
 }

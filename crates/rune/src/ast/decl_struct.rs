@@ -3,8 +3,10 @@ use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::token::{Delimiter, Kind};
 use crate::traits::Parse;
+use runestick::Span;
 
 /// A struct declaration.
+#[derive(Debug, Clone)]
 pub struct DeclStruct {
     /// The `struct` keyword.
     pub struct_: ast::Struct,
@@ -12,6 +14,27 @@ pub struct DeclStruct {
     pub ident: ast::Ident,
     /// The body of the struct.
     pub body: DeclStructBody,
+}
+
+impl DeclStruct {
+    /// Get the span for the declaration.
+    pub fn span(&self) -> Span {
+        let start = self.struct_.span();
+
+        match &self.body {
+            DeclStructBody::EmptyBody(..) => start,
+            DeclStructBody::TupleBody(body) => start.join(body.span()),
+            DeclStructBody::StructBody(body) => start.join(body.span()),
+        }
+    }
+
+    /// Indicates if the declaration needs a semi-colon or not.
+    pub fn needs_semi_colon(&self) -> bool {
+        match &self.body {
+            DeclStructBody::EmptyBody(..) => true,
+            _ => false,
+        }
+    }
 }
 
 /// Parse implementation for a struct.
@@ -99,6 +122,13 @@ pub struct TupleBody {
     pub close: ast::CloseParen,
 }
 
+impl TupleBody {
+    /// Get the span for the tuple body.
+    pub fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
+}
+
 /// Parse implementation for a struct body.
 ///
 /// # Examples
@@ -151,6 +181,13 @@ pub struct StructBody {
     pub fields: Vec<(ast::Ident, Option<ast::Comma>)>,
     /// The close brace.
     pub close: ast::CloseBrace,
+}
+
+impl StructBody {
+    /// Get the span for the tuple body.
+    pub fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
 }
 
 /// Parse implementation for a struct body.

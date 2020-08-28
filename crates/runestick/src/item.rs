@@ -11,9 +11,37 @@ pub struct Item {
 }
 
 impl Item {
+    /// Construct an empty item.
+    pub fn empty() -> Self {
+        Self { path: Vec::new() }
+    }
+
     /// Construct a new item path.
     pub fn new(path: Vec<Component>) -> Self {
         Self { path }
+    }
+
+    /// Check if the item is empty.
+    pub fn is_empty(&self) -> bool {
+        self.path.is_empty()
+    }
+
+    /// Push the given component to the current item.
+    pub fn push<C>(&mut self, component: C)
+    where
+        C: Into<Component>,
+    {
+        self.path.push(component.into());
+    }
+
+    /// Push the given component to the current item.
+    pub fn pop(&mut self) -> Option<Component> {
+        self.path.pop()
+    }
+
+    /// Construct a new vector from the current item.
+    pub fn as_vec(&self) -> Vec<Component> {
+        self.path.clone()
     }
 
     /// If the item only contains one element, return that element.
@@ -51,12 +79,12 @@ impl Item {
     }
 
     /// Clone and extend the item path.
-    pub fn extended<S>(&self, part: S) -> Self
+    pub fn extended<C>(&self, part: C) -> Self
     where
-        S: AsRef<str>,
+        C: Into<Component>,
     {
         let mut path = self.path.clone();
-        path.push(Component::String(part.as_ref().to_owned()));
+        path.push(part.into());
         Self::new(path)
     }
 
@@ -115,7 +143,7 @@ impl fmt::Display for Component {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::String(s) => write!(fmt, "{}", s),
-            Self::Block(n) => write!(fmt, "$block{}", n),
+            Self::Block(n) => write!(fmt, "${}", n),
         }
     }
 }

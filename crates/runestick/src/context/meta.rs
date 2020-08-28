@@ -34,25 +34,47 @@ pub enum Meta {
         /// The item of the enum.
         item: Item,
     },
+    /// A function declaration.
+    MetaFunction {
+        /// The item of the function declaration.
+        item: Item,
+    },
+}
+
+impl Meta {
+    /// Get the item of the meta.
+    pub fn item(&self) -> &Item {
+        match self {
+            Meta::MetaTuple { tuple } => &tuple.item,
+            Meta::MetaTupleVariant { tuple, .. } => &tuple.item,
+            Meta::MetaObject { object } => &object.item,
+            Meta::MetaObjectVariant { object, .. } => &object.item,
+            Meta::MetaEnum { item } => item,
+            Meta::MetaFunction { item } => item,
+        }
+    }
 }
 
 impl fmt::Display for Meta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MetaTuple { tuple } => {
-                write!(fmt, "{item}({args})", item = tuple.item, args = tuple.args)?;
+                write!(fmt, "{}({})", tuple.item, tuple.args)?;
             }
             Self::MetaTupleVariant { tuple, .. } => {
-                write!(fmt, "{item}({args})", item = tuple.item, args = tuple.args)?;
+                write!(fmt, "{}({})", tuple.item, tuple.args)?;
             }
             Self::MetaObject { object } => {
-                write!(fmt, "{item}", item = object.item)?;
+                write!(fmt, "{}", object.item)?;
             }
             Self::MetaObjectVariant { object, .. } => {
-                write!(fmt, "{item}", item = object.item)?;
+                write!(fmt, "{}", object.item)?;
             }
             Self::MetaEnum { item, .. } => {
-                write!(fmt, "{item}", item = item)?;
+                write!(fmt, "{}", item)?;
+            }
+            Self::MetaFunction { item, .. } => {
+                write!(fmt, "fn {}", item)?;
             }
         }
 

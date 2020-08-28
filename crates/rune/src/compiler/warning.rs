@@ -41,6 +41,11 @@ pub enum Warning {
         /// The context in which it is used.
         context: Option<Span>,
     },
+    /// An unecessary semi-colon is used.
+    UnecessarySemiColon {
+        /// Span where the semi-colon is.
+        span: Span,
+    },
 }
 /// Compilation warnings.
 #[derive(Debug, Clone, Default)]
@@ -97,6 +102,11 @@ impl Warnings {
             variant,
             context,
         });
+    }
+
+    /// Indicate an unecessary semi colon.
+    pub(super) fn uneccessary_semi_colon(&mut self, span: Span) {
+        self.warnings.push(Warning::UnecessarySemiColon { span });
     }
 }
 
