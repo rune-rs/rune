@@ -1,18 +1,10 @@
 use crate::collections::HashMap;
-use crate::hash::Hash;
-use crate::item::Item;
-use crate::stack::Stack;
-use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::{OptionVariant, ResultVariant, TypeCheck, VmError};
+use crate::{
+    Hash, Item, Meta, MetaObject, MetaTuple, Module, OptionVariant, ResultVariant, Stack,
+    TypeCheck, Value, ValueType, ValueTypeInfo, VmError,
+};
 use std::fmt;
 use thiserror::Error;
-
-mod meta;
-mod module;
-
-pub use self::meta::{Meta, MetaObject, MetaTuple};
-pub use self::module::Module;
-use self::module::Variant;
 
 /// An error raised when building the context.
 #[derive(Debug, Error)]
@@ -199,11 +191,6 @@ impl fmt::Display for FnSignature {
     }
 }
 
-/// The information on a variant.
-pub struct VariantInfo {
-    name: Item,
-}
-
 /// Static run context visible to the virtual machine.
 ///
 /// This contains:
@@ -222,8 +209,6 @@ pub struct Context {
     types: HashMap<Hash, TypeInfo>,
     /// Reverse lookup for types.
     types_rev: HashMap<ValueType, Hash>,
-    /// Variants.
-    variants: HashMap<Hash, VariantInfo>,
     /// Specialized information on `Result` types, if available.
     result_type: Option<Hash>,
     /// Specialized information on `Option` types, if available.
@@ -392,53 +377,6 @@ impl Context {
             self.functions.insert(hash, inst.handler);
         }
 
-        for variant in module.variants {
-            match variant {
-                Variant::TupleVariant(variant) => {
-                    let name = module.path.join(&variant.name);
-                    self.install_function(&name, variant.tuple_constructor, Some(variant.args))?;
-
-                    let meta = Meta::MetaTuple {
-                        tuple: MetaTuple {
-                            item: name.clone(),
-                            args: variant.args,
-                        },
-                    };
-
-                    if let Some(existing) = self.meta.insert(name.clone(), meta.clone()) {
-                        return Err(ContextError::ConflictingMeta {
-                            item: name,
-                            existing,
-                            current: meta,
-                        });
-                    }
-
-                    let hash = Hash::of_type(&name);
-                    let variant_info = VariantInfo { name: variant.name };
-
-                    if let Some(variant_info) = self.variants.insert(hash, variant_info) {
-                        return Err(ContextError::ConflictingVariant {
-                            name: variant_info.name,
-                        });
-                    }
-
-                    let type_info = TypeInfo {
-                        type_check: TypeCheck::Variant(hash),
-                        name,
-                        value_type: variant.value_type,
-                        value_type_info: variant.value_type_info,
-                    };
-
-                    if let Some(existing) = self.types.insert(hash, type_info) {
-                        return Err(ContextError::ConflictingType {
-                            name: existing.name,
-                            existing: existing.value_type_info,
-                        });
-                    }
-                }
-            }
-        }
-
         if let Some(result_types) = module.result_types {
             if self.result_type.is_some() {
                 return Err(ContextError::ResultAlreadyPresent);
@@ -567,7 +505,7 @@ impl Context {
         constructor: C,
     ) -> Result<(), ContextError>
     where
-        C: self::module::Function<Args>,
+        C: crate::Function<Args>,
     {
         let meta = Meta::MetaTuple {
             tuple: MetaTuple {

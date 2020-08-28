@@ -3,8 +3,7 @@
 //! Contains functions such as:
 //! * `parse` to parse a string into a float.
 
-use crate::context::{ContextError, Module};
-use crate::error::Result;
+use crate::{ContextError, Module, Result};
 
 /// Parse an integer.
 fn parse(s: &str) -> Result<f64> {

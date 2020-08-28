@@ -1,5 +1,4 @@
-use crate::value::ValueType;
-use crate::Component;
+use crate::{Component, ValueType};
 use std::fmt;
 use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
 use twox_hash::XxHash64;

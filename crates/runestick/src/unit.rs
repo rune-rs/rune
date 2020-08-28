@@ -4,11 +4,7 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
-use crate::context::{Context, Meta};
-use crate::hash::Hash;
-use crate::item::{Component, Item};
-use crate::value::ValueType;
-use crate::vm::{Inst, VmError};
+use crate::{Component, Context, Hash, Inst, Item, Meta, ValueType, VmError};
 use std::fmt;
 use std::rc::Rc;
 use thiserror::Error;

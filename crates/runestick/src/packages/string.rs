@@ -1,8 +1,6 @@
 //! Package containing string functions.
 
-use crate::bytes::Bytes;
-use crate::context::{ContextError, Module};
-use crate::error::Error;
+use crate::{Bytes, ContextError, Error, Module};
 
 /// into_bytes shim for strings.
 fn into_bytes(s: String) -> Bytes {

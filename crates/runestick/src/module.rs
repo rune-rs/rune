@@ -1,11 +1,8 @@
 use crate::collections::HashMap;
-use crate::future::Future;
-use crate::hash::Hash;
-use crate::item::Component;
-use crate::reflection::{ReflectValueType, ToValue, UnsafeFromValue};
-use crate::stack::Stack;
-use crate::value::{Value, ValueType, ValueTypeInfo};
-use crate::vm::VmError;
+use crate::{
+    Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, Value, ValueType,
+    ValueTypeInfo, VmError,
+};
 use std::any::type_name;
 use std::future;
 
@@ -32,53 +29,33 @@ pub struct OptionTypes {
     pub none_type: Item,
 }
 
-/// A tuple variant.
-pub(super) struct TupleVariant {
-    /// Full name of the variant.
-    pub(super) name: Item,
-    /// Function to use when constructing a tuple.
-    pub(super) tuple_constructor: Box<Handler>,
-    /// The value type of the type.
-    pub(super) value_type: ValueType,
-    /// Information on the type.
-    pub(super) value_type_info: ValueTypeInfo,
-    /// The number of arguments the meta argument has.
-    pub(super) args: usize,
+pub(crate) struct Type {
+    pub(crate) name: Item,
+    pub(crate) value_type_info: ValueTypeInfo,
 }
 
-pub(super) enum Variant {
-    TupleVariant(TupleVariant),
-}
-
-pub(super) struct Type {
-    pub(super) name: Item,
-    pub(super) value_type_info: ValueTypeInfo,
-}
-
-pub struct InstanceFunction {
-    pub(super) handler: Box<Handler>,
-    pub(super) args: Option<usize>,
-    pub(super) value_type_info: ValueTypeInfo,
-    pub(super) name: String,
+pub(crate) struct InstanceFunction {
+    pub(crate) handler: Box<Handler>,
+    pub(crate) args: Option<usize>,
+    pub(crate) value_type_info: ValueTypeInfo,
+    pub(crate) name: String,
 }
 
 /// A collection of functions that can be looked up by type.
 #[derive(Default)]
 pub struct Module {
     /// The name of the module.
-    pub(super) path: Item,
+    pub(crate) path: Item,
     /// Free functions.
-    pub(super) functions: HashMap<Item, (Box<Handler>, Option<usize>)>,
+    pub(crate) functions: HashMap<Item, (Box<Handler>, Option<usize>)>,
     /// Instance functions.
-    pub(super) instance_functions: HashMap<(ValueType, Hash), InstanceFunction>,
+    pub(crate) instance_functions: HashMap<(ValueType, Hash), InstanceFunction>,
     /// Registered types.
-    pub(super) types: HashMap<ValueType, Type>,
-    /// Registered variants.
-    pub(super) variants: Vec<Variant>,
+    pub(crate) types: HashMap<ValueType, Type>,
     /// Registered result types.
-    pub(super) result_types: Option<ResultTypes>,
+    pub(crate) result_types: Option<ResultTypes>,
     /// Registered option types.
-    pub(super) option_types: Option<OptionTypes>,
+    pub(crate) option_types: Option<OptionTypes>,
 }
 
 impl Module {
@@ -93,7 +70,6 @@ impl Module {
             functions: Default::default(),
             instance_functions: Default::default(),
             types: Default::default(),
-            variants: Default::default(),
             result_types: None,
             option_types: None,
         }
@@ -154,21 +130,6 @@ impl Module {
         });
 
         Ok(())
-    }
-
-    /// Register a variant.
-    ///
-    /// This will allow the type to be used within scripts, using the item named
-    /// here.
-    pub fn variant<N>(&mut self, name: N) -> VariantBuilder<'_, N>
-    where
-        N: IntoIterator,
-        N::Item: Into<Component>,
-    {
-        VariantBuilder {
-            name,
-            variants: &mut self.variants,
-        }
     }
 
     /// Register a function that cannot error internally.
@@ -428,44 +389,10 @@ where
     }
 }
 
-/// The builder for a type.
-#[must_use = "must be consumed with build::<T>() to construct a variant"]
-pub struct VariantBuilder<'a, N> {
-    name: N,
-    variants: &'a mut Vec<Variant>,
-}
-
-impl<N> VariantBuilder<'_, N>
-where
-    N: IntoIterator,
-    N::Item: Into<Component>,
-{
-    /// Perform a tuple match.
-    pub fn tuple<Constructor, C>(self, tuple_constructor: Constructor)
-    where
-        Constructor: Function<C>,
-        Constructor::Return: ReflectValueType,
-    {
-        let name = Item::of(self.name);
-        let tuple_constructor: Box<Handler> =
-            Box::new(move |stack, args| tuple_constructor.fn_call(stack, args));
-        let value_type = <Constructor::Return as ReflectValueType>::value_type();
-        let value_type_info = <Constructor::Return as ReflectValueType>::value_type_info();
-
-        self.variants.push(Variant::TupleVariant(TupleVariant {
-            name,
-            tuple_constructor,
-            value_type,
-            value_type_info,
-            args: Constructor::args(),
-        }));
-    }
-}
-
 /// Trait used to provide the [function][Context::function] function.
 pub trait Function<Args>: 'static + Copy + Send + Sync {
+    /// The return type of the function.
     type Return;
-    type Owned;
 
     /// Get the number of arguments.
     fn args() -> usize;
@@ -476,6 +403,7 @@ pub trait Function<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [async_function][Context::async_function] function.
 pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
+    /// The return type of the function.
     type Return;
 
     /// Get the number of arguments.
@@ -487,8 +415,11 @@ pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [inst_fn][Context::inst_fn] function.
 pub trait InstFn<Args>: 'static + Copy + Send + Sync {
+    /// The type of the instance.
     type Instance;
+    /// The owned type of the instance.
     type Owned;
+    /// The return type of the function.
     type Return;
 
     /// Get the number of arguments.
@@ -506,8 +437,11 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
 
 /// Trait used to provide the [async_inst_fn][Context::async_inst_fn] function.
 pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
+    /// The type of the instance.
     type Instance;
+    /// The owned type of the instance.
     type Owned;
+    /// The return type of the function.
     type Return;
 
     /// Get the number of arguments.
@@ -537,11 +471,10 @@ macro_rules! impl_register {
         impl<Func, Return, $($ty,)*> Function<($($ty,)*)> for Func
         where
             Func: 'static + Copy + Send + Sync + Fn($($ty,)*) -> Return,
-            Return: ToValue + ReflectValueType,
+            Return: ToValue,
             $($ty: UnsafeFromValue,)*
         {
             type Return = Return;
-            type Owned = <Return as ReflectValueType>::Owned;
 
             fn args() -> usize {
                 $count

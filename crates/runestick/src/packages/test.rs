@@ -18,7 +18,7 @@ impl fmt::Display for AssertionFailed {
 /// Assert that a value is true.
 fn assert(value: bool, message: &str) -> Result<(), Panic> {
     if !value {
-        return Err(Panic::msg(AssertionFailed(message.to_string())));
+        return Err(Panic::custom(AssertionFailed(message.to_string())));
     }
 
     Ok(())

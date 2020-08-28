@@ -1,4 +1,4 @@
-use crate::value::Value;
+use crate::Value;
 use thiserror::Error;
 
 /// An error raised when interacting with the stack.

@@ -1,6 +1,7 @@
-use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::shared::{OwnMut, OwnRef, RawOwnMut, RawOwnRef, Shared};
-use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
+use crate::{
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared, ToValue,
+    UnsafeFromValue, Value, ValueError, ValueType, ValueTypeInfo,
+};
 
 impl<T> ReflectValueType for Vec<T> {
     type Owned = Vec<T>;
@@ -70,11 +71,11 @@ where
 
 impl<'a> UnsafeFromValue for &'a [Value] {
     type Output = *const [Value];
-    type Guard = RawOwnRef;
+    type Guard = RawOwnedRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let vec = value.into_vec()?;
-        let (vec, guard) = OwnRef::into_raw(vec.own_ref()?);
+        let (vec, guard) = OwnedRef::into_raw(vec.owned_ref()?);
         Ok((&**vec, guard))
     }
 
@@ -85,11 +86,11 @@ impl<'a> UnsafeFromValue for &'a [Value] {
 
 impl<'a> UnsafeFromValue for &'a Vec<Value> {
     type Output = *const Vec<Value>;
-    type Guard = RawOwnRef;
+    type Guard = RawOwnedRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let vec = value.into_vec()?;
-        Ok(OwnRef::into_raw(vec.own_ref()?))
+        Ok(OwnedRef::into_raw(vec.owned_ref()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -99,11 +100,11 @@ impl<'a> UnsafeFromValue for &'a Vec<Value> {
 
 impl<'a> UnsafeFromValue for &'a mut Vec<Value> {
     type Output = *mut Vec<Value>;
-    type Guard = RawOwnMut;
+    type Guard = RawOwnedMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let vec = value.into_vec()?;
-        Ok(OwnMut::into_raw(vec.own_mut()?))
+        Ok(OwnedMut::into_raw(vec.owned_mut()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

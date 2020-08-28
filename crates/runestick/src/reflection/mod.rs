@@ -1,6 +1,4 @@
-use crate::stack::Stack;
-use crate::value::{Value, ValueError, ValueType, ValueTypeInfo, VecTuple};
-use crate::vm::VmError;
+use crate::{Stack, Value, ValueError, ValueType, ValueTypeInfo, VecTuple, VmError};
 
 mod bytes;
 mod hash_map;

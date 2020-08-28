@@ -5,7 +5,7 @@
 //! Contains functions such as:
 //! * `range` to iterate over a range of integers.
 
-use crate::context::{ContextError, Module};
+use crate::{ContextError, Module};
 
 #[derive(Debug)]
 struct Rev {

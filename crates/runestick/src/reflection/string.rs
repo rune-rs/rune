@@ -1,7 +1,7 @@
 //! String trait implementations.
 
 use crate::{
-    BorrowMut, BorrowRef, FromValue, OwnMut, OwnRef, RawMut, RawRef, ReflectValueType, Shared,
+    BorrowMut, BorrowRef, FromValue, OwnedMut, OwnedRef, RawMut, RawRef, ReflectValueType, Shared,
     SharedPtr, ToValue, UnsafeFromValue, UnsafeToValue, Value, ValueError, ValueType,
     ValueTypeInfo,
 };
@@ -106,8 +106,8 @@ impl UnsafeFromValue for &'_ str {
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         Ok(match value {
             Value::String(string) => {
-                let string = string.own_ref()?;
-                let (s, guard) = OwnRef::into_raw(string);
+                let string = string.owned_ref()?;
+                let (s, guard) = OwnedRef::into_raw(string);
                 ((*s).as_str(), Some(guard.into()))
             }
             Value::Ptr(ptr) => {
@@ -136,8 +136,8 @@ impl UnsafeFromValue for &'_ String {
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         Ok(match value {
             Value::String(string) => {
-                let string = string.own_ref()?;
-                let (s, guard) = OwnRef::into_raw(string);
+                let string = string.owned_ref()?;
+                let (s, guard) = OwnedRef::into_raw(string);
                 (s, Some(guard.into()))
             }
             Value::Ptr(ptr) => {
@@ -178,8 +178,8 @@ impl UnsafeFromValue for &'_ mut String {
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         Ok(match value {
             Value::String(string) => {
-                let string = string.own_mut()?;
-                let (s, guard) = OwnMut::into_raw(string);
+                let string = string.owned_mut()?;
+                let (s, guard) = OwnedMut::into_raw(string);
                 (s, guard.into())
             }
             Value::Ptr(ptr) => {

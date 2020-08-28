@@ -3,8 +3,7 @@
 //! Contains functions such as:
 //! * `dbg` to debug print to stdout.
 
-use crate::context::{ContextError, Module};
-use crate::value::Value;
+use crate::{ContextError, Module, Value};
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {

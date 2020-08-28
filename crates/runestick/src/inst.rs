@@ -1,7 +1,9 @@
 use crate::hash::Hash;
 use std::fmt;
 
-/// The reason why a panic was invoked in the virtual machine.
+/// Pre-canned panic reasons.
+///
+/// To formulate a custom reason, use [crate::Panic::custom].
 #[derive(Debug, Clone, Copy)]
 pub enum PanicReason {
     /// Not implemented.
@@ -34,7 +36,9 @@ impl fmt::Display for PanicReason {
 /// Typecheck a specific option variant.
 #[derive(Debug, Clone, Copy)]
 pub enum OptionVariant {
+    /// Type check for the `Option::Some` variant.
     Some,
+    /// Type check for the `Option::None` variant.
     None,
 }
 
@@ -50,7 +54,9 @@ impl fmt::Display for OptionVariant {
 /// Typecheck a specific result variant.
 #[derive(Debug, Clone, Copy)]
 pub enum ResultVariant {
+    /// Type check for the `Result::Ok` variant.
     Ok,
+    /// Type check for the `Result::Err` variant.
     Err,
 }
 

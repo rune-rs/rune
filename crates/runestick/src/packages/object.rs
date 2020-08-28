@@ -1,7 +1,6 @@
 //! Package containing object functions.
 
-use crate::context::{ContextError, Module};
-use crate::value::{Object, Value};
+use crate::{ContextError, Module, Object, Value};
 
 /// Get the module for the object package.
 pub fn module() -> Result<Module, ContextError> {

@@ -1,6 +1,6 @@
-use crate::reflection::{FromValue, ReflectValueType, ToValue};
-use crate::shared::Shared;
-use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
+use crate::{
+    FromValue, ReflectValueType, Shared, ToValue, Value, ValueError, ValueType, ValueTypeInfo,
+};
 
 macro_rules! impl_map {
     ($($tt:tt)*) => {

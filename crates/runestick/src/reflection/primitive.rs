@@ -1,7 +1,8 @@
 //! Trait implementations for primitive types.
 
-use crate::reflection::{FromValue, ReflectValueType, ToValue};
-use crate::value::{Integer, Value, ValueError, ValueType, ValueTypeInfo};
+use crate::{
+    FromValue, Integer, ReflectValueType, ToValue, Value, ValueError, ValueType, ValueTypeInfo,
+};
 
 impl ReflectValueType for bool {
     type Owned = bool;

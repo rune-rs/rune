@@ -47,7 +47,10 @@ mod bytes;
 mod error;
 mod future;
 mod hash;
+mod inst;
 mod item;
+mod meta;
+pub(crate) mod module;
 pub mod packages;
 mod panic;
 mod reflection;
@@ -56,11 +59,20 @@ mod shared;
 mod shared_ptr;
 mod stack;
 pub mod unit;
+mod value_type;
+mod value_type_info;
 
-pub use crate::access::{BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef};
+pub use self::meta::{Meta, MetaObject, MetaTuple};
+pub use self::module::{AsyncFunction, AsyncInstFn, Function, InstFn, Module};
+pub use self::value_type::ValueType;
+pub use self::value_type_info::ValueTypeInfo;
+pub use crate::access::{
+    AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawBorrowedMut,
+    RawBorrowedRef,
+};
 pub use crate::any::Any;
 pub use crate::bytes::Bytes;
-pub use crate::context::{Context, ContextError, Meta, MetaObject, MetaTuple, Module};
+pub use crate::context::{Context, ContextError};
 pub use crate::context::{
     ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, FMT_DISPLAY, INDEX_GET, INDEX_SET, MUL, MUL_ASSIGN, NEXT,
     SUB, SUB_ASSIGN,
@@ -68,19 +80,21 @@ pub use crate::context::{
 pub use crate::error::{Error, Result};
 pub use crate::future::Future;
 pub use crate::hash::Hash;
+pub use crate::inst::{Inst, OptionVariant, PanicReason, ResultVariant, TypeCheck};
 pub use crate::item::{Component, Item};
 pub use crate::panic::Panic;
 pub use crate::reflection::{
     FromValue, ReflectValueType, ToValue, UnsafeFromValue, UnsafeIntoArgs, UnsafeToValue,
 };
-pub use crate::shared::{OwnMut, OwnRef, RawOwnMut, RawOwnRef, Shared};
+pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::shared_ptr::SharedPtr;
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
 pub use crate::value::{
-    Object, RawMut, RawRef, TypedTuple, Value, ValueError, ValueType, ValueTypeInfo, VecTuple,
+    Integer, Object, RawMut, RawRef, TypedObject, TypedTuple, Value, ValueError, VariantObject,
+    VariantTuple, VecTuple,
 };
-pub use crate::vm::{Inst, PanicReason, Task, TypeCheck, Vm, VmError};
+pub use crate::vm::{Task, Vm, VmError};
 
 mod collections {
     pub use hashbrown::HashMap;

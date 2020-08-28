@@ -1,4 +1,4 @@
-use crate::vm::inst;
+use crate::PanicReason;
 use std::fmt;
 
 pub trait BoxedPanic: 'static + fmt::Display + fmt::Debug + Send + Sync {}
@@ -14,8 +14,8 @@ pub struct Panic {
 }
 
 impl Panic {
-    /// A panic from a message.
-    pub fn msg<D>(message: D) -> Self
+    /// A custom panic reason.
+    pub fn custom<D>(message: D) -> Self
     where
         D: BoxedPanic,
     {
@@ -31,8 +31,8 @@ impl fmt::Display for Panic {
     }
 }
 
-impl From<inst::PanicReason> for Panic {
-    fn from(value: inst::PanicReason) -> Self {
+impl From<PanicReason> for Panic {
+    fn from(value: PanicReason) -> Self {
         Self {
             inner: Box::new(value),
         }

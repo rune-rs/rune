@@ -1,17 +1,8 @@
-mod value_type;
-mod value_type_info;
-
-pub use self::value_type::ValueType;
-pub use self::value_type_info::ValueTypeInfo;
-use crate::access;
-use crate::any::Any;
-use crate::bytes::Bytes;
-use crate::future::Future;
-use crate::hash::Hash;
-use crate::panic::Panic;
-use crate::shared;
-use crate::shared::Shared;
-use crate::shared_ptr::SharedPtr;
+use crate::{
+    AccessError, Any, BorrowMut, BorrowRef, Bytes, Future, Hash, OwnedMut, OwnedRef, Panic,
+    RawBorrowedMut, RawBorrowedRef, RawOwnedMut, RawOwnedRef, Shared, SharedPtr, ValueType,
+    ValueTypeInfo,
+};
 use std::any;
 use std::fmt;
 use std::rc::Rc;
@@ -31,7 +22,7 @@ pub enum ValueError {
     AccessError {
         /// Source error.
         #[from]
-        error: access::AccessError,
+        error: AccessError,
     },
     /// Error raised when we expected a object.
     #[error("expected a object but found `{actual}`")]
@@ -502,15 +493,13 @@ impl Value {
         match self {
             Self::External(external) => {
                 let external = external.downcast_own_ref::<T>()?;
-                let (data, guard) = shared::OwnRef::into_raw(external);
-                let guard = RawRef::RawOwnRef(guard);
-                Ok((data, guard))
+                let (data, guard) = OwnedRef::into_raw(external);
+                Ok((data, guard.into()))
             }
             Self::Ptr(ptr) => {
                 let ptr = ptr.downcast_borrow_ref::<T>()?;
-                let (data, guard) = access::BorrowRef::into_raw(ptr);
-                let guard = RawRef::RawBorrowedRef(guard);
-                Ok((data, guard))
+                let (data, guard) = BorrowRef::into_raw(ptr);
+                Ok((data, guard.into()))
             }
             actual => Err(ValueError::ExpectedExternal {
                 actual: actual.type_info()?,
@@ -535,15 +524,14 @@ impl Value {
         match self {
             Self::External(external) => {
                 let external = external.downcast_own_mut::<T>()?;
-                let (data, guard) = shared::OwnMut::into_raw(external);
-                let guard = RawMut::RawOwnMut(guard);
-                Ok((data, guard))
+                let (data, guard) = OwnedMut::into_raw(external);
+                let guard = RawMut::RawOwnedMut(guard);
+                Ok((data, guard.into()))
             }
             Self::Ptr(ptr) => {
                 let ptr = ptr.downcast_borrow_mut::<T>()?;
-                let (data, guard) = access::BorrowMut::into_raw(ptr);
-                let guard = RawMut::RawBorrowedMut(guard);
-                Ok((data, guard))
+                let (data, guard) = BorrowMut::into_raw(ptr);
+                Ok((data, guard.into()))
             }
             actual => Err(ValueError::ExpectedExternal {
                 actual: actual.type_info()?,
@@ -627,19 +615,19 @@ impl Value {
 /// A raw guard for a reference to a value.
 pub enum RawRef {
     /// The guard from an internally held value.
-    RawOwnRef(shared::RawOwnRef),
+    RawOwnedRef(RawOwnedRef),
     /// The guard from an external reference.
-    RawBorrowedRef(access::RawBorrowedRef),
+    RawBorrowedRef(RawBorrowedRef),
 }
 
-impl From<shared::RawOwnRef> for RawRef {
-    fn from(guard: shared::RawOwnRef) -> Self {
-        Self::RawOwnRef(guard)
+impl From<RawOwnedRef> for RawRef {
+    fn from(guard: RawOwnedRef) -> Self {
+        Self::RawOwnedRef(guard)
     }
 }
 
-impl From<access::RawBorrowedRef> for RawRef {
-    fn from(guard: access::RawBorrowedRef) -> Self {
+impl From<RawBorrowedRef> for RawRef {
+    fn from(guard: RawBorrowedRef) -> Self {
         Self::RawBorrowedRef(guard)
     }
 }
@@ -647,19 +635,19 @@ impl From<access::RawBorrowedRef> for RawRef {
 /// A raw guard for a reference to a value.
 pub enum RawMut {
     /// The guard from an internally held value.
-    RawOwnMut(shared::RawOwnMut),
+    RawOwnedMut(RawOwnedMut),
     /// The guard from an external reference.
-    RawBorrowedMut(access::RawBorrowedMut),
+    RawBorrowedMut(RawBorrowedMut),
 }
 
-impl From<shared::RawOwnMut> for RawMut {
-    fn from(guard: shared::RawOwnMut) -> Self {
-        Self::RawOwnMut(guard)
+impl From<RawOwnedMut> for RawMut {
+    fn from(guard: RawOwnedMut) -> Self {
+        Self::RawOwnedMut(guard)
     }
 }
 
-impl From<access::RawBorrowedMut> for RawMut {
-    fn from(guard: access::RawBorrowedMut) -> Self {
+impl From<RawBorrowedMut> for RawMut {
+    fn from(guard: RawBorrowedMut) -> Self {
         Self::RawBorrowedMut(guard)
     }
 }

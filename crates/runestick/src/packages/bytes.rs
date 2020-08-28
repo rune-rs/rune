@@ -1,7 +1,6 @@
 //! The bytes package, providing access to the bytes type.
 
-use crate::bytes::Bytes;
-use crate::context::{ContextError, Module};
+use crate::{Bytes, ContextError, Module};
 
 /// Get the module for the bytes package.
 pub fn module() -> Result<Module, ContextError> {

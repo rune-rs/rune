@@ -1,7 +1,4 @@
-use crate::reflection::ToValue;
-use crate::shared::Shared;
-use crate::value::{Value, ValueError};
-use crate::vm::VmError;
+use crate::{Shared, ToValue, Value, ValueError, VmError};
 use std::fmt;
 /// A future which can be unsafely polled.
 use std::future;

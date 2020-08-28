@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use crate::context::Item;
+use crate::Item;
 use std::fmt;
 
 /// Metadata about an item in the context.

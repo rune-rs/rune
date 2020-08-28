@@ -1,17 +1,10 @@
-use crate::bytes::Bytes;
-use crate::context::Context;
-use crate::future::Future;
 use crate::future::SelectFuture;
-use crate::hash::Hash;
-use crate::item::Component;
-use crate::panic::Panic;
-use crate::reflection::{FromValue, UnsafeIntoArgs};
-use crate::shared::{OwnMut, Shared};
-use crate::stack::{Stack, StackError};
-use crate::unit::{CompilationUnit, UnitFnCall, UnitFnKind};
-use crate::value::{
-    Integer, Object, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo, VariantObject,
-    VariantTuple,
+use crate::unit::{UnitFnCall, UnitFnKind};
+use crate::{
+    AccessError, Bytes, CompilationUnit, Component, Context, FromValue, Future, Hash, Inst,
+    Integer, Object, OptionVariant, OwnedMut, Panic, ResultVariant, Shared, Stack, StackError,
+    TypeCheck, TypedObject, TypedTuple, UnsafeIntoArgs, Value, ValueError, ValueTypeInfo,
+    VariantObject, VariantTuple,
 };
 use std::any;
 use std::fmt;
@@ -19,11 +12,6 @@ use std::marker;
 use std::mem;
 use std::rc::Rc;
 use thiserror::Error;
-
-pub(crate) mod inst;
-
-pub use self::inst::{Inst, OptionVariant, PanicReason, ResultVariant, TypeCheck};
-use crate::access::AccessError;
 
 /// Errors raised by the execution of the virtual machine.
 #[derive(Debug, Error)]
@@ -473,7 +461,7 @@ impl Vm {
     /// # Safety
     ///
     /// Any unsafe references constructed through the following methods:
-    /// * [OwnMut::into_raw]
+    /// * [OwnedMut::into_raw]
     /// * [BorrowRef::unsafe_into_ref]
     ///
     /// Must not outlive a call to clear, nor this virtual machine.
@@ -575,7 +563,7 @@ impl Vm {
 
     async fn op_await(&mut self) -> Result<(), VmError> {
         let future = self.stack.pop()?.into_future()?;
-        let mut future = future.own_mut()?;
+        let mut future = future.owned_mut()?;
         let value = (&mut *future).await?;
         self.stack.push(value);
         Ok(())
@@ -590,7 +578,7 @@ impl Vm {
 
             for index in 0..len {
                 let future = self.stack.pop()?.into_future()?;
-                let future = future.own_mut()?;
+                let future = future.owned_mut()?;
 
                 if future.is_completed() {
                     continue;
@@ -600,7 +588,7 @@ impl Vm {
                 // can assert that nothing is invalidate for the duration of this
                 // select.
                 unsafe {
-                    let (raw_future, guard) = OwnMut::into_raw(future);
+                    let (raw_future, guard) = OwnedMut::into_raw(future);
                     futures.push(SelectFuture::new_unchecked(raw_future, index));
                     guards.push(guard);
                 };
@@ -1698,12 +1686,7 @@ impl Vm {
     }
 
     #[inline]
-    fn op_match_sequence(
-        &mut self,
-        ty: inst::TypeCheck,
-        len: usize,
-        exact: bool,
-    ) -> Result<(), VmError> {
+    fn op_match_sequence(&mut self, ty: TypeCheck, len: usize, exact: bool) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
         let result = self.on_tuple(ty, &value, move |tuple| {
@@ -1752,39 +1735,34 @@ impl Vm {
     }
 
     #[inline]
-    fn on_tuple<F, O>(
-        &mut self,
-        ty: inst::TypeCheck,
-        value: &Value,
-        f: F,
-    ) -> Result<Option<O>, VmError>
+    fn on_tuple<F, O>(&mut self, ty: TypeCheck, value: &Value, f: F) -> Result<Option<O>, VmError>
     where
         F: FnOnce(&[Value]) -> O,
     {
         use std::slice;
 
         Ok(match (ty, value) {
-            (inst::TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&*tuple.borrow_ref()?)),
-            (inst::TypeCheck::Vec, Value::Vec(vec)) => Some(f(&*vec.borrow_ref()?)),
-            (inst::TypeCheck::Result(v), Value::Result(result)) => {
+            (TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&*tuple.borrow_ref()?)),
+            (TypeCheck::Vec, Value::Vec(vec)) => Some(f(&*vec.borrow_ref()?)),
+            (TypeCheck::Result(v), Value::Result(result)) => {
                 let result = result.borrow_ref()?;
 
                 Some(match (v, &*result) {
-                    (inst::ResultVariant::Ok, Ok(ok)) => f(slice::from_ref(ok)),
-                    (inst::ResultVariant::Err, Err(err)) => f(slice::from_ref(err)),
+                    (ResultVariant::Ok, Ok(ok)) => f(slice::from_ref(ok)),
+                    (ResultVariant::Err, Err(err)) => f(slice::from_ref(err)),
                     _ => return Ok(None),
                 })
             }
-            (inst::TypeCheck::Option(v), Value::Option(option)) => {
+            (TypeCheck::Option(v), Value::Option(option)) => {
                 let option = option.borrow_ref()?;
 
                 Some(match (v, &*option) {
-                    (inst::OptionVariant::Some, Some(some)) => f(slice::from_ref(some)),
-                    (inst::OptionVariant::None, None) => f(&[]),
+                    (OptionVariant::Some, Some(some)) => f(slice::from_ref(some)),
+                    (OptionVariant::None, None) => f(&[]),
                     _ => return Ok(None),
                 })
             }
-            (inst::TypeCheck::Type(hash), Value::TypedTuple(typed_tuple)) => {
+            (TypeCheck::Type(hash), Value::TypedTuple(typed_tuple)) => {
                 let typed_tuple = typed_tuple.borrow_ref()?;
 
                 if typed_tuple.hash != hash {
@@ -1793,7 +1771,7 @@ impl Vm {
 
                 Some(f(&*typed_tuple.tuple))
             }
-            (inst::TypeCheck::Variant(hash), Value::VariantTuple(variant_tuple)) => {
+            (TypeCheck::Variant(hash), Value::VariantTuple(variant_tuple)) => {
                 let variant_tuple = variant_tuple.borrow_ref()?;
 
                 if variant_tuple.hash != hash {
@@ -1802,7 +1780,7 @@ impl Vm {
 
                 Some(f(&*variant_tuple.tuple))
             }
-            (inst::TypeCheck::Unit, Value::Unit) => Some(f(&[])),
+            (TypeCheck::Unit, Value::Unit) => Some(f(&[])),
             _ => None,
         })
     }

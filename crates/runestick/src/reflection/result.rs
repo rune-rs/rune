@@ -1,9 +1,9 @@
 //! Trait implementations for `Result` types.
 
-use crate::panic::Panic;
-use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::shared::{OwnRef, RawOwnRef, Shared};
-use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
+use crate::{
+    FromValue, OwnedRef, Panic, RawOwnedRef, ReflectValueType, Shared, ToValue, UnsafeFromValue,
+    Value, ValueError, ValueType, ValueTypeInfo,
+};
 use std::fmt;
 use std::io;
 
@@ -83,12 +83,12 @@ where
 
 impl<'a> UnsafeFromValue for &'a Result<Value, Value> {
     type Output = *const Result<Value, Value>;
-    type Guard = RawOwnRef;
+    type Guard = RawOwnedRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let result = value.into_result()?;
-        let result = result.own_ref()?;
-        Ok(OwnRef::into_raw(result))
+        let result = result.owned_ref()?;
+        Ok(OwnedRef::into_raw(result))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

@@ -3,8 +3,7 @@
 //! Contains functions such as:
 //! * `int::parse` to parse a string into a number.
 
-use crate::context::{ContextError, Module};
-use crate::error::Result;
+use crate::{ContextError, Module, Result};
 
 /// Parse an integer.
 fn parse(s: &str) -> Result<i64> {

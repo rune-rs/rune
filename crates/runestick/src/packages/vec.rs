@@ -1,7 +1,6 @@
 //! Package containing array functions.
 
-use crate::context::{ContextError, Module};
-use crate::value::Value;
+use crate::{ContextError, Module, Value};
 
 /// An iterator over a vector.
 pub struct Iter {
