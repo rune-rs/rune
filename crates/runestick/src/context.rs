@@ -21,9 +21,9 @@ pub enum ContextError {
         /// The item that conflicted
         item: Item,
         /// The current meta we tried to insert.
-        current: Meta,
+        current: Box<Meta>,
         /// The existing meta item.
-        existing: Meta,
+        existing: Box<Meta>,
     },
     /// Error raised when attempting to register a conflicting function.
     #[error("function `{signature}` ({hash}) already exists")]
@@ -333,8 +333,8 @@ impl Context {
             if let Some(existing) = self.meta.insert(name.clone(), meta.clone()) {
                 return Err(ContextError::ConflictingMeta {
                     item: name,
-                    existing,
-                    current: meta,
+                    existing: Box::new(existing),
+                    current: Box::new(meta),
                 });
             }
         }
@@ -393,8 +393,8 @@ impl Context {
             if let Some(existing) = self.meta.insert(result_type.clone(), meta.clone()) {
                 return Err(ContextError::ConflictingMeta {
                     item: result_type,
-                    existing,
-                    current: meta,
+                    existing: Box::new(existing),
+                    current: Box::new(meta),
                 });
             }
 
@@ -451,8 +451,8 @@ impl Context {
             if let Some(existing) = self.meta.insert(option_type.clone(), meta.clone()) {
                 return Err(ContextError::ConflictingMeta {
                     item: option_type,
-                    existing,
-                    current: meta,
+                    existing: Box::new(existing),
+                    current: Box::new(meta),
                 });
             }
 
@@ -517,8 +517,8 @@ impl Context {
         if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
             return Err(ContextError::ConflictingMeta {
                 item,
-                existing,
-                current: meta,
+                existing: Box::new(existing),
+                current: Box::new(meta),
             });
         }
 

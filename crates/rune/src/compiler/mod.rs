@@ -205,10 +205,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     break;
                 }
             }
-        } else {
-            if let Some(meta) = self.query.query_meta(name, span)? {
-                return Ok(Some(meta));
-            }
+        } else if let Some(meta) = self.query.query_meta(name, span)? {
+            return Ok(Some(meta));
         }
 
         Ok(None)
@@ -1077,6 +1075,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
     ) -> Result<()> {
         let span = lhs.span().join(rhs.span());
 
+        // NB: this loop is actually useful in breaking early.
+        #[allow(clippy::never_loop)]
         let offset = loop {
             match lhs {
                 ast::Expr::Path(path) => {
@@ -1088,28 +1088,27 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     }
                 }
                 ast::Expr::ExprBinary(expr_binary) => {
-                    match (&*expr_binary.lhs, &*expr_binary.rhs) {
-                        (ast::Expr::Path(var), ast::Expr::Path(field)) => {
-                            let field_span = field.span();
-                            let var_span = var.span();
+                    if let (ast::Expr::Path(var), ast::Expr::Path(field)) =
+                        (&*expr_binary.lhs, &*expr_binary.rhs)
+                    {
+                        let field_span = field.span();
+                        let var_span = var.span();
 
-                            let var = self.convert_path_to_item(var)?;
-                            let field = self.convert_path_to_item(field)?;
+                        let var = self.convert_path_to_item(var)?;
+                        let field = self.convert_path_to_item(field)?;
 
-                            if let (Some(var), Some(field)) = (var.as_local(), field.as_local()) {
-                                self.compile_expr(rhs, Needs::Value)?;
+                        if let (Some(var), Some(field)) = (var.as_local(), field.as_local()) {
+                            self.compile_expr(rhs, Needs::Value)?;
 
-                                let field = self.unit.borrow_mut().new_static_string(field)?;
-                                self.asm.push(Inst::String { slot: field }, field_span);
+                            let field = self.unit.borrow_mut().new_static_string(field)?;
+                            self.asm.push(Inst::String { slot: field }, field_span);
 
-                                let var = self.scopes.get_var(var, var_span)?.offset;
-                                self.asm.push(Inst::Copy { offset: var }, var_span);
+                            let var = self.scopes.get_var(var, var_span)?.offset;
+                            self.asm.push(Inst::Copy { offset: var }, var_span);
 
-                                self.asm.push(Inst::IndexSet, span);
-                                return Ok(());
-                            }
+                            self.asm.push(Inst::IndexSet, span);
+                            return Ok(());
                         }
-                        _ => (),
                     }
                 }
                 _ => (),
@@ -1896,6 +1895,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
             let mut scope = self.scopes.last(span)?.child();
 
+            // NB: loop is actually useful.
+            #[allow(clippy::never_loop)]
             loop {
                 match &branch.pat {
                     ast::Pat::PatPath(path) => {
@@ -1980,6 +1981,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
+    // NB: unclear how to simplify at the moment, perhaps possible to use a more
+    // structured builder-like pattern for constructing pattern matches?
+    #[allow(clippy::too_many_arguments)]
     fn compile_pat_match_seq(
         &mut self,
         scope: &mut Scope,

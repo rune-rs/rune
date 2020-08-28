@@ -1511,7 +1511,7 @@ impl Vm {
         }
 
         self.stack.push(Value::String(Shared::new(buf)));
-        return Ok(());
+        Ok(())
     }
 
     #[inline]

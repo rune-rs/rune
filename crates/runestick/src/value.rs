@@ -525,7 +525,6 @@ impl Value {
             Self::External(external) => {
                 let external = external.downcast_own_mut::<T>()?;
                 let (data, guard) = OwnedMut::into_raw(external);
-                let guard = RawMut::RawOwnedMut(guard);
                 Ok((data, guard.into()))
             }
             Self::Ptr(ptr) => {

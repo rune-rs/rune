@@ -30,10 +30,7 @@ impl DeclStruct {
 
     /// Indicates if the declaration needs a semi-colon or not.
     pub fn needs_semi_colon(&self) -> bool {
-        match &self.body {
-            DeclStructBody::EmptyBody(..) => true,
-            _ => false,
-        }
+        matches!(&self.body, DeclStructBody::EmptyBody(..))
     }
 }
 
