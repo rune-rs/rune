@@ -544,6 +544,12 @@ pub enum CompileError {
         /// Span where the error occured.
         span: Span,
     },
+    /// The pattern is not supported as a binding.
+    #[error("not a valid binding")]
+    UnsupportedBinding {
+        /// Span where the error occured.
+        span: Span,
+    },
     /// Error raised when trying to use a break outside of a loop.
     #[error("break expressions cannot be used as a value")]
     BreakOutsideOfLoop {
@@ -619,6 +625,7 @@ impl CompileError {
             Self::UnsupportedArgumentCount { span, .. } => span,
             Self::UnsupportedMetaPattern { span, .. } => span,
             Self::UnsupportedPattern { span, .. } => span,
+            Self::UnsupportedBinding { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,
             Self::ReturnLocalReferences { span, .. } => span,
             Self::MatchFloatInPattern { span, .. } => span,

@@ -223,29 +223,8 @@ pub enum Inst {
     /// => <value>
     /// ```
     IndexGet,
-    /// Get the given index out of a vector on the top of the stack. Errors if
-    /// the item doesn't exist or the item at the top of the stack is not an
-    /// vector.
-    ///
-    /// Note: this is a specialized variant of `ExprIndexGet` where we know that the
-    /// top of the stack is supposed to be a vector.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <vec>
-    /// => <value>
-    /// ```
-    VecIndexGet {
-        /// The index to fetch.
-        index: usize,
-    },
-    /// Get the given index out of a tuple on the top of the stack. Errors if
-    /// the item doesn't exist or the item at the top of the stack is not a
-    /// tuple.
-    ///
-    /// Note: this is a specialized variant of `TupleIndexGet` where we know
-    /// that the top of the stack is supposed to be a tuple.
+    /// Get the given index out of a tuple on the top of the stack.
+    /// Errors if the item doesn't exist or the item is not a tuple.
     ///
     /// # Operation
     ///
@@ -257,15 +236,25 @@ pub enum Inst {
         /// The index to fetch.
         index: usize,
     },
-    /// Get the given index out of an object on the top of the stack. Errors if
-    /// the item doesn't exist or the item at the top of the stack is not an
-    /// vector.
+    /// Get the given index out of a tuple from the given variable slot.
+    /// Errors if the item doesn't exist or the item is not a tuple.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <value>
+    /// ```
+    TupleIndexGetAt {
+        /// The slot offset to load the tuple from.
+        offset: usize,
+        /// The index to fetch.
+        index: usize,
+    },
+    /// Get the given index out of an object on the top of the stack.
+    /// Errors if the item doesn't exist or the item is not an object.
     ///
     /// The index is identifier by a static string slot, which is provided as an
     /// argument.
-    ///
-    /// Note: this is a specialized variant of `ExprIndexGet` where we know that the
-    /// top of the stack is supposed to be a vector.
     ///
     /// # Operation
     ///
@@ -274,6 +263,23 @@ pub enum Inst {
     /// => <value>
     /// ```
     ObjectSlotIndexGet {
+        /// The static string slot corresponding to the index to fetch.
+        slot: usize,
+    },
+    /// Get the given index out of an object from the given variable slot.
+    /// Errors if the item doesn't exist or the item is not an object.
+    ///
+    /// The index is identifier by a static string slot, which is provided as an
+    /// argument.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <value>
+    /// ```
+    ObjectSlotIndexGetAt {
+        /// The slot offset to get the value to test from.
+        offset: usize,
         /// The static string slot corresponding to the index to fetch.
         slot: usize,
     },
@@ -905,14 +911,17 @@ impl fmt::Display for Inst {
             Self::IndexGet => {
                 write!(fmt, "index-get")?;
             }
-            Self::VecIndexGet { index } => {
-                write!(fmt, "vec-index-get {}", index)?;
-            }
             Self::TupleIndexGet { index } => {
                 write!(fmt, "tuple-index-get {}", index)?;
             }
+            Self::TupleIndexGetAt { offset, index } => {
+                write!(fmt, "tuple-index-get-at {}, {}", offset, index)?;
+            }
             Self::ObjectSlotIndexGet { slot } => {
                 write!(fmt, "object-slot-index-get {}", slot)?;
+            }
+            Self::ObjectSlotIndexGetAt { offset, slot } => {
+                write!(fmt, "object-slot-index-get-at {}, {}", offset, slot)?;
             }
             Self::IndexSet => {
                 write!(fmt, "index-set")?;
