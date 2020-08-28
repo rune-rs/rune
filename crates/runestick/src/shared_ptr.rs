@@ -62,7 +62,7 @@ impl SharedPtr {
     }
 
     /// Get the shared cell as a reference.
-    pub fn downcast_ref<T>(&self) -> Result<*const T, AccessError>
+    pub fn downcast_borrow_ref<T>(&self) -> Result<*const T, AccessError>
     where
         T: any::Any,
     {
@@ -84,7 +84,7 @@ impl SharedPtr {
     }
 
     /// Get the exclusive cell as an exclusive reference.
-    pub fn downcast_mut<T>(&self) -> Result<*mut T, AccessError>
+    pub fn downcast_borrow_mut<T>(&self) -> Result<*mut T, AccessError>
     where
         T: any::Any,
     {

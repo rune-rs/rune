@@ -59,7 +59,7 @@ pub enum UnaryOp {
     /// Not `!<thing>`.
     Not,
     /// Reference `&<thing>`.
-    Ref,
+    BorrowRef,
     /// Dereference `*<thing>`.
     Deref,
 }
@@ -69,7 +69,7 @@ impl UnaryOp {
     pub fn from_token(token: Token) -> Result<Self, ParseError> {
         Ok(match token.kind {
             Kind::Bang => Self::Not,
-            Kind::Ampersand => Self::Ref,
+            Kind::Ampersand => Self::BorrowRef,
             Kind::Mul => Self::Deref,
             actual => {
                 return Err(ParseError::ExpectedUnaryOperator {
@@ -85,7 +85,7 @@ impl fmt::Display for UnaryOp {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Not => write!(fmt, "!")?,
-            Self::Ref => write!(fmt, "&")?,
+            Self::BorrowRef => write!(fmt, "&")?,
             Self::Deref => write!(fmt, "*")?,
         }
 

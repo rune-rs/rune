@@ -57,7 +57,7 @@ mod shared_ptr;
 mod stack;
 pub mod unit;
 
-pub use crate::access::{Mut, NotAccessibleMut, NotAccessibleRef, Ref};
+pub use crate::access::{BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef};
 pub use crate::any::Any;
 pub use crate::bytes::Bytes;
 pub use crate::context::{Context, ContextError, Meta, MetaObject, MetaTuple, Module};
@@ -73,13 +73,12 @@ pub use crate::panic::Panic;
 pub use crate::reflection::{
     FromValue, ReflectValueType, ToValue, UnsafeFromValue, UnsafeIntoArgs, UnsafeToValue,
 };
-pub use crate::shared::{RawStrongMutGuard, RawStrongRefGuard, Shared, StrongMut, StrongRef};
+pub use crate::shared::{OwnMut, OwnRef, RawOwnMut, RawOwnRef, Shared};
 pub use crate::shared_ptr::SharedPtr;
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
 pub use crate::value::{
-    Object, RawValueMutGuard, RawValueRefGuard, TypedTuple, Value, ValueError, ValueType,
-    ValueTypeInfo, VecTuple,
+    Object, RawMut, RawRef, TypedTuple, Value, ValueError, ValueType, ValueTypeInfo, VecTuple,
 };
 pub use crate::vm::{Inst, PanicReason, Task, TypeCheck, Vm, VmError};
 

@@ -1497,7 +1497,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         log::trace!("ExprUnary => {:?}", self.source.source(span)?);
 
         // NB: special unary expressions.
-        if let ast::UnaryOp::Ref { .. } = expr_unary.op {
+        if let ast::UnaryOp::BorrowRef { .. } = expr_unary.op {
             self.compile_ref(&*expr_unary.expr, expr_unary.span(), needs)?;
             return Ok(());
         }

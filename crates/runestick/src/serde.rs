@@ -39,15 +39,15 @@ impl ser::Serialize for Value {
             Value::Float(float) => serializer.serialize_f64(*float),
             Value::StaticString(string) => serializer.serialize_str(string.as_ref()),
             Value::String(string) => {
-                let string = string.get_ref().map_err(ser::Error::custom)?;
+                let string = string.borrow_ref().map_err(ser::Error::custom)?;
                 serializer.serialize_str(&*string)
             }
             Value::Bytes(bytes) => {
-                let bytes = bytes.get_ref().map_err(ser::Error::custom)?;
+                let bytes = bytes.borrow_ref().map_err(ser::Error::custom)?;
                 serializer.serialize_bytes(&*bytes)
             }
             Value::Vec(vec) => {
-                let vec = vec.get_ref().map_err(ser::Error::custom)?;
+                let vec = vec.borrow_ref().map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
 
                 for value in &*vec {
@@ -57,7 +57,7 @@ impl ser::Serialize for Value {
                 serializer.end()
             }
             Value::Tuple(tuple) => {
-                let tuple = tuple.get_ref().map_err(ser::Error::custom)?;
+                let tuple = tuple.borrow_ref().map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
 
                 for value in tuple.iter() {
@@ -67,7 +67,7 @@ impl ser::Serialize for Value {
                 serializer.end()
             }
             Value::Object(object) => {
-                let object = object.get_ref().map_err(ser::Error::custom)?;
+                let object = object.borrow_ref().map_err(ser::Error::custom)?;
                 let mut serializer = serializer.serialize_map(Some(object.len()))?;
 
                 for (key, value) in &*object {
@@ -77,7 +77,7 @@ impl ser::Serialize for Value {
                 serializer.end()
             }
             Value::Option(option) => {
-                let option = option.get_ref().map_err(ser::Error::custom)?;
+                let option = option.borrow_ref().map_err(ser::Error::custom)?;
                 <Option<Value>>::serialize(&*option, serializer)
             }
             Value::TypedTuple(..) => Err(ser::Error::custom("cannot serialize tuple types")),

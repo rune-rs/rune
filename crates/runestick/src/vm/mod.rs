@@ -6,7 +6,7 @@ use crate::hash::Hash;
 use crate::item::Component;
 use crate::panic::Panic;
 use crate::reflection::{FromValue, UnsafeIntoArgs};
-use crate::shared::{Shared, StrongMut};
+use crate::shared::{OwnMut, Shared};
 use crate::stack::{Stack, StackError};
 use crate::unit::{CompilationUnit, UnitFnCall, UnitFnKind};
 use crate::value::{
@@ -473,8 +473,8 @@ impl Vm {
     /// # Safety
     ///
     /// Any unsafe references constructed through the following methods:
-    /// * [StrongMut::into_raw]
-    /// * [Ref::unsafe_into_ref]
+    /// * [OwnMut::into_raw]
+    /// * [BorrowRef::unsafe_into_ref]
     ///
     /// Must not outlive a call to clear, nor this virtual machine.
     pub fn clear(&mut self) {
@@ -575,7 +575,7 @@ impl Vm {
 
     async fn op_await(&mut self) -> Result<(), VmError> {
         let future = self.stack.pop()?.into_future()?;
-        let mut future = future.strong_mut()?;
+        let mut future = future.own_mut()?;
         let value = (&mut *future).await?;
         self.stack.push(value);
         Ok(())
@@ -590,7 +590,7 @@ impl Vm {
 
             for index in 0..len {
                 let future = self.stack.pop()?.into_future()?;
-                let future = future.strong_mut()?;
+                let future = future.own_mut()?;
 
                 if future.is_completed() {
                     continue;
@@ -600,7 +600,7 @@ impl Vm {
                 // can assert that nothing is invalidate for the duration of this
                 // select.
                 unsafe {
-                    let (raw_future, guard) = StrongMut::into_raw(future);
+                    let (raw_future, guard) = OwnMut::into_raw(future);
                     futures.push(SelectFuture::new_unchecked(raw_future, index));
                     guards.push(guard);
                 };
@@ -862,8 +862,8 @@ impl Vm {
             (Value::Integer(a), Value::Integer(b)) => a == b,
             (Value::Float(a), Value::Float(b)) => a == b,
             (Value::Vec(a), Value::Vec(b)) => {
-                let a = a.get_ref()?;
-                let b = b.get_ref()?;
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
 
                 if a.len() != b.len() {
                     return Ok(false);
@@ -878,8 +878,8 @@ impl Vm {
                 true
             }
             (Value::Object(a), Value::Object(b)) => {
-                let a = a.get_ref()?;
-                let b = b.get_ref()?;
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
 
                 if a.len() != b.len() {
                     return Ok(false);
@@ -899,16 +899,16 @@ impl Vm {
                 true
             }
             (Value::String(a), Value::String(b)) => {
-                let a = a.get_ref()?;
-                let b = b.get_ref()?;
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
                 *a == *b
             }
             (Value::StaticString(a), Value::String(b)) => {
-                let b = b.get_ref()?;
+                let b = b.borrow_ref()?;
                 ***a == *b
             }
             (Value::String(a), Value::StaticString(b)) => {
-                let a = a.get_ref()?;
+                let a = a.borrow_ref()?;
                 *a == ***b
             }
             // fast string comparison: exact string slot.
@@ -1079,7 +1079,7 @@ impl Vm {
 
             let field = match &index {
                 Value::String(string) => {
-                    local_field = string.get_ref()?;
+                    local_field = string.borrow_ref()?;
                     local_field.as_str()
                 }
                 Value::StaticString(string) => string.as_ref(),
@@ -1088,12 +1088,12 @@ impl Vm {
 
             match &target {
                 Value::Object(object) => {
-                    let mut object = object.get_mut()?;
+                    let mut object = object.borrow_mut()?;
                     object.insert(field.to_owned(), value);
                     return Ok(());
                 }
                 Value::TypedObject(typed_object) => {
-                    let mut typed_object = typed_object.get_mut()?;
+                    let mut typed_object = typed_object.borrow_mut()?;
 
                     if let Some(v) = typed_object.object.get_mut(field) {
                         *v = value;
@@ -1106,7 +1106,7 @@ impl Vm {
                     });
                 }
                 Value::VariantObject(variant_object) => {
-                    let mut variant_object = variant_object.get_mut()?;
+                    let mut variant_object = variant_object.borrow_mut()?;
 
                     if let Some(v) = variant_object.object.get_mut(field) {
                         *v = value;
@@ -1174,9 +1174,9 @@ impl Vm {
     /// Implementation of getting a string index on an object-like type.
     fn try_object_like_index_get(&mut self, target: &Value, field: &str) -> Result<bool, VmError> {
         let value = match &target {
-            Value::Object(target) => target.get_ref()?.get(field).cloned(),
-            Value::TypedObject(target) => target.get_ref()?.object.get(field).cloned(),
-            Value::VariantObject(target) => target.get_ref()?.object.get(field).cloned(),
+            Value::Object(target) => target.borrow_ref()?.get(field).cloned(),
+            Value::TypedObject(target) => target.borrow_ref()?.object.get(field).cloned(),
+            Value::VariantObject(target) => target.borrow_ref()?.object.get(field).cloned(),
             _ => return Ok(false),
         };
 
@@ -1198,10 +1198,10 @@ impl Vm {
     fn try_tuple_like_index_get(&mut self, target: &Value, index: usize) -> Result<bool, VmError> {
         let value = match target {
             Value::Unit => None,
-            Value::Tuple(tuple) => tuple.get_ref()?.get(index).cloned(),
-            Value::Vec(vec) => vec.get_ref()?.get(index).cloned(),
+            Value::Tuple(tuple) => tuple.borrow_ref()?.get(index).cloned(),
+            Value::Vec(vec) => vec.borrow_ref()?.get(index).cloned(),
             Value::Result(result) => {
-                let result = result.get_ref()?;
+                let result = result.borrow_ref()?;
 
                 match &*result {
                     Ok(ok) if index == 0 => Some(ok.clone()),
@@ -1210,7 +1210,7 @@ impl Vm {
                 }
             }
             Value::Option(option) => {
-                let option = option.get_ref()?;
+                let option = option.borrow_ref()?;
 
                 match &*option {
                     Some(some) if index == 0 => Some(some.clone()),
@@ -1218,11 +1218,11 @@ impl Vm {
                 }
             }
             Value::TypedTuple(typed_tuple) => {
-                let typed_tuple = typed_tuple.get_ref()?;
+                let typed_tuple = typed_tuple.borrow_ref()?;
                 typed_tuple.tuple.get(index).cloned()
             }
             Value::VariantTuple(variant_tuple) => {
-                let variant_tuple = variant_tuple.get_ref()?;
+                let variant_tuple = variant_tuple.borrow_ref()?;
                 variant_tuple.tuple.get(index).cloned()
             }
             _ => return Ok(false),
@@ -1253,7 +1253,7 @@ impl Vm {
         loop {
             match &index {
                 Value::String(string) => {
-                    let string_ref = string.get_ref()?;
+                    let string_ref = string.borrow_ref()?;
 
                     if self.try_object_like_index_get(&target, string_ref.as_str())? {
                         return Ok(());
@@ -1314,7 +1314,7 @@ impl Vm {
 
         let value = match target {
             Value::Vec(vec) => {
-                let vec = vec.get_ref()?;
+                let vec = vec.borrow_ref()?;
 
                 match vec.get(index).cloned() {
                     Some(value) => value,
@@ -1359,7 +1359,7 @@ impl Vm {
         let value = match target {
             Value::Object(object) => {
                 let index = unit.lookup_string(string_slot)?;
-                let object = object.get_ref()?;
+                let object = object.borrow_ref()?;
 
                 match object.get(&***index).cloned() {
                     Some(value) => value,
@@ -1370,7 +1370,7 @@ impl Vm {
             }
             Value::TypedObject(typed_object) => {
                 let index = unit.lookup_string(string_slot)?;
-                let typed_object = typed_object.get_ref()?;
+                let typed_object = typed_object.borrow_ref()?;
 
                 match typed_object.object.get(&***index).cloned() {
                     Some(value) => value,
@@ -1381,7 +1381,7 @@ impl Vm {
             }
             Value::VariantObject(variant_object) => {
                 let index = unit.lookup_string(string_slot)?;
-                let variant_object = variant_object.get_ref()?;
+                let variant_object = variant_object.borrow_ref()?;
 
                 match variant_object.object.get(&***index).cloned() {
                     Some(value) => value,
@@ -1497,7 +1497,7 @@ impl Vm {
 
             match value {
                 Value::String(string) => {
-                    buf.push_str(&*string.get_ref()?);
+                    buf.push_str(&*string.borrow_ref()?);
                 }
                 Value::StaticString(string) => {
                     buf.push_str(string.as_ref());
@@ -1576,10 +1576,10 @@ impl Vm {
         };
 
         let is_instance = match a {
-            Value::TypedObject(typed_object) => typed_object.get_ref()?.hash == hash,
-            Value::TypedTuple(typed_tuple) => typed_tuple.get_ref()?.hash == hash,
-            Value::VariantObject(variant_object) => variant_object.get_ref()?.enum_hash == hash,
-            Value::VariantTuple(variant_tuple) => variant_tuple.get_ref()?.enum_hash == hash,
+            Value::TypedObject(typed_object) => typed_object.borrow_ref()?.hash == hash,
+            Value::TypedTuple(typed_tuple) => typed_tuple.borrow_ref()?.hash == hash,
+            Value::VariantObject(variant_object) => variant_object.borrow_ref()?.enum_hash == hash,
+            Value::VariantTuple(variant_tuple) => variant_tuple.borrow_ref()?.enum_hash == hash,
             Value::Option(..) => {
                 let option_type = context
                     .option_type()
@@ -1636,8 +1636,8 @@ impl Vm {
         let value = self.stack.pop()?;
 
         let is_value = match value {
-            Value::Result(result) => result.get_ref()?.is_ok(),
-            Value::Option(option) => option.get_ref()?.is_some(),
+            Value::Result(result) => result.borrow_ref()?.is_ok(),
+            Value::Option(option) => option.borrow_ref()?.is_some(),
             other => {
                 return Err(VmError::UnsupportedIsValueOperand {
                     actual: other.type_info()?,
@@ -1682,7 +1682,7 @@ impl Vm {
         let equal = match value {
             Value::String(actual) => {
                 let string = unit.lookup_string(slot)?;
-                let actual = actual.get_ref()?;
+                let actual = actual.borrow_ref()?;
                 *actual == ***string
             }
             Value::StaticString(actual) => {
@@ -1764,10 +1764,10 @@ impl Vm {
         use std::slice;
 
         Ok(match (ty, value) {
-            (inst::TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&*tuple.get_ref()?)),
-            (inst::TypeCheck::Vec, Value::Vec(vec)) => Some(f(&*vec.get_ref()?)),
+            (inst::TypeCheck::Tuple, Value::Tuple(tuple)) => Some(f(&*tuple.borrow_ref()?)),
+            (inst::TypeCheck::Vec, Value::Vec(vec)) => Some(f(&*vec.borrow_ref()?)),
             (inst::TypeCheck::Result(v), Value::Result(result)) => {
-                let result = result.get_ref()?;
+                let result = result.borrow_ref()?;
 
                 Some(match (v, &*result) {
                     (inst::ResultVariant::Ok, Ok(ok)) => f(slice::from_ref(ok)),
@@ -1776,7 +1776,7 @@ impl Vm {
                 })
             }
             (inst::TypeCheck::Option(v), Value::Option(option)) => {
-                let option = option.get_ref()?;
+                let option = option.borrow_ref()?;
 
                 Some(match (v, &*option) {
                     (inst::OptionVariant::Some, Some(some)) => f(slice::from_ref(some)),
@@ -1785,7 +1785,7 @@ impl Vm {
                 })
             }
             (inst::TypeCheck::Type(hash), Value::TypedTuple(typed_tuple)) => {
-                let typed_tuple = typed_tuple.get_ref()?;
+                let typed_tuple = typed_tuple.borrow_ref()?;
 
                 if typed_tuple.hash != hash {
                     return Ok(None);
@@ -1794,7 +1794,7 @@ impl Vm {
                 Some(f(&*typed_tuple.tuple))
             }
             (inst::TypeCheck::Variant(hash), Value::VariantTuple(variant_tuple)) => {
-                let variant_tuple = variant_tuple.get_ref()?;
+                let variant_tuple = variant_tuple.borrow_ref()?;
 
                 if variant_tuple.hash != hash {
                     return Ok(None);
@@ -1826,18 +1826,18 @@ impl Vm {
 
         match (type_check, value) {
             (TypeCheck::Object, Value::Object(object)) => {
-                let object = object.get_ref()?;
+                let object = object.borrow_ref()?;
                 return Ok(Some(f(&*object, keys)));
             }
             (TypeCheck::Type(hash), Value::TypedObject(typed_object)) => {
-                let typed_object = typed_object.get_ref()?;
+                let typed_object = typed_object.borrow_ref()?;
 
                 if typed_object.hash == hash {
                     return Ok(Some(f(&typed_object.object, keys)));
                 }
             }
             (TypeCheck::Variant(hash), Value::VariantObject(variant_object)) => {
-                let variant_object = variant_object.get_ref()?;
+                let variant_object = variant_object.borrow_ref()?;
 
                 if variant_object.hash == hash {
                     return Ok(Some(f(&variant_object.object, keys)));

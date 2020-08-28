@@ -1,6 +1,6 @@
 use crate::bytes::Bytes;
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue, UnsafeToValue};
-use crate::shared::{RawStrongMutGuard, RawStrongRefGuard, Shared, StrongMut, StrongRef};
+use crate::shared::{OwnMut, OwnRef, RawOwnMut, RawOwnRef, Shared};
 use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
 
 impl ReflectValueType for Bytes {
@@ -60,18 +60,18 @@ impl<'a> UnsafeToValue for &'a mut Bytes {
 impl FromValue for Bytes {
     fn from_value(value: Value) -> Result<Self, ValueError> {
         let bytes = value.into_bytes()?;
-        Ok(bytes.get_ref()?.clone())
+        Ok(bytes.borrow_ref()?.clone())
     }
 }
 
 impl<'a> UnsafeFromValue for &'a Bytes {
     type Output = *const Bytes;
-    type Guard = RawStrongRefGuard;
+    type Guard = RawOwnRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let bytes = value.into_bytes()?;
-        let bytes = bytes.strong_ref()?;
-        Ok(StrongRef::into_raw(bytes))
+        let bytes = bytes.own_ref()?;
+        Ok(OwnRef::into_raw(bytes))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -81,12 +81,12 @@ impl<'a> UnsafeFromValue for &'a Bytes {
 
 impl<'a> UnsafeFromValue for &'a mut Bytes {
     type Output = *mut Bytes;
-    type Guard = RawStrongMutGuard;
+    type Guard = RawOwnMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let bytes = value.into_bytes()?;
-        let bytes = bytes.strong_mut()?;
-        Ok(StrongMut::into_raw(bytes))
+        let bytes = bytes.own_mut()?;
+        Ok(OwnMut::into_raw(bytes))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -96,12 +96,12 @@ impl<'a> UnsafeFromValue for &'a mut Bytes {
 
 impl<'a> UnsafeFromValue for &'a [u8] {
     type Output = *const [u8];
-    type Guard = RawStrongRefGuard;
+    type Guard = RawOwnRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let bytes = value.into_bytes()?;
-        let bytes = bytes.strong_ref()?;
-        let (value, guard) = StrongRef::into_raw(bytes);
+        let bytes = bytes.own_ref()?;
+        let (value, guard) = OwnRef::into_raw(bytes);
         Ok(((*value).bytes.as_slice(), guard))
     }
 

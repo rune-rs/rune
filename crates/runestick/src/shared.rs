@@ -1,4 +1,4 @@
-use crate::access::{Access, AccessError, Mut, RawMutGuard, RawRefGuard, Ref};
+use crate::access::{Access, AccessError, BorrowMut, BorrowRef, RawBorrowedMut, RawBorrowedRef};
 use crate::any::Any;
 use crate::shared_ptr::SharedPtr;
 use std::any;
@@ -48,7 +48,7 @@ impl<T> Shared<T> {
     /// let b = a.clone();
     ///
     /// {
-    ///     let mut a = a.get_mut().unwrap();
+    ///     let mut a = a.borrow_mut().unwrap();
     ///     // NB: this is prevented since we have a live reference.
     ///     assert!(b.take().is_err());
     ///     a.counter += 1;
@@ -99,20 +99,20 @@ impl<T> Shared<T> {
     /// let a = Shared::new(Foo { counter: 0 });
     /// let b = a.clone();
     ///
-    /// b.get_mut().unwrap().counter += 1;
+    /// b.borrow_mut().unwrap().counter += 1;
     ///
     /// {
     ///     // Consumes `a`.
-    ///     let mut a = a.strong_ref().unwrap();
+    ///     let mut a = a.own_ref().unwrap();
     ///     assert_eq!(a.counter, 1);
-    ///     assert!(b.get_mut().is_err());
+    ///     assert!(b.borrow_mut().is_err());
     /// }
     ///
-    /// let mut b = b.get_mut().unwrap();
+    /// let mut b = b.borrow_mut().unwrap();
     /// b.counter += 1;
     /// assert_eq!(b.counter, 2);
     /// ```
-    pub fn strong_ref(self) -> Result<StrongRef<T>, AccessError> {
+    pub fn own_ref(self) -> Result<OwnRef<T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
         // alive.
         //
@@ -124,7 +124,7 @@ impl<T> Shared<T> {
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
 
-            Ok(StrongRef {
+            Ok(OwnRef {
                 data: this.inner.as_ref().data.get(),
                 guard,
                 inner: RawSharedBox::from_inner(this.inner),
@@ -154,15 +154,15 @@ impl<T> Shared<T> {
     ///
     /// {
     ///     // Consumes `a`.
-    ///     let mut a = a.strong_mut().unwrap();
+    ///     let mut a = a.own_mut().unwrap();
     ///     a.counter += 1;
     ///
-    ///     assert!(b.get_ref().is_err());
+    ///     assert!(b.borrow_ref().is_err());
     /// }
     ///
-    /// assert_eq!(b.get_ref().unwrap().counter, 1);
+    /// assert_eq!(b.borrow_ref().unwrap().counter, 1);
     /// ```
-    pub fn strong_mut(self) -> Result<StrongMut<T>, AccessError> {
+    pub fn own_mut(self) -> Result<OwnMut<T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
         // alive.
         //
@@ -174,7 +174,7 @@ impl<T> Shared<T> {
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
 
-            Ok(StrongMut {
+            Ok(OwnMut {
                 data: this.inner.as_ref().data.get(),
                 guard,
                 inner: RawSharedBox::from_inner(this.inner),
@@ -202,20 +202,20 @@ impl<T: ?Sized> Shared<T> {
     ///
     /// let a = Shared::new(Foo { counter: 0 });
     ///
-    /// a.get_mut().unwrap().counter += 1;
+    /// a.borrow_mut().unwrap().counter += 1;
     ///
     /// {
-    ///     let mut a_ref = a.get_ref().unwrap();
+    ///     let mut a_ref = a.borrow_ref().unwrap();
     ///     assert_eq!(a_ref.counter, 1);
-    ///     assert!(a.get_mut().is_err());
-    ///     assert!(a.get_ref().is_ok());
+    ///     assert!(a.borrow_mut().is_err());
+    ///     assert!(a.borrow_ref().is_ok());
     /// }
     ///
-    /// let mut a = a.get_mut().unwrap();
+    /// let mut a = a.borrow_mut().unwrap();
     /// a.counter += 1;
     /// assert_eq!(a.counter, 2);
     /// ```
-    pub fn get_ref(&self) -> Result<Ref<'_, T>, AccessError> {
+    pub fn borrow_ref(&self) -> Result<BorrowRef<'_, T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
         // alive.
         //
@@ -223,7 +223,7 @@ impl<T: ?Sized> Shared<T> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.shared()?;
-            Ok(Ref::from_raw(inner.data.get(), guard))
+            Ok(BorrowRef::from_raw(inner.data.get(), guard))
         }
     }
 
@@ -245,16 +245,16 @@ impl<T: ?Sized> Shared<T> {
     /// let a = Shared::new(Foo { counter: 0 });
     ///
     /// {
-    ///     let mut a_mut = a.get_mut().unwrap();
+    ///     let mut a_mut = a.borrow_mut().unwrap();
     ///     a_mut.counter += 1;
     ///     assert_eq!(a_mut.counter, 1);
-    ///     assert!(a.get_ref().is_err());
+    ///     assert!(a.borrow_ref().is_err());
     /// }
     ///
-    /// let a = a.get_ref().unwrap();
+    /// let a = a.borrow_ref().unwrap();
     /// assert_eq!(a.counter, 1);
     /// ```
-    pub fn get_mut(&self) -> Result<Mut<'_, T>, AccessError> {
+    pub fn borrow_mut(&self) -> Result<BorrowMut<'_, T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
         // alive.
         //
@@ -262,7 +262,7 @@ impl<T: ?Sized> Shared<T> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.exclusive()?;
-            Ok(Mut::from_raw(inner.data.get(), guard))
+            Ok(BorrowMut::from_raw(inner.data.get(), guard))
         }
     }
 }
@@ -270,7 +270,7 @@ impl<T: ?Sized> Shared<T> {
 impl Shared<Any> {
     /// Take the interior value, if we have exlusive access to it and there
     /// exist no other references.
-    pub fn downcast_take<T>(self) -> Result<T, AccessError>
+    pub fn take_downcast<T>(self) -> Result<T, AccessError>
     where
         T: any::Any,
     {
@@ -319,7 +319,7 @@ impl Shared<Any> {
     }
 
     /// Get a shared value and downcast.
-    pub fn downcast_ref<T>(&self) -> Result<Ref<'_, T>, AccessError>
+    pub fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, AccessError>
     where
         T: any::Any,
     {
@@ -337,12 +337,12 @@ impl Shared<Any> {
                 }
             };
 
-            Ok(Ref::from_raw(data as *const T, guard))
+            Ok(BorrowRef::from_raw(data as *const T, guard))
         }
     }
 
     /// Get a shared value and downcast.
-    pub fn downcast_strong_ref<T>(self) -> Result<StrongRef<T>, AccessError>
+    pub fn downcast_own_ref<T>(self) -> Result<OwnRef<T>, AccessError>
     where
         T: any::Any,
     {
@@ -366,7 +366,7 @@ impl Shared<Any> {
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
 
-            Ok(StrongRef {
+            Ok(OwnRef {
                 data: data as *const T,
                 guard,
                 inner: RawSharedBox::from_inner(this.inner),
@@ -376,7 +376,7 @@ impl Shared<Any> {
     }
 
     /// Get a exclusive value and downcast.
-    pub fn downcast_mut<T>(&self) -> Result<Mut<'_, T>, AccessError>
+    pub fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AccessError>
     where
         T: any::Any,
     {
@@ -394,12 +394,12 @@ impl Shared<Any> {
                 }
             };
 
-            Ok(Mut::from_raw(data as *mut T, guard))
+            Ok(BorrowMut::from_raw(data as *mut T, guard))
         }
     }
 
     /// Get a shared value and downcast.
-    pub fn downcast_strong_mut<T>(self) -> Result<StrongMut<T>, AccessError>
+    pub fn downcast_own_mut<T>(self) -> Result<OwnMut<T>, AccessError>
     where
         T: any::Any,
     {
@@ -423,7 +423,7 @@ impl Shared<Any> {
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
 
-            Ok(StrongMut {
+            Ok(OwnMut {
                 data: data as *mut T,
                 guard,
                 inner: RawSharedBox::from_inner(this.inner),
@@ -435,28 +435,28 @@ impl Shared<Any> {
 
 impl Shared<SharedPtr> {
     /// Get a shared value and downcast.
-    pub fn downcast_ref<T>(&self) -> Result<Ref<'_, T>, AccessError>
+    pub fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, AccessError>
     where
         T: any::Any,
     {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.shared()?;
-            let data = (*inner.data.get()).downcast_ref::<T>()?;
-            Ok(Ref::from_raw(data, guard))
+            let data = (*inner.data.get()).downcast_borrow_ref::<T>()?;
+            Ok(BorrowRef::from_raw(data, guard))
         }
     }
 
     /// Get a exclusive value and downcast.
-    pub fn downcast_mut<T>(&self) -> Result<Mut<'_, T>, AccessError>
+    pub fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AccessError>
     where
         T: any::Any,
     {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.exclusive()?;
-            let data = (*inner.data.get()).downcast_mut::<T>()?;
-            Ok(Mut::from_raw(data, guard))
+            let data = (*inner.data.get()).downcast_borrow_mut::<T>()?;
+            Ok(BorrowMut::from_raw(data, guard))
         }
     }
 }
@@ -598,14 +598,14 @@ impl Drop for RawSharedBox {
 }
 
 /// A strong reference to the given type.
-pub struct StrongRef<T: ?Sized> {
+pub struct OwnRef<T: ?Sized> {
     data: *const T,
-    guard: RawRefGuard,
+    guard: RawBorrowedRef,
     inner: RawSharedBox,
     _marker: marker::PhantomData<T>,
 }
 
-impl<T: ?Sized> StrongRef<T> {
+impl<T: ?Sized> OwnRef<T> {
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
@@ -619,8 +619,8 @@ impl<T: ?Sized> StrongRef<T> {
     /// data being referenced.
     ///
     /// [clear]: [crate::Vm::clear]
-    pub fn into_raw(this: Self) -> (*const T, RawStrongRefGuard) {
-        let guard = RawStrongRefGuard {
+    pub fn into_raw(this: Self) -> (*const T, RawOwnRef) {
+        let guard = RawOwnRef {
             _guard: this.guard,
             _inner: this.inner,
         };
@@ -629,7 +629,7 @@ impl<T: ?Sized> StrongRef<T> {
     }
 }
 
-impl<T: ?Sized> ops::Deref for StrongRef<T> {
+impl<T: ?Sized> ops::Deref for OwnRef<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -637,7 +637,7 @@ impl<T: ?Sized> ops::Deref for StrongRef<T> {
     }
 }
 
-impl<T: ?Sized> fmt::Debug for StrongRef<T>
+impl<T: ?Sized> fmt::Debug for OwnRef<T>
 where
     T: fmt::Debug,
 {
@@ -646,21 +646,21 @@ where
     }
 }
 
-/// A raw guard to a [StrongRef].
-pub struct RawStrongRefGuard {
-    _guard: RawRefGuard,
+/// A raw guard to a [OwnRef].
+pub struct RawOwnRef {
+    _guard: RawBorrowedRef,
     _inner: RawSharedBox,
 }
 
 /// A strong mutable reference to the given type.
-pub struct StrongMut<T: ?Sized> {
+pub struct OwnMut<T: ?Sized> {
     data: *mut T,
-    guard: RawMutGuard,
+    guard: RawBorrowedMut,
     inner: RawSharedBox,
     _marker: marker::PhantomData<T>,
 }
 
-impl<T: ?Sized> StrongMut<T> {
+impl<T: ?Sized> OwnMut<T> {
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
@@ -674,8 +674,8 @@ impl<T: ?Sized> StrongMut<T> {
     /// data being referenced.
     ///
     /// [clear]: [crate::Vm::clear]
-    pub fn into_raw(this: Self) -> (*mut T, RawStrongMutGuard) {
-        let guard = RawStrongMutGuard {
+    pub fn into_raw(this: Self) -> (*mut T, RawOwnMut) {
+        let guard = RawOwnMut {
             _guard: this.guard,
             _inner: this.inner,
         };
@@ -684,7 +684,7 @@ impl<T: ?Sized> StrongMut<T> {
     }
 }
 
-impl<T: ?Sized> ops::Deref for StrongMut<T> {
+impl<T: ?Sized> ops::Deref for OwnMut<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -692,13 +692,13 @@ impl<T: ?Sized> ops::Deref for StrongMut<T> {
     }
 }
 
-impl<T: ?Sized> ops::DerefMut for StrongMut<T> {
+impl<T: ?Sized> ops::DerefMut for OwnMut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.data }
     }
 }
 
-impl<T: ?Sized> fmt::Debug for StrongMut<T>
+impl<T: ?Sized> fmt::Debug for OwnMut<T>
 where
     T: fmt::Debug,
 {
@@ -707,9 +707,9 @@ where
     }
 }
 
-/// A raw guard to a [StrongRef].
-pub struct RawStrongMutGuard {
-    _guard: RawMutGuard,
+/// A raw guard to a [OwnRef].
+pub struct RawOwnMut {
+    _guard: RawBorrowedMut,
     _inner: RawSharedBox,
 }
 

@@ -87,7 +87,7 @@ impl Access {
 
     /// Mark that we want shared access to the given access token.
     #[inline]
-    pub(crate) fn shared(&self) -> Result<RawRefGuard, NotAccessibleRef> {
+    pub(crate) fn shared(&self) -> Result<RawBorrowedRef, NotAccessibleRef> {
         let b = self.0.get().wrapping_sub(1);
 
         if b >= 0 {
@@ -96,12 +96,12 @@ impl Access {
 
         self.0.set(b);
 
-        Ok(RawRefGuard { access: self })
+        Ok(RawBorrowedRef { access: self })
     }
 
     /// Mark that we want exclusive access to the given access token.
     #[inline]
-    pub(crate) fn exclusive(&self) -> Result<RawMutGuard, NotAccessibleMut> {
+    pub(crate) fn exclusive(&self) -> Result<RawBorrowedMut, NotAccessibleMut> {
         let b = self.0.get().wrapping_add(1);
 
         if b != 1 {
@@ -109,7 +109,7 @@ impl Access {
         }
 
         self.0.set(b);
-        Ok(RawMutGuard { access: self })
+        Ok(RawBorrowedMut { access: self })
     }
 
     /// Mark that we want to mark the given access as "taken".
@@ -177,11 +177,11 @@ impl fmt::Debug for Access {
 }
 
 /// A raw reference guard.
-pub struct RawRefGuard {
+pub struct RawBorrowedRef {
     access: *const Access,
 }
 
-impl Drop for RawRefGuard {
+impl Drop for RawBorrowedRef {
     fn drop(&mut self) {
         unsafe { (*self.access).release_shared() };
     }
@@ -198,20 +198,20 @@ impl Drop for RawRefGuard {
 /// See [clear] for more information.
 ///
 /// [clear]: [crate::Vm::clear]
-pub struct Ref<'a, T: ?Sized + 'a> {
+pub struct BorrowRef<'a, T: ?Sized + 'a> {
     data: *const T,
-    guard: RawRefGuard,
+    guard: RawBorrowedRef,
     _marker: marker::PhantomData<&'a T>,
 }
 
-impl<'a, T: ?Sized> Ref<'a, T> {
+impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// Construct a new raw reference guard.
     ///
     /// # Safety
     ///
     /// The provided components must be valid for the lifetime of the returned
     /// reference, which is unbounded.
-    pub(crate) unsafe fn from_raw(data: *const T, guard: RawRefGuard) -> Self {
+    pub(crate) unsafe fn from_raw(data: *const T, guard: RawBorrowedRef) -> Self {
         Self {
             data,
             guard,
@@ -232,19 +232,19 @@ impl<'a, T: ?Sized> Ref<'a, T> {
     /// data being referenced.
     ///
     /// [clear]: crate::Vm::clear
-    pub(crate) fn into_raw(this: Self) -> (*const T, RawRefGuard) {
+    pub(crate) fn into_raw(this: Self) -> (*const T, RawBorrowedRef) {
         (this.data, this.guard)
     }
 
     /// Try to map the interior reference the reference.
-    pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<Ref<'a, U>, E>
+    pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<BorrowRef<'a, U>, E>
     where
         M: FnOnce(&T) -> Result<&U, E>,
     {
         let data = m(unsafe { &*this.data })?;
         let guard = this.guard;
 
-        Ok(Ref {
+        Ok(BorrowRef {
             data,
             guard,
             _marker: marker::PhantomData,
@@ -252,7 +252,7 @@ impl<'a, T: ?Sized> Ref<'a, T> {
     }
 }
 
-impl<T: ?Sized> ops::Deref for Ref<'_, T> {
+impl<T: ?Sized> ops::Deref for BorrowRef<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -260,7 +260,7 @@ impl<T: ?Sized> ops::Deref for Ref<'_, T> {
     }
 }
 
-impl<T: ?Sized> fmt::Debug for Ref<'_, T>
+impl<T: ?Sized> fmt::Debug for BorrowRef<'_, T>
 where
     T: fmt::Debug,
 {
@@ -270,11 +270,11 @@ where
 }
 
 /// A raw mutable guard.
-pub struct RawMutGuard {
+pub struct RawBorrowedMut {
     access: *const Access,
 }
 
-impl Drop for RawMutGuard {
+impl Drop for RawBorrowedMut {
     fn drop(&mut self) {
         unsafe { (*self.access).release_exclusive() }
     }
@@ -302,20 +302,20 @@ impl Drop for RawTakeGuard {
 /// virtual machine to release shared guards through its unsafe functions.
 ///
 /// See [clear][crate::Vm::clear] for more information.
-pub struct Mut<'a, T: ?Sized> {
+pub struct BorrowMut<'a, T: ?Sized> {
     data: *mut T,
-    guard: RawMutGuard,
+    guard: RawBorrowedMut,
     _marker: marker::PhantomData<&'a mut T>,
 }
 
-impl<'a, T: ?Sized> Mut<'a, T> {
+impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// Construct a new raw reference guard.
     ///
     /// # Safety
     ///
     /// The provided components must be valid for the lifetime of the returned
     /// reference, which is unbounded.
-    pub(crate) unsafe fn from_raw(data: *mut T, guard: RawMutGuard) -> Self {
+    pub(crate) unsafe fn from_raw(data: *mut T, guard: RawBorrowedMut) -> Self {
         Self {
             data,
             guard,
@@ -324,19 +324,19 @@ impl<'a, T: ?Sized> Mut<'a, T> {
     }
 
     /// Deconstruct the mut guard into its raw parts.
-    pub(crate) unsafe fn into_raw(this: Self) -> (*mut T, RawMutGuard) {
+    pub(crate) unsafe fn into_raw(this: Self) -> (*mut T, RawBorrowedMut) {
         (this.data, this.guard)
     }
 
     /// Map the mutable reference.
-    pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<Mut<'a, U>, E>
+    pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<BorrowMut<'a, U>, E>
     where
         M: FnOnce(&mut T) -> Result<&mut U, E>,
     {
         let data = m(unsafe { &mut *this.data })?;
         let guard = this.guard;
 
-        Ok(Mut {
+        Ok(BorrowMut {
             data,
             guard,
             _marker: marker::PhantomData,
@@ -344,7 +344,7 @@ impl<'a, T: ?Sized> Mut<'a, T> {
     }
 }
 
-impl<T: ?Sized> ops::Deref for Mut<'_, T> {
+impl<T: ?Sized> ops::Deref for BorrowMut<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -352,13 +352,13 @@ impl<T: ?Sized> ops::Deref for Mut<'_, T> {
     }
 }
 
-impl<T: ?Sized> ops::DerefMut for Mut<'_, T> {
+impl<T: ?Sized> ops::DerefMut for BorrowMut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.data }
     }
 }
 
-impl<T: ?Sized> fmt::Debug for Mut<'_, T>
+impl<T: ?Sized> fmt::Debug for BorrowMut<'_, T>
 where
     T: fmt::Debug,
 {

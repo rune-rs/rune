@@ -68,11 +68,11 @@ impl Any {
     ///
     /// ```rust
     /// let any = runestick::Any::new(1u32);
-    /// assert_eq!(Some(&1u32), any.downcast_ref::<u32>());
-    /// assert_eq!(None, any.downcast_ref::<&u32>());
+    /// assert_eq!(Some(&1u32), any.downcast_borrow_ref::<u32>());
+    /// assert_eq!(None, any.downcast_borrow_ref::<&u32>());
     /// ```
     #[inline]
-    pub fn downcast_ref<T>(&self) -> Option<&T>
+    pub fn downcast_borrow_ref<T>(&self) -> Option<&T>
     where
         T: any::Any,
     {
@@ -90,11 +90,11 @@ impl Any {
     ///
     /// ```rust
     /// let mut any = runestick::Any::new(1u32);
-    /// *any.downcast_mut::<u32>().unwrap() = 2;
-    /// assert_eq!(Some(&2u32), any.downcast_ref::<u32>());
+    /// *any.downcast_borrow_mut::<u32>().unwrap() = 2;
+    /// assert_eq!(Some(&2u32), any.downcast_borrow_ref::<u32>());
     /// ```
     #[inline]
-    pub fn downcast_mut<T>(&mut self) -> Option<&mut T>
+    pub fn downcast_borrow_mut<T>(&mut self) -> Option<&mut T>
     where
         T: any::Any,
     {

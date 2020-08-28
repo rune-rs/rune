@@ -1,5 +1,5 @@
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::shared::{RawStrongRefGuard, Shared, StrongRef};
+use crate::shared::{OwnRef, RawOwnRef, Shared};
 use crate::value::{Object, Value, ValueError, ValueType, ValueTypeInfo};
 
 impl<T> ReflectValueType for Object<T> {
@@ -57,12 +57,12 @@ where
 
 impl<'a> UnsafeFromValue for &'a Object<Value> {
     type Output = *const Object<Value>;
-    type Guard = RawStrongRefGuard;
+    type Guard = RawOwnRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let object = value.into_object()?;
-        let object = object.strong_ref()?;
-        Ok(StrongRef::into_raw(object))
+        let object = object.own_ref()?;
+        Ok(OwnRef::into_raw(object))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

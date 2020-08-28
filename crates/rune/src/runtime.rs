@@ -225,7 +225,7 @@ impl Runtime {
 
         let file_id = self.files.add(path.display().to_string(), source);
 
-        let file = match self.files.get_mut(file_id) {
+        let file = match self.files.borrow_mut(file_id) {
             Some(file) => file,
             None => {
                 return Err(LoadError::MissingFile);
@@ -488,7 +488,7 @@ impl SlabFiles {
         })
     }
 
-    fn get_mut(&mut self, file_id: usize) -> Option<&mut File> {
+    fn borrow_mut(&mut self, file_id: usize) -> Option<&mut File> {
         self.files.get_mut(file_id)
     }
 

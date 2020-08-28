@@ -495,23 +495,21 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_external_ref<T>(
-        self,
-    ) -> Result<(*const T, RawValueRefGuard), ValueError>
+    pub unsafe fn unsafe_into_external_ref<T>(self) -> Result<(*const T, RawRef), ValueError>
     where
         T: any::Any,
     {
         match self {
             Self::External(external) => {
-                let external = external.downcast_strong_ref::<T>()?;
-                let (data, guard) = shared::StrongRef::into_raw(external);
-                let guard = RawValueRefGuard::RawStrongRefGuard(guard);
+                let external = external.downcast_own_ref::<T>()?;
+                let (data, guard) = shared::OwnRef::into_raw(external);
+                let guard = RawRef::RawOwnRef(guard);
                 Ok((data, guard))
             }
             Self::Ptr(ptr) => {
-                let ptr = ptr.downcast_ref::<T>()?;
-                let (data, guard) = access::Ref::into_raw(ptr);
-                let guard = RawValueRefGuard::RawRefGuard(guard);
+                let ptr = ptr.downcast_borrow_ref::<T>()?;
+                let (data, guard) = access::BorrowRef::into_raw(ptr);
+                let guard = RawRef::RawBorrowedRef(guard);
                 Ok((data, guard))
             }
             actual => Err(ValueError::ExpectedExternal {
@@ -530,23 +528,21 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_external_mut<T>(
-        self,
-    ) -> Result<(*mut T, RawValueMutGuard), ValueError>
+    pub unsafe fn unsafe_into_external_mut<T>(self) -> Result<(*mut T, RawMut), ValueError>
     where
         T: any::Any,
     {
         match self {
             Self::External(external) => {
-                let external = external.downcast_strong_mut::<T>()?;
-                let (data, guard) = shared::StrongMut::into_raw(external);
-                let guard = RawValueMutGuard::RawStrongMutGuard(guard);
+                let external = external.downcast_own_mut::<T>()?;
+                let (data, guard) = shared::OwnMut::into_raw(external);
+                let guard = RawMut::RawOwnMut(guard);
                 Ok((data, guard))
             }
             Self::Ptr(ptr) => {
-                let ptr = ptr.downcast_mut::<T>()?;
-                let (data, guard) = access::Mut::into_raw(ptr);
-                let guard = RawValueMutGuard::RawMutGuard(guard);
+                let ptr = ptr.downcast_borrow_mut::<T>()?;
+                let (data, guard) = access::BorrowMut::into_raw(ptr);
+                let guard = RawMut::RawBorrowedMut(guard);
                 Ok((data, guard))
             }
             actual => Err(ValueError::ExpectedExternal {
@@ -575,27 +571,27 @@ impl Value {
             Self::Result(..) => ValueType::Result,
             Self::Option(..) => ValueType::Option,
             Self::TypedObject(object) => ValueType::TypedObject {
-                hash: object.get_ref()?.hash,
+                hash: object.borrow_ref()?.hash,
             },
             Self::VariantObject(object) => {
-                let object = object.get_ref()?;
+                let object = object.borrow_ref()?;
                 ValueType::VariantObject {
                     enum_hash: object.enum_hash,
                     hash: object.hash,
                 }
             }
             Self::TypedTuple(tuple) => ValueType::TypedTuple {
-                hash: tuple.get_ref()?.hash,
+                hash: tuple.borrow_ref()?.hash,
             },
             Self::VariantTuple(tuple) => {
-                let tuple = tuple.get_ref()?;
+                let tuple = tuple.borrow_ref()?;
                 ValueType::VariantTuple {
                     enum_hash: tuple.enum_hash,
                     hash: tuple.hash,
                 }
             }
-            Self::External(any) => ValueType::External(any.get_ref()?.type_id()),
-            Self::Ptr(ptr) => ValueType::External(ptr.get_ref()?.type_id()),
+            Self::External(any) => ValueType::External(any.borrow_ref()?.type_id()),
+            Self::Ptr(ptr) => ValueType::External(ptr.borrow_ref()?.type_id()),
         })
     }
 
@@ -618,53 +614,53 @@ impl Value {
             Self::Future(..) => ValueTypeInfo::Future,
             Self::Option(..) => ValueTypeInfo::Option,
             Self::Result(..) => ValueTypeInfo::Result,
-            Self::TypedObject(object) => object.get_ref()?.type_info(),
-            Self::VariantObject(object) => object.get_ref()?.type_info(),
-            Self::TypedTuple(tuple) => tuple.get_ref()?.type_info(),
-            Self::VariantTuple(tuple) => tuple.get_ref()?.type_info(),
-            Self::External(external) => ValueTypeInfo::External(external.get_ref()?.type_name()),
-            Self::Ptr(ptr) => ValueTypeInfo::External(ptr.get_ref()?.type_name()),
+            Self::TypedObject(object) => object.borrow_ref()?.type_info(),
+            Self::VariantObject(object) => object.borrow_ref()?.type_info(),
+            Self::TypedTuple(tuple) => tuple.borrow_ref()?.type_info(),
+            Self::VariantTuple(tuple) => tuple.borrow_ref()?.type_info(),
+            Self::External(external) => ValueTypeInfo::External(external.borrow_ref()?.type_name()),
+            Self::Ptr(ptr) => ValueTypeInfo::External(ptr.borrow_ref()?.type_name()),
         })
     }
 }
 
 /// A raw guard for a reference to a value.
-pub enum RawValueRefGuard {
+pub enum RawRef {
     /// The guard from an internally held value.
-    RawStrongRefGuard(shared::RawStrongRefGuard),
+    RawOwnRef(shared::RawOwnRef),
     /// The guard from an external reference.
-    RawRefGuard(access::RawRefGuard),
+    RawBorrowedRef(access::RawBorrowedRef),
 }
 
-impl From<shared::RawStrongRefGuard> for RawValueRefGuard {
-    fn from(guard: shared::RawStrongRefGuard) -> Self {
-        Self::RawStrongRefGuard(guard)
+impl From<shared::RawOwnRef> for RawRef {
+    fn from(guard: shared::RawOwnRef) -> Self {
+        Self::RawOwnRef(guard)
     }
 }
 
-impl From<access::RawRefGuard> for RawValueRefGuard {
-    fn from(guard: access::RawRefGuard) -> Self {
-        Self::RawRefGuard(guard)
+impl From<access::RawBorrowedRef> for RawRef {
+    fn from(guard: access::RawBorrowedRef) -> Self {
+        Self::RawBorrowedRef(guard)
     }
 }
 
 /// A raw guard for a reference to a value.
-pub enum RawValueMutGuard {
+pub enum RawMut {
     /// The guard from an internally held value.
-    RawStrongMutGuard(shared::RawStrongMutGuard),
+    RawOwnMut(shared::RawOwnMut),
     /// The guard from an external reference.
-    RawMutGuard(access::RawMutGuard),
+    RawBorrowedMut(access::RawBorrowedMut),
 }
 
-impl From<shared::RawStrongMutGuard> for RawValueMutGuard {
-    fn from(guard: shared::RawStrongMutGuard) -> Self {
-        Self::RawStrongMutGuard(guard)
+impl From<shared::RawOwnMut> for RawMut {
+    fn from(guard: shared::RawOwnMut) -> Self {
+        Self::RawOwnMut(guard)
     }
 }
 
-impl From<access::RawMutGuard> for RawValueMutGuard {
-    fn from(guard: access::RawMutGuard) -> Self {
-        Self::RawMutGuard(guard)
+impl From<access::RawBorrowedMut> for RawMut {
+    fn from(guard: access::RawBorrowedMut) -> Self {
+        Self::RawBorrowedMut(guard)
     }
 }
 

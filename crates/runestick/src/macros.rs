@@ -14,7 +14,7 @@ macro_rules! decl_external {
         impl $crate::FromValue for $external {
             fn from_value(value: $crate::Value) -> Result<Self, $crate::ValueError> {
                 let any = value.into_external()?;
-                let any = any.downcast_take::<$external>()?;
+                let any = any.take_downcast::<$external>()?;
                 Ok(any)
             }
         }
@@ -83,7 +83,7 @@ macro_rules! decl_internal {
 
         impl<'a> $crate::UnsafeFromValue for &'a $external {
             type Output = *const $external;
-            type Guard = $crate::RawValueRefGuard;
+            type Guard = $crate::RawRef;
 
             unsafe fn unsafe_from_value(
                 value: $crate::Value,
@@ -98,7 +98,7 @@ macro_rules! decl_internal {
 
         impl<'a> $crate::UnsafeFromValue for &'a mut $external {
             type Output = *mut $external;
-            type Guard = $crate::RawValueMutGuard;
+            type Guard = $crate::RawMut;
 
             unsafe fn unsafe_from_value(
                 value: $crate::Value,

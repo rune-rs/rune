@@ -1,7 +1,7 @@
 //! Trait implementations for Option<T>.
 
 use crate::reflection::{FromValue, ReflectValueType, ToValue, UnsafeFromValue};
-use crate::shared::{RawStrongRefGuard, Shared, StrongRef};
+use crate::shared::{OwnRef, RawOwnRef, Shared};
 use crate::value::{Value, ValueError, ValueType, ValueTypeInfo};
 
 impl<T> ReflectValueType for Option<T> {
@@ -57,11 +57,11 @@ where
 
 impl<'a> UnsafeFromValue for &'a Option<Value> {
     type Output = *const Option<Value>;
-    type Guard = RawStrongRefGuard;
+    type Guard = RawOwnRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         let option = value.into_option()?;
-        Ok(StrongRef::into_raw(option.strong_ref()?))
+        Ok(OwnRef::into_raw(option.own_ref()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
