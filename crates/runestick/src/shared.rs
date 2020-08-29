@@ -435,29 +435,39 @@ impl Shared<Any> {
 
 impl Shared<SharedPtr> {
     /// Get a shared value and downcast.
-    pub fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, AccessError>
+    ///
+    /// # Safety
+    ///
+    /// The validity of the pointer can only be relied on during the running of
+    /// the virtual machine.
+    /// At other times, the caller is responsible for making sure that the
+    /// pointee is alive.
+    pub unsafe fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, AccessError>
     where
         T: any::Any,
     {
-        unsafe {
-            let inner = self.inner.as_ref();
-            let guard = inner.access.shared()?;
-            let data = (*inner.data.get()).downcast_borrow_ref::<T>()?;
-            Ok(BorrowRef::from_raw(data, guard))
-        }
+        let inner = self.inner.as_ref();
+        let guard = inner.access.shared()?;
+        let data = (*inner.data.get()).downcast_borrow_ref::<T>()?;
+        Ok(BorrowRef::from_raw(data, guard))
     }
 
     /// Get a exclusive value and downcast.
-    pub fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AccessError>
+    ///
+    /// # Safety
+    ///
+    /// The validity of the pointer can only be relied on during the running of
+    /// the virtual machine.
+    /// At other times, the caller is responsible for making sure that the
+    /// pointee is alive.
+    pub unsafe fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AccessError>
     where
         T: any::Any,
     {
-        unsafe {
-            let inner = self.inner.as_ref();
-            let guard = inner.access.exclusive()?;
-            let data = (*inner.data.get()).downcast_borrow_mut::<T>()?;
-            Ok(BorrowMut::from_raw(data, guard))
-        }
+        let inner = self.inner.as_ref();
+        let guard = inner.access.exclusive()?;
+        let data = (*inner.data.get()).downcast_borrow_mut::<T>()?;
+        Ok(BorrowMut::from_raw(data, guard))
     }
 }
 

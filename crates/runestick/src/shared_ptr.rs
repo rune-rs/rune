@@ -62,47 +62,57 @@ impl SharedPtr {
     }
 
     /// Get the shared cell as a reference.
-    pub fn downcast_borrow_ref<T>(&self) -> Result<*const T, AccessError>
+    ///
+    /// # Safety
+    ///
+    /// The validity of the pointer can only be relied on during the running of
+    /// the virtual machine.
+    /// At other times, the caller is responsible for making sure that the
+    /// pointee is alive.
+    pub unsafe fn downcast_borrow_ref<T>(&self) -> Result<*const T, AccessError>
     where
         T: any::Any,
     {
-        unsafe {
-            let result = (self.vtable.as_ptr)(self.data, any::TypeId::of::<T>());
+        let result = (self.vtable.as_ptr)(self.data, any::TypeId::of::<T>());
 
-            let data = match result {
-                Some(data) => data,
-                None => {
-                    return Err(AccessError::UnexpectedType {
-                        expected: any::type_name::<T>(),
-                        actual: self.type_name(),
-                    });
-                }
-            };
+        let data = match result {
+            Some(data) => data,
+            None => {
+                return Err(AccessError::UnexpectedType {
+                    expected: any::type_name::<T>(),
+                    actual: self.type_name(),
+                });
+            }
+        };
 
-            Ok(data as *const T)
-        }
+        Ok(data as *const T)
     }
 
     /// Get the exclusive cell as an exclusive reference.
-    pub fn downcast_borrow_mut<T>(&self) -> Result<*mut T, AccessError>
+    ///
+    /// # Safety
+    ///
+    /// The validity of the pointer can only be relied on during the running of
+    /// the virtual machine.
+    /// At other times, the caller is responsible for making sure that the
+    /// pointee is alive.
+    pub unsafe fn downcast_borrow_mut<T>(&self) -> Result<*mut T, AccessError>
     where
         T: any::Any,
     {
-        unsafe {
-            let result = (self.vtable.as_mut_ptr)(self.data, any::TypeId::of::<T>());
+        let result = (self.vtable.as_mut_ptr)(self.data, any::TypeId::of::<T>());
 
-            let data = match result {
-                Some(data) => data,
-                None => {
-                    return Err(AccessError::UnexpectedType {
-                        expected: any::type_name::<T>(),
-                        actual: self.type_name(),
-                    });
-                }
-            };
+        let data = match result {
+            Some(data) => data,
+            None => {
+                return Err(AccessError::UnexpectedType {
+                    expected: any::type_name::<T>(),
+                    actual: self.type_name(),
+                });
+            }
+        };
 
-            Ok(data as *mut T)
-        }
+        Ok(data as *mut T)
     }
 }
 
