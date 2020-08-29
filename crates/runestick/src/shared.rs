@@ -12,6 +12,7 @@ use std::ptr;
 
 /// A simple proof obligation that the caller has asserted that the element
 /// being interacted with is inside of the virtual machine.
+#[repr(transparent)]
 pub struct AssertInVm<T> {
     pub(crate) inner: T,
 }

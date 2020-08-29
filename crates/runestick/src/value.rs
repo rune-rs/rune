@@ -503,12 +503,12 @@ impl Value {
             Self::External(external) => {
                 let external = external.downcast_owned_ref::<T>()?;
                 let (data, guard) = OwnedRef::into_raw(external);
-                Ok((data, guard.into()))
+                Ok((data, guard))
             }
             Self::Ptr(ptr) => {
                 let ptr = ptr.downcast_owned_ref::<T>()?;
                 let (data, guard) = OwnedRef::into_raw(ptr);
-                Ok((data, guard.into()))
+                Ok((data, guard))
             }
             actual => Err(ValueError::ExpectedExternal {
                 actual: actual.type_info()?,
@@ -534,12 +534,12 @@ impl Value {
             Self::External(external) => {
                 let external = external.downcast_owned_mut::<T>()?;
                 let (data, guard) = OwnedMut::into_raw(external);
-                Ok((data, guard.into()))
+                Ok((data, guard))
             }
             Self::Ptr(ptr) => {
                 let ptr = ptr.downcast_owned_mut::<T>()?;
                 let (data, guard) = OwnedMut::into_raw(ptr);
-                Ok((data, guard.into()))
+                Ok((data, guard))
             }
             actual => Err(ValueError::ExpectedExternal {
                 actual: actual.type_info()?,

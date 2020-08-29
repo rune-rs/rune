@@ -107,12 +107,12 @@ impl UnsafeFromValue for &'_ str {
             Value::String(string) => {
                 let string = string.owned_ref()?;
                 let (s, guard) = OwnedRef::into_raw(string);
-                ((*s).as_str(), Some(guard.into()))
+                ((*s).as_str(), Some(guard))
             }
             Value::Ptr(ptr) => {
                 let ptr = ptr.downcast_owned_ref::<String>()?;
                 let (string, guard) = OwnedRef::into_raw(ptr);
-                ((*string).as_str(), Some(guard.into()))
+                ((*string).as_str(), Some(guard))
             }
             Value::StaticString(string) => (string.as_ref().as_str(), None),
             actual => {
@@ -137,12 +137,12 @@ impl UnsafeFromValue for &'_ String {
             Value::String(string) => {
                 let string = string.owned_ref()?;
                 let (s, guard) = OwnedRef::into_raw(string);
-                (s, Some(guard.into()))
+                (s, Some(guard))
             }
             Value::Ptr(ptr) => {
                 let ptr = ptr.downcast_owned_ref::<String>()?;
                 let (string, guard) = OwnedRef::into_raw(ptr);
-                (string, Some(guard.into()))
+                (string, Some(guard))
             }
             Value::StaticString(string) => (string.as_ref(), None),
             actual => {
@@ -179,12 +179,12 @@ impl UnsafeFromValue for &'_ mut String {
             Value::String(string) => {
                 let string = string.owned_mut()?;
                 let (s, guard) = OwnedMut::into_raw(string);
-                (s, guard.into())
+                (s, guard)
             }
             Value::Ptr(ptr) => {
                 let ptr = ptr.downcast_owned_mut::<String>()?;
                 let (string, guard) = OwnedMut::into_raw(ptr);
-                (string, guard.into())
+                (string, guard)
             }
             actual => {
                 return Err(ValueError::ExpectedString {

@@ -8,10 +8,8 @@ where
     A: runestick::UnsafeIntoArgs,
 {
     let (unit, _) = rune::compile(&*context, source)?;
-    let mut vm = runestick::Vm::new();
-    let unit = Rc::new(unit);
-    let mut task: runestick::Task<T> =
-        vm.call_function(unit, context.clone(), Item::of(&["main"]), args)?;
+    let mut vm = runestick::Vm::new(context, Rc::new(unit));
+    let mut task: runestick::Task<T> = vm.call_function(Item::of(&["main"]), args)?;
     let output = task.run_to_completion().await?;
     Ok(output)
 }

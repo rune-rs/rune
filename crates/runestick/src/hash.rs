@@ -1,20 +1,32 @@
-use crate::{Component, Item, ValueType};
+use crate::{Component, ValueType};
 use std::fmt;
 use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
 use twox_hash::XxHash64;
 
+const SEP: usize = 0x7f;
+const TYPE: usize = 1;
+const INSTANCE_FUNCTION: usize = 3;
+const OBJECT_KEYS: usize = 4;
+
 /// The hash of a primitive thing.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Hash(pub(crate) u64);
+pub struct Hash(u64);
 
 impl Hash {
-    /// Hash corresponding to global function calls.
-    pub const GLOBAL_MODULE: Hash = Hash(0);
+    /// Construct a new raw hash.
+    pub(crate) const fn new(hash: u64) -> Self {
+        Self(hash)
+    }
 
-    const SEP: usize = 0x7f;
-    const TYPE: usize = 1;
-    const INSTANCE_FUNCTION: usize = 3;
-    const OBJECT_KEYS: usize = 4;
+    /// Construct a hash to an instance function, where the instance is a
+    /// pre-determined type.
+    pub fn instance_function<N>(ty: ValueType, name: N) -> Self
+    where
+        N: IntoTypeHash,
+    {
+        let name = name.into_type_hash();
+        Self(Hash::of((INSTANCE_FUNCTION, ty, SEP, name)).0)
+    }
 
     /// Construct a simple hash from something that is hashable.
     pub fn of<T: std::hash::Hash>(thing: T) -> Self {
@@ -30,10 +42,10 @@ impl Hash {
         I::Item: AsRef<str>,
     {
         let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
-        Self::OBJECT_KEYS.hash(&mut hasher);
+        OBJECT_KEYS.hash(&mut hasher);
 
         for key in keys {
-            Self::SEP.hash(&mut hasher);
+            SEP.hash(&mut hasher);
             key.as_ref().hash(&mut hasher);
         }
 
@@ -41,43 +53,27 @@ impl Hash {
     }
 
     /// Construct a hash for an use.
-    fn path<I>(kind: usize, path: I) -> Self
+    fn path_hash<I>(kind: usize, path: I) -> Self
     where
         I: IntoIterator,
-        I::Item: AsRef<Component>,
+        I::Item: Into<Component>,
     {
         let mut hasher = BuildHasherDefault::<XxHash64>::default().build_hasher();
         kind.hash(&mut hasher);
 
         for part in path {
-            part.as_ref().hash(&mut hasher);
+            part.into().hash(&mut hasher);
         }
 
         Self(hasher.finish())
     }
 
     /// Get the hash of a type.
-    pub fn of_type<I>(path: I) -> Self
+    pub fn type_hash<I>(path: I) -> Self
     where
-        I: IntoIterator,
-        I::Item: AsRef<Component>,
+        I: IntoTypeHash,
     {
-        Self::path(Self::TYPE, path)
-    }
-
-    /// Construct a hash for a function in the given path.
-    pub fn function<I>(path: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: AsRef<Component>,
-    {
-        Self::path(Self::TYPE, path)
-    }
-
-    /// Construct a hash to an instance function, where the instance is a
-    /// pre-determined type.
-    pub fn instance_function(ty: ValueType, name: Hash) -> Self {
-        Self::of((Self::INSTANCE_FUNCTION, ty, Self::SEP, name))
+        path.into_type_hash()
     }
 }
 
@@ -94,13 +90,23 @@ impl fmt::Debug for Hash {
 }
 
 /// Helper conversion into a function hash.
-pub trait IntoFnHash {
+pub trait IntoTypeHash {
     /// Generate a function hash.
-    fn into_fn_hash(self) -> Hash;
+    fn into_type_hash(self) -> Hash;
 }
 
-impl IntoFnHash for Item {
-    fn into_fn_hash(self) -> Hash {
-        Hash::function(self)
+impl IntoTypeHash for Hash {
+    fn into_type_hash(self) -> Hash {
+        self
+    }
+}
+
+impl<I> IntoTypeHash for I
+where
+    I: IntoIterator,
+    I::Item: Into<Component>,
+{
+    fn into_type_hash(self) -> Hash {
+        Hash::path_hash(TYPE, self)
     }
 }

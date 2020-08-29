@@ -79,7 +79,7 @@ pub use crate::context::{
 };
 pub use crate::error::{Error, Result};
 pub use crate::future::Future;
-pub use crate::hash::{Hash, IntoFnHash};
+pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{Inst, OptionVariant, PanicReason, ResultVariant, TypeCheck};
 pub use crate::item::{Component, Item};
 pub use crate::panic::Panic;

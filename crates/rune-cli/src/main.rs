@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use std::env;
 use std::error::Error;
 use std::io::Write as _;
@@ -116,6 +116,10 @@ async fn main() -> Result<()> {
         }
     };
 
+    let mut vm = runtime
+        .unit_vm(file_id)
+        .ok_or_else(|| anyhow!("missing unit `{}`", file_id))?;
+
     if runtime.has_issues() {
         use rune::termcolor;
         let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
@@ -141,22 +145,17 @@ async fn main() -> Result<()> {
     if dump_unit {
         use std::io::Write as _;
 
-        let unit = match runtime.unit(file_id) {
-            Some(unit) => unit,
-            None => bail!("missing unit"),
-        };
-
         println!("# instructions:");
 
         let mut first_function = true;
 
-        for (n, inst) in unit.iter_instructions().enumerate() {
+        for (n, inst) in vm.unit().iter_instructions().enumerate() {
             let out = std::io::stdout();
             let mut out = out.lock();
 
-            let debug = unit.debug_info_at(n);
+            let debug = vm.unit().debug_info_at(n);
 
-            if let Some((hash, function)) = unit.function_at(n) {
+            if let Some((hash, function)) = vm.unit().function_at(n) {
                 if first_function {
                     first_function = false;
                 } else {
@@ -185,13 +184,13 @@ async fn main() -> Result<()> {
 
         println!("# imports:");
 
-        for (hash, f) in unit.iter_imports() {
+        for (hash, f) in vm.unit().iter_imports() {
             println!("{} = {}", hash, f);
         }
 
         println!("# functions:");
 
-        for (hash, f) in unit.iter_functions() {
+        for (hash, f) in vm.unit().iter_functions() {
             match &f.kind {
                 UnitFnKind::Offset { offset, call } => {
                     println!("{} = {} (at: {}) ({})", hash, f.signature, offset, call);
@@ -207,23 +206,20 @@ async fn main() -> Result<()> {
 
         println!("# strings:");
 
-        for (hash, string) in unit.iter_static_strings() {
+        for (hash, string) in vm.unit().iter_static_strings() {
             println!("{} = {:?}", hash, string);
         }
 
         println!("# object keys:");
 
-        for (hash, keys) in unit.iter_static_object_keys() {
+        for (hash, keys) in vm.unit().iter_static_object_keys() {
             println!("{} = {:?}", hash, keys);
         }
 
         println!("---");
     }
 
-    let mut vm = runestick::Vm::new();
-
-    let mut task: runestick::Task<runestick::Value> =
-        runtime.call_function(&mut vm, file_id, Item::of(&["main"]), ())?;
+    let mut task: runestick::Task<runestick::Value> = vm.call_function(Item::of(&["main"]), ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {

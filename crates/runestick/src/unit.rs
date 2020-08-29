@@ -242,7 +242,7 @@ impl fmt::Display for UnitFnCall {
 }
 
 /// The kind of a registered function.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum UnitFnKind {
     /// Offset to call a "real" function.
     Offset {
@@ -691,7 +691,7 @@ impl CompilationUnit {
     pub fn new_item(&mut self, meta: Meta) -> Result<(), CompilationUnitError> {
         let path = match &meta {
             Meta::MetaTuple { tuple } => {
-                let hash = Hash::function(&tuple.item);
+                let hash = Hash::type_hash(&tuple.item);
 
                 let info = UnitFnInfo {
                     kind: UnitFnKind::Tuple { hash },
@@ -721,8 +721,8 @@ impl CompilationUnit {
                 tuple.item.clone()
             }
             Meta::MetaTupleVariant { enum_item, tuple } => {
-                let enum_hash = Hash::of_type(enum_item);
-                let hash = Hash::of_type(&tuple.item);
+                let enum_hash = Hash::type_hash(enum_item);
+                let hash = Hash::type_hash(&tuple.item);
 
                 let info = UnitFnInfo {
                     kind: UnitFnKind::TupleVariant { enum_hash, hash },
@@ -752,7 +752,7 @@ impl CompilationUnit {
                 tuple.item.clone()
             }
             Meta::MetaObject { object } => {
-                let hash = Hash::of_type(&object.item);
+                let hash = Hash::type_hash(&object.item);
 
                 let info = UnitTypeInfo {
                     hash,
@@ -768,8 +768,8 @@ impl CompilationUnit {
                 object.item.clone()
             }
             Meta::MetaObjectVariant { enum_item, object } => {
-                let hash = Hash::of_type(&object.item);
-                let enum_hash = Hash::of_type(enum_item);
+                let hash = Hash::type_hash(&object.item);
+                let enum_hash = Hash::type_hash(enum_item);
 
                 let info = UnitTypeInfo {
                     hash,
@@ -785,7 +785,7 @@ impl CompilationUnit {
                 object.item.clone()
             }
             Meta::MetaEnum { item } => {
-                let hash = Hash::of_type(item);
+                let hash = Hash::type_hash(item);
 
                 let info = UnitTypeInfo {
                     hash,
@@ -829,7 +829,7 @@ impl CompilationUnit {
     {
         let offset = self.instructions.len();
         let path = Item::of(path);
-        let hash = Hash::function(&path);
+        let hash = Hash::type_hash(&path);
 
         self.functions_rev.insert(offset, hash);
 

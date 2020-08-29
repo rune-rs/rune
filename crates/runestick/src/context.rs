@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
 use crate::{
-    Hash, Item, Meta, MetaObject, MetaTuple, Module, OptionVariant, ResultVariant, Stack,
-    TypeCheck, Value, ValueType, ValueTypeInfo, VmError,
+    Hash, IntoTypeHash, Item, Meta, MetaObject, MetaTuple, Module, OptionVariant, ResultVariant,
+    Stack, TypeCheck, Value, ValueType, ValueTypeInfo, VmError,
 };
 use std::fmt;
 use thiserror::Error;
@@ -223,7 +223,7 @@ impl Context {
 
     /// Use the specified type check.
     pub fn type_check_for(&self, item: &Item) -> Option<TypeCheck> {
-        let ty = self.types.get(&Hash::of_type(item))?;
+        let ty = self.types.get(&Hash::type_hash(item))?;
         Some(ty.type_check)
     }
 
@@ -287,7 +287,7 @@ impl Context {
         handler: Box<Handler>,
         args: Option<usize>,
     ) -> Result<(), ContextError> {
-        let hash = Hash::function(name);
+        let hash = Hash::type_hash(name);
         let signature = FnSignature::new_free(name.clone(), args);
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -305,7 +305,7 @@ impl Context {
     pub fn install(&mut self, module: Module) -> Result<(), ContextError> {
         for (value_type, ty) in module.types.into_iter() {
             let name = module.path.join(&ty.name);
-            let hash = Hash::of_type(&name);
+            let hash = Hash::type_hash(&name);
 
             let type_info = TypeInfo {
                 type_check: TypeCheck::Type(hash),
@@ -399,7 +399,7 @@ impl Context {
                 });
             }
 
-            let hash = Hash::of_type(&result_type);
+            let hash = Hash::type_hash(&result_type);
             self.result_type = Some(hash);
 
             self.add_internal_tuple(ok.clone(), 1, Ok::<Value, Value>)?;
@@ -416,7 +416,7 @@ impl Context {
             );
 
             self.types.insert(
-                Hash::of_type(&ok),
+                Hash::type_hash(&ok),
                 TypeInfo {
                     type_check: TypeCheck::Result(ResultVariant::Ok),
                     name: ok,
@@ -426,7 +426,7 @@ impl Context {
             );
 
             self.types.insert(
-                Hash::of_type(&err),
+                Hash::type_hash(&err),
                 TypeInfo {
                     type_check: TypeCheck::Result(ResultVariant::Err),
                     name: err,
@@ -457,7 +457,7 @@ impl Context {
                 });
             }
 
-            let hash = Hash::of_type(&option_type);
+            let hash = Hash::type_hash(&option_type);
 
             self.option_type = Some(hash);
 
@@ -475,7 +475,7 @@ impl Context {
             );
 
             self.types.insert(
-                Hash::of_type(&some),
+                Hash::type_hash(&some),
                 TypeInfo {
                     type_check: TypeCheck::Option(OptionVariant::Some),
                     name: some,
@@ -485,7 +485,7 @@ impl Context {
             );
 
             self.types.insert(
-                Hash::of_type(&none),
+                Hash::type_hash(&none),
                 TypeInfo {
                     type_check: TypeCheck::Option(OptionVariant::None),
                     name: none,
@@ -526,7 +526,7 @@ impl Context {
         let constructor: Box<Handler> =
             Box::new(move |stack, args| constructor.fn_call(stack, args));
 
-        let hash = Hash::function(&item);
+        let hash = Hash::type_hash(&item);
         let signature = FnSignature::new_free(item, Some(args));
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -552,6 +552,12 @@ impl Context {
     }
 }
 
+impl fmt::Debug for Context {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Context")
+    }
+}
+
 /// Trait used to determine what can be used as an instance function name.
 pub trait IntoInstFnHash: Copy {
     /// Generate a locally unique hash to check for conflicts.
@@ -571,14 +577,14 @@ impl<'a> IntoInstFnHash for &'a str {
     }
 }
 
-/// The hash helper for a function.
+/// A built in instance function.
 #[derive(Debug, Clone, Copy)]
-pub struct FnHash {
-    pub(crate) hash: Hash,
+pub struct BuiltInInstanceFn {
     name: &'static str,
+    pub(crate) hash: Hash,
 }
 
-impl IntoInstFnHash for FnHash {
+impl IntoInstFnHash for BuiltInInstanceFn {
     fn to_hash(self) -> Hash {
         self.hash
     }
@@ -588,7 +594,13 @@ impl IntoInstFnHash for FnHash {
     }
 }
 
-impl std::ops::Deref for FnHash {
+impl IntoTypeHash for BuiltInInstanceFn {
+    fn into_type_hash(self) -> Hash {
+        self.hash
+    }
+}
+
+impl std::ops::Deref for BuiltInInstanceFn {
     type Target = Hash;
 
     fn deref(&self) -> &Self::Target {
@@ -597,79 +609,79 @@ impl std::ops::Deref for FnHash {
 }
 
 /// The function to access an index.
-pub const INDEX_GET: FnHash = FnHash {
+pub const INDEX_GET: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "index_get",
-    hash: Hash(0xadb5b27e2a4d2dec),
+    hash: Hash::new(0xadb5b27e2a4d2dec),
 };
 
 /// The function to set an index.
-pub const INDEX_SET: FnHash = FnHash {
+pub const INDEX_SET: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "index_set",
-    hash: Hash(0x162943f7bd03ad36),
+    hash: Hash::new(0x162943f7bd03ad36),
 };
 
 /// The function to implement for the addition operation.
-pub const ADD: FnHash = FnHash {
+pub const ADD: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "add",
-    hash: Hash(0xe4ecf51fa0bf1076),
+    hash: Hash::new(0xe4ecf51fa0bf1076),
 };
 
 /// The function to implement for the addition assign operation.
-pub const ADD_ASSIGN: FnHash = FnHash {
+pub const ADD_ASSIGN: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "add_assign",
-    hash: Hash(0x42451ccb0a2071a9),
+    hash: Hash::new(0x42451ccb0a2071a9),
 };
 
 /// The function to implement for the subtraction operation.
-pub const SUB: FnHash = FnHash {
+pub const SUB: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "sub",
-    hash: Hash(0x6fa86a5f18d0bf71),
+    hash: Hash::new(0x6fa86a5f18d0bf71),
 };
 
 /// The function to implement for the subtraction assign operation.
-pub const SUB_ASSIGN: FnHash = FnHash {
+pub const SUB_ASSIGN: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "sub_assign",
-    hash: Hash(0x5939bb56a1415284),
+    hash: Hash::new(0x5939bb56a1415284),
 };
 
 /// The function to implement for the multiply operation.
-pub const MUL: FnHash = FnHash {
+pub const MUL: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "mul",
-    hash: Hash(0xb09e99dc94091d1c),
+    hash: Hash::new(0xb09e99dc94091d1c),
 };
 
 /// The function to implement for the multiply assign operation.
-pub const MUL_ASSIGN: FnHash = FnHash {
+pub const MUL_ASSIGN: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "mul_assign",
-    hash: Hash(0x29a54b727f980ebf),
+    hash: Hash::new(0x29a54b727f980ebf),
 };
 
 /// The function to implement for the division operation.
-pub const DIV: FnHash = FnHash {
+pub const DIV: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "div",
-    hash: Hash(0xf26d6eea1afca6e8),
+    hash: Hash::new(0xf26d6eea1afca6e8),
 };
 
 /// The function to implement for the division assign operation.
-pub const DIV_ASSIGN: FnHash = FnHash {
+pub const DIV_ASSIGN: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "div_assign",
-    hash: Hash(0x4dd087a8281c04e6),
+    hash: Hash::new(0x4dd087a8281c04e6),
 };
 
 /// Function used for a fmt::Display::fmt implementation.
-pub const FMT_DISPLAY: FnHash = FnHash {
+pub const FMT_DISPLAY: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "fmt",
-    hash: Hash(0x811b62957ea9d9f9),
+    hash: Hash::new(0x811b62957ea9d9f9),
 };
 
 /// Function used to convert an argument into an iterator.
-pub const INTO_ITER: FnHash = FnHash {
+pub const INTO_ITER: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "into_iter",
-    hash: Hash(0x15a85c8d774b4065),
+    hash: Hash::new(0x15a85c8d774b4065),
 };
 
 /// The function to call to continue iteration.
-pub const NEXT: FnHash = FnHash {
+pub const NEXT: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "next",
-    hash: Hash(0xc3cde069de2ba320),
+    hash: Hash::new(0xc3cde069de2ba320),
 };

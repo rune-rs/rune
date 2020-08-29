@@ -530,7 +530,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                             &object.item,
                         )?;
 
-                        let hash = Hash::of_type(&object.item);
+                        let hash = Hash::type_hash(&object.item);
                         self.asm.push(Inst::TypedObject { hash, slot }, span);
                     }
                     Meta::MetaObjectVariant { enum_item, object } => {
@@ -541,8 +541,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
                             &object.item,
                         )?;
 
-                        let enum_hash = Hash::of_type(&enum_item);
-                        let hash = Hash::of_type(&object.item);
+                        let enum_hash = Hash::type_hash(&enum_item);
+                        let hash = Hash::type_hash(&object.item);
 
                         self.asm.push(
                             Inst::VariantObject {
@@ -1174,6 +1174,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         // TODO: perform deferred compilation for expressions instead, so we can
         // e.g. inspect if it compiles down to a local access instead of
         // climbing the ast like we do here.
+        #[allow(clippy::single_match)]
         match (&*expr_field_access.expr, &expr_field_access.expr_field) {
             (ast::Expr::Path(path), ast::ExprField::LitNumber(n)) => {
                 if try_immediate_field_access_optimization(self, span, path, n, needs)? {
@@ -1376,15 +1377,15 @@ impl<'a, 'source> Compiler<'a, 'source> {
     fn compile_meta(&mut self, meta: &Meta, span: Span, needs: Needs) -> Result<()> {
         match (needs, meta) {
             (Needs::Value, Meta::MetaTuple { tuple }) if tuple.args == 0 => {
-                let hash = Hash::function(&tuple.item);
+                let hash = Hash::type_hash(&tuple.item);
                 self.asm.push(Inst::Call { hash, args: 0 }, span);
             }
             (Needs::Value, Meta::MetaTupleVariant { tuple, .. }) if tuple.args == 0 => {
-                let hash = Hash::function(&tuple.item);
+                let hash = Hash::type_hash(&tuple.item);
                 self.asm.push(Inst::Call { hash, args: 0 }, span);
             }
             (_, meta) => {
-                let hash = Hash::of_type(meta.item());
+                let hash = Hash::type_hash(meta.item());
                 self.asm.push(Inst::Type { hash }, span);
             }
         }
@@ -1521,7 +1522,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
         }
 
-        let hash = Hash::function(&item);
+        let hash = Hash::type_hash(&item);
         self.asm.push(Inst::Call { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
@@ -2078,11 +2079,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
             let (tuple, type_check) = if let Some(meta) = self.lookup_meta(&item, path.span())? {
                 match meta {
                     Meta::MetaTuple { tuple } => {
-                        let type_check = TypeCheck::Type(Hash::of_type(&tuple.item));
+                        let type_check = TypeCheck::Type(Hash::type_hash(&tuple.item));
                         (tuple, type_check)
                     }
                     Meta::MetaTupleVariant { tuple, .. } => {
-                        let type_check = TypeCheck::Variant(Hash::of_type(&tuple.item));
+                        let type_check = TypeCheck::Variant(Hash::type_hash(&tuple.item));
                         (tuple, type_check)
                     }
                     _ => return Err(CompileError::UnsupportedMetaPattern { meta, span }),
@@ -2192,11 +2193,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
                 let (object, type_check) = match &meta {
                     Meta::MetaObject { object } => {
-                        let type_check = TypeCheck::Type(Hash::of_type(&object.item));
+                        let type_check = TypeCheck::Type(Hash::type_hash(&object.item));
                         (object, type_check)
                     }
                     Meta::MetaObjectVariant { object, .. } => {
-                        let type_check = TypeCheck::Variant(Hash::of_type(&object.item));
+                        let type_check = TypeCheck::Variant(Hash::type_hash(&object.item));
                         (object, type_check)
                     }
                     _ => {
@@ -2282,9 +2283,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
         load: &dyn Fn(&mut Assembly),
     ) -> Result<()> {
         let (tuple, type_check) = match meta {
-            Meta::MetaTuple { tuple } => (tuple, TypeCheck::Type(Hash::of_type(&tuple.item))),
+            Meta::MetaTuple { tuple } => (tuple, TypeCheck::Type(Hash::type_hash(&tuple.item))),
             Meta::MetaTupleVariant { tuple, .. } => {
-                (tuple, TypeCheck::Variant(Hash::of_type(&tuple.item)))
+                (tuple, TypeCheck::Variant(Hash::type_hash(&tuple.item)))
             }
             _ => {
                 return Err(CompileError::UnsupportedMetaPattern {

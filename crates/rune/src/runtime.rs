@@ -45,24 +45,6 @@ pub enum LoadError {
     LinkError,
 }
 
-/// An error that occurs when trying to call a function.
-#[derive(Debug, Error)]
-pub enum CallFunctionError {
-    /// Vm error raised when trying to initiate a function call.
-    #[error("error in virtual machine")]
-    VmError {
-        /// The error.
-        #[from]
-        error: runestick::VmError,
-    },
-    /// Error raised when we try to call a function on a missing unit.
-    #[error("missing unit for file id `{file_id}`")]
-    MissingUnit {
-        /// The source id of the unit that was missing.
-        file_id: usize,
-    },
-}
-
 /// A runtime error.
 #[derive(Debug, Error)]
 pub enum RuntimeError {
@@ -144,32 +126,10 @@ impl Runtime {
     }
 
     /// Get the unit associated with the given file id.
-    pub fn unit(&self, file_id: usize) -> Option<&Rc<runestick::CompilationUnit>> {
-        self.files.get(file_id)?.unit.as_ref()
-    }
-
-    /// Call the given function in the given named file.
-    ///
-    /// Returns the associated task and the file id associated with the unit.
-    pub fn call_function<'a, A, T, N>(
-        &'a self,
-        vm: &'a mut runestick::Vm,
-        file_id: usize,
-        hash: N,
-        args: A,
-    ) -> Result<runestick::Task<'a, T>, CallFunctionError>
-    where
-        N: runestick::IntoFnHash,
-        A: 'a + runestick::UnsafeIntoArgs,
-        T: runestick::FromValue,
-    {
-        let unit = self
-            .files
-            .get(file_id)
-            .and_then(|file| file.unit.as_ref())
-            .ok_or_else(|| CallFunctionError::MissingUnit { file_id })?;
-
-        Ok(vm.call_function(unit.clone(), self.context.clone(), hash, args)?)
+    pub fn unit_vm(&self, file_id: usize) -> Option<runestick::Vm> {
+        let unit = self.files.get(file_id)?.unit.as_ref()?.clone();
+        let vm = runestick::Vm::new(self.context.clone(), unit);
+        Some(vm)
     }
 
     /// Register the runtime error.

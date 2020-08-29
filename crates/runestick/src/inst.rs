@@ -1,4 +1,4 @@
-use crate::hash::Hash;
+use crate::Hash;
 use std::fmt;
 
 /// Pre-canned panic reasons.
