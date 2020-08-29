@@ -1,21 +1,16 @@
 use crate::access::{Access, AccessError, BorrowMut, BorrowRef, RawBorrowedMut, RawBorrowedRef};
 use crate::any::Any;
-use crate::raw_ptr::RawPtr;
 use std::any;
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
+use std::future::Future;
 use std::marker;
 use std::mem::ManuallyDrop;
 use std::ops;
+use std::pin::Pin;
 use std::process;
 use std::ptr;
-
-/// A simple proof obligation that the caller has asserted that the element
-/// being interacted with is inside of the virtual machine.
-#[repr(transparent)]
-pub struct AssertInVm<T> {
-    pub(crate) inner: T,
-}
+use std::task::{Context, Poll};
 
 /// A shared value.
 pub struct Shared<T: ?Sized> {
@@ -440,69 +435,6 @@ impl Shared<Any> {
     }
 }
 
-impl Shared<RawPtr> {
-    /// Get a shared value and downcast.
-    ///
-    /// # Safety
-    ///
-    /// The caller is responsible for making sure that the pointee is alive.
-    ///
-    /// At other times, the caller is responsible for making sure that the
-    /// pointee is alive.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use runestick::{Shared, RawPtr};
-    ///
-    /// let value = 42;
-    /// let ptr = Shared::new(RawPtr::from_ref(&value));
-    /// ```
-    pub unsafe fn downcast_owned_ref<T>(self) -> Result<OwnedRef<T>, AccessError>
-    where
-        T: any::Any,
-    {
-        let inner = self.inner.as_ref();
-        let guard = inner.access.shared()?;
-        let data = (*inner.data.get()).downcast_borrow_ref::<T>()?;
-
-        let this = ManuallyDrop::new(self);
-
-        Ok(OwnedRef {
-            data,
-            guard,
-            inner: RawSharedBox::from_inner(this.inner),
-            _marker: marker::PhantomData,
-        })
-    }
-
-    /// Get a exclusive value and downcast.
-    ///
-    /// # Safety
-    ///
-    /// The caller is responsible for making sure that the pointee is alive.
-    ///
-    /// The validity of the pointer can only be relied on while the virtual
-    /// machine is running.
-    pub unsafe fn downcast_owned_mut<T>(self) -> Result<OwnedMut<T>, AccessError>
-    where
-        T: any::Any,
-    {
-        let inner = self.inner.as_ref();
-        let guard = inner.access.exclusive()?;
-        let data = (*inner.data.get()).downcast_borrow_mut::<T>()?;
-
-        let this = ManuallyDrop::new(self);
-
-        Ok(OwnedMut {
-            data,
-            guard,
-            inner: RawSharedBox::from_inner(this.inner),
-            _marker: marker::PhantomData,
-        })
-    }
-}
-
 impl<T: ?Sized> Clone for Shared<T> {
     fn clone(&self) -> Self {
         unsafe {
@@ -728,16 +660,6 @@ impl<T: ?Sized> OwnedMut<T> {
 
         (this.data, guard)
     }
-
-    /// Assert that the given element is inside of the virtual machine.
-    ///
-    /// # Safety
-    ///
-    /// This unlocks implementations which would otherwise be unsafe because
-    /// they make use of values on the stack which might be references.
-    pub unsafe fn assert_in_vm(self) -> AssertInVm<Self> {
-        AssertInVm { inner: self }
-    }
 }
 
 impl<T: ?Sized> ops::Deref for OwnedMut<T> {
@@ -764,6 +686,19 @@ where
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, fmt)
+    }
+}
+
+impl<F> Future for OwnedMut<F>
+where
+    F: Unpin + Future,
+{
+    type Output = F::Output;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // NB: inner Future is Unpin.
+        let this = self.get_mut();
+        Pin::new(&mut **this).poll(cx)
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     Bytes, FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared,
-    ToValue, UnsafeFromValue, UnsafeToValue, Value, ValueError, ValueType, ValueTypeInfo,
+    ToValue, UnsafeFromValue, Value, ValueError, ValueType, ValueTypeInfo,
 };
 
 impl ReflectValueType for Bytes {
@@ -42,18 +42,6 @@ impl<'a> ReflectValueType for &'a mut Bytes {
 impl ToValue for Bytes {
     fn to_value(self) -> Result<Value, ValueError> {
         Ok(Value::Bytes(Shared::new(self)))
-    }
-}
-
-impl<'a> UnsafeToValue for &'a Bytes {
-    unsafe fn unsafe_to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::from_ptr(self))
-    }
-}
-
-impl<'a> UnsafeToValue for &'a mut Bytes {
-    unsafe fn unsafe_to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::from_mut_ptr(self))
     }
 }
 

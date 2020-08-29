@@ -53,7 +53,6 @@ mod meta;
 pub(crate) mod module;
 pub mod packages;
 mod panic;
-mod raw_ptr;
 mod reflection;
 mod serde;
 mod shared;
@@ -83,11 +82,10 @@ pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{Inst, OptionVariant, PanicReason, ResultVariant, TypeCheck};
 pub use crate::item::{Component, Item};
 pub use crate::panic::Panic;
-pub use crate::raw_ptr::RawPtr;
 pub use crate::reflection::{
     FromValue, ReflectValueType, ToValue, UnsafeFromValue, UnsafeIntoArgs, UnsafeToValue,
 };
-pub use crate::shared::{AssertInVm, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
+pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
 pub use crate::value::{

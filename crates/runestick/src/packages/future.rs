@@ -23,11 +23,7 @@ where
             }
         };
 
-        // Safety: this function is private, and only callable through the
-        // virtual machine.
-        let future = unsafe { future.assert_in_vm() };
-
-        futures.push(SelectFuture::new(future, index));
+        futures.push(SelectFuture::new(index, future));
         results.push(Value::Unit);
     }
 

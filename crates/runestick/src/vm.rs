@@ -545,10 +545,7 @@ impl Vm {
 
         match value {
             Value::Future(future) => {
-                // Safety: We are in the virtual machine.
-                let future = unsafe { future.owned_mut()?.assert_in_vm() };
-
-                let value = future.await?;
+                let value = future.borrow_mut()?.await?;
                 self.stack.push(value);
                 Ok(())
             }
@@ -559,34 +556,22 @@ impl Vm {
     async fn op_select(&mut self, len: usize) -> Result<(), VmError> {
         use futures::stream::StreamExt as _;
 
-        let (branch, value) = {
-            let mut futures = futures::stream::FuturesUnordered::new();
+        let mut futures = futures::stream::FuturesUnordered::new();
 
-            for index in 0..len {
-                let future = self.stack.pop()?.into_future()?;
-                let future = future.owned_mut()?;
+        for branch in 0..len {
+            let future = self.stack.pop()?.into_future()?.owned_mut()?;
 
-                if future.is_completed() {
-                    continue;
-                }
-
-                // Safety: we have exclusive access to the virtual machine, so we
-                // can assert that nothing is invalidate for the duration of this
-                // select.
-                let future = unsafe { future.assert_in_vm() };
-
-                futures.push(SelectFuture::new(future, index));
+            if !future.is_completed() {
+                futures.push(SelectFuture::new(branch, future));
             }
+        }
 
-            // NB: nothing to poll.
-            if futures.is_empty() {
-                return Ok(());
-            }
+        // NB: nothing to poll.
+        if futures.is_empty() {
+            return Ok(());
+        }
 
-            let result = futures.next().await.unwrap();
-            let (index, value) = result?;
-            (index, value)
-        };
+        let (branch, value) = futures.next().await.unwrap()?;
 
         self.stack.push(value);
         self.branch = Some(branch);
@@ -1553,7 +1538,13 @@ impl Vm {
                     buf.push_str(buffer.format(float));
                 }
                 actual => {
-                    if !self.call_instance_fn(&actual, crate::FMT_DISPLAY, (&mut buf,))? {
+                    let b = Shared::new(std::mem::take(&mut buf));
+
+                    if !self.call_instance_fn(
+                        &actual,
+                        crate::FMT_DISPLAY,
+                        (Value::String(b.clone()),),
+                    )? {
                         return Err(VmError::UnsupportedStringConcatArgument {
                             actual: actual.type_info()?,
                         });
@@ -1564,6 +1555,8 @@ impl Vm {
                     if let Err(fmt::Error) = value {
                         return Err(VmError::FormatError);
                     }
+
+                    buf = b.take()?;
                 }
             }
         }

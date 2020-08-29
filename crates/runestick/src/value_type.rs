@@ -30,8 +30,6 @@ pub enum ValueType {
     External(TypeId),
     /// The type of type values.
     Type,
-    /// A pointer to a value on the stack.
-    Ptr,
     /// A function pointer.
     Fn(Hash),
     /// A future.

@@ -31,8 +31,6 @@ pub enum ValueTypeInfo {
     External(&'static str),
     /// The type of a value.
     Type(Hash),
-    /// A pointer to the stack.
-    Ptr,
     /// A future.
     Future,
     /// An optional value.
@@ -90,9 +88,6 @@ impl fmt::Display for ValueTypeInfo {
             }
             ValueTypeInfo::Type(hash) => {
                 write!(fmt, "type({})", hash)?;
-            }
-            ValueTypeInfo::Ptr => {
-                write!(fmt, "ptr")?;
             }
             ValueTypeInfo::Future => {
                 write!(fmt, "future")?;

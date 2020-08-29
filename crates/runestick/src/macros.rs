@@ -69,18 +69,6 @@ macro_rules! decl_internal {
             }
         }
 
-        impl<'a> $crate::UnsafeToValue for &'a $external {
-            unsafe fn unsafe_to_value(self) -> Result<$crate::Value, $crate::ValueError> {
-                Ok($crate::Value::from_ptr(self))
-            }
-        }
-
-        impl<'a> $crate::UnsafeToValue for &'a mut $external {
-            unsafe fn unsafe_to_value(self) -> Result<$crate::Value, $crate::ValueError> {
-                Ok($crate::Value::from_mut_ptr(self))
-            }
-        }
-
         impl<'a> $crate::UnsafeFromValue for &'a $external {
             type Output = *const $external;
             type Guard = $crate::RawOwnedRef;

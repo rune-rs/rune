@@ -1,6 +1,6 @@
 use crate::{
     AccessError, Any, Bytes, Future, Hash, OwnedMut, OwnedRef, Panic, RawOwnedMut, RawOwnedRef,
-    RawPtr, Shared, ValueType, ValueTypeInfo,
+    Shared, ValueType, ValueTypeInfo,
 };
 use std::any;
 use std::fmt;
@@ -280,24 +280,9 @@ pub enum Value {
     VariantObject(Shared<VariantObject>),
     /// An external value.
     External(Shared<Any>),
-    /// A shared pointer. This is what's used when a reference is passed into
-    /// the Vm, and must absolutely not outlive foreign function calls.
-    Ptr(Shared<RawPtr>),
 }
 
 impl Value {
-    /// Cosntruct a value from a raw pointer.
-    ///
-    /// # Safety
-    ///
-    /// The returned value mustn't be used after it's been freed.
-    pub unsafe fn from_ptr<T>(ptr: &T) -> Self
-    where
-        T: any::Any,
-    {
-        Self::Ptr(Shared::new(RawPtr::from_ref(ptr)))
-    }
-
     /// Construct a vector.
     pub fn vec(vec: Vec<Value>) -> Self {
         Self::Vec(Shared::new(vec))
@@ -306,18 +291,6 @@ impl Value {
     /// Construct a tuple.
     pub fn tuple(vec: Vec<Value>) -> Self {
         Self::Tuple(Shared::new(vec.into_boxed_slice()))
-    }
-
-    /// Cosntruct a value from a raw mutable pointer.
-    ///
-    /// # Safety
-    ///
-    /// The returned value mustn't be used after it's been freed.
-    pub unsafe fn from_mut_ptr<T>(ptr: &mut T) -> Self
-    where
-        T: any::Any,
-    {
-        Self::Ptr(Shared::new(RawPtr::from_mut(ptr)))
     }
 
     /// Try to coerce value into a unit.
@@ -505,11 +478,6 @@ impl Value {
                 let (data, guard) = OwnedRef::into_raw(external);
                 Ok((data, guard))
             }
-            Self::Ptr(ptr) => {
-                let ptr = ptr.downcast_owned_ref::<T>()?;
-                let (data, guard) = OwnedRef::into_raw(ptr);
-                Ok((data, guard))
-            }
             actual => Err(ValueError::ExpectedExternal {
                 actual: actual.type_info()?,
             }),
@@ -534,11 +502,6 @@ impl Value {
             Self::External(external) => {
                 let external = external.downcast_owned_mut::<T>()?;
                 let (data, guard) = OwnedMut::into_raw(external);
-                Ok((data, guard))
-            }
-            Self::Ptr(ptr) => {
-                let ptr = ptr.downcast_owned_mut::<T>()?;
-                let (data, guard) = OwnedMut::into_raw(ptr);
                 Ok((data, guard))
             }
             actual => Err(ValueError::ExpectedExternal {
@@ -587,7 +550,6 @@ impl Value {
                 }
             }
             Self::External(any) => ValueType::External(any.borrow_ref()?.type_id()),
-            Self::Ptr(ptr) => ValueType::External(ptr.borrow_ref()?.type_id()),
         })
     }
 
@@ -615,7 +577,6 @@ impl Value {
             Self::TypedTuple(tuple) => tuple.borrow_ref()?.type_info(),
             Self::VariantTuple(tuple) => tuple.borrow_ref()?.type_info(),
             Self::External(external) => ValueTypeInfo::External(external.borrow_ref()?.type_name()),
-            Self::Ptr(ptr) => ValueTypeInfo::External(ptr.borrow_ref()?.type_name()),
         })
     }
 }

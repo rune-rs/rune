@@ -1,4 +1,4 @@
-use crate::{AssertInVm, OwnedMut, Shared, ToValue, Value, ValueError, VmError};
+use crate::{Shared, ToValue, Value, ValueError, VmError};
 use pin_project::pin_project;
 use std::fmt;
 /// A future which can be unsafely polled.
@@ -32,20 +32,12 @@ impl Future {
     pub fn is_completed(&self) -> bool {
         self.future.is_none()
     }
+}
 
-    /// Poll the given future.
-    ///
-    /// # Safety
-    ///
-    /// Polling is unsafe, and requires a proof obligation that we are not
-    /// polling outside of the virtual machine.
-    ///
-    /// This can be done by wrapping a [StrongMut] in [AssertInVm] using
-    /// [StrongMut::assert_in_vm].
-    pub unsafe fn unsafe_poll(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<Value, VmError>> {
+impl future::Future for Future {
+    type Output = Result<Value, VmError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Value, VmError>> {
         let this = self.get_mut();
         let mut future = this.future.take().expect("futures can only be polled once");
 
@@ -73,26 +65,27 @@ impl fmt::Debug for Future {
     }
 }
 
-/// Future wrapper, used when selecting over a branch of futures.
+/// Future wrapper used to keep track of associated data.
 #[pin_project]
-pub struct SelectFuture<F> {
+pub struct SelectFuture<T, F> {
+    data: T,
     #[pin]
     future: F,
-    index: usize,
 }
 
-impl<F> SelectFuture<F> {
+impl<T, F> SelectFuture<T, F> {
     /// Construct a new select future.
-    pub fn new(future: F, index: usize) -> Self {
-        Self { future, index }
+    pub fn new(data: T, future: F) -> Self {
+        Self { data, future }
     }
 }
 
-impl<F> future::Future for SelectFuture<F>
+impl<T, F> future::Future for SelectFuture<T, F>
 where
+    T: Copy,
     F: future::Future<Output = Result<Value, VmError>>,
 {
-    type Output = Result<(usize, Value), VmError>;
+    type Output = Result<(T, Value), VmError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -100,23 +93,10 @@ where
 
         match result {
             Poll::Ready(result) => match result {
-                Ok(value) => Poll::Ready(Ok((*this.index, value))),
+                Ok(value) => Poll::Ready(Ok((*this.data, value))),
                 Err(e) => Poll::Ready(Err(e)),
             },
             Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-impl future::Future for AssertInVm<OwnedMut<Future>> {
-    type Output = Result<Value, VmError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Safety: we have a proof obligation that we are not being polled
-        // outside of the virtual machine by being wrapped in an `AssertInVm`.
-        unsafe {
-            let future = self.map_unchecked_mut(|this| &mut *this.inner);
-            future.unsafe_poll(cx)
         }
     }
 }

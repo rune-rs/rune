@@ -1,7 +1,10 @@
 use std::cell::Cell;
 use std::fmt;
+use std::future::Future;
 use std::marker;
 use std::ops;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use thiserror::Error;
 
 /// An error raised while downcasting.
@@ -342,5 +345,18 @@ where
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, fmt)
+    }
+}
+
+impl<F> Future for BorrowMut<'_, F>
+where
+    F: Unpin + Future,
+{
+    type Output = F::Output;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // NB: inner Future is Unpin.
+        let this = self.get_mut();
+        Pin::new(&mut **this).poll(cx)
     }
 }

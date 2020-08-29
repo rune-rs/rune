@@ -1,8 +1,8 @@
 //! String trait implementations.
 
 use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, RawPtr, ReflectValueType, Shared,
-    ToValue, UnsafeFromValue, UnsafeToValue, Value, ValueError, ValueType, ValueTypeInfo,
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared, ToValue,
+    UnsafeFromValue, Value, ValueError, ValueType, ValueTypeInfo,
 };
 
 impl ReflectValueType for String {
@@ -44,18 +44,6 @@ impl<'a> ReflectValueType for &'a mut str {
 impl ToValue for String {
     fn to_value(self) -> Result<Value, ValueError> {
         Ok(Value::String(Shared::new(self)))
-    }
-}
-
-impl UnsafeToValue for &'_ String {
-    unsafe fn unsafe_to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Ptr(Shared::new(RawPtr::from_ref(self))))
-    }
-}
-
-impl UnsafeToValue for &'_ mut String {
-    unsafe fn unsafe_to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Ptr(Shared::new(RawPtr::from_mut(self))))
     }
 }
 
@@ -109,11 +97,6 @@ impl UnsafeFromValue for &'_ str {
                 let (s, guard) = OwnedRef::into_raw(string);
                 ((*s).as_str(), Some(guard))
             }
-            Value::Ptr(ptr) => {
-                let ptr = ptr.downcast_owned_ref::<String>()?;
-                let (string, guard) = OwnedRef::into_raw(ptr);
-                ((*string).as_str(), Some(guard))
-            }
             Value::StaticString(string) => (string.as_ref().as_str(), None),
             actual => {
                 return Err(ValueError::ExpectedString {
@@ -138,11 +121,6 @@ impl UnsafeFromValue for &'_ String {
                 let string = string.owned_ref()?;
                 let (s, guard) = OwnedRef::into_raw(string);
                 (s, Some(guard))
-            }
-            Value::Ptr(ptr) => {
-                let ptr = ptr.downcast_owned_ref::<String>()?;
-                let (string, guard) = OwnedRef::into_raw(ptr);
-                (string, Some(guard))
             }
             Value::StaticString(string) => (string.as_ref(), None),
             actual => {
@@ -180,11 +158,6 @@ impl UnsafeFromValue for &'_ mut String {
                 let string = string.owned_mut()?;
                 let (s, guard) = OwnedMut::into_raw(string);
                 (s, guard)
-            }
-            Value::Ptr(ptr) => {
-                let ptr = ptr.downcast_owned_mut::<String>()?;
-                let (string, guard) = OwnedMut::into_raw(ptr);
-                (string, guard)
             }
             actual => {
                 return Err(ValueError::ExpectedString {
