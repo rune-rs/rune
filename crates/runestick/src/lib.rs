@@ -82,9 +82,7 @@ pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{Inst, OptionVariant, PanicReason, ResultVariant, TypeCheck};
 pub use crate::item::{Component, Item};
 pub use crate::panic::Panic;
-pub use crate::reflection::{
-    FromValue, ReflectValueType, ToValue, UnsafeFromValue, UnsafeIntoArgs, UnsafeToValue,
-};
+pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};

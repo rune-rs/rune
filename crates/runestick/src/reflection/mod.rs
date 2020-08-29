@@ -13,7 +13,7 @@ mod vec;
 /// Trait for converting arguments into values unsafely.
 ///
 /// This has the ability to encode references.
-pub trait UnsafeIntoArgs {
+pub trait IntoArgs {
     /// Encode arguments into a stack.
     ///
     /// # Safety
@@ -21,7 +21,7 @@ pub trait UnsafeIntoArgs {
     /// This has the ability to encode references into the stack.
     /// The caller must ensure that the stack is cleared with
     /// [clear][Stack::clear] before the references are no longer valid.
-    unsafe fn unsafe_into_args(self, stack: &mut Stack) -> Result<(), VmError>;
+    fn into_args(self, stack: &mut Stack) -> Result<(), VmError>;
 
     /// The number of arguments.
     fn count() -> usize;
@@ -45,25 +45,18 @@ pub trait ToValue: Sized {
     fn to_value(self) -> Result<Value, ValueError>;
 }
 
-/// Trait for unsafe conversion of value types into values.
-pub trait UnsafeToValue {
-    /// Convert into a value, loading it into the specified virtual machine.
-    ///
-    /// # Safety
-    ///
-    /// The caller of this function need to make sure that the value converted
-    /// doesn't outlive the virtual machine which uses it, since it might be
-    /// encoded as a raw pointer in the slots of the virtual machine.
-    unsafe fn unsafe_to_value(self) -> Result<Value, ValueError>;
-}
-
 /// Trait for converting from a value.
-pub trait FromValue: Sized {
+pub trait FromValue: 'static + Sized {
     /// Try to convert to the given type, from the given value.
     fn from_value(value: Value) -> Result<Self, ValueError>;
 }
 
 /// A potentially unsafe conversion for value conversion.
+///
+/// This trait is specifically implemented for reference types to allow
+/// registered functions to take references to their inner value.
+///
+/// This is specifically safe, because a guard is always held to the reference.
 pub trait UnsafeFromValue: Sized {
     /// The output type from the unsafe coercion.
     type Output: 'static;
@@ -99,7 +92,7 @@ pub trait UnsafeFromValue: Sized {
 
 impl<T> UnsafeFromValue for T
 where
-    T: 'static + FromValue,
+    T: FromValue,
 {
     type Output = T;
     type Guard = ();
@@ -110,15 +103,6 @@ where
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         output
-    }
-}
-
-impl<T> UnsafeToValue for T
-where
-    T: ToValue,
-{
-    unsafe fn unsafe_to_value(self) -> Result<Value, ValueError> {
-        self.to_value()
     }
 }
 
@@ -151,12 +135,12 @@ macro_rules! impl_into_args {
     };
 
     (@impl $count:expr, $({$ty:ident, $value:ident, $ignore_count:expr},)*) => {
-        impl<$($ty,)*> UnsafeIntoArgs for ($($ty,)*)
+        impl<$($ty,)*> IntoArgs for ($($ty,)*)
         where
-            $($ty: UnsafeToValue + std::fmt::Debug,)*
+            $($ty: ToValue + std::fmt::Debug,)*
         {
             #[allow(unused)]
-            unsafe fn unsafe_into_args(self, stack: &mut Stack) -> Result<(), VmError> {
+            fn into_args(self, stack: &mut Stack) -> Result<(), VmError> {
                 let ($($value,)*) = self;
                 impl_into_args!(@push stack, [$($value)*]);
                 Ok(())
@@ -170,7 +154,7 @@ macro_rules! impl_into_args {
 
     (@push $stack:ident, [] $($value:ident)*) => {
         $(
-            let $value = $value.unsafe_to_value()?;
+            let $value = $value.to_value()?;
             $stack.push($value);
         )*
     };

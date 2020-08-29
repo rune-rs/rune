@@ -1,10 +1,10 @@
 use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
-    AccessError, Bytes, CompilationUnit, Context, FromValue, Future, Hash, Inst, Integer,
+    AccessError, Bytes, CompilationUnit, Context, FromValue, Future, Hash, Inst, Integer, IntoArgs,
     IntoTypeHash, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError,
-    TypeCheck, TypedObject, TypedTuple, UnsafeIntoArgs, Value, ValueError, ValueTypeInfo,
-    VariantObject, VariantTuple,
+    TypeCheck, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo, VariantObject,
+    VariantTuple,
 };
 use std::any;
 use std::fmt;
@@ -481,14 +481,10 @@ impl Vm {
     }
 
     /// Call the given function in the given compilation unit.
-    pub fn call_function<'a, A: 'a, T, N>(
-        &'a mut self,
-        hash: N,
-        args: A,
-    ) -> Result<Task<'a, T>, VmError>
+    pub fn call_function<A, T, N>(&mut self, hash: N, args: A) -> Result<Task<'_, T>, VmError>
     where
         N: IntoTypeHash,
-        A: 'a + UnsafeIntoArgs,
+        A: IntoArgs,
         T: FromValue,
     {
         let hash = hash.into_type_hash();
@@ -519,9 +515,7 @@ impl Vm {
 
         // Safety: we bind the lifetime of the arguments to the outgoing task,
         // ensuring that the task won't outlive any references passed in.
-        unsafe {
-            args.unsafe_into_args(&mut self.stack)?;
-        }
+        args.into_args(&mut self.stack)?;
 
         Ok(Task {
             vm: self,
@@ -582,7 +576,7 @@ impl Vm {
     fn call_instance_fn<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
     where
         H: IntoTypeHash,
-        A: UnsafeIntoArgs,
+        A: IntoArgs,
     {
         let hash = Hash::instance_function(target.value_type()?, hash.into_type_hash());
 
@@ -598,12 +592,7 @@ impl Vm {
                 let offset = *offset;
                 let call = *call;
 
-                // Safety: This function can only be called inside the virtual machine,
-                // which is guaranteed to not outlive the stack. Allowing us to safely
-                // encode reference into it.
-                unsafe {
-                    args.unsafe_into_args(&mut self.stack)?;
-                }
+                args.into_args(&mut self.stack)?;
 
                 self.stack.push(target.clone());
                 self.call_offset_fn(offset, call, A::count())?;
@@ -616,12 +605,7 @@ impl Vm {
             None => return Ok(false),
         };
 
-        // Safety: This function can only be called inside the virtual machine,
-        // which is guaranteed to not outlive the stack. Allowing us to safely
-        // encode reference into it.
-        unsafe {
-            args.unsafe_into_args(&mut self.stack)?;
-        }
+        args.into_args(&mut self.stack)?;
 
         self.stack.push(target.clone());
         handler(&mut self.stack, 1)?;
