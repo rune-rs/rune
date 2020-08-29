@@ -1,6 +1,6 @@
 use crate::{
     AccessError, Any, Bytes, Future, Hash, OwnedMut, OwnedRef, Panic, RawOwnedMut, RawOwnedRef,
-    Shared, SharedPtr, ValueType, ValueTypeInfo,
+    RawPtr, Shared, ValueType, ValueTypeInfo,
 };
 use std::any;
 use std::fmt;
@@ -282,7 +282,7 @@ pub enum Value {
     External(Shared<Any>),
     /// A shared pointer. This is what's used when a reference is passed into
     /// the Vm, and must absolutely not outlive foreign function calls.
-    Ptr(Shared<SharedPtr>),
+    Ptr(Shared<RawPtr>),
 }
 
 impl Value {
@@ -295,7 +295,7 @@ impl Value {
     where
         T: any::Any,
     {
-        Self::Ptr(Shared::new(SharedPtr::from_ptr(ptr)))
+        Self::Ptr(Shared::new(RawPtr::from_ref(ptr)))
     }
 
     /// Construct a vector.
@@ -317,7 +317,7 @@ impl Value {
     where
         T: any::Any,
     {
-        Self::Ptr(Shared::new(SharedPtr::from_mut_ptr(ptr)))
+        Self::Ptr(Shared::new(RawPtr::from_mut(ptr)))
     }
 
     /// Try to coerce value into a unit.

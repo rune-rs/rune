@@ -1,6 +1,6 @@
 use crate::access::{Access, AccessError, BorrowMut, BorrowRef, RawBorrowedMut, RawBorrowedRef};
 use crate::any::Any;
-use crate::shared_ptr::SharedPtr;
+use crate::raw_ptr::RawPtr;
 use std::any;
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
@@ -439,15 +439,24 @@ impl Shared<Any> {
     }
 }
 
-impl Shared<SharedPtr> {
+impl Shared<RawPtr> {
     /// Get a shared value and downcast.
     ///
     /// # Safety
     ///
-    /// The validity of the pointer can only be relied on during the running of
-    /// the virtual machine.
+    /// The caller is responsible for making sure that the pointee is alive.
+    ///
     /// At other times, the caller is responsible for making sure that the
     /// pointee is alive.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::{Shared, RawPtr};
+    ///
+    /// let value = 42;
+    /// let ptr = Shared::new(RawPtr::from_ref(&value));
+    /// ```
     pub unsafe fn downcast_owned_ref<T>(self) -> Result<OwnedRef<T>, AccessError>
     where
         T: any::Any,
@@ -470,10 +479,10 @@ impl Shared<SharedPtr> {
     ///
     /// # Safety
     ///
-    /// The validity of the pointer can only be relied on during the running of
-    /// the virtual machine.
-    /// At other times, the caller is responsible for making sure that the
-    /// pointee is alive.
+    /// The caller is responsible for making sure that the pointee is alive.
+    ///
+    /// The validity of the pointer can only be relied on while the virtual
+    /// machine is running.
     pub unsafe fn downcast_owned_mut<T>(self) -> Result<OwnedMut<T>, AccessError>
     where
         T: any::Any,
@@ -516,6 +525,8 @@ where
     T: any::Any + fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Safety: by virtue of holding onto a shared we can safely access
+        // `inner` because it must outlive any `Shared` instances.
         unsafe {
             let inner = self.inner.as_ref();
             let mut debug = fmt.debug_struct("Shared");
@@ -665,6 +676,8 @@ impl<T: ?Sized> ops::Deref for OwnedRef<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
+        // Safety: An owned ref holds onto a hard pointer to the data,
+        // preventing it from being dropped for the duration of the owned ref.
         unsafe { &*self.data }
     }
 }
@@ -730,12 +743,16 @@ impl<T: ?Sized> ops::Deref for OwnedMut<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
+        // Safety: An owned mut holds onto a hard pointer to the data,
+        // preventing it from being dropped for the duration of the owned mut.
         unsafe { &*self.data }
     }
 }
 
 impl<T: ?Sized> ops::DerefMut for OwnedMut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        // Safety: An owned mut holds onto a hard pointer to the data,
+        // preventing it from being dropped for the duration of the owned mut.
         unsafe { &mut *self.data }
     }
 }
@@ -753,18 +770,4 @@ where
 pub struct RawOwnedMut {
     _guard: RawBorrowedMut,
     _inner: RawSharedBox,
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{Any, Shared};
-
-    #[derive(Debug)]
-    struct Foo(isize);
-
-    #[test]
-    fn test_leak_references() {
-        let thing = Shared::new(Any::new(Foo(0)));
-        let _ = thing.take().unwrap();
-    }
 }

@@ -31,3 +31,4 @@ pin-project = "0.4.23"
 
 [dev-dependencies]
 tokio = {version = "0.2.22", features = ["full"]}
+checkers = "0.5.6"

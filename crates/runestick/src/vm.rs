@@ -1,8 +1,8 @@
 use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
-    AccessError, Bytes, CompilationUnit, Component, Context, FromValue, Future, Hash, Inst,
-    Integer, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError, TypeCheck,
+    AccessError, Bytes, CompilationUnit, Context, FromValue, Future, Hash, Inst, Integer,
+    IntoFnHash, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError, TypeCheck,
     TypedObject, TypedTuple, UnsafeIntoArgs, Value, ValueError, ValueTypeInfo, VariantObject,
     VariantTuple,
 };
@@ -508,20 +508,19 @@ impl Vm {
     }
 
     /// Call the given function in the given compilation unit.
-    pub fn call_function<'a, A: 'a, T, I>(
+    pub fn call_function<'a, A: 'a, T, N>(
         &'a mut self,
         unit: Rc<CompilationUnit>,
         context: Rc<Context>,
-        name: I,
+        hash: N,
         args: A,
     ) -> Result<Task<'a, T>, VmError>
     where
-        I: IntoIterator,
-        I::Item: AsRef<Component>,
+        N: IntoFnHash,
         A: 'a + UnsafeIntoArgs,
         T: FromValue,
     {
-        let hash = Hash::function(name);
+        let hash = hash.into_fn_hash();
 
         let function = unit
             .lookup(hash)

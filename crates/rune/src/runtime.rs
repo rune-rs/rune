@@ -1,7 +1,6 @@
 use crate::compiler::{Options, Warning, Warnings};
 use crate::error::{CompileError, ConfigurationError, ParseError};
 use runestick::unit::{LinkerError, LinkerErrors, Span};
-use runestick::Component;
 use slab::Slab;
 use std::error::Error as _;
 use std::fmt;
@@ -152,16 +151,15 @@ impl Runtime {
     /// Call the given function in the given named file.
     ///
     /// Returns the associated task and the file id associated with the unit.
-    pub fn call_function<'a, A, T, I>(
+    pub fn call_function<'a, A, T, N>(
         &'a self,
         vm: &'a mut runestick::Vm,
         file_id: usize,
-        name: I,
+        hash: N,
         args: A,
     ) -> Result<runestick::Task<'a, T>, CallFunctionError>
     where
-        I: IntoIterator,
-        I::Item: AsRef<Component>,
+        N: runestick::IntoFnHash,
         A: 'a + runestick::UnsafeIntoArgs,
         T: runestick::FromValue,
     {
@@ -171,7 +169,7 @@ impl Runtime {
             .and_then(|file| file.unit.as_ref())
             .ok_or_else(|| CallFunctionError::MissingUnit { file_id })?;
 
-        Ok(vm.call_function(unit.clone(), self.context.clone(), name, args)?)
+        Ok(vm.call_function(unit.clone(), self.context.clone(), hash, args)?)
     }
 
     /// Register the runtime error.

@@ -1,4 +1,4 @@
-use crate::{Component, ValueType};
+use crate::{Component, Item, ValueType};
 use std::fmt;
 use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
 use twox_hash::XxHash64;
@@ -90,5 +90,17 @@ impl fmt::Display for Hash {
 impl fmt::Debug for Hash {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "Hash(0x{:x})", self.0)
+    }
+}
+
+/// Helper conversion into a function hash.
+pub trait IntoFnHash {
+    /// Generate a function hash.
+    fn into_fn_hash(self) -> Hash;
+}
+
+impl IntoFnHash for Item {
+    fn into_fn_hash(self) -> Hash {
+        Hash::function(self)
     }
 }

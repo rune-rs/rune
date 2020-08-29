@@ -1,7 +1,7 @@
 //! String trait implementations.
 
 use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared, SharedPtr,
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, RawPtr, ReflectValueType, Shared,
     ToValue, UnsafeFromValue, UnsafeToValue, Value, ValueError, ValueType, ValueTypeInfo,
 };
 
@@ -49,13 +49,13 @@ impl ToValue for String {
 
 impl UnsafeToValue for &'_ String {
     unsafe fn unsafe_to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Ptr(Shared::new(SharedPtr::from_ptr(self))))
+        Ok(Value::Ptr(Shared::new(RawPtr::from_ref(self))))
     }
 }
 
 impl UnsafeToValue for &'_ mut String {
     unsafe fn unsafe_to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Ptr(Shared::new(SharedPtr::from_mut_ptr(self))))
+        Ok(Value::Ptr(Shared::new(RawPtr::from_mut(self))))
     }
 }
 

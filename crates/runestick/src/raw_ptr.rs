@@ -2,20 +2,19 @@ use crate::access::AccessError;
 use std::any;
 use std::fmt;
 
-/// A container for a value which is solely being checked for access.
-pub struct SharedPtr {
+/// A wrapped raw pointer which has associated type information and knows if
+/// it's exclusive or shared.
+pub struct RawPtr {
     vtable: &'static Vtable,
     data: *const (),
 }
 
-impl SharedPtr {
-    /// Construct a new any from a pointer.
+impl RawPtr {
+    /// Construct a new shared raw pointer.
     ///
-    /// # Safety
-    ///
-    /// It is up to the caller to make sure that whatever data is pointed to is
-    /// valid for the duration of the shared pointer.
-    pub unsafe fn from_ptr<T>(data: &T) -> Self
+    /// This has no immediate safety implications, but future use of the now raw
+    /// pointer are unsafe since the data it points to might have been freed.
+    pub fn from_ref<T>(data: &T) -> Self
     where
         T: any::Any,
     {
@@ -30,13 +29,11 @@ impl SharedPtr {
         }
     }
 
-    /// Construct a new any from a exclusive pointer.
+    /// Construct a new exclusive raw pointer.
     ///
-    /// # Safety
-    ///
-    /// It is up to the caller to make sure that whatever data is pointed to is
-    /// valid for the duration of the shared pointer.
-    pub unsafe fn from_mut_ptr<T>(data: &mut T) -> Self
+    /// This has no immediate safety implications, but future use of the now raw
+    /// pointer are unsafe since the data it points to might have been freed.
+    pub fn from_mut<T>(data: &mut T) -> Self
     where
         T: any::Any,
     {
@@ -137,9 +134,9 @@ struct Vtable {
     type_id: TypeIdFn,
 }
 
-impl fmt::Debug for SharedPtr {
+impl fmt::Debug for RawPtr {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "SharedPtr({})", self.type_name())
+        write!(fmt, "RawPtr({})", self.type_name())
     }
 }
 
