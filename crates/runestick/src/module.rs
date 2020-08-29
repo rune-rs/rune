@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
 use crate::{
-    Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, Value, ValueType,
+    Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, ValueType,
     ValueTypeInfo, VmError,
 };
 use std::any::type_name;
@@ -529,17 +529,15 @@ macro_rules! impl_register {
                 // context of the virtual machine, which will provide
                 // exclusive thread-local access to itself while the future is
                 // being polled.
+                #[allow(unused_unsafe)]
                 let ret = unsafe {
                     impl_register!{@unsafe-vars $count, $($ty, $var, $num,)*}
 
-                    let future: Box<dyn future::Future<Output = Result<Value, VmError>>> = Box::new(async move {
+                    Future::new(async move {
                         let output = self($(<$ty>::to_arg($var.0),)*).await;
-
                         let value = output.to_value()?;
                         Ok(value)
-                    });
-
-                    Future::new_unchecked(Box::into_raw(future))
+                    })
                 };
 
                 impl_register!{@return stack, ret, Return}
@@ -628,13 +626,11 @@ macro_rules! impl_register {
                 let ret = unsafe {
                     impl_register!{@unsafe-inst-vars inst, $count, $($ty, $var, $num,)*}
 
-                    let future: Box<dyn future::Future<Output = Result<Value, VmError>>> = Box::new(async move {
+                    Future::new(async move {
                         let output = self(Instance::to_arg(inst.0), $(<$ty>::to_arg($var.0),)*).await;
                         let value = output.to_value()?;
                         Ok(value)
-                    });
-
-                    Future::new_unchecked(Box::into_raw(future))
+                    })
                 };
 
                 impl_register!{@return stack, ret, Return}

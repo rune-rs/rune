@@ -2,9 +2,9 @@ use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
     AccessError, Bytes, CompilationUnit, Component, Context, FromValue, Future, Hash, Inst,
-    Integer, Object, OptionVariant, OwnedMut, Panic, ResultVariant, Shared, Stack, StackError,
-    TypeCheck, TypedObject, TypedTuple, UnsafeIntoArgs, Value, ValueError, ValueTypeInfo,
-    VariantObject, VariantTuple,
+    Integer, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError, TypeCheck,
+    TypedObject, TypedTuple, UnsafeIntoArgs, Value, ValueError, ValueTypeInfo, VariantObject,
+    VariantTuple,
 };
 use std::any;
 use std::fmt;
@@ -578,8 +578,10 @@ impl Vm {
 
         match value {
             Value::Future(future) => {
-                let mut future = future.owned_mut()?;
-                let value = (&mut *future).await?;
+                // Safety: We are in the virtual machine.
+                let future = unsafe { future.owned_mut()?.assert_in_vm() };
+
+                let value = future.await?;
                 self.stack.push(value);
                 Ok(())
             }
@@ -592,7 +594,6 @@ impl Vm {
 
         let (branch, value) = {
             let mut futures = futures::stream::FuturesUnordered::new();
-            let mut guards = Vec::new();
 
             for index in 0..len {
                 let future = self.stack.pop()?.into_future()?;
@@ -605,11 +606,9 @@ impl Vm {
                 // Safety: we have exclusive access to the virtual machine, so we
                 // can assert that nothing is invalidate for the duration of this
                 // select.
-                unsafe {
-                    let (raw_future, guard) = OwnedMut::into_raw(future);
-                    futures.push(SelectFuture::new_unchecked(raw_future, index));
-                    guards.push(guard);
-                };
+                let future = unsafe { future.assert_in_vm() };
+
+                futures.push(SelectFuture::new(future, index));
             }
 
             // NB: nothing to poll.
@@ -619,7 +618,6 @@ impl Vm {
 
             let result = futures.next().await.unwrap();
             let (index, value) = result?;
-            drop(guards);
             (index, value)
         };
 
@@ -1884,20 +1882,12 @@ impl Vm {
         vm.stack.reverse();
         vm.ip = offset;
 
-        let future = Box::leak(Box::new(async move {
+        let future = Future::new(async move {
             let mut task = vm.run::<Value>(unit, context);
             task.run_to_completion().await
-        }));
+        });
 
-        // Safety: future is pushed to the stack, and the stack is purged when
-        // the task driving the virtual machine is dropped.
-        // This ensures that the future doesn't outlive any references it uses
-        // living on the stack.
-        unsafe {
-            let future = Future::new_unchecked(future);
-            self.stack.push(Value::Future(Shared::new(future)));
-        }
-
+        self.stack.push(Value::Future(Shared::new(future)));
         Ok(())
     }
 

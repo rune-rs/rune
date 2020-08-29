@@ -27,6 +27,7 @@ ryu = "1.0"
 futures = "0.3.5"
 # used to store errors raised in user-defined functions.
 anyhow = "1.0.32"
+pin-project = "0.4.23"
 
 [dev-dependencies]
 tokio = {version = "0.2.22", features = ["full"]}

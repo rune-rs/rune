@@ -10,6 +10,12 @@ use std::ops;
 use std::process;
 use std::ptr;
 
+/// A simple proof obligation that the caller has asserted that the element
+/// being interacted with is inside of the virtual machine.
+pub struct AssertInVm<T> {
+    pub(crate) inner: T,
+}
+
 /// A shared value.
 pub struct Shared<T: ?Sized> {
     inner: ptr::NonNull<SharedBox<T>>,
@@ -707,6 +713,16 @@ impl<T: ?Sized> OwnedMut<T> {
         };
 
         (this.data, guard)
+    }
+
+    /// Assert that the given element is inside of the virtual machine.
+    ///
+    /// # Safety
+    ///
+    /// This unlocks implementations which would otherwise be unsafe because
+    /// they make use of values on the stack which might be references.
+    pub unsafe fn assert_in_vm(self) -> AssertInVm<Self> {
+        AssertInVm { inner: self }
     }
 }
 

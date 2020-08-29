@@ -1,7 +1,7 @@
 //! The future package.
 
 use crate::future::SelectFuture;
-use crate::{ContextError, Future, Module, OwnedMut, Shared, Stack, Value, VmError};
+use crate::{ContextError, Future, Module, Shared, Stack, Value, VmError};
 
 async fn try_join_impl<'a, I, F>(values: I, len: usize, factory: F) -> Result<Value, VmError>
 where
@@ -11,7 +11,6 @@ where
     use futures::StreamExt as _;
 
     let mut futures = futures::stream::FuturesUnordered::new();
-    let mut guards = Vec::with_capacity(len);
     let mut results = Vec::with_capacity(len);
 
     for (index, value) in values.into_iter().enumerate() {
@@ -24,15 +23,12 @@ where
             }
         };
 
-        let (raw_future, guard) = OwnedMut::into_raw(future);
+        // Safety: this function is private, and only callable through the
+        // virtual machine.
+        let future = unsafe { future.assert_in_vm() };
 
-        // Safety: since we are in the virtual machine, anything the future
-        // references can be safely used.
-        unsafe {
-            futures.push(SelectFuture::new_unchecked(raw_future, index));
-            guards.push(guard);
-            results.push(Value::Unit);
-        }
+        futures.push(SelectFuture::new(future, index));
+        results.push(Value::Unit);
     }
 
     while !futures.is_empty() {

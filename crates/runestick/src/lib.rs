@@ -86,7 +86,7 @@ pub use crate::panic::Panic;
 pub use crate::reflection::{
     FromValue, ReflectValueType, ToValue, UnsafeFromValue, UnsafeIntoArgs, UnsafeToValue,
 };
-pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
+pub use crate::shared::{AssertInVm, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::shared_ptr::SharedPtr;
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
