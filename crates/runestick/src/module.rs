@@ -496,6 +496,7 @@ macro_rules! impl_register {
                 #[allow(unused)]
                 let ret = unsafe {
                     impl_register!{@unsafe-vars $count, $($ty, $var, $num,)*}
+
                     self($(<$ty>::to_arg($var.0),)*)
                 };
 

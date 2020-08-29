@@ -347,14 +347,14 @@ impl<'a, 'source> Compiler<'a, 'source> {
             ast::Expr::ExprIndexGet(expr_index_get) => {
                 self.compile_expr_index_get(expr_index_get, needs)?;
             }
-            ast::Expr::ExprBreak(b) => {
-                self.compile_expr_break(b, needs)?;
+            ast::Expr::ExprBreak(expr_break) => {
+                self.compile_expr_break(expr_break, needs)?;
             }
-            ast::Expr::ExprBlock(b) => {
-                self.compile_expr_block(b, needs)?;
+            ast::Expr::ExprBlock(expr_block) => {
+                self.compile_expr_block(expr_block, needs)?;
             }
-            ast::Expr::ExprReturn(return_) => {
-                self.compile_expr_return(return_, needs)?;
+            ast::Expr::ExprReturn(expr_return) => {
+                self.compile_expr_return(expr_return, needs)?;
             }
             ast::Expr::ExprMatch(expr_match) => {
                 self.compile_expr_match(expr_match, needs)?;
@@ -2339,8 +2339,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = pat.span();
         log::trace!("Pat => {:?}", self.source.source(span)?);
 
-        let true_label = self.asm.new_label("pat_true");
-
         match pat {
             ast::Pat::PatPath(path) => {
                 let span = path.span();
@@ -2367,33 +2365,22 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 return Ok(false);
             }
             ast::Pat::PatUnit(unit) => {
-                let span = unit.span();
-
                 load(&mut self.asm);
-                self.asm.push(Inst::IsUnit, span);
-                self.asm.jump_if(true_label, span);
+                self.asm.push(Inst::IsUnit, unit.span());
             }
             ast::Pat::PatByte(lit_byte) => {
-                let span = lit_byte.span();
-
                 let byte = lit_byte.resolve(self.source)?;
-
                 load(&mut self.asm);
-                self.asm.push(Inst::EqByte { byte }, span);
-                self.asm.jump_if(true_label, span);
+                self.asm.push(Inst::EqByte { byte }, lit_byte.span());
             }
             ast::Pat::PatChar(lit_char) => {
-                let span = lit_char.span();
-
                 let character = lit_char.resolve(self.source)?;
-
                 load(&mut self.asm);
-                self.asm.push(Inst::EqCharacter { character }, span);
-                self.asm.jump_if(true_label, span);
+                self.asm
+                    .push(Inst::EqCharacter { character }, lit_char.span());
             }
             ast::Pat::PatNumber(number_literal) => {
                 let span = number_literal.span();
-
                 let number = number_literal.resolve(self.source)?;
 
                 let integer = match number {
@@ -2405,19 +2392,13 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
                 load(&mut self.asm);
                 self.asm.push(Inst::EqInteger { integer }, span);
-
-                self.asm.jump_if(true_label, span);
             }
             ast::Pat::PatString(pat_string) => {
                 let span = pat_string.span();
-
                 let string = pat_string.resolve(self.source)?;
                 let slot = self.unit.borrow_mut().new_static_string(&*string)?;
-
                 load(&mut self.asm);
                 self.asm.push(Inst::EqStaticString { slot }, span);
-
-                self.asm.jump_if(true_label, span);
             }
             ast::Pat::PatVec(pat_vec) => {
                 self.compile_pat_vec(scope, pat_vec, false_label, &load)?;
@@ -2433,11 +2414,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
         }
 
-        // default method of cleaning up locals.
-        self.locals_pop(scope.local_var_count, span);
-        self.asm.jump(false_label, span);
-        self.asm.label(true_label)?;
-
+        self.asm
+            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
         Ok(true)
     }
 

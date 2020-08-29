@@ -418,7 +418,7 @@ pub struct Vm {
     /// The `branch` registry used for certain operations.
     branch: Option<usize>,
     /// Set if the next isntruction should not update the instruction pointer.
-    dont_update_ip: bool,
+    skip_ip: bool,
 }
 
 impl Vm {
@@ -432,7 +432,7 @@ impl Vm {
             exited: false,
             call_frames: Vec::new(),
             branch: None,
-            dont_update_ip: false,
+            skip_ip: false,
         }
     }
 
@@ -442,14 +442,6 @@ impl Vm {
     }
 
     /// Reset this virtual machine, freeing all memory used.
-    ///
-    /// # Safety
-    ///
-    /// Any unsafe references constructed through the following methods:
-    /// * [OwnedMut::into_raw]
-    /// * [BorrowRef::unsafe_into_ref]
-    ///
-    /// Must not outlive a call to clear, nor this virtual machine.
     pub fn clear(&mut self) {
         self.ip = 0;
         self.exited = false;
@@ -471,6 +463,7 @@ impl Vm {
         };
 
         self.ip = ip.ok_or_else(|| VmError::IpOutOfBounds)?;
+        self.skip_ip = true;
         Ok(())
     }
 
@@ -626,7 +619,6 @@ impl Vm {
 
         self.stack.popn(count)?;
         self.modify_ip(offset)?;
-        self.dont_update_ip = true;
         Ok(())
     }
 
@@ -638,7 +630,6 @@ impl Vm {
 
         self.stack.popn(count)?;
         self.modify_ip(offset)?;
-        self.dont_update_ip = true;
         Ok(())
     }
 
@@ -719,6 +710,7 @@ impl Vm {
         });
 
         self.ip = new_ip;
+        self.skip_ip = true;
         Ok(())
     }
 
@@ -892,7 +884,6 @@ impl Vm {
     #[inline]
     fn op_jump(&mut self, offset: isize) -> Result<(), VmError> {
         self.modify_ip(offset)?;
-        self.dont_update_ip = true;
         Ok(())
     }
 
@@ -901,7 +892,6 @@ impl Vm {
     fn op_jump_if(&mut self, offset: isize) -> Result<(), VmError> {
         if self.stack.pop()?.into_bool()? {
             self.modify_ip(offset)?;
-            self.dont_update_ip = true;
         }
 
         Ok(())
@@ -912,7 +902,6 @@ impl Vm {
     fn op_jump_if_not(&mut self, offset: isize) -> Result<(), VmError> {
         if !self.stack.pop()?.into_bool()? {
             self.modify_ip(offset)?;
-            self.dont_update_ip = true;
         }
 
         Ok(())
@@ -925,7 +914,6 @@ impl Vm {
             if current == branch {
                 self.branch = None;
                 self.modify_ip(offset)?;
-                self.dont_update_ip = true;
             }
         }
 
@@ -1498,6 +1486,14 @@ impl Vm {
         Ok(())
     }
 
+    #[inline]
+    fn op_bytes(&mut self, slot: usize) -> Result<(), VmError> {
+        let bytes = self.unit.lookup_bytes(slot)?.to_owned();
+        let value = Value::Bytes(Shared::new(Bytes::from_vec(bytes)));
+        self.stack.push(value);
+        Ok(())
+    }
+
     /// Optimize operation to perform string concatenation.
     #[inline]
     fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
@@ -1647,6 +1643,13 @@ impl Vm {
         Ok(())
     }
 
+    #[inline]
+    fn op_is_unit(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+        self.stack.push(Value::Bool(matches!(value, Value::Unit)));
+        Ok(())
+    }
+
     /// Test if the top of the stack is an error.
     #[inline]
     fn op_is_value(&mut self) -> Result<(), VmError> {
@@ -1683,6 +1686,42 @@ impl Vm {
         let a = self.stack.pop()?;
         let value = boolean_ops!(self, a || b);
         self.stack.push(Value::Bool(value));
+        Ok(())
+    }
+
+    #[inline]
+    fn op_eq_byte(&mut self, byte: u8) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        self.stack.push(Value::Bool(match value {
+            Value::Byte(actual) => actual == byte,
+            _ => false,
+        }));
+
+        Ok(())
+    }
+
+    #[inline]
+    fn op_eq_character(&mut self, character: char) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        self.stack.push(Value::Bool(match value {
+            Value::Char(actual) => actual == character,
+            _ => false,
+        }));
+
+        Ok(())
+    }
+
+    #[inline]
+    fn op_eq_integer(&mut self, integer: i64) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        self.stack.push(Value::Bool(match value {
+            Value::Integer(actual) => actual == integer,
+            _ => false,
+        }));
+
         Ok(())
     }
 
@@ -1883,7 +1922,6 @@ impl Vm {
             }
             UnitFnCall::Immediate => {
                 self.push_call_frame(offset, args)?;
-                self.dont_update_ip = true;
             }
         }
 
@@ -1891,7 +1929,7 @@ impl Vm {
     }
 
     /// Implementation of a function call.
-    fn call_fn(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
+    fn op_call(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
         match self.unit.lookup(hash) {
             Some(info) => {
                 if info.signature.args != args {
@@ -1992,7 +2030,7 @@ impl Vm {
             }
         };
 
-        self.call_fn(hash, args)?;
+        self.op_call(hash, args)?;
         Ok(())
     }
 
@@ -2033,7 +2071,7 @@ impl Vm {
                     self.op_div_assign(offset)?;
                 }
                 Inst::Call { hash, args } => {
-                    self.call_fn(hash, args)?;
+                    self.op_call(hash, args)?;
                 }
                 Inst::CallInstance { hash, args } => {
                     self.op_call_instance(hash, args)?;
@@ -2175,10 +2213,7 @@ impl Vm {
                     self.op_string(slot)?;
                 }
                 Inst::Bytes { slot } => {
-                    let bytes = self.unit.lookup_bytes(slot)?.to_owned();
-                    // TODO: do something sneaky to only allocate the static byte string once.
-                    let value = Value::Bytes(Shared::new(Bytes::from_vec(bytes)));
-                    self.stack.push(value);
+                    self.op_bytes(slot)?;
                 }
                 Inst::StringConcat { len, size_hint } => {
                     self.op_string_concat(len, size_hint)?;
@@ -2190,8 +2225,7 @@ impl Vm {
                     self.op_is_not()?;
                 }
                 Inst::IsUnit => {
-                    let value = self.stack.pop()?;
-                    self.stack.push(Value::Bool(matches!(value, Value::Unit)));
+                    self.op_is_unit()?;
                 }
                 Inst::IsValue => {
                     self.op_is_value()?;
@@ -2206,28 +2240,13 @@ impl Vm {
                     self.op_or()?;
                 }
                 Inst::EqByte { byte } => {
-                    let value = self.stack.pop()?;
-
-                    self.stack.push(Value::Bool(match value {
-                        Value::Byte(actual) => actual == byte,
-                        _ => false,
-                    }));
+                    self.op_eq_byte(byte)?;
                 }
                 Inst::EqCharacter { character } => {
-                    let value = self.stack.pop()?;
-
-                    self.stack.push(Value::Bool(match value {
-                        Value::Char(actual) => actual == character,
-                        _ => false,
-                    }));
+                    self.op_eq_character(character)?;
                 }
                 Inst::EqInteger { integer } => {
-                    let value = self.stack.pop()?;
-
-                    self.stack.push(Value::Bool(match value {
-                        Value::Integer(actual) => actual == integer,
-                        _ => false,
-                    }));
+                    self.op_eq_integer(integer)?;
                 }
                 Inst::EqStaticString { slot } => {
                     self.op_eq_static_string(slot)?;
@@ -2253,7 +2272,7 @@ impl Vm {
                 }
             }
 
-            if !std::mem::take(&mut self.dont_update_ip) {
+            if !std::mem::take(&mut self.skip_ip) {
                 self.ip += 1;
             }
 
@@ -2317,13 +2336,5 @@ where
         }
 
         Ok(None)
-    }
-}
-
-impl<T> Drop for Task<'_, T> {
-    fn drop(&mut self) {
-        // NB: this is critical for safety, since the stack might contain
-        // references passed in externally which are tied to our lifetime ('a).
-        self.vm.clear();
     }
 }
