@@ -387,6 +387,14 @@ impl CompilationUnit {
             Item::of(&["std", "dbg"]),
         );
         this.imports.insert(
+            (Item::empty(), Component::from("print")),
+            Item::of(&["std", "print"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("println")),
+            Item::of(&["std", "println"]),
+        );
+        this.imports.insert(
             (Item::empty(), Component::from("unit")),
             Item::of(&["std", "unit"]),
         );

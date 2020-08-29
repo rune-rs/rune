@@ -88,6 +88,25 @@ impl Stack {
         }
     }
 
+    /// Get the given offset, from the top.
+    ///
+    /// 0 mean the top of the stack, 1 means the value just before that.
+    pub fn from_top_mut(&mut self, offset: usize) -> Result<&mut Value, StackError> {
+        let n = match self.stack.len().checked_sub(offset) {
+            Some(n) => n,
+            None => return Err(StackError::StackOutOfBounds),
+        };
+
+        if n < self.stack_top {
+            return Err(StackError::StackOutOfBounds);
+        }
+
+        match self.stack.get_mut(n) {
+            Some(value) => Ok(value),
+            None => Err(StackError::StackOutOfBounds),
+        }
+    }
+
     /// Push an unmanaged reference.
     ///
     /// The reference count of the value being referenced won't be modified.

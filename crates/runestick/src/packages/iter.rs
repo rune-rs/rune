@@ -13,7 +13,9 @@ struct Rev {
     start: i64,
 }
 
-impl Rev {
+impl Iterator for Rev {
+    type Item = i64;
+
     fn next(&mut self) -> Option<i64> {
         if self.current <= self.start {
             return None;
@@ -38,6 +40,17 @@ impl Range {
         }
     }
 
+    fn rev(self) -> Rev {
+        Rev {
+            current: self.end,
+            start: self.current,
+        }
+    }
+}
+
+impl Iterator for Range {
+    type Item = i64;
+
     fn next(&mut self) -> Option<i64> {
         let value = self.current;
 
@@ -47,13 +60,6 @@ impl Range {
         }
 
         None
-    }
-
-    fn rev(self) -> Rev {
-        Rev {
-            current: self.end,
-            start: self.current,
-        }
     }
 }
 
@@ -66,8 +72,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty(&["Range"]).build::<Range>()?;
     module.ty(&["Rev"]).build::<Rev>()?;
     module.function(&["range"], Range::new)?;
+    module.inst_fn(crate::INTO_ITER, Range::into_iter)?;
     module.inst_fn(crate::NEXT, Range::next)?;
     module.inst_fn("rev", Range::rev)?;
-    module.inst_fn("next", Rev::next)?;
+    module.inst_fn(crate::INTO_ITER, Rev::into_iter)?;
+    module.inst_fn(crate::NEXT, Rev::next)?;
     Ok(module)
 }

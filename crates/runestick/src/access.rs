@@ -219,23 +219,6 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
         }
     }
 
-    /// Deconstruct the ref guard into its raw parts.
-    ///
-    /// # Safety
-    ///
-    /// The returned pointer must not outlive the associated guard, since this
-    /// prevents other uses of the underlying data which is incompatible with
-    /// the current.
-    ///
-    /// The returned pointer also must not outlive the VM that produced.
-    /// Nor a call to clear the VM using [clear], since this will free up the
-    /// data being referenced.
-    ///
-    /// [clear]: crate::Vm::clear
-    pub(crate) fn into_raw(this: Self) -> (*const T, RawBorrowedRef) {
-        (this.data, this.guard)
-    }
-
     /// Try to map the interior reference the reference.
     pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<BorrowRef<'a, U>, E>
     where
@@ -321,11 +304,6 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
             guard,
             _marker: marker::PhantomData,
         }
-    }
-
-    /// Deconstruct the mut guard into its raw parts.
-    pub(crate) unsafe fn into_raw(this: Self) -> (*mut T, RawBorrowedMut) {
-        (this.data, this.guard)
     }
 
     /// Map the mutable reference.

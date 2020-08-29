@@ -1,6 +1,6 @@
 use crate::{
-    FromValue, Object, OwnedRef, RawOwnedRef, ReflectValueType, Shared, ToValue, UnsafeFromValue,
-    Value, ValueError, ValueType, ValueTypeInfo,
+    FromValue, Object, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared,
+    ToValue, UnsafeFromValue, Value, ValueError, ValueType, ValueTypeInfo,
 };
 
 impl<T> ReflectValueType for Object<T> {
@@ -56,7 +56,7 @@ where
     }
 }
 
-impl<'a> UnsafeFromValue for &'a Object<Value> {
+impl UnsafeFromValue for &'_ Object<Value> {
     type Output = *const Object<Value>;
     type Guard = RawOwnedRef;
 
@@ -68,6 +68,21 @@ impl<'a> UnsafeFromValue for &'a Object<Value> {
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         &*output
+    }
+}
+
+impl UnsafeFromValue for &'_ mut Object<Value> {
+    type Output = *mut Object<Value>;
+    type Guard = RawOwnedMut;
+
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+        let object = value.into_object()?;
+        let object = object.owned_mut()?;
+        Ok(OwnedMut::into_raw(object))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &mut *output
     }
 }
 

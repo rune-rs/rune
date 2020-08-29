@@ -38,6 +38,8 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("push", Vec::<Value>::push)?;
     module.inst_fn("clear", Vec::<Value>::clear)?;
     module.inst_fn("pop", Vec::<Value>::pop)?;
+    module.inst_fn(crate::INTO_ITER, vec_iter)?;
     module.inst_fn(crate::NEXT, Iter::next)?;
+    module.inst_fn(crate::INTO_ITER, Iter::into_iter)?;
     Ok(module)
 }

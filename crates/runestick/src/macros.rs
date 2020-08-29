@@ -83,7 +83,7 @@ macro_rules! decl_internal {
 
         impl<'a> $crate::UnsafeFromValue for &'a $external {
             type Output = *const $external;
-            type Guard = $crate::RawRef;
+            type Guard = $crate::RawOwnedRef;
 
             unsafe fn unsafe_from_value(
                 value: $crate::Value,
@@ -98,7 +98,7 @@ macro_rules! decl_internal {
 
         impl<'a> $crate::UnsafeFromValue for &'a mut $external {
             type Output = *mut $external;
-            type Guard = $crate::RawMut;
+            type Guard = $crate::RawOwnedMut;
 
             unsafe fn unsafe_from_value(
                 value: $crate::Value,

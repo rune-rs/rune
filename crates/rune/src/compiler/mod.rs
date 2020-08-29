@@ -24,9 +24,6 @@ pub use self::query::Query;
 use self::scopes::{Scope, ScopeGuard, Scopes};
 pub use self::warning::{Warning, Warnings};
 
-/// Instance function to use for iteration.
-const ITERATOR_NEXT: &str = "next";
-
 type Result<T, E = CompileError> = std::result::Result<T, E>;
 
 /// A needs hint for an expression.
@@ -856,11 +853,20 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let total_var_count = self.scopes.last(span)?.total_var_count;
 
-        let mut loop_scope = self.scopes.last(span)?.child();
-        let iter_offset = loop_scope.decl_anon(span);
-        let loop_scope_expected = self.scopes.push(loop_scope);
-
-        self.compile_expr(&*expr_for.iter, Needs::Value)?;
+        let (iter_offset, loop_scope_expected) = {
+            let mut loop_scope = self.scopes.last(span)?.child();
+            self.compile_expr(&*expr_for.iter, Needs::Value)?;
+            self.asm.push(
+                Inst::CallInstance {
+                    hash: *runestick::INTO_ITER,
+                    args: 0,
+                },
+                span,
+            );
+            let iter_offset = loop_scope.decl_anon(span);
+            let loop_scope_expected = self.scopes.push(loop_scope);
+            (iter_offset, loop_scope_expected)
+        };
 
         let loop_count = self.loops.push(Loop {
             label: expr_for.label.map(|(label, _)| label),
@@ -881,7 +887,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         // Declare storage for memoized `next` instance fn.
         let next_offset = if self.options.memoize_instance_fn {
-            let offset = self.scopes.last_mut(span)?.decl_anon(expr_for.iter.span());
+            let span = expr_for.iter.span();
+
+            let offset = self.scopes.last_mut(span)?.decl_anon(span);
             let hash = *runestick::NEXT;
 
             // Declare the named loop variable and put it in the scope.
@@ -889,11 +897,10 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 Inst::Copy {
                     offset: iter_offset,
                 },
-                expr_for.iter.span(),
+                span,
             );
 
-            self.asm
-                .push(Inst::LoadInstanceFn { hash }, expr_for.iter.span());
+            self.asm.push(Inst::LoadInstanceFn { hash }, span);
             Some(offset)
         } else {
             None
@@ -935,8 +942,13 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 expr_for.iter.span(),
             );
 
-            let hash = Hash::of(ITERATOR_NEXT);
-            self.asm.push(Inst::CallInstance { hash, args: 0 }, span);
+            self.asm.push(
+                Inst::CallInstance {
+                    hash: *runestick::NEXT,
+                    args: 0,
+                },
+                span,
+            );
             self.asm.push(
                 Inst::Replace {
                     offset: binding_offset,

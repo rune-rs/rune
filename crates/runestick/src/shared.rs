@@ -342,7 +342,7 @@ impl Shared<Any> {
     }
 
     /// Get a shared value and downcast.
-    pub fn downcast_own_ref<T>(self) -> Result<OwnedRef<T>, AccessError>
+    pub fn downcast_owned_ref<T>(self) -> Result<OwnedRef<T>, AccessError>
     where
         T: any::Any,
     {
@@ -399,7 +399,7 @@ impl Shared<Any> {
     }
 
     /// Get a shared value and downcast.
-    pub fn downcast_own_mut<T>(self) -> Result<OwnedMut<T>, AccessError>
+    pub fn downcast_owned_mut<T>(self) -> Result<OwnedMut<T>, AccessError>
     where
         T: any::Any,
     {
@@ -442,14 +442,22 @@ impl Shared<SharedPtr> {
     /// the virtual machine.
     /// At other times, the caller is responsible for making sure that the
     /// pointee is alive.
-    pub unsafe fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, AccessError>
+    pub unsafe fn downcast_owned_ref<T>(self) -> Result<OwnedRef<T>, AccessError>
     where
         T: any::Any,
     {
         let inner = self.inner.as_ref();
         let guard = inner.access.shared()?;
         let data = (*inner.data.get()).downcast_borrow_ref::<T>()?;
-        Ok(BorrowRef::from_raw(data, guard))
+
+        let this = ManuallyDrop::new(self);
+
+        Ok(OwnedRef {
+            data,
+            guard,
+            inner: RawSharedBox::from_inner(this.inner),
+            _marker: marker::PhantomData,
+        })
     }
 
     /// Get a exclusive value and downcast.
@@ -460,14 +468,22 @@ impl Shared<SharedPtr> {
     /// the virtual machine.
     /// At other times, the caller is responsible for making sure that the
     /// pointee is alive.
-    pub unsafe fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AccessError>
+    pub unsafe fn downcast_owned_mut<T>(self) -> Result<OwnedMut<T>, AccessError>
     where
         T: any::Any,
     {
         let inner = self.inner.as_ref();
         let guard = inner.access.exclusive()?;
         let data = (*inner.data.get()).downcast_borrow_mut::<T>()?;
-        Ok(BorrowMut::from_raw(data, guard))
+
+        let this = ManuallyDrop::new(self);
+
+        Ok(OwnedMut {
+            data,
+            guard,
+            inner: RawSharedBox::from_inner(this.inner),
+            _marker: marker::PhantomData,
+        })
     }
 }
 

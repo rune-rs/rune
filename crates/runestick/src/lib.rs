@@ -74,8 +74,8 @@ pub use crate::any::Any;
 pub use crate::bytes::Bytes;
 pub use crate::context::{Context, ContextError};
 pub use crate::context::{
-    ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, FMT_DISPLAY, INDEX_GET, INDEX_SET, MUL, MUL_ASSIGN, NEXT,
-    SUB, SUB_ASSIGN,
+    ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, FMT_DISPLAY, INDEX_GET, INDEX_SET, INTO_ITER, MUL,
+    MUL_ASSIGN, NEXT, SUB, SUB_ASSIGN,
 };
 pub use crate::error::{Error, Result};
 pub use crate::future::Future;
@@ -91,8 +91,8 @@ pub use crate::shared_ptr::SharedPtr;
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
 pub use crate::value::{
-    Integer, Object, RawMut, RawRef, TypedObject, TypedTuple, Value, ValueError, VariantObject,
-    VariantTuple, VecTuple,
+    Integer, Object, TypedObject, TypedTuple, Value, ValueError, VariantObject, VariantTuple,
+    VecTuple,
 };
 pub use crate::vm::{Task, Vm, VmError};
 

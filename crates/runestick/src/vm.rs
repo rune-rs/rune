@@ -22,6 +22,9 @@ pub enum VmError {
         /// The reason for the panic.
         reason: Panic,
     },
+    /// Error raised when external format function results in error.
+    #[error("failed to format argument")]
+    FormatError,
     /// Error raised when interacting with the stack.
     #[error("stack error: {error}")]
     StackError {
@@ -75,6 +78,9 @@ pub enum VmError {
     /// Instruction pointer went out-of-bounds.
     #[error("instruction pointer is out-of-bounds")]
     IpOutOfBounds,
+    /// Tried to await something on the stack which can't be await:ed.
+    #[error("unsupported target for .await")]
+    UnsupportedAwait,
     /// Unsupported binary operation.
     #[error("unsupported vm operation `{lhs} {op} {rhs}`")]
     UnsupportedBinaryOperation {
@@ -561,12 +567,76 @@ impl Vm {
         }
     }
 
+    async fn try_join_impl<'a, I>(&mut self, values: I) -> Result<bool, VmError>
+    where
+        I: IntoIterator<Item = Value>,
+    {
+        use futures::StreamExt as _;
+
+        let mut futures = futures::stream::FuturesUnordered::new();
+        let mut guards = Vec::new();
+
+        for (index, value) in values.into_iter().enumerate() {
+            let future = match value {
+                Value::Future(future) => future.owned_mut()?,
+                _ => return Ok(false),
+            };
+
+            let (raw_future, guard) = OwnedMut::into_raw(future);
+
+            // Safety: since we are in the virtual machine, anything the future
+            // references can be safely used.
+            unsafe {
+                futures.push(SelectFuture::new_unchecked(raw_future, index));
+                guards.push(guard);
+                self.stack.push(Value::Unit);
+            }
+        }
+
+        while !futures.is_empty() {
+            let (index, value) = futures.next().await.unwrap()?;
+            *self.stack.from_top_mut(index + 1)? = value;
+        }
+
+        Ok(true)
+    }
+
     async fn op_await(&mut self) -> Result<(), VmError> {
-        let future = self.stack.pop()?.into_future()?;
-        let mut future = future.owned_mut()?;
-        let value = (&mut *future).await?;
-        self.stack.push(value);
-        Ok(())
+        let value = self.stack.pop()?;
+
+        loop {
+            match value {
+                Value::Future(future) => {
+                    let mut future = future.owned_mut()?;
+                    let value = (&mut *future).await?;
+                    self.stack.push(value);
+                    return Ok(());
+                }
+                Value::Tuple(tuple) => {
+                    let tuple = tuple.borrow_ref()?;
+
+                    if !self.try_join_impl(tuple.iter().cloned()).await? {
+                        break;
+                    }
+
+                    self.op_tuple(tuple.len())?;
+                    return Ok(());
+                }
+                Value::Vec(vec) => {
+                    let vec = vec.borrow_ref()?;
+
+                    if !self.try_join_impl(vec.iter().cloned()).await? {
+                        break;
+                    }
+
+                    self.op_vec(vec.len())?;
+                    return Ok(());
+                }
+                _ => break,
+            }
+        }
+
+        Err(VmError::UnsupportedAwait)
     }
 
     async fn op_select(&mut self, len: usize) -> Result<(), VmError> {
@@ -1523,7 +1593,11 @@ impl Vm {
                         });
                     }
 
-                    self.stack.pop()?;
+                    let value = self.pop_decode::<fmt::Result>()?;
+
+                    if let Err(fmt::Error) = value {
+                        return Err(VmError::FormatError);
+                    }
                 }
             }
         }

@@ -1,9 +1,8 @@
 //! String trait implementations.
 
 use crate::{
-    BorrowMut, BorrowRef, FromValue, OwnedMut, OwnedRef, RawMut, RawRef, ReflectValueType, Shared,
-    SharedPtr, ToValue, UnsafeFromValue, UnsafeToValue, Value, ValueError, ValueType,
-    ValueTypeInfo,
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared, SharedPtr,
+    ToValue, UnsafeFromValue, UnsafeToValue, Value, ValueError, ValueType, ValueTypeInfo,
 };
 
 impl ReflectValueType for String {
@@ -101,7 +100,7 @@ impl FromValue for Box<str> {
 
 impl UnsafeFromValue for &'_ str {
     type Output = *const str;
-    type Guard = Option<RawRef>;
+    type Guard = Option<RawOwnedRef>;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         Ok(match value {
@@ -111,8 +110,8 @@ impl UnsafeFromValue for &'_ str {
                 ((*s).as_str(), Some(guard.into()))
             }
             Value::Ptr(ptr) => {
-                let ptr = ptr.downcast_borrow_ref::<String>()?;
-                let (string, guard) = BorrowRef::into_raw(ptr);
+                let ptr = ptr.downcast_owned_ref::<String>()?;
+                let (string, guard) = OwnedRef::into_raw(ptr);
                 ((*string).as_str(), Some(guard.into()))
             }
             Value::StaticString(string) => (string.as_ref().as_str(), None),
@@ -131,7 +130,7 @@ impl UnsafeFromValue for &'_ str {
 
 impl UnsafeFromValue for &'_ String {
     type Output = *const String;
-    type Guard = Option<RawRef>;
+    type Guard = Option<RawOwnedRef>;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         Ok(match value {
@@ -141,8 +140,8 @@ impl UnsafeFromValue for &'_ String {
                 (s, Some(guard.into()))
             }
             Value::Ptr(ptr) => {
-                let ptr = ptr.downcast_borrow_ref::<String>()?;
-                let (string, guard) = BorrowRef::into_raw(ptr);
+                let ptr = ptr.downcast_owned_ref::<String>()?;
+                let (string, guard) = OwnedRef::into_raw(ptr);
                 (string, Some(guard.into()))
             }
             Value::StaticString(string) => (string.as_ref(), None),
@@ -173,7 +172,7 @@ impl ReflectValueType for &'_ String {
 
 impl UnsafeFromValue for &'_ mut String {
     type Output = *mut String;
-    type Guard = RawMut;
+    type Guard = RawOwnedMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
         Ok(match value {
@@ -183,8 +182,8 @@ impl UnsafeFromValue for &'_ mut String {
                 (s, guard.into())
             }
             Value::Ptr(ptr) => {
-                let ptr = ptr.downcast_borrow_mut::<String>()?;
-                let (string, guard) = BorrowMut::into_raw(ptr);
+                let ptr = ptr.downcast_owned_mut::<String>()?;
+                let (string, guard) = OwnedMut::into_raw(ptr);
                 (string, guard.into())
             }
             actual => {

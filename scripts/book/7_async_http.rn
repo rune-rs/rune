@@ -1,0 +1,18 @@
+fn main() {
+    let a = http::get("https://google.com");
+    let b = http::get("https://amazon.com");
+
+    loop {
+        let res = select {
+            res = a => res?,
+            res = b => res?,
+        };
+
+        match res {
+            () => break,
+            result => {
+                println(`{result.status()}`);
+            }
+        }
+    }
+}

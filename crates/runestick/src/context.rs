@@ -595,12 +595,6 @@ impl std::ops::Deref for FnHash {
     }
 }
 
-/// The function to call to continue iteration.
-pub const NEXT: FnHash = FnHash {
-    name: "next",
-    hash: Hash(0xc3cde069de2ba320),
-};
-
 /// The function to access an index.
 pub const INDEX_GET: FnHash = FnHash {
     name: "index_get",
@@ -665,4 +659,16 @@ pub const DIV_ASSIGN: FnHash = FnHash {
 pub const FMT_DISPLAY: FnHash = FnHash {
     name: "fmt",
     hash: Hash(0x811b62957ea9d9f9),
+};
+
+/// Function used to convert an argument into an iterator.
+pub const INTO_ITER: FnHash = FnHash {
+    name: "into_iter",
+    hash: Hash(0x15a85c8d774b4065),
+};
+
+/// The function to call to continue iteration.
+pub const NEXT: FnHash = FnHash {
+    name: "next",
+    hash: Hash(0xc3cde069de2ba320),
 };

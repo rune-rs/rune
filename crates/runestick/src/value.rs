@@ -1,7 +1,6 @@
 use crate::{
-    AccessError, Any, BorrowMut, BorrowRef, Bytes, Future, Hash, OwnedMut, OwnedRef, Panic,
-    RawBorrowedMut, RawBorrowedRef, RawOwnedMut, RawOwnedRef, Shared, SharedPtr, ValueType,
-    ValueTypeInfo,
+    AccessError, Any, Bytes, Future, Hash, OwnedMut, OwnedRef, Panic, RawOwnedMut, RawOwnedRef,
+    Shared, SharedPtr, ValueType, ValueTypeInfo,
 };
 use std::any;
 use std::fmt;
@@ -486,19 +485,19 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_external_ref<T>(self) -> Result<(*const T, RawRef), ValueError>
+    pub unsafe fn unsafe_into_external_ref<T>(self) -> Result<(*const T, RawOwnedRef), ValueError>
     where
         T: any::Any,
     {
         match self {
             Self::External(external) => {
-                let external = external.downcast_own_ref::<T>()?;
+                let external = external.downcast_owned_ref::<T>()?;
                 let (data, guard) = OwnedRef::into_raw(external);
                 Ok((data, guard.into()))
             }
             Self::Ptr(ptr) => {
-                let ptr = ptr.downcast_borrow_ref::<T>()?;
-                let (data, guard) = BorrowRef::into_raw(ptr);
+                let ptr = ptr.downcast_owned_ref::<T>()?;
+                let (data, guard) = OwnedRef::into_raw(ptr);
                 Ok((data, guard.into()))
             }
             actual => Err(ValueError::ExpectedExternal {
@@ -517,19 +516,19 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_external_mut<T>(self) -> Result<(*mut T, RawMut), ValueError>
+    pub unsafe fn unsafe_into_external_mut<T>(self) -> Result<(*mut T, RawOwnedMut), ValueError>
     where
         T: any::Any,
     {
         match self {
             Self::External(external) => {
-                let external = external.downcast_own_mut::<T>()?;
+                let external = external.downcast_owned_mut::<T>()?;
                 let (data, guard) = OwnedMut::into_raw(external);
                 Ok((data, guard.into()))
             }
             Self::Ptr(ptr) => {
-                let ptr = ptr.downcast_borrow_mut::<T>()?;
-                let (data, guard) = BorrowMut::into_raw(ptr);
+                let ptr = ptr.downcast_owned_mut::<T>()?;
+                let (data, guard) = OwnedMut::into_raw(ptr);
                 Ok((data, guard.into()))
             }
             actual => Err(ValueError::ExpectedExternal {
@@ -608,46 +607,6 @@ impl Value {
             Self::External(external) => ValueTypeInfo::External(external.borrow_ref()?.type_name()),
             Self::Ptr(ptr) => ValueTypeInfo::External(ptr.borrow_ref()?.type_name()),
         })
-    }
-}
-
-/// A raw guard for a reference to a value.
-pub enum RawRef {
-    /// The guard from an internally held value.
-    RawOwnedRef(RawOwnedRef),
-    /// The guard from an external reference.
-    RawBorrowedRef(RawBorrowedRef),
-}
-
-impl From<RawOwnedRef> for RawRef {
-    fn from(guard: RawOwnedRef) -> Self {
-        Self::RawOwnedRef(guard)
-    }
-}
-
-impl From<RawBorrowedRef> for RawRef {
-    fn from(guard: RawBorrowedRef) -> Self {
-        Self::RawBorrowedRef(guard)
-    }
-}
-
-/// A raw guard for a reference to a value.
-pub enum RawMut {
-    /// The guard from an internally held value.
-    RawOwnedMut(RawOwnedMut),
-    /// The guard from an external reference.
-    RawBorrowedMut(RawBorrowedMut),
-}
-
-impl From<RawOwnedMut> for RawMut {
-    fn from(guard: RawOwnedMut) -> Self {
-        Self::RawOwnedMut(guard)
-    }
-}
-
-impl From<RawBorrowedMut> for RawMut {
-    fn from(guard: RawBorrowedMut) -> Self {
-        Self::RawBorrowedMut(guard)
     }
 }
 

@@ -14,3 +14,4 @@
   - [Tuples](./4_4_tuples.md)
 - [Structs](./5_structs.md)
 - [Enums](./6_enums.md)
+- [Asynchronous Programming](./7_async.md)
