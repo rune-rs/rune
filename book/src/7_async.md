@@ -100,6 +100,8 @@ produce a `Future`.
 In order to get the result of this `Future` it must be `.await`-ed.
 
 ```rust,noplaypen
+use std::future;
+
 struct Timeout;
 
 async fn request(timeout) {
@@ -115,7 +117,7 @@ async fn request(timeout) {
 }
 
 fn main() {
-    for result in [request(1000), request(4000)].await {
+    for result in future::join([request(1000), request(4000)]).await {
         match result {
             Ok(result) => println(`Result: {result.status()}`),
             Err(Timeout) => println("Request timed out!"),

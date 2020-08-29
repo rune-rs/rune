@@ -241,6 +241,7 @@ impl Context {
         this.install(crate::packages::object::module()?)?;
         this.install(crate::packages::result::module()?)?;
         this.install(crate::packages::option::module()?)?;
+        this.install(crate::packages::future::module()?)?;
         Ok(this)
     }
 

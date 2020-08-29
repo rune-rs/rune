@@ -1,4 +1,4 @@
-use crate::Value;
+use crate::{Shared, Value};
 use thiserror::Error;
 
 /// An error raised when interacting with the stack.
@@ -155,6 +155,31 @@ impl Stack {
     /// Iterate over the stack.
     pub fn iter(&self) -> impl Iterator<Item = &Value> + '_ {
         self.stack.iter()
+    }
+
+    /// Push a tuple, based on the current stack.
+    pub fn push_tuple(&mut self, count: usize) -> Result<(), StackError> {
+        let mut tuple = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            tuple.push(self.pop()?);
+        }
+
+        let tuple = tuple.into_boxed_slice();
+        self.push(Value::Tuple(Shared::new(tuple)));
+        Ok(())
+    }
+
+    /// Push a tuple, based on the current stack.
+    pub fn push_vec(&mut self, count: usize) -> Result<(), StackError> {
+        let mut vec = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            vec.push(self.pop()?);
+        }
+
+        self.push(Value::Vec(Shared::new(vec)));
+        Ok(())
     }
 
     /// Modify stack top by subtracting the given count from it while checking

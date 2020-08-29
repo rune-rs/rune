@@ -298,6 +298,16 @@ impl Value {
         Self::Ptr(Shared::new(SharedPtr::from_ptr(ptr)))
     }
 
+    /// Construct a vector.
+    pub fn vec(vec: Vec<Value>) -> Self {
+        Self::Vec(Shared::new(vec))
+    }
+
+    /// Construct a tuple.
+    pub fn tuple(vec: Vec<Value>) -> Self {
+        Self::Tuple(Shared::new(vec.into_boxed_slice()))
+    }
+
     /// Cosntruct a value from a raw mutable pointer.
     ///
     /// # Safety

@@ -13,6 +13,14 @@ pub struct Future {
 }
 
 impl Future {
+    /// Construct a new wrapped future.
+    pub fn new<T>(f: T) -> Self
+    where
+        T: 'static + future::Future<Output = Result<Value, VmError>>,
+    {
+        unsafe { Self::new_unchecked(Box::into_raw(Box::new(f))) }
+    }
+
     /// Construct a new future wrapper, ignoring the constraints of the incoming
     /// lifetime.
     ///
