@@ -252,8 +252,14 @@ pub enum ParseError {
         span: Span,
     },
     /// Tried to resolve an illegal number literal.
-    #[error("illegal number literal")]
-    IllegalNumberLiteral {
+    #[error("number literal not valid")]
+    BadNumberLiteral {
+        /// Span of the illegal number literal.
+        span: Span,
+    },
+    /// Number out of bounds.
+    #[error("number literal out of bounds `-9223372036854775808` to `9223372036854775807`")]
+    BadNumberOutOfBounds {
         /// Span of the illegal number literal.
         span: Span,
     },
@@ -355,7 +361,8 @@ impl ParseError {
             Self::PrecedenceGroupRequired { span, .. } => span,
             Self::BadSlice { span, .. } => span,
             Self::BadEscapeSequence { span, .. } => span,
-            Self::IllegalNumberLiteral { span, .. } => span,
+            Self::BadNumberLiteral { span, .. } => span,
+            Self::BadNumberOutOfBounds { span, .. } => span,
             Self::BadCharLiteral { span, .. } => span,
             Self::BadByteLiteral { span, .. } => span,
             Self::UnicodeEscapeNotSupported { span, .. } => span,

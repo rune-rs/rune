@@ -123,30 +123,19 @@ impl<'a> Lexer<'a> {
     fn next_number_literal<I>(
         &mut self,
         it: &mut I,
+        c: char,
         start: usize,
+        is_negative: bool,
     ) -> Result<Option<Token>, ParseError>
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
-        let mut is_negative = false;
         let mut is_fractional = false;
 
-        if let Some((_, '-')) = it.clone().next() {
-            is_negative = true;
-            it.next();
-        }
-
-        let number = {
-            let mut sub = it.clone();
-
+        let number = if let ('0', Some((_, m))) = (c, it.clone().next()) {
             // This loop is useful.
             #[allow(clippy::never_loop)]
             loop {
-                let m = match (sub.next(), sub.next()) {
-                    (Some((_, '0')), Some((_, m))) => m,
-                    _ => break LitNumber::Decimal,
-                };
-
                 let number = match m {
                     'x' => LitNumber::Hex,
                     'b' => LitNumber::Binary,
@@ -154,11 +143,12 @@ impl<'a> Lexer<'a> {
                     _ => break LitNumber::Decimal,
                 };
 
-                // consume two character.
-                it.next();
+                // consume character.
                 it.next();
                 break number;
             }
+        } else {
+            LitNumber::Decimal
         };
 
         self.cursor = loop {
@@ -564,8 +554,9 @@ impl<'a> Lexer<'a> {
                             it.next();
                             break Kind::Rocket;
                         }
-                        ('-', '0'..='9') => {
-                            return self.next_number_literal(&mut it, start);
+                        ('-', c @ '0'..='9') => {
+                            it.next();
+                            return self.next_number_literal(&mut it, c, start, true);
                         }
                         ('b', '\'') => {
                             it.next();
@@ -608,7 +599,7 @@ impl<'a> Lexer<'a> {
                         return self.next_ident(&mut it, start);
                     }
                     '0'..='9' => {
-                        return self.next_number_literal(&mut it, start);
+                        return self.next_number_literal(&mut it, c, start, false);
                     }
                     '"' => {
                         return self.next_lit_str(&mut it, start);

@@ -16,6 +16,8 @@ pub enum Number {
 /// A number literal.
 #[derive(Debug, Clone)]
 pub struct LitNumber {
+    /// If the number is negative.
+    is_negative: bool,
     /// Indicates if the number is fractional.
     is_fractional: bool,
     /// The kind of the number literal.
@@ -52,10 +54,12 @@ impl Parse for LitNumber {
 
         Ok(match token.kind {
             Kind::LitNumber {
+                is_negative,
                 is_fractional,
                 number,
                 ..
             } => LitNumber {
+                is_negative,
                 is_fractional,
                 number,
                 token,
@@ -74,23 +78,22 @@ impl<'a> Resolve<'a> for LitNumber {
     type Output = Number;
 
     fn resolve(&self, source: Source<'a>) -> Result<Number, ParseError> {
+        use num::{Num as _, ToPrimitive as _};
+        use std::ops::Neg as _;
         use std::str::FromStr as _;
 
-        let mut string = source.source(self.token.span)?;
-        let mut is_negative = false;
+        let span = self.token.span;
 
-        if string.starts_with('-') {
-            string = &string[1..];
-            is_negative = true;
-        }
+        let string = source.source(span)?;
+
+        let string = if self.is_negative {
+            &string[1..]
+        } else {
+            string
+        };
 
         if self.is_fractional {
-            let mut number = f64::from_str(string).map_err(err_span(self.token.span))?;
-
-            if is_negative {
-                number = -number;
-            }
-
+            let number = f64::from_str(string).map_err(err_span(span))?;
             return Ok(Number::Float(number));
         }
 
@@ -101,17 +104,23 @@ impl<'a> Resolve<'a> for LitNumber {
             token::LitNumber::Decimal => (0, 10),
         };
 
-        let mut number =
-            i64::from_str_radix(&string[s..], radix).map_err(err_span(self.token.span))?;
+        let number = num::BigUint::from_str_radix(&string[s..], radix).map_err(err_span(span))?;
 
-        if is_negative {
-            number = -number;
-        }
+        let number = if self.is_negative {
+            num::BigInt::from(number).neg().to_i64()
+        } else {
+            number.to_i64()
+        };
+
+        let number = match number {
+            Some(n) => n,
+            None => return Err(ParseError::BadNumberOutOfBounds { span }),
+        };
 
         return Ok(Number::Integer(number));
 
         fn err_span<E>(span: Span) -> impl Fn(E) -> ParseError {
-            move |_| ParseError::IllegalNumberLiteral { span }
+            move |_| ParseError::BadNumberLiteral { span }
         }
     }
 }

@@ -385,41 +385,6 @@ macro_rules! numeric_ops {
     }
 }
 
-/// Generate a primitive combination of operations.
-macro_rules! assign_ops {
-    (
-        $vm:expr,
-        $hash:expr,
-        $op:tt,
-        $a:ident . $checked_op:ident ( $b:ident ),
-        $error:ident
-    ) => {
-        match ($a, $b) {
-            (Value::Integer($a), Value::Integer($b)) => Value::Integer({
-                match $a.$checked_op($b) {
-                    Some(value) => value,
-                    None => return Err(VmError::$error),
-                }
-            }),
-            (Value::Float($a), Value::Float($b)) => Value::Float({
-                check_float!($a $op $b, $error)
-            }),
-            (lhs, rhs) => {
-                if !$vm.call_instance_fn(&lhs, $hash, (&rhs,))? {
-                    return Err(VmError::UnsupportedBinaryOperation {
-                        op: stringify!($op),
-                        lhs: lhs.type_info()?,
-                        rhs: rhs.type_info()?,
-                    });
-                }
-
-                $vm.stack.pop()?;
-                lhs
-            }
-        }
-    }
-}
-
 /// A call frame.
 ///
 /// This is used to store the return point after an instruction has been run.
@@ -1075,15 +1040,91 @@ impl Vm {
         Ok(())
     }
 
+    fn internal_op_assign<H, E, I, F>(
+        &mut self,
+        offset: usize,
+        hash: H,
+        error: E,
+        integer_op: I,
+        float_op: F,
+    ) -> Result<(), VmError>
+    where
+        H: IntoTypeHash,
+        E: Copy + FnOnce() -> VmError,
+        I: FnOnce(i64, i64) -> Option<i64>,
+        F: FnOnce(f64, f64) -> f64,
+    {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.at_offset_mut(offset)?;
+
+        let (lhs, rhs) = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => {
+                let out = integer_op(*lhs, rhs).ok_or_else(error)?;
+                *lhs = out;
+                return Ok(());
+            }
+            (Value::Float(lhs), Value::Float(rhs)) => {
+                let out = float_op(*lhs, rhs);
+                *lhs = out;
+                return Ok(());
+            }
+            (lhs, rhs) => (lhs.clone(), rhs),
+        };
+
+        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+            return Err(VmError::UnsupportedBinaryOperation {
+                op: stringify!($op),
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
+            });
+        }
+
+        self.stack.pop()?;
+        Ok(())
+    }
+
+    #[inline]
+    fn op_add_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        self.internal_op_assign(
+            offset,
+            crate::ADD_ASSIGN,
+            || VmError::Overflow,
+            i64::checked_add,
+            std::ops::Add::add,
+        )
+    }
+
+    #[inline]
+    fn op_sub_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        self.internal_op_assign(
+            offset,
+            crate::SUB_ASSIGN,
+            || VmError::Underflow,
+            i64::checked_sub,
+            std::ops::Sub::sub,
+        )
+    }
+
+    #[inline]
+    fn op_mul_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        self.internal_op_assign(
+            offset,
+            crate::MUL_ASSIGN,
+            || VmError::Overflow,
+            i64::checked_mul,
+            std::ops::Mul::mul,
+        )
+    }
+
     #[inline]
     fn op_div_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        let arg = self.stack.pop()?;
-        let value = self.stack.at_offset(offset)?.clone();
-        let value = assign_ops! {
-            self, crate::DIV_ASSIGN, /, value.checked_div(arg), DivideByZero
-        };
-        *self.stack.at_offset_mut(offset)? = value;
-        Ok(())
+        self.internal_op_assign(
+            offset,
+            crate::DIV_ASSIGN,
+            || VmError::DivideByZero,
+            i64::checked_div,
+            std::ops::Div::div,
+        )
     }
 
     /// Perform an index set operation.
@@ -1994,35 +2035,19 @@ impl Vm {
                     self.op_add()?;
                 }
                 Inst::AddAssign { offset } => {
-                    let arg = self.stack.pop()?;
-                    let value = self.stack.at_offset(offset)?.clone();
-                    let value = assign_ops! {
-                        self, crate::ADD_ASSIGN, +, value.checked_add(arg), Overflow
-                    };
-
-                    *self.stack.at_offset_mut(offset)? = value;
+                    self.op_add_assign(offset)?;
                 }
                 Inst::Sub => {
                     self.op_sub()?;
                 }
                 Inst::SubAssign { offset } => {
-                    let arg = self.stack.pop()?;
-                    let value = self.stack.at_offset(offset)?.clone();
-                    let value = assign_ops! {
-                        self, crate::SUB_ASSIGN, -, value.checked_sub(arg), Underflow
-                    };
-                    *self.stack.at_offset_mut(offset)? = value;
+                    self.op_sub_assign(offset)?;
                 }
                 Inst::Mul => {
                     self.op_mul()?;
                 }
                 Inst::MulAssign { offset } => {
-                    let arg = self.stack.pop()?;
-                    let value = self.stack.at_offset(offset)?.clone();
-                    let value = assign_ops! {
-                        self, crate::MUL_ASSIGN, *, value.checked_mul(arg), Overflow
-                    };
-                    *self.stack.at_offset_mut(offset)? = value;
+                    self.op_mul_assign(offset)?;
                 }
                 Inst::Div => {
                     self.op_div()?;
