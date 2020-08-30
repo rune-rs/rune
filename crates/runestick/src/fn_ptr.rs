@@ -39,9 +39,9 @@ impl FnPtr {
                 args.into_args(vm.stack_mut())?;
 
                 match offset.call {
-                    UnitFnCall::Immediate => vm.run().run_to_completion().await?,
+                    UnitFnCall::Immediate => vm.run().run_to_completion_unwind().await?,
                     UnitFnCall::Async => Value::Future(Shared::new(Future::new(async move {
-                        Ok(vm.run().run_to_completion().await?)
+                        vm.run().run_to_completion_unwind().await
                     }))),
                 }
             }
@@ -60,9 +60,9 @@ impl FnPtr {
                     .push(Value::Tuple(offset.environment.clone()));
 
                 match offset.call {
-                    UnitFnCall::Immediate => vm.run().run_to_completion().await?,
+                    UnitFnCall::Immediate => vm.run().run_to_completion_unwind().await?,
                     UnitFnCall::Async => Value::Future(Shared::new(Future::new(async move {
-                        Ok(vm.run().run_to_completion().await?)
+                        vm.run().run_to_completion_unwind().await
                     }))),
                 }
             }
@@ -118,7 +118,7 @@ impl FnPtr {
                     Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
                 vm.set_ip(offset.offset);
 
-                let future = Future::new(async move { Ok(vm.run().run_to_completion().await?) });
+                let future = Future::new(async move { vm.run().run_to_completion_unwind().await });
 
                 match offset.call {
                     UnitFnCall::Immediate => future.await?,
@@ -151,7 +151,7 @@ impl FnPtr {
                     Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
                 vm.set_ip(offset.offset);
 
-                let future = Future::new(async move { Ok(vm.run().run_to_completion().await?) });
+                let future = Future::new(async move { vm.run().run_to_completion_unwind().await });
 
                 match offset.call {
                     UnitFnCall::Immediate => future.await?,

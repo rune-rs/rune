@@ -234,12 +234,12 @@ async fn main() -> Result<()> {
 
     let result = match result {
         Ok(result) => result,
-        Err(e) => {
-            let ip = task.vm().ip();
-            drop(task);
+        Err(error) => {
+            let (error, ip) = error.from_unwinded();
+            let ip = ip.unwrap_or(task.vm().ip());
 
             // NB: this only works if we have debuginfo.
-            match runtime.register_vm_error(ip, file_id, e) {
+            match runtime.register_vm_error(ip, file_id, error) {
                 Ok(()) => {
                     use rune::termcolor;
                     let mut writer =

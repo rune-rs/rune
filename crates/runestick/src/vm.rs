@@ -22,6 +22,17 @@ pub enum VmError {
         /// The reason for the panic.
         reason: Panic,
     },
+    /// A vm error that was propagated from somewhere else.
+    ///
+    /// In order to represent this, we need to preserve the instruction pointer
+    /// and eventually unit from where the error happened.
+    #[error("{error} (at {ip})")]
+    UnwindedVmError {
+        /// The actual error.
+        error: Box<VmError>,
+        /// The instruction pointer of where the original error happened.
+        ip: usize,
+    },
     /// Error raised when external format function results in error.
     #[error("failed to format argument")]
     FormatError,
@@ -312,6 +323,25 @@ impl VmError {
     {
         Self::CustomPanic {
             reason: reason.to_string(),
+        }
+    }
+
+    /// Convert into an unwinded vm error.
+    pub fn into_unwinded(self, ip: usize) -> Self {
+        match self {
+            Self::UnwindedVmError { error, ip } => Self::UnwindedVmError { error, ip },
+            error => Self::UnwindedVmError {
+                error: Box::new(error),
+                ip,
+            },
+        }
+    }
+
+    /// Unpack an unwinded trace, if it is present.
+    pub fn from_unwinded(self) -> (Self, Option<usize>) {
+        match self {
+            Self::UnwindedVmError { error, ip } => (*error, Some(ip)),
+            error => (error, None),
         }
     }
 }
@@ -1960,10 +1990,7 @@ impl Vm {
 
         vm.ip = offset;
 
-        let future = Future::new(async move {
-            let mut task = vm.run::<Value>();
-            task.run_to_completion().await
-        });
+        let future = Future::new(async move { vm.run().run_to_completion_unwind().await });
 
         self.stack.push(Value::Future(Shared::new(future)));
         Ok(())
@@ -2455,6 +2482,15 @@ where
         let value = self.vm.pop_decode()?;
         debug_assert!(self.vm.stack.is_empty());
         Ok(value)
+    }
+
+    /// Run to completion implementation to use internally.
+    #[inline]
+    pub(crate) async fn run_to_completion_unwind(&mut self) -> Result<T, VmError> {
+        match self.run_to_completion().await {
+            Ok(value) => Ok(value),
+            Err(error) => Err(error.into_unwinded(self.vm.ip())),
+        }
     }
 
     /// Step the given task until the return value is available.

@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
 use crate::{
-    Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, ValueType,
-    ValueTypeInfo, VmError,
+    Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, ValueError,
+    ValueType, ValueTypeInfo, VmError,
 };
 use std::any::type_name;
 use std::future;
@@ -644,6 +644,9 @@ macro_rules! impl_register {
     (@return $stack:ident, $ret:ident, $ty:ty) => {
         let $ret = match $ret.to_value() {
             Ok($ret) => $ret,
+            Err(ValueError::Panic { reason }) => {
+                return Err(VmError::Panic { reason });
+            },
             Err(error) => {
                 return Err(VmError::ReturnConversionError {
                     error,
@@ -660,6 +663,9 @@ macro_rules! impl_register {
         $(
             let $var = match <$ty>::unsafe_from_value($var) {
                 Ok(v) => v,
+                Err(ValueError::Panic { reason }) => {
+                    return Err(VmError::Panic { reason });
+                },
                 Err(error) => {
                     return Err(VmError::ArgumentConversionError {
                         error,
@@ -675,6 +681,9 @@ macro_rules! impl_register {
     (@unsafe-inst-vars $inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         let $inst = match Instance::unsafe_from_value($inst) {
             Ok(v) => v,
+            Err(ValueError::Panic { reason }) => {
+                return Err(VmError::Panic { reason });
+            },
             Err(error) => {
                 return Err(VmError::ArgumentConversionError {
                     error,
@@ -687,6 +696,9 @@ macro_rules! impl_register {
         $(
             let $var = match <$ty>::unsafe_from_value($var) {
                 Ok(v) => v,
+                Err(ValueError::Panic { reason }) => {
+                    return Err(VmError::Panic { reason });
+                },
                 Err(error) => {
                     return Err(VmError::ArgumentConversionError {
                         error,

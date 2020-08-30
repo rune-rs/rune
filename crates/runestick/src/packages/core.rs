@@ -3,7 +3,7 @@
 //! Contains functions such as:
 //! * `dbg` to debug print to stdout.
 
-use crate::{ContextError, Module, Value};
+use crate::{ContextError, Module, Panic, Value};
 use std::io;
 use std::io::Write as _;
 
@@ -26,6 +26,10 @@ pub fn module() -> Result<Module, ContextError> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock();
         writeln!(stdout, "{}", message)
+    })?;
+
+    module.function(&["panic"], |message: &str| {
+        Err::<(), _>(Panic::custom(message.to_owned()))
     })?;
 
     module.raw_fn(&["dbg"], |stack, args| {
