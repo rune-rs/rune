@@ -162,6 +162,11 @@ pub enum Inst {
         /// The frame offset to assign to.
         offset: usize,
     },
+    /// Encode a function pointer on the stack.
+    Fn {
+        /// The hash to construct a function pointer from.
+        hash: Hash,
+    },
     /// Perform a function call.
     ///
     /// It will construct a new stack frame which includes the last `args`
@@ -901,6 +906,9 @@ impl fmt::Display for Inst {
             }
             Self::CallInstance { hash, args } => {
                 write!(fmt, "call-instance {}, {}", hash, args)?;
+            }
+            Self::Fn { hash } => {
+                write!(fmt, "fn {}", hash)?;
             }
             Self::CallFn { args } => {
                 write!(fmt, "call-fn {}", args)?;

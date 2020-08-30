@@ -29,7 +29,7 @@ type Result<T, E = CompileError> = std::result::Result<T, E>;
 /// A needs hint for an expression.
 /// This is used to contextually determine what an expression is expected to
 /// produce.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum Needs {
     Type,
     Value,
@@ -182,7 +182,10 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
     /// Access the meta for the given language item.
     pub fn lookup_meta(&mut self, name: &Item, span: Span) -> Result<Option<Meta>, CompileError> {
+        log::trace!("lookup meta: {}", name);
+
         if let Some(meta) = self.context.lookup_meta(name) {
+            log::trace!("found in context: {:?}", meta);
             return Ok(Some(meta));
         }
 
@@ -191,8 +194,10 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
             loop {
                 current.push(local);
+                log::trace!("lookup meta (query): {}", current);
 
                 if let Some(meta) = self.query.query_meta(&current, span)? {
+                    log::trace!("found in query: {:?}", meta);
                     return Ok(Some(meta));
                 }
 
@@ -202,7 +207,14 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     break;
                 }
             }
-        } else if let Some(meta) = self.query.query_meta(name, span)? {
+
+            return Ok(None);
+        }
+
+        log::trace!("lookup meta (query): {}", name);
+
+        if let Some(meta) = self.query.query_meta(name, span)? {
+            log::trace!("found in query: {:?}", meta);
             return Ok(Some(meta));
         }
 
@@ -1375,6 +1387,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
     /// Compile an item.
     fn compile_meta(&mut self, meta: &Meta, span: Span, needs: Needs) -> Result<()> {
+        log::trace!("Meta => {:?} {:?}", meta, needs);
+
         match (needs, meta) {
             (Needs::Value, Meta::MetaTuple { tuple }) if tuple.args == 0 => {
                 let hash = Hash::type_hash(&tuple.item);
@@ -1383,6 +1397,18 @@ impl<'a, 'source> Compiler<'a, 'source> {
             (Needs::Value, Meta::MetaTupleVariant { tuple, .. }) if tuple.args == 0 => {
                 let hash = Hash::type_hash(&tuple.item);
                 self.asm.push(Inst::Call { hash, args: 0 }, span);
+            }
+            (Needs::Value, Meta::MetaTuple { tuple }) => {
+                let hash = Hash::type_hash(&tuple.item);
+                self.asm.push(Inst::Fn { hash }, span);
+            }
+            (Needs::Value, Meta::MetaTupleVariant { tuple, .. }) => {
+                let hash = Hash::type_hash(&tuple.item);
+                self.asm.push(Inst::Fn { hash }, span);
+            }
+            (Needs::Value, Meta::MetaFunction { item }) => {
+                let hash = Hash::type_hash(item);
+                self.asm.push(Inst::Fn { hash }, span);
             }
             (_, meta) => {
                 let hash = Hash::type_hash(meta.item());

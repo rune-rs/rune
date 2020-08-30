@@ -1,8 +1,8 @@
 use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
-    AccessError, Bytes, CompilationUnit, Context, FromValue, Future, Hash, Inst, Integer, IntoArgs,
-    IntoTypeHash, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError,
+    AccessError, Bytes, CompilationUnit, Context, FnPtr, FromValue, Future, Hash, Inst, Integer,
+    IntoArgs, IntoTypeHash, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError,
     TypeCheck, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo, VariantObject,
     VariantTuple,
 };
@@ -424,16 +424,36 @@ pub struct Vm {
 impl Vm {
     /// Construct a new runestick virtual machine.
     pub const fn new(context: Rc<Context>, unit: Rc<CompilationUnit>) -> Self {
+        Self::new_with_stack(context, unit, Stack::new())
+    }
+
+    /// Construct a new runestick virtual machine.
+    pub const fn new_with_stack(
+        context: Rc<Context>,
+        unit: Rc<CompilationUnit>,
+        stack: Stack,
+    ) -> Self {
         Self {
             context,
             unit,
             ip: 0,
-            stack: Stack::new(),
+            stack,
             exited: false,
             call_frames: Vec::new(),
             branch: None,
             skip_ip: false,
         }
+    }
+
+    /// Set  the current instruction pointer.
+    #[inline]
+    pub fn set_ip(&mut self, ip: usize) {
+        self.ip = ip;
+    }
+
+    /// Get the stack mutably.
+    pub fn stack_mut(&mut self) -> &mut Stack {
+        &mut self.stack
     }
 
     /// Access the underlying unit of the virtual machine.
@@ -1928,6 +1948,39 @@ impl Vm {
         Ok(())
     }
 
+    fn op_fn(&mut self, hash: Hash) -> Result<(), VmError> {
+        let fn_ptr = match self.unit.lookup(hash) {
+            Some(info) => {
+                let args = info.signature.args;
+
+                match &info.kind {
+                    UnitFnKind::Offset { offset, call } => FnPtr::from_offset(
+                        self.context.clone(),
+                        self.unit.clone(),
+                        *offset,
+                        *call,
+                        args,
+                    ),
+                    UnitFnKind::Tuple { hash } => FnPtr::from_tuple(*hash, args),
+                    UnitFnKind::TupleVariant { enum_hash, hash } => {
+                        FnPtr::from_variant_tuple(*enum_hash, *hash, args)
+                    }
+                }
+            }
+            None => {
+                let handler = self
+                    .context
+                    .lookup(hash)
+                    .ok_or_else(|| VmError::MissingFunction { hash })?;
+
+                FnPtr::from_handler(handler.clone())
+            }
+        };
+
+        self.stack.push(Value::FnPtr(Shared::new(fn_ptr)));
+        Ok(())
+    }
+
     /// Implementation of a function call.
     fn op_call(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
         match self.unit.lookup(hash) {
@@ -2019,11 +2072,16 @@ impl Vm {
         Ok(())
     }
 
-    fn op_call_fn(&mut self, args: usize) -> Result<(), VmError> {
+    async fn op_call_fn(&mut self, args: usize) -> Result<(), VmError> {
         let function = self.stack.pop()?;
 
         let hash = match function {
             Value::Type(hash) => hash,
+            Value::FnPtr(fn_ptr) => {
+                let fn_ptr = fn_ptr.owned_ref()?;
+                fn_ptr.call_with_stack(&mut self.stack, args).await?;
+                return Ok(());
+            }
             actual => {
                 let actual_type = actual.type_info()?;
                 return Err(VmError::UnsupportedCallFn { actual_type });
@@ -2070,6 +2128,9 @@ impl Vm {
                 Inst::DivAssign { offset } => {
                     self.op_div_assign(offset)?;
                 }
+                Inst::Fn { hash } => {
+                    self.op_fn(hash)?;
+                }
                 Inst::Call { hash, args } => {
                     self.op_call(hash, args)?;
                 }
@@ -2077,7 +2138,7 @@ impl Vm {
                     self.op_call_instance(hash, args)?;
                 }
                 Inst::CallFn { args } => {
-                    self.op_call_fn(args)?;
+                    self.op_call_fn(args).await?;
                 }
                 Inst::LoadInstanceFn { hash } => {
                     self.op_load_instance_fn(hash)?;

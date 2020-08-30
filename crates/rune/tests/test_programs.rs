@@ -1,6 +1,6 @@
 use futures_executor::block_on;
-use runestick::Item;
 use runestick::VmError::*;
+use runestick::{FnPtr, Item, Value};
 use std::rc::Rc;
 
 async fn run_main<T>(source: &str) -> Result<T, Box<dyn std::error::Error>>
@@ -1519,4 +1519,55 @@ fn test_div() {
         "#,
         DivideByZero => {}
     );
+}
+
+#[test]
+fn test_fn_ptr() {
+    // ptr to dynamic function.
+    let fn_ptr = test! {
+        FnPtr => r#"
+        fn foo(a, b) {
+            a + b
+        }
+
+        fn main() {
+            foo
+        }
+        "#
+    };
+
+    assert_eq!(block_on(fn_ptr.call::<_, i64>((1i64, 3i64))).unwrap(), 4i64);
+    assert!(block_on(fn_ptr.call::<_, i64>((1i64,))).is_err());
+
+    // ptr to native function
+    let fn_ptr = test! {
+        FnPtr => r#"fn main() { Vec::new }"#
+    };
+
+    let value: Vec<Value> = block_on(fn_ptr.call(())).unwrap();
+    assert_eq!(value.len(), 0);
+
+    // ptr to dynamic function.
+    let fn_ptr = test! {
+        FnPtr => r#"
+        enum Custom { A(a) }
+        fn main() { Custom::A }
+        "#
+    };
+
+    assert!(block_on(fn_ptr.call::<_, Value>(())).is_err());
+    let value: Value = block_on(fn_ptr.call((1i64,))).unwrap();
+    assert!(matches!(value, Value::VariantTuple(..)));
+
+    // ptr to dynamic function.
+    let fn_ptr = test! {
+        FnPtr => r#"
+        struct Custom(a)
+        fn main() { Custom }
+        "#
+    };
+
+    assert!(block_on(fn_ptr.call::<_, Value>(())).is_err());
+    let value: Value = block_on(fn_ptr.call((1i64,))).unwrap();
+    assert!(matches!(value, Value::TypedTuple(..)));
 }

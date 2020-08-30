@@ -104,7 +104,10 @@ impl<'a> Query<'a> {
                 let mut indexer = FunctionIndexer { items, query: self };
 
                 indexer.index(&f)?;
-                self.functions.push_back((item, Function::new(f)));
+                self.functions.push_back((item.clone(), Function::new(f)));
+                self.unit
+                    .borrow_mut()
+                    .new_item(Meta::MetaFunction { item })?;
             }
         }
 

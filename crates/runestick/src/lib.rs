@@ -45,6 +45,7 @@ mod macros;
 mod access;
 mod bytes;
 mod error;
+mod fn_ptr;
 mod future;
 mod hash;
 mod inst;
@@ -77,6 +78,7 @@ pub use crate::context::{
     MUL_ASSIGN, NEXT, SUB, SUB_ASSIGN,
 };
 pub use crate::error::{Error, Result};
+pub use crate::fn_ptr::FnPtr;
 pub use crate::future::Future;
 pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{Inst, OptionVariant, PanicReason, ResultVariant, TypeCheck};

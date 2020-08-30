@@ -17,7 +17,7 @@ impl<T> ReflectValueType for Option<T> {
     }
 }
 
-impl<'a, T> ReflectValueType for &'a Option<T> {
+impl<T> ReflectValueType for &Option<T> {
     type Owned = Option<T>;
 
     fn value_type() -> ValueType {
@@ -56,7 +56,7 @@ where
     }
 }
 
-impl<'a> UnsafeFromValue for &'a Option<Value> {
+impl UnsafeFromValue for &Option<Value> {
     type Output = *const Option<Value>;
     type Guard = RawOwnedRef;
 

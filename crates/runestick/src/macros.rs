@@ -100,3 +100,22 @@ macro_rules! decl_internal {
         }
     };
 }
+
+/// Declare value types for the specific kind.
+macro_rules! value_types {
+    ($ident:ident, $owned:ty => $($ty:ty),+) => {
+        $(
+            impl $crate::ReflectValueType for $ty {
+                type Owned = $owned;
+
+                fn value_type() -> $crate::ValueType {
+                    $crate::ValueType::$ident
+                }
+
+                fn value_type_info() -> $crate::ValueTypeInfo {
+                    $crate::ValueTypeInfo::$ident
+                }
+            }
+        )*
+    };
+}

@@ -22,7 +22,7 @@ impl<T, E> ReflectValueType for Result<T, E> {
     }
 }
 
-impl<'a, T, E> ReflectValueType for &'a Result<T, E> {
+impl<T, E> ReflectValueType for &Result<T, E> {
     type Owned = Result<T, E>;
 
     fn value_type() -> ValueType {
@@ -81,7 +81,7 @@ where
     }
 }
 
-impl<'a> UnsafeFromValue for &'a Result<Value, Value> {
+impl UnsafeFromValue for &Result<Value, Value> {
     type Output = *const Result<Value, Value>;
     type Guard = RawOwnedRef;
 

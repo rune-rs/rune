@@ -1,6 +1,7 @@
 use crate::{Stack, Value, ValueError, ValueType, ValueTypeInfo, VecTuple, VmError};
 
 mod bytes;
+mod fn_ptr;
 mod hash_map;
 mod object;
 mod option;
@@ -22,6 +23,9 @@ pub trait IntoArgs {
     /// The caller must ensure that the stack is cleared with
     /// [clear][Stack::clear] before the references are no longer valid.
     fn into_args(self, stack: &mut Stack) -> Result<(), VmError>;
+
+    /// Convert arguments into a vector.
+    fn into_vec(self) -> Result<Vec<Value>, VmError>;
 
     /// The number of arguments.
     fn count() -> usize;
@@ -144,6 +148,13 @@ macro_rules! impl_into_args {
                 let ($($value,)*) = self;
                 impl_into_args!(@push stack, [$($value)*]);
                 Ok(())
+            }
+
+            #[allow(unused)]
+            fn into_vec(self) -> Result<Vec<Value>, VmError> {
+                let ($($value,)*) = self;
+                $(let $value = <$ty>::to_value($value)?;)*
+                Ok(vec![$($value,)*])
             }
 
             fn count() -> usize {

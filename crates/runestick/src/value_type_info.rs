@@ -27,8 +27,6 @@ pub enum ValueTypeInfo {
     Tuple,
     /// An object.
     Object,
-    /// Reference to a foreign type.
-    External(&'static str),
     /// The type of a value.
     Type(Hash),
     /// A future.
@@ -45,70 +43,77 @@ pub enum ValueTypeInfo {
     TypedTuple(Hash),
     /// A typed tuple variant.
     VariantTuple(Hash, Hash),
+    /// A function pointer.
+    FnPtr,
+    /// Reference to a foreign type.
+    External(&'static str),
 }
 
 impl fmt::Display for ValueTypeInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            ValueTypeInfo::Unit => {
+            Self::Unit => {
                 write!(fmt, "unit")?;
             }
-            ValueTypeInfo::Bool => {
+            Self::Bool => {
                 write!(fmt, "bool")?;
             }
-            ValueTypeInfo::Char => {
+            Self::Char => {
                 write!(fmt, "char")?;
             }
-            ValueTypeInfo::Byte => {
+            Self::Byte => {
                 write!(fmt, "byte")?;
             }
-            ValueTypeInfo::Integer => {
+            Self::Integer => {
                 write!(fmt, "int")?;
             }
-            ValueTypeInfo::Float => {
+            Self::Float => {
                 write!(fmt, "float")?;
             }
-            ValueTypeInfo::String => {
+            Self::String => {
                 write!(fmt, "String")?;
             }
-            ValueTypeInfo::Bytes => {
+            Self::Bytes => {
                 write!(fmt, "Bytes")?;
             }
-            ValueTypeInfo::Vec => {
+            Self::Vec => {
                 write!(fmt, "Vec")?;
             }
-            ValueTypeInfo::Tuple => {
+            Self::Tuple => {
                 write!(fmt, "Tuple")?;
             }
-            ValueTypeInfo::Object => {
+            Self::Object => {
                 write!(fmt, "Object")?;
             }
-            ValueTypeInfo::External(type_name) => {
-                write!(fmt, "{}", type_name)?;
-            }
-            ValueTypeInfo::Type(hash) => {
+            Self::Type(hash) => {
                 write!(fmt, "type({})", hash)?;
             }
-            ValueTypeInfo::Future => {
+            Self::Future => {
                 write!(fmt, "future")?;
             }
-            ValueTypeInfo::Option => {
+            Self::Option => {
                 write!(fmt, "option")?;
             }
-            ValueTypeInfo::Result => {
+            Self::Result => {
                 write!(fmt, "result")?;
             }
-            ValueTypeInfo::TypedObject(ty) => {
+            Self::TypedObject(ty) => {
                 write!(fmt, "typed-object({})", ty)?;
             }
-            ValueTypeInfo::VariantObject(ty, variant_type) => {
+            Self::VariantObject(ty, variant_type) => {
                 write!(fmt, "variant-object({}, {})", ty, variant_type)?;
             }
-            ValueTypeInfo::TypedTuple(ty) => {
+            Self::TypedTuple(ty) => {
                 write!(fmt, "typed-tuple({})", ty)?;
             }
-            ValueTypeInfo::VariantTuple(ty, variant_type) => {
+            Self::VariantTuple(ty, variant_type) => {
                 write!(fmt, "variant-tuple({}, {})", ty, variant_type)?;
+            }
+            Self::FnPtr => {
+                write!(fmt, "fn-ptr")?;
+            }
+            Self::External(type_name) => {
+                write!(fmt, "{}", type_name)?;
             }
         }
 

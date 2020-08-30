@@ -4,6 +4,7 @@ use crate::{
     Stack, TypeCheck, Value, ValueType, ValueTypeInfo, VmError,
 };
 use std::fmt;
+use std::rc::Rc;
 use thiserror::Error;
 
 /// An error raised when building the context.
@@ -202,7 +203,7 @@ pub struct Context {
     /// Item metadata in the context.
     meta: HashMap<Item, Meta>,
     /// Free functions.
-    functions: HashMap<Hash, Box<Handler>>,
+    functions: HashMap<Hash, Rc<Handler>>,
     /// Information on functions.
     functions_info: HashMap<Hash, FnSignature>,
     /// Registered types.
@@ -284,7 +285,7 @@ impl Context {
     fn install_function(
         &mut self,
         name: &Item,
-        handler: Box<Handler>,
+        handler: Rc<Handler>,
         args: Option<usize>,
     ) -> Result<(), ContextError> {
         let hash = Hash::type_hash(name);
@@ -298,6 +299,8 @@ impl Context {
         }
 
         self.functions.insert(hash, handler);
+        self.meta
+            .insert(name.clone(), Meta::MetaFunction { item: name.clone() });
         Ok(())
     }
 
@@ -523,8 +526,7 @@ impl Context {
             });
         }
 
-        let constructor: Box<Handler> =
-            Box::new(move |stack, args| constructor.fn_call(stack, args));
+        let constructor: Rc<Handler> = Rc::new(move |stack, args| constructor.fn_call(stack, args));
 
         let hash = Hash::type_hash(&item);
         let signature = FnSignature::new_free(item, Some(args));
@@ -541,9 +543,8 @@ impl Context {
     }
 
     /// Lookup the given function.
-    pub(crate) fn lookup(&self, hash: Hash) -> Option<&Handler> {
-        let handler = self.functions.get(&hash)?;
-        Some(&*handler)
+    pub(crate) fn lookup(&self, hash: Hash) -> Option<&Rc<Handler>> {
+        self.functions.get(&hash)
     }
 
     /// Lookup a type by hash.

@@ -1,6 +1,6 @@
 use crate::{
-    AccessError, Any, Bytes, Future, Hash, OwnedMut, OwnedRef, Panic, RawOwnedMut, RawOwnedRef,
-    Shared, ValueType, ValueTypeInfo,
+    AccessError, Any, Bytes, FnPtr, Future, Hash, OwnedMut, OwnedRef, Panic, RawOwnedMut,
+    RawOwnedRef, Shared, ValueType, ValueTypeInfo,
 };
 use std::any;
 use std::fmt;
@@ -26,6 +26,12 @@ pub enum ValueError {
     /// Error raised when we expected a object.
     #[error("expected a object but found `{actual}`")]
     ExpectedObject {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a function pointer.
+    #[error("expected a function pointer but found `{actual}`")]
+    ExpectedFnPtr {
         /// The actual type observed instead.
         actual: ValueTypeInfo,
     },
@@ -164,9 +170,9 @@ pub struct VecTuple<I>(pub I);
 #[derive(Debug)]
 pub struct TypedTuple {
     /// The type hash of the tuple.
-    pub hash: Hash,
+    pub(crate) hash: Hash,
     /// Content of the tuple.
-    pub tuple: Box<[Value]>,
+    pub(crate) tuple: Box<[Value]>,
 }
 
 impl TypedTuple {
@@ -180,11 +186,11 @@ impl TypedTuple {
 #[derive(Debug)]
 pub struct VariantTuple {
     /// The type hash of the enum.
-    pub enum_hash: Hash,
+    pub(crate) enum_hash: Hash,
     /// The variant type hash of the tuple.
-    pub hash: Hash,
+    pub(crate) hash: Hash,
     /// Content of the tuple.
-    pub tuple: Box<[Value]>,
+    pub(crate) tuple: Box<[Value]>,
 }
 
 impl VariantTuple {
@@ -278,6 +284,8 @@ pub enum Value {
     TypedObject(Shared<TypedObject>),
     /// An object variant with a well-defined type.
     VariantObject(Shared<VariantObject>),
+    /// A stored function pointer.
+    FnPtr(Shared<FnPtr>),
     /// An external value.
     External(Shared<Any>),
 }
@@ -291,6 +299,23 @@ impl Value {
     /// Construct a tuple.
     pub fn tuple(vec: Vec<Value>) -> Self {
         Self::Tuple(Shared::new(vec.into_boxed_slice()))
+    }
+
+    /// Construct a typed tuple.
+    pub fn typed_tuple(hash: Hash, vec: Vec<Value>) -> Self {
+        Self::TypedTuple(Shared::new(TypedTuple {
+            hash,
+            tuple: vec.into_boxed_slice(),
+        }))
+    }
+
+    /// Construct a typed tuple.
+    pub fn variant_tuple(enum_hash: Hash, hash: Hash, vec: Vec<Value>) -> Self {
+        Self::VariantTuple(Shared::new(VariantTuple {
+            enum_hash,
+            hash,
+            tuple: vec.into_boxed_slice(),
+        }))
     }
 
     /// Try to coerce value into a unit.
@@ -447,6 +472,17 @@ impl Value {
         }
     }
 
+    /// Try to coerce value into a function pointer.
+    #[inline]
+    pub fn into_fn_ptr(self) -> Result<Shared<FnPtr>, ValueError> {
+        match self {
+            Self::FnPtr(fn_ptr) => Ok(fn_ptr),
+            actual => Err(ValueError::ExpectedFnPtr {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
     /// Try to coerce value into an external.
     #[inline]
     pub fn into_external(self) -> Result<Shared<Any>, ValueError> {
@@ -549,6 +585,7 @@ impl Value {
                     hash: tuple.hash,
                 }
             }
+            Self::FnPtr(..) => ValueType::FnPtr,
             Self::External(any) => ValueType::External(any.borrow_ref()?.type_id()),
         })
     }
@@ -576,6 +613,7 @@ impl Value {
             Self::VariantObject(object) => object.borrow_ref()?.type_info(),
             Self::TypedTuple(tuple) => tuple.borrow_ref()?.type_info(),
             Self::VariantTuple(tuple) => tuple.borrow_ref()?.type_info(),
+            Self::FnPtr(..) => ValueTypeInfo::FnPtr,
             Self::External(external) => ValueTypeInfo::External(external.borrow_ref()?.type_name()),
         })
     }

@@ -38,7 +38,19 @@ macro_rules! impl_from_value_tuple {
     };
 
     (@impl $count:expr, $({$ty:ident, $var:ident, $ignore_count:expr},)*) => {
-        impl<$($ty,)*> FromValue for ($($ty,)*)
+        impl <$($ty,)*> ReflectValueType for ($($ty,)*) {
+            type Owned = ($($ty,)*);
+
+            fn value_type() -> ValueType {
+                ValueType::Tuple
+            }
+
+            fn value_type_info() -> ValueTypeInfo {
+                ValueTypeInfo::Tuple
+            }
+        }
+
+        impl <$($ty,)*> FromValue for ($($ty,)*)
         where
             $($ty: FromValue,)*
         {
@@ -69,7 +81,7 @@ macro_rules! impl_from_value_tuple {
             }
         }
 
-        impl<$($ty,)*> ToValue for ($($ty,)*)
+        impl <$($ty,)*> ToValue for ($($ty,)*)
         where
             $($ty: ToValue,)*
         {

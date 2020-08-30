@@ -46,6 +46,14 @@ impl Stack {
         }
     }
 
+    /// Construct a new stack with the given capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            stack: Vec::with_capacity(capacity),
+            stack_top: 0,
+        }
+    }
+
     /// Reverse the stack.
     pub fn reverse(&mut self) {
         self.stack.reverse();
@@ -180,6 +188,33 @@ impl Stack {
 
         self.push(Value::Vec(Shared::new(vec)));
         Ok(())
+    }
+
+    /// Pop a sequence of values from the stack.
+    pub fn pop_sequence(&mut self, args: usize) -> Result<Vec<Value>, StackError> {
+        let mut values = Vec::with_capacity(args);
+
+        for _ in 0..args {
+            values.push(self.pop()?);
+        }
+
+        Ok(values)
+    }
+
+    /// Pop a sub stack of the given size.
+    pub fn pop_sub_stack(&mut self, args: usize) -> Result<Stack, StackError> {
+        let mut stack = Vec::with_capacity(args);
+
+        for _ in 0..args {
+            stack.push(self.pop()?);
+        }
+
+        stack.reverse();
+
+        Ok(Stack {
+            stack,
+            stack_top: 0,
+        })
     }
 
     /// Modify stack top by subtracting the given count from it while checking

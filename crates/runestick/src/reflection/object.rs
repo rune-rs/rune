@@ -56,7 +56,7 @@ where
     }
 }
 
-impl UnsafeFromValue for &'_ Object<Value> {
+impl UnsafeFromValue for &Object<Value> {
     type Output = *const Object<Value>;
     type Guard = RawOwnedRef;
 
@@ -71,7 +71,7 @@ impl UnsafeFromValue for &'_ Object<Value> {
     }
 }
 
-impl UnsafeFromValue for &'_ mut Object<Value> {
+impl UnsafeFromValue for &mut Object<Value> {
     type Output = *mut Object<Value>;
     type Guard = RawOwnedMut;
 

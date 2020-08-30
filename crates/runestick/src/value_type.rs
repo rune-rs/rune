@@ -26,8 +26,6 @@ pub enum ValueType {
     Tuple,
     /// An object of dynamic values.
     Object,
-    /// Reference to a foreign type.
-    External(TypeId),
     /// The type of type values.
     Type,
     /// A function pointer.
@@ -62,6 +60,10 @@ pub enum ValueType {
         /// The type hash of the variant.
         hash: Hash,
     },
+    /// A function pointer.
+    FnPtr,
+    /// Reference to a foreign type.
+    External(TypeId),
 }
 
 #[cfg(test)]

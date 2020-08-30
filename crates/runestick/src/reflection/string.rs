@@ -1,51 +1,11 @@
 //! String trait implementations.
 
 use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared, ToValue,
-    UnsafeFromValue, Value, ValueError, ValueType, ValueTypeInfo,
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue, UnsafeFromValue,
+    Value, ValueError,
 };
 
-impl ReflectValueType for String {
-    type Owned = String;
-
-    fn value_type() -> ValueType {
-        ValueType::String
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::String
-    }
-}
-
-impl<'a> ReflectValueType for &'a str {
-    type Owned = String;
-
-    fn value_type() -> ValueType {
-        ValueType::String
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::String
-    }
-}
-
-impl<'a> ReflectValueType for &'a mut str {
-    type Owned = String;
-
-    fn value_type() -> ValueType {
-        ValueType::String
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::String
-    }
-}
-
-impl ToValue for String {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::String(Shared::new(self)))
-    }
-}
+value_types!(String, String => String, &String, &mut String, &str, &mut str);
 
 impl FromValue for String {
     fn from_value(value: Value) -> Result<Self, ValueError> {
@@ -59,16 +19,9 @@ impl FromValue for String {
     }
 }
 
-/// Convert a string into a value type.
-impl ReflectValueType for Box<str> {
-    type Owned = String;
-
-    fn value_type() -> ValueType {
-        ValueType::String
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::String
+impl ToValue for String {
+    fn to_value(self) -> Result<Value, ValueError> {
+        Ok(Value::String(Shared::new(self)))
     }
 }
 
@@ -86,7 +39,7 @@ impl FromValue for Box<str> {
     }
 }
 
-impl UnsafeFromValue for &'_ str {
+impl UnsafeFromValue for &str {
     type Output = *const str;
     type Guard = Option<RawOwnedRef>;
 
@@ -111,7 +64,31 @@ impl UnsafeFromValue for &'_ str {
     }
 }
 
-impl UnsafeFromValue for &'_ String {
+impl UnsafeFromValue for &mut str {
+    type Output = *mut str;
+    type Guard = Option<RawOwnedMut>;
+
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+        Ok(match value {
+            Value::String(string) => {
+                let string = string.owned_mut()?;
+                let (s, guard) = OwnedMut::into_raw(string);
+                ((*s).as_mut_str(), Some(guard))
+            }
+            actual => {
+                return Err(ValueError::ExpectedString {
+                    actual: actual.type_info()?,
+                })
+            }
+        })
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &mut *output
+    }
+}
+
+impl UnsafeFromValue for &String {
     type Output = *const String;
     type Guard = Option<RawOwnedRef>;
 
@@ -136,19 +113,7 @@ impl UnsafeFromValue for &'_ String {
     }
 }
 
-impl ReflectValueType for &'_ String {
-    type Owned = String;
-
-    fn value_type() -> ValueType {
-        ValueType::String
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::String
-    }
-}
-
-impl UnsafeFromValue for &'_ mut String {
+impl UnsafeFromValue for &mut String {
     type Output = *mut String;
     type Guard = RawOwnedMut;
 
@@ -169,17 +134,5 @@ impl UnsafeFromValue for &'_ mut String {
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         &mut *output
-    }
-}
-
-impl ReflectValueType for &'_ mut String {
-    type Owned = String;
-
-    fn value_type() -> ValueType {
-        ValueType::String
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::String
     }
 }
