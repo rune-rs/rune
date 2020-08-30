@@ -54,11 +54,6 @@ impl Stack {
         }
     }
 
-    /// Reverse the stack.
-    pub fn reverse(&mut self) {
-        self.stack.reverse();
-    }
-
     /// Clear the current stack.
     pub fn clear(&mut self) {
         self.stack.clear();
@@ -202,19 +197,22 @@ impl Stack {
     }
 
     /// Pop a sub stack of the given size.
-    pub fn pop_sub_stack(&mut self, args: usize) -> Result<Stack, StackError> {
-        let mut stack = Vec::with_capacity(args);
+    pub fn drain_stack_top(&mut self, args: usize) -> Result<Vec<Value>, StackError> {
+        let start =
+            self.stack
+                .len()
+                .checked_sub(args)
+                .ok_or_else(|| StackError::PopOutOfBounds {
+                    frame: self.stack_top,
+                })?;
 
-        for _ in 0..args {
-            stack.push(self.pop()?);
+        if start < self.stack_top {
+            return Err(StackError::PopOutOfBounds {
+                frame: self.stack_top,
+            });
         }
 
-        stack.reverse();
-
-        Ok(Stack {
-            stack,
-            stack_top: 0,
-        })
+        Ok(self.stack.drain(start..).collect::<Vec<_>>())
     }
 
     /// Modify stack top by subtracting the given count from it while checking
@@ -254,5 +252,14 @@ impl Stack {
         self.check_stack_top()?;
         self.stack_top = new_stack_top;
         Ok(())
+    }
+}
+
+impl From<Vec<Value>> for Stack {
+    fn from(stack: Vec<Value>) -> Self {
+        Self {
+            stack,
+            stack_top: 0,
+        }
     }
 }

@@ -1909,13 +1909,9 @@ impl Vm {
 
     /// Construct a future from calling an async function.
     fn call_async_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
-        let mut vm = Self::new(self.context.clone(), self.unit.clone());
+        let stack = Stack::from(self.stack.drain_stack_top(args)?);
+        let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
 
-        for _ in 0..args {
-            vm.stack.push(self.stack.pop()?);
-        }
-
-        vm.stack.reverse();
         vm.ip = offset;
 
         let future = Future::new(async move {

@@ -2300,6 +2300,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Compile a binding name that matches a known meta type.
+    ///
+    /// Returns `true` if the binding was used.
     fn compile_pat_meta_binding(
         &mut self,
         scope: &mut Scope,
@@ -2307,28 +2309,16 @@ impl<'a, 'source> Compiler<'a, 'source> {
         meta: &Meta,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let (tuple, type_check) = match meta {
-            Meta::MetaTuple { tuple } => (tuple, TypeCheck::Type(Hash::type_hash(&tuple.item))),
-            Meta::MetaTupleVariant { tuple, .. } => {
+            Meta::MetaTuple { tuple } if tuple.args == 0 => {
+                (tuple, TypeCheck::Type(Hash::type_hash(&tuple.item)))
+            }
+            Meta::MetaTupleVariant { tuple, .. } if tuple.args == 0 => {
                 (tuple, TypeCheck::Variant(Hash::type_hash(&tuple.item)))
             }
-            _ => {
-                return Err(CompileError::UnsupportedMetaPattern {
-                    meta: meta.clone(),
-                    span,
-                })
-            }
+            _ => return Ok(false),
         };
-
-        if tuple.args != 0 {
-            return Err(CompileError::UnsupportedArgumentCount {
-                meta: meta.clone(),
-                actual: 0,
-                expected: tuple.args,
-                span,
-            });
-        }
 
         let type_check = match self.context.type_check_for(&tuple.item) {
             Some(type_check) => type_check,
@@ -2346,7 +2336,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         );
         self.asm
             .pop_and_jump_if_not(scope.local_var_count, false_label, span);
-        Ok(())
+        Ok(true)
     }
 
     /// Encode a pattern.
@@ -2372,8 +2362,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 let item = self.convert_path_to_item(&path.path)?;
 
                 if let Some(meta) = self.lookup_meta(&item, span)? {
-                    self.compile_pat_meta_binding(scope, span, &meta, false_label, load)?;
-                    return Ok(true);
+                    if self.compile_pat_meta_binding(scope, span, &meta, false_label, load)? {
+                        return Ok(true);
+                    }
                 }
 
                 let ident = match item.as_local() {

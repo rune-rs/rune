@@ -84,7 +84,7 @@ impl FnPtr {
                     });
                 }
 
-                let new_stack = stack.pop_sub_stack(args)?;
+                let new_stack = Stack::from(stack.drain_stack_top(args)?);
                 let mut vm =
                     Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
                 vm.set_ip(offset.offset);
