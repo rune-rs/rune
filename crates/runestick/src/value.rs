@@ -35,15 +35,11 @@ pub enum ValueError {
         /// The actual type observed instead.
         actual: ValueTypeInfo,
     },
-    /// Error raised when we expected an external value.
-    #[error("expected a external value but found `{actual}`")]
-    ExpectedExternal {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a managed value.
-    #[error("expected an external, vector, object, or string, but found `{actual}`")]
-    ExpectedManaged {
+    /// Error raised when we expected a value.
+    #[error("expected a value of `{expected}` but found `{actual}`")]
+    ExpectedAny {
+        /// Expected type.
+        expected: &'static str,
         /// The actual type observed instead.
         actual: ValueTypeInfo,
     },
@@ -286,8 +282,8 @@ pub enum Value {
     VariantObject(Shared<VariantObject>),
     /// A stored function pointer.
     FnPtr(Shared<FnPtr>),
-    /// An external value.
-    External(Shared<Any>),
+    /// An opaque value that can be downcasted.
+    Any(Shared<Any>),
 }
 
 impl Value {
@@ -483,18 +479,19 @@ impl Value {
         }
     }
 
-    /// Try to coerce value into an external.
+    /// Try to coerce value into an opaque value.
     #[inline]
-    pub fn into_external(self) -> Result<Shared<Any>, ValueError> {
+    pub fn into_any(self) -> Result<Shared<Any>, ValueError> {
         match self {
-            Self::External(any) => Ok(any),
-            actual => Err(ValueError::ExpectedExternal {
+            Self::Any(any) => Ok(any),
+            actual => Err(ValueError::ExpectedAny {
+                expected: any::type_name::<Any>(),
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value into an external ref and an associated guard.
+    /// Try to coerce value into a ref and an associated guard.
     ///
     /// # Safety
     ///
@@ -504,23 +501,24 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_external_ref<T>(self) -> Result<(*const T, RawOwnedRef), ValueError>
+    pub unsafe fn unsafe_into_any_ref<T>(self) -> Result<(*const T, RawOwnedRef), ValueError>
     where
         T: any::Any,
     {
         match self {
-            Self::External(external) => {
-                let external = external.downcast_owned_ref::<T>()?;
-                let (data, guard) = OwnedRef::into_raw(external);
+            Self::Any(any) => {
+                let any = any.downcast_owned_ref::<T>()?;
+                let (data, guard) = OwnedRef::into_raw(any);
                 Ok((data, guard))
             }
-            actual => Err(ValueError::ExpectedExternal {
+            actual => Err(ValueError::ExpectedAny {
+                expected: any::type_name::<T>(),
                 actual: actual.type_info()?,
             }),
         }
     }
 
-    /// Try to coerce value into an external ref and an associated guard.
+    /// Try to coerce value into a ref and an associated guard.
     ///
     /// # Safety
     ///
@@ -530,17 +528,18 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_external_mut<T>(self) -> Result<(*mut T, RawOwnedMut), ValueError>
+    pub unsafe fn unsafe_into_any_mut<T>(self) -> Result<(*mut T, RawOwnedMut), ValueError>
     where
         T: any::Any,
     {
         match self {
-            Self::External(external) => {
-                let external = external.downcast_owned_mut::<T>()?;
-                let (data, guard) = OwnedMut::into_raw(external);
+            Self::Any(any) => {
+                let any = any.downcast_owned_mut::<T>()?;
+                let (data, guard) = OwnedMut::into_raw(any);
                 Ok((data, guard))
             }
-            actual => Err(ValueError::ExpectedExternal {
+            actual => Err(ValueError::ExpectedAny {
+                expected: any::type_name::<T>(),
                 actual: actual.type_info()?,
             }),
         }
@@ -586,7 +585,7 @@ impl Value {
                 }
             }
             Self::FnPtr(..) => ValueType::FnPtr,
-            Self::External(any) => ValueType::External(any.borrow_ref()?.type_id()),
+            Self::Any(any) => ValueType::Any(any.borrow_ref()?.type_id()),
         })
     }
 
@@ -614,7 +613,7 @@ impl Value {
             Self::TypedTuple(tuple) => tuple.borrow_ref()?.type_info(),
             Self::VariantTuple(tuple) => tuple.borrow_ref()?.type_info(),
             Self::FnPtr(..) => ValueTypeInfo::FnPtr,
-            Self::External(external) => ValueTypeInfo::External(external.borrow_ref()?.type_name()),
+            Self::Any(any) => ValueTypeInfo::Any(any.borrow_ref()?.type_name()),
         })
     }
 }

@@ -63,7 +63,7 @@ pub enum ValueType {
     /// A function pointer.
     FnPtr,
     /// Reference to a foreign type.
-    External(TypeId),
+    Any(TypeId),
 }
 
 #[cfg(test)]

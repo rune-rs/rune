@@ -88,7 +88,7 @@ impl ser::Serialize for Value {
             Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
             Value::FnPtr(..) => Err(ser::Error::custom("cannot serialize function pointers")),
-            Value::External(..) => Err(ser::Error::custom("cannot serialize external objects")),
+            Value::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }
     }
 }

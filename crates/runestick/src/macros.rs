@@ -13,7 +13,7 @@ macro_rules! decl_external {
 
         impl $crate::FromValue for $external {
             fn from_value(value: $crate::Value) -> Result<Self, $crate::ValueError> {
-                let any = value.into_external()?;
+                let any = value.into_any()?;
                 let any = any.take_downcast::<$external>()?;
                 Ok(any)
             }
@@ -29,11 +29,11 @@ macro_rules! decl_internal {
             type Owned = $external;
 
             fn value_type() -> $crate::ValueType {
-                $crate::ValueType::External(std::any::TypeId::of::<$external>())
+                $crate::ValueType::Any(std::any::TypeId::of::<$external>())
             }
 
             fn value_type_info() -> $crate::ValueTypeInfo {
-                $crate::ValueTypeInfo::External(std::any::type_name::<$external>())
+                $crate::ValueTypeInfo::Any(std::any::type_name::<$external>())
             }
         }
 
@@ -41,11 +41,11 @@ macro_rules! decl_internal {
             type Owned = $external;
 
             fn value_type() -> $crate::ValueType {
-                $crate::ValueType::External(std::any::TypeId::of::<$external>())
+                $crate::ValueType::Any(std::any::TypeId::of::<$external>())
             }
 
             fn value_type_info() -> $crate::ValueTypeInfo {
-                $crate::ValueTypeInfo::External(std::any::type_name::<$external>())
+                $crate::ValueTypeInfo::Any(std::any::type_name::<$external>())
             }
         }
 
@@ -53,11 +53,11 @@ macro_rules! decl_internal {
             type Owned = $external;
 
             fn value_type() -> $crate::ValueType {
-                $crate::ValueType::External(std::any::TypeId::of::<$external>())
+                $crate::ValueType::Any(std::any::TypeId::of::<$external>())
             }
 
             fn value_type_info() -> $crate::ValueTypeInfo {
-                $crate::ValueTypeInfo::External(std::any::type_name::<$external>())
+                $crate::ValueTypeInfo::Any(std::any::type_name::<$external>())
             }
         }
 
@@ -65,7 +65,7 @@ macro_rules! decl_internal {
             fn to_value(self) -> Result<$crate::Value, $crate::ValueError> {
                 let any = $crate::Any::new(self);
                 let shared = $crate::Shared::new(any);
-                Ok($crate::Value::External(shared))
+                Ok($crate::Value::Any(shared))
             }
         }
 
@@ -76,7 +76,7 @@ macro_rules! decl_internal {
             unsafe fn unsafe_from_value(
                 value: $crate::Value,
             ) -> Result<(Self::Output, Self::Guard), $crate::ValueError> {
-                Ok(value.unsafe_into_external_ref()?)
+                Ok(value.unsafe_into_any_ref()?)
             }
 
             unsafe fn to_arg(output: Self::Output) -> Self {
@@ -91,7 +91,7 @@ macro_rules! decl_internal {
             unsafe fn unsafe_from_value(
                 value: $crate::Value,
             ) -> Result<(Self::Output, Self::Guard), $crate::ValueError> {
-                Ok(value.unsafe_into_external_mut()?)
+                Ok(value.unsafe_into_any_mut()?)
             }
 
             unsafe fn to_arg(output: Self::Output) -> Self {

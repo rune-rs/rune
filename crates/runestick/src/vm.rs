@@ -813,9 +813,6 @@ impl Vm {
     /// each other.
     ///
     /// This is the basis for the eq operation (`==`).
-    ///
-    /// Note: External types are compared by their slot, but should eventually
-    /// use a dynamically resolve equality function.
     fn value_ptr_eq(&self, a: &Value, b: &Value) -> Result<bool, VmError> {
         Ok(match (a, b) {
             (Value::Unit, Value::Unit) => true,
@@ -877,7 +874,7 @@ impl Vm {
             (Value::StaticString(a), Value::StaticString(b)) => a == b,
             // fast external comparison by slot.
             // TODO: implement ptr equals.
-            // (Value::External(a), Value::External(b)) => a == b,
+            // (Value::Any(a), Value::Any(b)) => a == b,
             _ => false,
         })
     }

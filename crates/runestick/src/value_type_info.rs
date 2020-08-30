@@ -46,7 +46,7 @@ pub enum ValueTypeInfo {
     /// A function pointer.
     FnPtr,
     /// Reference to a foreign type.
-    External(&'static str),
+    Any(&'static str),
 }
 
 impl fmt::Display for ValueTypeInfo {
@@ -112,7 +112,7 @@ impl fmt::Display for ValueTypeInfo {
             Self::FnPtr => {
                 write!(fmt, "fn-ptr")?;
             }
-            Self::External(type_name) => {
+            Self::Any(type_name) => {
                 write!(fmt, "{}", type_name)?;
             }
         }
