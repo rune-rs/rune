@@ -2,6 +2,13 @@ use crate::collections::HashSet;
 use crate::Item;
 use std::fmt;
 
+/// Metadata about a closure.
+#[derive(Debug, Clone)]
+pub struct MetaClosureCapture {
+    /// Identity of the captured variable.
+    pub ident: String,
+}
+
 /// Metadata about an item in the context.
 #[derive(Debug, Clone)]
 pub enum Meta {
@@ -39,6 +46,13 @@ pub enum Meta {
         /// The item of the function declaration.
         item: Item,
     },
+    /// A closure.
+    MetaClosure {
+        /// The item of the closure.
+        item: Item,
+        /// Sequence of captured variables.
+        captures: Vec<MetaClosureCapture>,
+    },
 }
 
 impl Meta {
@@ -51,6 +65,7 @@ impl Meta {
             Meta::MetaObjectVariant { object, .. } => &object.item,
             Meta::MetaEnum { item } => item,
             Meta::MetaFunction { item } => item,
+            Meta::MetaClosure { item, .. } => item,
         }
     }
 }
@@ -75,6 +90,9 @@ impl fmt::Display for Meta {
             }
             Self::MetaFunction { item, .. } => {
                 write!(fmt, "fn {}", item)?;
+            }
+            Self::MetaClosure { item, .. } => {
+                write!(fmt, "closure {}", item)?;
             }
         }
 

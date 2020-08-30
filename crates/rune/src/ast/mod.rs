@@ -21,6 +21,7 @@ mod expr_await;
 mod expr_binary;
 mod expr_block;
 mod expr_break;
+mod expr_closure;
 mod expr_else;
 mod expr_else_if;
 mod expr_field_access;
@@ -73,6 +74,7 @@ pub use self::expr_await::ExprAwait;
 pub use self::expr_binary::{BinOp, ExprBinary};
 pub use self::expr_block::ExprBlock;
 pub use self::expr_break::{ExprBreak, ExprBreakValue};
+pub use self::expr_closure::ExprClosure;
 pub use self::expr_else::ExprElse;
 pub use self::expr_else_if::ExprElseIf;
 pub use self::expr_field_access::{ExprField, ExprFieldAccess};
@@ -197,6 +199,9 @@ decl_tokens! {
     (Select, Kind::Select),
     (Default, Kind::Default),
     (Try, Kind::Try),
+    (Pipe, Kind::Pipe),
+    (And, Kind::And),
+    (Or, Kind::Or),
 }
 
 impl<'a> Resolve<'a> for Ident {

@@ -1,9 +1,4 @@
 use crate::ast;
-use crate::ast::{
-    BinOp, CallFn, CallInstanceFn, Colon, Eq, ExprAwait, ExprBinary, ExprField, ExprFieldAccess,
-    ExprFor, ExprIndexGet, ExprIndexSet, ExprLoop, ExprTry, ExprWhile, Label, LitUnit, OpenParen,
-    Path,
-};
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::token::{Delimiter, Kind, Token};
@@ -102,6 +97,8 @@ pub enum Expr {
     ExprTry(ast::ExprTry),
     /// A select expression.
     ExprSelect(ast::ExprSelect),
+    /// A closure expression.
+    ExprClosure(ast::ExprClosure),
     /// A declaration.
     Decl(ast::Decl),
 }
@@ -160,6 +157,7 @@ impl Expr {
             Self::ExprAwait(ret) => ret.span(),
             Self::ExprTry(ret) => ret.span(),
             Self::ExprSelect(ret) => ret.span(),
+            Self::ExprClosure(ret) => ret.span(),
             Self::Decl(decl) => decl.span(),
         }
     }
@@ -207,7 +205,7 @@ impl Expr {
         parser: &mut Parser<'_>,
         eager_brace: EagerBrace,
     ) -> Result<Self, ParseError> {
-        let path = parser.parse::<Path>()?;
+        let path = parser.parse::<ast::Path>()?;
 
         if *eager_brace && parser.peek::<ast::OpenBrace>()? {
             let ident = ast::LitObjectIdent::Named(path);
@@ -217,11 +215,11 @@ impl Expr {
             )?));
         }
 
-        if !parser.peek::<OpenParen>()? {
+        if !parser.peek::<ast::OpenParen>()? {
             return Ok(Self::Path(path));
         }
 
-        Ok(Self::CallFn(CallFn {
+        Ok(Self::CallFn(ast::CallFn {
             name: path,
             args: parser.parse()?,
         }))
@@ -229,7 +227,7 @@ impl Expr {
 
     /// Parsing something that opens with a parenthesis.
     pub fn parse_open_paren(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        if parser.peek::<LitUnit>()? {
+        if parser.peek::<ast::LitUnit>()? {
             return Ok(Self::LitUnit(parser.parse()?));
         }
 
@@ -258,14 +256,17 @@ impl Expr {
 
         let expr = match token.kind {
             Kind::Select => Self::ExprSelect(parser.parse()?),
+            Kind::Or | Kind::Pipe => Self::ExprClosure(parser.parse()?),
             Kind::Label => {
-                let label = Some((parser.parse::<Label>()?, parser.parse::<Colon>()?));
+                let label = Some((parser.parse::<ast::Label>()?, parser.parse::<ast::Colon>()?));
                 let token = parser.token_peek_eof()?;
 
                 return Ok(match token.kind {
-                    Kind::While => Self::ExprWhile(ExprWhile::parse_with_label(parser, label)?),
-                    Kind::Loop => Self::ExprLoop(ExprLoop::parse_with_label(parser, label)?),
-                    Kind::For => Self::ExprFor(ExprFor::parse_with_label(parser, label)?),
+                    Kind::While => {
+                        Self::ExprWhile(ast::ExprWhile::parse_with_label(parser, label)?)
+                    }
+                    Kind::Loop => Self::ExprLoop(ast::ExprLoop::parse_with_label(parser, label)?),
+                    Kind::For => Self::ExprFor(ast::ExprFor::parse_with_label(parser, label)?),
                     _ => {
                         return Err(ParseError::ExpectedLoop {
                             actual: token.kind,
@@ -315,15 +316,15 @@ impl Expr {
         while let Some(token) = parser.token_peek()? {
             match token.kind {
                 Kind::Open(Delimiter::Bracket) => {
-                    let index_get = ExprIndexGet {
+                    let index_get = ast::ExprIndexGet {
                         target: Box::new(expr),
                         open: parser.parse()?,
                         index: Box::new(parser.parse()?),
                         close: parser.parse()?,
                     };
 
-                    if parser.peek::<Eq>()? {
-                        return Ok(Self::ExprIndexSet(ExprIndexSet {
+                    if parser.peek::<ast::Eq>()? {
+                        return Ok(Self::ExprIndexSet(ast::ExprIndexSet {
                             target: index_get.target,
                             open: index_get.open,
                             index: index_get.index,
@@ -336,7 +337,7 @@ impl Expr {
                     expr = Self::ExprIndexGet(index_get);
                 }
                 Kind::Try => {
-                    expr = Expr::ExprTry(ExprTry {
+                    expr = Expr::ExprTry(ast::ExprTry {
                         expr: Box::new(expr),
                         try_: parser.parse()?,
                     });
@@ -347,7 +348,7 @@ impl Expr {
 
                     if let Some(token) = token {
                         if let Kind::Await = token.kind {
-                            expr = Expr::ExprAwait(ExprAwait {
+                            expr = Expr::ExprAwait(ast::ExprAwait {
                                 expr: Box::new(expr),
                                 dot,
                                 await_: parser.parse()?,
@@ -364,7 +365,7 @@ impl Expr {
                             let span = call_fn.span();
 
                             if let Some(name) = call_fn.name.try_into_ident() {
-                                expr = Expr::CallInstanceFn(CallInstanceFn {
+                                expr = Expr::CallInstanceFn(ast::CallInstanceFn {
                                     instance: Box::new(expr),
                                     dot,
                                     name,
@@ -380,10 +381,10 @@ impl Expr {
                             let span = path.span();
 
                             if let Some(ident) = path.try_into_ident() {
-                                expr = Expr::ExprFieldAccess(ExprFieldAccess {
+                                expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
                                     expr: Box::new(expr),
                                     dot,
-                                    expr_field: ExprField::Ident(ident),
+                                    expr_field: ast::ExprField::Ident(ident),
                                 });
 
                                 continue;
@@ -392,10 +393,10 @@ impl Expr {
                             span
                         }
                         Expr::LitNumber(n) => {
-                            expr = Expr::ExprFieldAccess(ExprFieldAccess {
+                            expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
                                 expr: Box::new(expr),
                                 dot,
-                                expr_field: ExprField::LitNumber(n),
+                                expr_field: ast::ExprField::LitNumber(n),
                             });
 
                             continue;
@@ -422,7 +423,7 @@ impl Expr {
         let mut lookahead_tok = parser.token_peek_pair()?;
 
         loop {
-            let lookahead = lookahead_tok.and_then(BinOp::from_token);
+            let lookahead = lookahead_tok.and_then(ast::BinOp::from_token);
 
             let (op, token) = match lookahead {
                 Some((op, token)) if op.precedence() >= min_precedence => (op, token),
@@ -438,7 +439,7 @@ impl Expr {
             lookahead_tok = parser.token_peek_pair()?;
 
             loop {
-                let (lh, _) = match lookahead_tok.and_then(BinOp::from_token) {
+                let (lh, _) = match lookahead_tok.and_then(ast::BinOp::from_token) {
                     Some((lh, _)) if lh.precedence() > op.precedence() => (lh, token),
                     Some((lh, _)) if lh.precedence() == op.precedence() && !lh.is_assoc(op) => {
                         return Err(ParseError::PrecedenceGroupRequired {
@@ -452,7 +453,7 @@ impl Expr {
                 lookahead_tok = parser.token_peek_pair()?;
             }
 
-            lhs = Expr::ExprBinary(ExprBinary {
+            lhs = Expr::ExprBinary(ast::ExprBinary {
                 lhs: Box::new(lhs),
                 op,
                 rhs: Box::new(rhs),

@@ -338,7 +338,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 self.compile_expr_if(expr_if, needs)?;
             }
             ast::Expr::ExprIndexSet(expr_index_set) => {
-                self.compile_index_set(expr_index_set, needs)?;
+                self.compile_expr_index_set(expr_index_set, needs)?;
             }
             ast::Expr::ExprIndexGet(expr_index_get) => {
                 self.compile_expr_index_get(expr_index_get, needs)?;
@@ -375,6 +375,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
             ast::Expr::ExprFieldAccess(expr_field_access) => {
                 self.compile_expr_field_access(expr_field_access, needs)?;
+            }
+            ast::Expr::ExprClosure(expr_closure) => {
+                self.compile_expr_closure(expr_closure, needs)?;
             }
             ast::Expr::LitUnit(lit_unit) => {
                 self.compile_lit_unit(lit_unit, needs)?;
@@ -1354,7 +1357,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_index_set(
+    fn compile_expr_index_set(
         &mut self,
         expr_index_set: &ast::ExprIndexSet,
         needs: Needs,
@@ -1372,6 +1375,33 @@ impl<'a, 'source> Compiler<'a, 'source> {
             self.asm.push(Inst::Unit, span);
         }
 
+        Ok(())
+    }
+
+    fn compile_expr_closure(
+        &mut self,
+        expr_closure: &ast::ExprClosure,
+        needs: Needs,
+    ) -> Result<()> {
+        let span = expr_closure.span();
+        log::trace!("ExprClosure => {:?}", self.source.source(span)?);
+
+        let guard = self.items.push_block();
+        let item = self.items.item();
+
+        let meta = self
+            .query
+            .query_meta(&item, span)?
+            .ok_or_else(|| CompileError::MissingType { item, span })?;
+
+        let captures = match meta {
+            Meta::MetaClosure { item, captures } => captures,
+            meta => {
+                return Err(CompileError::UnsupportedMetaClosure { meta, span });
+            }
+        };
+
+        self.items.pop(guard, span)?;
         Ok(())
     }
 

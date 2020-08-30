@@ -37,10 +37,12 @@ pub enum CompilationUnitError {
         existing: Item,
     },
     /// Tried to add an item that already exists.
-    #[error("item already exists `{existing}`")]
-    ItemConflict {
+    #[error("trying to insert `{current}` but conflicting meta `{existing}` already exists")]
+    MetaConflict {
+        /// The meta we tried to insert.
+        current: Meta,
         /// The existing item.
-        existing: Item,
+        existing: Meta,
     },
     /// A static string was missing for the given hash and slot.
     #[error("missing static string for hash `{hash}` and slot `{slot}`")]
@@ -689,7 +691,7 @@ impl CompilationUnit {
 
     /// Declare a new struct.
     pub fn new_item(&mut self, meta: Meta) -> Result<(), CompilationUnitError> {
-        let path = match &meta {
+        let item = match &meta {
             Meta::MetaTuple { tuple } => {
                 let hash = Hash::type_hash(&tuple.item);
 
@@ -801,10 +803,14 @@ impl CompilationUnit {
                 item.clone()
             }
             Meta::MetaFunction { item } => item.clone(),
+            Meta::MetaClosure { item, .. } => item.clone(),
         };
 
-        if self.meta.insert(path.clone(), meta).is_some() {
-            return Err(CompilationUnitError::ItemConflict { existing: path });
+        if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
+            return Err(CompilationUnitError::MetaConflict {
+                current: meta,
+                existing,
+            });
         }
 
         Ok(())

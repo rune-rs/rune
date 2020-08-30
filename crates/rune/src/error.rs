@@ -545,6 +545,14 @@ pub enum CompileError {
         /// The span which the error occured.
         span: Span,
     },
+    /// A meta item that is not supported in the given closure position.
+    #[error("`{meta}` is not supported as a closure")]
+    UnsupportedMetaClosure {
+        /// The meta item we tried to use as a pattern.
+        meta: Meta,
+        /// The span which the error occured.
+        span: Span,
+    },
     /// The pattern is not supported.
     #[error("item is not supported in a pattern")]
     UnsupportedPattern {
@@ -631,6 +639,7 @@ impl CompileError {
             Self::UnsupportedFieldAccess { span, .. } => span,
             Self::UnsupportedArgumentCount { span, .. } => span,
             Self::UnsupportedMetaPattern { span, .. } => span,
+            Self::UnsupportedMetaClosure { span, .. } => span,
             Self::UnsupportedPattern { span, .. } => span,
             Self::UnsupportedBinding { span, .. } => span,
             Self::BreakOutsideOfLoop { span, .. } => span,

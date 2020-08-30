@@ -1,4 +1,4 @@
-use crate::ast::{CloseParen, OpenParen};
+use crate::ast;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::traits::{Parse, Peek};
@@ -8,11 +8,11 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub struct Parenthesized<T, S> {
     /// The open parenthesis.
-    pub open: OpenParen,
+    pub open: ast::OpenParen,
     /// The parenthesized type.
     pub items: Vec<(T, Option<S>)>,
     /// The close parenthesis.
-    pub close: CloseParen,
+    pub close: ast::CloseParen,
 }
 
 impl<T, S> Parenthesized<T, S> {
@@ -39,31 +39,25 @@ impl<T, S> Parenthesized<T, S> {
 impl<T, S> Parse for Parenthesized<T, S>
 where
     T: Parse,
-    S: Copy + Peek + Parse,
+    S: Peek + Parse,
 {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let open = parser.parse()?;
 
         let mut items = Vec::new();
 
-        while !parser.peek::<CloseParen>()? {
+        while !parser.peek::<ast::CloseParen>()? {
             let expr = parser.parse()?;
-
-            let sep = if parser.peek::<S>()? {
-                Some(parser.parse::<S>()?)
-            } else {
-                None
-            };
-
+            let sep = parser.parse::<Option<S>>()?;
+            let is_end = sep.is_none();
             items.push((expr, sep));
 
-            if sep.is_none() {
+            if is_end {
                 break;
             }
         }
 
         let close = parser.parse()?;
-
         Ok(Self { open, items, close })
     }
 }
