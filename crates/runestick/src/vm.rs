@@ -316,75 +316,6 @@ impl VmError {
     }
 }
 
-/// Generate a primitive combination of operations.
-macro_rules! primitive_ops {
-    ($vm:expr, $a:ident $op:tt $b:ident) => {
-        match ($a, $b) {
-            (Value::Char($a), Value::Char($b)) => $a $op $b,
-            (Value::Bool($a), Value::Bool($b)) => $a $op $b,
-            (Value::Integer($a), Value::Integer($b)) => $a $op $b,
-            (Value::Float($a), Value::Float($b)) => $a $op $b,
-            (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
-                op: stringify!($op),
-                lhs: lhs.type_info()?,
-                rhs: rhs.type_info()?,
-            }),
-        }
-    }
-}
-
-/// Generate a boolean combination of operations.
-macro_rules! boolean_ops {
-    ($vm:expr, $a:ident $op:tt $b:ident) => {
-        match ($a, $b) {
-            (Value::Bool($a), Value::Bool($b)) => $a $op $b,
-            (lhs, rhs) => return Err(VmError::UnsupportedBinaryOperation {
-                op: stringify!($op),
-                lhs: lhs.type_info()?,
-                rhs: rhs.type_info()?,
-            }),
-        }
-    }
-}
-
-macro_rules! check_float {
-    ($float:expr, $error:ident) => {
-        if !$float.is_finite() {
-            return Err(VmError::$error);
-        } else {
-            $float
-        }
-    };
-}
-
-/// Generate a primitive combination of operations.
-macro_rules! numeric_ops {
-    ($vm:expr, $hash:expr, $op:tt, $a:ident . $checked_op:ident ( $b:ident ), $error:ident) => {
-        match ($a, $b) {
-            (Value::Integer($a), Value::Integer($b)) => {
-                $vm.stack.push(Value::Integer({
-                    match $a.$checked_op($b) {
-                        Some(value) => value,
-                        None => return Err(VmError::$error),
-                    }
-                }));
-            },
-            (Value::Float($a), Value::Float($b)) => {
-                $vm.stack.push(Value::Float(check_float!($a $op $b, $error)));
-            },
-            (lhs, rhs) => {
-                if !$vm.call_instance_fn(&lhs, $hash, (&rhs,))? {
-                    return Err(VmError::UnsupportedBinaryOperation {
-                        op: stringify!($op),
-                        lhs: lhs.type_info()?,
-                        rhs: rhs.type_info()?,
-                    });
-                }
-            },
-        }
-    }
-}
-
 /// A call frame.
 ///
 /// This is used to store the return point after an instruction has been run.
@@ -702,31 +633,48 @@ impl Vm {
         Ok(())
     }
 
+    fn internal_boolean_ops(
+        &mut self,
+        int_op: impl FnOnce(i64, i64) -> bool,
+        float_op: impl FnOnce(f64, f64) -> bool,
+        op: &'static str,
+    ) -> Result<(), VmError> {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.pop()?;
+
+        let out = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => int_op(lhs, rhs),
+            (Value::Float(lhs), Value::Float(rhs)) => float_op(lhs, rhs),
+            (lhs, rhs) => {
+                return Err(VmError::UnsupportedBinaryOperation {
+                    op,
+                    lhs: lhs.type_info()?,
+                    rhs: rhs.type_info()?,
+                })
+            }
+        };
+
+        self.stack.push(Value::Bool(out));
+        Ok(())
+    }
+
     fn op_gt(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        self.stack.push(Value::Bool(primitive_ops!(self, a > b)));
+        self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">")?;
         Ok(())
     }
 
     fn op_gte(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        self.stack.push(Value::Bool(primitive_ops!(self, a >= b)));
+        self.internal_boolean_ops(|a, b| a >= b, |a, b| a >= b, ">=")?;
         Ok(())
     }
 
     fn op_lt(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        self.stack.push(Value::Bool(primitive_ops!(self, a < b)));
+        self.internal_boolean_ops(|a, b| a < b, |a, b| a < b, "<")?;
         Ok(())
     }
 
     fn op_lte(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        self.stack.push(Value::Bool(primitive_ops!(self, a <= b)));
+        self.internal_boolean_ops(|a, b| a <= b, |a, b| a <= b, "<=")?;
         Ok(())
     }
 
@@ -995,35 +943,94 @@ impl Vm {
         Ok(())
     }
 
+    /// Internal impl of a numeric operation.
+    fn internal_numeric_op<H, E, I, F>(
+        &mut self,
+        hash: H,
+        error: E,
+        integer_op: I,
+        float_op: F,
+        op: &'static str,
+    ) -> Result<(), VmError>
+    where
+        H: IntoTypeHash,
+        E: Copy + FnOnce() -> VmError,
+        I: FnOnce(i64, i64) -> Option<i64>,
+        F: FnOnce(f64, f64) -> f64,
+    {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.pop()?;
+
+        let (lhs, rhs) = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => {
+                let out = integer_op(lhs, rhs).ok_or_else(error)?;
+                self.stack.push(Value::Integer(out));
+                return Ok(());
+            }
+            (Value::Float(lhs), Value::Float(rhs)) => {
+                let out = float_op(lhs, rhs);
+                self.stack.push(Value::Float(out));
+                return Ok(());
+            }
+            (lhs, rhs) => (lhs.clone(), rhs),
+        };
+
+        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+            return Err(VmError::UnsupportedBinaryOperation {
+                op,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
+            });
+        }
+
+        Ok(())
+    }
+
     #[inline]
     fn op_add(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        numeric_ops!(self, crate::ADD, +, a.checked_add(b), Overflow);
+        self.internal_numeric_op(
+            crate::ADD,
+            || VmError::Overflow,
+            i64::checked_add,
+            std::ops::Add::add,
+            "+",
+        )?;
         Ok(())
     }
 
     #[inline]
     fn op_sub(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        numeric_ops!(self, crate::SUB, -, a.checked_sub(b), Underflow);
+        self.internal_numeric_op(
+            crate::SUB,
+            || VmError::Underflow,
+            i64::checked_sub,
+            std::ops::Sub::sub,
+            "-",
+        )?;
         Ok(())
     }
 
     #[inline]
     fn op_mul(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        numeric_ops!(self, crate::MUL, *, a.checked_mul(b), Overflow);
+        self.internal_numeric_op(
+            crate::ADD,
+            || VmError::Overflow,
+            i64::checked_mul,
+            std::ops::Mul::mul,
+            "*",
+        )?;
         Ok(())
     }
 
     #[inline]
     fn op_div(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        numeric_ops!(self, crate::DIV, /, a.checked_div(b), DivideByZero);
+        self.internal_numeric_op(
+            crate::ADD,
+            || VmError::DivideByZero,
+            i64::checked_div,
+            std::ops::Div::div,
+            "+",
+        )?;
         Ok(())
     }
 
@@ -1034,6 +1041,7 @@ impl Vm {
         error: E,
         integer_op: I,
         float_op: F,
+        op: &'static str,
     ) -> Result<(), VmError>
     where
         H: IntoTypeHash,
@@ -1060,7 +1068,7 @@ impl Vm {
 
         if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
             return Err(VmError::UnsupportedBinaryOperation {
-                op: stringify!($op),
+                op,
                 lhs: lhs.type_info()?,
                 rhs: rhs.type_info()?,
             });
@@ -1078,7 +1086,9 @@ impl Vm {
             || VmError::Overflow,
             i64::checked_add,
             std::ops::Add::add,
-        )
+            "+=",
+        )?;
+        Ok(())
     }
 
     #[inline]
@@ -1089,7 +1099,9 @@ impl Vm {
             || VmError::Underflow,
             i64::checked_sub,
             std::ops::Sub::sub,
-        )
+            "-=",
+        )?;
+        Ok(())
     }
 
     #[inline]
@@ -1100,7 +1112,9 @@ impl Vm {
             || VmError::Overflow,
             i64::checked_mul,
             std::ops::Mul::mul,
-        )
+            "*=",
+        )?;
+        Ok(())
     }
 
     #[inline]
@@ -1111,7 +1125,9 @@ impl Vm {
             || VmError::DivideByZero,
             i64::checked_div,
             std::ops::Div::div,
-        )
+            "/=",
+        )?;
+        Ok(())
     }
 
     /// Perform an index set operation.
@@ -1699,23 +1715,40 @@ impl Vm {
         Ok(())
     }
 
+    fn internal_boolean_op(
+        &mut self,
+        bool_op: impl FnOnce(bool, bool) -> bool,
+        op: &'static str,
+    ) -> Result<(), VmError> {
+        let b = self.stack.pop()?;
+        let a = self.stack.pop()?;
+
+        let out = match (a, b) {
+            (Value::Bool(a), Value::Bool(b)) => bool_op(a, b),
+            (lhs, rhs) => {
+                return Err(VmError::UnsupportedBinaryOperation {
+                    op,
+                    lhs: lhs.type_info()?,
+                    rhs: rhs.type_info()?,
+                });
+            }
+        };
+
+        self.stack.push(Value::Bool(out));
+        Ok(())
+    }
+
     /// Operation associated with `and` instruction.
     #[inline]
     fn op_and(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        let value = boolean_ops!(self, a && b);
-        self.stack.push(Value::Bool(value));
+        self.internal_boolean_op(|a, b| a && b, "&&")?;
         Ok(())
     }
 
     /// Operation associated with `or` instruction.
     #[inline]
     fn op_or(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        let value = boolean_ops!(self, a || b);
-        self.stack.push(Value::Bool(value));
+        self.internal_boolean_op(|a, b| a || b, "||")?;
         Ok(())
     }
 
