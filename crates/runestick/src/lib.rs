@@ -62,7 +62,7 @@ pub mod unit;
 mod value_type;
 mod value_type_info;
 
-pub use self::meta::{Meta, MetaObject, MetaTuple};
+pub use self::meta::{Meta, MetaClosureCapture, MetaObject, MetaTuple};
 pub use self::module::{AsyncFunction, AsyncInstFn, Function, InstFn, Module};
 pub use self::value_type::ValueType;
 pub use self::value_type_info::ValueTypeInfo;

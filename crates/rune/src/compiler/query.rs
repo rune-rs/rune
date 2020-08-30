@@ -3,16 +3,18 @@ use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
-use runestick::{CompilationUnit, Item, Meta, MetaObject, MetaTuple, Span};
+use runestick::{CompilationUnit, Item, Meta, MetaClosureCapture, MetaObject, MetaTuple, Span};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub(super) enum Entry {
     Enum,
     Struct(Struct),
     Variant(Variant),
     Function(Function),
+    Closure(Closure),
 }
 
 pub struct Struct {
@@ -52,9 +54,29 @@ impl Function {
     }
 }
 
-pub struct Query<'a> {
+pub(super) struct Closure {
+    /// Ast for closure.
+    pub(super) ast: ast::ExprClosure,
+    /// Captures.
+    pub(super) captures: Arc<Vec<MetaClosureCapture>>,
+}
+
+impl Closure {
+    /// Construct a new closure.
+    pub(super) fn new(ast: ast::ExprClosure, captures: Arc<Vec<MetaClosureCapture>>) -> Self {
+        Self { ast, captures }
+    }
+}
+
+/// An entry in the build queue.
+pub(super) enum Build {
+    Function(Function),
+    Closure(Closure),
+}
+
+pub(super) struct Query<'a> {
     pub(super) source: Source<'a>,
-    pub(super) functions: VecDeque<(Item, Function)>,
+    pub(super) queue: VecDeque<(Item, Build)>,
     items: HashMap<Item, Entry>,
     pub(super) unit: Rc<RefCell<CompilationUnit>>,
 }
@@ -64,35 +86,70 @@ impl<'a> Query<'a> {
     pub fn new(source: Source<'a>, unit: Rc<RefCell<CompilationUnit>>) -> Self {
         Self {
             source,
-            functions: VecDeque::new(),
+            queue: VecDeque::new(),
             items: HashMap::new(),
             unit,
         }
     }
 
     /// Add a new enum item.
-    pub fn new_enum(&mut self, item: Item) {
+    pub fn new_enum(&mut self, item: Item, span: Span) -> Result<(), CompileError> {
         log::trace!("new enum: {}", item);
-        self.items.insert(item, Entry::Enum);
+        self.insert_item(item, Entry::Enum, span)?;
+        Ok(())
     }
 
     /// Add a new struct item that can be queried.
-    pub fn new_struct(&mut self, item: Item, ast: ast::DeclStruct) {
+    pub fn new_struct(&mut self, item: Item, ast: ast::DeclStruct) -> Result<(), CompileError> {
         log::trace!("new struct: {}", item);
-        self.items.insert(item, Entry::Struct(Struct::new(ast)));
+        let span = ast.span();
+        self.insert_item(item, Entry::Struct(Struct::new(ast)), span)?;
+        Ok(())
     }
 
     /// Add a new variant item that can be queried.
-    pub fn new_variant(&mut self, item: Item, enum_item: Item, ast: ast::DeclStructBody) {
+    pub fn new_variant(
+        &mut self,
+        item: Item,
+        enum_item: Item,
+        ast: ast::DeclStructBody,
+        span: Span,
+    ) -> Result<(), CompileError> {
         log::trace!("new variant: {}", item);
-        self.items
-            .insert(item, Entry::Variant(Variant::new(enum_item, ast)));
+        self.insert_item(item, Entry::Variant(Variant::new(enum_item, ast)), span)?;
+        Ok(())
     }
 
     /// Add a new function that can be queried for.
-    pub fn new_function(&mut self, item: Item, ast: ast::DeclFn) {
+    pub fn new_function(&mut self, item: Item, ast: ast::DeclFn) -> Result<(), CompileError> {
         log::trace!("new function: {}", item);
-        self.items.insert(item, Entry::Function(Function::new(ast)));
+        let span = ast.span();
+        self.insert_item(item, Entry::Function(Function::new(ast)), span)?;
+        Ok(())
+    }
+
+    /// Add a new function that can be queried for.
+    pub fn new_closure(
+        &mut self,
+        item: Item,
+        ast: ast::ExprClosure,
+        captures: Arc<Vec<MetaClosureCapture>>,
+    ) -> Result<(), CompileError> {
+        let span = ast.span();
+        log::trace!("new closure: {}", item);
+        self.insert_item(item, Entry::Closure(Closure::new(ast, captures)), span)?;
+        Ok(())
+    }
+
+    fn insert_item(&mut self, item: Item, entry: Entry, span: Span) -> Result<(), CompileError> {
+        if let Some(..) = self.items.insert(item.clone(), entry) {
+            return Err(CompileError::ItemConflict {
+                existing: item,
+                span,
+            });
+        }
+
+        Ok(())
     }
 
     /// Query for the given meta item.
@@ -126,10 +183,18 @@ impl<'a> Query<'a> {
                 self.unit.borrow_mut().new_item(meta)?;
             }
             Entry::Function(f) => {
-                self.functions.push_back((item.clone(), f));
+                self.queue.push_back((item.clone(), Build::Function(f)));
                 self.unit
                     .borrow_mut()
                     .new_item(Meta::MetaFunction { item: item.clone() })?;
+            }
+            Entry::Closure(c) => {
+                let captures = c.captures.clone();
+                self.queue.push_back((item.clone(), Build::Closure(c)));
+                self.unit.borrow_mut().new_item(Meta::MetaClosure {
+                    item: item.clone(),
+                    captures,
+                })?;
             }
         }
 

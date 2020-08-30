@@ -45,6 +45,27 @@ impl FnPtr {
                     }))),
                 }
             }
+            Inner::FnClosureOffset(offset) => {
+                if A::count() != offset.args {
+                    return Err(VmError::ArgumentCountMismatch {
+                        expected: offset.args,
+                        actual: A::count(),
+                    });
+                }
+
+                let mut vm = Vm::new(offset.context.clone(), offset.unit.clone());
+                vm.set_ip(offset.offset);
+                args.into_args(vm.stack_mut())?;
+                vm.stack_mut()
+                    .push(Value::Tuple(offset.environment.clone()));
+
+                match offset.call {
+                    UnitFnCall::Immediate => vm.run().run_to_completion().await?,
+                    UnitFnCall::Async => Value::Future(Shared::new(Future::new(async move {
+                        Ok(vm.run().run_to_completion().await?)
+                    }))),
+                }
+            }
             Inner::FnTuple(tuple) => {
                 if A::count() != tuple.args {
                     return Err(VmError::ArgumentCountMismatch {
@@ -71,10 +92,10 @@ impl FnPtr {
     }
 
     /// Call with the given stack.
-    pub async fn call_with_stack(&self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
+    pub(crate) async fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<(), VmError> {
         let value = match &self.inner {
             Inner::FnHandler(handler) => {
-                return Ok((handler.handler)(stack, args)?);
+                return Ok((handler.handler)(vm.stack_mut(), args)?);
             }
             Inner::FnPtrOffset(offset) => {
                 if args != offset.args {
@@ -84,7 +105,48 @@ impl FnPtr {
                     });
                 }
 
-                let new_stack = Stack::from(stack.drain_stack_top(args)?);
+                // Fast past, just allocate a call frame and keep running.
+                if let UnitFnCall::Immediate = offset.call {
+                    if vm.is_same(&offset.context, &offset.unit) {
+                        vm.push_call_frame(offset.offset, args)?;
+                        return Ok(());
+                    }
+                }
+
+                let new_stack = vm.stack_mut().drain_stack_top(args)?.collect::<Stack>();
+                let mut vm =
+                    Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
+                vm.set_ip(offset.offset);
+
+                let future = Future::new(async move { Ok(vm.run().run_to_completion().await?) });
+
+                match offset.call {
+                    UnitFnCall::Immediate => future.await?,
+                    UnitFnCall::Async => Value::Future(Shared::new(future)),
+                }
+            }
+            Inner::FnClosureOffset(offset) => {
+                if args != offset.args {
+                    return Err(VmError::ArgumentCountMismatch {
+                        expected: offset.args,
+                        actual: args,
+                    });
+                }
+
+                // Fast past, just allocate a call frame, push the environment
+                // onto the stack and keep running.
+                if let UnitFnCall::Immediate = offset.call {
+                    if vm.is_same(&offset.context, &offset.unit) {
+                        vm.push_call_frame(offset.offset, args)?;
+                        vm.stack_mut()
+                            .push(Value::Tuple(offset.environment.clone()));
+                        return Ok(());
+                    }
+                }
+
+                let mut new_stack = Stack::new();
+                new_stack.extend(vm.stack_mut().drain_stack_top(args)?);
+                new_stack.push(Value::Tuple(offset.environment.clone()));
                 let mut vm =
                     Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
                 vm.set_ip(offset.offset);
@@ -104,7 +166,7 @@ impl FnPtr {
                     });
                 }
 
-                Value::typed_tuple(tuple.hash, stack.pop_sequence(args)?)
+                Value::typed_tuple(tuple.hash, vm.stack_mut().pop_sequence(args)?)
             }
             Inner::FnVariantTuple(tuple) => {
                 if args != tuple.args {
@@ -114,11 +176,15 @@ impl FnPtr {
                     });
                 }
 
-                Value::variant_tuple(tuple.enum_hash, tuple.hash, stack.pop_sequence(args)?)
+                Value::variant_tuple(
+                    tuple.enum_hash,
+                    tuple.hash,
+                    vm.stack_mut().pop_sequence(args)?,
+                )
             }
         };
 
-        stack.push(value);
+        vm.stack_mut().push(value);
         Ok(())
     }
 
@@ -149,6 +215,27 @@ impl FnPtr {
     }
 
     /// Create a function pointer from an offset.
+    pub fn from_closure(
+        context: Rc<Context>,
+        unit: Rc<CompilationUnit>,
+        environment: Shared<Box<[Value]>>,
+        offset: usize,
+        call: UnitFnCall,
+        args: usize,
+    ) -> Self {
+        Self {
+            inner: Inner::FnClosureOffset(FnClosureOffset {
+                context,
+                unit,
+                environment,
+                offset,
+                call,
+                args,
+            }),
+        }
+    }
+
+    /// Create a function pointer from an offset.
     pub fn from_tuple(hash: Hash, args: usize) -> Self {
         Self {
             inner: Inner::FnTuple(FnTuple { hash, args }),
@@ -171,6 +258,7 @@ impl FnPtr {
 enum Inner {
     FnHandler(FnHandler),
     FnPtrOffset(FnPtrOffset),
+    FnClosureOffset(FnClosureOffset),
     FnTuple(FnTuple),
     FnVariantTuple(FnVariantTuple),
 }
@@ -203,6 +291,33 @@ impl fmt::Debug for FnPtrOffset {
         f.debug_struct("FnPtrOffset")
             .field("context", &(&self.context as *const _))
             .field("unit", &(&self.unit as *const _))
+            .field("offset", &self.offset)
+            .field("call", &self.call)
+            .field("args", &self.args)
+            .finish()
+    }
+}
+
+struct FnClosureOffset {
+    context: Rc<Context>,
+    /// The unit where the function resides.
+    unit: Rc<CompilationUnit>,
+    /// Captured environment.
+    environment: Shared<Box<[Value]>>,
+    /// The offset of the function.
+    offset: usize,
+    /// The calling convention.
+    call: UnitFnCall,
+    /// The number of arguments the function takes.
+    args: usize,
+}
+
+impl fmt::Debug for FnClosureOffset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FnPtrOffset")
+            .field("context", &(&self.context as *const _))
+            .field("unit", &(&self.unit as *const _))
+            .field("environment", &self.environment)
             .field("offset", &self.offset)
             .field("call", &self.call)
             .field("args", &self.args)

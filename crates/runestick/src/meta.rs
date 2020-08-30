@@ -1,6 +1,7 @@
 use crate::collections::HashSet;
 use crate::Item;
 use std::fmt;
+use std::sync::Arc;
 
 /// Metadata about a closure.
 #[derive(Debug, Clone)]
@@ -51,7 +52,7 @@ pub enum Meta {
         /// The item of the closure.
         item: Item,
         /// Sequence of captured variables.
-        captures: Vec<MetaClosureCapture>,
+        captures: Arc<Vec<MetaClosureCapture>>,
     },
 }
 

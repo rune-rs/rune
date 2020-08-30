@@ -137,13 +137,16 @@ pub enum Component {
     ///
     /// The block for the current function is always `0`.
     Block(usize),
+    /// A closure component.
+    Closure(usize),
 }
 
 impl fmt::Display for Component {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::String(s) => write!(fmt, "{}", s),
-            Self::Block(n) => write!(fmt, "${}", n),
+            Self::Block(n) => write!(fmt, "$block{}", n),
+            Self::Closure(n) => write!(fmt, "$closure{}", n),
         }
     }
 }

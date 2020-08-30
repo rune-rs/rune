@@ -5,11 +5,12 @@ use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use runestick::unit::{Assembly, Label, UnitFnCall};
-use runestick::{Component, Context, Hash, Inst, Item, Meta, Span, TypeCheck};
+use runestick::{Component, Context, Hash, Inst, Item, Meta, MetaClosureCapture, Span, TypeCheck};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 mod index;
+mod index_scopes;
 mod items;
 mod loops;
 mod options;
@@ -17,11 +18,12 @@ mod query;
 mod scopes;
 mod warning;
 
+use self::index_scopes::IndexScopes;
 pub(self) use self::items::Items;
 use self::loops::{Loop, Loops};
 pub use self::options::Options;
-pub use self::query::Query;
-use self::scopes::{Scope, ScopeGuard, Scopes};
+use self::query::{Build, Query};
+use self::scopes::{Scope, ScopeGuard, Scopes, Var};
 pub use self::warning::{Warning, Warnings};
 use index::{Index as _, Indexer};
 
@@ -67,15 +69,13 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
         let mut query = query::Query::new(source, unit.clone());
         let mut indexer = Indexer {
             items: Items::new(vec![]),
+            scopes: IndexScopes::new(),
             query: &mut query,
             warnings: &mut warnings,
         };
         indexer.index(&file)?;
 
-        while let Some((item, f)) = query.functions.pop_front() {
-            let span = f.ast.span();
-            let count = f.ast.args.items.len();
-
+        while let Some((item, build)) = query.queue.pop_front() {
             let mut asm = unit.borrow().new_assembly();
 
             let mut compiler = Compiler {
@@ -85,7 +85,7 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                 items: Items::new(item.as_vec()),
                 unit: unit.clone(),
                 scopes: Scopes::new(),
-                contexts: vec![span],
+                contexts: vec![],
                 source,
                 loops: Loops::new(),
                 current_block: Span::empty(),
@@ -93,14 +93,36 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                 warnings: &mut warnings,
             };
 
-            let call = if f.ast.async_.is_some() {
-                UnitFnCall::Async
-            } else {
-                UnitFnCall::Immediate
-            };
+            match build {
+                Build::Function(f) => {
+                    let span = f.ast.span();
+                    let count = f.ast.args.items.len();
+                    compiler.contexts.push(span);
 
-            compiler.compile_decl_fn(f.ast)?;
-            unit.borrow_mut().new_function(item, count, asm, call)?;
+                    let call = if f.ast.async_.is_some() {
+                        UnitFnCall::Async
+                    } else {
+                        UnitFnCall::Immediate
+                    };
+
+                    compiler.compile_decl_fn(f.ast)?;
+                    unit.borrow_mut().new_function(item, count, asm, call)?;
+                }
+                Build::Closure(c) => {
+                    let span = c.ast.span();
+                    let count = c.ast.args.len();
+                    compiler.contexts.push(span);
+
+                    let call = if c.ast.async_.is_some() {
+                        UnitFnCall::Async
+                    } else {
+                        UnitFnCall::Immediate
+                    };
+
+                    compiler.compile_expr_closure_fn(c.ast, &*c.captures)?;
+                    unit.borrow_mut().new_function(item, count, asm, call)?;
+                }
+            }
         }
 
         // query holds a reference to the unit, we need to drop it.
@@ -143,7 +165,7 @@ struct Compiler<'a, 'source> {
 impl<'a, 'source> Compiler<'a, 'source> {
     fn compile_decl_fn(&mut self, fn_decl: ast::DeclFn) -> Result<()> {
         let span = fn_decl.span();
-        log::trace!("FnDecl => {:?}", self.source.source(span)?);
+        log::trace!("DeclFn => {:?}", self.source.source(span)?);
         let item_guard = self.items.push_block();
 
         for (arg, _) in fn_decl.args.items.iter().rev() {
@@ -174,6 +196,48 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         self.scopes.pop_last(span)?;
         self.items.pop(item_guard, span)?;
+        Ok(())
+    }
+
+    fn compile_expr_closure_fn(
+        &mut self,
+        expr_closure: ast::ExprClosure,
+        captures: &[MetaClosureCapture],
+    ) -> Result<()> {
+        let span = expr_closure.span();
+        log::trace!("ExprClosure => {:?}", self.source.source(span)?);
+
+        let count = {
+            let scope = self.scopes.last_mut(span)?;
+            for (arg, _) in expr_closure.args.as_slice().iter().rev() {
+                let span = arg.span();
+
+                match arg {
+                    ast::FnArg::Ident(ident) => {
+                        let ident = ident.resolve(self.source)?;
+                        scope.new_var(ident, span)?;
+                    }
+                    ast::FnArg::Ignore(..) => {
+                        // Ignore incoming variable.
+                        let _ = scope.decl_anon(span);
+                    }
+                }
+            }
+
+            let offset = scope.decl_anon(span);
+
+            for (index, capture) in captures.iter().enumerate() {
+                scope.new_env_var(&capture.ident, offset, index, span)?;
+            }
+
+            scope.total_var_count
+        };
+
+        self.compile_expr(&*expr_closure.body, Needs::Value)?;
+        self.asm.push(Inst::Clean { count }, span);
+        self.asm.push(Inst::Return, span);
+
+        self.scopes.pop_last(span)?;
         Ok(())
     }
 
@@ -258,7 +322,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             self.compile_expr(expr, needs)?;
         }
 
-        let scope = self.scopes.pop(span, scopes_count)?;
+        let scope = self.scopes.pop(scopes_count, span)?;
 
         if needs.value() {
             if block.trailing_expr.is_none() {
@@ -502,7 +566,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 let var = self.scopes.get_var(&*key, span)?;
 
                 if needs.value() {
-                    self.asm.push(Inst::Copy { offset: var.offset }, span);
+                    var.copy(&mut self.asm, span);
                 }
             }
         }
@@ -724,7 +788,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             span,
         );
 
-        let _ = self.scopes.pop(span, expected)?;
+        let _ = self.scopes.pop(expected, span)?;
         Ok(())
     }
 
@@ -1101,7 +1165,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
                     if let Some(local) = item.as_local() {
                         let var = self.scopes.get_var(local, path.span())?;
-                        break var.offset;
+
+                        match var {
+                            Var::Local(local) => break local.offset,
+                            Var::Environ(..) => (),
+                        }
                     }
                 }
                 ast::Expr::ExprBinary(expr_binary) => {
@@ -1120,8 +1188,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
                             let field = self.unit.borrow_mut().new_static_string(field)?;
                             self.asm.push(Inst::String { slot: field }, field_span);
 
-                            let var = self.scopes.get_var(var, var_span)?.offset;
-                            self.asm.push(Inst::Copy { offset: var }, var_span);
+                            let var = self.scopes.get_var(var, var_span)?;
+                            var.copy(&mut self.asm, var_span);
 
                             self.asm.push(Inst::IndexSet, span);
                             return Ok(());
@@ -1260,13 +1328,21 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 None => return Ok(false),
             };
 
-            this.asm.push(
-                Inst::TupleIndexGetAt {
-                    offset: var.offset,
-                    index,
-                },
-                span,
-            );
+            match var {
+                Var::Local(local) => {
+                    this.asm.push(
+                        Inst::TupleIndexGetAt {
+                            offset: local.offset,
+                            index,
+                        },
+                        span,
+                    );
+                }
+                Var::Environ(environ) => {
+                    environ.copy(&mut this.asm, span);
+                    this.asm.push(Inst::TupleIndexGet { index }, span);
+                }
+            }
 
             if !needs.value() {
                 this.warnings.not_used(span, this.context());
@@ -1386,8 +1462,14 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = expr_closure.span();
         log::trace!("ExprClosure => {:?}", self.source.source(span)?);
 
-        let guard = self.items.push_block();
+        if !needs.value() {
+            self.warnings.not_used(span, self.context());
+            return Ok(());
+        }
+
+        let guard = self.items.push_closure();
         let item = self.items.item();
+        let hash = Hash::type_hash(&item);
 
         let meta = self
             .query
@@ -1395,13 +1477,27 @@ impl<'a, 'source> Compiler<'a, 'source> {
             .ok_or_else(|| CompileError::MissingType { item, span })?;
 
         let captures = match meta {
-            Meta::MetaClosure { item, captures } => captures,
+            Meta::MetaClosure { captures, .. } => captures,
             meta => {
                 return Err(CompileError::UnsupportedMetaClosure { meta, span });
             }
         };
 
         self.items.pop(guard, span)?;
+
+        for capture in &*captures {
+            let var = self.scopes.get_var(&capture.ident, span)?;
+            var.copy(&mut self.asm, span);
+        }
+
+        self.asm.push(
+            Inst::Closure {
+                hash,
+                count: captures.len(),
+            },
+            span,
+        );
+
         Ok(())
     }
 
@@ -1455,7 +1551,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         if let Needs::Value = needs {
             if let Some(local) = item.as_local() {
                 if let Some(var) = self.scopes.try_get_var(local)? {
-                    self.asm.push(Inst::Copy { offset: var.offset }, span);
+                    var.copy(&mut self.asm, span);
                     return Ok(());
                 }
             }
@@ -1562,7 +1658,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         if let Some(name) = item.as_local() {
             if let Some(var) = self.scopes.last(span)?.get(name) {
-                self.asm.push(Inst::Copy { offset: var.offset }, span);
+                var.copy(&mut self.asm, span);
                 self.asm.push(Inst::CallFn { args }, span);
                 return Ok(());
             }
@@ -1880,7 +1976,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
                 self.compile_expr(&*condition, Needs::Value)?;
                 self.clean_last_scope(span, guard, Needs::Value)?;
-                let scope = self.scopes.pop(span, parent_guard)?;
+                let scope = self.scopes.pop(parent_guard, span)?;
 
                 self.asm
                     .pop_and_jump_if_not(scope.local_var_count, match_false, span);
@@ -2458,7 +2554,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
     /// Clean the last scope.
     fn clean_last_scope(&mut self, span: Span, expected: ScopeGuard, needs: Needs) -> Result<()> {
-        let scope = self.scopes.pop(span, expected)?;
+        let scope = self.scopes.pop(expected, span)?;
 
         if needs.value() {
             self.locals_clean(scope.local_var_count, span);

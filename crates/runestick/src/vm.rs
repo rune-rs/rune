@@ -445,6 +445,11 @@ impl Vm {
         }
     }
 
+    /// Test if the virtual machine is the same context and unit as specified.
+    pub fn is_same(&self, context: &Rc<Context>, unit: &Rc<CompilationUnit>) -> bool {
+        Rc::ptr_eq(&self.context, context) && Rc::ptr_eq(&self.unit, unit)
+    }
+
     /// Set  the current instruction pointer.
     #[inline]
     pub fn set_ip(&mut self, ip: usize) {
@@ -456,9 +461,14 @@ impl Vm {
         &mut self.stack
     }
 
+    /// Access the context related to the virtual machine.
+    pub fn context(&self) -> &Rc<Context> {
+        &self.context
+    }
+
     /// Access the underlying unit of the virtual machine.
-    pub fn unit(&self) -> &CompilationUnit {
-        &*self.unit
+    pub fn unit(&self) -> &Rc<CompilationUnit> {
+        &self.unit
     }
 
     /// Reset this virtual machine, freeing all memory used.
@@ -721,7 +731,10 @@ impl Vm {
     }
 
     /// Push a new call frame.
-    fn push_call_frame(&mut self, new_ip: usize, args: usize) -> Result<(), VmError> {
+    ///
+    /// This will cause the `args` number of elements on the stack to be
+    /// associated and accessible to the new call frame.
+    pub fn push_call_frame(&mut self, ip: usize, args: usize) -> Result<(), VmError> {
         let stack_top = self.stack.push_stack_top(args)?;
 
         self.call_frames.push(CallFrame {
@@ -729,7 +742,7 @@ impl Vm {
             stack_top,
         });
 
-        self.ip = new_ip;
+        self.ip = ip;
         self.skip_ip = true;
         Ok(())
     }
@@ -1909,7 +1922,7 @@ impl Vm {
 
     /// Construct a future from calling an async function.
     fn call_async_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
-        let stack = Stack::from(self.stack.drain_stack_top(args)?);
+        let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
 
         vm.ip = offset;
@@ -1970,6 +1983,35 @@ impl Vm {
             }
         };
 
+        self.stack.push(Value::FnPtr(Shared::new(fn_ptr)));
+        Ok(())
+    }
+
+    /// Construct a closure on the top of the stack.
+    fn op_closure(&mut self, hash: Hash, count: usize) -> Result<(), VmError> {
+        let info = self
+            .unit
+            .lookup(hash)
+            .ok_or_else(|| VmError::MissingFunction { hash })?;
+
+        let args = info.signature.args;
+
+        let (offset, call) = match &info.kind {
+            UnitFnKind::Offset { offset, call } => (*offset, *call),
+            _ => return Err(VmError::MissingFunction { hash }),
+        };
+
+        let environment = self.stack.pop_sequence(count)?;
+        let environment = Shared::new(environment.into_boxed_slice());
+
+        let fn_ptr = FnPtr::from_closure(
+            self.context.clone(),
+            self.unit.clone(),
+            environment,
+            offset,
+            call,
+            args,
+        );
         self.stack.push(Value::FnPtr(Shared::new(fn_ptr)));
         Ok(())
     }
@@ -2072,7 +2114,7 @@ impl Vm {
             Value::Type(hash) => hash,
             Value::FnPtr(fn_ptr) => {
                 let fn_ptr = fn_ptr.owned_ref()?;
-                fn_ptr.call_with_stack(&mut self.stack, args).await?;
+                fn_ptr.call_with_vm(self, args).await?;
                 return Ok(());
             }
             actual => {
@@ -2123,6 +2165,9 @@ impl Vm {
                 }
                 Inst::Fn { hash } => {
                     self.op_fn(hash)?;
+                }
+                Inst::Closure { hash, count } => {
+                    self.op_closure(hash, count)?;
                 }
                 Inst::Call { hash, args } => {
                     self.op_call(hash, args)?;

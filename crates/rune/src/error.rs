@@ -327,6 +327,12 @@ pub enum ParseError {
         /// Span of the expression that can't be used in a chain.
         span: Span,
     },
+    /// Trying to use a token that is not supported as a function argument.
+    #[error("not supported as a function or closure argument")]
+    ExpectedFunctionArgument {
+        /// Where the argument is.
+        span: Span,
+    },
 }
 
 impl ParseError {
@@ -373,6 +379,7 @@ impl ParseError {
             Self::InvalidTemplateLiteral { span, .. } => span,
             Self::UnexpectedCloseBrace { span, .. } => span,
             Self::UnsupportedFieldAccess { span, .. } => span,
+            Self::ExpectedFunctionArgument { span, .. } => span,
         }
     }
 }
@@ -401,6 +408,14 @@ pub enum CompileError {
         /// Source error.
         #[from]
         error: ParseError,
+    },
+    /// Error when trying to index a duplicate item.
+    #[error("found conflicting item `{existing}`")]
+    ItemConflict {
+        /// Where the conflicting item was found.
+        span: Span,
+        /// The name of the conflicting item.
+        existing: Item,
     },
     /// Error for variable conflicts.
     #[error("variable `{name}` conflicts")]
@@ -623,6 +638,7 @@ impl CompileError {
             Self::UnitError { .. } => Span::default(),
             Self::Internal { span, .. } => span,
             Self::ParseError { error, .. } => error.span(),
+            Self::ItemConflict { span, .. } => span,
             Self::VariableConflict { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
             Self::MissingType { span, .. } => span,

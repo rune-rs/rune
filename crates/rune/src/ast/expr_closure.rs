@@ -14,7 +14,7 @@ pub enum ExprClosureArgs {
         /// The opening pipe for the argument group.
         open: ast::Pipe,
         /// The arguments of the function.
-        args: Vec<(ast::Pat, Option<ast::Comma>)>,
+        args: Vec<(ast::FnArg, Option<ast::Comma>)>,
         /// The closening pipe for the argument group.
         close: ast::Pipe,
     },
@@ -28,11 +28,29 @@ impl ExprClosureArgs {
             Self::List { open, close, .. } => open.span().join(close.span()),
         }
     }
+
+    /// The number of arguments the closure takes.
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Empty { .. } => 0,
+            Self::List { args, .. } => args.len(),
+        }
+    }
+
+    /// Iterate over all arguments.
+    pub fn as_slice(&self) -> &[(ast::FnArg, Option<ast::Comma>)] {
+        match self {
+            Self::Empty { .. } => &[],
+            Self::List { args, .. } => &args[..],
+        }
+    }
 }
 
 /// A closure.
 #[derive(Debug, Clone)]
 pub struct ExprClosure {
+    /// If the closure is async or not.
+    pub async_: Option<ast::Async>,
     /// Arguments to the closure.
     pub args: ExprClosureArgs,
     /// The body of the closure.
@@ -53,11 +71,14 @@ impl ExprClosure {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
+/// parse_all::<ast::ExprClosure>("async || 42").unwrap();
 /// parse_all::<ast::ExprClosure>("|| 42").unwrap();
 /// parse_all::<ast::ExprClosure>("|| { 42 }").unwrap();
 /// ```
 impl Parse for ExprClosure {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let async_ = parser.parse()?;
+
         let args = if let Some(token) = parser.parse::<Option<ast::Or>>()? {
             ExprClosureArgs::Empty { token }
         } else {
@@ -82,6 +103,7 @@ impl Parse for ExprClosure {
         };
 
         Ok(Self {
+            async_,
             args,
             body: Box::new(parser.parse()?),
         })

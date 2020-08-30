@@ -163,9 +163,30 @@ pub enum Inst {
         offset: usize,
     },
     /// Encode a function pointer on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <fn>
+    /// ```
     Fn {
         /// The hash to construct a function pointer from.
         hash: Hash,
+    },
+    /// Construct a closure that takes the given number of arguments and
+    /// captures `count` elements from the top of the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value..>
+    /// => <fn>
+    /// ```
+    Closure {
+        /// The hash of the internally stored closure function.
+        hash: Hash,
+        /// The number of arguments to store in the environment on the stack.
+        count: usize,
     },
     /// Perform a function call.
     ///
@@ -909,6 +930,9 @@ impl fmt::Display for Inst {
             }
             Self::Fn { hash } => {
                 write!(fmt, "fn {}", hash)?;
+            }
+            Self::Closure { hash, count } => {
+                write!(fmt, "closure {}, {}", hash, count)?;
             }
             Self::CallFn { args } => {
                 write!(fmt, "call-fn {}", args)?;

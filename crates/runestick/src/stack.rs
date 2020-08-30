@@ -1,4 +1,5 @@
 use crate::{Shared, Value};
+use std::iter::FromIterator;
 use thiserror::Error;
 
 /// An error raised when interacting with the stack.
@@ -44,6 +45,14 @@ impl Stack {
             stack: Vec::new(),
             stack_top: 0,
         }
+    }
+
+    /// Extend the current stack.
+    pub fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = Value>,
+    {
+        self.stack.extend(iter);
     }
 
     /// Construct a new stack with the given capacity.
@@ -197,7 +206,10 @@ impl Stack {
     }
 
     /// Pop a sub stack of the given size.
-    pub fn drain_stack_top(&mut self, args: usize) -> Result<Vec<Value>, StackError> {
+    pub fn drain_stack_top(
+        &mut self,
+        args: usize,
+    ) -> Result<impl Iterator<Item = Value> + '_, StackError> {
         let start =
             self.stack
                 .len()
@@ -212,7 +224,7 @@ impl Stack {
             });
         }
 
-        Ok(self.stack.drain(start..).collect::<Vec<_>>())
+        Ok(self.stack.drain(start..))
     }
 
     /// Modify stack top by subtracting the given count from it while checking
@@ -252,6 +264,15 @@ impl Stack {
         self.check_stack_top()?;
         self.stack_top = new_stack_top;
         Ok(())
+    }
+}
+
+impl FromIterator<Value> for Stack {
+    fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
+        Self {
+            stack: iter.into_iter().collect(),
+            stack_top: 0,
+        }
     }
 }
 

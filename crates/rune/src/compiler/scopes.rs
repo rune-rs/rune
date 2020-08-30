@@ -1,16 +1,77 @@
 use crate::collections::HashMap;
 use crate::compiler::{CompileError, Result};
-use runestick::unit::Span;
+use runestick::unit::Assembly;
+use runestick::{Inst, Span};
 
 /// A locally declared variable.
 #[derive(Debug, Clone)]
-pub(super) struct Var {
+pub(super) struct Local {
     /// Slot offset from the current stack frame.
     pub(super) offset: usize,
     /// Name of the variable.
     name: String,
     /// Token assocaited with the variable.
     span: Span,
+}
+
+/// A variable captures from the environment.
+#[derive(Debug, Clone)]
+pub(super) struct Environ {
+    /// Slot offset from the current stack frame.
+    pub(super) offset: usize,
+    /// The index in the environment the variable comes from.
+    pub(super) index: usize,
+    /// The span the environment variable was declared in.
+    span: Span,
+}
+
+impl Environ {
+    /// Copy the given variable.
+    pub fn copy(&self, asm: &mut Assembly, span: Span) {
+        asm.push(
+            Inst::TupleIndexGetAt {
+                offset: self.offset,
+                index: self.index,
+            },
+            span,
+        );
+    }
+}
+
+/// A declared variable.
+#[derive(Debug, Clone)]
+pub(super) enum Var {
+    /// A locally declared variable.
+    Local(Local),
+    /// A variable captured in the environment.
+    Environ(Environ),
+}
+
+impl Var {
+    /// Get the span of the variable.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Local(local) => local.span,
+            Self::Environ(environ) => environ.span,
+        }
+    }
+
+    /// Copy the declared variable.
+    pub fn copy(&self, asm: &mut Assembly, span: Span) {
+        match self {
+            Self::Local(local) => {
+                asm.push(
+                    Inst::Copy {
+                        offset: local.offset,
+                    },
+                    span,
+                );
+            }
+            Self::Environ(environ) => {
+                environ.copy(asm, span);
+            }
+        }
+    }
 }
 
 /// A locally declared variable.
@@ -56,12 +117,37 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
+    pub(super) fn new_env_var(
+        &mut self,
+        name: &str,
+        offset: usize,
+        index: usize,
+        span: Span,
+    ) -> Result<()> {
+        let local = Var::Environ(Environ {
+            offset,
+            index,
+            span,
+        });
+
+        if let Some(old) = self.locals.insert(name.to_owned(), local) {
+            return Err(CompileError::VariableConflict {
+                name: name.to_owned(),
+                span,
+                existing_span: old.span(),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Insert a new local, and return the old one if there's a conflict.
     pub(super) fn new_var(&mut self, name: &str, span: Span) -> Result<()> {
-        let local = Var {
+        let local = Var::Local(Local {
             offset: self.total_var_count,
             name: name.to_owned(),
             span,
-        };
+        });
 
         self.total_var_count += 1;
         self.local_var_count += 1;
@@ -70,7 +156,7 @@ impl Scope {
             return Err(CompileError::VariableConflict {
                 name: name.to_owned(),
                 span,
-                existing_span: old.span,
+                existing_span: old.span(),
             });
         }
 
@@ -85,11 +171,11 @@ impl Scope {
 
         self.locals.insert(
             name.to_owned(),
-            Var {
+            Var::Local(Local {
                 offset,
                 name: name.to_owned(),
                 span,
-            },
+            }),
         );
 
         self.total_var_count += 1;
@@ -204,7 +290,7 @@ impl Scopes {
     }
 
     /// Pop the last scope and compare with the expected length.
-    pub(super) fn pop(&mut self, span: Span, expected: ScopeGuard) -> Result<Scope> {
+    pub(super) fn pop(&mut self, expected: ScopeGuard, span: Span) -> Result<Scope> {
         let ScopeGuard(expected) = expected;
 
         if self.scopes.len() != expected {
@@ -219,7 +305,7 @@ impl Scopes {
 
     /// Pop the last of the scope.
     pub(super) fn pop_last(&mut self, span: Span) -> Result<Scope> {
-        self.pop(span, ScopeGuard(1))
+        self.pop(ScopeGuard(1), span)
     }
 
     /// Pop the last scope and compare with the expected length.

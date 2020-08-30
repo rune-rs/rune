@@ -5,8 +5,19 @@ use std::mem;
 pub(super) struct Guard(usize);
 
 struct Node {
-    children: usize,
+    blocks: usize,
+    closures: usize,
     component: Component,
+}
+
+impl From<Component> for Node {
+    fn from(component: Component) -> Self {
+        Self {
+            blocks: 0,
+            closures: 0,
+            component,
+        }
+    }
 }
 
 /// Manage item paths.
@@ -21,7 +32,8 @@ impl Items {
             path: base
                 .into_iter()
                 .map(|component| Node {
-                    children: 0,
+                    blocks: 0,
+                    closures: 0,
                     component,
                 })
                 .collect(),
@@ -33,11 +45,21 @@ impl Items {
         self.path.is_empty()
     }
 
-    /// Get the next child index.
-    fn next_index(&mut self) -> usize {
+    /// Get the next block index.
+    fn next_block(&mut self) -> usize {
         if let Some(node) = self.path.last_mut() {
-            let new = node.children + 1;
-            mem::replace(&mut node.children, new)
+            let new = node.blocks + 1;
+            mem::replace(&mut node.blocks, new)
+        } else {
+            0
+        }
+    }
+
+    /// Get the next closure index.
+    fn next_closure(&mut self) -> usize {
+        if let Some(node) = self.path.last_mut() {
+            let new = node.closures + 1;
+            mem::replace(&mut node.closures, new)
         } else {
             0
         }
@@ -45,26 +67,25 @@ impl Items {
 
     /// Push a component and return a guard to it.
     pub fn push_block(&mut self) -> Guard {
-        let index = self.next_index();
+        let index = self.next_block();
         let guard = Guard(self.path.len());
+        self.path.push(Node::from(Component::Block(index)));
+        guard
+    }
 
-        self.path.push(Node {
-            children: 0,
-            component: Component::Block(index),
-        });
-
+    /// Push a closure component and return guard associated with it.
+    pub fn push_closure(&mut self) -> Guard {
+        let index = self.next_closure();
+        let guard = Guard(self.path.len());
+        self.path.push(Node::from(Component::Closure(index)));
         guard
     }
 
     /// Push a component and return a guard to it.
     pub fn push_name(&mut self, name: &str) -> Guard {
         let guard = Guard(self.path.len());
-
-        self.path.push(Node {
-            children: 0,
-            component: Component::String(name.to_owned()),
-        });
-
+        self.path
+            .push(Node::from(Component::String(name.to_owned())));
         guard
     }
 
