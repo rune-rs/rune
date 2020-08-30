@@ -5,7 +5,7 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub struct CallInstanceFn {
     /// The instance being called.
-    pub instance: Box<Expr>,
+    pub expr: Box<Expr>,
     /// The parsed dot separator.
     pub dot: Dot,
     /// The name of the function being called.
@@ -17,6 +17,6 @@ pub struct CallInstanceFn {
 impl CallInstanceFn {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
-        self.instance.span().join(self.args.span())
+        self.expr.span().join(self.args.span())
     }
 }

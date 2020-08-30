@@ -556,6 +556,8 @@ impl Index<ast::ExprSelect> for Indexer<'_, '_> {
 
 impl Index<ast::CallFn> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::CallFn) -> Result<(), CompileError> {
+        self.index(&*item.expr)?;
+
         for (expr, _) in &item.args.items {
             self.index(expr)?;
         }
@@ -566,7 +568,7 @@ impl Index<ast::CallFn> for Indexer<'_, '_> {
 
 impl Index<ast::CallInstanceFn> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::CallInstanceFn) -> Result<(), CompileError> {
-        self.index(&*item.instance)?;
+        self.index(&*item.expr)?;
 
         for (expr, _) in &item.args.items {
             self.index(expr)?;

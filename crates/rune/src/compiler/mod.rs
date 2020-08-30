@@ -1624,8 +1624,19 @@ impl<'a, 'source> Compiler<'a, 'source> {
             self.compile_expr(expr, Needs::Value)?;
         }
 
-        let item = self.convert_path_to_item(&call_fn.name)?;
-        let a = self.lookup_meta(&item, call_fn.name.span())?;
+        // NB: either handle a proper function call by resolving it's meta hash,
+        // or expand the expression.
+        let path = match &*call_fn.expr {
+            ast::Expr::Path(path) => path,
+            expr => {
+                self.compile_expr(expr, Needs::Value)?;
+                self.asm.push(Inst::CallFn { args }, span);
+                return Ok(());
+            }
+        };
+
+        let item = self.convert_path_to_item(path)?;
+        let a = self.lookup_meta(&item, path.span())?;
 
         let item = if let Some(meta) = a {
             match &meta {
@@ -1640,7 +1651,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     }
 
                     if tuple.args == 0 {
-                        let tuple = call_fn.name.span();
+                        let tuple = path.span();
                         self.warnings
                             .remove_tuple_call_parens(span, tuple, self.context());
                     }
@@ -1690,7 +1701,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             self.compile_expr(expr, Needs::Value)?;
         }
 
-        self.compile_expr(&*call_instance_fn.instance, Needs::Value)?;
+        self.compile_expr(&*call_instance_fn.expr, Needs::Value)?;
 
         let name = call_instance_fn.name.resolve(self.source)?;
         let hash = Hash::of(name);

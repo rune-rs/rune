@@ -215,14 +215,7 @@ impl Expr {
             )?));
         }
 
-        if !parser.peek::<ast::OpenParen>()? {
-            return Ok(Self::Path(path));
-        }
-
-        Ok(Self::CallFn(ast::CallFn {
-            name: path,
-            args: parser.parse()?,
-        }))
+        Ok(Self::Path(path))
     }
 
     /// Parsing something that opens with a parenthesis.
@@ -342,6 +335,15 @@ impl Expr {
                         try_: parser.parse()?,
                     });
                 }
+                // Chained function call.
+                Kind::Open(Delimiter::Parenthesis) => {
+                    let args = parser.parse::<ast::Parenthesized<ast::Expr, ast::Comma>>()?;
+
+                    expr = Expr::CallFn(ast::CallFn {
+                        expr: Box::new(expr),
+                        args,
+                    });
+                }
                 Kind::Dot => {
                     let dot = parser.parse()?;
                     let token = parser.token_peek()?;
@@ -361,31 +363,24 @@ impl Expr {
                     let next = Expr::parse_primary(parser, EagerBrace(false), FieldAccess(false))?;
 
                     let span = match next {
-                        Expr::CallFn(call_fn) => {
-                            let span = call_fn.span();
-
-                            if let Some(name) = call_fn.name.try_into_ident() {
-                                expr = Expr::CallInstanceFn(ast::CallInstanceFn {
-                                    instance: Box::new(expr),
-                                    dot,
-                                    name,
-                                    args: call_fn.args,
-                                });
-
-                                continue;
-                            };
-
-                            span
-                        }
                         Expr::Path(path) => {
                             let span = path.span();
 
-                            if let Some(ident) = path.try_into_ident() {
-                                expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
-                                    expr: Box::new(expr),
-                                    dot,
-                                    expr_field: ast::ExprField::Ident(ident),
-                                });
+                            if let Some(name) = path.try_into_ident() {
+                                if parser.peek::<ast::OpenParen>()? {
+                                    expr = Expr::CallInstanceFn(ast::CallInstanceFn {
+                                        expr: Box::new(expr),
+                                        dot,
+                                        name,
+                                        args: parser.parse()?,
+                                    });
+                                } else {
+                                    expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
+                                        expr: Box::new(expr),
+                                        dot,
+                                        expr_field: ast::ExprField::Ident(name),
+                                    });
+                                }
 
                                 continue;
                             }

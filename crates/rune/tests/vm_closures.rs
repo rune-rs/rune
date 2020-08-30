@@ -68,3 +68,16 @@ fn test_capture_match() {
         }
     };
 }
+
+#[test]
+fn test_capture_fn_arg() {
+    assert_eq! {
+        3,
+        test! {
+            i64 => r#"
+            fn foo(n) { |a| n + a }
+            fn main() { foo(1)(2) }
+            "#
+        }
+    };
+}
