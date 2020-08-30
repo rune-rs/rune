@@ -23,6 +23,7 @@ pub use self::options::Options;
 pub use self::query::Query;
 use self::scopes::{Scope, ScopeGuard, Scopes};
 pub use self::warning::{Warning, Warnings};
+use index::{Index as _, Indexer};
 
 type Result<T, E = CompileError> = std::result::Result<T, E>;
 
@@ -64,16 +65,12 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
         ));
 
         let mut query = query::Query::new(source, unit.clone());
-
-        for (decl, semi_colon) in file.decls {
-            if let Some(semi_colon) = semi_colon {
-                if !decl.needs_semi_colon() {
-                    warnings.uneccessary_semi_colon(semi_colon.span());
-                }
-            }
-
-            query.process_decl(decl)?;
-        }
+        let mut indexer = Indexer {
+            items: Items::new(vec![]),
+            query: &mut query,
+            warnings: &mut warnings,
+        };
+        indexer.index(&file)?;
 
         while let Some((item, f)) = query.functions.pop_front() {
             let span = f.ast.span();
@@ -189,33 +186,20 @@ impl<'a, 'source> Compiler<'a, 'source> {
             return Ok(Some(meta));
         }
 
-        if let Some(local) = name.as_local() {
-            let mut current = self.items.item();
+        let mut base = self.items.item();
 
-            loop {
-                current.push(local);
-                log::trace!("lookup meta (query): {}", current);
+        loop {
+            let current = base.join(name);
+            log::trace!("lookup meta (query): {}", current);
 
-                if let Some(meta) = self.query.query_meta(&current, span)? {
-                    log::trace!("found in query: {:?}", meta);
-                    return Ok(Some(meta));
-                }
-
-                current.pop();
-
-                if current.pop().is_none() {
-                    break;
-                }
+            if let Some(meta) = self.query.query_meta(&current, span)? {
+                log::trace!("found in query: {:?}", meta);
+                return Ok(Some(meta));
             }
 
-            return Ok(None);
-        }
-
-        log::trace!("lookup meta (query): {}", name);
-
-        if let Some(meta) = self.query.query_meta(name, span)? {
-            log::trace!("found in query: {:?}", meta);
-            return Ok(Some(meta));
+            if base.pop().is_none() {
+                break;
+            }
         }
 
         Ok(None)
@@ -428,7 +412,13 @@ impl<'a, 'source> Compiler<'a, 'source> {
             // NB: declarations are not used in this compilation stage.
             // They have been separately indexed and will be built when queried
             // for.
-            ast::Expr::Decl(..) => (),
+            ast::Expr::Decl(decl) => {
+                let span = decl.span();
+
+                if needs.value() {
+                    self.asm.push(Inst::Unit, span);
+                }
+            }
         }
 
         Ok(())

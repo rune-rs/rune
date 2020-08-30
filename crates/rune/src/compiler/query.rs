@@ -1,11 +1,9 @@
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::compiler::index::{FunctionIndexer, Index as _};
-use crate::compiler::Items;
 use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
-use runestick::{CompilationUnit, Component, Item, Meta, MetaObject, MetaTuple, Span};
+use runestick::{CompilationUnit, Item, Meta, MetaObject, MetaTuple, Span};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -72,66 +70,28 @@ impl<'a> Query<'a> {
         }
     }
 
-    /// Process a single declaration.
-    pub fn process_decl(&mut self, decl: ast::Decl) -> Result<(), CompileError> {
-        match decl {
-            ast::Decl::DeclUse(import) => {
-                let name = import.path.resolve(self.source)?;
-                self.unit.borrow_mut().new_import(Item::empty(), &name)?;
-            }
-            ast::Decl::DeclEnum(en) => {
-                let name = en.name.resolve(self.source)?;
-                let enum_item = Item::of(&[name]);
-                self.new_enum(enum_item.clone());
-
-                for (variant, body, _) in en.variants {
-                    let variant = variant.resolve(self.source)?;
-                    let item = Item::of(&[name, variant]);
-                    self.new_variant(item, enum_item.clone(), body);
-                }
-            }
-            ast::Decl::DeclStruct(st) => {
-                let name = st.ident.resolve(self.source)?;
-                let item = Item::of(&[name]);
-                self.new_struct(item, st);
-            }
-            ast::Decl::DeclFn(f) => {
-                let name = f.name.resolve(self.source)?;
-
-                let items = Items::new(vec![Component::from(name)]);
-                let item = items.item();
-
-                let mut indexer = FunctionIndexer { items, query: self };
-
-                indexer.index(&f)?;
-                self.functions.push_back((item.clone(), Function::new(f)));
-                self.unit
-                    .borrow_mut()
-                    .new_item(Meta::MetaFunction { item })?;
-            }
-        }
-
-        Ok(())
-    }
-
     /// Add a new enum item.
     pub fn new_enum(&mut self, item: Item) {
+        log::trace!("new enum: {}", item);
         self.items.insert(item, Entry::Enum);
     }
 
     /// Add a new struct item that can be queried.
     pub fn new_struct(&mut self, item: Item, ast: ast::DeclStruct) {
+        log::trace!("new struct: {}", item);
         self.items.insert(item, Entry::Struct(Struct::new(ast)));
     }
 
     /// Add a new variant item that can be queried.
     pub fn new_variant(&mut self, item: Item, enum_item: Item, ast: ast::DeclStructBody) {
+        log::trace!("new variant: {}", item);
         self.items
             .insert(item, Entry::Variant(Variant::new(enum_item, ast)));
     }
 
     /// Add a new function that can be queried for.
     pub fn new_function(&mut self, item: Item, ast: ast::DeclFn) {
+        log::trace!("new function: {}", item);
         self.items.insert(item, Entry::Function(Function::new(ast)));
     }
 

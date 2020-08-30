@@ -1,0 +1,20 @@
+[package]
+name = "rune-testing"
+version = "0.2.2"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+readme = "README.md"
+repository = "https://github.com/udoprog/runestick"
+homepage = "https://github.com/udoprog/runestick"
+documentation = "https://docs.rs/rune-testing"
+keywords = ["language", "scripting"]
+categories = []
+description = """
+Helpers to write test-cases for rune scripts.
+"""
+
+[dependencies]
+rune = {version = "0.2.2", path = "../rune"}
+runestick = {version = "0.2.2", path = "../runestick"}
+futures-executor = "0.3.5"

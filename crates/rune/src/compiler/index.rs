@@ -1,12 +1,15 @@
 use crate::ast;
-use crate::compiler::query::Query;
+use crate::compiler::query::{Function, Query};
+use crate::compiler::warning::Warnings;
 use crate::compiler::Items;
 use crate::error::CompileError;
 use crate::traits::Resolve as _;
+use runestick::Meta;
 
-pub(super) struct FunctionIndexer<'a, 'source> {
+pub(super) struct Indexer<'a, 'source> {
     pub(super) items: Items,
     pub(super) query: &'a mut Query<'source>,
+    pub(super) warnings: &'a mut Warnings,
 }
 
 pub(super) trait Index<T> {
@@ -14,14 +17,30 @@ pub(super) trait Index<T> {
     fn index(&mut self, item: &T) -> Result<(), CompileError>;
 }
 
-impl Index<ast::DeclFn> for FunctionIndexer<'_, '_> {
+impl Index<ast::DeclFile> for Indexer<'_, '_> {
+    fn index(&mut self, item: &ast::DeclFile) -> Result<(), CompileError> {
+        for (decl, semi_colon) in &item.decls {
+            if let Some(semi_colon) = semi_colon {
+                if !decl.needs_semi_colon() {
+                    self.warnings.uneccessary_semi_colon(semi_colon.span());
+                }
+            }
+
+            self.index(decl)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Index<ast::DeclFn> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::DeclFn) -> Result<(), CompileError> {
         self.index(&item.body)?;
         Ok(())
     }
 }
 
-impl Index<ast::ExprBlock> for FunctionIndexer<'_, '_> {
+impl Index<ast::ExprBlock> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::ExprBlock) -> Result<(), CompileError> {
         let span = item.span();
         let guard = self.items.push_block();
@@ -39,14 +58,14 @@ impl Index<ast::ExprBlock> for FunctionIndexer<'_, '_> {
     }
 }
 
-impl Index<ast::ExprLet> for FunctionIndexer<'_, '_> {
+impl Index<ast::ExprLet> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::ExprLet) -> Result<(), CompileError> {
         self.index(&*item.expr)?;
         Ok(())
     }
 }
 
-impl Index<ast::Expr> for FunctionIndexer<'_, '_> {
+impl Index<ast::Expr> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::Expr) -> Result<(), CompileError> {
         match item {
             ast::Expr::ExprBlock(block) => {
@@ -74,7 +93,7 @@ impl Index<ast::Expr> for FunctionIndexer<'_, '_> {
     }
 }
 
-impl Index<ast::ExprIf> for FunctionIndexer<'_, '_> {
+impl Index<ast::ExprIf> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::ExprIf) -> Result<(), CompileError> {
         self.index(&item.condition)?;
         self.index(&*item.block)?;
@@ -92,7 +111,7 @@ impl Index<ast::ExprIf> for FunctionIndexer<'_, '_> {
     }
 }
 
-impl Index<ast::ExprBinary> for FunctionIndexer<'_, '_> {
+impl Index<ast::ExprBinary> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::ExprBinary) -> Result<(), CompileError> {
         self.index(&*item.lhs)?;
         self.index(&*item.rhs)?;
@@ -100,7 +119,7 @@ impl Index<ast::ExprBinary> for FunctionIndexer<'_, '_> {
     }
 }
 
-impl Index<ast::ExprFor> for FunctionIndexer<'_, '_> {
+impl Index<ast::ExprFor> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::ExprFor) -> Result<(), CompileError> {
         self.index(&*item.iter)?;
         self.index(&*item.body)?;
@@ -108,7 +127,7 @@ impl Index<ast::ExprFor> for FunctionIndexer<'_, '_> {
     }
 }
 
-impl Index<ast::ExprMatch> for FunctionIndexer<'_, '_> {
+impl Index<ast::ExprMatch> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::ExprMatch) -> Result<(), CompileError> {
         self.index(&*item.expr)?;
 
@@ -124,7 +143,7 @@ impl Index<ast::ExprMatch> for FunctionIndexer<'_, '_> {
     }
 }
 
-impl Index<ast::Condition> for FunctionIndexer<'_, '_> {
+impl Index<ast::Condition> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::Condition) -> Result<(), CompileError> {
         match item {
             ast::Condition::Expr(expr) => {
@@ -139,7 +158,7 @@ impl Index<ast::Condition> for FunctionIndexer<'_, '_> {
     }
 }
 
-impl Index<ast::Decl> for FunctionIndexer<'_, '_> {
+impl Index<ast::Decl> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::Decl) -> Result<(), CompileError> {
         match item {
             ast::Decl::DeclUse(import) => {
@@ -178,12 +197,28 @@ impl Index<ast::Decl> for FunctionIndexer<'_, '_> {
             ast::Decl::DeclFn(decl_fn) => {
                 let span = decl_fn.span();
 
+                let is_toplevel = self.items.is_empty();
+
                 let name = decl_fn.name.resolve(self.query.source)?;
                 let guard = self.items.push_name(name);
 
                 let item = self.items.item();
-                self.query.new_function(item, decl_fn.clone());
 
+                // NB: immediately compile all toplevel functions.
+                if is_toplevel {
+                    self.query
+                        .functions
+                        .push_back((item.clone(), Function::new(decl_fn.clone())));
+
+                    self.query
+                        .unit
+                        .borrow_mut()
+                        .new_item(Meta::MetaFunction { item })?;
+                } else {
+                    self.query.new_function(item.clone(), decl_fn.clone());
+                }
+
+                self.index(decl_fn)?;
                 self.items.pop(guard, span)?;
             }
         }

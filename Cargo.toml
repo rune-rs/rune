@@ -6,6 +6,7 @@ members = [
     "crates/runestick-time",
     "crates/rune",
     "crates/rune-cli",
+    "crates/rune-testing",
 ]
 
 default-members = [
