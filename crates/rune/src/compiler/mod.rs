@@ -1212,40 +1212,66 @@ impl<'a, 'source> Compiler<'a, 'source> {
         #[allow(clippy::never_loop)]
         let offset = loop {
             match lhs {
-                ast::Expr::ExprFieldAccess(get) => {
-                    if let (ast::Expr::Path(target), ast::ExprField::Ident(index)) =
-                        (&*get.expr, &get.expr_field)
-                    {
-                        let index_span = index.span();
-                        let target_span = target.span();
+                ast::Expr::ExprFieldAccess(get) => match (&*get.expr, &get.expr_field) {
+                    (ast::Expr::Path(ast::Path { first, rest }), expr_field) if rest.is_empty() => {
+                        let span = first.span();
+                        let target = first.resolve(self.source)?;
 
-                        let target = self.convert_path_to_item(target)?;
-                        let index = index.resolve(self.source)?;
+                        self.compile_expr(rhs, Needs::Value)?;
 
-                        if let Some(target) = target.as_local() {
-                            self.compile_expr(rhs, Needs::Value)?;
-
-                            let index = self.unit.borrow_mut().new_static_string(index)?;
-                            self.asm.push(Inst::String { slot: index }, index_span);
-
-                            let target = self.scopes.get_var(target, target_span)?;
-                            target.copy(&mut self.asm, target_span);
-
-                            self.asm.push(Inst::IndexSet, span);
-                            return Ok(());
+                        match expr_field {
+                            ast::ExprField::Ident(index) => {
+                                let span = index.span();
+                                let index = index.resolve(self.source)?;
+                                let index = self.unit.borrow_mut().new_static_string(index)?;
+                                self.asm.push(Inst::String { slot: index }, span);
+                            }
+                            ast::ExprField::LitNumber(n) => {
+                                let span = n.span();
+                                return Err(CompileError::internal("not supported yet", span));
+                            }
                         }
+
+                        let target = self.scopes.get_var(target, span)?;
+                        target.copy(&mut self.asm, span);
+
+                        self.asm.push(Inst::IndexSet, span);
+                        return Ok(());
                     }
-                }
-                ast::Expr::Path(path) => {
-                    let item = self.convert_path_to_item(path)?;
+                    (ast::Expr::Self_(s), expr_field) => {
+                        let span = s.span();
 
-                    if let Some(local) = item.as_local() {
-                        let var = self.scopes.get_var(local, path.span())?;
+                        self.compile_expr(rhs, Needs::Value)?;
 
-                        match var {
-                            Var::Local(local) => break local.offset,
-                            Var::Environ(..) => (),
+                        match expr_field {
+                            ast::ExprField::Ident(index) => {
+                                let span = index.span();
+                                let index = index.resolve(self.source)?;
+                                let slot = self.unit.borrow_mut().new_static_string(index)?;
+                                self.asm.push(Inst::String { slot }, span);
+                            }
+                            ast::ExprField::LitNumber(n) => {
+                                let span = n.span();
+                                return Err(CompileError::internal("not supported yet", span));
+                            }
                         }
+
+                        let target = self.scopes.get_var("self", span)?;
+                        target.copy(&mut self.asm, span);
+
+                        self.asm.push(Inst::IndexSet, span);
+                        return Ok(());
+                    }
+                    _ => (),
+                },
+                ast::Expr::Path(ast::Path { first, rest }) if rest.is_empty() => {
+                    let span = first.span();
+                    let first = first.resolve(self.source)?;
+                    let var = self.scopes.get_var(first, span)?;
+
+                    match var {
+                        Var::Local(local) => break local.offset,
+                        Var::Environ(..) => (),
                     }
                 }
                 _ => (),

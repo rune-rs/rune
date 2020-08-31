@@ -8,58 +8,62 @@ struct List {
     last,
 }
 
+impl List {
+    fn new() {
+        List {
+            first: (),
+            last: (),
+        }
+    }
+    
+    fn iter(self) {
+        Iter {
+            current: self.first,
+        }
+    }
+
+    fn push_back(self, value) {
+        let prev = self.last;
+
+        self.last = Node {
+            value,
+            next: (),
+        };
+
+        if prev is unit {
+            self.first = self.last;
+        } else {
+            prev.next = self.last;
+        }
+    }
+}
+
 struct Iter {
     current,
 }
 
-fn new() {
-    List {
-        first: (),
-        last: (),
-    }
-}
+impl Iter {
+    fn next(self) {
+        let value = self.current;
 
-fn push_back(ll, value) {
-    let prev = ll.last;
-
-    ll.last = Node {
-        value,
-        next: (),
-    };
-
-    if prev is unit {
-        ll.first = ll.last;
-    } else {
-        prev.next = ll.last;
-    }
-}
-
-fn iter(ll) {
-    Iter {
-        current: ll.first,
-    }
-}
-
-fn iter_next(iter) {
-    let value = iter.current;
-
-    if value is unit {
-        None
-    } else {
-        iter.current = value.next;
-        Some(value.value)
+        if value is unit {
+            None
+        } else {
+            self.current = value.next;
+            Some(value.value)
+        }
     }
 }
 
 fn main() {
-    let ll = new();
-    push_back(ll, 1);
-    push_back(ll, 2);
-    push_back(ll, 3);
+    let ll = List::new();
+    ll.push_back(1);
+    ll.push_back(2);
+    ll.push_back(3);
 
-    let iter = iter(ll);
+    let it = ll.iter();
 
-    while let Some(value) = iter_next(iter) {
+    while let Some(value) = it.next() {
         println(`{value}`);
     }
 }

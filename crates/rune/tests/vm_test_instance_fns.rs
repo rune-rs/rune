@@ -8,13 +8,13 @@ fn test_instance_kinds() {
             struct Foo {
                 n,
             }
-            
+
             impl Foo {
                 fn test(self, n) {
                     self.n + 1
                 }
             }
-            
+
             enum Custom {
                 A(n),
                 B {
