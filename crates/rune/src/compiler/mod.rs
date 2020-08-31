@@ -1480,6 +1480,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
         };
 
+        log::trace!("captures: {} => {:?}", self.items.item(), captures);
+
         self.items.pop(guard, span)?;
 
         for capture in &*captures {
@@ -1615,28 +1617,40 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span)?);
 
+        let scope = self.scopes.last(span)?.child();
+        let guard = self.scopes.push(scope);
+
         let args = expr_call.args.items.len();
 
         for (expr, _) in expr_call.args.items.iter().rev() {
             self.compile_expr(expr, Needs::Value)?;
+            self.scopes.last_mut(span)?.decl_anon(span);
         }
 
         // NB: either handle a proper function call by resolving it's meta hash,
         // or expand the expression.
         let path = loop {
             match &*expr_call.expr {
-                ast::Expr::Path(path) => break path,
+                ast::Expr::Path(path) => {
+                    log::trace!("ExprCall(Path) => {:?}", self.source.source(span)?);
+                    break path;
+                }
                 ast::Expr::ExprFieldAccess(ast::ExprFieldAccess {
                     expr,
                     expr_field: ast::ExprField::Ident(ident),
                     ..
                 }) => {
+                    log::trace!(
+                        "ExprCall(ExprFieldAccess) => {:?}",
+                        self.source.source(span)?
+                    );
                     let ident = ident.resolve(self.source)?;
                     self.compile_expr(expr, Needs::Value)?;
                     let hash = Hash::of(ident);
                     self.asm.push(Inst::CallInstance { hash, args }, span);
                 }
                 expr => {
+                    log::trace!("ExprCall(Other) => {:?}", self.source.source(span)?);
                     self.compile_expr(expr, Needs::Value)?;
                     self.asm.push(Inst::CallFn { args }, span);
                 }
@@ -1646,6 +1660,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 self.asm.push(Inst::Pop, span);
             }
 
+            self.scopes.pop(guard, span)?;
             return Ok(());
         };
 
@@ -1682,9 +1697,15 @@ impl<'a, 'source> Compiler<'a, 'source> {
         };
 
         if let Some(name) = item.as_local() {
-            if let Some(var) = self.scopes.last(span)?.get(name) {
+            if let Some(var) = self.scopes.try_get_var(name)? {
                 var.copy(&mut self.asm, span);
                 self.asm.push(Inst::CallFn { args }, span);
+
+                if !needs.value() {
+                    self.asm.push(Inst::Pop, span);
+                }
+
+                self.scopes.pop(guard, span)?;
                 return Ok(());
             }
         }
@@ -1698,6 +1719,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             self.asm.push(Inst::Pop, span);
         }
 
+        self.scopes.pop(guard, span)?;
         Ok(())
     }
 

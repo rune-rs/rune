@@ -247,8 +247,11 @@ impl Scopes {
     /// Try to get the local with the given name. Returns `None` if it's
     /// missing.
     pub(super) fn try_get_var(&self, name: &str) -> Result<Option<&Var>> {
+        log::trace!("get var: {}", name);
+
         for scope in self.scopes.iter().rev() {
             if let Some(var) = scope.get(name) {
+                log::trace!("found var: {} => {:?}", name, var);
                 return Ok(Some(var));
             }
         }

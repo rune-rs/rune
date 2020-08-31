@@ -225,8 +225,8 @@ impl Index<ast::Expr> for Indexer<'_, '_> {
                 self.index(expr_select)?;
             }
             // ignored because they have no effect on indexing.
-            ast::Expr::ExprCall(call_fn) => {
-                self.index(call_fn)?;
+            ast::Expr::ExprCall(expr_call) => {
+                self.index(expr_call)?;
             }
             ast::Expr::LitUnit(..) => (),
             ast::Expr::LitBool(..) => (),
@@ -553,12 +553,11 @@ impl Index<ast::ExprSelect> for Indexer<'_, '_> {
 
 impl Index<ast::ExprCall> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::ExprCall) -> Result<(), CompileError> {
-        self.index(&*item.expr)?;
-
-        for (expr, _) in &item.args.items {
+        for (expr, _) in item.args.items.iter().rev() {
             self.index(expr)?;
         }
 
+        self.index(&*item.expr)?;
         Ok(())
     }
 }

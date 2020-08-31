@@ -33,6 +33,10 @@ impl ops::Deref for FieldAccess {
 /// A rune expression.
 #[derive(Debug, Clone)]
 pub enum Expr {
+    /// An path expression.
+    Path(ast::Path),
+    /// A declaration.
+    Decl(ast::Decl),
     /// A while loop.
     ExprWhile(ast::ExprWhile),
     /// An unconditional loop.
@@ -47,34 +51,10 @@ pub enum Expr {
     ExprIf(ast::ExprIf),
     /// An match expression.
     ExprMatch(ast::ExprMatch),
-    /// An path expression.
-    Path(ast::Path),
     /// A function call,
     ExprCall(ast::ExprCall),
     /// A field access on an expression.
     ExprFieldAccess(ast::ExprFieldAccess),
-    /// A unit expression.
-    LitUnit(ast::LitUnit),
-    /// A boolean literal.
-    LitBool(ast::LitBool),
-    /// A char literal.
-    LitChar(ast::LitChar),
-    /// A byte literal.
-    LitByte(ast::LitByte),
-    /// A literal number expression.
-    LitNumber(ast::LitNumber),
-    /// A literal string expression.
-    LitStr(ast::LitStr),
-    /// A literal byte string expression.
-    LitByteStr(ast::LitByteStr),
-    /// A literal string expression.
-    LitTemplate(ast::LitTemplate),
-    /// A literal vector declaration.
-    LitVec(ast::LitVec),
-    /// A literal object declaration.
-    LitObject(ast::LitObject),
-    /// A literal tuple declaration.
-    LitTuple(ast::LitTuple),
     /// A grouped expression.
     ExprGroup(ast::ExprGroup),
     /// A binary expression.
@@ -97,8 +77,28 @@ pub enum Expr {
     ExprSelect(ast::ExprSelect),
     /// A closure expression.
     ExprClosure(ast::ExprClosure),
-    /// A declaration.
-    Decl(ast::Decl),
+    /// A unit expression.
+    LitUnit(ast::LitUnit),
+    /// A boolean literal.
+    LitBool(ast::LitBool),
+    /// A char literal.
+    LitChar(ast::LitChar),
+    /// A byte literal.
+    LitByte(ast::LitByte),
+    /// A literal number expression.
+    LitNumber(ast::LitNumber),
+    /// A literal string expression.
+    LitStr(ast::LitStr),
+    /// A literal byte string expression.
+    LitByteStr(ast::LitByteStr),
+    /// A literal string expression.
+    LitTemplate(ast::LitTemplate),
+    /// A literal vector declaration.
+    LitVec(ast::LitVec),
+    /// A literal object declaration.
+    LitObject(ast::LitObject),
+    /// A literal tuple declaration.
+    LitTuple(ast::LitTuple),
 }
 
 impl Expr {
@@ -123,6 +123,8 @@ impl Expr {
     /// Get the span of the expression.
     pub fn span(&self) -> Span {
         match self {
+            Self::Path(path) => path.span(),
+            Self::Decl(decl) => decl.span(),
             Self::ExprWhile(expr) => expr.span(),
             Self::ExprLoop(expr) => expr.span(),
             Self::ExprFor(expr) => expr.span(),
@@ -130,20 +132,8 @@ impl Expr {
             Self::ExprIndexSet(expr) => expr.span(),
             Self::ExprIf(expr) => expr.span(),
             Self::ExprMatch(expr) => expr.span(),
-            Self::Path(path) => path.span(),
             Self::ExprCall(expr) => expr.span(),
             Self::ExprFieldAccess(expr) => expr.span(),
-            Self::LitUnit(unit) => unit.span(),
-            Self::LitBool(b) => b.span(),
-            Self::LitVec(expr) => expr.span(),
-            Self::LitObject(expr) => expr.span(),
-            Self::LitTuple(expr) => expr.span(),
-            Self::LitNumber(expr) => expr.span(),
-            Self::LitByte(expr) => expr.span(),
-            Self::LitChar(expr) => expr.span(),
-            Self::LitStr(expr) => expr.span(),
-            Self::LitByteStr(expr) => expr.span(),
-            Self::LitTemplate(expr) => expr.span(),
             Self::ExprGroup(expr) => expr.span(),
             Self::ExprUnary(expr) => expr.span(),
             Self::ExprBinary(expr) => expr.span(),
@@ -155,7 +145,17 @@ impl Expr {
             Self::ExprTry(ret) => ret.span(),
             Self::ExprSelect(ret) => ret.span(),
             Self::ExprClosure(ret) => ret.span(),
-            Self::Decl(decl) => decl.span(),
+            Self::LitUnit(unit) => unit.span(),
+            Self::LitBool(b) => b.span(),
+            Self::LitVec(expr) => expr.span(),
+            Self::LitObject(expr) => expr.span(),
+            Self::LitTuple(expr) => expr.span(),
+            Self::LitNumber(expr) => expr.span(),
+            Self::LitByte(expr) => expr.span(),
+            Self::LitChar(expr) => expr.span(),
+            Self::LitStr(expr) => expr.span(),
+            Self::LitByteStr(expr) => expr.span(),
+            Self::LitTemplate(expr) => expr.span(),
         }
     }
 

@@ -80,4 +80,14 @@ fn test_capture_fn_arg() {
             "#
         }
     };
+
+    assert_eq! {
+        4,
+        test! {
+            i64 => r#"
+            fn test(a, b) { b / a + 1 }
+            fn main() { {let a = || test; a()}({let b = || 2; b()}, {let c = || 6; c()}) }
+            "#
+        }
+    };
 }
