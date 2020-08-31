@@ -320,4 +320,14 @@ impl Scopes {
 
         Ok(scope)
     }
+
+    /// Construct a new child scope.
+    pub(super) fn child(&mut self, span: Span) -> Result<Scope> {
+        Ok(self.last(span)?.child())
+    }
+
+    /// Declare an anonymous variable.
+    pub(super) fn decl_anon(&mut self, span: Span) -> Result<usize> {
+        Ok(self.last_mut(span)?.decl_anon(span))
+    }
 }

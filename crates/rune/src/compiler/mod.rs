@@ -310,7 +310,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = block.span();
         self.current_block = span;
 
-        let new_scope = self.scopes.last(span)?.child();
+        let new_scope = self.scopes.child(span)?;
         let scopes_count = self.scopes.push(new_scope);
 
         for (expr, _) in &block.exprs {
@@ -760,7 +760,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 .template_without_expansions(span, self.context());
         }
 
-        let scope = self.scopes.last(span)?.child();
+        let scope = self.scopes.child(span)?;
         let expected = self.scopes.push(scope);
 
         for c in template.components.iter().rev() {
@@ -768,11 +768,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 ast::TemplateComponent::String(string) => {
                     let slot = self.unit.borrow_mut().new_static_string(&string)?;
                     self.asm.push(Inst::String { slot }, span);
-                    self.scopes.last_mut(span)?.decl_anon(span);
+                    self.scopes.decl_anon(span)?;
                 }
                 ast::TemplateComponent::Expr(expr) => {
                     self.compile_expr(expr, Needs::Value)?;
-                    self.scopes.last_mut(span)?.decl_anon(span);
+                    self.scopes.decl_anon(span)?;
                 }
             }
         }
@@ -920,7 +920,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let total_var_count = self.scopes.last(span)?.total_var_count;
 
         let (iter_offset, loop_scope_expected) = {
-            let mut loop_scope = self.scopes.last(span)?.child();
+            let mut loop_scope = self.scopes.child(span)?;
             self.compile_expr(&*expr_for.iter, Needs::Value)?;
             self.asm.push(
                 Inst::CallInstance {
@@ -955,7 +955,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let next_offset = if self.options.memoize_instance_fn {
             let span = expr_for.iter.span();
 
-            let offset = self.scopes.last_mut(span)?.decl_anon(span);
+            let offset = self.scopes.decl_anon(span)?;
             let hash = *runestick::NEXT;
 
             // Declare the named loop variable and put it in the scope.
@@ -1617,14 +1617,14 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span)?);
 
-        let scope = self.scopes.last(span)?.child();
+        let scope = self.scopes.child(span)?;
         let guard = self.scopes.push(scope);
 
         let args = expr_call.args.items.len();
 
         for (expr, _) in expr_call.args.items.iter().rev() {
             self.compile_expr(expr, Needs::Value)?;
-            self.scopes.last_mut(span)?.decl_anon(span);
+            self.scopes.decl_anon(span)?;
         }
 
         // NB: either handle a proper function call by resolving it's meta hash,
@@ -1784,10 +1784,10 @@ impl<'a, 'source> Compiler<'a, 'source> {
         // NB: need to declare these as anonymous local variables so that they
         // get cleaned up in case there is an early break (return, try, ...).
         self.compile_expr(&*expr_binary.lhs, Needs::Value)?;
-        self.scopes.last_mut(span)?.decl_anon(span);
+        self.scopes.decl_anon(span)?;
 
         self.compile_expr(&*expr_binary.rhs, rhs_needs_of(expr_binary.op))?;
-        self.scopes.last_mut(span)?.decl_anon(span);
+        self.scopes.decl_anon(span)?;
 
         match expr_binary.op {
             ast::BinOp::Add { .. } => {
@@ -1871,14 +1871,14 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 self.compile_expr(&*expr, Needs::Value)?;
                 self.asm.jump_if(then_label, span);
 
-                Ok(self.scopes.last(span)?.child())
+                Ok(self.scopes.child(span)?)
             }
             ast::Condition::ExprLet(expr_let) => {
                 let span = expr_let.span();
 
                 let false_label = self.asm.new_label("if_condition_false");
 
-                let mut scope = self.scopes.last(span)?.child();
+                let mut scope = self.scopes.child(span)?;
                 self.compile_expr(&*expr_let.expr, Needs::Value)?;
 
                 let load = |_: &mut Assembly| {};
@@ -1958,15 +1958,12 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = expr_match.span();
         log::trace!("ExprMatch => {:?}", self.source.source(span)?);
 
-        let new_scope = self.scopes.last(span)?.child();
+        let new_scope = self.scopes.child(span)?;
         let expected_scopes = self.scopes.push(new_scope);
 
         self.compile_expr(&*expr_match.expr, Needs::Value)?;
         // Offset of the expression.
-        let offset = self
-            .scopes
-            .last_mut(span)?
-            .decl_anon(expr_match.expr.span());
+        let offset = self.scopes.decl_anon(span)?;
 
         let end_label = self.asm.new_label("match_end");
         let mut branches = Vec::new();
@@ -1977,7 +1974,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             let branch_label = self.asm.new_label("match_branch");
             let match_false = self.asm.new_label("match_false");
 
-            let mut scope = self.scopes.last(span)?.child();
+            let mut scope = self.scopes.child(span)?;
 
             let load = move |asm: &mut Assembly| {
                 asm.push(Inst::Copy { offset }, span);
@@ -1989,7 +1986,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 let span = condition.span();
 
                 let parent_guard = self.scopes.push(scope);
-                let scope = self.scopes.last(span)?.child();
+                let scope = self.scopes.child(span)?;
                 let guard = self.scopes.push(scope);
 
                 self.compile_expr(&*condition, Needs::Value)?;
@@ -2125,7 +2122,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             let span = branch.span();
             self.asm.label(label)?;
 
-            let mut scope = self.scopes.last(span)?.child();
+            let mut scope = self.scopes.child(span)?;
 
             // NB: loop is actually useful.
             #[allow(clippy::never_loop)]
