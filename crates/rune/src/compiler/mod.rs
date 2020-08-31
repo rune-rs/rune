@@ -48,7 +48,7 @@ impl Needs {
 
 impl<'a> crate::ParseAll<'a, ast::DeclFile> {
     /// Compile the parse with default options.
-    pub fn compile(self, context: &Context) -> Result<(runestick::CompilationUnit, Warnings)> {
+    pub fn compile(self, context: &Context) -> Result<(runestick::Unit, Warnings)> {
         self.compile_with_options(context, &Default::default())
     }
 
@@ -57,14 +57,12 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
         self,
         context: &Context,
         options: &Options,
-    ) -> Result<(runestick::CompilationUnit, Warnings)> {
+    ) -> Result<(runestick::Unit, Warnings)> {
         let ParseAll { source, item: file } = self;
 
         let mut warnings = Warnings::new();
 
-        let unit = Rc::new(RefCell::new(
-            runestick::CompilationUnit::with_default_prelude(),
-        ));
+        let unit = Rc::new(RefCell::new(runestick::Unit::with_default_prelude()));
 
         let mut query = query::Query::new(source, unit.clone());
         let mut indexer = Indexer {
@@ -173,7 +171,7 @@ struct Compiler<'a, 'source> {
     /// Item builder.
     items: Items,
     /// The compilation unit we are compiling for.
-    unit: Rc<RefCell<runestick::CompilationUnit>>,
+    unit: Rc<RefCell<runestick::Unit>>,
     /// Scopes defined in the compiler.
     scopes: Scopes,
     /// Context for which to emit warnings.

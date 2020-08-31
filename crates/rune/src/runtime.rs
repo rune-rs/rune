@@ -427,7 +427,7 @@ impl Runtime {
 
 struct File {
     file: SimpleFile<String, String>,
-    unit: Option<Rc<runestick::CompilationUnit>>,
+    unit: Option<Rc<runestick::Unit>>,
 }
 
 struct SlabFiles {

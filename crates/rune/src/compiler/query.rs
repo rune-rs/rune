@@ -4,7 +4,7 @@ use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use runestick::{
-    CompilationUnit, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Span, ValueType,
+    Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Span, Unit, ValueType,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -82,12 +82,12 @@ pub(super) struct Query<'a> {
     pub(super) source: Source<'a>,
     pub(super) queue: VecDeque<(Item, Build)>,
     items: HashMap<Item, Entry>,
-    pub(super) unit: Rc<RefCell<CompilationUnit>>,
+    pub(super) unit: Rc<RefCell<Unit>>,
 }
 
 impl<'a> Query<'a> {
     /// Construct a new compilation context.
-    pub fn new(source: Source<'a>, unit: Rc<RefCell<CompilationUnit>>) -> Self {
+    pub fn new(source: Source<'a>, unit: Rc<RefCell<Unit>>) -> Self {
         Self {
             source,
             queue: VecDeque::new(),

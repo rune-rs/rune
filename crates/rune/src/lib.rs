@@ -32,7 +32,7 @@ use runestick::Context;
 /// Helper function to compile the given source.
 ///
 /// Discards any warnings produced.
-pub fn compile(context: &Context, source: &str) -> Result<(runestick::CompilationUnit, Warnings)> {
+pub fn compile(context: &Context, source: &str) -> Result<(runestick::Unit, Warnings)> {
     let unit = parse_all::<ast::DeclFile>(&source)?;
     let (unit, warnings) = unit.compile(context)?;
     Ok((unit, warnings))

@@ -1,8 +1,6 @@
 use crate::context::Handler;
 use crate::unit::UnitFnCall;
-use crate::{
-    CompilationUnit, Context, FromValue, Future, Hash, IntoArgs, Shared, Stack, Value, Vm, VmError,
-};
+use crate::{Context, FromValue, Future, Hash, IntoArgs, Shared, Stack, Unit, Value, Vm, VmError};
 use std::fmt;
 use std::rc::Rc;
 
@@ -198,7 +196,7 @@ impl FnPtr {
     /// Create a function pointer from an offset.
     pub fn from_offset(
         context: Rc<Context>,
-        unit: Rc<CompilationUnit>,
+        unit: Rc<Unit>,
         offset: usize,
         call: UnitFnCall,
         args: usize,
@@ -217,7 +215,7 @@ impl FnPtr {
     /// Create a function pointer from an offset.
     pub fn from_closure(
         context: Rc<Context>,
-        unit: Rc<CompilationUnit>,
+        unit: Rc<Unit>,
         environment: Shared<Box<[Value]>>,
         offset: usize,
         call: UnitFnCall,
@@ -277,7 +275,7 @@ impl fmt::Debug for FnHandler {
 struct FnPtrOffset {
     context: Rc<Context>,
     /// The unit where the function resides.
-    unit: Rc<CompilationUnit>,
+    unit: Rc<Unit>,
     /// The offset of the function.
     offset: usize,
     /// The calling convention.
@@ -301,7 +299,7 @@ impl fmt::Debug for FnPtrOffset {
 struct FnClosureOffset {
     context: Rc<Context>,
     /// The unit where the function resides.
-    unit: Rc<CompilationUnit>,
+    unit: Rc<Unit>,
     /// Captured environment.
     environment: Shared<Box<[Value]>>,
     /// The offset of the function.

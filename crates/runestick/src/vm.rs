@@ -1,9 +1,9 @@
 use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
-    AccessError, Bytes, CompilationUnit, Context, FnPtr, FromValue, Future, Hash, Inst, Integer,
-    IntoArgs, IntoTypeHash, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError,
-    TypeCheck, TypedObject, TypedTuple, Value, ValueError, ValueTypeInfo, VariantObject,
+    AccessError, Bytes, Context, FnPtr, FromValue, Future, Hash, Inst, Integer, IntoArgs,
+    IntoTypeHash, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError,
+    TypeCheck, TypedObject, TypedTuple, Unit, Value, ValueError, ValueTypeInfo, VariantObject,
     VariantTuple,
 };
 use std::any;
@@ -367,7 +367,7 @@ pub struct Vm {
     /// Context associated with virtual machine.
     context: Rc<Context>,
     /// Unit associated with virtual machine.
-    unit: Rc<CompilationUnit>,
+    unit: Rc<Unit>,
     /// The current instruction pointer.
     ip: usize,
     /// The current stack.
@@ -378,22 +378,16 @@ pub struct Vm {
     call_frames: Vec<CallFrame>,
     /// The `branch` registry used for certain operations.
     branch: Option<usize>,
-    /// Set if the next isntruction should not update the instruction pointer.
-    skip_ip: bool,
 }
 
 impl Vm {
     /// Construct a new runestick virtual machine.
-    pub const fn new(context: Rc<Context>, unit: Rc<CompilationUnit>) -> Self {
+    pub const fn new(context: Rc<Context>, unit: Rc<Unit>) -> Self {
         Self::new_with_stack(context, unit, Stack::new())
     }
 
     /// Construct a new runestick virtual machine.
-    pub const fn new_with_stack(
-        context: Rc<Context>,
-        unit: Rc<CompilationUnit>,
-        stack: Stack,
-    ) -> Self {
+    pub const fn new_with_stack(context: Rc<Context>, unit: Rc<Unit>, stack: Stack) -> Self {
         Self {
             context,
             unit,
@@ -402,12 +396,11 @@ impl Vm {
             exited: false,
             call_frames: Vec::new(),
             branch: None,
-            skip_ip: false,
         }
     }
 
     /// Test if the virtual machine is the same context and unit as specified.
-    pub fn is_same(&self, context: &Rc<Context>, unit: &Rc<CompilationUnit>) -> bool {
+    pub fn is_same(&self, context: &Rc<Context>, unit: &Rc<Unit>) -> bool {
         Rc::ptr_eq(&self.context, context) && Rc::ptr_eq(&self.unit, unit)
     }
 
@@ -428,7 +421,7 @@ impl Vm {
     }
 
     /// Access the underlying unit of the virtual machine.
-    pub fn unit(&self) -> &Rc<CompilationUnit> {
+    pub fn unit(&self) -> &Rc<Unit> {
         &self.unit
     }
 
@@ -447,14 +440,12 @@ impl Vm {
 
     /// Modify the current instruction pointer.
     pub fn modify_ip(&mut self, offset: isize) -> Result<(), VmError> {
-        let ip = if offset < 0 {
-            self.ip.checked_sub(-offset as usize)
+        self.ip = if offset < 0 {
+            self.ip.overflowing_sub(-offset as usize).0
         } else {
-            self.ip.checked_add(offset as usize)
+            self.ip.overflowing_add(offset as usize).0
         };
 
-        self.ip = ip.ok_or_else(|| VmError::IpOutOfBounds)?;
-        self.skip_ip = true;
         Ok(())
     }
 
@@ -720,8 +711,7 @@ impl Vm {
             stack_top,
         });
 
-        self.ip = ip;
-        self.skip_ip = true;
+        self.ip = ip.overflowing_sub(1).0;
         Ok(())
     }
 
@@ -1409,7 +1399,7 @@ impl Vm {
 
     /// Implementation of getting a string index on an object-like type.
     fn try_object_slot_index_get(
-        unit: &CompilationUnit,
+        unit: &Unit,
         target: &Value,
         string_slot: usize,
     ) -> Result<Option<Value>, VmError> {
@@ -2395,9 +2385,7 @@ impl Vm {
                 }
             }
 
-            if !std::mem::take(&mut self.skip_ip) {
-                self.ip += 1;
-            }
+            self.ip = self.ip.overflowing_add(1).0;
 
             if let Some(limit) = &mut limit {
                 if *limit <= 1 {
@@ -2430,7 +2418,7 @@ where
     }
 
     /// Get access to the used compilation unit.
-    pub fn unit(&self) -> &CompilationUnit {
+    pub fn unit(&self) -> &Unit {
         &*self.vm.unit
     }
 

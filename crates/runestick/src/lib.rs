@@ -93,7 +93,7 @@ pub use crate::panic::Panic;
 pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
-pub use crate::unit::{CompilationUnit, CompilationUnitError, Span};
+pub use crate::unit::{Span, Unit, UnitError};
 pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, ValueError, VariantObject, VariantTuple,
     VecTuple,

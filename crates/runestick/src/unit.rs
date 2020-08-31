@@ -11,7 +11,7 @@ use thiserror::Error;
 
 /// Errors raised when building a new unit.
 #[derive(Debug, Error)]
-pub enum CompilationUnitError {
+pub enum UnitError {
     /// Trying to register a conflicting function.
     #[error("conflicting function signature already exists `{existing}`")]
     FunctionConflict {
@@ -116,6 +116,12 @@ pub enum CompilationUnitError {
         /// The missing label.
         label: Label,
     },
+    /// Overflow error.
+    #[error("base offset overflow")]
+    BaseOverflow,
+    /// Overflow error.
+    #[error("offset overflow")]
+    OffsetOverflow,
 }
 
 /// A span corresponding to a range in the source file being parsed.
@@ -334,7 +340,7 @@ pub struct UnitTypeInfo {
 
 /// Instructions from a single source file.
 #[derive(Debug, Default)]
-pub struct CompilationUnit {
+pub struct Unit {
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
     /// All imports in the current unit.
@@ -375,7 +381,7 @@ pub struct CompilationUnit {
     required_functions: HashMap<Hash, Vec<Span>>,
 }
 
-impl CompilationUnit {
+impl Unit {
     /// Construct a new unit.
     pub fn new() -> Self {
         Self::default()
@@ -572,19 +578,19 @@ impl CompilationUnit {
     /// looked up through [lookup_string][Self::lookup_string].
     ///
     /// Only uses up space if the static string is unique.
-    pub fn new_static_string(&mut self, current: &str) -> Result<usize, CompilationUnitError> {
+    pub fn new_static_string(&mut self, current: &str) -> Result<usize, UnitError> {
         let hash = Hash::of(&current);
 
         if let Some(existing_slot) = self.static_string_rev.get(&hash).copied() {
             let existing = self.static_strings.get(existing_slot).ok_or_else(|| {
-                CompilationUnitError::StaticStringMissing {
+                UnitError::StaticStringMissing {
                     hash,
                     slot: existing_slot,
                 }
             })?;
 
             if **existing != current {
-                return Err(CompilationUnitError::StaticStringHashConflict {
+                return Err(UnitError::StaticStringHashConflict {
                     hash,
                     current: current.to_owned(),
                     existing: existing.as_ref().clone(),
@@ -604,19 +610,19 @@ impl CompilationUnit {
     /// later be looked up through [lookup_bytes][Self::lookup_bytes].
     ///
     /// Only uses up space if the static byte string is unique.
-    pub fn new_static_bytes(&mut self, current: &[u8]) -> Result<usize, CompilationUnitError> {
+    pub fn new_static_bytes(&mut self, current: &[u8]) -> Result<usize, UnitError> {
         let hash = Hash::of(&current);
 
         if let Some(existing_slot) = self.static_bytes_rev.get(&hash).copied() {
             let existing = self.static_bytes.get(existing_slot).ok_or_else(|| {
-                CompilationUnitError::StaticBytesMissing {
+                UnitError::StaticBytesMissing {
                     hash,
                     slot: existing_slot,
                 }
             })?;
 
             if &**existing != current {
-                return Err(CompilationUnitError::StaticBytesHashConflict {
+                return Err(UnitError::StaticBytesHashConflict {
                     hash,
                     current: current.to_owned(),
                     existing: existing.clone(),
@@ -634,23 +640,20 @@ impl CompilationUnit {
 
     /// Insert a new collection of static object keys, or return one already
     /// existing.
-    pub fn new_static_object_keys(
-        &mut self,
-        current: &[String],
-    ) -> Result<usize, CompilationUnitError> {
+    pub fn new_static_object_keys(&mut self, current: &[String]) -> Result<usize, UnitError> {
         let current = current.to_vec().into_boxed_slice();
         let hash = Hash::object_keys(&current[..]);
 
         if let Some(existing_slot) = self.static_object_keys_rev.get(&hash).copied() {
             let existing = self.static_object_keys.get(existing_slot).ok_or_else(|| {
-                CompilationUnitError::StaticObjectKeysMissing {
+                UnitError::StaticObjectKeysMissing {
                     hash,
                     slot: existing_slot,
                 }
             })?;
 
             if *existing != current {
-                return Err(CompilationUnitError::StaticObjectKeysHashConflict {
+                return Err(UnitError::StaticObjectKeysHashConflict {
                     hash,
                     current,
                     existing: existing.clone(),
@@ -677,7 +680,7 @@ impl CompilationUnit {
     }
 
     /// Declare a new import.
-    pub fn new_import<I>(&mut self, item: Item, path: I) -> Result<(), CompilationUnitError>
+    pub fn new_import<I>(&mut self, item: Item, path: I) -> Result<(), UnitError>
     where
         I: Copy + IntoIterator,
         I::Item: Into<Component>,
@@ -686,7 +689,7 @@ impl CompilationUnit {
 
         if let Some(last) = path.last() {
             if let Some(existing) = self.imports.insert((item, last.clone()), path) {
-                return Err(CompilationUnitError::ImportConflict { existing });
+                return Err(UnitError::ImportConflict { existing });
             }
         }
 
@@ -694,7 +697,7 @@ impl CompilationUnit {
     }
 
     /// Declare a new struct.
-    pub fn new_item(&mut self, meta: Meta) -> Result<(), CompilationUnitError> {
+    pub fn new_item(&mut self, meta: Meta) -> Result<(), UnitError> {
         let item = match &meta {
             Meta::MetaTuple { tuple, .. } => {
                 let info = UnitFnInfo {
@@ -706,7 +709,7 @@ impl CompilationUnit {
                 };
 
                 if let Some(old) = self.functions.insert(tuple.hash, info) {
-                    return Err(CompilationUnitError::FunctionConflict {
+                    return Err(UnitError::FunctionConflict {
                         existing: old.signature,
                     });
                 }
@@ -717,7 +720,7 @@ impl CompilationUnit {
                 };
 
                 if self.types.insert(tuple.hash, info).is_some() {
-                    return Err(CompilationUnitError::TypeConflict {
+                    return Err(UnitError::TypeConflict {
                         existing: tuple.item.clone(),
                     });
                 }
@@ -741,7 +744,7 @@ impl CompilationUnit {
                 };
 
                 if let Some(old) = self.functions.insert(tuple.hash, info) {
-                    return Err(CompilationUnitError::FunctionConflict {
+                    return Err(UnitError::FunctionConflict {
                         existing: old.signature,
                     });
                 }
@@ -752,7 +755,7 @@ impl CompilationUnit {
                 };
 
                 if self.types.insert(tuple.hash, info).is_some() {
-                    return Err(CompilationUnitError::TypeConflict {
+                    return Err(UnitError::TypeConflict {
                         existing: tuple.item.clone(),
                     });
                 }
@@ -768,7 +771,7 @@ impl CompilationUnit {
                 };
 
                 if self.types.insert(hash, info).is_some() {
-                    return Err(CompilationUnitError::TypeConflict {
+                    return Err(UnitError::TypeConflict {
                         existing: object.item.clone(),
                     });
                 }
@@ -787,7 +790,7 @@ impl CompilationUnit {
                 };
 
                 if self.types.insert(hash, info).is_some() {
-                    return Err(CompilationUnitError::TypeConflict {
+                    return Err(UnitError::TypeConflict {
                         existing: object.item.clone(),
                     });
                 }
@@ -803,7 +806,7 @@ impl CompilationUnit {
                 };
 
                 if self.types.insert(hash, info).is_some() {
-                    return Err(CompilationUnitError::TypeConflict {
+                    return Err(UnitError::TypeConflict {
                         existing: item.clone(),
                     });
                 }
@@ -815,7 +818,7 @@ impl CompilationUnit {
         };
 
         if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
-            return Err(CompilationUnitError::MetaConflict {
+            return Err(UnitError::MetaConflict {
                 current: meta,
                 existing,
             });
@@ -836,7 +839,7 @@ impl CompilationUnit {
         args: usize,
         assembly: Assembly,
         call: UnitFnCall,
-    ) -> Result<(), CompilationUnitError> {
+    ) -> Result<(), UnitError> {
         let offset = self.instructions.len();
         let hash = Hash::type_hash(&path);
 
@@ -848,7 +851,7 @@ impl CompilationUnit {
         };
 
         if let Some(old) = self.functions.insert(hash, info) {
-            return Err(CompilationUnitError::FunctionConflict {
+            return Err(UnitError::FunctionConflict {
                 existing: old.signature,
             });
         }
@@ -866,7 +869,7 @@ impl CompilationUnit {
         args: usize,
         assembly: Assembly,
         call: UnitFnCall,
-    ) -> Result<(), CompilationUnitError> {
+    ) -> Result<(), UnitError> {
         let offset = self.instructions.len();
         let hash = Hash::of(name);
         let hash = Hash::instance_function(value_type, hash);
@@ -879,7 +882,7 @@ impl CompilationUnit {
         };
 
         if let Some(old) = self.functions.insert(hash, info) {
-            return Err(CompilationUnitError::FunctionConflict {
+            return Err(UnitError::FunctionConflict {
                 existing: old.signature,
             });
         }
@@ -889,7 +892,7 @@ impl CompilationUnit {
     }
 
     /// Translate the given assembly into instructions.
-    fn add_assembly(&mut self, assembly: Assembly) -> Result<(), CompilationUnitError> {
+    fn add_assembly(&mut self, assembly: Assembly) -> Result<(), UnitError> {
         self.label_count = assembly.label_count;
 
         self.required_functions.extend(assembly.required_functions);
@@ -949,18 +952,20 @@ impl CompilationUnit {
             base: usize,
             label: Label,
             labels: &HashMap<Label, usize>,
-        ) -> Result<isize, CompilationUnitError> {
-            let base = base as isize;
+        ) -> Result<isize, UnitError> {
+            use std::convert::TryFrom as _;
 
-            let offset =
-                labels
-                    .get(&label)
-                    .copied()
-                    .ok_or_else(|| CompilationUnitError::MissingLabel {
-                        label: label.to_owned(),
-                    })?;
+            let offset = labels
+                .get(&label)
+                .copied()
+                .ok_or_else(|| UnitError::MissingLabel { label })?;
 
-            Ok((offset as isize) - base)
+            let base = isize::try_from(base).map_err(|_| UnitError::BaseOverflow)?;
+            let offset = isize::try_from(offset).map_err(|_| UnitError::OffsetOverflow)?;
+
+            let (base, _) = base.overflowing_add(1);
+            let (offset, _) = offset.overflowing_sub(base);
+            Ok(offset)
         }
     }
 
@@ -1045,11 +1050,11 @@ impl Assembly {
     }
 
     /// Apply the label at the current instruction offset.
-    pub fn label(&mut self, label: Label) -> Result<Label, CompilationUnitError> {
+    pub fn label(&mut self, label: Label) -> Result<Label, UnitError> {
         let offset = self.instructions.len();
 
         if self.labels.insert(label, offset).is_some() {
-            return Err(CompilationUnitError::DuplicateLabel { label });
+            return Err(UnitError::DuplicateLabel { label });
         }
 
         self.labels_rev.insert(offset, label);
