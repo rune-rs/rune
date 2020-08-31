@@ -715,7 +715,7 @@ impl CompilationUnit {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: ValueType::TypedTuple { hash },
+                    value_type: ValueType::Type(hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -746,7 +746,7 @@ impl CompilationUnit {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: ValueType::VariantTuple { enum_hash, hash },
+                    value_type: ValueType::Type(enum_hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -762,7 +762,7 @@ impl CompilationUnit {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: ValueType::TypedObject { hash },
+                    value_type: ValueType::Type(hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -779,7 +779,7 @@ impl CompilationUnit {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: ValueType::VariantObject { enum_hash, hash },
+                    value_type: ValueType::Type(enum_hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -795,7 +795,7 @@ impl CompilationUnit {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: ValueType::Type,
+                    value_type: ValueType::Type(hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -826,20 +826,46 @@ impl CompilationUnit {
     }
 
     /// Declare a new function at the current instruction pointer.
-    pub fn new_function<I>(
+    pub fn new_function(
         &mut self,
-        path: I,
+        path: Item,
         args: usize,
         assembly: Assembly,
         call: UnitFnCall,
-    ) -> Result<(), CompilationUnitError>
-    where
-        I: IntoIterator,
-        I::Item: Into<Component>,
-    {
+    ) -> Result<(), CompilationUnitError> {
         let offset = self.instructions.len();
-        let path = Item::of(path);
         let hash = Hash::type_hash(&path);
+
+        self.functions_rev.insert(offset, hash);
+
+        let info = UnitFnInfo {
+            kind: UnitFnKind::Offset { offset, call },
+            signature: UnitFnSignature::new(path, args),
+        };
+
+        if let Some(old) = self.functions.insert(hash, info) {
+            return Err(CompilationUnitError::FunctionConflict {
+                existing: old.signature,
+            });
+        }
+
+        self.add_assembly(assembly)?;
+        Ok(())
+    }
+
+    /// Declare a new instance function at the current instruction pointer.
+    pub fn new_instance_function(
+        &mut self,
+        path: Item,
+        value_type: ValueType,
+        name: &str,
+        args: usize,
+        assembly: Assembly,
+        call: UnitFnCall,
+    ) -> Result<(), CompilationUnitError> {
+        let offset = self.instructions.len();
+        let hash = Hash::of(name);
+        let hash = Hash::instance_function(value_type, hash);
 
         self.functions_rev.insert(offset, hash);
 

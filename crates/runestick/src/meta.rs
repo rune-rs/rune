@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use crate::Item;
+use crate::{Hash, Item, ValueType};
 use std::fmt;
 use std::sync::Arc;
 
@@ -67,6 +67,21 @@ impl Meta {
             Meta::MetaEnum { item } => item,
             Meta::MetaFunction { item } => item,
             Meta::MetaClosure { item, .. } => item,
+        }
+    }
+
+    /// Convert into a value type.
+    pub fn value_type(&self) -> ValueType {
+        match self {
+            Self::MetaTuple { tuple } => ValueType::Type(Hash::type_hash(&tuple.item)),
+            Self::MetaTupleVariant { enum_item, .. } => ValueType::Type(Hash::type_hash(enum_item)),
+            Self::MetaObject { object } => ValueType::Type(Hash::type_hash(&object.item)),
+            Self::MetaObjectVariant { enum_item, .. } => {
+                ValueType::Type(Hash::type_hash(enum_item))
+            }
+            Self::MetaEnum { item } => ValueType::Type(Hash::type_hash(item)),
+            Self::MetaFunction { item } => ValueType::Type(Hash::type_hash(item)),
+            Self::MetaClosure { item, .. } => ValueType::Type(Hash::type_hash(item)),
         }
     }
 }

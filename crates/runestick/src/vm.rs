@@ -2141,7 +2141,7 @@ impl Vm {
 
                 match info.kind {
                     UnitFnKind::Offset { offset, call } => {
-                        self.call_offset_fn(offset, call, args)?;
+                        self.call_offset_fn(offset, call, args + 1)?;
                     }
                     UnitFnKind::Tuple { .. } => todo!("there are no instance tuple constructors"),
                     UnitFnKind::TupleVariant { .. } => {

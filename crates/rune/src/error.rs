@@ -457,6 +457,18 @@ pub enum CompileError {
         /// The span of the missing label.
         span: Span,
     },
+    /// Argument in unsupported position.
+    #[error("argument not supported here")]
+    UnsupportedArgument {
+        /// Where it occured.
+        span: Span,
+    },
+    /// `self` occured in an unsupported position.
+    #[error("`self` not supported here")]
+    UnsupportedSelf {
+        /// Where it occured.
+        span: Span,
+    },
     /// Encountered a unary operator we can't encode.
     #[error("unsupported unary operator `{op}`")]
     UnsupportedUnaryOp {
@@ -646,6 +658,8 @@ impl CompileError {
             Self::MissingLabel { span, .. } => span,
             Self::UnsupportedRef { span, .. } => span,
             Self::UnsupportedAwait { span, .. } => span,
+            Self::UnsupportedArgument { span, .. } => span,
+            Self::UnsupportedSelf { span, .. } => span,
             Self::UnsupportedUnaryOp { span, .. } => span,
             Self::UnsupportedBinaryOp { span, .. } => span,
             Self::UnsupportedLitObject { span, .. } => span,

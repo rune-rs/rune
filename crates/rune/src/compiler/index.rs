@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::compiler::index_scopes::IndexScopes;
-use crate::compiler::query::{Build, Function, Query};
+use crate::compiler::query::{Build, Entry, Function, Query};
 use crate::compiler::warning::Warnings;
 use crate::compiler::Items;
 use crate::error::CompileError;
@@ -41,10 +41,19 @@ impl Index<ast::DeclFn> for Indexer<'_, '_> {
         let span = item.span();
         let scope = self.scopes.push_function();
 
-        for (ident, _) in &item.args.items {
-            let span = ident.span();
-            let ident = ident.resolve(self.query.source)?;
-            self.scopes.declare(ident, span)?;
+        for (arg, _) in &item.args.items {
+            match arg {
+                ast::FnArg::Self_(s) => {
+                    let span = s.span();
+                    self.scopes.declare("self", span)?;
+                }
+                ast::FnArg::Ident(ident) => {
+                    let span = ident.span();
+                    let ident = ident.resolve(self.query.source)?;
+                    self.scopes.declare(ident, span)?;
+                }
+                _ => (),
+            }
         }
 
         self.index(&item.body)?;
@@ -161,6 +170,9 @@ impl Index<ast::PatVec> for Indexer<'_, '_> {
 impl Index<ast::Expr> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::Expr) -> Result<(), CompileError> {
         match item {
+            ast::Expr::Self_(..) => {
+                self.scopes.mark_use("self");
+            }
             ast::Expr::Path(path) => {
                 self.index(path)?;
             }
@@ -361,7 +373,7 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                 if is_toplevel {
                     self.query.queue.push_back((
                         item.clone(),
-                        Build::Function(Function::new(decl_fn.clone())),
+                        Build::Function(Function::new(decl_fn.clone(), None)),
                     ));
 
                     self.query
@@ -369,7 +381,11 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                         .borrow_mut()
                         .new_item(Meta::MetaFunction { item })?;
                 } else {
-                    self.query.new_function(item.clone(), decl_fn.clone())?;
+                    self.query.insert_item(
+                        item.clone(),
+                        Entry::Function(Function::new(decl_fn.clone(), None)),
+                        span,
+                    )?;
                 }
 
                 self.index(decl_fn)?;
@@ -377,7 +393,51 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
             }
             ast::Decl::DeclImpl(decl_impl) => {
                 let span = decl_impl.span();
-                return Err(CompileError::internal("not implemented yet", span));
+
+                let mut guards = Vec::new();
+
+                let first = decl_impl.path.first.resolve(self.query.source)?;
+                guards.push(self.items.push_name(first));
+
+                for (_, ident) in &decl_impl.path.rest {
+                    let ident = ident.resolve(self.query.source)?;
+                    guards.push(self.items.push_name(ident));
+                }
+
+                let type_item = self.items.item();
+
+                for decl_fn in &decl_impl.functions {
+                    let name = decl_fn.name.resolve(self.query.source)?;
+                    guards.push(self.items.push_name(name));
+
+                    let item = self.items.item();
+
+                    if decl_fn.is_instance() {
+                        self.query.queue.push_back((
+                            item.clone(),
+                            Build::Function(Function::new(
+                                decl_fn.clone(),
+                                Some((type_item.clone(), span)),
+                            )),
+                        ));
+                    } else {
+                        self.query.queue.push_back((
+                            item.clone(),
+                            Build::Function(Function::new(decl_fn.clone(), None)),
+                        ));
+                    }
+
+                    self.query
+                        .unit
+                        .borrow_mut()
+                        .new_item(Meta::MetaFunction { item })?;
+
+                    self.index(decl_fn)?;
+                }
+
+                while let Some(guard) = guards.pop() {
+                    self.items.pop(guard, span)?;
+                }
             }
         }
 
@@ -440,6 +500,9 @@ impl Index<ast::ExprClosure> for Indexer<'_, '_> {
 
         for (arg, _) in item.args.as_slice() {
             match arg {
+                ast::FnArg::Self_(s) => {
+                    return Err(CompileError::UnsupportedSelf { span: s.span() });
+                }
                 ast::FnArg::Ident(ident) => {
                     let ident = ident.resolve(self.query.source)?;
                     self.scopes.declare(ident, span)?;

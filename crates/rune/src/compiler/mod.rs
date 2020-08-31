@@ -105,8 +105,31 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                         UnitFnCall::Immediate
                     };
 
-                    compiler.compile_decl_fn(f.ast)?;
-                    unit.borrow_mut().new_function(item, count, asm, call)?;
+                    if let Some((type_item, type_span)) = f.instance_fn {
+                        let name = f.ast.name.resolve(self.source)?;
+
+                        let meta = compiler.lookup_meta(&type_item, span)?.ok_or_else(|| {
+                            CompileError::MissingType {
+                                span: type_span,
+                                item: type_item.clone(),
+                            }
+                        })?;
+
+                        let value_type = meta.value_type();
+
+                        compiler.compile_decl_fn(f.ast, true)?;
+                        unit.borrow_mut().new_instance_function(
+                            item,
+                            value_type,
+                            name,
+                            count - 1,
+                            asm,
+                            call,
+                        )?;
+                    } else {
+                        compiler.compile_decl_fn(f.ast, false)?;
+                        unit.borrow_mut().new_function(item, count, asm, call)?;
+                    }
                 }
                 Build::Closure(c) => {
                     let span = c.ast.span();
@@ -163,14 +186,40 @@ struct Compiler<'a, 'source> {
 }
 
 impl<'a, 'source> Compiler<'a, 'source> {
-    fn compile_decl_fn(&mut self, fn_decl: ast::DeclFn) -> Result<()> {
+    fn compile_decl_fn(&mut self, fn_decl: ast::DeclFn, instance_fn: bool) -> Result<()> {
         let span = fn_decl.span();
         log::trace!("DeclFn => {:?}", self.source.source(span)?);
         let item_guard = self.items.push_block();
 
+        let mut last = false;
+
         for (arg, _) in fn_decl.args.items.iter().rev() {
-            let name = arg.resolve(self.source)?;
-            self.scopes.last_mut(span)?.new_var(name, arg.span())?;
+            let span = arg.span();
+
+            if last {
+                return Err(CompileError::UnsupportedArgument { span });
+            }
+
+            match arg {
+                ast::FnArg::Self_(s) => {
+                    if !instance_fn {
+                        return Err(CompileError::UnsupportedSelf { span });
+                    }
+
+                    let span = s.span();
+                    self.scopes.last_mut(span)?.new_var("self", span)?;
+                    last = true;
+                }
+                ast::FnArg::Ident(ident) => {
+                    let span = ident.span();
+                    let name = ident.resolve(self.source)?;
+                    self.scopes.last_mut(span)?.new_var(name, span)?;
+                }
+                ast::FnArg::Ignore(ignore) => {
+                    let span = ignore.span();
+                    self.scopes.decl_anon(span)?;
+                }
+            }
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
@@ -213,6 +262,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 let span = arg.span();
 
                 match arg {
+                    ast::FnArg::Self_(s) => {
+                        return Err(CompileError::UnsupportedSelf { span: s.span() })
+                    }
                     ast::FnArg::Ident(ident) => {
                         let ident = ident.resolve(self.source)?;
                         scope.new_var(ident, span)?;
@@ -377,6 +429,12 @@ impl<'a, 'source> Compiler<'a, 'source> {
         log::trace!("Expr => {:?}", self.source.source(span)?);
 
         match expr {
+            ast::Expr::Self_(s) => {
+                self.compile_self(s, needs)?;
+            }
+            ast::Expr::Path(path) => {
+                self.compile_path(path, needs)?;
+            }
             ast::Expr::ExprWhile(expr_while) => {
                 self.compile_expr_while(expr_while, needs)?;
             }
@@ -427,9 +485,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
             ast::Expr::ExprSelect(expr_select) => {
                 self.compile_expr_select(expr_select, needs)?;
-            }
-            ast::Expr::Path(path) => {
-                self.compile_path(path, needs)?;
             }
             ast::Expr::ExprCall(expr_call) => {
                 self.compile_expr_call(expr_call, needs)?;
@@ -1529,6 +1584,23 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 let hash = Hash::type_hash(meta.item());
                 self.asm.push(Inst::Type { hash }, span);
             }
+        }
+
+        Ok(())
+    }
+
+    /// Compile the `self` keyword.
+    fn compile_self(&mut self, s: &ast::Self_, needs: Needs) -> Result<()> {
+        let span = s.span();
+        log::trace!("Self_ => {:?}", self.source.source(span)?);
+
+        if !needs.value() {
+            return Ok(());
+        }
+
+        if let Some(var) = self.scopes.try_get_var("self")? {
+            var.copy(&mut self.asm, span);
+            return Ok(());
         }
 
         Ok(())

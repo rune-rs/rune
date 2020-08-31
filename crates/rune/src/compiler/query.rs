@@ -45,12 +45,14 @@ impl Variant {
 pub(super) struct Function {
     /// Ast for declaration.
     pub(super) ast: ast::DeclFn,
+    /// If the function is an instance function.
+    pub(super) instance_fn: Option<(Item, Span)>,
 }
 
 impl Function {
     /// Construct a new function.
-    pub(super) fn new(ast: ast::DeclFn) -> Self {
-        Self { ast }
+    pub(super) fn new(ast: ast::DeclFn, instance_fn: Option<(Item, Span)>) -> Self {
+        Self { ast, instance_fn }
     }
 }
 
@@ -121,14 +123,6 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new function that can be queried for.
-    pub fn new_function(&mut self, item: Item, ast: ast::DeclFn) -> Result<(), CompileError> {
-        log::trace!("new function: {}", item);
-        let span = ast.span();
-        self.insert_item(item, Entry::Function(Function::new(ast)), span)?;
-        Ok(())
-    }
-
-    /// Add a new function that can be queried for.
     pub fn new_closure(
         &mut self,
         item: Item,
@@ -141,7 +135,12 @@ impl<'a> Query<'a> {
         Ok(())
     }
 
-    fn insert_item(&mut self, item: Item, entry: Entry, span: Span) -> Result<(), CompileError> {
+    pub fn insert_item(
+        &mut self,
+        item: Item,
+        entry: Entry,
+        span: Span,
+    ) -> Result<(), CompileError> {
         if let Some(..) = self.items.insert(item.clone(), entry) {
             return Err(CompileError::ItemConflict {
                 existing: item,

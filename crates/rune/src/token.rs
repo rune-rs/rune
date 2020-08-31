@@ -58,6 +58,8 @@ impl Delimiter {
 /// The kind of the token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Kind {
+    /// A `self` token.
+    Self_,
     /// An `fn` token.
     Fn,
     /// An `enum` token.
@@ -205,6 +207,7 @@ pub enum Kind {
 impl fmt::Display for Kind {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
+            Self::Self_ => write!(fmt, "self")?,
             Self::Fn => write!(fmt, "fn")?,
             Self::Enum => write!(fmt, "enum")?,
             Self::Struct => write!(fmt, "struct")?,

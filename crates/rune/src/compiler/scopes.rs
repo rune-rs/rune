@@ -142,9 +142,11 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub(super) fn new_var(&mut self, name: &str, span: Span) -> Result<()> {
+    pub(super) fn new_var(&mut self, name: &str, span: Span) -> Result<usize> {
+        let offset = self.total_var_count;
+
         let local = Var::Local(Local {
-            offset: self.total_var_count,
+            offset,
             name: name.to_owned(),
             span,
         });
@@ -160,7 +162,7 @@ impl Scope {
             });
         }
 
-        Ok(())
+        Ok(offset)
     }
 
     /// Insert a new local, and return the old one if there's a conflict.

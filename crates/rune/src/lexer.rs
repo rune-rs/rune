@@ -85,6 +85,7 @@ impl<'a> Lexer<'a> {
         let ident = &self.source[start..self.cursor];
 
         let kind = match ident {
+            "self" => Kind::Self_,
             "fn" => Kind::Fn,
             "enum" => Kind::Enum,
             "struct" => Kind::Struct,

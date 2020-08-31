@@ -560,29 +560,19 @@ impl Value {
             Self::Vec(..) => ValueType::Vec,
             Self::Tuple(..) => ValueType::Tuple,
             Self::Object(..) => ValueType::Object,
-            Self::Type(..) => ValueType::Type,
+            Self::Type(hash) => ValueType::Type(*hash),
             Self::Future(..) => ValueType::Future,
             Self::Result(..) => ValueType::Result,
             Self::Option(..) => ValueType::Option,
-            Self::TypedObject(object) => ValueType::TypedObject {
-                hash: object.borrow_ref()?.hash,
-            },
+            Self::TypedObject(object) => ValueType::Type(object.borrow_ref()?.hash),
             Self::VariantObject(object) => {
                 let object = object.borrow_ref()?;
-                ValueType::VariantObject {
-                    enum_hash: object.enum_hash,
-                    hash: object.hash,
-                }
+                ValueType::Type(object.enum_hash)
             }
-            Self::TypedTuple(tuple) => ValueType::TypedTuple {
-                hash: tuple.borrow_ref()?.hash,
-            },
+            Self::TypedTuple(tuple) => ValueType::Type(tuple.borrow_ref()?.hash),
             Self::VariantTuple(tuple) => {
                 let tuple = tuple.borrow_ref()?;
-                ValueType::VariantTuple {
-                    enum_hash: tuple.enum_hash,
-                    hash: tuple.hash,
-                }
+                ValueType::Type(tuple.enum_hash)
             }
             Self::FnPtr(..) => ValueType::FnPtr,
             Self::Any(any) => ValueType::Any(any.borrow_ref()?.type_id()),

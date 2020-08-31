@@ -161,6 +161,7 @@ macro_rules! decl_tokens {
 }
 
 decl_tokens! {
+    (Self_, Kind::Self_),
     (Fn, Kind::Fn),
     (Is, Kind::Is),
     (Not, Kind::Not),

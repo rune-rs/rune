@@ -20,12 +20,12 @@ impl Hash {
 
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
-    pub fn instance_function<N>(ty: ValueType, name: N) -> Self
+    pub fn instance_function<N>(value_type: ValueType, name: N) -> Self
     where
         N: IntoTypeHash,
     {
         let name = name.into_type_hash();
-        Self(Hash::of((INSTANCE_FUNCTION, ty, SEP, name)).0)
+        Self(Hash::of((INSTANCE_FUNCTION, value_type, SEP, name)).0)
     }
 
     /// Construct a simple hash from something that is hashable.

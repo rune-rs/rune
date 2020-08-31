@@ -15,7 +15,7 @@ pub struct DeclFn {
     /// The name of the function.
     pub name: ast::Ident,
     /// The arguments of the function.
-    pub args: ast::Parenthesized<ast::Ident, ast::Comma>,
+    pub args: ast::Parenthesized<ast::FnArg, ast::Comma>,
     /// The body of the function.
     pub body: ast::ExprBlock,
 }
@@ -24,6 +24,14 @@ impl DeclFn {
     /// Access the span for the function declaration.
     pub fn span(&self) -> Span {
         self.fn_.span().join(self.body.span())
+    }
+
+    /// Test if function is an instance fn.
+    pub fn is_instance(&self) -> bool {
+        match self.args.items.iter().next() {
+            Some((ast::FnArg::Self_(..), _)) => true,
+            _ => false,
+        }
     }
 }
 
@@ -49,8 +57,6 @@ impl Peek for DeclFn {
 /// let ParseAll  { source, item } = parse_all::<ast::DeclFn>("fn hello(foo, bar) {}").unwrap();
 /// assert_eq!(item.args.items.len(), 2);
 /// assert_eq!(item.name.resolve(source).unwrap(), "hello");
-/// assert_eq!(item.args.items[0].0.resolve(source).unwrap(), "foo");
-/// assert_eq!(item.args.items[1].0.resolve(source).unwrap(), "bar");
 /// ```
 impl Parse for DeclFn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

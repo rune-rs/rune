@@ -33,6 +33,8 @@ impl ops::Deref for FieldAccess {
 /// A rune expression.
 #[derive(Debug, Clone)]
 pub enum Expr {
+    /// The `self` keyword.
+    Self_(ast::Self_),
     /// An path expression.
     Path(ast::Path),
     /// A declaration.
@@ -123,6 +125,7 @@ impl Expr {
     /// Get the span of the expression.
     pub fn span(&self) -> Span {
         match self {
+            Self::Self_(s) => s.span(),
             Self::Path(path) => path.span(),
             Self::Decl(decl) => decl.span(),
             Self::ExprWhile(expr) => expr.span(),
@@ -245,6 +248,7 @@ impl Expr {
         let token = parser.token_peek_eof()?;
 
         let expr = match token.kind {
+            Kind::Self_ => Self::Self_(parser.parse()?),
             Kind::Select => Self::ExprSelect(parser.parse()?),
             Kind::Or | Kind::Pipe => Self::ExprClosure(parser.parse()?),
             Kind::Label => {
@@ -497,10 +501,10 @@ impl Peek for Expr {
         };
 
         match t1.kind {
+            Kind::Self_ => true,
             Kind::Select => true,
             Kind::Label => matches!(t2.map(|t| t.kind), Some(Kind::Colon)),
             Kind::Hash => true,
-            Kind::Await => true,
             Kind::Bang | Kind::Ampersand | Kind::Mul => true,
             Kind::While => true,
             Kind::Loop => true,

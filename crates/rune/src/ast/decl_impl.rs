@@ -7,11 +7,16 @@ use runestick::Span;
 /// An impl declaration.
 #[derive(Debug, Clone)]
 pub struct DeclImpl {
-    impl_: ast::Impl,
-    path: ast::Path,
-    open: ast::OpenBrace,
-    functions: Vec<ast::DeclFn>,
-    close: ast::CloseBrace,
+    /// The `impl` keyword.
+    pub impl_: ast::Impl,
+    /// Path of the implementation.
+    pub path: ast::Path,
+    /// The open brace.
+    pub open: ast::OpenBrace,
+    /// The collection of functions.
+    pub functions: Vec<ast::DeclFn>,
+    /// The close brace.
+    pub close: ast::CloseBrace,
 }
 
 impl DeclImpl {

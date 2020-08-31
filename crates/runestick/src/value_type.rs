@@ -27,7 +27,7 @@ pub enum ValueType {
     /// An object of dynamic values.
     Object,
     /// The type of type values.
-    Type,
+    Type(Hash),
     /// A function pointer.
     Fn(Hash),
     /// A future.
@@ -36,30 +36,6 @@ pub enum ValueType {
     Option,
     /// A result value.
     Result,
-    /// A typed tuple.
-    TypedTuple {
-        /// The type hash corresponding to the type.
-        hash: Hash,
-    },
-    /// A typed tuple variant.
-    VariantTuple {
-        /// The type hash of the enum the variant belongs to.
-        enum_hash: Hash,
-        /// The type hash of the variant.
-        hash: Hash,
-    },
-    /// A typed object.
-    TypedObject {
-        /// The type hash corresponding to the type.
-        hash: Hash,
-    },
-    /// A typed object variant.
-    VariantObject {
-        /// The type hash of the enum the variant belongs to.
-        enum_hash: Hash,
-        /// The type hash of the variant.
-        hash: Hash,
-    },
     /// A function pointer.
     FnPtr,
     /// Reference to a foreign type.
@@ -74,7 +50,7 @@ mod tests {
     fn test_size() {
         assert_eq! {
             std::mem::size_of::<ValueType>(),
-            24,
+            16,
         };
     }
 }
