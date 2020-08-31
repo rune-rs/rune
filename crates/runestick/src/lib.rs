@@ -63,7 +63,7 @@ pub mod unit;
 mod value_type;
 mod value_type_info;
 
-pub use self::meta::{Meta, MetaClosureCapture, MetaObject, MetaTuple};
+pub use self::meta::{Meta, MetaClosureCapture, MetaStruct, MetaTuple};
 pub use self::module::{AsyncFunction, AsyncInstFn, Function, InstFn, Module};
 pub use self::static_type::{
     StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FN_PTR_TYPE, FUTURE_TYPE,

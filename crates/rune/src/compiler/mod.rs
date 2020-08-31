@@ -115,7 +115,12 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                             }
                         })?;
 
-                        let value_type = meta.value_type();
+                        let value_type = meta.value_type().ok_or_else(|| {
+                            CompileError::UnsupportedInstanceFunction {
+                                meta: meta.clone(),
+                                span,
+                            }
+                        })?;
 
                         compiler.compile_decl_fn(f.ast, true)?;
                         unit.borrow_mut().new_instance_function(
@@ -643,7 +648,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 };
 
                 match meta {
-                    Meta::MetaObject { object } => {
+                    Meta::MetaStruct { object, .. } => {
                         check_object_fields(
                             object.fields.as_ref(),
                             check_keys,
@@ -654,7 +659,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
                         let hash = Hash::type_hash(&object.item);
                         self.asm.push(Inst::TypedObject { hash, slot }, span);
                     }
-                    Meta::MetaObjectVariant { enum_item, object } => {
+                    Meta::MetaVariantStruct {
+                        enum_item, object, ..
+                    } => {
                         check_object_fields(
                             object.fields.as_ref(),
                             check_keys,
@@ -1585,33 +1592,56 @@ impl<'a, 'source> Compiler<'a, 'source> {
     fn compile_meta(&mut self, meta: &Meta, span: Span, needs: Needs) -> Result<()> {
         log::trace!("Meta => {:?} {:?}", meta, needs);
 
-        match (needs, meta) {
-            (Needs::Value, Meta::MetaTuple { tuple }) if tuple.args == 0 => {
-                let hash = Hash::type_hash(&tuple.item);
-                self.asm.push(Inst::Call { hash, args: 0 }, span);
+        while let Needs::Value = needs {
+            match meta {
+                Meta::MetaTuple { tuple, .. } if tuple.args == 0 => {
+                    self.asm.push(
+                        Inst::Call {
+                            hash: tuple.hash,
+                            args: 0,
+                        },
+                        span,
+                    );
+                }
+                Meta::MetaVariantTuple { tuple, .. } if tuple.args == 0 => {
+                    self.asm.push(
+                        Inst::Call {
+                            hash: tuple.hash,
+                            args: 0,
+                        },
+                        span,
+                    );
+                }
+                Meta::MetaTuple { tuple, .. } => {
+                    self.asm.push(Inst::Fn { hash: tuple.hash }, span);
+                }
+                Meta::MetaVariantTuple { tuple, .. } => {
+                    self.asm.push(Inst::Fn { hash: tuple.hash }, span);
+                }
+                Meta::MetaFunction { value_type, .. } => {
+                    let hash = value_type.as_type_hash();
+                    self.asm.push(Inst::Fn { hash }, span);
+                }
+                meta => {
+                    return Err(CompileError::UnsupportedValue {
+                        span,
+                        meta: meta.clone(),
+                    });
+                }
             }
-            (Needs::Value, Meta::MetaTupleVariant { tuple, .. }) if tuple.args == 0 => {
-                let hash = Hash::type_hash(&tuple.item);
-                self.asm.push(Inst::Call { hash, args: 0 }, span);
-            }
-            (Needs::Value, Meta::MetaTuple { tuple }) => {
-                let hash = Hash::type_hash(&tuple.item);
-                self.asm.push(Inst::Fn { hash }, span);
-            }
-            (Needs::Value, Meta::MetaTupleVariant { tuple, .. }) => {
-                let hash = Hash::type_hash(&tuple.item);
-                self.asm.push(Inst::Fn { hash }, span);
-            }
-            (Needs::Value, Meta::MetaFunction { item }) => {
-                let hash = Hash::type_hash(item);
-                self.asm.push(Inst::Fn { hash }, span);
-            }
-            (_, meta) => {
-                let hash = Hash::type_hash(meta.item());
-                self.asm.push(Inst::Type { hash }, span);
-            }
+
+            return Ok(());
         }
 
+        let value_type = meta
+            .value_type()
+            .ok_or_else(|| CompileError::UnsupportedType {
+                span,
+                meta: meta.clone(),
+            })?;
+
+        let hash = value_type.as_type_hash();
+        self.asm.push(Inst::Type { hash }, span);
         Ok(())
     }
 
@@ -1767,7 +1797,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let item = if let Some(meta) = a {
             match &meta {
-                Meta::MetaTuple { tuple } | Meta::MetaTupleVariant { tuple, .. } => {
+                Meta::MetaTuple { tuple, .. } | Meta::MetaVariantTuple { tuple, .. } => {
                     if tuple.args != expr_call.args.items.len() {
                         return Err(CompileError::UnsupportedArgumentCount {
                             span,
@@ -1785,7 +1815,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
                     tuple.item.clone()
                 }
-                Meta::MetaFunction { item } => item.clone(),
+                Meta::MetaFunction { item, .. } => item.clone(),
                 _ => {
                     return Err(CompileError::NotFunction { span });
                 }
@@ -2331,21 +2361,26 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let type_check = if let Some(path) = &pat_tuple.path {
             let item = self.convert_path_to_item(path)?;
 
-            let (tuple, type_check) = if let Some(meta) = self.lookup_meta(&item, path.span())? {
-                match meta {
-                    Meta::MetaTuple { tuple } => {
-                        let type_check = TypeCheck::Type(Hash::type_hash(&tuple.item));
-                        (tuple, type_check)
+            let (tuple, meta, type_check) =
+                if let Some(meta) = self.lookup_meta(&item, path.span())? {
+                    match &meta {
+                        Meta::MetaTuple {
+                            tuple, value_type, ..
+                        } => {
+                            let type_check = TypeCheck::Type(value_type.as_type_hash());
+                            (tuple.clone(), meta, type_check)
+                        }
+                        Meta::MetaVariantTuple {
+                            tuple, value_type, ..
+                        } => {
+                            let type_check = TypeCheck::Variant(value_type.as_type_hash());
+                            (tuple.clone(), meta, type_check)
+                        }
+                        _ => return Err(CompileError::UnsupportedMetaPattern { meta, span }),
                     }
-                    Meta::MetaTupleVariant { tuple, .. } => {
-                        let type_check = TypeCheck::Variant(Hash::type_hash(&tuple.item));
-                        (tuple, type_check)
-                    }
-                    _ => return Err(CompileError::UnsupportedMetaPattern { meta, span }),
-                }
-            } else {
-                return Err(CompileError::UnsupportedPattern { span });
-            };
+                } else {
+                    return Err(CompileError::UnsupportedPattern { span });
+                };
 
             let count = pat_tuple.items.len();
             let is_open = pat_tuple.open_pattern.is_some();
@@ -2353,9 +2388,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             if !(tuple.args == count || count < tuple.args && is_open) {
                 return Err(CompileError::UnsupportedArgumentCount {
                     span,
-                    meta: Meta::MetaTuple {
-                        tuple: tuple.clone(),
-                    },
+                    meta,
                     expected: tuple.args,
                     actual: count,
                 });
@@ -2447,12 +2480,16 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 };
 
                 let (object, type_check) = match &meta {
-                    Meta::MetaObject { object } => {
-                        let type_check = TypeCheck::Type(Hash::type_hash(&object.item));
+                    Meta::MetaStruct {
+                        object, value_type, ..
+                    } => {
+                        let type_check = TypeCheck::Type(value_type.as_type_hash());
                         (object, type_check)
                     }
-                    Meta::MetaObjectVariant { object, .. } => {
-                        let type_check = TypeCheck::Variant(Hash::type_hash(&object.item));
+                    Meta::MetaVariantStruct {
+                        object, value_type, ..
+                    } => {
+                        let type_check = TypeCheck::Variant(value_type.as_type_hash());
                         (object, type_check)
                     }
                     _ => {
@@ -2540,12 +2577,12 @@ impl<'a, 'source> Compiler<'a, 'source> {
         load: &dyn Fn(&mut Assembly),
     ) -> Result<bool> {
         let (tuple, type_check) = match meta {
-            Meta::MetaTuple { tuple } if tuple.args == 0 => {
-                (tuple, TypeCheck::Type(Hash::type_hash(&tuple.item)))
-            }
-            Meta::MetaTupleVariant { tuple, .. } if tuple.args == 0 => {
-                (tuple, TypeCheck::Variant(Hash::type_hash(&tuple.item)))
-            }
+            Meta::MetaTuple {
+                tuple, value_type, ..
+            } if tuple.args == 0 => (tuple, TypeCheck::Type(value_type.as_type_hash())),
+            Meta::MetaVariantTuple {
+                tuple, value_type, ..
+            } if tuple.args == 0 => (tuple, TypeCheck::Variant(value_type.as_type_hash())),
             _ => return Ok(false),
         };
 

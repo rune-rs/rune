@@ -1666,43 +1666,7 @@ impl Vm {
             }
         };
 
-        let is_instance = match a {
-            Value::TypedObject(typed_object) => typed_object.borrow_ref()?.hash == hash,
-            Value::TypedTuple(typed_tuple) => typed_tuple.borrow_ref()?.hash == hash,
-            Value::VariantObject(variant_object) => variant_object.borrow_ref()?.enum_hash == hash,
-            Value::VariantTuple(variant_tuple) => variant_tuple.borrow_ref()?.enum_hash == hash,
-            Value::Option(..) => {
-                let option_type = self
-                    .context
-                    .option_type()
-                    .ok_or_else(|| VmError::MissingType { hash })?;
-
-                option_type == hash
-            }
-            Value::Result(..) => {
-                let result_type = self
-                    .context
-                    .result_type()
-                    .ok_or_else(|| VmError::MissingType { hash })?;
-
-                result_type == hash
-            }
-            a => {
-                let value_type = match self.unit.lookup_type(hash) {
-                    Some(info) => info.value_type,
-                    None => {
-                        self.context
-                            .lookup_type(hash)
-                            .ok_or_else(|| VmError::MissingType { hash })?
-                            .value_type
-                    }
-                };
-
-                a.value_type()? == value_type
-            }
-        };
-
-        Ok(is_instance)
+        Ok(a.value_type()? == hash)
     }
 
     #[inline]

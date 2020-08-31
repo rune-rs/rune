@@ -15,40 +15,54 @@ pub struct MetaClosureCapture {
 pub enum Meta {
     /// Metadata about a tuple.
     MetaTuple {
+        /// The value type associated with this meta item.
+        value_type: ValueType,
         /// The underlying tuple.
         tuple: MetaTuple,
     },
     /// Metadata about a tuple variant.
-    MetaTupleVariant {
+    MetaVariantTuple {
+        /// The value type associated with this meta item.
+        value_type: ValueType,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying tuple.
         tuple: MetaTuple,
     },
     /// Metadata about an object.
-    MetaObject {
+    MetaStruct {
+        /// The value type associated with this meta item.
+        value_type: ValueType,
         /// The underlying object.
-        object: MetaObject,
+        object: MetaStruct,
     },
     /// Metadata about a variant object.
-    MetaObjectVariant {
+    MetaVariantStruct {
+        /// The value type associated with this meta item.
+        value_type: ValueType,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying object.
-        object: MetaObject,
+        object: MetaStruct,
     },
     /// An enum item.
     MetaEnum {
+        /// The value type associated with this meta item.
+        value_type: ValueType,
         /// The item of the enum.
         item: Item,
     },
     /// A function declaration.
     MetaFunction {
+        /// The value type associated with this meta item.
+        value_type: ValueType,
         /// The item of the function declaration.
         item: Item,
     },
     /// A closure.
     MetaClosure {
+        /// The value type associated with this meta item.
+        value_type: ValueType,
         /// The item of the closure.
         item: Item,
         /// Sequence of captured variables.
@@ -60,28 +74,26 @@ impl Meta {
     /// Get the item of the meta.
     pub fn item(&self) -> &Item {
         match self {
-            Meta::MetaTuple { tuple } => &tuple.item,
-            Meta::MetaTupleVariant { tuple, .. } => &tuple.item,
-            Meta::MetaObject { object } => &object.item,
-            Meta::MetaObjectVariant { object, .. } => &object.item,
-            Meta::MetaEnum { item } => item,
-            Meta::MetaFunction { item } => item,
+            Meta::MetaTuple { tuple, .. } => &tuple.item,
+            Meta::MetaVariantTuple { tuple, .. } => &tuple.item,
+            Meta::MetaStruct { object, .. } => &object.item,
+            Meta::MetaVariantStruct { object, .. } => &object.item,
+            Meta::MetaEnum { item, .. } => item,
+            Meta::MetaFunction { item, .. } => item,
             Meta::MetaClosure { item, .. } => item,
         }
     }
 
-    /// Convert into a value type.
-    pub fn value_type(&self) -> ValueType {
+    /// Get the value type of the meta item.
+    pub fn value_type(&self) -> Option<ValueType> {
         match self {
-            Self::MetaTuple { tuple } => ValueType::Type(Hash::type_hash(&tuple.item)),
-            Self::MetaTupleVariant { enum_item, .. } => ValueType::Type(Hash::type_hash(enum_item)),
-            Self::MetaObject { object } => ValueType::Type(Hash::type_hash(&object.item)),
-            Self::MetaObjectVariant { enum_item, .. } => {
-                ValueType::Type(Hash::type_hash(enum_item))
-            }
-            Self::MetaEnum { item } => ValueType::Type(Hash::type_hash(item)),
-            Self::MetaFunction { item } => ValueType::Type(Hash::type_hash(item)),
-            Self::MetaClosure { item, .. } => ValueType::Type(Hash::type_hash(item)),
+            Self::MetaTuple { value_type, .. } => Some(*value_type),
+            Self::MetaVariantTuple { .. } => None,
+            Self::MetaStruct { value_type, .. } => Some(*value_type),
+            Self::MetaVariantStruct { .. } => None,
+            Self::MetaEnum { value_type, .. } => Some(*value_type),
+            Self::MetaFunction { value_type, .. } => Some(*value_type),
+            Self::MetaClosure { value_type, .. } => Some(*value_type),
         }
     }
 }
@@ -89,20 +101,20 @@ impl Meta {
 impl fmt::Display for Meta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MetaTuple { tuple } => {
-                write!(fmt, "{}({})", tuple.item, tuple.args)?;
+            Self::MetaTuple { tuple, .. } => {
+                write!(fmt, "struct {}", tuple.item)?;
             }
-            Self::MetaTupleVariant { tuple, .. } => {
-                write!(fmt, "{}({})", tuple.item, tuple.args)?;
+            Self::MetaVariantTuple { tuple, .. } => {
+                write!(fmt, "variant {}", tuple.item)?;
             }
-            Self::MetaObject { object } => {
-                write!(fmt, "{}", object.item)?;
+            Self::MetaStruct { object, .. } => {
+                write!(fmt, "struct {}", object.item)?;
             }
-            Self::MetaObjectVariant { object, .. } => {
-                write!(fmt, "{}", object.item)?;
+            Self::MetaVariantStruct { object, .. } => {
+                write!(fmt, "variant {}", object.item)?;
             }
             Self::MetaEnum { item, .. } => {
-                write!(fmt, "{}", item)?;
+                write!(fmt, "enum {}", item)?;
             }
             Self::MetaFunction { item, .. } => {
                 write!(fmt, "fn {}", item)?;
@@ -125,7 +137,7 @@ pub struct MetaExternal {
 
 /// The metadata about a type.
 #[derive(Debug, Clone)]
-pub struct MetaObject {
+pub struct MetaStruct {
     /// The path to the object.
     pub item: Item,
     /// Fields associated with the type.
@@ -139,4 +151,6 @@ pub struct MetaTuple {
     pub item: Item,
     /// The number of arguments the variant takes.
     pub args: usize,
+    /// Hash of the constructor function.
+    pub hash: Hash,
 }

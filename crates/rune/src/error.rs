@@ -457,6 +457,31 @@ pub enum CompileError {
         /// The span of the missing label.
         span: Span,
     },
+    /// Tried to declare an instance function on a type for which it is not
+    /// supported.
+    #[error("cannot declare instance functions for type `{meta}`")]
+    UnsupportedInstanceFunction {
+        /// The span where we tried to declare an instance function.
+        span: Span,
+        /// The meta we tried to declare an instance function for.
+        meta: Meta,
+    },
+    /// Tried to treat something as a value which is not supported.
+    #[error("`{meta}` cannot be used as a value")]
+    UnsupportedValue {
+        /// The span of the error.
+        span: Span,
+        /// The meta we tried to treat as a value.
+        meta: Meta,
+    },
+    /// Tried to treat something as a type which is not supported.
+    #[error("`{meta}` cannot be used as a type")]
+    UnsupportedType {
+        /// The span of the error.
+        span: Span,
+        /// The meta we tried to treat as a type.
+        meta: Meta,
+    },
     /// Argument in unsupported position.
     #[error("argument not supported here")]
     UnsupportedArgument {
@@ -658,6 +683,9 @@ impl CompileError {
             Self::MissingLabel { span, .. } => span,
             Self::UnsupportedRef { span, .. } => span,
             Self::UnsupportedAwait { span, .. } => span,
+            Self::UnsupportedInstanceFunction { span, .. } => span,
+            Self::UnsupportedValue { span, .. } => span,
+            Self::UnsupportedType { span, .. } => span,
             Self::UnsupportedArgument { span, .. } => span,
             Self::UnsupportedSelf { span, .. } => span,
             Self::UnsupportedUnaryOp { span, .. } => span,
@@ -676,9 +704,9 @@ impl CompileError {
             Self::ReturnLocalReferences { span, .. } => span,
             Self::MatchFloatInPattern { span, .. } => span,
             Self::DuplicateObjectKey { span, .. } => span,
-            Self::NotFunction { span, .. } => span,
             Self::LitObjectMissingField { span, .. } => span,
             Self::LitObjectNotField { span, .. } => span,
+            Self::NotFunction { span, .. } => span,
         }
     }
 }

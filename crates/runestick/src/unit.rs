@@ -696,29 +696,27 @@ impl CompilationUnit {
     /// Declare a new struct.
     pub fn new_item(&mut self, meta: Meta) -> Result<(), CompilationUnitError> {
         let item = match &meta {
-            Meta::MetaTuple { tuple } => {
-                let hash = Hash::type_hash(&tuple.item);
-
+            Meta::MetaTuple { tuple, .. } => {
                 let info = UnitFnInfo {
-                    kind: UnitFnKind::Tuple { hash },
+                    kind: UnitFnKind::Tuple { hash: tuple.hash },
                     signature: UnitFnSignature {
                         path: tuple.item.clone(),
                         args: tuple.args,
                     },
                 };
 
-                if let Some(old) = self.functions.insert(hash, info) {
+                if let Some(old) = self.functions.insert(tuple.hash, info) {
                     return Err(CompilationUnitError::FunctionConflict {
                         existing: old.signature,
                     });
                 }
 
                 let info = UnitTypeInfo {
-                    hash,
-                    value_type: ValueType::Type(hash),
+                    hash: tuple.hash,
+                    value_type: ValueType::Type(tuple.hash),
                 };
 
-                if self.types.insert(hash, info).is_some() {
+                if self.types.insert(tuple.hash, info).is_some() {
                     return Err(CompilationUnitError::TypeConflict {
                         existing: tuple.item.clone(),
                     });
@@ -726,30 +724,34 @@ impl CompilationUnit {
 
                 tuple.item.clone()
             }
-            Meta::MetaTupleVariant { enum_item, tuple } => {
+            Meta::MetaVariantTuple {
+                enum_item, tuple, ..
+            } => {
                 let enum_hash = Hash::type_hash(enum_item);
-                let hash = Hash::type_hash(&tuple.item);
 
                 let info = UnitFnInfo {
-                    kind: UnitFnKind::TupleVariant { enum_hash, hash },
+                    kind: UnitFnKind::TupleVariant {
+                        enum_hash,
+                        hash: tuple.hash,
+                    },
                     signature: UnitFnSignature {
                         path: tuple.item.clone(),
                         args: tuple.args,
                     },
                 };
 
-                if let Some(old) = self.functions.insert(hash, info) {
+                if let Some(old) = self.functions.insert(tuple.hash, info) {
                     return Err(CompilationUnitError::FunctionConflict {
                         existing: old.signature,
                     });
                 }
 
                 let info = UnitTypeInfo {
-                    hash,
+                    hash: tuple.hash,
                     value_type: ValueType::Type(enum_hash),
                 };
 
-                if self.types.insert(hash, info).is_some() {
+                if self.types.insert(tuple.hash, info).is_some() {
                     return Err(CompilationUnitError::TypeConflict {
                         existing: tuple.item.clone(),
                     });
@@ -757,7 +759,7 @@ impl CompilationUnit {
 
                 tuple.item.clone()
             }
-            Meta::MetaObject { object } => {
+            Meta::MetaStruct { object, .. } => {
                 let hash = Hash::type_hash(&object.item);
 
                 let info = UnitTypeInfo {
@@ -773,7 +775,9 @@ impl CompilationUnit {
 
                 object.item.clone()
             }
-            Meta::MetaObjectVariant { enum_item, object } => {
+            Meta::MetaVariantStruct {
+                enum_item, object, ..
+            } => {
                 let hash = Hash::type_hash(&object.item);
                 let enum_hash = Hash::type_hash(enum_item);
 
@@ -790,7 +794,7 @@ impl CompilationUnit {
 
                 object.item.clone()
             }
-            Meta::MetaEnum { item } => {
+            Meta::MetaEnum { item, .. } => {
                 let hash = Hash::type_hash(item);
 
                 let info = UnitTypeInfo {
@@ -806,7 +810,7 @@ impl CompilationUnit {
 
                 item.clone()
             }
-            Meta::MetaFunction { item } => item.clone(),
+            Meta::MetaFunction { item, .. } => item.clone(),
             Meta::MetaClosure { item, .. } => item.clone(),
         };
 

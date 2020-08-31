@@ -4,7 +4,7 @@ pub use rune::ParseError::*;
 pub use rune::Warning::*;
 use runestick::Item;
 pub use runestick::VmError::*;
-pub use runestick::{FnPtr, Span, Value};
+pub use runestick::{FnPtr, Meta, Span, Value};
 use std::rc::Rc;
 
 pub async fn run_main<T>(source: &str) -> Result<T, Box<dyn std::error::Error>>

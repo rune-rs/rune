@@ -18,13 +18,6 @@ fn test_variant_typing() {
 
     assert_eq! {
         test! {
-            bool => r#"fn main() { Err(0) is Err }"#
-        },
-        false,
-    };
-
-    assert_eq! {
-        test! {
             bool => r#"fn main() { Some(0) is Option }"#
         },
         true,

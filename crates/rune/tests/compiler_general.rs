@@ -1,6 +1,16 @@
 use rune_testing::*;
 
 #[test]
+fn test_use_variant_as_type() {
+    test_compile_error! {
+        r#"fn main() { Err(0) is Err }"#,
+        UnsupportedType { span, meta: Meta::MetaVariantTuple { .. } } => {
+            assert_eq!(span, Span::new(22, 25));
+        }
+    };
+}
+
+#[test]
 fn break_outside_of_loop() {
     test_compile_error! {
         r#"fn main() { break; }"#,

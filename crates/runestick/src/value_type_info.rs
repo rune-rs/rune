@@ -18,7 +18,7 @@ impl fmt::Display for ValueTypeInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::StaticType(ty) => {
-                write!(fmt, "type({})", ty.name)?;
+                write!(fmt, "{}", ty.name)?;
             }
             Self::Type(ty) => {
                 write!(fmt, "type({})", ty)?;

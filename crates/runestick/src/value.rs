@@ -575,7 +575,7 @@ impl Value {
                 let tuple = tuple.borrow_ref()?;
                 ValueType::Type(tuple.enum_hash)
             }
-            Self::Any(any) => ValueType::Any(any.borrow_ref()?.type_id()),
+            Self::Any(any) => ValueType::Type(any.borrow_ref()?.type_hash()),
         })
     }
 

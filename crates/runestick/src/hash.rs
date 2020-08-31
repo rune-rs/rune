@@ -1,4 +1,5 @@
 use crate::{Component, ValueType};
+use std::any;
 use std::fmt;
 use std::hash::{BuildHasher as _, BuildHasherDefault, Hash as _, Hasher as _};
 use twox_hash::XxHash64;
@@ -7,6 +8,7 @@ const SEP: usize = 0x7f;
 const TYPE: usize = 1;
 const INSTANCE_FUNCTION: usize = 2;
 const OBJECT_KEYS: usize = 3;
+const TYPE_ID: usize = 4;
 
 /// The hash of a primitive thing.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -74,6 +76,19 @@ impl Hash {
         I: IntoTypeHash,
     {
         path.into_type_hash()
+    }
+
+    /// Construct a type hash from an any type.
+    pub fn of_any<T>() -> Self
+    where
+        T: any::Any,
+    {
+        Self::from_type_id(any::TypeId::of::<T>())
+    }
+
+    /// Construct a hash from a type id.
+    pub fn from_type_id(type_id: any::TypeId) -> Self {
+        Self::of((TYPE_ID, type_id))
     }
 }
 

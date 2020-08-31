@@ -5,7 +5,7 @@ use crate::compiler::warning::Warnings;
 use crate::compiler::Items;
 use crate::error::CompileError;
 use crate::traits::Resolve as _;
-use runestick::Meta;
+use runestick::{Hash, Meta, ValueType};
 use std::sync::Arc;
 
 pub(super) struct Indexer<'a, 'source> {
@@ -376,10 +376,10 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                         Build::Function(Function::new(decl_fn.clone(), None)),
                     ));
 
-                    self.query
-                        .unit
-                        .borrow_mut()
-                        .new_item(Meta::MetaFunction { item })?;
+                    self.query.unit.borrow_mut().new_item(Meta::MetaFunction {
+                        value_type: ValueType::Type(Hash::type_hash(&item)),
+                        item,
+                    })?;
                 } else {
                     self.query.insert_item(
                         item.clone(),
@@ -427,10 +427,10 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                         ));
                     }
 
-                    self.query
-                        .unit
-                        .borrow_mut()
-                        .new_item(Meta::MetaFunction { item })?;
+                    self.query.unit.borrow_mut().new_item(Meta::MetaFunction {
+                        value_type: ValueType::Type(Hash::type_hash(&item)),
+                        item,
+                    })?;
 
                     self.index(decl_fn)?;
                 }

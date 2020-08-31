@@ -1,5 +1,6 @@
 //! Helper types for a holder of data.
 
+use crate::Hash;
 use std::any;
 use std::fmt;
 
@@ -35,7 +36,7 @@ impl Any {
                 as_mut_ptr: as_mut_ptr_impl::<T>,
                 take_mut_ptr: as_mut_ptr_impl::<T>,
                 type_name: any::type_name::<T>,
-                type_id: any::TypeId::of::<T>,
+                type_hash: Hash::of_any::<T>,
             },
             data: data as *mut (),
         };
@@ -58,7 +59,7 @@ impl Any {
     where
         T: any::Any,
     {
-        any::TypeId::of::<T>() == self.type_id()
+        Hash::of_any::<T>() == self.type_hash()
     }
 
     /// Returns some reference to the boxed value if it is of type `T`, or
@@ -140,8 +141,8 @@ impl Any {
     }
 
     /// Access the underlying type id for the data.
-    pub fn type_id(&self) -> any::TypeId {
-        (self.vtable.type_id)()
+    pub fn type_hash(&self) -> Hash {
+        (self.vtable.type_hash)()
     }
 }
 
@@ -160,7 +161,7 @@ type AsPtrFn = unsafe fn(*const (), expected: any::TypeId) -> Option<*const ()>;
 type AsMutPtrFn = unsafe fn(*const (), expected: any::TypeId) -> Option<*mut ()>;
 type TakeMutPtrFn = unsafe fn(*const (), expected: any::TypeId) -> Option<*mut ()>;
 type TypeNameFn = fn() -> &'static str;
-type TypeIdFn = fn() -> any::TypeId;
+type TypeHashFn = fn() -> Hash;
 
 /// The vtable for any type stored in the virtual machine.
 ///
@@ -181,8 +182,8 @@ struct Vtable {
     take_mut_ptr: TakeMutPtrFn,
     /// Type information for diagnostics.
     type_name: TypeNameFn,
-    /// The inner type identifier.
-    type_id: TypeIdFn,
+    /// Get the type hash of the stored type.
+    type_hash: TypeHashFn,
 }
 
 fn as_ptr_impl<T>(this: *const (), expected: any::TypeId) -> Option<*const ()>

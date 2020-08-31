@@ -29,7 +29,7 @@ macro_rules! decl_internal {
             type Owned = $external;
 
             fn value_type() -> $crate::ValueType {
-                $crate::ValueType::Any(std::any::TypeId::of::<$external>())
+                $crate::ValueType::Type($crate::Hash::of_any::<$external>())
             }
 
             fn value_type_info() -> $crate::ValueTypeInfo {
@@ -41,7 +41,7 @@ macro_rules! decl_internal {
             type Owned = $external;
 
             fn value_type() -> $crate::ValueType {
-                $crate::ValueType::Any(std::any::TypeId::of::<$external>())
+                $crate::ValueType::Type($crate::Hash::of_any::<$external>())
             }
 
             fn value_type_info() -> $crate::ValueTypeInfo {
@@ -53,7 +53,7 @@ macro_rules! decl_internal {
             type Owned = $external;
 
             fn value_type() -> $crate::ValueType {
-                $crate::ValueType::Any(std::any::TypeId::of::<$external>())
+                $crate::ValueType::Type($crate::Hash::of_any::<$external>())
             }
 
             fn value_type_info() -> $crate::ValueTypeInfo {

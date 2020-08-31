@@ -3,7 +3,9 @@ use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
-use runestick::{CompilationUnit, Item, Meta, MetaClosureCapture, MetaObject, MetaTuple, Span};
+use runestick::{
+    CompilationUnit, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Span, ValueType,
+};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -164,38 +166,38 @@ impl<'a> Query<'a> {
             None => return Ok(None),
         };
 
-        match entry {
-            Entry::Enum => {
-                self.unit
-                    .borrow_mut()
-                    .new_item(Meta::MetaEnum { item: item.clone() })?;
-            }
+        let meta = match entry {
+            Entry::Enum => Meta::MetaEnum {
+                value_type: ValueType::Type(Hash::type_hash(&item)),
+                item: item.clone(),
+            },
             Entry::Variant(variant) => {
                 // Assert that everything is built for the enum.
                 self.query_meta(&variant.enum_item, span)?;
-
-                let meta = self.ast_into_item_decl(&item, variant.ast, Some(variant.enum_item))?;
-                self.unit.borrow_mut().new_item(meta)?;
+                self.ast_into_item_decl(&item, variant.ast, Some(variant.enum_item))?
             }
-            Entry::Struct(st) => {
-                let meta = self.ast_into_item_decl(&item, st.ast.body, None)?;
-                self.unit.borrow_mut().new_item(meta)?;
-            }
+            Entry::Struct(st) => self.ast_into_item_decl(&item, st.ast.body, None)?,
             Entry::Function(f) => {
                 self.queue.push_back((item.clone(), Build::Function(f)));
-                self.unit
-                    .borrow_mut()
-                    .new_item(Meta::MetaFunction { item: item.clone() })?;
+
+                Meta::MetaFunction {
+                    value_type: ValueType::Type(Hash::type_hash(&item)),
+                    item: item.clone(),
+                }
             }
             Entry::Closure(c) => {
                 let captures = c.captures.clone();
                 self.queue.push_back((item.clone(), Build::Closure(c)));
-                self.unit.borrow_mut().new_item(Meta::MetaClosure {
+
+                Meta::MetaClosure {
+                    value_type: ValueType::Type(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
-                })?;
+                }
             }
-        }
+        };
+
+        self.unit.borrow_mut().new_item(meta)?;
 
         match self.unit.borrow().lookup_meta(&item) {
             Some(meta) => Ok(Some(meta)),
@@ -210,27 +212,39 @@ impl<'a> Query<'a> {
         body: ast::DeclStructBody,
         enum_item: Option<Item>,
     ) -> Result<Meta, CompileError> {
+        let value_type = ValueType::Type(Hash::type_hash(item));
+
         Ok(match body {
             ast::DeclStructBody::EmptyBody(..) => {
                 let tuple = MetaTuple {
                     item: item.clone(),
                     args: 0,
+                    hash: Hash::type_hash(item),
                 };
 
                 match enum_item {
-                    Some(enum_item) => Meta::MetaTupleVariant { enum_item, tuple },
-                    None => Meta::MetaTuple { tuple },
+                    Some(enum_item) => Meta::MetaVariantTuple {
+                        value_type,
+                        enum_item,
+                        tuple,
+                    },
+                    None => Meta::MetaTuple { value_type, tuple },
                 }
             }
             ast::DeclStructBody::TupleBody(tuple) => {
                 let tuple = MetaTuple {
                     item: item.clone(),
                     args: tuple.fields.len(),
+                    hash: Hash::type_hash(item),
                 };
 
                 match enum_item {
-                    Some(enum_item) => Meta::MetaTupleVariant { enum_item, tuple },
-                    None => Meta::MetaTuple { tuple },
+                    Some(enum_item) => Meta::MetaVariantTuple {
+                        value_type,
+                        enum_item,
+                        tuple,
+                    },
+                    None => Meta::MetaTuple { value_type, tuple },
                 }
             }
             ast::DeclStructBody::StructBody(st) => {
@@ -241,14 +255,18 @@ impl<'a> Query<'a> {
                     fields.insert(ident.to_owned());
                 }
 
-                let object = MetaObject {
+                let object = MetaStruct {
                     item: item.clone(),
                     fields: Some(fields),
                 };
 
                 match enum_item {
-                    Some(enum_item) => Meta::MetaObjectVariant { enum_item, object },
-                    None => Meta::MetaObject { object },
+                    Some(enum_item) => Meta::MetaVariantStruct {
+                        value_type,
+                        enum_item,
+                        object,
+                    },
+                    None => Meta::MetaStruct { value_type, object },
                 }
             }
         })
