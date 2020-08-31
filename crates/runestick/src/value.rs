@@ -4,7 +4,7 @@ use crate::{
 };
 use std::any;
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Value raised when interacting with a value.
@@ -255,7 +255,7 @@ pub enum Value {
     ///
     /// `Rc<str>` on the other hand wraps a so-called fat pointer, which is 16
     /// bytes.
-    StaticString(Rc<String>),
+    StaticString(Arc<String>),
     /// A UTF-8 string.
     String(Shared<String>),
     /// A byte string.

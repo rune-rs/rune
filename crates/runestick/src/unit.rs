@@ -6,7 +6,7 @@
 use crate::collections::HashMap;
 use crate::{Component, Context, Hash, Inst, Item, Meta, ValueType, VmError};
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Errors raised when building a new unit.
@@ -274,7 +274,7 @@ pub enum UnitFnKind {
 }
 
 /// Information about a registered function.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnitFnInfo {
     /// The kind of the registered function.
     pub kind: UnitFnKind,
@@ -283,7 +283,7 @@ pub struct UnitFnInfo {
 }
 
 /// A description of a function signature.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnitFnSignature {
     /// The path of the function.
     pub path: Item,
@@ -351,13 +351,13 @@ pub struct Unit {
     /// Item metadata in the context.
     meta: HashMap<Item, Meta>,
     /// Where functions are located in the collection of instructions.
-    functions: HashMap<Hash, UnitFnInfo>,
+    functions: HashMap<Hash, Arc<UnitFnInfo>>,
     /// Declared types.
     types: HashMap<Hash, UnitTypeInfo>,
     /// Function by address.
     functions_rev: HashMap<usize, Hash>,
     /// A static string.
-    static_strings: Vec<Rc<String>>,
+    static_strings: Vec<Arc<String>>,
     /// Reverse lookup for static strings.
     static_string_rev: HashMap<Hash, usize>,
     /// A static byte string.
@@ -528,7 +528,7 @@ impl Unit {
     }
 
     /// Iterate over known functions.
-    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFnInfo)> + '_ {
+    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &Arc<UnitFnInfo>)> + '_ {
         let mut it = self.functions.iter();
 
         std::iter::from_fn(move || {
@@ -553,7 +553,7 @@ impl Unit {
     }
 
     /// Lookup the static string by slot, if it exists.
-    pub fn lookup_string(&self, slot: usize) -> Result<&Rc<String>, VmError> {
+    pub fn lookup_string(&self, slot: usize) -> Result<&Arc<String>, VmError> {
         Ok(self
             .static_strings
             .get(slot)
@@ -601,7 +601,7 @@ impl Unit {
         }
 
         let new_slot = self.static_strings.len();
-        self.static_strings.push(Rc::new(String::from(current)));
+        self.static_strings.push(Arc::new(String::from(current)));
         self.static_string_rev.insert(hash, new_slot);
         Ok(new_slot)
     }
@@ -670,7 +670,7 @@ impl Unit {
     }
 
     /// Lookup information of a function.
-    pub fn lookup(&self, hash: Hash) -> Option<&UnitFnInfo> {
+    pub fn lookup(&self, hash: Hash) -> Option<&Arc<UnitFnInfo>> {
         self.functions.get(&hash)
     }
 
@@ -700,17 +700,17 @@ impl Unit {
     pub fn new_item(&mut self, meta: Meta) -> Result<(), UnitError> {
         let item = match &meta {
             Meta::MetaTuple { tuple, .. } => {
-                let info = UnitFnInfo {
+                let info = Arc::new(UnitFnInfo {
                     kind: UnitFnKind::Tuple { hash: tuple.hash },
                     signature: UnitFnSignature {
                         path: tuple.item.clone(),
                         args: tuple.args,
                     },
-                };
+                });
 
                 if let Some(old) = self.functions.insert(tuple.hash, info) {
                     return Err(UnitError::FunctionConflict {
-                        existing: old.signature,
+                        existing: old.signature.clone(),
                     });
                 }
 
@@ -732,7 +732,7 @@ impl Unit {
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
 
-                let info = UnitFnInfo {
+                let info = Arc::new(UnitFnInfo {
                     kind: UnitFnKind::TupleVariant {
                         enum_hash,
                         hash: tuple.hash,
@@ -741,11 +741,11 @@ impl Unit {
                         path: tuple.item.clone(),
                         args: tuple.args,
                     },
-                };
+                });
 
                 if let Some(old) = self.functions.insert(tuple.hash, info) {
                     return Err(UnitError::FunctionConflict {
-                        existing: old.signature,
+                        existing: old.signature.clone(),
                     });
                 }
 
@@ -845,14 +845,14 @@ impl Unit {
 
         self.functions_rev.insert(offset, hash);
 
-        let info = UnitFnInfo {
+        let info = Arc::new(UnitFnInfo {
             kind: UnitFnKind::Offset { offset, call },
             signature: UnitFnSignature::new(path, args),
-        };
+        });
 
         if let Some(old) = self.functions.insert(hash, info) {
             return Err(UnitError::FunctionConflict {
-                existing: old.signature,
+                existing: old.signature.clone(),
             });
         }
 
@@ -870,23 +870,31 @@ impl Unit {
         assembly: Assembly,
         call: UnitFnCall,
     ) -> Result<(), UnitError> {
+        log::trace!("instance fn: {}", path);
+
         let offset = self.instructions.len();
-        let hash = Hash::of(name);
-        let hash = Hash::instance_function(value_type, hash);
+        let instance_fn = Hash::of(name);
+        let instance_fn = Hash::instance_function(value_type, instance_fn);
+        let hash = Hash::type_hash(&path);
 
-        self.functions_rev.insert(offset, hash);
-
-        let info = UnitFnInfo {
+        let info = Arc::new(UnitFnInfo {
             kind: UnitFnKind::Offset { offset, call },
             signature: UnitFnSignature::new(path, args),
-        };
+        });
 
-        if let Some(old) = self.functions.insert(hash, info) {
+        if let Some(old) = self.functions.insert(instance_fn, info.clone()) {
             return Err(UnitError::FunctionConflict {
-                existing: old.signature,
+                existing: old.signature.clone(),
             });
         }
 
+        if let Some(old) = self.functions.insert(hash, info) {
+            return Err(UnitError::FunctionConflict {
+                existing: old.signature.clone(),
+            });
+        }
+
+        self.functions_rev.insert(offset, hash);
         self.add_assembly(assembly)?;
         Ok(())
     }

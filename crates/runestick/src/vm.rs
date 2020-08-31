@@ -553,12 +553,13 @@ impl Vm {
         H: IntoTypeHash,
         A: IntoArgs,
     {
+        let count = A::count() + 1;
         let hash = Hash::instance_function(target.value_type()?, hash.into_type_hash());
 
         if let Some(info) = self.unit.lookup(hash) {
-            if info.signature.args != A::count() {
+            if info.signature.args != count {
                 return Err(VmError::ArgumentCountMismatch {
-                    actual: A::count(),
+                    actual: count,
                     expected: info.signature.args,
                 });
             }
@@ -570,7 +571,7 @@ impl Vm {
                 args.into_args(&mut self.stack)?;
 
                 self.stack.push(target.clone());
-                self.call_offset_fn(offset, call, A::count())?;
+                self.call_offset_fn(offset, call, count)?;
                 return Ok(true);
             }
         }
@@ -583,7 +584,7 @@ impl Vm {
         args.into_args(&mut self.stack)?;
 
         self.stack.push(target.clone());
-        handler(&mut self.stack, 1)?;
+        handler(&mut self.stack, count)?;
         Ok(true)
     }
 
@@ -2080,6 +2081,8 @@ impl Vm {
     where
         H: IntoTypeHash,
     {
+        // NB: +1 to include the instance itself.
+        let args = args + 1;
         let instance = self.stack.peek()?.clone();
         let ty = instance.value_type()?;
         let hash = Hash::instance_function(ty, hash);
@@ -2095,7 +2098,7 @@ impl Vm {
 
                 match info.kind {
                     UnitFnKind::Offset { offset, call } => {
-                        self.call_offset_fn(offset, call, args + 1)?;
+                        self.call_offset_fn(offset, call, args)?;
                     }
                     UnitFnKind::Tuple { .. } => todo!("there are no instance tuple constructors"),
                     UnitFnKind::TupleVariant { .. } => {

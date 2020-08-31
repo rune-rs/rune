@@ -585,7 +585,7 @@ macro_rules! impl_register {
             type Return = Return;
 
             fn args() -> usize {
-                $count
+                $count + 1
             }
 
             fn instance_value_type() -> ValueType {
@@ -597,7 +597,7 @@ macro_rules! impl_register {
             }
 
             fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
-                impl_register!{@check-args $count, args}
+                impl_register!{@check-args ($count + 1), args}
                 let inst = stack.pop()?;
                 $(let $var = stack.pop()?;)*
 
@@ -630,7 +630,7 @@ macro_rules! impl_register {
             type Return = Return;
 
             fn args() -> usize {
-                $count
+                $count + 1
             }
 
             fn instance_value_type() -> ValueType {
@@ -642,7 +642,7 @@ macro_rules! impl_register {
             }
 
             fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
-                impl_register!{@check-args $count, args}
+                impl_register!{@check-args ($count + 1), args}
                 let inst = stack.pop()?;
                 $(let $var = stack.pop()?;)*
 

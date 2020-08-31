@@ -121,14 +121,8 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                         })?;
 
                         compiler.compile_decl_fn(f.ast, true)?;
-                        unit.borrow_mut().new_instance_function(
-                            item,
-                            value_type,
-                            name,
-                            count - 1,
-                            asm,
-                            call,
-                        )?;
+                        unit.borrow_mut()
+                            .new_instance_function(item, value_type, name, count, asm, call)?;
                     } else {
                         compiler.compile_decl_fn(f.ast, false)?;
                         unit.borrow_mut().new_function(item, count, asm, call)?;
@@ -1050,7 +1044,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 expr_for.iter.span(),
             );
 
-            self.asm.push(Inst::CallFn { args: 0 }, span);
+            self.asm.push(Inst::CallFn { args: 1 }, span);
 
             self.asm.push(
                 Inst::Replace {

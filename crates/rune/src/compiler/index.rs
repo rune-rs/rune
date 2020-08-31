@@ -408,7 +408,7 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
 
                 for decl_fn in &decl_impl.functions {
                     let name = decl_fn.name.resolve(self.query.source)?;
-                    guards.push(self.items.push_name(name));
+                    let guard = self.items.push_name(name);
 
                     let item = self.items.item();
 
@@ -427,12 +427,15 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                         ));
                     }
 
-                    self.query.unit.borrow_mut().new_item(Meta::MetaFunction {
-                        value_type: ValueType::Type(Hash::type_hash(&item)),
-                        item,
-                    })?;
+                    let value_type = ValueType::Type(Hash::type_hash(&item));
+
+                    self.query
+                        .unit
+                        .borrow_mut()
+                        .new_item(Meta::MetaFunction { value_type, item })?;
 
                     self.index(decl_fn)?;
+                    self.items.pop(guard, span)?;
                 }
 
                 while let Some(guard) = guards.pop() {
