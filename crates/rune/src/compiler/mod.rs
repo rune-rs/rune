@@ -1157,6 +1157,30 @@ impl<'a, 'source> Compiler<'a, 'source> {
         #[allow(clippy::never_loop)]
         let offset = loop {
             match lhs {
+                ast::Expr::ExprFieldAccess(get) => {
+                    if let (ast::Expr::Path(target), ast::ExprField::Ident(index)) =
+                        (&*get.expr, &get.expr_field)
+                    {
+                        let index_span = index.span();
+                        let target_span = target.span();
+
+                        let target = self.convert_path_to_item(target)?;
+                        let index = index.resolve(self.source)?;
+
+                        if let Some(target) = target.as_local() {
+                            self.compile_expr(rhs, Needs::Value)?;
+
+                            let index = self.unit.borrow_mut().new_static_string(index)?;
+                            self.asm.push(Inst::String { slot: index }, index_span);
+
+                            let target = self.scopes.get_var(target, target_span)?;
+                            target.copy(&mut self.asm, target_span);
+
+                            self.asm.push(Inst::IndexSet, span);
+                            return Ok(());
+                        }
+                    }
+                }
                 ast::Expr::Path(path) => {
                     let item = self.convert_path_to_item(path)?;
 
@@ -1166,30 +1190,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
                         match var {
                             Var::Local(local) => break local.offset,
                             Var::Environ(..) => (),
-                        }
-                    }
-                }
-                ast::Expr::ExprBinary(expr_binary) => {
-                    if let (ast::Expr::Path(var), ast::Expr::Path(field)) =
-                        (&*expr_binary.lhs, &*expr_binary.rhs)
-                    {
-                        let field_span = field.span();
-                        let var_span = var.span();
-
-                        let var = self.convert_path_to_item(var)?;
-                        let field = self.convert_path_to_item(field)?;
-
-                        if let (Some(var), Some(field)) = (var.as_local(), field.as_local()) {
-                            self.compile_expr(rhs, Needs::Value)?;
-
-                            let field = self.unit.borrow_mut().new_static_string(field)?;
-                            self.asm.push(Inst::String { slot: field }, field_span);
-
-                            let var = self.scopes.get_var(var, var_span)?;
-                            var.copy(&mut self.asm, var_span);
-
-                            self.asm.push(Inst::IndexSet, span);
-                            return Ok(());
                         }
                     }
                 }

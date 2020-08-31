@@ -1,0 +1,65 @@
+struct Node {
+    value,
+    next,
+}
+
+struct List {
+    first,
+    last,
+}
+
+struct Iter {
+    current,
+}
+
+fn new() {
+    List {
+        first: (),
+        last: (),
+    }
+}
+
+fn push_back(ll, value) {
+    let prev = ll.last;
+
+    ll.last = Node {
+        value,
+        next: (),
+    };
+
+    if prev is unit {
+        ll.first = ll.last;
+    } else {
+        prev.next = ll.last;
+    }
+}
+
+fn iter(ll) {
+    Iter {
+        current: ll.first,
+    }
+}
+
+fn iter_next(iter) {
+    let value = iter.current;
+
+    if value is unit {
+        None
+    } else {
+        iter.current = value.next;
+        Some(value.value)
+    }
+}
+
+fn main() {
+    let ll = new();
+    push_back(ll, 1);
+    push_back(ll, 2);
+    push_back(ll, 3);
+
+    let iter = iter(ll);
+
+    while let Some(value) = iter_next(iter) {
+        println(`{value}`);
+    }
+}

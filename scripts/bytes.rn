@@ -14,7 +14,7 @@ fn main() {
     let vec = bytes.into_vec();
 
     if let [b'h', b'e', b'l', b'l', b'o', ..] = vec {
-        dbg("it does start with an 'hello'");
+        println("it does start with an 'hello'");
     }
 
     Bytes::from_vec(vec)
