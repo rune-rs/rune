@@ -375,6 +375,10 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                 self.index(decl_fn)?;
                 self.items.pop(guard, span)?;
             }
+            ast::Decl::DeclImpl(decl_impl) => {
+                let span = decl_impl.span();
+                return Err(CompileError::internal("not implemented yet", span));
+            }
         }
 
         Ok(())

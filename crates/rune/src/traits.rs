@@ -26,6 +26,22 @@ where
     }
 }
 
+/// Parser implementation for a vector.
+impl<T> Parse for Vec<T>
+where
+    T: Parse + Peek,
+{
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let mut output = Vec::new();
+
+        while parser.peek::<T>()? {
+            output.push(parser.parse()?);
+        }
+
+        Ok(output)
+    }
+}
+
 /// Implemented by tokens that can be peeked for.
 pub trait Peek {
     /// Peek the parser for the given token.

@@ -15,16 +15,19 @@ pub enum Decl {
     DeclEnum(ast::DeclEnum),
     /// A struct declaration.
     DeclStruct(ast::DeclStruct),
+    /// An impl declaration.
+    DeclImpl(ast::DeclImpl),
 }
 
 impl Decl {
     /// The span of the declaration.
     pub fn span(&self) -> Span {
         match self {
-            Self::DeclUse(decl_use) => decl_use.span(),
-            Self::DeclFn(decl_fn) => decl_fn.span(),
-            Self::DeclEnum(decl_enum) => decl_enum.span(),
-            Self::DeclStruct(decl_struct) => decl_struct.span(),
+            Self::DeclUse(decl) => decl.span(),
+            Self::DeclFn(decl) => decl.span(),
+            Self::DeclEnum(decl) => decl.span(),
+            Self::DeclStruct(decl) => decl.span(),
+            Self::DeclImpl(decl) => decl.span(),
         }
     }
 
@@ -35,6 +38,7 @@ impl Decl {
             Self::DeclFn(..) => false,
             Self::DeclEnum(..) => false,
             Self::DeclStruct(decl_struct) => decl_struct.needs_semi_colon(),
+            Self::DeclImpl(..) => false,
         }
     }
 }
@@ -62,6 +66,7 @@ impl Parse for Decl {
             Kind::Use => Self::DeclUse(parser.parse()?),
             Kind::Enum => Self::DeclEnum(parser.parse()?),
             Kind::Struct => Self::DeclStruct(parser.parse()?),
+            Kind::Impl => Self::DeclImpl(parser.parse()?),
             _ => Self::DeclFn(parser.parse()?),
         })
     }

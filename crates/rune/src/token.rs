@@ -102,6 +102,8 @@ pub enum Kind {
     Select,
     /// The `default` keyword.
     Default,
+    /// The `impl` keyword.
+    Impl,
     /// An identifier.
     Ident,
     /// A label, like `'loop`.
@@ -225,6 +227,7 @@ impl fmt::Display for Kind {
             Self::Async => write!(fmt, "async")?,
             Self::Select => write!(fmt, "select")?,
             Self::Default => write!(fmt, "default")?,
+            Self::Impl => write!(fmt, "impl")?,
             Self::Ident => write!(fmt, "ident")?,
             Self::Label => write!(fmt, "label")?,
             Self::LitNumber { .. } => write!(fmt, "number")?,

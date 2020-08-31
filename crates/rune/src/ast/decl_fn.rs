@@ -1,7 +1,8 @@
 use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::token::{Kind, Token};
+use crate::traits::{Parse, Peek};
 use runestick::unit::Span;
 
 /// A function.
@@ -23,6 +24,12 @@ impl DeclFn {
     /// Access the span for the function declaration.
     pub fn span(&self) -> Span {
         self.fn_.span().join(self.body.span())
+    }
+}
+
+impl Peek for DeclFn {
+    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
+        matches!(t1, Some(Token { kind: Kind::Fn, .. }))
     }
 }
 

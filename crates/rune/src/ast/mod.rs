@@ -12,6 +12,7 @@ mod decl;
 mod decl_enum;
 mod decl_file;
 mod decl_fn;
+mod decl_impl;
 mod decl_struct;
 mod decl_use;
 mod expr;
@@ -65,6 +66,7 @@ pub use self::decl::Decl;
 pub use self::decl_enum::DeclEnum;
 pub use self::decl_file::DeclFile;
 pub use self::decl_fn::DeclFn;
+pub use self::decl_impl::DeclImpl;
 pub use self::decl_struct::{DeclStruct, DeclStructBody, EmptyBody, StructBody, TupleBody};
 pub use self::decl_use::DeclUse;
 pub use self::expr::Expr;
@@ -202,6 +204,7 @@ decl_tokens! {
     (Pipe, Kind::Pipe),
     (And, Kind::And),
     (Or, Kind::Or),
+    (Impl, Kind::Impl),
 }
 
 impl<'a> Resolve<'a> for Ident {

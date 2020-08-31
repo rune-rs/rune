@@ -107,6 +107,7 @@ impl<'a> Lexer<'a> {
             "async" => Kind::Async,
             "select" => Kind::Select,
             "default" => Kind::Default,
+            "impl" => Kind::Impl,
             _ => Kind::Ident,
         };
 
