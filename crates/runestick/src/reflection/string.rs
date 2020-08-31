@@ -5,7 +5,7 @@ use crate::{
     Value, ValueError,
 };
 
-value_types!(String, String => String, &String, &mut String, &str, &mut str);
+value_types!(crate::STRING_TYPE, String => String, &String, &mut String, &str, &mut str);
 
 impl FromValue for String {
     fn from_value(value: Value) -> Result<Self, ValueError> {

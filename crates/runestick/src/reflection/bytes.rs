@@ -1,43 +1,9 @@
 use crate::{
-    Bytes, FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared,
-    ToValue, UnsafeFromValue, Value, ValueError, ValueType, ValueTypeInfo,
+    Bytes, FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue,
+    UnsafeFromValue, Value, ValueError,
 };
 
-impl ReflectValueType for Bytes {
-    type Owned = Bytes;
-
-    fn value_type() -> ValueType {
-        ValueType::Bytes
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Bytes
-    }
-}
-
-impl<'a> ReflectValueType for &'a Bytes {
-    type Owned = Bytes;
-
-    fn value_type() -> ValueType {
-        ValueType::Bytes
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Bytes
-    }
-}
-
-impl<'a> ReflectValueType for &'a mut Bytes {
-    type Owned = Bytes;
-
-    fn value_type() -> ValueType {
-        ValueType::Bytes
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Bytes
-    }
-}
+value_types!(crate::BYTES_TYPE, Bytes => Bytes, &Bytes, &mut Bytes, &[u8]);
 
 impl ToValue for Bytes {
     fn to_value(self) -> Result<Value, ValueError> {
@@ -95,17 +61,5 @@ impl<'a> UnsafeFromValue for &'a [u8] {
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         &*output
-    }
-}
-
-impl<'a> ReflectValueType for &'a [u8] {
-    type Owned = Bytes;
-
-    fn value_type() -> ValueType {
-        ValueType::Bytes
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Bytes
     }
 }

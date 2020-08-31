@@ -103,17 +103,33 @@ macro_rules! decl_internal {
 
 /// Declare value types for the specific kind.
 macro_rules! value_types {
-    ($ident:ident, $owned:ty => $($ty:ty),+) => {
+    ($static_type:expr, $owned:ty => $($(impl <$param:ident>)? $ty:ty),+) => {
         $(
-            impl $crate::ReflectValueType for $ty {
+            impl $(<$($param),*>)? $crate::ReflectValueType for $ty {
                 type Owned = $owned;
 
                 fn value_type() -> $crate::ValueType {
-                    $crate::ValueType::$ident
+                    $crate::ValueType::StaticType($static_type)
                 }
 
                 fn value_type_info() -> $crate::ValueTypeInfo {
-                    $crate::ValueTypeInfo::$ident
+                    $crate::ValueTypeInfo::StaticType($static_type)
+                }
+            }
+        )*
+    };
+
+    (impl $static_type:expr, $owned:ty => $($param:ident $ty:ty),+) => {
+        $(
+            impl<$param> $crate::ReflectValueType for $ty {
+                type Owned = $owned;
+
+                fn value_type() -> $crate::ValueType {
+                    $crate::ValueType::StaticType($static_type)
+                }
+
+                fn value_type_info() -> $crate::ValueTypeInfo {
+                    $crate::ValueTypeInfo::StaticType($static_type)
                 }
             }
         )*

@@ -1,55 +1,10 @@
 use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared, ToValue,
-    UnsafeFromValue, Value, ValueError, ValueType, ValueTypeInfo,
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue, UnsafeFromValue,
+    Value, ValueError,
 };
 
-impl<T> ReflectValueType for Vec<T> {
-    type Owned = Vec<T>;
-
-    fn value_type() -> ValueType {
-        ValueType::Vec
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Vec
-    }
-}
-
-impl<'a> ReflectValueType for &'a [Value] {
-    type Owned = Vec<Value>;
-
-    fn value_type() -> ValueType {
-        ValueType::Vec
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Vec
-    }
-}
-
-impl<'a, T> ReflectValueType for &'a Vec<T> {
-    type Owned = Vec<T>;
-
-    fn value_type() -> ValueType {
-        ValueType::Vec
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Vec
-    }
-}
-
-impl<'a, T> ReflectValueType for &'a mut Vec<T> {
-    type Owned = Vec<T>;
-
-    fn value_type() -> ValueType {
-        ValueType::Vec
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Vec
-    }
-}
+value_types!(impl crate::VEC_TYPE, Vec<T> => T Vec<T>, T &Vec<T>, T &mut Vec<T>);
+value_types!(crate::VEC_TYPE, Vec<Value> => &[Value]);
 
 impl<T> FromValue for Vec<T>
 where

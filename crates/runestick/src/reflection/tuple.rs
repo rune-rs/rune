@@ -4,17 +4,7 @@ use crate::{
     FromValue, ReflectValueType, Shared, ToValue, Value, ValueError, ValueType, ValueTypeInfo,
 };
 
-impl ReflectValueType for () {
-    type Owned = ();
-
-    fn value_type() -> ValueType {
-        ValueType::Unit
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Unit
-    }
-}
+value_types!(crate::UNIT_TYPE, () => ());
 
 impl ToValue for () {
     fn to_value(self) -> Result<Value, ValueError> {
@@ -42,11 +32,11 @@ macro_rules! impl_from_value_tuple {
             type Owned = ($($ty,)*);
 
             fn value_type() -> ValueType {
-                ValueType::Tuple
+                ValueType::StaticType(crate::TUPLE_TYPE)
             }
 
             fn value_type_info() -> ValueTypeInfo {
-                ValueTypeInfo::Tuple
+                ValueTypeInfo::StaticType(crate::TUPLE_TYPE)
             }
         }
 

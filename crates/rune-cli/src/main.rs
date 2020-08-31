@@ -23,9 +23,9 @@ async fn main() -> Result<()> {
     let mut help = false;
 
     let mut context = runestick::Context::with_default_packages()?;
-    context.install(runestick_http::module()?)?;
-    context.install(runestick_json::module()?)?;
-    context.install(runestick_time::module()?)?;
+    context.install(&runestick_http::module()?)?;
+    context.install(&runestick_json::module()?)?;
+    context.install(&runestick_time::module()?)?;
 
     let mut runtime = rune::Runtime::with_context(context);
 

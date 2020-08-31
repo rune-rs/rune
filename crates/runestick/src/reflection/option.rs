@@ -9,11 +9,11 @@ impl<T> ReflectValueType for Option<T> {
     type Owned = Option<T>;
 
     fn value_type() -> ValueType {
-        ValueType::Option
+        ValueType::StaticType(crate::OPTION_TYPE)
     }
 
     fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Option
+        ValueTypeInfo::StaticType(crate::OPTION_TYPE)
     }
 }
 
@@ -21,11 +21,11 @@ impl<T> ReflectValueType for &Option<T> {
     type Owned = Option<T>;
 
     fn value_type() -> ValueType {
-        ValueType::Option
+        ValueType::StaticType(crate::OPTION_TYPE)
     }
 
     fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Option
+        ValueTypeInfo::StaticType(crate::OPTION_TYPE)
     }
 }
 

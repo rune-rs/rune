@@ -1,4 +1,7 @@
 use crate::collections::HashMap;
+use crate::module::{
+    ModuleInstanceFunction, ModuleOptionTypes, ModuleResultTypes, ModuleType, ModuleUnitType,
+};
 use crate::{
     Hash, IntoTypeHash, Item, Meta, MetaObject, MetaTuple, Module, OptionVariant, ResultVariant,
     Stack, TypeCheck, Value, ValueType, ValueTypeInfo, VmError,
@@ -10,6 +13,9 @@ use thiserror::Error;
 /// An error raised when building the context.
 #[derive(Debug, Error)]
 pub enum ContextError {
+    /// Conflicting `()` types.
+    #[error("`()` types are already present")]
+    UnitAlreadyPresent,
     /// Conflicting `Option` types.
     #[error("`Option` types are already present")]
     OptionAlreadyPresent,
@@ -63,6 +69,16 @@ pub enum ContextError {
         name: Item,
         /// The type information for the type that already existed.
         existing: ValueTypeInfo,
+    },
+    /// Raised when we try to register a conflicting type hash.
+    #[error("tried to insert conflicting hash type `{hash}` (existing `{existing}`) for type `{value_type}`")]
+    ConflictingTypeHash {
+        /// The hash we are trying to insert.
+        hash: Hash,
+        /// The hash that already existed.
+        existing: Hash,
+        /// The type we're trying to insert.
+        value_type: ValueType,
     },
     /// Error raised when attempting to register a conflicting function.
     #[error("variant with name `{name}` already exists")]
@@ -210,6 +226,8 @@ pub struct Context {
     types: HashMap<Hash, TypeInfo>,
     /// Reverse lookup for types.
     types_rev: HashMap<ValueType, Hash>,
+    /// Specialized information on unit types, if available.
+    unit_type: Option<Hash>,
     /// Specialized information on `Result` types, if available.
     result_type: Option<Hash>,
     /// Specialized information on `Option` types, if available.
@@ -231,29 +249,34 @@ impl Context {
     /// Construct a new collection of functions with default packages installed.
     pub fn with_default_packages() -> Result<Self, ContextError> {
         let mut this = Self::new();
-        this.install(crate::packages::core::module()?)?;
-        this.install(crate::packages::bytes::module()?)?;
-        this.install(crate::packages::string::module()?)?;
-        this.install(crate::packages::int::module()?)?;
-        this.install(crate::packages::float::module()?)?;
-        this.install(crate::packages::test::module()?)?;
-        this.install(crate::packages::iter::module()?)?;
-        this.install(crate::packages::vec::module()?)?;
-        this.install(crate::packages::object::module()?)?;
-        this.install(crate::packages::result::module()?)?;
-        this.install(crate::packages::option::module()?)?;
-        this.install(crate::packages::future::module()?)?;
+        this.install(&crate::packages::core::module()?)?;
+        this.install(&crate::packages::bytes::module()?)?;
+        this.install(&crate::packages::string::module()?)?;
+        this.install(&crate::packages::int::module()?)?;
+        this.install(&crate::packages::float::module()?)?;
+        this.install(&crate::packages::test::module()?)?;
+        this.install(&crate::packages::iter::module()?)?;
+        this.install(&crate::packages::vec::module()?)?;
+        this.install(&crate::packages::object::module()?)?;
+        this.install(&crate::packages::result::module()?)?;
+        this.install(&crate::packages::option::module()?)?;
+        this.install(&crate::packages::future::module()?)?;
         Ok(this)
     }
 
-    /// Access the currently known option types.
-    pub fn option_type(&self) -> Option<Hash> {
-        self.option_type
+    /// Access the currently known unit type.
+    pub fn unit_type(&self) -> Option<Hash> {
+        self.unit_type
     }
 
-    /// Access the currently known result types.
+    /// Access the currently known result type.
     pub fn result_type(&self) -> Option<Hash> {
         self.result_type
+    }
+
+    /// Access the currently known option type.
+    pub fn option_type(&self) -> Option<Hash> {
+        self.option_type
     }
 
     /// Access the meta for the given language item.
@@ -281,15 +304,129 @@ impl Context {
         })
     }
 
+    /// Install the specified module.
+    pub fn install(&mut self, module: &Module) -> Result<(), ContextError> {
+        for (value_type, ty) in &module.types {
+            self.install_type(&module, *value_type, ty)?;
+        }
+
+        for (name, (handler, args)) in &module.functions {
+            self.install_function(&module, name, handler, args)?;
+        }
+
+        if let Some(unit_type) = &module.unit_type {
+            self.install_unit_type(&module, unit_type)?;
+        }
+
+        if let Some(result_types) = &module.result_types {
+            self.install_result_types(&module, result_types)?;
+        }
+
+        if let Some(option_types) = &module.option_types {
+            self.install_option_types(&module, option_types)?;
+        }
+
+        for ((value_type, hash), inst) in &module.instance_functions {
+            self.install_module_instance_function(*value_type, *hash, inst)?;
+        }
+
+        Ok(())
+    }
+
+    /// Install the given meta.
+    fn install_meta(&mut self, item: Item, meta: Meta) -> Result<(), ContextError> {
+        if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
+            return Err(ContextError::ConflictingMeta {
+                item,
+                existing: Box::new(existing),
+                current: Box::new(meta),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Install a single type.
+    fn install_type(
+        &mut self,
+        module: &Module,
+        value_type: ValueType,
+        ty: &ModuleType,
+    ) -> Result<(), ContextError> {
+        let name = module.path.join(&ty.name);
+        let hash = Hash::type_hash(&name);
+
+        self.install_type_info(
+            hash,
+            TypeInfo {
+                type_check: TypeCheck::Type(hash),
+                name: name.clone(),
+                value_type,
+                value_type_info: ty.value_type_info,
+            },
+        )?;
+
+        self.install_meta(
+            name.clone(),
+            Meta::MetaObject {
+                object: MetaObject {
+                    item: name.clone(),
+                    fields: None,
+                },
+            },
+        )?;
+
+        Ok(())
+    }
+
+    fn install_type_info(&mut self, hash: Hash, type_info: TypeInfo) -> Result<(), ContextError> {
+        let value_type = type_info.value_type;
+
+        if let Some(existing) = self.types.insert(hash, type_info) {
+            return Err(ContextError::ConflictingType {
+                name: existing.name,
+                existing: existing.value_type_info,
+            });
+        }
+
+        // reverse lookup for types.
+        if let Some(existing) = self.types_rev.insert(value_type, hash) {
+            return Err(ContextError::ConflictingTypeHash {
+                hash,
+                existing,
+                value_type,
+            });
+        }
+
+        Ok(())
+    }
+
+    fn install_variant_type_info(
+        &mut self,
+        hash: Hash,
+        type_info: TypeInfo,
+    ) -> Result<(), ContextError> {
+        if let Some(existing) = self.types.insert(hash, type_info) {
+            return Err(ContextError::ConflictingType {
+                name: existing.name,
+                existing: existing.value_type_info,
+            });
+        }
+
+        Ok(())
+    }
+
     /// Install a function and check for duplicates.
     fn install_function(
         &mut self,
+        module: &Module,
         name: &Item,
-        handler: Rc<Handler>,
-        args: Option<usize>,
+        handler: &Rc<Handler>,
+        args: &Option<usize>,
     ) -> Result<(), ContextError> {
-        let hash = Hash::type_hash(name);
-        let signature = FnSignature::new_free(name.clone(), args);
+        let name = module.path.join(name);
+        let hash = Hash::type_hash(&name);
+        let signature = FnSignature::new_free(name.clone(), *args);
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
@@ -298,205 +435,204 @@ impl Context {
             });
         }
 
-        self.functions.insert(hash, handler);
+        self.functions.insert(hash, handler.clone());
         self.meta
             .insert(name.clone(), Meta::MetaFunction { item: name.clone() });
         Ok(())
     }
 
-    /// Install the specified module.
-    pub fn install(&mut self, module: Module) -> Result<(), ContextError> {
-        for (value_type, ty) in module.types.into_iter() {
-            let name = module.path.join(&ty.name);
-            let hash = Hash::type_hash(&name);
-
-            let type_info = TypeInfo {
-                type_check: TypeCheck::Type(hash),
-                name: name.clone(),
-                value_type,
-                value_type_info: ty.value_type_info,
-            };
-
-            if let Some(existing) = self.types.insert(hash, type_info) {
-                return Err(ContextError::ConflictingType {
-                    name: existing.name,
-                    existing: existing.value_type_info,
+    fn install_module_instance_function(
+        &mut self,
+        value_type: ValueType,
+        hash: Hash,
+        inst: &ModuleInstanceFunction,
+    ) -> Result<(), ContextError> {
+        let type_info = match self
+            .types_rev
+            .get(&value_type)
+            .and_then(|hash| self.types.get(&hash))
+        {
+            Some(type_info) => type_info,
+            None => {
+                return Err(ContextError::MissingInstance {
+                    instance_type: inst.value_type_info,
                 });
             }
+        };
 
-            // reverse lookup for types.
-            self.types_rev.insert(value_type, hash);
+        let hash = Hash::instance_function(value_type, hash);
 
-            let meta = Meta::MetaObject {
-                object: MetaObject {
-                    item: name.clone(),
-                    fields: None,
-                },
-            };
+        let signature = FnSignature::new_inst(
+            type_info.name.clone(),
+            inst.name.clone(),
+            inst.args,
+            type_info.value_type_info,
+        );
 
-            if let Some(existing) = self.meta.insert(name.clone(), meta.clone()) {
-                return Err(ContextError::ConflictingMeta {
-                    item: name,
-                    existing: Box::new(existing),
-                    current: Box::new(meta),
-                });
-            }
+        if let Some(old) = self.functions_info.insert(hash, signature) {
+            return Err(ContextError::ConflictingFunction {
+                signature: old,
+                hash,
+            });
         }
 
-        for (name, (handler, args)) in module.functions.into_iter() {
-            let name = module.path.join(&name);
-            self.install_function(&name, handler, args)?;
+        self.functions.insert(hash, inst.handler.clone());
+        Ok(())
+    }
+
+    /// Install unit type.
+    fn install_unit_type(
+        &mut self,
+        module: &Module,
+        unit_type: &ModuleUnitType,
+    ) -> Result<(), ContextError> {
+        if self.unit_type.is_some() {
+            return Err(ContextError::UnitAlreadyPresent);
         }
 
-        for ((ty, hash), inst) in module.instance_functions {
-            let type_info = match self
-                .types_rev
-                .get(&ty)
-                .and_then(|hash| self.types.get(&hash))
-            {
-                Some(type_info) => type_info,
-                None => {
-                    return Err(ContextError::MissingInstance {
-                        instance_type: inst.value_type_info,
-                    });
-                }
-            };
+        let item = module.path.join(&unit_type.item);
+        let hash = Hash::type_hash(&item);
+        self.unit_type = Some(Hash::type_hash(&item));
+        self.add_internal_tuple(item.clone(), 0, || ())?;
 
-            let hash = Hash::instance_function(ty, hash);
+        self.install_type_info(
+            hash,
+            TypeInfo {
+                type_check: TypeCheck::Unit,
+                name: item.clone(),
+                value_type: ValueType::StaticType(crate::UNIT_TYPE),
+                value_type_info: ValueTypeInfo::StaticType(crate::UNIT_TYPE),
+            },
+        )?;
 
-            let signature = FnSignature::new_inst(
-                type_info.name.clone(),
-                inst.name,
-                inst.args,
-                type_info.value_type_info,
-            );
+        Ok(())
+    }
 
-            if let Some(old) = self.functions_info.insert(hash, signature) {
-                return Err(ContextError::ConflictingFunction {
-                    signature: old,
-                    hash,
-                });
-            }
-
-            self.functions.insert(hash, inst.handler);
+    /// Install option types.
+    fn install_result_types(
+        &mut self,
+        module: &Module,
+        result_types: &ModuleResultTypes,
+    ) -> Result<(), ContextError> {
+        if self.result_type.is_some() {
+            return Err(ContextError::ResultAlreadyPresent);
         }
 
-        if let Some(result_types) = module.result_types {
-            if self.result_type.is_some() {
-                return Err(ContextError::ResultAlreadyPresent);
-            }
+        let result_type = module.path.join(&result_types.result_type);
+        let ok = module.path.join(&result_types.ok_type);
+        let err = module.path.join(&result_types.err_type);
 
-            let result_type = module.path.join(&result_types.result_type);
-            let ok = module.path.join(&result_types.ok_type);
-            let err = module.path.join(&result_types.err_type);
-
-            let meta = Meta::MetaEnum {
+        self.install_meta(
+            result_type.clone(),
+            Meta::MetaEnum {
                 item: result_type.clone(),
-            };
+            },
+        )?;
 
-            if let Some(existing) = self.meta.insert(result_type.clone(), meta.clone()) {
-                return Err(ContextError::ConflictingMeta {
-                    item: result_type,
-                    existing: Box::new(existing),
-                    current: Box::new(meta),
-                });
-            }
+        let enum_type = Hash::type_hash(&result_type);
+        self.result_type = Some(enum_type);
 
-            let hash = Hash::type_hash(&result_type);
-            self.result_type = Some(hash);
+        self.add_internal_tuple(ok.clone(), 1, Ok::<Value, Value>)?;
+        self.add_internal_tuple(err.clone(), 1, Err::<Value, Value>)?;
 
-            self.add_internal_tuple(ok.clone(), 1, Ok::<Value, Value>)?;
-            self.add_internal_tuple(err.clone(), 1, Err::<Value, Value>)?;
+        self.install_type_info(
+            enum_type,
+            TypeInfo {
+                type_check: TypeCheck::Type(enum_type),
+                name: result_type,
+                value_type: ValueType::StaticType(crate::RESULT_TYPE),
+                value_type_info: ValueTypeInfo::StaticType(crate::RESULT_TYPE),
+            },
+        )?;
 
-            self.types.insert(
-                hash,
-                TypeInfo {
-                    type_check: TypeCheck::Type(hash),
-                    name: result_type,
-                    value_type: ValueType::Result,
-                    value_type_info: ValueTypeInfo::Result,
-                },
-            );
+        let hash = Hash::type_hash(&ok);
 
-            self.types.insert(
-                Hash::type_hash(&ok),
-                TypeInfo {
-                    type_check: TypeCheck::Result(ResultVariant::Ok),
-                    name: ok,
-                    value_type: ValueType::Result,
-                    value_type_info: ValueTypeInfo::Result,
-                },
-            );
+        self.install_variant_type_info(
+            hash,
+            TypeInfo {
+                type_check: TypeCheck::Result(ResultVariant::Ok),
+                name: ok,
+                value_type: ValueType::Type(hash),
+                value_type_info: ValueTypeInfo::StaticType(crate::RESULT_TYPE),
+            },
+        )?;
 
-            self.types.insert(
-                Hash::type_hash(&err),
-                TypeInfo {
-                    type_check: TypeCheck::Result(ResultVariant::Err),
-                    name: err,
-                    value_type: ValueType::Result,
-                    value_type_info: ValueTypeInfo::Result,
-                },
-            );
+        let hash = Hash::type_hash(&err);
+
+        self.install_variant_type_info(
+            hash,
+            TypeInfo {
+                type_check: TypeCheck::Result(ResultVariant::Err),
+                name: err,
+                value_type: ValueType::Type(hash),
+                value_type_info: ValueTypeInfo::StaticType(crate::RESULT_TYPE),
+            },
+        )?;
+
+        Ok(())
+    }
+
+    /// Install option types.
+    fn install_option_types(
+        &mut self,
+        module: &Module,
+        option_types: &ModuleOptionTypes,
+    ) -> Result<(), ContextError> {
+        if self.option_type.is_some() {
+            return Err(ContextError::OptionAlreadyPresent);
         }
 
-        if let Some(option_types) = module.option_types {
-            if self.option_type.is_some() {
-                return Err(ContextError::ResultAlreadyPresent);
-            }
+        let option_type = module.path.join(&option_types.option_type);
+        let some = module.path.join(&option_types.some_type);
+        let none = module.path.join(&option_types.none_type);
 
-            let option_type = module.path.join(&option_types.option_type);
-            let some = module.path.join(&option_types.some_type);
-            let none = module.path.join(&option_types.none_type);
-
-            let meta = Meta::MetaEnum {
+        self.install_meta(
+            option_type.clone(),
+            Meta::MetaEnum {
                 item: option_type.clone(),
-            };
+            },
+        )?;
 
-            if let Some(existing) = self.meta.insert(option_type.clone(), meta.clone()) {
-                return Err(ContextError::ConflictingMeta {
-                    item: option_type,
-                    existing: Box::new(existing),
-                    current: Box::new(meta),
-                });
-            }
+        let enum_hash = Hash::type_hash(&option_type);
 
-            let hash = Hash::type_hash(&option_type);
+        self.option_type = Some(enum_hash);
 
-            self.option_type = Some(hash);
+        self.add_internal_tuple(some.clone(), 1, Some::<Value>)?;
+        self.add_internal_tuple(none.clone(), 0, || None::<Value>)?;
 
-            self.add_internal_tuple(some.clone(), 1, Some::<Value>)?;
-            self.add_internal_tuple(none.clone(), 0, || None::<Value>)?;
+        self.install_type_info(
+            enum_hash,
+            TypeInfo {
+                type_check: TypeCheck::Type(enum_hash),
+                name: option_type,
+                value_type: ValueType::StaticType(crate::OPTION_TYPE),
+                value_type_info: ValueTypeInfo::StaticType(crate::OPTION_TYPE),
+            },
+        )?;
 
-            self.types.insert(
-                hash,
-                TypeInfo {
-                    type_check: TypeCheck::Type(hash),
-                    name: option_type,
-                    value_type: ValueType::Option,
-                    value_type_info: ValueTypeInfo::Option,
-                },
-            );
+        let hash = Hash::type_hash(&some);
 
-            self.types.insert(
-                Hash::type_hash(&some),
-                TypeInfo {
-                    type_check: TypeCheck::Option(OptionVariant::Some),
-                    name: some,
-                    value_type: ValueType::Option,
-                    value_type_info: ValueTypeInfo::Option,
-                },
-            );
+        self.install_variant_type_info(
+            hash,
+            TypeInfo {
+                type_check: TypeCheck::Option(OptionVariant::Some),
+                name: some,
+                value_type: ValueType::Type(hash),
+                value_type_info: ValueTypeInfo::StaticType(crate::OPTION_TYPE),
+            },
+        )?;
 
-            self.types.insert(
-                Hash::type_hash(&none),
-                TypeInfo {
-                    type_check: TypeCheck::Option(OptionVariant::None),
-                    name: none,
-                    value_type: ValueType::Option,
-                    value_type_info: ValueTypeInfo::Option,
-                },
-            );
-        }
+        let hash = Hash::type_hash(&none);
+
+        self.install_variant_type_info(
+            hash,
+            TypeInfo {
+                type_check: TypeCheck::Option(OptionVariant::None),
+                name: none,
+                value_type: ValueType::Type(hash),
+                value_type_info: ValueTypeInfo::StaticType(crate::OPTION_TYPE),
+            },
+        )?;
 
         Ok(())
     }
@@ -511,20 +647,15 @@ impl Context {
     where
         C: crate::Function<Args>,
     {
-        let meta = Meta::MetaTuple {
-            tuple: MetaTuple {
-                item: item.clone(),
-                args,
+        self.install_meta(
+            item.clone(),
+            Meta::MetaTuple {
+                tuple: MetaTuple {
+                    item: item.clone(),
+                    args,
+                },
             },
-        };
-
-        if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
-            return Err(ContextError::ConflictingMeta {
-                item,
-                existing: Box::new(existing),
-                current: Box::new(meta),
-            });
-        }
+        )?;
 
         let constructor: Rc<Handler> = Rc::new(move |stack, args| constructor.fn_call(stack, args));
 

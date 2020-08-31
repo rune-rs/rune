@@ -1,20 +1,12 @@
 //! Trait implementations for primitive types.
 
-use crate::{
-    FromValue, Integer, ReflectValueType, ToValue, Value, ValueError, ValueType, ValueTypeInfo,
-};
+use crate::{FromValue, Integer, ToValue, Value, ValueError};
 
-impl ReflectValueType for bool {
-    type Owned = bool;
-
-    fn value_type() -> ValueType {
-        ValueType::Bool
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Bool
-    }
-}
+value_types!(crate::BOOL_TYPE, bool => bool);
+value_types!(crate::CHAR_TYPE, char => char);
+value_types!(crate::BYTE_TYPE, u8 => u8);
+value_types!(crate::FLOAT_TYPE, f64 => f64);
+value_types!(crate::FLOAT_TYPE, f32 => f32);
 
 impl ToValue for bool {
     fn to_value(self) -> Result<Value, ValueError> {
@@ -28,18 +20,6 @@ impl FromValue for bool {
     }
 }
 
-impl ReflectValueType for char {
-    type Owned = char;
-
-    fn value_type() -> ValueType {
-        ValueType::Char
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Char
-    }
-}
-
 impl ToValue for char {
     fn to_value(self) -> Result<Value, ValueError> {
         Ok(Value::Char(self))
@@ -49,18 +29,6 @@ impl ToValue for char {
 impl FromValue for char {
     fn from_value(value: Value) -> Result<Self, ValueError> {
         Ok(value.into_char()?)
-    }
-}
-
-impl ReflectValueType for u8 {
-    type Owned = u8;
-
-    fn value_type() -> ValueType {
-        ValueType::Byte
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Byte
     }
 }
 
@@ -78,18 +46,7 @@ impl FromValue for u8 {
 
 macro_rules! number_value_trait {
     ($ty:ty, $variant:ident) => {
-        /// Convert a number into a value type.
-        impl ReflectValueType for $ty {
-            type Owned = $ty;
-
-            fn value_type() -> ValueType {
-                ValueType::Integer
-            }
-
-            fn value_type_info() -> ValueTypeInfo {
-                ValueTypeInfo::Integer
-            }
-        }
+        value_types!(crate::INTEGER_TYPE, $ty => $ty);
 
         impl ToValue for $ty {
             fn to_value(self) -> Result<Value, ValueError> {
@@ -132,19 +89,6 @@ number_value_trait!(i64, I64);
 number_value_trait!(i128, I128);
 number_value_trait!(isize, Isize);
 
-/// Convert a float into a value type.
-impl ReflectValueType for f64 {
-    type Owned = f64;
-
-    fn value_type() -> ValueType {
-        ValueType::Float
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Float
-    }
-}
-
 impl ToValue for f64 {
     fn to_value(self) -> Result<Value, ValueError> {
         Ok(Value::Float(self))
@@ -154,19 +98,6 @@ impl ToValue for f64 {
 impl FromValue for f64 {
     fn from_value(value: Value) -> Result<Self, ValueError> {
         Ok(value.into_float()?)
-    }
-}
-
-/// Convert a float into a value type.
-impl ReflectValueType for f32 {
-    type Owned = f32;
-
-    fn value_type() -> ValueType {
-        ValueType::Float
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Float
     }
 }
 

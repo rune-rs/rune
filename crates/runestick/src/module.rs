@@ -10,32 +10,40 @@ use std::rc::Rc;
 use crate::context::{ContextError, Handler, IntoInstFnHash};
 use crate::item::Item;
 
+/// Specialized information on `Option` types.
+pub(crate) struct ModuleUnitType {
+    /// Item of the unit type.
+    pub(crate) item: Item,
+}
+
 /// Specialized information on `Result` types.
-pub struct ResultTypes {
+pub(crate) struct ModuleResultTypes {
     /// The result type.
-    pub result_type: Item,
+    pub(crate) result_type: Item,
     /// Item of the `Ok` variant.
-    pub ok_type: Item,
+    pub(crate) ok_type: Item,
     ///Item of the `Err` variant.
-    pub err_type: Item,
+    pub(crate) err_type: Item,
 }
 
 /// Specialized information on `Option` types.
-pub struct OptionTypes {
+pub(crate) struct ModuleOptionTypes {
     /// Item of the option type.
-    pub option_type: Item,
+    pub(crate) option_type: Item,
     /// Item of the `Some` variant.
-    pub some_type: Item,
+    pub(crate) some_type: Item,
     /// Item of the `None` variant.
-    pub none_type: Item,
+    pub(crate) none_type: Item,
 }
 
-pub(crate) struct Type {
+pub(crate) struct ModuleType {
+    /// The item of the installed type.
     pub(crate) name: Item,
+    /// Type information for the installed type.
     pub(crate) value_type_info: ValueTypeInfo,
 }
 
-pub(crate) struct InstanceFunction {
+pub(crate) struct ModuleInstanceFunction {
     pub(crate) handler: Rc<Handler>,
     pub(crate) args: Option<usize>,
     pub(crate) value_type_info: ValueTypeInfo,
@@ -50,13 +58,15 @@ pub struct Module {
     /// Free functions.
     pub(crate) functions: HashMap<Item, (Rc<Handler>, Option<usize>)>,
     /// Instance functions.
-    pub(crate) instance_functions: HashMap<(ValueType, Hash), InstanceFunction>,
+    pub(crate) instance_functions: HashMap<(ValueType, Hash), ModuleInstanceFunction>,
     /// Registered types.
-    pub(crate) types: HashMap<ValueType, Type>,
+    pub(crate) types: HashMap<ValueType, ModuleType>,
+    /// Registered unit type.
+    pub(crate) unit_type: Option<ModuleUnitType>,
     /// Registered result types.
-    pub(crate) result_types: Option<ResultTypes>,
+    pub(crate) result_types: Option<ModuleResultTypes>,
     /// Registered option types.
-    pub(crate) option_types: Option<OptionTypes>,
+    pub(crate) option_types: Option<ModuleOptionTypes>,
 }
 
 impl Module {
@@ -71,6 +81,7 @@ impl Module {
             functions: Default::default(),
             instance_functions: Default::default(),
             types: Default::default(),
+            unit_type: None,
             result_types: None,
             option_types: None,
         }
@@ -92,6 +103,21 @@ impl Module {
     }
 
     /// Construct the option type.
+    pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
+    where
+        N: IntoIterator,
+        N::Item: Into<Component>,
+    {
+        if self.unit_type.is_some() {
+            return Err(ContextError::UnitAlreadyPresent);
+        }
+
+        let item = Item::of(name);
+        self.unit_type = Some(ModuleUnitType { item });
+        Ok(())
+    }
+
+    /// Construct the option type.
     pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
@@ -103,7 +129,7 @@ impl Module {
 
         let option_type = Item::of(name);
 
-        self.option_types = Some(OptionTypes {
+        self.option_types = Some(ModuleOptionTypes {
             none_type: option_type.extended("None"),
             some_type: option_type.extended("Some"),
             option_type,
@@ -124,7 +150,7 @@ impl Module {
 
         let result_type = Item::of(name);
 
-        self.result_types = Some(ResultTypes {
+        self.result_types = Some(ModuleResultTypes {
             ok_type: result_type.extended("Ok"),
             err_type: result_type.extended("Err"),
             result_type,
@@ -280,7 +306,7 @@ impl Module {
 
         let handler: Rc<Handler> = Rc::new(move |stack, args| f.fn_call(stack, args));
 
-        let instance_function = InstanceFunction {
+        let instance_function = ModuleInstanceFunction {
             handler,
             args: Some(Func::args()),
             value_type_info,
@@ -341,7 +367,7 @@ impl Module {
 
         let handler: Rc<Handler> = Rc::new(move |stack, args| f.fn_call(stack, args));
 
-        let instance_function = InstanceFunction {
+        let instance_function = ModuleInstanceFunction {
             handler,
             args: Some(Func::args()),
             value_type_info,
@@ -357,7 +383,7 @@ impl Module {
 #[must_use = "must be consumed with build::<T>() to construct a type"]
 pub struct TypeBuilder<'a, N> {
     name: N,
-    types: &'a mut HashMap<ValueType, Type>,
+    types: &'a mut HashMap<ValueType, ModuleType>,
 }
 
 impl<N> TypeBuilder<'_, N>
@@ -374,7 +400,7 @@ where
         let value_type = T::value_type();
         let value_type_info = T::value_type_info();
 
-        let ty = Type {
+        let ty = ModuleType {
             name: name.clone(),
             value_type_info,
         };

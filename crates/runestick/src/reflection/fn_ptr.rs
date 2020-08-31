@@ -1,55 +1,8 @@
 use crate::{
-    FnPtr, FromValue, OwnedRef, RawOwnedRef, ReflectValueType, Shared, ToValue, UnsafeFromValue,
-    Value, ValueError, ValueType, ValueTypeInfo,
+    FnPtr, FromValue, OwnedRef, RawOwnedRef, Shared, ToValue, UnsafeFromValue, Value, ValueError,
 };
 
-impl ReflectValueType for FnPtr {
-    type Owned = FnPtr;
-
-    fn value_type() -> ValueType {
-        ValueType::FnPtr
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::FnPtr
-    }
-}
-
-impl ReflectValueType for Shared<FnPtr> {
-    type Owned = FnPtr;
-
-    fn value_type() -> ValueType {
-        ValueType::FnPtr
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::FnPtr
-    }
-}
-
-impl ReflectValueType for OwnedRef<FnPtr> {
-    type Owned = FnPtr;
-
-    fn value_type() -> ValueType {
-        ValueType::FnPtr
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::FnPtr
-    }
-}
-
-impl ReflectValueType for &FnPtr {
-    type Owned = FnPtr;
-
-    fn value_type() -> ValueType {
-        ValueType::FnPtr
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::FnPtr
-    }
-}
+value_types!(crate::FN_PTR_TYPE, FnPtr => FnPtr, &FnPtr, Shared<FnPtr>, OwnedRef<FnPtr>);
 
 impl FromValue for FnPtr {
     fn from_value(value: Value) -> Result<Self, ValueError> {

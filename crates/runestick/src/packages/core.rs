@@ -11,7 +11,7 @@ use std::io::Write as _;
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.ty(&["unit"]).build::<()>()?;
+    module.unit(&["unit"])?;
     module.ty(&["bool"]).build::<bool>()?;
     module.ty(&["char"]).build::<char>()?;
     module.ty(&["byte"]).build::<u8>()?;

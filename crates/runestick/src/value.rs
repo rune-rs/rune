@@ -174,7 +174,7 @@ pub struct TypedTuple {
 impl TypedTuple {
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> ValueTypeInfo {
-        ValueTypeInfo::TypedTuple(self.hash)
+        ValueTypeInfo::Type(self.hash)
     }
 }
 
@@ -192,7 +192,7 @@ pub struct VariantTuple {
 impl VariantTuple {
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> ValueTypeInfo {
-        ValueTypeInfo::VariantTuple(self.enum_hash, self.hash)
+        ValueTypeInfo::Type(self.enum_hash)
     }
 }
 
@@ -208,7 +208,7 @@ pub struct TypedObject {
 impl TypedObject {
     /// Get type info for the typed object.
     pub fn type_info(&self) -> ValueTypeInfo {
-        ValueTypeInfo::TypedObject(self.hash)
+        ValueTypeInfo::Type(self.hash)
     }
 }
 
@@ -226,7 +226,7 @@ pub struct VariantObject {
 impl VariantObject {
     /// Get type info for the typed object.
     pub fn type_info(&self) -> ValueTypeInfo {
-        ValueTypeInfo::VariantObject(self.enum_hash, self.hash)
+        ValueTypeInfo::Type(self.enum_hash)
     }
 }
 
@@ -548,22 +548,23 @@ impl Value {
     /// Get the type information for the current value.
     pub fn value_type(&self) -> Result<ValueType, ValueError> {
         Ok(match self {
-            Self::Unit => ValueType::Unit,
-            Self::Bool(..) => ValueType::Bool,
-            Self::Byte(..) => ValueType::Byte,
-            Self::Char(..) => ValueType::Char,
-            Self::Integer(..) => ValueType::Integer,
-            Self::Float(..) => ValueType::Float,
-            Self::StaticString(..) => ValueType::String,
-            Self::String(..) => ValueType::String,
-            Self::Bytes(..) => ValueType::Bytes,
-            Self::Vec(..) => ValueType::Vec,
-            Self::Tuple(..) => ValueType::Tuple,
-            Self::Object(..) => ValueType::Object,
+            Self::Unit => ValueType::StaticType(crate::UNIT_TYPE),
+            Self::Bool(..) => ValueType::StaticType(crate::BOOL_TYPE),
+            Self::Byte(..) => ValueType::StaticType(crate::BYTE_TYPE),
+            Self::Char(..) => ValueType::StaticType(crate::CHAR_TYPE),
+            Self::Integer(..) => ValueType::StaticType(crate::INTEGER_TYPE),
+            Self::Float(..) => ValueType::StaticType(crate::FLOAT_TYPE),
+            Self::StaticString(..) => ValueType::StaticType(crate::STRING_TYPE),
+            Self::String(..) => ValueType::StaticType(crate::STRING_TYPE),
+            Self::Bytes(..) => ValueType::StaticType(crate::BYTES_TYPE),
+            Self::Vec(..) => ValueType::StaticType(crate::VEC_TYPE),
+            Self::Tuple(..) => ValueType::StaticType(crate::TUPLE_TYPE),
+            Self::Object(..) => ValueType::StaticType(crate::OBJECT_TYPE),
+            Self::Future(..) => ValueType::StaticType(crate::FUTURE_TYPE),
+            Self::Result(..) => ValueType::StaticType(crate::RESULT_TYPE),
+            Self::Option(..) => ValueType::StaticType(crate::OPTION_TYPE),
+            Self::FnPtr(..) => ValueType::StaticType(crate::FN_PTR_TYPE),
             Self::Type(hash) => ValueType::Type(*hash),
-            Self::Future(..) => ValueType::Future,
-            Self::Result(..) => ValueType::Result,
-            Self::Option(..) => ValueType::Option,
             Self::TypedObject(object) => ValueType::Type(object.borrow_ref()?.hash),
             Self::VariantObject(object) => {
                 let object = object.borrow_ref()?;
@@ -574,7 +575,6 @@ impl Value {
                 let tuple = tuple.borrow_ref()?;
                 ValueType::Type(tuple.enum_hash)
             }
-            Self::FnPtr(..) => ValueType::FnPtr,
             Self::Any(any) => ValueType::Any(any.borrow_ref()?.type_id()),
         })
     }
@@ -582,27 +582,27 @@ impl Value {
     /// Get the type information for the current value.
     pub fn type_info(&self) -> Result<ValueTypeInfo, ValueError> {
         Ok(match self {
-            Self::Unit => ValueTypeInfo::Unit,
-            Self::Bool(..) => ValueTypeInfo::Bool,
-            Self::Byte(..) => ValueTypeInfo::Byte,
-            Self::Char(..) => ValueTypeInfo::Char,
-            Self::Integer(..) => ValueTypeInfo::Integer,
-            Self::Float(..) => ValueTypeInfo::Float,
-            Self::StaticString(..) => ValueTypeInfo::String,
-            Self::String(..) => ValueTypeInfo::String,
-            Self::Bytes(..) => ValueTypeInfo::Bytes,
-            Self::Vec(..) => ValueTypeInfo::Vec,
-            Self::Tuple(..) => ValueTypeInfo::Tuple,
-            Self::Object(..) => ValueTypeInfo::Object,
+            Self::Unit => ValueTypeInfo::StaticType(crate::UNIT_TYPE),
+            Self::Bool(..) => ValueTypeInfo::StaticType(crate::BOOL_TYPE),
+            Self::Byte(..) => ValueTypeInfo::StaticType(crate::BYTE_TYPE),
+            Self::Char(..) => ValueTypeInfo::StaticType(crate::CHAR_TYPE),
+            Self::Integer(..) => ValueTypeInfo::StaticType(crate::INTEGER_TYPE),
+            Self::Float(..) => ValueTypeInfo::StaticType(crate::STRING_TYPE),
+            Self::StaticString(..) => ValueTypeInfo::StaticType(crate::STRING_TYPE),
+            Self::String(..) => ValueTypeInfo::StaticType(crate::STRING_TYPE),
+            Self::Bytes(..) => ValueTypeInfo::StaticType(crate::BYTES_TYPE),
+            Self::Vec(..) => ValueTypeInfo::StaticType(crate::VEC_TYPE),
+            Self::Tuple(..) => ValueTypeInfo::StaticType(crate::TUPLE_TYPE),
+            Self::Object(..) => ValueTypeInfo::StaticType(crate::OBJECT_TYPE),
+            Self::Future(..) => ValueTypeInfo::StaticType(crate::FUTURE_TYPE),
+            Self::Option(..) => ValueTypeInfo::StaticType(crate::OPTION_TYPE),
+            Self::Result(..) => ValueTypeInfo::StaticType(crate::RESULT_TYPE),
+            Self::FnPtr(..) => ValueTypeInfo::StaticType(crate::FN_PTR_TYPE),
             Self::Type(hash) => ValueTypeInfo::Type(*hash),
-            Self::Future(..) => ValueTypeInfo::Future,
-            Self::Option(..) => ValueTypeInfo::Option,
-            Self::Result(..) => ValueTypeInfo::Result,
             Self::TypedObject(object) => object.borrow_ref()?.type_info(),
             Self::VariantObject(object) => object.borrow_ref()?.type_info(),
             Self::TypedTuple(tuple) => tuple.borrow_ref()?.type_info(),
             Self::VariantTuple(tuple) => tuple.borrow_ref()?.type_info(),
-            Self::FnPtr(..) => ValueTypeInfo::FnPtr,
             Self::Any(any) => ValueTypeInfo::Any(any.borrow_ref()?.type_name()),
         })
     }

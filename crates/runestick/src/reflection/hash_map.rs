@@ -1,20 +1,8 @@
-use crate::{
-    FromValue, ReflectValueType, Shared, ToValue, Value, ValueError, ValueType, ValueTypeInfo,
-};
+use crate::{FromValue, Shared, ToValue, Value, ValueError};
 
 macro_rules! impl_map {
     ($($tt:tt)*) => {
-        impl<T> ReflectValueType for $($tt)*<String, T> {
-            type Owned = $($tt)*<String, T>;
-
-            fn value_type() -> ValueType {
-                ValueType::Object
-            }
-
-            fn value_type_info() -> ValueTypeInfo {
-                ValueTypeInfo::Object
-            }
-        }
+        value_types!(impl crate::OBJECT_TYPE, $($tt)*<String, T> => T $($tt)*<String, T>);
 
         impl<T> FromValue for $($tt)*<String, T>
         where

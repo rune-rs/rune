@@ -14,11 +14,11 @@ impl<T, E> ReflectValueType for Result<T, E> {
     type Owned = Result<T, E>;
 
     fn value_type() -> ValueType {
-        ValueType::Result
+        ValueType::StaticType(crate::RESULT_TYPE)
     }
 
     fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Result
+        ValueTypeInfo::StaticType(crate::RESULT_TYPE)
     }
 }
 
@@ -26,11 +26,11 @@ impl<T, E> ReflectValueType for &Result<T, E> {
     type Owned = Result<T, E>;
 
     fn value_type() -> ValueType {
-        ValueType::Result
+        ValueType::StaticType(crate::RESULT_TYPE)
     }
 
     fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Result
+        ValueTypeInfo::StaticType(crate::RESULT_TYPE)
     }
 }
 

@@ -1,43 +1,9 @@
 use crate::{
-    FromValue, Object, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared,
-    ToValue, UnsafeFromValue, Value, ValueError, ValueType, ValueTypeInfo,
+    FromValue, Object, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue,
+    UnsafeFromValue, Value, ValueError,
 };
 
-impl<T> ReflectValueType for Object<T> {
-    type Owned = Object<T>;
-
-    fn value_type() -> ValueType {
-        ValueType::Object
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Object
-    }
-}
-
-impl<'a, T> ReflectValueType for &'a Object<T> {
-    type Owned = Object<T>;
-
-    fn value_type() -> ValueType {
-        ValueType::Object
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Object
-    }
-}
-
-impl<'a, T> ReflectValueType for &'a mut Object<T> {
-    type Owned = Object<T>;
-
-    fn value_type() -> ValueType {
-        ValueType::Object
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::Object
-    }
-}
+value_types!(impl crate::OBJECT_TYPE, Object<T> => T Object<T>, T &Object<T>, T &mut Object<T>);
 
 impl<T> FromValue for Object<T>
 where

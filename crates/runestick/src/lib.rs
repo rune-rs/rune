@@ -58,12 +58,18 @@ mod reflection;
 mod serde;
 mod shared;
 mod stack;
+mod static_type;
 pub mod unit;
 mod value_type;
 mod value_type_info;
 
 pub use self::meta::{Meta, MetaClosureCapture, MetaObject, MetaTuple};
 pub use self::module::{AsyncFunction, AsyncInstFn, Function, InstFn, Module};
+pub use self::static_type::{
+    StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FN_PTR_TYPE, FUTURE_TYPE,
+    INTEGER_TYPE, OBJECT_TYPE, OPTION_TYPE, RESULT_TYPE, STRING_TYPE, TUPLE_TYPE, UNIT_TYPE,
+    VEC_TYPE,
+};
 pub use self::value_type::ValueType;
 pub use self::value_type_info::ValueTypeInfo;
 pub use crate::access::{
