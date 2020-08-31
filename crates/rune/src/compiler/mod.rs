@@ -431,11 +431,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
             ast::Expr::Path(path) => {
                 self.compile_path(path, needs)?;
             }
-            ast::Expr::CallFn(call_fn) => {
-                self.compile_call_fn(call_fn, needs)?;
-            }
-            ast::Expr::CallInstanceFn(call_instance_fn) => {
-                self.compile_call_instance_fn(call_instance_fn, needs)?;
+            ast::Expr::ExprCall(expr_call) => {
+                self.compile_expr_call(expr_call, needs)?;
             }
             ast::Expr::ExprFieldAccess(expr_field_access) => {
                 self.compile_expr_field_access(expr_field_access, needs)?;
@@ -1614,25 +1611,42 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(Item::of(it))
     }
 
-    fn compile_call_fn(&mut self, call_fn: &ast::CallFn, needs: Needs) -> Result<()> {
-        let span = call_fn.span();
-        log::trace!("CallFn => {:?}", self.source.source(span)?);
+    fn compile_expr_call(&mut self, expr_call: &ast::ExprCall, needs: Needs) -> Result<()> {
+        let span = expr_call.span();
+        log::trace!("ExprCall => {:?}", self.source.source(span)?);
 
-        let args = call_fn.args.items.len();
+        let args = expr_call.args.items.len();
 
-        for (expr, _) in call_fn.args.items.iter().rev() {
+        for (expr, _) in expr_call.args.items.iter().rev() {
             self.compile_expr(expr, Needs::Value)?;
         }
 
         // NB: either handle a proper function call by resolving it's meta hash,
         // or expand the expression.
-        let path = match &*call_fn.expr {
-            ast::Expr::Path(path) => path,
-            expr => {
-                self.compile_expr(expr, Needs::Value)?;
-                self.asm.push(Inst::CallFn { args }, span);
-                return Ok(());
+        let path = loop {
+            match &*expr_call.expr {
+                ast::Expr::Path(path) => break path,
+                ast::Expr::ExprFieldAccess(ast::ExprFieldAccess {
+                    expr,
+                    expr_field: ast::ExprField::Ident(ident),
+                    ..
+                }) => {
+                    let ident = ident.resolve(self.source)?;
+                    self.compile_expr(expr, Needs::Value)?;
+                    let hash = Hash::of(ident);
+                    self.asm.push(Inst::CallInstance { hash, args }, span);
+                }
+                expr => {
+                    self.compile_expr(expr, Needs::Value)?;
+                    self.asm.push(Inst::CallFn { args }, span);
+                }
             }
+
+            if !needs.value() {
+                self.asm.push(Inst::Pop, span);
+            }
+
+            return Ok(());
         };
 
         let item = self.convert_path_to_item(path)?;
@@ -1641,12 +1655,12 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let item = if let Some(meta) = a {
             match &meta {
                 Meta::MetaTuple { tuple } | Meta::MetaTupleVariant { tuple, .. } => {
-                    if tuple.args != call_fn.args.items.len() {
+                    if tuple.args != expr_call.args.items.len() {
                         return Err(CompileError::UnsupportedArgumentCount {
                             span,
                             meta: meta.clone(),
                             expected: tuple.args,
-                            actual: call_fn.args.items.len(),
+                            actual: expr_call.args.items.len(),
                         });
                     }
 
@@ -1677,35 +1691,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let hash = Hash::type_hash(&item);
         self.asm.push(Inst::Call { hash, args }, span);
-
-        // NB: we put it here to preserve the call in case it has side effects.
-        // But if we don't need the value, then pop it from the stack.
-        if !needs.value() {
-            self.asm.push(Inst::Pop, span);
-        }
-
-        Ok(())
-    }
-
-    fn compile_call_instance_fn(
-        &mut self,
-        call_instance_fn: &ast::CallInstanceFn,
-        needs: Needs,
-    ) -> Result<()> {
-        let span = call_instance_fn.span();
-        log::trace!("CallInstanceFn => {:?}", self.source.source(span)?);
-
-        let args = call_instance_fn.args.items.len();
-
-        for (expr, _) in call_instance_fn.args.items.iter().rev() {
-            self.compile_expr(expr, Needs::Value)?;
-        }
-
-        self.compile_expr(&*call_instance_fn.expr, Needs::Value)?;
-
-        let name = call_instance_fn.name.resolve(self.source)?;
-        let hash = Hash::of(name);
-        self.asm.push(Inst::CallInstance { hash, args }, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.

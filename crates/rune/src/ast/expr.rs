@@ -50,9 +50,7 @@ pub enum Expr {
     /// An path expression.
     Path(ast::Path),
     /// A function call,
-    CallFn(ast::CallFn),
-    /// An instance function call,
-    CallInstanceFn(ast::CallInstanceFn),
+    ExprCall(ast::ExprCall),
     /// A field access on an expression.
     ExprFieldAccess(ast::ExprFieldAccess),
     /// A unit expression.
@@ -133,8 +131,7 @@ impl Expr {
             Self::ExprIf(expr) => expr.span(),
             Self::ExprMatch(expr) => expr.span(),
             Self::Path(path) => path.span(),
-            Self::CallFn(expr) => expr.span(),
-            Self::CallInstanceFn(expr) => expr.span(),
+            Self::ExprCall(expr) => expr.span(),
             Self::ExprFieldAccess(expr) => expr.span(),
             Self::LitUnit(unit) => unit.span(),
             Self::LitBool(b) => b.span(),
@@ -339,7 +336,7 @@ impl Expr {
                 Kind::Open(Delimiter::Parenthesis) => {
                     let args = parser.parse::<ast::Parenthesized<ast::Expr, ast::Comma>>()?;
 
-                    expr = Expr::CallFn(ast::CallFn {
+                    expr = Expr::ExprCall(ast::ExprCall {
                         expr: Box::new(expr),
                         args,
                     });
@@ -367,20 +364,11 @@ impl Expr {
                             let span = path.span();
 
                             if let Some(name) = path.try_into_ident() {
-                                if parser.peek::<ast::OpenParen>()? {
-                                    expr = Expr::CallInstanceFn(ast::CallInstanceFn {
-                                        expr: Box::new(expr),
-                                        dot,
-                                        name,
-                                        args: parser.parse()?,
-                                    });
-                                } else {
-                                    expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
-                                        expr: Box::new(expr),
-                                        dot,
-                                        expr_field: ast::ExprField::Ident(name),
-                                    });
-                                }
+                                expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
+                                    expr: Box::new(expr),
+                                    dot,
+                                    expr_field: ast::ExprField::Ident(name),
+                                });
 
                                 continue;
                             }

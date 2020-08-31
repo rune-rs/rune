@@ -1,16 +1,16 @@
-use crate::ast::{Comma, Expr, Parenthesized};
+use crate::ast;
 use runestick::unit::Span;
 
-/// A function call `<name>(<args>)`.
+/// A function call `<expr>(<args>)`.
 #[derive(Debug, Clone)]
-pub struct CallFn {
+pub struct ExprCall {
     /// The name of the function being called.
-    pub expr: Box<Expr>,
+    pub expr: Box<ast::Expr>,
     /// The arguments of the function call.
-    pub args: Parenthesized<Expr, Comma>,
+    pub args: ast::Parenthesized<ast::Expr, ast::Comma>,
 }
 
-impl CallFn {
+impl ExprCall {
     /// Access the span of expression.
     pub fn span(&self) -> Span {
         self.expr.span().join(self.args.span())
