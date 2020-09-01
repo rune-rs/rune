@@ -697,7 +697,7 @@ impl Unit {
     }
 
     /// Declare a new struct.
-    pub fn new_item(&mut self, meta: Meta) -> Result<(), UnitError> {
+    pub fn insert_meta(&mut self, meta: Meta) -> Result<(), UnitError> {
         let item = match &meta {
             Meta::MetaTuple { tuple, .. } => {
                 let info = Arc::new(UnitFnInfo {

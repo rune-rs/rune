@@ -103,30 +103,39 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                         UnitFnCall::Immediate
                     };
 
-                    if let Some((type_item, type_span)) = f.instance_fn {
-                        let name = f.ast.name.resolve(self.source)?;
+                    compiler.compile_decl_fn(f.ast, false)?;
+                    unit.borrow_mut().new_function(item, count, asm, call)?;
+                }
+                Build::InstanceFunction(f) => {
+                    let span = f.ast.span();
+                    let count = f.ast.args.items.len();
+                    compiler.contexts.push(span);
 
-                        let meta = compiler.lookup_meta(&type_item, span)?.ok_or_else(|| {
-                            CompileError::MissingType {
-                                span: type_span,
-                                item: type_item.clone(),
-                            }
-                        })?;
-
-                        let value_type = meta.value_type().ok_or_else(|| {
-                            CompileError::UnsupportedInstanceFunction {
-                                meta: meta.clone(),
-                                span,
-                            }
-                        })?;
-
-                        compiler.compile_decl_fn(f.ast, true)?;
-                        unit.borrow_mut()
-                            .new_instance_function(item, value_type, name, count, asm, call)?;
+                    let call = if f.ast.async_.is_some() {
+                        UnitFnCall::Async
                     } else {
-                        compiler.compile_decl_fn(f.ast, false)?;
-                        unit.borrow_mut().new_function(item, count, asm, call)?;
-                    }
+                        UnitFnCall::Immediate
+                    };
+
+                    let name = f.ast.name.resolve(self.source)?;
+
+                    let meta = compiler
+                        .lookup_meta(&f.instance_item, f.instance_span)?
+                        .ok_or_else(|| CompileError::MissingType {
+                            span: f.instance_span,
+                            item: f.instance_item.clone(),
+                        })?;
+
+                    let value_type = meta.value_type().ok_or_else(|| {
+                        CompileError::UnsupportedInstanceFunction {
+                            meta: meta.clone(),
+                            span,
+                        }
+                    })?;
+
+                    compiler.compile_decl_fn(f.ast, true)?;
+                    unit.borrow_mut()
+                        .new_instance_function(item, value_type, name, count, asm, call)?;
                 }
                 Build::Closure(c) => {
                     let span = c.ast.span();

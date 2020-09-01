@@ -93,6 +93,7 @@ pub struct Runtime {
     options: Options,
     errors: Vec<(usize, RuntimeError)>,
     warnings: Vec<(usize, Warnings)>,
+    linking: bool,
 }
 
 impl Runtime {
@@ -103,12 +104,6 @@ impl Runtime {
         ))
     }
 
-    /// Indicate that the runtime has issues it can report with
-    /// [emit_diagnostics][Self::emit_diagnostics].
-    pub fn has_issues(&self) -> bool {
-        self.errors.is_empty() && !self.warnings.is_empty()
-    }
-
     /// Construct a new runtime with a custom context.
     pub fn with_context(context: runestick::Context) -> Self {
         Self {
@@ -117,7 +112,20 @@ impl Runtime {
             options: crate::Options::default(),
             errors: Vec::new(),
             warnings: Default::default(),
+            linking: true,
         }
+    }
+
+    /// Disable linking, which will otherwise check that all function signatures
+    /// exist for all function calls at compile time.
+    pub fn disable_linking(&mut self) {
+        self.linking = false;
+    }
+
+    /// Indicate that the runtime has issues it can report with
+    /// [emit_diagnostics][Self::emit_diagnostics].
+    pub fn has_issues(&self) -> bool {
+        self.errors.is_empty() && !self.warnings.is_empty()
     }
 
     /// Access the underlying context of the runtime.
@@ -212,11 +220,13 @@ impl Runtime {
 
         let mut errors = LinkerErrors::new();
 
-        if !unit.link(&self.context, &mut errors) {
-            file.unit = Some(Rc::new(unit));
-            self.errors
-                .push((file_id, RuntimeError::LinkError { errors }));
-            return Err(LoadError::LinkError);
+        if self.linking {
+            if !unit.link(&self.context, &mut errors) {
+                file.unit = Some(Rc::new(unit));
+                self.errors
+                    .push((file_id, RuntimeError::LinkError { errors }));
+                return Err(LoadError::LinkError);
+            }
         }
 
         file.unit = Some(Rc::new(unit));

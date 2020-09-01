@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::compiler::index_scopes::IndexScopes;
-use crate::compiler::query::{Build, Entry, Function, Query};
+use crate::compiler::query::{Build, Function, Indexed, InstanceFunction, Query};
 use crate::compiler::warning::Warnings;
 use crate::compiler::Items;
 use crate::error::CompileError;
@@ -332,14 +332,14 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                 let name = decl_enum.name.resolve(self.query.source)?;
                 let guard = self.items.push_name(name);
                 let enum_item = self.items.item();
-                self.query.new_enum(enum_item.clone(), span)?;
+                self.query.index_enum(enum_item.clone(), span)?;
 
                 for (variant, body, _) in &decl_enum.variants {
                     let span = variant.span();
                     let variant = variant.resolve(self.query.source)?;
                     let guard = self.items.push_name(variant);
 
-                    self.query.new_variant(
+                    self.query.index_variant(
                         self.items.item(),
                         enum_item.clone(),
                         body.clone(),
@@ -356,7 +356,7 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                 let name = decl_struct.ident.resolve(self.query.source)?;
                 let guard = self.items.push_name(name);
                 self.query
-                    .new_struct(self.items.item(), decl_struct.clone())?;
+                    .index_struct(self.items.item(), decl_struct.clone())?;
                 self.items.pop(guard, span)?;
             }
             ast::Decl::DeclFn(decl_fn) => {
@@ -373,17 +373,24 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                 if is_toplevel {
                     self.query.queue.push_back((
                         item.clone(),
-                        Build::Function(Function::new(decl_fn.clone(), None)),
+                        Build::Function(Function {
+                            ast: decl_fn.clone(),
+                        }),
                     ));
 
-                    self.query.unit.borrow_mut().new_item(Meta::MetaFunction {
-                        value_type: ValueType::Type(Hash::type_hash(&item)),
-                        item,
-                    })?;
+                    self.query
+                        .unit
+                        .borrow_mut()
+                        .insert_meta(Meta::MetaFunction {
+                            value_type: ValueType::Type(Hash::type_hash(&item)),
+                            item,
+                        })?;
                 } else {
-                    self.query.insert_item(
+                    self.query.index(
                         item.clone(),
-                        Entry::Function(Function::new(decl_fn.clone(), None)),
+                        Indexed::Function(Function {
+                            ast: decl_fn.clone(),
+                        }),
                         span,
                     )?;
                 }
@@ -404,7 +411,7 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                     guards.push(self.items.push_name(ident));
                 }
 
-                let type_item = self.items.item();
+                let instance_item = self.items.item();
 
                 for decl_fn in &decl_impl.functions {
                     let name = decl_fn.name.resolve(self.query.source)?;
@@ -412,27 +419,35 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
 
                     let item = self.items.item();
 
+                    // NB: all instance functions must be pre-emptively built,
+                    // because statically we don't know if they will be used or
+                    // not.
                     if decl_fn.is_instance() {
-                        self.query.queue.push_back((
-                            item.clone(),
-                            Build::Function(Function::new(
-                                decl_fn.clone(),
-                                Some((type_item.clone(), span)),
-                            )),
-                        ));
+                        let f = InstanceFunction {
+                            ast: decl_fn.clone(),
+                            instance_item: instance_item.clone(),
+                            instance_span: span,
+                        };
+
+                        self.query
+                            .queue
+                            .push_back((item.clone(), Build::InstanceFunction(f)));
+
+                        let meta = Meta::MetaFunction {
+                            value_type: ValueType::Type(Hash::type_hash(&item)),
+                            item: item.clone(),
+                        };
+
+                        self.query.unit.borrow_mut().insert_meta(meta)?;
                     } else {
-                        self.query.queue.push_back((
+                        self.query.index(
                             item.clone(),
-                            Build::Function(Function::new(decl_fn.clone(), None)),
-                        ));
+                            Indexed::Function(Function {
+                                ast: decl_fn.clone(),
+                            }),
+                            span,
+                        )?;
                     }
-
-                    let value_type = ValueType::Type(Hash::type_hash(&item));
-
-                    self.query
-                        .unit
-                        .borrow_mut()
-                        .new_item(Meta::MetaFunction { value_type, item })?;
 
                     self.index(decl_fn)?;
                     self.items.pop(guard, span)?;
@@ -518,7 +533,7 @@ impl Index<ast::ExprClosure> for Indexer<'_, '_> {
 
         let captures = Arc::new(self.scopes.pop_closure(closure_guard, span)?);
         self.query
-            .new_closure(self.items.item(), item.clone(), captures)?;
+            .index_closure(self.items.item(), item.clone(), captures)?;
 
         self.items.pop(guard, span)?;
         Ok(())

@@ -64,6 +64,9 @@ async fn main() -> Result<()> {
 
                 runtime.parse_optimization(&[&opt])?;
             }
+            "--no-linking" => {
+                runtime.disable_linking();
+            }
             "--help" | "-h" => {
                 help = true;
             }
@@ -89,6 +92,7 @@ async fn main() -> Result<()> {
         println!("  --dump-vm         - Dump diagnostics on VM state. If combined with `--trace`, does so afte each instruction.");
         println!("  --dump-functions  - Dump available functions.");
         println!("  --dump-types      - Dump available types.");
+        println!("  --no-linking      - Disable link time checks.");
         println!();
         println!("Compiler options:");
         println!("  -O <optimization> - Update the given optimization option.");
