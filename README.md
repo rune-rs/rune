@@ -1,8 +1,20 @@
-[![Build Status](https://github.com/udoprog/runestick/workflows/Build/badge.svg)](https://github.com/udoprog/runestick/actions)
+# rune
 
-# runestick
+<div align="center">
+    <a href="https://github.com/rune-rs/rune/actions">
+        <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/Build/badge.svg">
+    </a>
 
-runestick, a simple stack-based virtual machine.
+    <a href="https://github.com/rune-rs/rune/actions">
+        <img alt="Book Status" src="https://github.com/rune-rs/rune/workflows/Book/badge.svg">
+    </a>
+
+    <a href="https://discord.gg/v5AeNkT">
+        <img alt="Chat on Discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square">
+    </a>
+</div>
+
+An embeddable dynamic programming language for Rust.
 
 ### Contributing
 
@@ -35,5 +47,7 @@ If you want to see diagnostics of your unit, you can do:
 cargo run -- ./scripts/hello_world.rn --dump-unit --trace
 ```
 
-[rust-ffi]: https://github.com/udoprog/runestick/blob/master/crates/runestick-http/src/lib.rs
-[future-optimizations]: https://github.com/udoprog/runestick/blob/master/FUTURE_OPTIMIZATIONS.md
+[rust-ffi]: https://github.com/rune-rs/rune/blob/master/crates/runestick-http/src/lib.rs
+[future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
+
+License: MIT/Apache-2.0

@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/udoprog/runestick/workflows/Build/badge.svg)](https://github.com/udoprog/runestick/actions)
+[![Build Status](https://github.com/rune-rs/rune/workflows/Build/badge.svg)](https://github.com/rune-rs/rune/actions)
 
 # runestick
 
@@ -35,5 +35,5 @@ If you want to see diagnostics of your unit, you can do:
 cargo run -- ./scripts/hello_world.rn --dump-unit --trace
 ```
 
-[rust-ffi]: https://github.com/udoprog/runestick/blob/master/crates/runestick-http/src/lib.rs
-[future-optimizations]: https://github.com/udoprog/runestick/blob/master/FUTURE_OPTIMIZATIONS.md
+[rust-ffi]: https://github.com/rune-rs/rune/blob/master/crates/runestick-http/src/lib.rs
+[future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md

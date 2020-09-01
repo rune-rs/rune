@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/udoprog/runestick/workflows/Build/badge.svg)](https://github.com/udoprog/runestick/actions)
+[![Build Status](https://github.com/rune-rs/rune/workflows/Build/badge.svg)](https://github.com/rune-rs/rune/actions)
 
 # rune-cli
 
@@ -10,5 +10,5 @@ If you're in the repo, you can take it for a spin with:
 cargo run -- scripts/hello_world.rn
 ```
 
-[Rune]: https://github.com/udoprog/runestick
-[runestick]: https://github.com/udoprog/runestick
+[Rune]: https://github.com/rune-rs/rune
+[runestick]: https://github.com/rune-rs/rune

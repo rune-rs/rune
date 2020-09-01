@@ -1,12 +1,12 @@
 [package]
 name = "rune"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
 readme = "README.md"
-repository = "https://github.com/udoprog/runestick"
-homepage = "https://github.com/udoprog/runestick"
+repository = "https://github.com/rune-rs/rune"
+homepage = "https://github.com/rune-rs/rune"
 documentation = "https://docs.rs/rune"
 keywords = ["language", "scripting"]
 categories = []
@@ -19,7 +19,7 @@ default = ["runtime"]
 runtime = ["codespan-reporting"]
 
 [dependencies]
-runestick = {version = "0.2.2", path = "../runestick"}
+runestick = {version = "0.3.0", path = "../runestick"}
 thiserror = "1.0.20"
 log = "0.4.11"
 codespan-reporting = {version = "0.9.5", optional = true}
@@ -28,4 +28,4 @@ hashbrown = "0.8.2"
 num = "0.3.0"
 
 [dev-dependencies]
-rune-testing = {version = "0.2.2", path = "../rune-testing"}
+rune-testing = {version = "0.3.0", path = "../rune-testing"}

@@ -1,12 +1,12 @@
 [package]
 name = "runestick-http"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
 readme = "README.md"
-repository = "https://github.com/udoprog/runestick"
-homepage = "https://github.com/udoprog/runestick"
+repository = "https://github.com/rune-rs/rune"
+homepage = "https://github.com/rune-rs/rune"
 documentation = "https://docs.rs/runestick-http"
 keywords = ["language", "scripting"]
 categories = []
@@ -17,7 +17,7 @@ An HTTP module based on reqwest for runestick.
 [dependencies]
 anyhow = "1.0.32"
 reqwest = "0.10.7"
-runestick = {version = "0.2.2", path = "../runestick"}
+runestick = {version = "0.3.0", path = "../runestick"}
 
 [dev-dependencies]
-runestick-json = {version = "0.2.2", path = "../runestick-json"}
+runestick-json = {version = "0.3.0", path = "../runestick-json"}
