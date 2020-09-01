@@ -202,6 +202,8 @@ pub enum Kind {
     Or,
     /// A `|` pipe.
     Pipe,
+    /// A `%` operator.
+    Rem,
 }
 
 impl fmt::Display for Kind {
@@ -271,6 +273,7 @@ impl fmt::Display for Kind {
             Self::And => write!(fmt, "&&")?,
             Self::Or => write!(fmt, "||")?,
             Self::Pipe => write!(fmt, "|")?,
+            Self::Rem => write!(fmt, "%")?,
         }
 
         Ok(())

@@ -1960,6 +1960,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
             ast::BinOp::Mul { .. } => {
                 self.asm.push(Inst::Mul, span);
             }
+            ast::BinOp::Rem { .. } => {
+                self.asm.push(Inst::Rem, span);
+            }
             ast::BinOp::Eq { .. } => {
                 self.asm.push(Inst::Eq, span);
             }

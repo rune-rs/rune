@@ -162,6 +162,18 @@ pub enum Inst {
         /// The frame offset to assign to.
         offset: usize,
     },
+    /// Remainder operation.
+    ///
+    /// This is the result of an `<a> % <b>` expression.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// <value>
+    /// => <value>
+    /// ```
+    Rem,
     /// Encode a function pointer on the stack.
     ///
     /// # Operation
@@ -938,6 +950,9 @@ impl fmt::Display for Inst {
             }
             Self::DivAssign { offset } => {
                 write!(fmt, "div-assign {}", offset)?;
+            }
+            Self::Rem => {
+                write!(fmt, "rem")?;
             }
             Self::Call { hash, args } => {
                 write!(fmt, "call {}, {}", hash, args)?;

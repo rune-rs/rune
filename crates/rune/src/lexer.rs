@@ -598,6 +598,7 @@ impl<'a> Lexer<'a> {
                     '!' => Kind::Bang,
                     '?' => Kind::Try,
                     '|' => Kind::Pipe,
+                    '%' => Kind::Rem,
                     'a'..='z' | 'A'..='Z' => {
                         return self.next_ident(&mut it, start);
                     }

@@ -53,7 +53,7 @@ pub use crate::bytes::Bytes;
 pub use crate::context::{Context, ContextError};
 pub use crate::context::{
     ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, FMT_DISPLAY, INDEX_GET, INDEX_SET, INTO_ITER, MUL,
-    MUL_ASSIGN, NEXT, SUB, SUB_ASSIGN,
+    MUL_ASSIGN, NEXT, REM, SUB, SUB_ASSIGN,
 };
 pub use crate::error::{Error, Result};
 pub use crate::fn_ptr::FnPtr;

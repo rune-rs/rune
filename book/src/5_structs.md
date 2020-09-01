@@ -1,13 +1,35 @@
 # Structs
 
 Structs are like objects, except that they have a predefined structure with a
-set of keys that are known at compile time.
+set of keys that are known at compile time and guaranteed to be defined.
 
+Structs can also, like most types, have an `impl` block associated with them
+which creates instance functions that you can call on an instance of that
+struct.
+
+```rust,noplaypen
+{{#include ../../scripts/book/5/user_database.rn}}
 ```
-struct User {
-    username,
-    email,
-    sign_in_count,
-    active,
-}
+
+```text
+$> cargo run -- scripts/book/5/user_database.rn
+setbac is inactive
+setbac is active
+== Unit (6.2095ms)
+```
+
+Structs can also be pattern matched, like most types.
+
+But since the fields of a struct are known at compile time, the compiler can
+ensure that you're only using fields which are defined.
+
+```rust,noplaypen
+{{#include ../../scripts/book/5/struct_matching.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/5/struct_matching.rn
+Yep, it's setbac.
+Other user: newt.
+== Unit (1.0652ms)
 ```

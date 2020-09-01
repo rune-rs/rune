@@ -1,0 +1,15 @@
+fn dynamic_type(n) {
+    if n is String {
+        "n is a String"
+    } else if n is Vec {
+        "n is a vector"
+    } else {
+        "n is unknown"
+    }
+}
+
+fn main() {
+    println(dynamic_type("Hello"));
+    println(dynamic_type([1, 2, 3, 4]));
+    println(dynamic_type(42));
+}

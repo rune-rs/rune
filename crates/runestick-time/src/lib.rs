@@ -46,7 +46,7 @@ impl Duration {
 }
 
 /// Convert any value to a json string.
-async fn delay_for(duration: Duration) {
+async fn delay_for(duration: &Duration) {
     tokio::time::delay_for(duration.inner).await;
 }
 

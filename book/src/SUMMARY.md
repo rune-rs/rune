@@ -14,4 +14,6 @@
   - [Tuples](./4_4_tuples.md)
 - [Structs](./5_structs.md)
 - [Enums](./6_enums.md)
+  - [Try operator](./6_1_try_operator.md)
 - [Asynchronous Programming](./7_async.md)
+- [Closures](./8_closures.md)

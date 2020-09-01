@@ -842,6 +842,12 @@ pub const DIV_ASSIGN: BuiltInInstanceFn = BuiltInInstanceFn {
     hash: Hash::new(0x4dd087a8281c04e6),
 };
 
+/// The function to implement for the modulo operation.
+pub const REM: BuiltInInstanceFn = BuiltInInstanceFn {
+    name: "mod",
+    hash: Hash::new(0x5c6293639c74e671),
+};
+
 /// Function used for a fmt::Display::fmt implementation.
 pub const FMT_DISPLAY: BuiltInInstanceFn = BuiltInInstanceFn {
     name: "fmt",

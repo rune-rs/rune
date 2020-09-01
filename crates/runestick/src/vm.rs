@@ -1059,6 +1059,18 @@ impl Vm {
         Ok(())
     }
 
+    #[inline]
+    fn op_rem(&mut self) -> Result<(), VmError> {
+        self.internal_numeric_op(
+            crate::REM,
+            || VmError::DivideByZero,
+            i64::checked_rem,
+            std::ops::Rem::rem,
+            "%",
+        )?;
+        Ok(())
+    }
+
     fn internal_op_assign<H, E, I, F>(
         &mut self,
         offset: usize,
@@ -2275,6 +2287,9 @@ impl Vm {
                 }
                 Inst::DivAssign { offset } => {
                     self.op_div_assign(offset)?;
+                }
+                Inst::Rem => {
+                    self.op_rem()?;
                 }
                 Inst::Fn { hash } => {
                     self.op_fn(hash)?;

@@ -52,6 +52,8 @@ pub enum BinOp {
     Mul,
     /// Multiply assign operation.
     MulAssign,
+    /// Remainder operator.
+    Rem,
     /// Equality check.
     Eq,
     /// Inequality check.
@@ -86,7 +88,7 @@ impl BinOp {
             Self::And => 3,
             Self::Eq | Self::Neq | Self::Gt | Self::Lt | Self::Gte | Self::Lte => 4,
             Self::Add | Self::Sub => 5,
-            Self::Div | Self::Mul => 6,
+            Self::Div | Self::Mul | Self::Rem => 6,
             Self::Is | Self::IsNot => 7,
         }
     }
@@ -116,6 +118,7 @@ impl BinOp {
             Kind::Div => Self::Div,
             Kind::DivAssign => Self::DivAssign,
             Kind::Mul => Self::Mul,
+            Kind::Rem => Self::Rem,
             Kind::MulAssign => Self::MulAssign,
             Kind::EqEq => Self::Eq,
             Kind::Neq => Self::Neq,
@@ -177,6 +180,9 @@ impl fmt::Display for BinOp {
             Self::MulAssign => {
                 write!(fmt, "*=")?;
             }
+            Self::Rem => {
+                write!(fmt, "%")?;
+            }
             Self::Eq => {
                 write!(fmt, "==")?;
             }
@@ -223,6 +229,7 @@ impl Peek for BinOp {
                 Kind::Add => true,
                 Kind::Sub => true,
                 Kind::Mul => true,
+                Kind::Rem => true,
                 Kind::Div => true,
                 Kind::EqEq => true,
                 Kind::Neq => true,

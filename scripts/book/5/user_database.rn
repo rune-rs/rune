@@ -1,0 +1,29 @@
+struct User {
+    username,
+    active,
+}
+
+impl User {
+    fn set_active(self, active) {
+        self.active = active;
+    }
+
+    fn describe(self) {
+        if self.active {
+            println(`{self.username} is active`);
+        } else {
+            println(`{self.username} is inactive`);
+        }
+    }
+}
+
+fn main() {
+    let user = User {
+        username: "setbac",
+        active: false,
+    };
+
+    user.describe();
+    user.set_active(true);
+    user.describe();
+}

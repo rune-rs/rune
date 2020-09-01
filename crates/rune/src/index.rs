@@ -254,6 +254,9 @@ impl Index<ast::Expr> for Indexer<'_, '_> {
             ast::Expr::ExprCall(expr_call) => {
                 self.index(expr_call)?;
             }
+            ast::Expr::LitTemplate(lit_template) => {
+                self.index(lit_template)?;
+            }
             ast::Expr::LitUnit(..) => (),
             ast::Expr::LitBool(..) => (),
             ast::Expr::LitByte(..) => (),
@@ -262,7 +265,6 @@ impl Index<ast::Expr> for Indexer<'_, '_> {
             ast::Expr::LitObject(..) => (),
             ast::Expr::LitStr(..) => (),
             ast::Expr::LitByteStr(..) => (),
-            ast::Expr::LitTemplate(..) => (),
             ast::Expr::LitTuple(..) => (),
             ast::Expr::LitVec(..) => (),
         }
@@ -620,6 +622,23 @@ impl Index<ast::ExprCall> for Indexer<'_, '_> {
         }
 
         self.index(&*item.expr)?;
+        Ok(())
+    }
+}
+
+impl Index<ast::LitTemplate> for Indexer<'_, '_> {
+    fn index(&mut self, item: &ast::LitTemplate) -> Result<(), CompileError> {
+        let template = item.resolve(self.source)?;
+
+        for c in &template.components {
+            match c {
+                ast::TemplateComponent::Expr(expr) => {
+                    self.index(&**expr)?;
+                }
+                ast::TemplateComponent::String(..) => (),
+            }
+        }
+
         Ok(())
     }
 }

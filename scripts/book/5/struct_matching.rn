@@ -1,0 +1,28 @@
+struct User {
+    username,
+    active,
+}
+
+impl User {
+    fn describe(self) {
+        match self {
+            User { username: "setbac", .. } => {
+                println("Yep, it's setbac.");
+            }
+            User { username, .. } => {
+                println(`Other user: {username}.`);
+            }
+        }
+    }
+}
+
+fn main() {
+    let user = User {
+        username: "setbac",
+        active: false,
+    };
+
+    user.describe();
+    user.username = "newt";
+    user.describe();
+}

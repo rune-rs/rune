@@ -68,5 +68,5 @@ If you need to, you can test if a variable is still accessible with
 ```text
 $> cargo run -- scripts/book/3_1/is_readable.rn
 field: 1
-it was not readable 😢
+object is no longer readable 😢
 ```

@@ -6,20 +6,8 @@ This identifies a type object.
 
 These can be used to perform basic type checking, like this:
 
-```rune
-use std::test::assert;
-
-fn main() {
-    assert(() is unit, "units should be units");
-    assert(true is bool, "bools should be bools");
-    assert('a' is char, "chars should be chars");
-    assert(b'a' is byte, "bytes should be bytes");
-    assert(42 is int, "integers should be integers");
-    assert(42.1 is float, "floats should be floats");
-    assert("hello" is String, "strings should be strings");
-    assert(#{"hello": "world"} is Object, "objects should be objects");
-    assert(["hello", "world"] is Vec, "vectors should be vectors");
-}
+```rust,noplaypen
+{{#include ../../scripts/book/4/types.rn}}
 ```
 
 Conversely, the type check would fail if it's not valid:
@@ -38,38 +26,28 @@ error: virtual machine error
 
 So this allows us to determine which type is which and act accordingly:
 
-```rune
-fn dynamic_type(n) {
-    if n is String {
-        dbg("n is a String");
-    } else if n is Vec {
-        dbg("n is a vector");
-    } else {
-        dbg("n is unknown");
-    }
-}
-
-fn main() {
-    dynamic_type("Hello");
-    dynamic_type([1, 2, 3, 4]);
-    dynamic_type(42);
-}
+```rust,noplaypen
+{{#include ../../scripts/book/4/type_check.rn}}
 ```
 
 ```text
-0 = String("n is a string")
-0 = String("n is a vector")
-0 = String("I don\'t know n")
+$> cargo run -- scripts/book/4/type_check.rn
+n is a String
+n is a vector
+n is unknown
+== Unit (1.0544ms)
 ```
 
-A tighter way to accomplish this would be with a type switch:
+A tighter way to accomplish this could be by using pattern matching:
 
-```rune
-fn dynamic_type(n) {
-    switch n {
-        n if n is String => dbg("n is a String"),
-        n if n is Vec => dbg("n is an Vec"),
-        _ => dbg("n is unknown"),
-    }
-}
+```rust,noplaypen
+{{#include ../../scripts/book/4/type_check_patterns.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/4/type_check.rn
+n is a String
+n is a vector
+n is unknown
+== Unit (1.0544ms)
 ```
