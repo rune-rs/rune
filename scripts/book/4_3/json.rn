@@ -1,0 +1,30 @@
+fn get_commits(repo, limit) {
+    let limit = limit.unwrap_or(10);
+
+    let client = http::Client::new();
+    let request = client.get(`https://api.github.com/repos/{repo}/commits`).await?;
+    let response = request.header("User-Agent", "Rune").send().await?;
+    let text = response.text().await?;
+    let json = json::from_string(text)?;
+
+    let commits = Vec::new();
+    let count = 0;
+
+    for entry in json {
+        commits.push(entry.sha);
+
+        if count >= limit {
+            break;
+        }
+
+        count += 1;
+    }
+
+    commits
+}
+
+fn main() {
+    for commit in get_commits("rune-rs/rune", Some(5)) {
+        println(commit);
+    }
+}

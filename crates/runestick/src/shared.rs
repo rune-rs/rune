@@ -31,6 +31,67 @@ impl<T> Shared<T> {
         }
     }
 
+    /// Test if the value is sharable.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::Shared;
+    /// let shared = Shared::new(1u32);
+    /// assert!(shared.is_readable());
+    ///
+    /// {
+    ///     let guard = shared.borrow_ref().unwrap();
+    ///     assert!(shared.is_readable()); // Note: still readable.
+    /// }
+    ///
+    /// {
+    ///     let guard = shared.borrow_mut().unwrap();
+    ///     assert!(!shared.is_readable());
+    /// }
+    ///
+    /// assert!(shared.is_readable());
+    /// ```
+    ///
+    /// # Taking inner value
+    ///
+    /// ```rust
+    /// use runestick::Shared;
+    /// let shared = Shared::new(1u32);
+    /// let shared2 = shared.clone();
+    /// assert!(shared.is_readable());
+    /// shared.take().unwrap();
+    /// assert!(!shared2.is_readable());
+    /// assert!(shared2.take().is_err());
+    /// ```
+    pub fn is_readable(&self) -> bool {
+        // Safety: Since we have a reference to this shared, we know that the
+        // inner is available.
+        unsafe { self.inner.as_ref().access.is_shared() }
+    }
+
+    /// Test if the value is exclusively accessible.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::Shared;
+    /// let shared = Shared::new(1u32);
+    /// assert!(shared.is_writable());
+    ///
+    /// {
+    ///     let guard = shared.borrow_ref().unwrap();
+    ///     assert!(!shared.is_writable());
+    /// }
+    ///
+    /// assert!(shared.is_writable());
+    /// ```
+    pub fn is_writable(&self) -> bool {
+        // Safety: Since we have a reference to this shared, we know that the
+        // inner is available.
+        unsafe { self.inner.as_ref().access.is_exclusive() }
+    }
+
     /// Take the interior value, if we have exlusive access to it and there
     /// are no other live exlusive or shared references.
     ///

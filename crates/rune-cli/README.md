@@ -6,7 +6,7 @@ A standalone runtime for [Rune], a language on top of [runestick].
 
 If you're in the repo, you can take it for a spin with:
 
-```bash
+```text
 cargo run -- scripts/hello_world.rn
 ```
 

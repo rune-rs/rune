@@ -1,0 +1,13 @@
+fn describe_car(car) {
+    match car {
+        #{"make": year, ..} if year < 1950 => "What, where did you get that?",
+        #{"model": "Ford", "make": year, ..} if year >= 2000 => "Pretty fast!",
+        _ => "Can't tell 😞",
+    }
+}
+
+fn main() {
+    println(describe_car(#{"model": "Ford", "make": 2000}));
+    println(describe_car(#{"model": "Honda", "make": 1980}));
+    println(describe_car(#{"model": "Volvo", "make": 1910}));
+}

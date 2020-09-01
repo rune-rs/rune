@@ -1207,6 +1207,26 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
+    /// Compile a tuple index set operation with a number field.
+    fn compile_tuple_index_set_number(
+        &mut self,
+        target: &str,
+        field: &ast::LitNumber,
+    ) -> Result<bool> {
+        let span = field.span();
+
+        let index = match field.resolve(self.source)? {
+            ast::Number::Integer(n) if n >= 0 => n as usize,
+            _ => return Ok(false),
+        };
+
+        let target = self.scopes.get_var(target, span)?;
+        target.copy(&mut self.asm, span);
+
+        self.asm.push(Inst::TupleIndexSet { index }, span);
+        Ok(true)
+    }
+
     fn compile_assign_binop(
         &mut self,
         lhs: &ast::Expr,
@@ -1224,7 +1244,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     (ast::Expr::Path(ast::Path { first, rest }), expr_field) if rest.is_empty() => {
                         let span = first.span();
                         let target = first.resolve(self.source)?;
-
                         self.compile_expr(rhs, Needs::Value)?;
 
                         match expr_field {
@@ -1235,8 +1254,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
                                 self.asm.push(Inst::String { slot: index }, span);
                             }
                             ast::ExprField::LitNumber(n) => {
-                                let span = n.span();
-                                return Err(CompileError::internal("not supported yet", span));
+                                if self.compile_tuple_index_set_number(target, n)? {
+                                    return Ok(());
+                                }
                             }
                         }
 
@@ -1248,7 +1268,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     }
                     (ast::Expr::Self_(s), expr_field) => {
                         let span = s.span();
-
                         self.compile_expr(rhs, Needs::Value)?;
 
                         match expr_field {
@@ -1259,8 +1278,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
                                 self.asm.push(Inst::String { slot }, span);
                             }
                             ast::ExprField::LitNumber(n) => {
-                                let span = n.span();
-                                return Err(CompileError::internal("not supported yet", span));
+                                if self.compile_tuple_index_set_number("self", n)? {
+                                    return Ok(());
+                                }
                             }
                         }
 

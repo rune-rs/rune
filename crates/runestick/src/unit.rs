@@ -395,6 +395,18 @@ impl Unit {
             Item::of(&["std", "dbg"]),
         );
         this.imports.insert(
+            (Item::empty(), Component::from("drop")),
+            Item::of(&["std", "drop"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("is_readable")),
+            Item::of(&["std", "is_readable"]),
+        );
+        this.imports.insert(
+            (Item::empty(), Component::from("is_writable")),
+            Item::of(&["std", "is_writable"]),
+        );
+        this.imports.insert(
             (Item::empty(), Component::from("panic")),
             Item::of(&["std", "panic"]),
         );

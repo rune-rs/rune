@@ -201,6 +201,12 @@ pub enum VmError {
         /// The target type we tried to perform the tuple indexing on.
         target: ValueTypeInfo,
     },
+    /// An tuple index set operation that is not supported.
+    #[error("the tuple index set operation is not supported on `{target}`")]
+    UnsupportedTupleIndexSet {
+        /// The target type we tried to perform the tuple indexing on.
+        target: ValueTypeInfo,
+    },
     /// An object slot index get operation that is not supported.
     #[error("the object slot index get operation on `{target}` is not supported")]
     UnsupportedObjectSlotIndexGet {
@@ -1312,6 +1318,81 @@ impl Vm {
         Ok(Some(value))
     }
 
+    /// Implementation of getting a string index on an object-like type.
+    fn try_tuple_like_index_set(
+        target: &Value,
+        index: usize,
+        value: Value,
+    ) -> Result<bool, VmError> {
+        match target {
+            Value::Unit => Ok(false),
+            Value::Tuple(tuple) => {
+                let mut tuple = tuple.borrow_mut()?;
+
+                if let Some(target) = tuple.get_mut(index) {
+                    *target = value;
+                    return Ok(true);
+                }
+
+                Ok(false)
+            }
+            Value::Vec(vec) => {
+                let mut vec = vec.borrow_mut()?;
+
+                if let Some(target) = vec.get_mut(index) {
+                    *target = value;
+                    return Ok(true);
+                }
+
+                Ok(false)
+            }
+            Value::Result(result) => {
+                let mut result = result.borrow_mut()?;
+
+                let target = match &mut *result {
+                    Ok(ok) if index == 0 => ok,
+                    Err(err) if index == 0 => err,
+                    _ => return Ok(false),
+                };
+
+                *target = value;
+                Ok(true)
+            }
+            Value::Option(option) => {
+                let mut option = option.borrow_mut()?;
+
+                let target = match &mut *option {
+                    Some(some) if index == 0 => some,
+                    _ => return Ok(false),
+                };
+
+                *target = value;
+                Ok(true)
+            }
+            Value::TypedTuple(typed_tuple) => {
+                let mut typed_tuple = typed_tuple.borrow_mut()?;
+
+                if let Some(target) = typed_tuple.tuple.get_mut(index) {
+                    *target = value;
+                    return Ok(true);
+                }
+
+                Ok(false)
+            }
+            Value::VariantTuple(variant_tuple) => {
+                let mut variant_tuple = variant_tuple.borrow_mut()?;
+
+                if let Some(target) = variant_tuple.tuple.get_mut(index) {
+                    *target = value;
+                    return Ok(true);
+                }
+
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+
     /// Perform an index get operation.
     #[inline]
     fn op_index_get(&mut self) -> Result<(), VmError> {
@@ -1378,6 +1459,21 @@ impl Vm {
 
         Err(VmError::UnsupportedTupleIndexGet {
             target: value.type_info()?,
+        })
+    }
+
+    /// Perform an index get operation specialized for tuples.
+    #[inline]
+    fn op_tuple_index_set(&mut self, index: usize) -> Result<(), VmError> {
+        let tuple = self.stack.pop()?;
+        let value = self.stack.pop()?;
+
+        if Self::try_tuple_like_index_set(&tuple, index, value)? {
+            return Ok(());
+        }
+
+        Err(VmError::UnsupportedTupleIndexSet {
+            target: tuple.type_info()?,
         })
     }
 
@@ -2203,6 +2299,9 @@ impl Vm {
                 }
                 Inst::TupleIndexGet { index } => {
                     self.op_tuple_index_get(index)?;
+                }
+                Inst::TupleIndexSet { index } => {
+                    self.op_tuple_index_set(index)?;
                 }
                 Inst::TupleIndexGetAt { offset, index } => {
                     self.op_tuple_index_get_at(offset, index)?;

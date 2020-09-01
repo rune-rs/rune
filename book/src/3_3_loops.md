@@ -14,19 +14,13 @@ When Rune encounters a break, it will immediately jump out of the loop it is
 currently in and continue running right after it.
 
 ```rust,noplaypen
-fn main() {
-    let value = 0;
+{{#include ../../scripts/book/3_3/while_loop.rn}}
+```
 
-    while value < 100 {
-        if value >= 50 {
-            break;
-        }
-
-        value = value + 1;
-    }
-
-    dbg("The value is " + value); // => The value is 50
-}
+```text
+$> cargo run -- scripts/book/3_3/while_loop.rn
+The value is 50
+== Unit (501.1µs)
 ```
 
 ## `loop` Expressions
@@ -36,29 +30,33 @@ One that repeats unconditionally forever, until it is exited using another
 control flow operator like a `break` or a `return`.
 
 ```rust,noplaypen
-fn main() {
-    loop {
-        dbg("Hello forever!");
-    }
-}
+{{#include ../../scripts/book/3_3/loop_forever.rn}}
 ```
+
+```text
+$> cargo run -- scripts/book/3_3/loop_forever.rn
+Hello forever!
+Hello forever!
+Hello forever!
+...
+```
+
+> Hint: If you want this one to end, you're gonna have to kill it with `CTRL+C`.
+
+We're also using an asynchronous function called `delay_for` above to avoid
+spamming our terminals too much.
+Well talk more about these in a later section.
 
 When broken out of, loops produce the value provided as an argument to the
 `break` keyword.
 By default, this is simply a unit `()`.
 
 ```rust,noplaypen
-fn main() {
-    let counter = 0;
+{{#include ../../scripts/book/3_3/loop_break.rn}}
+```
 
-    let total = loop {
-        counter = counter + 1;
-
-        if counter > 10 {
-            break counter;
-        }
-    };
-
-    dbg("The final count is: " + total);
-}
+```text
+$> cargo run -- scripts/book/3_3/loop_break.rn
+The final count is: 11
+== Unit (281.5µs)
 ```

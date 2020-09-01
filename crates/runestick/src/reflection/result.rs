@@ -2,7 +2,7 @@
 
 use crate::{
     FromValue, OwnedRef, Panic, RawOwnedRef, ReflectValueType, Shared, ToValue, UnsafeFromValue,
-    Value, ValueError, ValueType, ValueTypeInfo,
+    Value, ValueError, ValueType, ValueTypeInfo, VmError,
 };
 use std::fmt;
 use std::io;
@@ -40,11 +40,34 @@ where
 {
     fn to_value(self) -> Result<Value, ValueError> {
         match self {
-            Ok(ok) => {
-                let ok = ok.to_value()?;
-                Ok(Value::Result(Shared::new(Ok(ok))))
-            }
+            Ok(value) => Ok(value.to_value()?),
             Err(reason) => Err(ValueError::Panic { reason }),
+        }
+    }
+}
+
+impl<T> ToValue for Result<T, ValueError>
+where
+    T: ToValue,
+{
+    fn to_value(self) -> Result<Value, ValueError> {
+        match self {
+            Ok(value) => Ok(value.to_value()?),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+impl<T> ToValue for Result<T, VmError>
+where
+    T: ToValue,
+{
+    fn to_value(self) -> Result<Value, ValueError> {
+        match self {
+            Ok(value) => Ok(value.to_value()?),
+            Err(error) => Err(ValueError::VmError {
+                error: Box::new(error),
+            }),
         }
     }
 }

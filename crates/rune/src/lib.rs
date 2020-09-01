@@ -35,13 +35,13 @@
 //!
 //! You can run example scripts through rune-cli:
 //!
-//! ```bash
+//! ```text
 //! cargo run -- ./scripts/hello_world.rn
 //! ```
 //!
 //! If you want to see diagnostics of your unit, you can do:
 //!
-//! ```bash
+//! ```text
 //! cargo run -- ./scripts/hello_world.rn --dump-unit --trace
 //! ```
 //!

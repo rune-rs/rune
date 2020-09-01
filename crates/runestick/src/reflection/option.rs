@@ -1,8 +1,8 @@
 //! Trait implementations for Option<T>.
 
 use crate::{
-    FromValue, OwnedRef, RawOwnedRef, ReflectValueType, Shared, ToValue, UnsafeFromValue, Value,
-    ValueError, ValueType, ValueTypeInfo,
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared, ToValue,
+    UnsafeFromValue, Value, ValueError, ValueType, ValueTypeInfo,
 };
 
 impl<T> ReflectValueType for Option<T> {
@@ -67,5 +67,19 @@ impl UnsafeFromValue for &Option<Value> {
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         &*output
+    }
+}
+
+impl UnsafeFromValue for &mut Option<Value> {
+    type Output = *mut Option<Value>;
+    type Guard = RawOwnedMut;
+
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+        let option = value.into_option()?;
+        Ok(OwnedMut::into_raw(option.owned_mut()?))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &mut *output
     }
 }

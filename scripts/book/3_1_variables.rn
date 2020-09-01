@@ -1,6 +1,0 @@
-fn main() {
-    let x = 5;
-    dbg(`The value of x is: {x}`);
-    x = 6;
-    dbg(`The value of x is: {x}`);
-}

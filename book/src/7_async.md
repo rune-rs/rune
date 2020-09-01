@@ -12,28 +12,11 @@ the result of those tasks.
 A typical example would be if we want to perform multiple HTTP requests at once:
 
 ```rust,noplaypen
-fn main() {
-    let a = http::get("https://google.com");
-    let b = http::get("https://amazon.com");
-
-    loop {
-        let res = select {
-            res = a => res?,
-            res = b => res?,
-        };
-
-        match res {
-            () => break,
-            result => {
-                println(`{result.status()}`);
-            }
-        }
-    }
-}
+{{#include ../../scripts/book/7/async_http.rn}}
 ```
 
-```bash
-$> cargo run -- scripts/book/7_async_http.rn
+```text
+$> cargo run -- scripts/book/7/async_http.rn
 200 OK
 200 OK
 == Unit (591.0319ms)
@@ -51,34 +34,11 @@ A simple example of this is if we were to implement a simple request with a
 timeout:
 
 ```rust,noplaypen
-struct Timeout;
-
-fn request(timeout) {
-    let request = http::get(`http://httpstat.us/200?sleep={timeout}`);
-    let timeout = time::delay_for(time::Duration::from_secs(2));
-
-    let result = select {
-        _ = timeout => Err(Timeout),
-        res = request => res,
-    }?;
-
-    println(`{result.status()}`);
-    Ok(())
-}
-
-fn main() {
-    if let Err(Timeout) = request(1000) {
-        println("Request timed out!");
-    }
-
-    if let Err(Timeout) = request(4000) {
-        println("Request timed out!");
-    }
-}
+{{#include ../../scripts/book/7/async_http_timeout.rn}}
 ```
 
-```bash
-$> cargo run -- scripts/book/7_async_http_timeout.rn
+```text
+$> cargo run -- scripts/book/7/async_http_timeout.rn
 200 OK
 Request timed out!
 == Unit (3.2231404s)
@@ -100,34 +60,11 @@ produce a `Future`.
 In order to get the result of this `Future` it must be `.await`-ed.
 
 ```rust,noplaypen
-use std::future;
-
-struct Timeout;
-
-async fn request(timeout) {
-    let request = http::get(`http://httpstat.us/200?sleep={timeout}`);
-    let timeout = time::delay_for(time::Duration::from_secs(2));
-
-    let result = select {
-        _ = timeout => Err(Timeout),
-        res = request => res,
-    }?;
-
-    Ok(result)
-}
-
-fn main() {
-    for result in future::join([request(1000), request(4000)]).await {
-        match result {
-            Ok(result) => println(`Result: {result.status()}`),
-            Err(Timeout) => println("Request timed out!"),
-        }
-    }
-}
+{{#include ../../scripts/book/7/async_http_concurrent.rn}}
 ```
 
-```bash
-$> cargo run -- scripts/book/7_async_http_concurrent.rn
+```text
+$> cargo run -- scripts/book/7/async_http_concurrent.rn
 Result: 200 OK
 Request timed out!
 == Unit (2.0028603s)

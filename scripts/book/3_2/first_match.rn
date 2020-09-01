@@ -1,0 +1,15 @@
+fn main() {
+    let number = 3;
+
+    match number {
+        n if n < 5 => {
+            println("the number is smaller than 5");
+        }
+        5 => {
+            println("the number is exactly 5");
+        }
+        n => {
+            println("the number is bigger than 5");
+        }
+    }
+}

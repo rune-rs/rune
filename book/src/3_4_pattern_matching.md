@@ -6,20 +6,20 @@ Pattern matching is a flexible mechanism that allows for validating the
 structure and type of the argument, while also destructing it to give easy
 access to what you need.
 
-Below are some examples of its most common use to match on branch conditions:
+Below are some examples of its common uses to match on branch conditions:
 
 ```rust,noplaypen
-fn main() {
-    let x = 1;
+{{#include ../../scripts/book/3_4/big_match.rn}}
+```
 
-    match x {
-        1 => println!("the number one"),
-        n if n is int => println!("n is a number"),
-        [1, 2, ..] => println!("vector starting with one and two"),
-        "one" => println!("one as a string"),
-        _ => println!("anything"),
-    }
-}
+```text
+$> cargo run -- scripts/book/3_4/big_match.rn
+The number one.
+Another number: 2.
+A vector starting with one and two, followed by 42.
+One, but this time as a string.
+Something else. Can I go eat now?
+== Unit (5.691ms)
 ```
 
 We will be covering each of these variants in detail in the coming sections.
@@ -52,21 +52,26 @@ The ignore directive looks like an underscore `_`, which tells rune to *ignore*
 the value, allowing it to have any value.
 
 ```rust,noplaypen
-fn test_ignore(vector) {
-    match vector {
-        [_, 42] => dbg("second item in vector is 42"),
-    }
-}
+{{#include ../../scripts/book/3_4/ignore.rn}}
 ```
 
-In contrast to ignoring, we cal also *bind* the value to a variable:
+```text
+$> cargo run -- scripts/book/3_4/ignore.rn
+Second item in vector is 2.
+== Unit (281.3µs)
+```
+
+In contrast to ignoring, we cal also *bind* the value to a variable that is then
+in scope of the match arm.
 
 ```rust,noplaypen
-fn test_bind(vector) {
-    match vector {
-        [_, b] => dbg(`second item in vector is {b}`),
-    }
-}
+{{#include ../../scripts/book/3_4/bind.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/3_4/bind.rn
+Second item in vector is 2.
+== Unit (6.25ms)
 ```
 
 Here are some more examples:
@@ -80,15 +85,13 @@ values in a collection that might be present when matching a vector or an
 object.
 
 ```rust,noplaypen
-/// Describe how fast the first car in the vector is.
-fn first_car_speed(cars) {
-    match cars {
-        [first, ..] => match first {
-            {"model": "Ford", "make": 2000, ..} => "Pretty fast",
-            {"model": "Ford", "make": 1908, ..} => "Could be faster",
-            _ => "Unknown",
-        },
-        _ => "You didn't give me a vector of cars!",
-    }
-}
+{{#include ../../scripts/book/3_4/fast_cars.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/3_4/fast_cars.rn
+Pretty fast!
+Can't tell 😞
+What, where did you get that?
+== Unit (5.3533ms)
 ```

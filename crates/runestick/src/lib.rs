@@ -1,7 +1,7 @@
 //! # runestick
-//! 
+//!
 //! A stack-based virtual machine for the Rust programming language.
-//! 
+//!
 //! This drives the [Rune language].
 //!
 //! [Rune Language]: https://github.com/rune-rs/rune

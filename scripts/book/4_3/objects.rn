@@ -3,5 +3,6 @@ fn main() {
     values["first"] = "bar";
     values["second"] = 42;
 
-    dbg(values);
+    dbg(values["first"]);
+    dbg(values.second);
 }

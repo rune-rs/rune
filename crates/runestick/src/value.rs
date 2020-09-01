@@ -1,6 +1,6 @@
 use crate::{
     AccessError, Any, Bytes, FnPtr, Future, Hash, OwnedMut, OwnedRef, Panic, RawOwnedMut,
-    RawOwnedRef, Shared, ValueType, ValueTypeInfo,
+    RawOwnedRef, Shared, ValueType, ValueTypeInfo, VmError,
 };
 use std::any;
 use std::fmt;
@@ -15,6 +15,13 @@ pub enum ValueError {
     Panic {
         /// The reason for the panic.
         reason: Panic,
+    },
+    /// A wrapped virtual machine error.
+    #[error("{error}")]
+    VmError {
+        /// The source error.
+        #[source]
+        error: Box<VmError>,
     },
     /// Trying to access an inaccessible reference.
     #[error("failed to access value: {error}")]

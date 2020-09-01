@@ -4,20 +4,6 @@ use crate::{
     FromValue, ReflectValueType, Shared, ToValue, Value, ValueError, ValueType, ValueTypeInfo,
 };
 
-value_types!(crate::UNIT_TYPE, () => ());
-
-impl ToValue for () {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Unit)
-    }
-}
-
-impl FromValue for () {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
-        Ok(value.into_unit()?)
-    }
-}
-
 macro_rules! impl_from_value_tuple {
     () => {
     };

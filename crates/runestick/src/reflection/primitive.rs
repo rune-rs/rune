@@ -2,11 +2,36 @@
 
 use crate::{FromValue, Integer, ToValue, Value, ValueError};
 
+value_types!(crate::UNIT_TYPE, () => ());
+value_types!(crate::BYTE_TYPE, u8 => u8);
 value_types!(crate::BOOL_TYPE, bool => bool);
 value_types!(crate::CHAR_TYPE, char => char);
-value_types!(crate::BYTE_TYPE, u8 => u8);
 value_types!(crate::FLOAT_TYPE, f64 => f64);
 value_types!(crate::FLOAT_TYPE, f32 => f32);
+
+impl ToValue for () {
+    fn to_value(self) -> Result<Value, ValueError> {
+        Ok(Value::Unit)
+    }
+}
+
+impl FromValue for () {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
+        Ok(value.into_unit()?)
+    }
+}
+
+impl ToValue for u8 {
+    fn to_value(self) -> Result<Value, ValueError> {
+        Ok(Value::Byte(self))
+    }
+}
+
+impl FromValue for u8 {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
+        Ok(value.into_byte()?)
+    }
+}
 
 impl ToValue for bool {
     fn to_value(self) -> Result<Value, ValueError> {
@@ -29,18 +54,6 @@ impl ToValue for char {
 impl FromValue for char {
     fn from_value(value: Value) -> Result<Self, ValueError> {
         Ok(value.into_char()?)
-    }
-}
-
-impl ToValue for u8 {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Byte(self))
-    }
-}
-
-impl FromValue for u8 {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
-        Ok(value.into_byte()?)
     }
 }
 

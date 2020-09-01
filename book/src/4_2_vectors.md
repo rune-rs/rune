@@ -4,20 +4,12 @@ A vector is a native data structure of Rune which is a dynamic list of values.
 A vector isn't typed, and can store *any* rune values.
 
 ```rust,noplaypen
-fn main() {
-    let values = Vec::new();
-    values.push("Hello");
-    values.push(42);
-
-    while let Some(v) = values.pop() {
-        dbg(v);
-    }
-}
+{{#include ../../scripts/book/4_2/vectors.rn}}
 ```
 
-Which would give:
-
 ```text
+$> cargo run -- scripts/book/4_2/vectors.rn
 0 = Integer(42)
 0 = StaticString("Hello")
+== Unit (7.5299ms)
 ```

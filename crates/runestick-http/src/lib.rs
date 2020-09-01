@@ -113,6 +113,14 @@ impl RequestBuilder {
         Ok(Response { response })
     }
 
+    /// Modify a header in the request.
+    fn header(self, key: &str, value: &str) -> Self {
+        Self {
+            request: self.request.header(key, value),
+        }
+    }
+
+    /// Set the request body from bytes.
     async fn body_bytes(self, bytes: Bytes) -> Result<Self, Error> {
         let bytes = bytes.into_vec();
 
@@ -175,6 +183,7 @@ pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     module.inst_fn("status", Response::status)?;
 
     module.async_inst_fn("send", RequestBuilder::send)?;
+    module.inst_fn("header", RequestBuilder::header)?;
     module.async_inst_fn("body_bytes", RequestBuilder::body_bytes)?;
 
     module.inst_fn(runestick::FMT_DISPLAY, StatusCode::display)?;

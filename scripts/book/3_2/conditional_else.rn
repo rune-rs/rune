@@ -1,0 +1,9 @@
+fn main() {
+    let number = 3;
+
+    if number < 5 {
+        println("the number is smaller than 5");
+    } else {
+        println("the number is 5 or bigger");
+    }
+}

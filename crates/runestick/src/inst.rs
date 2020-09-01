@@ -262,6 +262,19 @@ pub enum Inst {
         /// The index to fetch.
         index: usize,
     },
+    /// Set the given index of the tuple on the stack, with the given value.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// <tuple>
+    /// => *nothing*
+    /// ```
+    TupleIndexSet {
+        /// The index to set.
+        index: usize,
+    },
     /// Get the given index out of a tuple from the given variable slot.
     /// Errors if the item doesn't exist or the item is not a tuple.
     ///
@@ -949,6 +962,9 @@ impl fmt::Display for Inst {
             }
             Self::TupleIndexGet { index } => {
                 write!(fmt, "tuple-index-get {}", index)?;
+            }
+            Self::TupleIndexSet { index } => {
+                write!(fmt, "tuple-index-set {}", index)?;
             }
             Self::TupleIndexGetAt { offset, index } => {
                 write!(fmt, "tuple-index-get-at {}, {}", offset, index)?;
