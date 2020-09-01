@@ -3,6 +3,7 @@ use crate::unit::UnitFnCall;
 use crate::{Context, FromValue, Future, Hash, IntoArgs, Shared, Stack, Unit, Value, Vm, VmError};
 use std::fmt;
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// A stored function, of some specific kind.
 #[derive(Debug)]
@@ -187,7 +188,7 @@ impl FnPtr {
     }
 
     /// Create a function pointer from a handler.
-    pub fn from_handler(handler: Rc<Handler>) -> Self {
+    pub fn from_handler(handler: Arc<Handler>) -> Self {
         Self {
             inner: Inner::FnHandler(FnHandler { handler }),
         }
@@ -263,7 +264,7 @@ enum Inner {
 
 struct FnHandler {
     /// The function handler.
-    handler: Rc<Handler>,
+    handler: Arc<Handler>,
 }
 
 impl fmt::Debug for FnHandler {

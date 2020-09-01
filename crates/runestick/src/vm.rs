@@ -2,7 +2,7 @@ use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
     AccessError, Bytes, Context, FnPtr, FromValue, Future, Hash, Inst, Integer, IntoArgs,
-    IntoTypeHash, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError,
+    IntoTypeHash, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError, ToValue,
     TypeCheck, TypedObject, TypedTuple, Unit, Value, ValueError, ValueTypeInfo, VariantObject,
     VariantTuple,
 };
@@ -376,8 +376,6 @@ pub struct Vm {
     exited: bool,
     /// Frames relative to the stack.
     call_frames: Vec<CallFrame>,
-    /// The `branch` registry used for certain operations.
-    branch: Option<usize>,
 }
 
 impl Vm {
@@ -395,7 +393,6 @@ impl Vm {
             stack,
             exited: false,
             call_frames: Vec::new(),
-            branch: None,
         }
     }
 
@@ -541,9 +538,10 @@ impl Vm {
         }
 
         let (branch, value) = futures.next().await.unwrap()?;
+        let branch = ToValue::to_value(branch)?;
 
         self.stack.push(value);
-        self.branch = Some(branch);
+        self.stack.push(branch);
         Ok(())
     }
 
@@ -908,11 +906,11 @@ impl Vm {
 
     /// Perform a branch-conditional jump operation.
     #[inline]
-    fn op_jump_if_branch(&mut self, branch: usize, offset: isize) -> Result<(), VmError> {
-        if let Some(current) = self.branch {
-            if current == branch {
-                self.branch = None;
+    fn op_jump_if_branch(&mut self, branch: i64, offset: isize) -> Result<(), VmError> {
+        if let Some(Value::Integer(current)) = self.stack.peek() {
+            if *current == branch {
                 self.modify_ip(offset)?;
+                self.stack.pop()?;
             }
         }
 
@@ -2083,9 +2081,9 @@ impl Vm {
     {
         // NB: +1 to include the instance itself.
         let args = args + 1;
-        let instance = self.stack.peek()?.clone();
-        let ty = instance.value_type()?;
-        let hash = Hash::instance_function(ty, hash);
+        let instance = self.stack.peek().ok_or_else(|| StackError::StackEmpty)?;
+        let value_type = instance.value_type()?;
+        let hash = Hash::instance_function(value_type, hash);
 
         match self.unit.lookup(hash) {
             Some(info) => {
@@ -2100,9 +2098,11 @@ impl Vm {
                     UnitFnKind::Offset { offset, call } => {
                         self.call_offset_fn(offset, call, args)?;
                     }
-                    UnitFnKind::Tuple { .. } => todo!("there are no instance tuple constructors"),
-                    UnitFnKind::TupleVariant { .. } => {
-                        todo!("there are no instance tuple constructors")
+                    _ => {
+                        return Err(VmError::MissingInstanceFunction {
+                            instance: instance.type_info()?,
+                            hash,
+                        });
                     }
                 }
             }

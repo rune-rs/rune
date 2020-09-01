@@ -5,7 +5,7 @@ use crate::{
 };
 use std::any::type_name;
 use std::future;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::context::{ContextError, Handler, IntoInstFnHash};
 use crate::item::Item;
@@ -44,7 +44,7 @@ pub(crate) struct ModuleType {
 }
 
 pub(crate) struct ModuleInstanceFunction {
-    pub(crate) handler: Rc<Handler>,
+    pub(crate) handler: Arc<Handler>,
     pub(crate) args: Option<usize>,
     pub(crate) value_type_info: ValueTypeInfo,
     pub(crate) name: String,
@@ -56,7 +56,7 @@ pub struct Module {
     /// The name of the module.
     pub(crate) path: Item,
     /// Free functions.
-    pub(crate) functions: HashMap<Item, (Rc<Handler>, Option<usize>)>,
+    pub(crate) functions: HashMap<Item, (Arc<Handler>, Option<usize>)>,
     /// Instance functions.
     pub(crate) instance_functions: HashMap<(ValueType, Hash), ModuleInstanceFunction>,
     /// Registered types.
@@ -199,7 +199,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Rc<Handler> = Rc::new(move |stack, args| f.fn_call(stack, args));
+        let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
         self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
@@ -231,7 +231,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Rc<Handler> = Rc::new(move |stack, args| f.fn_call(stack, args));
+        let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
         self.functions.insert(name, (handler, Some(Func::args())));
         Ok(())
     }
@@ -250,7 +250,7 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Rc<Handler> = Rc::new(move |stack, args| f(stack, args));
+        let handler: Arc<Handler> = Arc::new(move |stack, args| f(stack, args));
         self.functions.insert(name, (handler, None));
         Ok(())
     }
@@ -304,7 +304,7 @@ impl Module {
             });
         }
 
-        let handler: Rc<Handler> = Rc::new(move |stack, args| f.fn_call(stack, args));
+        let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
 
         let instance_function = ModuleInstanceFunction {
             handler,
@@ -365,7 +365,7 @@ impl Module {
             });
         }
 
-        let handler: Rc<Handler> = Rc::new(move |stack, args| f.fn_call(stack, args));
+        let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
 
         let instance_function = ModuleInstanceFunction {
             handler,

@@ -539,14 +539,18 @@ pub enum Inst {
         /// Offset to jump to.
         offset: isize,
     },
-    /// Compares the `branch` register with `value`, and if they match performs
-    /// the jump to offset.
+    /// Compares the `branch` register with the top of the stack, and if they
+    /// match pops the top of the stack and performs the jump to offset.
     ///
-    /// This will clear the `branch` register if the branch index matches.
-    /// If the branch registry is not set, this does nothing.
+    /// # Operation
+    ///
+    /// ```text
+    /// <integer>
+    /// => *nothing*
+    /// ```
     JumpIfBranch {
         /// The branch value to compare against.
-        branch: usize,
+        branch: i64,
         /// The offset to jump.
         offset: isize,
     },

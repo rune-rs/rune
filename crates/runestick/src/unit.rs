@@ -1013,7 +1013,7 @@ enum AssemblyInst {
     Jump { label: Label },
     JumpIf { label: Label },
     JumpIfNot { label: Label },
-    JumpIfBranch { branch: usize, label: Label },
+    JumpIfBranch { branch: i64, label: Label },
     PopAndJumpIf { count: usize, label: Label },
     PopAndJumpIfNot { count: usize, label: Label },
     Raw { raw: Inst },
@@ -1087,7 +1087,7 @@ impl Assembly {
     }
 
     /// Add a conditional jump-if-branch instruction.
-    pub fn jump_if_branch(&mut self, branch: usize, label: Label, span: Span) {
+    pub fn jump_if_branch(&mut self, branch: i64, label: Label, span: Span) {
         self.instructions
             .push((AssemblyInst::JumpIfBranch { branch, label }, span));
     }

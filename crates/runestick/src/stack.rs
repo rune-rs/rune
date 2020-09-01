@@ -70,8 +70,8 @@ impl Stack {
     }
 
     /// Peek the top of the stack.
-    pub fn peek(&mut self) -> Result<&Value, StackError> {
-        self.stack.last().ok_or_else(|| StackError::StackEmpty)
+    pub fn peek(&mut self) -> Option<&Value> {
+        self.stack.last()
     }
 
     /// Get the last position on the stack.

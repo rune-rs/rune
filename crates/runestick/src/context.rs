@@ -7,7 +7,7 @@ use crate::{
     ResultVariant, Stack, TypeCheck, Value, ValueType, ValueTypeInfo, VmError,
 };
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 use thiserror::Error;
 
 /// An error raised when building the context.
@@ -103,7 +103,7 @@ pub enum ContextError {
 }
 
 /// A function handler.
-pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError>;
+pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Sync;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
@@ -228,7 +228,7 @@ pub struct Context {
     /// Item metadata in the context.
     meta: HashMap<Item, Meta>,
     /// Free functions.
-    functions: HashMap<Hash, Rc<Handler>>,
+    functions: HashMap<Hash, Arc<Handler>>,
     /// Information on functions.
     functions_info: HashMap<Hash, FnSignature>,
     /// Registered types.
@@ -431,7 +431,7 @@ impl Context {
         &mut self,
         module: &Module,
         name: &Item,
-        handler: &Rc<Handler>,
+        handler: &Arc<Handler>,
         args: &Option<usize>,
     ) -> Result<(), ContextError> {
         let name = module.path.join(name);
@@ -705,7 +705,8 @@ impl Context {
 
         self.install_meta(item.clone(), meta)?;
 
-        let constructor: Rc<Handler> = Rc::new(move |stack, args| constructor.fn_call(stack, args));
+        let constructor: Arc<Handler> =
+            Arc::new(move |stack, args| constructor.fn_call(stack, args));
         let signature = FnSignature::new_free(item, Some(args));
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -720,7 +721,7 @@ impl Context {
     }
 
     /// Lookup the given function.
-    pub(crate) fn lookup(&self, hash: Hash) -> Option<&Rc<Handler>> {
+    pub(crate) fn lookup(&self, hash: Hash) -> Option<&Arc<Handler>> {
         self.functions.get(&hash)
     }
 }

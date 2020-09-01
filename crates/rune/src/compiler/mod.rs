@@ -2235,17 +2235,19 @@ impl<'a, 'source> Compiler<'a, 'source> {
         self.asm.push(Inst::Select { len }, span);
 
         for (branch, (label, _)) in branches.iter().enumerate() {
-            self.asm.jump_if_branch(branch, *label, span);
+            self.asm.jump_if_branch(branch as i64, *label, span);
         }
 
         if expr_select.default_branch.is_some() {
+            self.asm.push(Inst::Pop, span);
             self.asm.jump(default_branch, span);
         }
 
-        if needs.value() {
-            self.asm.push(Inst::Unit, span);
-            self.asm.jump(end_label, span);
+        if !needs.value() {
+            self.asm.push(Inst::Pop, span);
         }
+
+        self.asm.jump(end_label, span);
 
         for (label, branch) in branches {
             let span = branch.span();
