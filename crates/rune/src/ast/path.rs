@@ -57,6 +57,20 @@ impl Path {
 
         Ok(Self { first, rest })
     }
+
+    /// Iterate over all components in path.
+    pub fn components(&self) -> impl Iterator<Item = &'_ ast::Ident> + '_ {
+        let mut first = Some(&self.first);
+        let mut it = self.rest.iter();
+
+        std::iter::from_fn(move || {
+            if let Some(first) = first.take() {
+                return Some(first);
+            }
+
+            Some(&it.next()?.1)
+        })
+    }
 }
 
 impl Peek for Path {

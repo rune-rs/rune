@@ -2,66 +2,64 @@ use crate::ast;
 use crate::compiler::Needs;
 use crate::error::{CompileError, CompileResult};
 use crate::source::Source;
-use runestick::unit::{Label, Span};
+use runestick::unit::Label;
+use std::cell::RefCell;
+use std::rc::Rc;
 
-#[must_use]
-pub(super) struct LoopGuard(usize);
+pub(crate) struct LoopGuard {
+    loops: Rc<RefCell<Vec<Loop>>>,
+}
+
+impl Drop for LoopGuard {
+    fn drop(&mut self) {
+        let empty = self.loops.borrow_mut().pop().is_some();
+        debug_assert!(empty);
+    }
+}
 
 /// Loops we are inside.
 #[derive(Clone, Copy)]
-pub(super) struct Loop {
+pub(crate) struct Loop {
     /// The optional label of the loop.
-    pub(super) label: Option<ast::Label>,
+    pub(crate) label: Option<ast::Label>,
     /// The end label of the loop.
-    pub(super) break_label: Label,
+    pub(crate) break_label: Label,
     /// The number of variables observed at the start of the loop.
-    pub(super) total_var_count: usize,
+    pub(crate) total_var_count: usize,
     /// If the loop needs a value.
-    pub(super) needs: Needs,
+    pub(crate) needs: Needs,
     /// Locals to drop when breaking.
-    pub(super) drop: Option<usize>,
+    pub(crate) drop: Option<usize>,
 }
 
-pub(super) struct Loops {
-    loops: Vec<Loop>,
+pub(crate) struct Loops {
+    loops: Rc<RefCell<Vec<Loop>>>,
 }
 
 impl Loops {
     /// Construct a new collection of loops.
-    pub(super) fn new() -> Self {
-        Self { loops: vec![] }
+    pub(crate) fn new() -> Self {
+        Self {
+            loops: Rc::new(RefCell::new(vec![])),
+        }
     }
 
     /// Get the last loop context.
-    pub(super) fn last(&self) -> Option<Loop> {
-        self.loops.last().copied()
+    pub(crate) fn last(&self) -> Option<Loop> {
+        self.loops.borrow().last().copied()
     }
 
     /// Push loop information.
-    pub(super) fn push(&mut self, l: Loop) -> LoopGuard {
-        self.loops.push(l);
-        LoopGuard(self.loops.len())
-    }
+    pub(crate) fn push(&mut self, l: Loop) -> LoopGuard {
+        self.loops.borrow_mut().push(l);
 
-    pub(super) fn pop(&mut self, span: Span, guard: LoopGuard) -> CompileResult<()> {
-        let LoopGuard(loop_count) = guard;
-
-        if loop_count != self.loops.len() {
-            return Err(CompileError::internal(
-                "loop: loop count mismatch on return",
-                span,
-            ));
+        LoopGuard {
+            loops: self.loops.clone(),
         }
-
-        if self.loops.pop().is_none() {
-            return Err(CompileError::internal("loop: missing parent loop", span));
-        }
-
-        Ok(())
     }
 
     /// Find the loop with the matching label.
-    pub(super) fn walk_until_label(
+    pub(crate) fn walk_until_label(
         &self,
         source: Source<'_>,
         expected: ast::Label,
@@ -72,7 +70,7 @@ impl Loops {
         let expected = expected.resolve(source)?;
         let mut to_drop = Vec::new();
 
-        for l in self.loops.iter().rev() {
+        for l in self.loops.borrow().iter().rev() {
             to_drop.extend(l.drop);
 
             let label = match l.label {
@@ -91,13 +89,10 @@ impl Loops {
 
         Err(CompileError::MissingLabel { span })
     }
-}
 
-impl<'a> IntoIterator for &'a Loops {
-    type IntoIter = std::slice::Iter<'a, Loop>;
-    type Item = &'a Loop;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.loops.iter()
+    /// Construct an iterator over all available scopes.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Loop> {
+        let loops = self.loops.borrow().clone();
+        loops.into_iter()
     }
 }

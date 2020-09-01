@@ -54,7 +54,7 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
         let unit = Rc::new(RefCell::new(runestick::Unit::with_default_prelude()));
 
         let mut query = Query::new(source, unit.clone());
-        let mut indexer = Indexer::new(&mut query, &mut warnings);
+        let mut indexer = Indexer::new(source, &mut query, &mut warnings);
         indexer.index(&file)?;
 
         while let Some((item, build)) = query.queue.pop_front() {
@@ -179,7 +179,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     fn compile_decl_fn(&mut self, fn_decl: ast::DeclFn, instance_fn: bool) -> CompileResult<()> {
         let span = fn_decl.span();
         log::trace!("DeclFn => {:?}", self.source.source(span)?);
-        let item_guard = self.items.push_block();
+        let _guard = self.items.push_block();
 
         let mut last = false;
 
@@ -234,7 +234,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
         }
 
         self.scopes.pop_last(span)?;
-        self.items.pop(item_guard, span)?;
         Ok(())
     }
 
@@ -345,7 +344,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     fn compile_expr_block(&mut self, block: &ast::ExprBlock, needs: Needs) -> CompileResult<()> {
         let span = block.span();
         log::trace!("ExprBlock => {:?}", self.source.source(span)?);
-        let item_guard = self.items.push_block();
+        let _guard = self.items.push_block();
 
         self.contexts.push(span);
 
@@ -381,7 +380,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
             .pop()
             .ok_or_else(|| CompileError::internal("missing parent context", span))?;
 
-        self.items.pop(item_guard, span)?;
         Ok(())
     }
 
@@ -395,7 +393,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         log::trace!("Return => {:?}", self.source.source(span)?);
 
         // NB: drop any loop temporaries.
-        for l in &self.loops {
+        for l in self.loops.iter() {
             if let Some(offset) = l.drop {
                 self.asm.push(Inst::Drop { offset }, span);
             }
@@ -945,7 +943,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let end_label = self.asm.new_label("while_end");
         let break_label = self.asm.new_label("while_break");
 
-        let loop_count = self.loops.push(Loop {
+        let _guard = self.loops.push(Loop {
             label: expr_while.label.map(|(label, _)| label),
             break_label,
             total_var_count: self.scopes.last(span)?.total_var_count,
@@ -972,7 +970,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         // NB: breaks produce their own value.
         self.asm.label(break_label)?;
-        self.loops.pop(span, loop_count)?;
         Ok(())
     }
 
@@ -1001,7 +998,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             (iter_offset, loop_scope_expected)
         };
 
-        let loop_count = self.loops.push(Loop {
+        let _guard = self.loops.push(Loop {
             label: expr_for.label.map(|(label, _)| label),
             break_label,
             total_var_count,
@@ -1138,7 +1135,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         // NB: breaks produce their own value.
         self.asm.label(break_label)?;
-        self.loops.pop(span, loop_count)?;
         Ok(())
     }
 
@@ -1150,7 +1146,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let end_label = self.asm.new_label("loop_end");
         let break_label = self.asm.new_label("loop_break");
 
-        let loop_count = self.loops.push(Loop {
+        let _guard = self.loops.push(Loop {
             label: expr_loop.label.map(|(label, _)| label),
             break_label,
             total_var_count: self.scopes.last(span)?.total_var_count,
@@ -1169,7 +1165,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
         }
 
         self.asm.label(break_label)?;
-        self.loops.pop(span, loop_count)?;
         Ok(())
     }
 
@@ -1581,7 +1576,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             return Ok(());
         }
 
-        let guard = self.items.push_closure();
+        let _guard = self.items.push_closure();
         let item = self.items.item();
         let hash = Hash::type_hash(&item);
 
@@ -1598,8 +1593,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
         };
 
         log::trace!("captures: {} => {:?}", self.items.item(), captures);
-
-        self.items.pop(guard, span)?;
 
         for capture in &*captures {
             let var = self.scopes.get_var(&capture.ident, span)?;

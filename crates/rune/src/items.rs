@@ -1,8 +1,18 @@
-use crate::error::CompileError;
-use runestick::{Component, Item, Span};
+use runestick::{Component, Item};
+use std::cell::RefCell;
 use std::mem;
+use std::rc::Rc;
 
-pub(super) struct Guard(usize);
+pub(super) struct Guard {
+    path: Rc<RefCell<Vec<Node>>>,
+}
+
+impl Drop for Guard {
+    fn drop(&mut self) {
+        let exists = self.path.borrow_mut().pop().is_some();
+        debug_assert!(exists);
+    }
+}
 
 struct Node {
     blocks: usize,
@@ -22,32 +32,36 @@ impl From<Component> for Node {
 
 /// Manage item paths.
 pub(super) struct Items {
-    path: Vec<Node>,
+    path: Rc<RefCell<Vec<Node>>>,
 }
 
 impl Items {
     /// Construct a new items manager.
     pub fn new(base: Vec<Component>) -> Self {
+        let path = base
+            .into_iter()
+            .map(|component| Node {
+                blocks: 0,
+                closures: 0,
+                component,
+            })
+            .collect();
+
         Self {
-            path: base
-                .into_iter()
-                .map(|component| Node {
-                    blocks: 0,
-                    closures: 0,
-                    component,
-                })
-                .collect(),
+            path: Rc::new(RefCell::new(path)),
         }
     }
 
     /// Check if the current path is empty.
     pub fn is_empty(&self) -> bool {
-        self.path.is_empty()
+        self.path.borrow().is_empty()
     }
 
     /// Get the next block index.
     fn next_block(&mut self) -> usize {
-        if let Some(node) = self.path.last_mut() {
+        let mut path = self.path.borrow_mut();
+
+        if let Some(node) = path.last_mut() {
             let new = node.blocks + 1;
             mem::replace(&mut node.blocks, new)
         } else {
@@ -57,7 +71,9 @@ impl Items {
 
     /// Get the next closure index.
     fn next_closure(&mut self) -> usize {
-        if let Some(node) = self.path.last_mut() {
+        let mut path = self.path.borrow_mut();
+
+        if let Some(node) = path.last_mut() {
             let new = node.closures + 1;
             mem::replace(&mut node.closures, new)
         } else {
@@ -68,42 +84,41 @@ impl Items {
     /// Push a component and return a guard to it.
     pub fn push_block(&mut self) -> Guard {
         let index = self.next_block();
-        let guard = Guard(self.path.len());
-        self.path.push(Node::from(Component::Block(index)));
-        guard
+        self.path
+            .borrow_mut()
+            .push(Node::from(Component::Block(index)));
+
+        Guard {
+            path: self.path.clone(),
+        }
     }
 
     /// Push a closure component and return guard associated with it.
     pub fn push_closure(&mut self) -> Guard {
         let index = self.next_closure();
-        let guard = Guard(self.path.len());
-        self.path.push(Node::from(Component::Closure(index)));
-        guard
+        self.path
+            .borrow_mut()
+            .push(Node::from(Component::Closure(index)));
+
+        Guard {
+            path: self.path.clone(),
+        }
     }
 
     /// Push a component and return a guard to it.
     pub fn push_name(&mut self, name: &str) -> Guard {
-        let guard = Guard(self.path.len());
         self.path
+            .borrow_mut()
             .push(Node::from(Component::String(name.to_owned())));
-        guard
-    }
 
-    /// Pop the last component.
-    pub fn pop(&mut self, Guard(guard): Guard, span: Span) -> Result<(), CompileError> {
-        self.path
-            .pop()
-            .ok_or_else(|| CompileError::internal("no item on stack", span))?;
-
-        if self.path.len() != guard {
-            return Err(CompileError::internal("item stack mismatch", span));
+        Guard {
+            path: self.path.clone(),
         }
-
-        Ok(())
     }
 
     /// Get the item for the current state of the path.
     pub fn item(&self) -> Item {
-        Item::of(self.path.iter().map(|n| &n.component))
+        let path = self.path.borrow();
+        Item::of(path.iter().map(|n| &n.component))
     }
 }
