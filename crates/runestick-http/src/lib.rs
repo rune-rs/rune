@@ -186,6 +186,6 @@ pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     module.inst_fn("header", RequestBuilder::header)?;
     module.async_inst_fn("body_bytes", RequestBuilder::body_bytes)?;
 
-    module.inst_fn(runestick::FMT_DISPLAY, StatusCode::display)?;
+    module.inst_fn(runestick::STRING_DISPLAY, StatusCode::display)?;
     Ok(module)
 }

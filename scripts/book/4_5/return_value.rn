@@ -1,0 +1,12 @@
+fn foo(condition) {
+    if condition {
+        "Hello"
+    } else {
+        1
+    }
+}
+
+fn main() {
+    println(`{foo(true)}`);
+    println(`{foo(false)}`);
+}

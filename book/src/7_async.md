@@ -1,4 +1,4 @@
-# Asynchronous Programming
+# Asynchronous programming
 
 Rune has first class support for Rust-like asynchronous programming.
 In this section we'll be briefly covering what asynchronous programming is, and

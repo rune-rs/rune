@@ -2,9 +2,9 @@ use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
     AccessError, Bytes, Context, FnPtr, FromValue, Future, Hash, Inst, Integer, IntoArgs,
-    IntoTypeHash, Object, OptionVariant, Panic, ResultVariant, Shared, Stack, StackError, ToValue,
-    TypeCheck, TypedObject, TypedTuple, Unit, Value, ValueError, ValueTypeInfo, VariantObject,
-    VariantTuple,
+    IntoTypeHash, Object, OptionVariant, Panic, Protocol, ResultVariant, Shared, Stack, StackError,
+    ToValue, TypeCheck, TypedObject, TypedTuple, Unit, Value, ValueError, ValueTypeInfo,
+    VariantObject, VariantTuple,
 };
 use std::any;
 use std::fmt;
@@ -116,9 +116,11 @@ pub enum VmError {
         /// Operand.
         operand: ValueTypeInfo,
     },
-    /// Unsupported argument to string-concat
-    #[error("unsupported string-concat argument `{actual}`")]
-    UnsupportedStringConcatArgument {
+    /// Protocol not implemented on type.
+    #[error("`{actual}` does not implement the `{protocol}` protocol")]
+    MissingProtocol {
+        /// The missing protocol.
+        protocol: Protocol,
         /// The encountered argument.
         actual: ValueTypeInfo,
     },
@@ -1695,10 +1697,11 @@ impl Vm {
 
                     if !self.call_instance_fn(
                         &actual,
-                        crate::FMT_DISPLAY,
+                        crate::STRING_DISPLAY,
                         (Value::String(b.clone()),),
                     )? {
-                        return Err(VmError::UnsupportedStringConcatArgument {
+                        return Err(VmError::MissingProtocol {
+                            protocol: crate::STRING_DISPLAY,
                             actual: actual.type_info()?,
                         });
                     }

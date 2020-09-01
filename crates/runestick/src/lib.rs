@@ -26,6 +26,7 @@ mod meta;
 pub(crate) mod module;
 pub mod packages;
 mod panic;
+mod protocol;
 mod reflection;
 mod serde;
 mod shared;
@@ -50,11 +51,7 @@ pub use crate::access::{
 };
 pub use crate::any::Any;
 pub use crate::bytes::Bytes;
-pub use crate::context::{Context, ContextError};
-pub use crate::context::{
-    ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, FMT_DISPLAY, INDEX_GET, INDEX_SET, INTO_ITER, MUL,
-    MUL_ASSIGN, NEXT, REM, SUB, SUB_ASSIGN,
-};
+pub use crate::context::{Context, ContextError, IntoInstFnHash};
 pub use crate::error::{Error, Result};
 pub use crate::fn_ptr::FnPtr;
 pub use crate::future::Future;
@@ -62,6 +59,10 @@ pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{Inst, OptionVariant, PanicReason, ResultVariant, TypeCheck};
 pub use crate::item::{Component, Item};
 pub use crate::panic::Panic;
+pub use crate::protocol::{
+    Protocol, ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_ITER, MUL, MUL_ASSIGN,
+    NEXT, REM, STRING_DISPLAY, SUB, SUB_ASSIGN,
+};
 pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
