@@ -16,8 +16,8 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_packages()?;
-//! context.install(runestick_http::module()?)?;
-//! context.install(runestick_json::module()?)?;
+//! context.install(&runestick_http::module()?)?;
+//! context.install(&runestick_json::module()?)?;
 //! # Ok(())
 //! # }
 //! ```

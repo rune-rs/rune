@@ -14,7 +14,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_packages()?;
-//! context.install(runestick_time::module()?)?;
+//! context.install(&runestick_time::module()?)?;
 //! # Ok(())
 //! # }
 //! ```

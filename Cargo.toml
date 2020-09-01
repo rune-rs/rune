@@ -8,9 +8,3 @@ members = [
     "crates/rune-cli",
     "crates/rune-testing",
 ]
-
-default-members = [
-    "crates/runestick",
-    "crates/rune",
-    "crates/rune-cli",
-]
