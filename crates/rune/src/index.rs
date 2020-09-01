@@ -1,18 +1,30 @@
 use crate::ast;
-use crate::compiler::index_scopes::IndexScopes;
-use crate::compiler::query::{Build, Function, Indexed, InstanceFunction, Query};
-use crate::compiler::warning::Warnings;
-use crate::compiler::Items;
 use crate::error::CompileError;
+use crate::index_scopes::IndexScopes;
+use crate::items::Items;
+use crate::query::{Build, Function, Indexed, InstanceFunction, Query};
 use crate::traits::Resolve as _;
+use crate::warning::Warnings;
 use runestick::{Hash, Meta, ValueType};
 use std::sync::Arc;
 
 pub(super) struct Indexer<'a, 'source> {
-    pub(super) items: Items,
-    pub(super) scopes: IndexScopes,
     pub(super) query: &'a mut Query<'source>,
     pub(super) warnings: &'a mut Warnings,
+    pub(super) items: Items,
+    pub(super) scopes: IndexScopes,
+}
+
+impl<'a, 'source> Indexer<'a, 'source> {
+    /// Construct a new indexer.
+    pub(crate) fn new(query: &'a mut Query<'source>, warnings: &'a mut Warnings) -> Self {
+        Self {
+            query,
+            warnings,
+            items: Items::new(vec![]),
+            scopes: IndexScopes::new(),
+        }
+    }
 }
 
 pub(super) trait Index<T> {

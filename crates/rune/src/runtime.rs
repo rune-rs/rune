@@ -1,5 +1,6 @@
-use crate::compiler::{Options, Warning, Warnings};
 use crate::error::{CompileError, ConfigurationError, ParseError};
+use crate::options::Options;
+use crate::warning::{Warning, Warnings};
 use runestick::unit::{LinkerError, LinkerErrors, Span};
 use slab::Slab;
 use std::error::Error as _;

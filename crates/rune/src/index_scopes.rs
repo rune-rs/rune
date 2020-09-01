@@ -1,3 +1,5 @@
+//! Simplified scope implementation used for indexing.
+
 use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use runestick::{MetaClosureCapture, Span};

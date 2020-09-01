@@ -50,7 +50,7 @@
 //! ```text
 //! cargo run -- scripts/hello_world.rn --dump-unit --trace --dump-vm
 //! ```
-//! 
+//!
 //! See `--help` for more information.
 //!
 //! [rust-ffi]: https://github.com/rune-rs/rune/blob/master/crates/runestick-http/src/lib.rs
@@ -63,23 +63,32 @@
 pub mod ast;
 mod compiler;
 mod error;
+mod index;
+mod index_scopes;
+mod items;
 mod lexer;
+mod loops;
+mod options;
 mod parser;
+mod query;
 #[cfg(feature = "runtime")]
 mod runtime;
+mod scopes;
 mod source;
 mod token;
 mod traits;
+mod warning;
 
-pub use crate::compiler::{Options, Warning, Warnings};
 pub use crate::error::{CompileError, Error, ParseError, Result};
 pub use crate::lexer::Lexer;
+pub use crate::options::Options;
 pub use crate::parser::Parser;
 #[cfg(feature = "runtime")]
 pub use crate::runtime::{termcolor, Runtime};
 pub use crate::source::Source;
 pub use crate::token::{Kind, Token};
 pub use crate::traits::{Parse, Resolve};
+pub use crate::warning::{Warning, Warnings};
 pub use runestick::unit::Span;
 use runestick::Context;
 

@@ -1,4 +1,4 @@
-use runestick::unit::Span;
+use runestick::Span;
 
 /// Compilation warning.
 #[derive(Debug, Clone, Copy)]

@@ -1,3 +1,5 @@
+//! Lazy query system, used to compile and build items on demand.
+
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;

@@ -9,31 +9,20 @@ use runestick::{Component, Context, Hash, Inst, Item, Meta, MetaClosureCapture, 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-mod index;
-mod index_scopes;
-mod items;
-mod loops;
-mod options;
-mod query;
-mod scopes;
-mod warning;
-
-use self::index_scopes::IndexScopes;
-pub(self) use self::items::Items;
-use self::loops::{Loop, Loops};
-pub use self::options::Options;
-use self::query::{Build, Query};
-use self::scopes::{Scope, ScopeGuard, Scopes, Var};
-pub use self::warning::{Warning, Warnings};
-use index::{Index as _, Indexer};
-
-type Result<T, E = CompileError> = std::result::Result<T, E>;
+use crate::error::CompileResult;
+use crate::index::{Index, Indexer};
+use crate::items::Items;
+use crate::loops::{Loop, Loops};
+use crate::options::Options;
+use crate::query::{Build, Query};
+use crate::scopes::{Scope, ScopeGuard, Scopes, Var};
+use crate::warning::Warnings;
 
 /// A needs hint for an expression.
 /// This is used to contextually determine what an expression is expected to
 /// produce.
 #[derive(Debug, Clone, Copy)]
-enum Needs {
+pub(crate) enum Needs {
     Type,
     Value,
     None,
@@ -41,14 +30,14 @@ enum Needs {
 
 impl Needs {
     /// Test if any sort of value is needed.
-    fn value(self) -> bool {
+    pub(crate) fn value(self) -> bool {
         matches!(self, Self::Type | Self::Value)
     }
 }
 
 impl<'a> crate::ParseAll<'a, ast::DeclFile> {
     /// Compile the parse with default options.
-    pub fn compile(self, context: &Context) -> Result<(runestick::Unit, Warnings)> {
+    pub fn compile(self, context: &Context) -> CompileResult<(runestick::Unit, Warnings)> {
         self.compile_with_options(context, &Default::default())
     }
 
@@ -57,20 +46,15 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
         self,
         context: &Context,
         options: &Options,
-    ) -> Result<(runestick::Unit, Warnings)> {
+    ) -> CompileResult<(runestick::Unit, Warnings)> {
         let ParseAll { source, item: file } = self;
 
         let mut warnings = Warnings::new();
 
         let unit = Rc::new(RefCell::new(runestick::Unit::with_default_prelude()));
 
-        let mut query = query::Query::new(source, unit.clone());
-        let mut indexer = Indexer {
-            items: Items::new(vec![]),
-            scopes: IndexScopes::new(),
-            query: &mut query,
-            warnings: &mut warnings,
-        };
+        let mut query = Query::new(source, unit.clone());
+        let mut indexer = Indexer::new(&mut query, &mut warnings);
         indexer.index(&file)?;
 
         while let Some((item, build)) = query.queue.pop_front() {
@@ -192,7 +176,7 @@ struct Compiler<'a, 'source> {
 }
 
 impl<'a, 'source> Compiler<'a, 'source> {
-    fn compile_decl_fn(&mut self, fn_decl: ast::DeclFn, instance_fn: bool) -> Result<()> {
+    fn compile_decl_fn(&mut self, fn_decl: ast::DeclFn, instance_fn: bool) -> CompileResult<()> {
         let span = fn_decl.span();
         log::trace!("DeclFn => {:?}", self.source.source(span)?);
         let item_guard = self.items.push_block();
@@ -258,7 +242,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         expr_closure: ast::ExprClosure,
         captures: &[MetaClosureCapture],
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let span = expr_closure.span();
         log::trace!("ExprClosure => {:?}", self.source.source(span)?);
 
@@ -300,7 +284,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&mut self, name: &Item, span: Span) -> Result<Option<Meta>, CompileError> {
+    pub fn lookup_meta(&mut self, name: &Item, span: Span) -> CompileResult<Option<Meta>> {
         log::trace!("lookup meta: {}", name);
 
         if let Some(meta) = self.context.lookup_meta(name) {
@@ -358,7 +342,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     ///
     /// Blocks are special in that they do not produce a value unless there is
     /// an item in them which does.
-    fn compile_expr_block(&mut self, block: &ast::ExprBlock, needs: Needs) -> Result<()> {
+    fn compile_expr_block(&mut self, block: &ast::ExprBlock, needs: Needs) -> CompileResult<()> {
         let span = block.span();
         log::trace!("ExprBlock => {:?}", self.source.source(span)?);
         let item_guard = self.items.push_block();
@@ -402,7 +386,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Encode a return.
-    fn compile_expr_return(&mut self, return_expr: &ast::ExprReturn, _needs: Needs) -> Result<()> {
+    fn compile_expr_return(
+        &mut self,
+        return_expr: &ast::ExprReturn,
+        _needs: Needs,
+    ) -> CompileResult<()> {
         let span = return_expr.span();
         log::trace!("Return => {:?}", self.source.source(span)?);
 
@@ -430,7 +418,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Encode an expression.
-    fn compile_expr(&mut self, expr: &ast::Expr, needs: Needs) -> Result<()> {
+    fn compile_expr(&mut self, expr: &ast::Expr, needs: Needs) -> CompileResult<()> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span)?);
 
@@ -549,7 +537,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_lit_vec(&mut self, lit_vec: &ast::LitVec, needs: Needs) -> Result<()> {
+    fn compile_lit_vec(&mut self, lit_vec: &ast::LitVec, needs: Needs) -> CompileResult<()> {
         let span = lit_vec.span();
         log::trace!("LitVec => {:?}", self.source.source(span)?);
 
@@ -580,7 +568,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_lit_object(&mut self, lit_object: &ast::LitObject, needs: Needs) -> Result<()> {
+    fn compile_lit_object(
+        &mut self,
+        lit_object: &ast::LitObject,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = lit_object.span();
         log::trace!("LitObject => {:?}", self.source.source(span)?);
 
@@ -702,7 +694,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             check_keys: Vec<(String, Span)>,
             span: Span,
             item: &Item,
-        ) -> Result<(), CompileError> {
+        ) -> CompileResult<()> {
             let mut fields = match fields {
                 Some(fields) => fields.clone(),
                 None => {
@@ -736,7 +728,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Encode a char literal, like `'a'`.
-    fn compile_lit_char(&mut self, lit_char: &ast::LitChar, needs: Needs) -> Result<()> {
+    fn compile_lit_char(&mut self, lit_char: &ast::LitChar, needs: Needs) -> CompileResult<()> {
         let span = lit_char.span();
         log::trace!("LitChar => {:?}", self.source.source(span)?);
 
@@ -752,7 +744,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Encode a string literal, like `"foo bar"`.
-    fn compile_lit_str(&mut self, lit_str: &ast::LitStr, needs: Needs) -> Result<()> {
+    fn compile_lit_str(&mut self, lit_str: &ast::LitStr, needs: Needs) -> CompileResult<()> {
         let span = lit_str.span();
         log::trace!("LitStr => {:?}", self.source.source(span)?);
 
@@ -769,7 +761,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Encode a byte literal, like `b'a'`.
-    fn compile_lit_byte(&mut self, lit_byte: &ast::LitByte, needs: Needs) -> Result<()> {
+    fn compile_lit_byte(&mut self, lit_byte: &ast::LitByte, needs: Needs) -> CompileResult<()> {
         let span = lit_byte.span();
         log::trace!("LitByte => {:?}", self.source.source(span)?);
 
@@ -785,7 +777,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Encode a byte string literal, like `b"foo bar"`.
-    fn compile_lit_byte_str(&mut self, lit_byte_str: &ast::LitByteStr, needs: Needs) -> Result<()> {
+    fn compile_lit_byte_str(
+        &mut self,
+        lit_byte_str: &ast::LitByteStr,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = lit_byte_str.span();
         log::trace!("LitByteStr => {:?}", self.source.source(span)?);
 
@@ -806,7 +802,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         lit_template: &ast::LitTemplate,
         needs: Needs,
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let span = lit_template.span();
         log::trace!("LitTemplate => {:?}", self.source.source(span)?);
 
@@ -852,7 +848,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_lit_unit(&mut self, lit_unit: &ast::LitUnit, needs: Needs) -> Result<()> {
+    fn compile_lit_unit(&mut self, lit_unit: &ast::LitUnit, needs: Needs) -> CompileResult<()> {
         let span = lit_unit.span();
         log::trace!("LitUnit => {:?}", self.source.source(span)?);
 
@@ -865,7 +861,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_lit_tuple(&mut self, lit_tuple: &ast::LitTuple, needs: Needs) -> Result<()> {
+    fn compile_lit_tuple(&mut self, lit_tuple: &ast::LitTuple, needs: Needs) -> CompileResult<()> {
         let span = lit_tuple.span();
         log::trace!("LitTuple => {:?}", self.source.source(span)?);
 
@@ -889,7 +885,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_lit_bool(&mut self, lit_bool: &ast::LitBool, needs: Needs) -> Result<()> {
+    fn compile_lit_bool(&mut self, lit_bool: &ast::LitBool, needs: Needs) -> CompileResult<()> {
         let span = lit_bool.span();
         log::trace!("LitBool => {:?}", self.source.source(span)?);
 
@@ -908,7 +904,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Compile a literal number.
-    fn compile_lit_number(&mut self, lit_number: &ast::LitNumber, needs: Needs) -> Result<()> {
+    fn compile_lit_number(
+        &mut self,
+        lit_number: &ast::LitNumber,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = lit_number.span();
         log::trace!("LitNumber => {:?}", self.source.source(span)?);
 
@@ -932,7 +932,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_expr_while(&mut self, expr_while: &ast::ExprWhile, needs: Needs) -> Result<()> {
+    fn compile_expr_while(
+        &mut self,
+        expr_while: &ast::ExprWhile,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = expr_while.span();
         log::trace!("ExprWhile => {:?}", self.source.source(span)?);
 
@@ -972,7 +976,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_expr_for(&mut self, expr_for: &ast::ExprFor, needs: Needs) -> Result<()> {
+    fn compile_expr_for(&mut self, expr_for: &ast::ExprFor, needs: Needs) -> CompileResult<()> {
         let span = expr_for.span();
         log::trace!("ExprFor => {:?}", self.source.source(span)?);
 
@@ -1138,7 +1142,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_expr_loop(&mut self, expr_loop: &ast::ExprLoop, needs: Needs) -> Result<()> {
+    fn compile_expr_loop(&mut self, expr_loop: &ast::ExprLoop, needs: Needs) -> CompileResult<()> {
         let span = expr_loop.span();
         log::trace!("ExprLoop => {:?}", self.source.source(span)?);
 
@@ -1169,7 +1173,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_expr_let(&mut self, expr_let: &ast::ExprLet, needs: Needs) -> Result<()> {
+    fn compile_expr_let(&mut self, expr_let: &ast::ExprLet, needs: Needs) -> CompileResult<()> {
         let span = expr_let.span();
         log::trace!("ExprLet => {:?}", self.source.source(span)?);
 
@@ -1212,7 +1216,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         target: &str,
         field: &ast::LitNumber,
-    ) -> Result<bool> {
+    ) -> CompileResult<bool> {
         let span = field.span();
 
         let index = match field.resolve(self.source)? {
@@ -1233,7 +1237,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         rhs: &ast::Expr,
         bin_op: ast::BinOp,
         needs: Needs,
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let span = lhs.span().join(rhs.span());
 
         // NB: this loop is actually useful in breaking early.
@@ -1343,7 +1347,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         expr_field_access: &ast::ExprFieldAccess,
         needs: Needs,
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         use std::convert::TryFrom as _;
 
         let span = expr_field_access.span();
@@ -1411,7 +1415,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             path: &ast::Path,
             n: &ast::LitNumber,
             needs: Needs,
-        ) -> Result<bool, CompileError> {
+        ) -> CompileResult<bool> {
             let ident = match path.try_as_ident() {
                 Some(ident) => ident,
                 None => return Ok(false),
@@ -1463,7 +1467,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         expr_index_get: &ast::ExprIndexGet,
         needs: Needs,
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let span = expr_index_get.span();
         log::trace!("ExprIndexGet => {:?}", self.source.source(span)?);
 
@@ -1481,7 +1485,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Encode a `break` expression.
-    fn compile_expr_break(&mut self, expr_break: &ast::ExprBreak, needs: Needs) -> Result<()> {
+    fn compile_expr_break(
+        &mut self,
+        expr_break: &ast::ExprBreak,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = expr_break.span();
 
         if needs.value() {
@@ -1543,7 +1551,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         expr_index_set: &ast::ExprIndexSet,
         needs: Needs,
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let span = expr_index_set.span();
         log::trace!("ExprIndexSet => {:?}", self.source.source(span)?);
 
@@ -1564,7 +1572,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         expr_closure: &ast::ExprClosure,
         needs: Needs,
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let span = expr_closure.span();
         log::trace!("ExprClosure => {:?}", self.source.source(span)?);
 
@@ -1610,7 +1618,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Compile an item.
-    fn compile_meta(&mut self, meta: &Meta, span: Span, needs: Needs) -> Result<()> {
+    fn compile_meta(&mut self, meta: &Meta, span: Span, needs: Needs) -> CompileResult<()> {
         log::trace!("Meta => {:?} {:?}", meta, needs);
 
         while let Needs::Value = needs {
@@ -1667,7 +1675,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Compile the `self` keyword.
-    fn compile_self(&mut self, s: &ast::Self_, needs: Needs) -> Result<()> {
+    fn compile_self(&mut self, s: &ast::Self_, needs: Needs) -> CompileResult<()> {
         let span = s.span();
         log::trace!("Self_ => {:?}", self.source.source(span)?);
 
@@ -1684,7 +1692,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Encode the given type.
-    fn compile_path(&mut self, path: &ast::Path, needs: Needs) -> Result<()> {
+    fn compile_path(&mut self, path: &ast::Path, needs: Needs) -> CompileResult<()> {
         let span = path.span();
         log::trace!("Path => {:?}", self.source.source(span)?);
 
@@ -1744,7 +1752,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Convert a path to an item.
-    fn convert_path_to_item(&self, path: &ast::Path) -> Result<Item> {
+    fn convert_path_to_item(&self, path: &ast::Path) -> CompileResult<Item> {
         let local = Component::from(path.first.resolve(self.source)?);
 
         let imported = match self.lookup_import_by_name(&local) {
@@ -1762,7 +1770,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(Item::of(it))
     }
 
-    fn compile_expr_call(&mut self, expr_call: &ast::ExprCall, needs: Needs) -> Result<()> {
+    fn compile_expr_call(&mut self, expr_call: &ast::ExprCall, needs: Needs) -> CompileResult<()> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span)?);
 
@@ -1872,7 +1880,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_expr_unary(&mut self, expr_unary: &ast::ExprUnary, needs: Needs) -> Result<()> {
+    fn compile_expr_unary(
+        &mut self,
+        expr_unary: &ast::ExprUnary,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = expr_unary.span();
         log::trace!("ExprUnary => {:?}", self.source.source(span)?);
 
@@ -1903,12 +1915,16 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Encode a ref `&<expr>` value.
-    fn compile_ref(&mut self, expr: &ast::Expr, _: Span, _: Needs) -> Result<()> {
+    fn compile_ref(&mut self, expr: &ast::Expr, _: Span, _: Needs) -> CompileResult<()> {
         // TODO: one day this might be supported in one way or another.
         Err(CompileError::UnsupportedRef { span: expr.span() })
     }
 
-    fn compile_expr_binary(&mut self, expr_binary: &ast::ExprBinary, needs: Needs) -> Result<()> {
+    fn compile_expr_binary(
+        &mut self,
+        expr_binary: &ast::ExprBinary,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = expr_binary.span();
         log::trace!("ExprBinary => {:?}", self.source.source(span)?);
 
@@ -2009,7 +2025,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         &mut self,
         condition: &ast::Condition,
         then_label: Label,
-    ) -> Result<Scope> {
+    ) -> CompileResult<Scope> {
         let span = condition.span();
         log::trace!("Condition => {:?}", self.source.source(span)?);
 
@@ -2044,7 +2060,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         }
     }
 
-    fn compile_expr_if(&mut self, expr_if: &ast::ExprIf, needs: Needs) -> Result<()> {
+    fn compile_expr_if(&mut self, expr_if: &ast::ExprIf, needs: Needs) -> CompileResult<()> {
         let span = expr_if.span();
         log::trace!("ExprIf => {:?}", self.source.source(span)?);
 
@@ -2103,7 +2119,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
         Ok(())
     }
 
-    fn compile_expr_match(&mut self, expr_match: &ast::ExprMatch, needs: Needs) -> Result<()> {
+    fn compile_expr_match(
+        &mut self,
+        expr_match: &ast::ExprMatch,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = expr_match.span();
         log::trace!("ExprMatch => {:?}", self.source.source(span)?);
 
@@ -2189,7 +2209,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Compile an await expression.
-    fn compile_expr_await(&mut self, expr_await: &ast::ExprAwait, needs: Needs) -> Result<()> {
+    fn compile_expr_await(
+        &mut self,
+        expr_await: &ast::ExprAwait,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = expr_await.span();
         log::trace!("ExprAwait => {:?}", self.source.source(span)?);
 
@@ -2204,7 +2228,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Compile a try expression.
-    fn compile_expr_try(&mut self, expr_try: &ast::ExprTry, needs: Needs) -> Result<()> {
+    fn compile_expr_try(&mut self, expr_try: &ast::ExprTry, needs: Needs) -> CompileResult<()> {
         let span = expr_try.span();
         log::trace!("ExprTry => {:?}", self.source.source(span)?);
 
@@ -2232,7 +2256,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Compile a select expression.
-    fn compile_expr_select(&mut self, expr_select: &ast::ExprSelect, needs: Needs) -> Result<()> {
+    fn compile_expr_select(
+        &mut self,
+        expr_select: &ast::ExprSelect,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let span = expr_select.span();
         log::trace!("ExprSelect => {:?}", self.source.source(span)?);
         let len = expr_select.branches.len();
@@ -2327,7 +2355,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         pat_vec: &ast::PatVec,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let span = pat_vec.span();
         log::trace!("PatVec => {:?}", self.source.source(span)?);
 
@@ -2372,7 +2400,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         pat_tuple: &ast::PatTuple,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span)?);
 
@@ -2457,7 +2485,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         pat_object: &ast::PatObject,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let span = pat_object.span();
         log::trace!("PatObject => {:?}", self.source.source(span)?);
 
@@ -2598,7 +2626,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         meta: &Meta,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
-    ) -> Result<bool> {
+    ) -> CompileResult<bool> {
         let (tuple, type_check) = match meta {
             Meta::MetaTuple {
                 tuple, value_type, ..
@@ -2640,7 +2668,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         pat: &ast::Pat,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
-    ) -> Result<bool> {
+    ) -> CompileResult<bool> {
         let span = pat.span();
         log::trace!("Pat => {:?}", self.source.source(span)?);
 
@@ -2726,7 +2754,12 @@ impl<'a, 'source> Compiler<'a, 'source> {
     }
 
     /// Clean the last scope.
-    fn clean_last_scope(&mut self, span: Span, expected: ScopeGuard, needs: Needs) -> Result<()> {
+    fn clean_last_scope(
+        &mut self,
+        span: Span,
+        expected: ScopeGuard,
+        needs: Needs,
+    ) -> CompileResult<()> {
         let scope = self.scopes.pop(expected, span)?;
 
         if needs.value() {

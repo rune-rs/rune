@@ -1,6 +1,6 @@
 use crate::ast;
-use crate::compiler::{Needs, Result};
-use crate::error::CompileError;
+use crate::compiler::Needs;
+use crate::error::{CompileError, CompileResult};
 use crate::source::Source;
 use runestick::unit::{Label, Span};
 
@@ -43,7 +43,7 @@ impl Loops {
         LoopGuard(self.loops.len())
     }
 
-    pub(super) fn pop(&mut self, span: Span, guard: LoopGuard) -> Result<()> {
+    pub(super) fn pop(&mut self, span: Span, guard: LoopGuard) -> CompileResult<()> {
         let LoopGuard(loop_count) = guard;
 
         if loop_count != self.loops.len() {
@@ -65,7 +65,7 @@ impl Loops {
         &self,
         source: Source<'_>,
         expected: ast::Label,
-    ) -> Result<(Loop, Vec<usize>)> {
+    ) -> CompileResult<(Loop, Vec<usize>)> {
         use crate::traits::Resolve as _;
 
         let span = expected.span();

@@ -5,6 +5,9 @@ use std::fmt;
 use std::io;
 use thiserror::Error;
 
+/// A compile result.
+pub type CompileResult<T, E = CompileError> = std::result::Result<T, E>;
+
 /// Result alias used by this frontend.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

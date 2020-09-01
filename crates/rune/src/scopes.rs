@@ -1,26 +1,24 @@
 use crate::collections::HashMap;
-use crate::compiler::{CompileError, Result};
+use crate::error::{CompileError, CompileResult};
 use runestick::unit::Assembly;
 use runestick::{Inst, Span};
 
 /// A locally declared variable.
 #[derive(Debug, Clone)]
-pub(super) struct Local {
+pub(crate) struct Local {
     /// Slot offset from the current stack frame.
-    pub(super) offset: usize,
-    /// Name of the variable.
-    name: String,
+    pub(crate) offset: usize,
     /// Token assocaited with the variable.
     span: Span,
 }
 
 /// A variable captures from the environment.
 #[derive(Debug, Clone)]
-pub(super) struct Environ {
+pub(crate) struct Environ {
     /// Slot offset from the current stack frame.
-    pub(super) offset: usize,
+    pub(crate) offset: usize,
     /// The index in the environment the variable comes from.
-    pub(super) index: usize,
+    pub(crate) index: usize,
     /// The span the environment variable was declared in.
     span: Span,
 }
@@ -40,7 +38,7 @@ impl Environ {
 
 /// A declared variable.
 #[derive(Debug, Clone)]
-pub(super) enum Var {
+pub(crate) enum Var {
     /// A locally declared variable.
     Local(Local),
     /// A variable captured in the environment.
@@ -76,7 +74,7 @@ impl Var {
 
 /// A locally declared variable.
 #[derive(Debug, Clone)]
-pub(super) struct AnonVar {
+pub(crate) struct AnonVar {
     /// Slot offset from the current stack frame.
     offset: usize,
     /// Span associated with the anonymous variable.
@@ -84,20 +82,20 @@ pub(super) struct AnonVar {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct Scope {
+pub(crate) struct Scope {
     /// Named variables.
     locals: HashMap<String, Var>,
     /// Anonymous variables.
     anon: Vec<AnonVar>,
     /// The number of variables.
-    pub(super) total_var_count: usize,
+    pub(crate) total_var_count: usize,
     /// The number of variables local to this scope.
-    pub(super) local_var_count: usize,
+    pub(crate) local_var_count: usize,
 }
 
 impl Scope {
     /// Construct a new locals handlers.
-    pub(super) fn new() -> Scope {
+    pub(crate) fn new() -> Scope {
         Self {
             locals: HashMap::new(),
             anon: Vec::new(),
@@ -107,7 +105,7 @@ impl Scope {
     }
 
     /// Construct a new child scope.
-    pub(super) fn child(&self) -> Self {
+    pub(crate) fn child(&self) -> Self {
         Self {
             locals: HashMap::new(),
             anon: Vec::new(),
@@ -117,13 +115,13 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub(super) fn new_env_var(
+    pub(crate) fn new_env_var(
         &mut self,
         name: &str,
         offset: usize,
         index: usize,
         span: Span,
-    ) -> Result<()> {
+    ) -> CompileResult<()> {
         let local = Var::Environ(Environ {
             offset,
             index,
@@ -142,14 +140,10 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub(super) fn new_var(&mut self, name: &str, span: Span) -> Result<usize> {
+    pub(crate) fn new_var(&mut self, name: &str, span: Span) -> CompileResult<usize> {
         let offset = self.total_var_count;
 
-        let local = Var::Local(Local {
-            offset,
-            name: name.to_owned(),
-            span,
-        });
+        let local = Var::Local(Local { offset, span });
 
         self.total_var_count += 1;
         self.local_var_count += 1;
@@ -166,19 +160,13 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub(super) fn decl_var(&mut self, name: &str, span: Span) -> usize {
+    pub(crate) fn decl_var(&mut self, name: &str, span: Span) -> usize {
         let offset = self.total_var_count;
 
         log::trace!("decl {} => {}", name, offset);
 
-        self.locals.insert(
-            name.to_owned(),
-            Var::Local(Local {
-                offset,
-                name: name.to_owned(),
-                span,
-            }),
-        );
+        self.locals
+            .insert(name.to_owned(), Var::Local(Local { offset, span }));
 
         self.total_var_count += 1;
         self.local_var_count += 1;
@@ -188,7 +176,7 @@ impl Scope {
     /// Declare an anonymous variable.
     ///
     /// This is used if cleanup is required in the middle of an expression.
-    pub(super) fn decl_anon(&mut self, span: Span) -> usize {
+    pub(crate) fn decl_anon(&mut self, span: Span) -> usize {
         let offset = self.total_var_count;
 
         self.anon.push(AnonVar { offset, span });
@@ -199,7 +187,7 @@ impl Scope {
     }
 
     /// Undeclare the last anonymous variable.
-    pub(super) fn undecl_anon(&mut self, n: usize, span: Span) -> Result<(), CompileError> {
+    pub(crate) fn undecl_anon(&mut self, n: usize, span: Span) -> CompileResult<(), CompileError> {
         for _ in 0..n {
             self.anon.pop();
         }
@@ -218,7 +206,7 @@ impl Scope {
     }
 
     /// Access the variable with the given name.
-    pub(super) fn get(&self, name: &str) -> Option<&Var> {
+    pub(crate) fn get(&self, name: &str) -> Option<&Var> {
         if let Some(var) = self.locals.get(name) {
             return Some(var);
         }
@@ -232,15 +220,15 @@ impl Scope {
 /// This should be provided to a subsequent [pop][Scopes::pop] to allow it to be
 /// sanity checked.
 #[must_use]
-pub(super) struct ScopeGuard(usize);
+pub(crate) struct ScopeGuard(usize);
 
-pub(super) struct Scopes {
+pub(crate) struct Scopes {
     scopes: Vec<Scope>,
 }
 
 impl Scopes {
     /// Construct a new collection of scopes.
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             scopes: vec![Scope::new()],
         }
@@ -248,7 +236,7 @@ impl Scopes {
 
     /// Try to get the local with the given name. Returns `None` if it's
     /// missing.
-    pub(super) fn try_get_var(&self, name: &str) -> Result<Option<&Var>> {
+    pub(crate) fn try_get_var(&self, name: &str) -> CompileResult<Option<&Var>> {
         log::trace!("get var: {}", name);
 
         for scope in self.scopes.iter().rev() {
@@ -262,7 +250,7 @@ impl Scopes {
     }
 
     /// Get the local with the given name.
-    pub(super) fn get_var(&self, name: &str, span: Span) -> Result<&Var> {
+    pub(crate) fn get_var(&self, name: &str, span: Span) -> CompileResult<&Var> {
         match self.try_get_var(name)? {
             Some(var) => Ok(var),
             None => Err(CompileError::MissingLocal {
@@ -273,7 +261,7 @@ impl Scopes {
     }
 
     /// Get the local with the given name.
-    pub(super) fn last(&self, span: Span) -> Result<&Scope> {
+    pub(crate) fn last(&self, span: Span) -> CompileResult<&Scope> {
         Ok(self
             .scopes
             .last()
@@ -281,7 +269,7 @@ impl Scopes {
     }
 
     /// Get the last locals scope.
-    pub(super) fn last_mut(&mut self, span: Span) -> Result<&mut Scope> {
+    pub(crate) fn last_mut(&mut self, span: Span) -> CompileResult<&mut Scope> {
         Ok(self
             .scopes
             .last_mut()
@@ -289,13 +277,13 @@ impl Scopes {
     }
 
     /// Push a scope and return an index.
-    pub(super) fn push(&mut self, scope: Scope) -> ScopeGuard {
+    pub(crate) fn push(&mut self, scope: Scope) -> ScopeGuard {
         self.scopes.push(scope);
         ScopeGuard(self.scopes.len())
     }
 
     /// Pop the last scope and compare with the expected length.
-    pub(super) fn pop(&mut self, expected: ScopeGuard, span: Span) -> Result<Scope> {
+    pub(crate) fn pop(&mut self, expected: ScopeGuard, span: Span) -> CompileResult<Scope> {
         let ScopeGuard(expected) = expected;
 
         if self.scopes.len() != expected {
@@ -309,12 +297,12 @@ impl Scopes {
     }
 
     /// Pop the last of the scope.
-    pub(super) fn pop_last(&mut self, span: Span) -> Result<Scope> {
+    pub(crate) fn pop_last(&mut self, span: Span) -> CompileResult<Scope> {
         self.pop(ScopeGuard(1), span)
     }
 
     /// Pop the last scope and compare with the expected length.
-    pub(super) fn pop_unchecked(&mut self, span: Span) -> Result<Scope> {
+    pub(crate) fn pop_unchecked(&mut self, span: Span) -> CompileResult<Scope> {
         let scope = self
             .scopes
             .pop()
@@ -324,12 +312,12 @@ impl Scopes {
     }
 
     /// Construct a new child scope.
-    pub(super) fn child(&mut self, span: Span) -> Result<Scope> {
+    pub(crate) fn child(&mut self, span: Span) -> CompileResult<Scope> {
         Ok(self.last(span)?.child())
     }
 
     /// Declare an anonymous variable.
-    pub(super) fn decl_anon(&mut self, span: Span) -> Result<usize> {
+    pub(crate) fn decl_anon(&mut self, span: Span) -> CompileResult<usize> {
         Ok(self.last_mut(span)?.decl_anon(span))
     }
 }
