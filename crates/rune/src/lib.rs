@@ -1,16 +1,18 @@
 //! <div align="center">
-//!     <a href="https://github.com/rune-rs/rune/actions">
-//!         <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/Build/badge.svg">
-//!     </a>
+//! <a href="https://github.com/rune-rs/rune/actions">
+//!     <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/Build/badge.svg">
+//! </a>
 //!
-//!     <a href="https://github.com/rune-rs/rune/actions">
-//!         <img alt="Book Status" src="https://github.com/rune-rs/rune/workflows/Book/badge.svg">
-//!     </a>
+//! <a href="https://github.com/rune-rs/rune/actions">
+//!     <img alt="Book Status" src="https://github.com/rune-rs/rune/workflows/Book/badge.svg">
+//! </a>
 //!
-//!     <a href="https://discord.gg/v5AeNkT">
-//!         <img alt="Chat on Discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square">
-//!     </a>
+//! <a href="https://discord.gg/v5AeNkT">
+//!     <img alt="Chat on Discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square">
+//! </a>
 //! </div>
+//!
+//! <br />
 //!
 //! An embeddable dynamic programming language for Rust.
 //!
@@ -22,31 +24,39 @@
 //! Create an issue about the optimization you want to work on and communicate that
 //! you are working on it.
 //!
-//! ## Features of runestick
+//! <br />
+//!
+//! ## Features of Rune
 //!
 //! * [Clean Rust FFI][rust-ffi].
 //! * Stack-based C FFI like with Lua (TBD).
 //! * Stack frames, allowing for isolation across function calls.
-//! * A rust-like reference language called *Rune*.
+//! * Pattern matching ([Book 📖][support-patterns]).
+//! * First-class asynchronous programming ([Book 📖][support-async]).
+//!
+//! <br />
 //!
 //! ## Rune Scripts
 //!
-//! runestick comes with a simple scripting language called *Rune*.
-//!
-//! You can run example scripts through rune-cli:
+//! You can run Rune programs with the bundled CLI:
 //!
 //! ```text
-//! cargo run -- ./scripts/hello_world.rn
+//! cargo run -- scripts/hello_world.rn
 //! ```
 //!
-//! If you want to see diagnostics of your unit, you can do:
+//! If you want to see detailed diagnostics of your program while it's running,
+//! you can use:
 //!
 //! ```text
-//! cargo run -- ./scripts/hello_world.rn --dump-unit --trace
+//! cargo run -- scripts/hello_world.rn --dump-unit --trace --dump-vm
 //! ```
+//! 
+//! See `--help` for more information.
 //!
 //! [rust-ffi]: https://github.com/rune-rs/rune/blob/master/crates/runestick-http/src/lib.rs
 //! [future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
+//! [support-patterns]: https://rune-rs.github.io/rune/3_4_pattern_matching.html
+//! [support-async]: https://rune-rs.github.io/rune/7_async.html
 
 #![deny(missing_docs)]
 
