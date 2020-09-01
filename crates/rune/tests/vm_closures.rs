@@ -4,7 +4,7 @@ use rune_testing::*;
 fn test_nested_closures() {
     assert_eq! {
         4,
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let var = 1;
@@ -28,7 +28,7 @@ fn test_nested_closures() {
 fn test_closure_in_loop_iter() {
     assert_eq! {
         10,
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let out = 1;
@@ -52,7 +52,7 @@ fn test_closure_in_loop_iter() {
 fn test_capture_match() {
     assert_eq! {
         3,
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let n = 1;
@@ -73,7 +73,7 @@ fn test_capture_match() {
 fn test_capture_fn_arg() {
     assert_eq! {
         3,
-        test! {
+        rune! {
             i64 => r#"
             fn foo(n) { |a| n + a }
             fn main() { foo(1)(2) }
@@ -83,7 +83,7 @@ fn test_capture_fn_arg() {
 
     assert_eq! {
         4,
-        test! {
+        rune! {
             i64 => r#"
             fn test(a, b) { b / a + 1 }
             fn main() { {let a = || test; a()}({let b = || 2; b()}, {let c = || 6; c()}) }

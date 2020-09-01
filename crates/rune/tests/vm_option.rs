@@ -3,7 +3,7 @@ use rune_testing::*;
 #[test]
 fn test_option() {
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() { match Err("err") { Err("err") => 1,  _ => 2 } }
             "#
@@ -12,7 +12,7 @@ fn test_option() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() { match Err("err") { Ok("ok") => 1,  _ => 2 } }
             "#
@@ -21,7 +21,7 @@ fn test_option() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() { match Ok("ok") { Ok("ok") => 1,  _ => 2 } }
             "#

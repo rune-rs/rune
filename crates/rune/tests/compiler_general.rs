@@ -2,7 +2,7 @@ use rune_testing::*;
 
 #[test]
 fn test_use_variant_as_type() {
-    test_compile_error! {
+    assert_compile_error! {
         r#"fn main() { Err(0) is Err }"#,
         UnsupportedType { span, meta: Meta::MetaVariantTuple { .. } } => {
             assert_eq!(span, Span::new(22, 25));
@@ -12,7 +12,7 @@ fn test_use_variant_as_type() {
 
 #[test]
 fn break_outside_of_loop() {
-    test_compile_error! {
+    assert_compile_error! {
         r#"fn main() { break; }"#,
         BreakOutsideOfLoop { span } => {
             assert_eq!(span, Span::new(12, 17));
@@ -22,7 +22,7 @@ fn break_outside_of_loop() {
 
 #[test]
 fn test_pointers() {
-    test_compile_error! {
+    assert_compile_error! {
         r#"fn main() { let n = 0; foo(&n); }"#,
         UnsupportedRef { span } => {
             assert_eq!(span, Span::new(28, 29));
@@ -32,9 +32,9 @@ fn test_pointers() {
 
 #[test]
 fn test_template_strings() {
-    test_parse!(r#"fn main() { `hello \}` }"#);
+    assert_parse!(r#"fn main() { `hello \}` }"#);
 
-    test_compile_error! {
+    assert_compile_error! {
         r#"fn main() { `hello }` }"#,
         ParseError { error: UnexpectedCloseBrace { span } } => {
             assert_eq!(span, Span::new(13, 20));
@@ -44,7 +44,7 @@ fn test_template_strings() {
 
 #[test]
 fn test_wrong_arguments() {
-    test_compile_error! {
+    assert_compile_error! {
         r#"fn main() { Some(1, 2) }"#,
         UnsupportedArgumentCount { span, expected, actual, .. } => {
             assert_eq!(span, Span::new(12, 22));
@@ -53,7 +53,7 @@ fn test_wrong_arguments() {
         }
     };
 
-    test_compile_error! {
+    assert_compile_error! {
         r#"fn main() { None(1) }"#,
         UnsupportedArgumentCount { span, expected, actual, .. } => {
             assert_eq!(span, Span::new(12, 19));
@@ -65,7 +65,7 @@ fn test_wrong_arguments() {
 
 #[test]
 fn test_bad_struct_declaration() {
-    test_compile_error! {
+    assert_compile_error! {
         r#"struct Foo { a, b } fn main() { Foo { a: 12 } }"#,
         LitObjectMissingField { span, field, .. } => {
             assert_eq!(span, Span::new(32, 45));
@@ -73,7 +73,7 @@ fn test_bad_struct_declaration() {
         }
     };
 
-    test_compile_error! {
+    assert_compile_error! {
         r#"struct Foo { a, b } fn main() { Foo { not_field: 12 } }"#,
         LitObjectNotField { span, field, .. } => {
             assert_eq!(span, Span::new(38, 47));
@@ -81,7 +81,7 @@ fn test_bad_struct_declaration() {
         }
     };
 
-    test_compile_error! {
+    assert_compile_error! {
         r#"fn main() { None(1) }"#,
         UnsupportedArgumentCount { span, expected, actual, .. } => {
             assert_eq!(span, Span::new(12, 19));

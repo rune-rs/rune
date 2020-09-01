@@ -25,3 +25,44 @@ Result: 3
 Result: -1
 == Unit (5.4354ms)
 ```
+
+## Closures
+
+Closures are anonymous functions which closes over their environment.
+This means that they capture any variables used inside of the closure, allowing
+them to be used when the function is being called.
+
+```rust,noplaypen
+{{#include ../../scripts/book/8/basic_closure.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/8/basic_closure.rn
+Result: 4
+Result: 3
+== Unit (5.4354ms)
+```
+
+> Hint: Closures which do not capture their environment are *identical* in
+> representation to a function.
+
+# Using functions outside of the virtual machine
+
+Now things get *really* interesting.
+Runestick, the virtual machine driving Rune, has support for passing function
+pointers out of the virtual machine using the `FnPtr` type.
+
+This allows you to write code that takes a function constructed in Rune, and use
+it for something else.
+
+Below we showcase this, with the help of the `rune!` macro from `rune-testing`.
+
+```rust,noplaypen
+{{#include ../../crates/rune/examples/call_rune_fn.rs}}
+```
+
+```text
+$> cargo run --example call_rune_fn
+4
+8
+```

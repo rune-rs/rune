@@ -3,7 +3,7 @@ use rune_testing::*;
 #[test]
 fn test_mutate_tuples() {
     assert_eq! {
-        test! {
+        rune! {
             String => r#"
             fn main() {
                 let m = ("Now", "You", "See", "Me");

@@ -3,7 +3,7 @@ use rune_testing::*;
 #[test]
 fn test_unwrap() {
     assert_eq! {
-        test! {
+        rune! {
             Result<i64, i64> => r#"
             fn foo(a, b) {
                 Ok(b / a)
@@ -22,7 +22,7 @@ fn test_unwrap() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             Result<i64, i64> => r#"
             fn foo(a, b) {
                 Ok(b / a)

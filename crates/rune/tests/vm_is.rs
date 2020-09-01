@@ -5,7 +5,7 @@ fn test_binop_override() {
     // The right hand side of the `is` expression requires a type, and therefore
     // won't be used as an empty tuple constructor.
     assert_eq! {
-        test! {
+        rune! {
             (bool, bool, bool, bool) => r#"
             struct Timeout;
 

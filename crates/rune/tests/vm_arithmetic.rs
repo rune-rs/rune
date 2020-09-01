@@ -3,7 +3,7 @@ use rune_testing::*;
 #[test]
 fn test_add() {
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let a = 10;
@@ -16,7 +16,7 @@ fn test_add() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let a = 10;
@@ -29,7 +29,7 @@ fn test_add() {
         12,
     };
 
-    test_vm_error!(
+    assert_vm_error!(
         r#"
         fn main() {
             let a = 9223372036854775807;
@@ -40,7 +40,7 @@ fn test_add() {
         Overflow => {}
     );
 
-    test_vm_error!(
+    assert_vm_error!(
         r#"
         fn main() {
             let a = 9223372036854775807;
@@ -55,7 +55,7 @@ fn test_add() {
 #[test]
 fn test_sub() {
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let a = 10;
@@ -68,7 +68,7 @@ fn test_sub() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let a = 10;
@@ -81,7 +81,7 @@ fn test_sub() {
         8,
     };
 
-    test_vm_error!(
+    assert_vm_error!(
         r#"
         fn main() {
             let a = -9223372036854775808;
@@ -92,7 +92,7 @@ fn test_sub() {
         Underflow => {}
     );
 
-    test_vm_error!(
+    assert_vm_error!(
         r#"
         fn main() {
             let a = -9223372036854775808;
@@ -107,7 +107,7 @@ fn test_sub() {
 #[test]
 fn test_mul() {
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let a = 10;
@@ -120,7 +120,7 @@ fn test_mul() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let a = 10;
@@ -133,7 +133,7 @@ fn test_mul() {
         20,
     };
 
-    test_vm_error!(
+    assert_vm_error!(
         r#"
         fn main() {
             let a = 9223372036854775807;
@@ -144,7 +144,7 @@ fn test_mul() {
         Overflow => {}
     );
 
-    test_vm_error!(
+    assert_vm_error!(
         r#"
         fn main() {
             let a = 9223372036854775807;
@@ -159,7 +159,7 @@ fn test_mul() {
 #[test]
 fn test_div() {
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let a = 10;
@@ -172,7 +172,7 @@ fn test_div() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 let a = 10;
@@ -185,7 +185,7 @@ fn test_div() {
         5,
     };
 
-    test_vm_error!(
+    assert_vm_error!(
         r#"
         fn main() {
             let a = 10;
@@ -196,7 +196,7 @@ fn test_div() {
         DivideByZero => {}
     );
 
-    test_vm_error!(
+    assert_vm_error!(
         r#"
         fn main() {
             let a = 10;

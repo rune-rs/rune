@@ -1,7 +1,7 @@
 # Template strings
 
 If you've been paying attention on previous sections you might have seen a
-rather odd looking syntax like `\`Hello {name}\``.
+rather odd looking syntax like `` `Hello {name}` ``.
 
 These are called *template strings*, and allow the programmer to conveniently
 build strings using variables from the environment.

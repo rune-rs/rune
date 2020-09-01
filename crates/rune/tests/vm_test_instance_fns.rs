@@ -3,7 +3,7 @@ use rune_testing::*;
 #[test]
 fn test_instance_kinds() {
     assert_eq! {
-        test! {
+        rune! {
             (i64, i64, i64, i64) => r#"
             struct Foo {
                 n,

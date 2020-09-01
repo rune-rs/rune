@@ -19,4 +19,3 @@
   - [Try operator](./6_1_try_operator.md)
 - [Asynchronous programming](./7_async.md)
 - [Functions and closures](./8_functions_closures.md)
-  - [Closures](./8_1_closures.md)

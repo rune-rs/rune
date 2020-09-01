@@ -31,9 +31,11 @@
 //! * [Clean Rust FFI][rust-ffi].
 //! * Stack-based C FFI like with Lua (TBD).
 //! * Stack frames, allowing for isolation across function calls.
+//! * Template string ([Book 📖][support-templates]).
+//! * Try operator ([Book 📖][support-try]).
 //! * Pattern matching ([Book 📖][support-patterns]).
 //! * Structs and enums with associated data and functions ([Book 📖][support-structs]).
-//! * First-class asynchronous programming ([Book 📖][support-async]).
+//! * Asynchronous programming ([Book 📖][support-async]).
 //!
 //! <br />
 //!
@@ -56,6 +58,8 @@
 //!
 //! [rust-ffi]: https://github.com/rune-rs/rune/blob/master/crates/runestick-http/src/lib.rs
 //! [future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
+//! [support-templates]: https://rune-rs.github.io/rune/4_6_template_strings.html
+//! [support-try]: https://rune-rs.github.io/rune/6_1_try_operator.html
 //! [support-patterns]: https://rune-rs.github.io/rune/3_4_pattern_matching.html
 //! [support-structs]: https://rune-rs.github.io/rune/5_structs.html
 //! [support-async]: https://rune-rs.github.io/rune/7_async.html

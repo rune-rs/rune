@@ -3,7 +3,7 @@ use rune_testing::*;
 #[test]
 fn test_linked_list() {
     assert_eq! {
-        test! {
+        rune! {
             Vec<i64> => r#"
             /// An empty placeholder in a node.
             struct Empty;

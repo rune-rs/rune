@@ -4,7 +4,7 @@ use rune_testing::*;
 fn test_anonymous_type_precedence() {
     assert_eq! {
         3,
-        test! {
+        rune! {
             i64 => r#"
             fn main() {
                 fn a() { 1 }

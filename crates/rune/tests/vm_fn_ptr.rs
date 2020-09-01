@@ -3,7 +3,7 @@ use rune_testing::*;
 #[test]
 fn test_fn_ptr() {
     // ptr to dynamic function.
-    let fn_ptr = test! {
+    let fn_ptr = rune! {
         FnPtr => r#"
         fn foo(a, b) {
             a + b
@@ -19,7 +19,7 @@ fn test_fn_ptr() {
     assert!(block_on(fn_ptr.call::<_, i64>((1i64,))).is_err());
 
     // ptr to native function
-    let fn_ptr = test! {
+    let fn_ptr = rune! {
         FnPtr => r#"fn main() { Vec::new }"#
     };
 
@@ -27,7 +27,7 @@ fn test_fn_ptr() {
     assert_eq!(value.len(), 0);
 
     // ptr to dynamic function.
-    let fn_ptr = test! {
+    let fn_ptr = rune! {
         FnPtr => r#"
         enum Custom { A(a) }
         fn main() { Custom::A }
@@ -39,7 +39,7 @@ fn test_fn_ptr() {
     assert!(matches!(value, Value::VariantTuple(..)));
 
     // ptr to dynamic function.
-    let fn_ptr = test! {
+    let fn_ptr = rune! {
         FnPtr => r#"
         struct Custom(a)
         fn main() { Custom }

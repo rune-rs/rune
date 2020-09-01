@@ -3,7 +3,7 @@ use rune_testing::*;
 #[test]
 fn test_defined_tuple() {
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             struct MyType(a, b);
 
@@ -14,7 +14,7 @@ fn test_defined_tuple() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             enum MyType { A(a, b), C(c), }
 
@@ -25,7 +25,7 @@ fn test_defined_tuple() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             enum MyType { A(a, b), C(c), }
 
@@ -36,7 +36,7 @@ fn test_defined_tuple() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             i64 => r#"
             enum MyType { A(a, b), C(c), }
 

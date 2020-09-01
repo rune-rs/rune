@@ -3,7 +3,7 @@ use rune_testing::*;
 #[test]
 fn test_path_type_match() {
     assert_eq! {
-        test! {
+        rune! {
             bool => r#"
             enum Custom { A, B(a) }
             fn main() {
@@ -15,7 +15,7 @@ fn test_path_type_match() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             bool => r#"
             enum Custom { A, B(a) }
             fn main() {
@@ -27,7 +27,7 @@ fn test_path_type_match() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             bool => r#"
             enum Custom { A, B(a) }
             fn main() {
@@ -39,7 +39,7 @@ fn test_path_type_match() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             bool => r#"
             enum Custom { A, B { a } }
             fn main() {
@@ -51,7 +51,7 @@ fn test_path_type_match() {
     };
 
     assert_eq! {
-        test! {
+        rune! {
             bool => r#"
             enum Custom { A, B { a } }
             fn test(a) { a == 0 }
