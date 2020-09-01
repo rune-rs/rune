@@ -10,11 +10,11 @@ This is not a special function, but is simply what the Rune cli looks for when
 deciding what to execute.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_5/main_function.rn}}
+{{#include ../../scripts/book/5_5/main_function.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_5/main_function.rn
+$> cargo run -- scripts/book/5_5/main_function.rn
 Hello World
 == () (277.8µs)
 ```
@@ -25,11 +25,11 @@ return anything.
 Every completely distinct types.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_5/return_value.rn}}
+{{#include ../../scripts/book/5_5/return_value.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_5/return_value.rn
+$> cargo run -- scripts/book/5_5/return_value.rn
 Hello
 1
 == () (8.437ms)

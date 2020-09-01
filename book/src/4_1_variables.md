@@ -5,11 +5,11 @@ In contrast to Rust, all variables in Rune are mutable and do not require a
 `mut` keyword to change.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/3_1/variables.rn}}
+{{#include ../../scripts/book/4_1/variables.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/3_1/variables.rn
+$> cargo run -- scripts/book/4_1/variables.rn
 The value of x is: 5
 The value of x is: 6
 ```
@@ -24,11 +24,11 @@ This means that every variable that points to an object on the stack, points to
 *the same instance* of that object.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/3_1/shared_ownership.rn}}
+{{#include ../../scripts/book/4_1/shared_ownership.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/3_1/shared_ownership.rn
+$> cargo run -- scripts/book/4_1/shared_ownership.rn
 1
 2
 == () (913.4µs)
@@ -44,14 +44,14 @@ variable which has been moved the virtual machine will error.
 > take its argument and free it.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/3_1/take_argument.rn}}
+{{#include ../../scripts/book/4_1/take_argument.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/3_1/take_argument.rn
+$> cargo run -- scripts/book/4_1/take_argument.rn
 field: 1
 error: virtual machine error
-  ┌─ scripts/book/3_1/take_argument.rn:6:22
+  ┌─ scripts/book/4_1/take_argument.rn:6:22
   │
 6 │     println(`field: {object.field}`);
   │                      ^^^^^^^^^^^^ failed to access value: not accessible for shared access
@@ -62,11 +62,11 @@ If you need to, you can test if a variable is still accessible with
 `is_readable` and `is_writable`.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/3_1/is_readable.rn}}
+{{#include ../../scripts/book/4_1/is_readable.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/3_1/is_readable.rn
+$> cargo run -- scripts/book/4_1/is_readable.rn
 field: 1
 object is no longer readable 😢
 ```

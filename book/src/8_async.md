@@ -12,11 +12,11 @@ the result of those tasks.
 A typical example would be if we want to perform multiple HTTP requests at once:
 
 ```rust,noplaypen
-{{#include ../../scripts/book/7/async_http.rn}}
+{{#include ../../scripts/book/8/async_http.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/7/async_http.rn
+$> cargo run -- scripts/book/8/async_http.rn
 200 OK
 200 OK
 == () (591.0319ms)
@@ -34,11 +34,11 @@ A simple example of this is if we were to implement a simple request with a
 timeout:
 
 ```rust,noplaypen
-{{#include ../../scripts/book/7/async_http_timeout.rn}}
+{{#include ../../scripts/book/8/async_http_timeout.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/7/async_http_timeout.rn
+$> cargo run -- scripts/book/8/async_http_timeout.rn
 200 OK
 Request timed out!
 == () (3.2231404s)
@@ -60,11 +60,11 @@ produce a `Future`.
 In order to get the result of this `Future` it must be `.await`-ed.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/7/async_http_concurrent.rn}}
+{{#include ../../scripts/book/8/async_http_concurrent.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/7/async_http_concurrent.rn
+$> cargo run -- scripts/book/8/async_http_concurrent.rn
 Result: 200 OK
 Request timed out!
 == () (2.0028603s)
