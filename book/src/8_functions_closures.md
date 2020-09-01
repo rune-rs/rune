@@ -23,7 +23,7 @@ represents the operation you want another function to use.
 $> cargo run -- scripts/book/8/function_pointers.rn
 Result: 3
 Result: -1
-== Unit (5.4354ms)
+== () (5.4354ms)
 ```
 
 ## Closures
@@ -40,13 +40,13 @@ them to be used when the function is being called.
 $> cargo run -- scripts/book/8/basic_closure.rn
 Result: 4
 Result: 3
-== Unit (5.4354ms)
+== () (5.4354ms)
 ```
 
 > Hint: Closures which do not capture their environment are *identical* in
 > representation to a function.
 
-# Using functions outside of the virtual machine
+# Functions outside of the Vm
 
 Now things get *really* interesting.
 Runestick, the virtual machine driving Rune, has support for passing function
@@ -66,3 +66,7 @@ $> cargo run --example call_rune_fn
 4
 8
 ```
+
+Note that these functions by necessity have to capture their entire context and
+can take up quite a bit of space if you keep them around while cycling many
+contexts or units.

@@ -1,10 +1,9 @@
 use crate::{
     AccessError, Any, Bytes, FnPtr, Future, Hash, OwnedMut, OwnedRef, Panic, RawOwnedMut,
-    RawOwnedRef, Shared, ValueType, ValueTypeInfo, VmError,
+    RawOwnedRef, Shared, StaticString, Tuple, ValueType, ValueTypeInfo, VmError,
 };
 use std::any;
 use std::fmt;
-use std::sync::Arc;
 use thiserror::Error;
 
 /// Value raised when interacting with a value.
@@ -238,7 +237,7 @@ impl VariantObject {
 }
 
 /// An entry on the stack.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Value {
     /// The unit value.
     Unit,
@@ -262,7 +261,7 @@ pub enum Value {
     ///
     /// `Rc<str>` on the other hand wraps a so-called fat pointer, which is 16
     /// bytes.
-    StaticString(Arc<String>),
+    StaticString(StaticString),
     /// A UTF-8 string.
     String(Shared<String>),
     /// A byte string.
@@ -270,7 +269,7 @@ pub enum Value {
     /// A vector containing any values.
     Vec(Shared<Vec<Value>>),
     /// A tuple.
-    Tuple(Shared<Box<[Value]>>),
+    Tuple(Shared<Tuple>),
     /// An object.
     Object(Shared<Object<Value>>),
     /// A stored future.
@@ -301,7 +300,7 @@ impl Value {
 
     /// Construct a tuple.
     pub fn tuple(vec: Vec<Value>) -> Self {
-        Self::Tuple(Shared::new(vec.into_boxed_slice()))
+        Self::Tuple(Shared::new(Tuple::from(vec)))
     }
 
     /// Construct a typed tuple.
@@ -455,7 +454,7 @@ impl Value {
 
     /// Try to coerce value into a tuple.
     #[inline]
-    pub fn into_tuple(self) -> Result<Shared<Box<[Value]>>, ValueError> {
+    pub fn into_tuple(self) -> Result<Shared<Tuple>, ValueError> {
         match self {
             Self::Tuple(tuple) => Ok(tuple),
             actual => Err(ValueError::ExpectedTuple {
@@ -612,6 +611,81 @@ impl Value {
             Self::VariantTuple(tuple) => tuple.borrow_ref()?.type_info(),
             Self::Any(any) => ValueTypeInfo::Any(any.borrow_ref()?.type_name()),
         })
+    }
+}
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Unit => {
+                write!(f, "()")?;
+            }
+            Value::Bool(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Byte(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Char(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Integer(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Float(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Type(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::StaticString(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::String(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Bytes(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Vec(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Tuple(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Object(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Future(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Option(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Result(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::TypedTuple(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::VariantTuple(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::TypedObject(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::VariantObject(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::FnPtr(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Any(value) => {
+                write!(f, "Any({:?})", value)?;
+            }
+        }
+
+        Ok(())
     }
 }
 

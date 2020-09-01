@@ -24,7 +24,7 @@ variable will cause a separate copy of the variable to be used.
 $> cargo run -- scripts/book/4_1/copy.rn
 2
 1
-== Unit (691.3µs)
+== () (691.3µs)
 ```
 
 In contrast, other types like *strings* are stored by reference on the stack.
@@ -41,5 +41,5 @@ As shown here:
 $> cargo run -- scripts/book/4_1/primitives.rn
 Hello World
 Hello World
-== Unit (9.7406ms)
+== () (9.7406ms)
 ```

@@ -31,6 +31,12 @@ impl<T> Shared<T> {
         }
     }
 
+    /// Return a debug formatter, that when printed will display detailed
+    /// diagnostics of this shared type.
+    pub fn debug(&self) -> SharedDebug<'_, T> {
+        SharedDebug { shared: self }
+    }
+
     /// Test if the value is sharable.
     ///
     /// # Examples
@@ -523,6 +529,32 @@ where
         // `inner` because it must outlive any `Shared` instances.
         unsafe {
             let inner = self.inner.as_ref();
+
+            if !inner.access.is_shared() {
+                write!(fmt, "*not accessible*")
+            } else {
+                write!(fmt, "{:?}", &&*inner.data.get())
+            }
+        }
+    }
+}
+
+/// A debug helper that prints detailed diagnostics on the type being debugged.
+///
+/// Constructed using [debug][Shared::debug].
+pub struct SharedDebug<'a, T: ?Sized> {
+    shared: &'a Shared<T>,
+}
+
+impl<T: ?Sized> fmt::Debug for SharedDebug<'_, T>
+where
+    T: any::Any + fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Safety: by virtue of holding onto a shared we can safely access
+        // `inner` because it must outlive any `Shared` instances.
+        unsafe {
+            let inner = self.shared.inner.as_ref();
             let mut debug = fmt.debug_struct("Shared");
 
             debug.field("access", &inner.access);

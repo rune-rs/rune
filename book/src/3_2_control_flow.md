@@ -18,7 +18,7 @@ what the function returns by default unless a `return` is specified.
 $> cargo run -- scripts/book/3_2/numbers_game.rn
 less than one
 something else
-== Unit (3.8608ms)
+== () (3.8608ms)
 ```
 
 ## `if` Expressions
@@ -33,7 +33,7 @@ If the condition is `true`, the provided block of code will run.
 ```text
 $> cargo run -- scripts/book/3_2/conditional.rn
 The number *is* smaller than 5
-== Unit (5.108ms)
+== () (5.108ms)
 ```
 
 Optionally, we can add another branch under `else`, which will execute in case
@@ -46,7 +46,7 @@ the condition is false.
 ```text
 $> cargo run -- scripts/book/3_2/conditional_else.rn
 the number is smaller than 5
-== Unit (196.1µs)
+== () (196.1µs)
 ```
 
 We can also add an arbitrary number of `else if` branches, which allow us to
@@ -59,7 +59,7 @@ specify many different conditions.
 ```text
 $> cargo run -- scripts/book/3_2/conditional_else_ifs.rn
 the number is smaller than 5
-== Unit (227.9µs)
+== () (227.9µs)
 ```
 
 Do note however that if you have *many* conditions, it might be cleaner to use
@@ -74,5 +74,5 @@ This will be covered in a later section, but here is a sneak peek:
 ```text
 $> cargo run -- scripts/book/3_2/first_match.rn
 the number is smaller than 5
-== Unit (124.2µs)
+== () (124.2µs)
 ```

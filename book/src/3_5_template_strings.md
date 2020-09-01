@@ -7,13 +7,13 @@ These are called *template strings*, and allow the programmer to conveniently
 build strings using variables from the environment.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_6/basic_template.rn}}
+{{#include ../../scripts/book/3_5/basic_template.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_6/basic_template.rn
+$> cargo run -- scripts/book/3_5/basic_template.rn
 I am 30 years old!
-== Unit (4.5678ms)
+== () (4.5678ms)
 ```
 
 Template strings are accelerated by the Vm, each argument uses a *display
@@ -51,13 +51,13 @@ This is what allows status codes to be formatted into template strings, any
 types which do not implement this protocol will fail to run.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_6/not_a_template.rn}}
+{{#include ../../scripts/book/3_5/not_a_template.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_6/not_a_template.rn
+$> cargo run -- scripts/book/3_5/not_a_template.rn
 error: virtual machine error
-  ┌─ scripts/book/4_6/not_a_template.rn:3:13
+  ┌─ scripts/book/3_5/not_a_template.rn:3:13
   │
 3 │     println(`{vec}`);
   │             ^^^^^^^ `vector` does not implement the `string_display` protocol

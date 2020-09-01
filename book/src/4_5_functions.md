@@ -16,7 +16,7 @@ deciding what to execute.
 ```text
 $> cargo run -- scripts/book/4_5/main_function.rn
 Hello World
-== Unit (277.8µs)
+== () (277.8µs)
 ```
 
 In Rune, you don't have to specify the return type of a function.
@@ -32,7 +32,7 @@ Every completely distinct types.
 $> cargo run -- scripts/book/4_5/return_value.rn
 Hello
 1
-== Unit (8.437ms)
+== () (8.437ms)
 ```
 
 Depending on who you talk to, this is either the best things since sliced bread

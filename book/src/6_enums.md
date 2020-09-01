@@ -35,7 +35,7 @@ Count: 9
 Second count!
 Count: 0
 Count: 1
-== Unit (9.0745ms)
+== () (9.0745ms)
 ```
 
 Using an `Option` allows us to easily model the scenario where we have an

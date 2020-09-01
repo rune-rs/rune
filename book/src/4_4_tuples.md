@@ -12,9 +12,9 @@ needed.
 
 ```text
 $> cargo run -- scripts/book/4_4/tuple_masquerade.rn
-0 = Tuple(Shared { access: fully accessible, count: 2, data: [StaticString("Now"), StaticString("You"), StaticString("See"), StaticString("Me")] })
-0 = Tuple(Shared { access: fully accessible, count: 2, data: [StaticString("Now"), StaticString("You"), StaticString("Don\'t"), StaticString("!")] })
-== Unit (485.6µs)
+("Now", "You", "See", "Me")
+("Now", "You", "Don\'t", "!")
+== () (38.3136ms)
 ```
 
 The following is a simple example of a function returning a tuple:
@@ -25,8 +25,8 @@ The following is a simple example of a function returning a tuple:
 
 ```text
 $> cargo run -- scripts/book/4_4/basic_tuples.rn
-0 = Tuple(Shared { access: fully accessible, count: 1, data: [Integer(1), StaticString("test")] })
-== Unit (387.6µs)
+(1, "test")
+== () (387.6µs)
 ```
 
 Tuples can also be pattern matched:
@@ -37,7 +37,7 @@ Tuples can also be pattern matched:
 
 ```text
 $> cargo run -- scripts/book/4_4/tuple_patterns.rn
-0 = StaticString("the first part was a number:")
-1 = Integer(1)
-== Unit (6.7067ms)
+"the first part was a number:"
+1
+== () (7.7892ms)
 ```

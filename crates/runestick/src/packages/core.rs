@@ -103,13 +103,16 @@ pub fn module() -> Result<Module, ContextError> {
     })?;
 
     module.raw_fn(&["dbg"], |stack, args| {
-        for n in 0..args {
+        let stdout = io::stdout();
+        let mut stdout = stdout.lock();
+
+        for _ in 0..args {
             match stack.pop() {
                 Ok(value) => {
-                    println!("{} = {:?}", n, value);
+                    writeln!(stdout, "{:?}", value).unwrap();
                 }
                 Err(e) => {
-                    println!("{} = {}", n, e);
+                    writeln!(stdout, "{}", e).unwrap();
                 }
             }
         }

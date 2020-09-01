@@ -1,4 +1,4 @@
-use crate::{Shared, Value};
+use crate::{Shared, Tuple, Value};
 use std::iter::FromIterator;
 use thiserror::Error;
 
@@ -177,8 +177,7 @@ impl Stack {
             tuple.push(self.pop()?);
         }
 
-        let tuple = tuple.into_boxed_slice();
-        self.push(Value::Tuple(Shared::new(tuple)));
+        self.push(Value::Tuple(Shared::new(Tuple::from(tuple))));
         Ok(())
     }
 

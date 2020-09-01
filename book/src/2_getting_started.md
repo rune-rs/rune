@@ -33,13 +33,13 @@ Like this:
 ```text
 $> cargo run -- scripts/hello_world.rn
 Hello World
-== Unit (412.2µs)
+== () (412.2µs)
 ```
 
 At the end of the script you see this rather odd looking line:
 
 ```text
-== Unit (412.2µs)
+== () (412.2µs)
 ```
 
 This simply means that the script evaluated to a unit, or a `()`.

@@ -19,7 +19,7 @@ Another number: 2.
 A vector starting with one and two, followed by 42.
 One, but this time as a string.
 Something else. Can I go eat now?
-== Unit (5.691ms)
+== () (5.691ms)
 ```
 
 We will be covering each of these variants in detail in the coming sections.
@@ -58,7 +58,7 @@ the value, allowing it to have any value.
 ```text
 $> cargo run -- scripts/book/3_4/ignore.rn
 Second item in vector is 2.
-== Unit (281.3µs)
+== () (281.3µs)
 ```
 
 In contrast to ignoring, we cal also *bind* the value to a variable that is then
@@ -71,7 +71,7 @@ in scope of the match arm.
 ```text
 $> cargo run -- scripts/book/3_4/bind.rn
 Second item in vector is 2.
-== Unit (6.25ms)
+== () (6.25ms)
 ```
 
 Here are some more examples:
@@ -93,5 +93,5 @@ $> cargo run -- scripts/book/3_4/fast_cars.rn
 Pretty fast!
 Can't tell 😞
 What, where did you get that?
-== Unit (5.3533ms)
+== () (5.3533ms)
 ```

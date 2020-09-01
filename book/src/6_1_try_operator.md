@@ -13,5 +13,5 @@ variant.
 ```text
 $> cargo run -- scripts/book/6_1/basic_try.rn
 Result: 2, 1
-== Unit (7.4912ms)
+== () (7.4912ms)
 ```

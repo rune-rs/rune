@@ -1,6 +1,8 @@
 use crate::context::Handler;
 use crate::unit::UnitFnCall;
-use crate::{Context, FromValue, Future, Hash, IntoArgs, Shared, Stack, Unit, Value, Vm, VmError};
+use crate::{
+    Context, FromValue, Future, Hash, IntoArgs, Shared, Stack, Tuple, Unit, Value, Vm, VmError,
+};
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -42,7 +44,7 @@ impl FnPtr {
     pub fn from_closure(
         context: Rc<Context>,
         unit: Rc<Unit>,
-        environment: Shared<Box<[Value]>>,
+        environment: Shared<Tuple>,
         offset: usize,
         call: UnitFnCall,
         args: usize,
@@ -267,7 +269,7 @@ struct FnClosureOffset {
     /// The unit where the function resides.
     unit: Rc<Unit>,
     /// Captured environment.
-    environment: Shared<Box<[Value]>>,
+    environment: Shared<Tuple>,
     /// The offset of the function.
     offset: usize,
     /// The calling convention.

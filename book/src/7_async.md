@@ -19,7 +19,7 @@ A typical example would be if we want to perform multiple HTTP requests at once:
 $> cargo run -- scripts/book/7/async_http.rn
 200 OK
 200 OK
-== Unit (591.0319ms)
+== () (591.0319ms)
 ```
 
 In the above code we send two requests *concurrently*. They are both processed
@@ -41,7 +41,7 @@ timeout:
 $> cargo run -- scripts/book/7/async_http_timeout.rn
 200 OK
 Request timed out!
-== Unit (3.2231404s)
+== () (3.2231404s)
 ```
 
 But wait, this is taking three seconds. We're not running the requests
@@ -67,7 +67,7 @@ In order to get the result of this `Future` it must be `.await`-ed.
 $> cargo run -- scripts/book/7/async_http_concurrent.rn
 Result: 200 OK
 Request timed out!
-== Unit (2.0028603s)
+== () (2.0028603s)
 ```
 
 If you've been using future in Rust, one thing immediately pops out to you.

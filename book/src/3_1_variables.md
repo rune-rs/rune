@@ -31,7 +31,7 @@ This means that every variable that points to an object on the stack, points to
 $> cargo run -- scripts/book/3_1/shared_ownership.rn
 1
 2
-== Unit (913.4µs)
+== () (913.4µs)
 ```
 
 This can potentially cause issues if we call an external function that expects

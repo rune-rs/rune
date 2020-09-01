@@ -3,8 +3,8 @@ use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
     AccessError, Bytes, Context, FnPtr, FromValue, Future, Hash, Inst, Integer, IntoArgs,
     IntoTypeHash, Object, OptionVariant, Panic, Protocol, ResultVariant, Shared, Stack, StackError,
-    ToValue, TypeCheck, TypedObject, TypedTuple, Unit, Value, ValueError, ValueTypeInfo,
-    VariantObject, VariantTuple,
+    StaticString, ToValue, Tuple, TypeCheck, TypedObject, TypedTuple, Unit, Value, ValueError,
+    ValueTypeInfo, VariantObject, VariantTuple,
 };
 use std::any;
 use std::fmt;
@@ -859,7 +859,7 @@ impl Vm {
                 *a == ***b
             }
             // fast string comparison: exact string slot.
-            (Value::StaticString(a), Value::StaticString(b)) => a == b,
+            (Value::StaticString(a), Value::StaticString(b)) => **a == **b,
             // fast external comparison by slot.
             // TODO: implement ptr equals.
             // (Value::Any(a), Value::Any(b)) => a == b,
@@ -948,8 +948,7 @@ impl Vm {
             tuple.push(self.stack.pop()?);
         }
 
-        let tuple = tuple.into_boxed_slice();
-        let value = Value::Tuple(Shared::new(tuple));
+        let value = Value::Tuple(Shared::new(Tuple::from(tuple)));
         self.stack.push(value);
         Ok(())
     }
@@ -1656,7 +1655,7 @@ impl Vm {
     #[inline]
     fn op_string(&mut self, slot: usize) -> Result<(), VmError> {
         let string = self.unit.lookup_string(slot)?;
-        let value = Value::StaticString(string.clone());
+        let value = Value::StaticString(StaticString::from(string.clone()));
         self.stack.push(value);
         Ok(())
     }
@@ -2126,7 +2125,7 @@ impl Vm {
         };
 
         let environment = self.stack.pop_sequence(count)?;
-        let environment = Shared::new(environment.into_boxed_slice());
+        let environment = Shared::new(Tuple::from(environment));
 
         let fn_ptr = FnPtr::from_closure(
             self.context.clone(),
