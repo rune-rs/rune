@@ -8,11 +8,11 @@ which creates instance functions that you can call on an instance of that
 struct.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/6/user_database.rn}}
+{{#include ../../scripts/book/5_6/user_database.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/6/user_database.rn
+$> cargo run -- scripts/book/5_6/user_database.rn
 setbac is inactive
 setbac is active
 == () (6.2095ms)
@@ -24,11 +24,11 @@ But since the fields of a struct are known at compile time, the compiler can
 ensure that you're only using fields which are defined.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/6/struct_matching.rn}}
+{{#include ../../scripts/book/5_6/struct_matching.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/6/struct_matching.rn
+$> cargo run -- scripts/book/5_6/struct_matching.rn
 Yep, it's setbac.
 Other user: newt.
 == () (1.0652ms)

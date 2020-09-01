@@ -9,7 +9,26 @@ A vector isn't typed, and can store *any* rune values.
 
 ```text
 $> cargo run -- scripts/book/5_2/vectors.rn
+"Hello"
 42
 "Hello"
-== () (7.2266ms)
+42
+== () (5.0674ms)
+```
+
+As you can see, you can iterate over a vector because it implements the iterator
+protocol.
+
+It is also possible to create and use an iterator manually using `Vec::iter`,
+giving you more control over it.
+
+```rust,noplaypen
+{{#include ../../scripts/book/5_2/vectors_rev.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/5_2/vectors_rev.rn
+42
+"Hello"
+== () (2.9116ms)
 ```

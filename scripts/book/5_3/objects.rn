@@ -1,8 +1,20 @@
+use std::test::assert;
+
 fn main() {
     let values = #{};
     values["first"] = "bar";
     values["second"] = 42;
 
     dbg(values["first"]);
-    dbg(values.second);
+    dbg(values.second); // items be accessed like struct fields.
+
+    if let Some(key) = values.get("not a key") {
+        dbg(key);
+    } else {
+        println("key did not exist");
+    }
+
+    for entry in values {
+        dbg(entry);
+    }
 }

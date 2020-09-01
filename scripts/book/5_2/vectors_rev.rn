@@ -1,0 +1,7 @@
+fn main() {
+    let values = ["Hello", 42];
+
+    for v in values.iter().rev() {
+        dbg(v);
+    }
+}

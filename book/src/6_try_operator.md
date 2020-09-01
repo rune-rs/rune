@@ -1,4 +1,5 @@
 # Try operator
+# Try operator
 
 The try operator (`?`) is a control flow operator which causes a function to
 return early in case the value being tried over has a certain value.

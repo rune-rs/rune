@@ -1,6 +1,7 @@
 //! Package containing array functions.
 
 use crate::{ContextError, Module, Value};
+use std::iter::Rev;
 
 /// An iterator over a vector.
 pub struct Iter {
@@ -15,15 +16,20 @@ impl Iterator for Iter {
     }
 }
 
+impl DoubleEndedIterator for Iter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
+    }
+}
+
 fn vec_iter(vec: &[Value]) -> Iter {
     Iter {
         iter: vec.to_vec().into_iter(),
     }
 }
 
-// NB: decl_internal! prevents iterator from leaving the VM since the owned type
-// doesn't implement `FromValue`.
 decl_external!(Iter);
+decl_external!(Rev<Iter>);
 
 /// Get the module for the array package.
 pub fn module() -> Result<Module, ContextError> {
@@ -31,6 +37,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     module.ty(&["Vec"]).build::<Vec<Value>>()?;
     module.ty(&["Iter"]).build::<Iter>()?;
+    module.ty(&["Rev"]).build::<Rev<Iter>>()?;
 
     module.function(&["Vec", "new"], Vec::<Value>::new)?;
     module.inst_fn("iter", vec_iter)?;
@@ -38,8 +45,16 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("push", Vec::<Value>::push)?;
     module.inst_fn("clear", Vec::<Value>::clear)?;
     module.inst_fn("pop", Vec::<Value>::pop)?;
+
     module.inst_fn(crate::INTO_ITER, vec_iter)?;
+    module.inst_fn("next", Iter::next)?;
     module.inst_fn(crate::NEXT, Iter::next)?;
     module.inst_fn(crate::INTO_ITER, Iter::into_iter)?;
+
+    module.inst_fn("rev", Iter::rev)?;
+    module.inst_fn("next", Rev::<Iter>::next)?;
+    module.inst_fn("next_back", Rev::<Iter>::next_back)?;
+    module.inst_fn(crate::NEXT, Rev::<Iter>::next)?;
+    module.inst_fn(crate::INTO_ITER, Rev::<Iter>::into_iter)?;
     Ok(module)
 }

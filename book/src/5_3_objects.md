@@ -10,7 +10,10 @@ Objects are anonymous hash maps, which support defining arbitrary string keys.
 $> cargo run -- scripts/book/5_3/objects.rn
 "bar"
 42
-== () (7.9265ms)
+key did not exist
+("second", 42)
+("first", "bar")
+== () (3.3527ms)
 ```
 
 These are useful because they allow their data to be specified dynamically,

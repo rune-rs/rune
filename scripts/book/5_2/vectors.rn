@@ -1,9 +1,10 @@
 fn main() {
-    let values = Vec::new();
-    values.push("Hello");
-    values.push(42);
+    let values = ["Hello", 42];
 
-    while let Some(v) = values.pop() {
+    dbg(values[0]);
+    dbg(values.1); // items be accessed like tuples fields.
+
+    for v in values {
         dbg(v);
     }
 }

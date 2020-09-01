@@ -16,11 +16,11 @@ allows you to represent data that can either be present with `Option::Some`, or
 absent with `Option::None`.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/7/count_numbers.rn}}
+{{#include ../../scripts/book/5_7/count_numbers.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/7/count_numbers.rn
+$> cargo run -- scripts/book/5_7/count_numbers.rn
 First count!
 Count: 0
 Count: 1
