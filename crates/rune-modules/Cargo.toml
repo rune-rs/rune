@@ -27,3 +27,6 @@ tokio = {version = "0.2.22", optional = true}
 serde_json = {version = "1.0.57", optional = true}
 
 runestick = {version = "0.5.0", path = "../runestick"}
+
+[package.metadata.docs.rs]
+all-features = true

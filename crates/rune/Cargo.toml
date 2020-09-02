@@ -30,3 +30,6 @@ num = "0.3.0"
 
 runestick = {version = "0.5.0", path = "../runestick"}
 rune-modules = {version = "0.5.0", path = "../rune-modules", features = ["full"], optional = true}
+
+[package.metadata.docs.rs]
+all-features = true
