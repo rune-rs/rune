@@ -1,0 +1,18 @@
+use process::Command;
+
+fn main() {
+    let projects = [
+        "crates/runestick",
+        "crates/rune-modules",
+        "crates/rune-testing",
+        "crates/rune",
+        "crates/rune-cli",
+    ];
+
+    for project in projects {
+        let cargo = Command::new("cargo");
+        cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`]);
+        let status = cargo.spawn()?.await?;
+        println(`{project}: {status}`);
+    }
+}

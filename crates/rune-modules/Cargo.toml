@@ -22,7 +22,8 @@ json = ["serde_json"]
 process = ["tokio/process"]
 
 [dependencies]
-runestick = {version = "0.3.0", path = "../runestick"}
 reqwest = {version = "0.10.7", optional = true}
 tokio = {version = "0.2.22", optional = true}
 serde_json = {version = "1.0.57", optional = true}
+
+runestick = {version = "0.3.0", path = "../runestick"}

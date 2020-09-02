@@ -5,6 +5,7 @@ fn main() {
         "crates/rune-testing",
         "crates/rune-modules",
         "crates/rune-testing",
+        "crates/runestick",
     ];
 
     for project in projects {
