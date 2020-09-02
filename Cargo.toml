@@ -1,9 +1,7 @@
 [workspace]
 members = [
     "crates/runestick",
-    "crates/runestick-http",
-    "crates/runestick-json",
-    "crates/runestick-time",
+    "crates/rune-modules",
     "crates/rune",
     "crates/rune-cli",
     "crates/rune-testing",

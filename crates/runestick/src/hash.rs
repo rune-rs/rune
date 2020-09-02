@@ -7,8 +7,9 @@ use twox_hash::XxHash64;
 const SEP: usize = 0x7f;
 const TYPE: usize = 1;
 const INSTANCE_FUNCTION: usize = 2;
-const OBJECT_KEYS: usize = 3;
-const TYPE_ID: usize = 4;
+const GETTER: usize = 3;
+const OBJECT_KEYS: usize = 4;
+const TYPE_ID: usize = 5;
 
 /// The hash of a primitive thing.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -28,6 +29,15 @@ impl Hash {
     {
         let name = name.into_type_hash();
         Self(Hash::of((INSTANCE_FUNCTION, value_type, SEP, name)).0)
+    }
+
+    /// Construct a hash corresponding to a getter.
+    pub fn getter<N>(value_type: ValueType, name: N) -> Self
+    where
+        N: IntoTypeHash,
+    {
+        let name = name.into_type_hash();
+        Self(Hash::of((GETTER, value_type, SEP, name)).0)
     }
 
     /// Construct a simple hash from something that is hashable.

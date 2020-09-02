@@ -116,9 +116,12 @@ impl FromValue for Value {
     }
 }
 
-impl ToValue for Value {
+impl<T> ToValue for T
+where
+    Value: From<T>,
+{
     fn to_value(self) -> Result<Value, ValueError> {
-        Ok(self)
+        Ok(Value::from(self))
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     vm::StopReason, FromValue, GeneratorState, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef,
-    Shared, ToValue, UnsafeFromValue, Value, ValueError, Vm, VmError, VmErrorKind,
+    Shared, UnsafeFromValue, Value, ValueError, Vm, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::mem;
@@ -131,11 +131,5 @@ impl UnsafeFromValue for &mut Generator {
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         &mut *output
-    }
-}
-
-impl ToValue for Generator {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Generator(Shared::new(self)))
     }
 }

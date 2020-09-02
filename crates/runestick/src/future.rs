@@ -22,12 +22,16 @@ pub struct Future {
 
 impl Future {
     /// Construct a new wrapped future.
-    pub fn new<T>(future: T) -> Self
+    pub fn new<T, O>(future: T) -> Self
     where
-        T: 'static + future::Future<Output = Result<Value, VmError>>,
+        T: 'static + future::Future<Output = Result<O, VmError>>,
+        O: ToValue,
     {
         Self {
-            future: Some(Box::pin(future)),
+            future: Some(Box::pin(async move {
+                let value = future.await?;
+                Ok(value.to_value()?)
+            })),
         }
     }
 
@@ -139,11 +143,5 @@ impl UnsafeFromValue for &mut Future {
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         &mut *output
-    }
-}
-
-impl ToValue for Future {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Future(Shared::new(self)))
     }
 }

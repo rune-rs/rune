@@ -17,15 +17,19 @@ Rune is a simple dynamic language for the runestick virtual machine.
 [features]
 default = ["runtime"]
 runtime = ["codespan-reporting"]
+# include all native modules in the default context.
+modules = ["rune-modules"]
 
 [dependencies]
-runestick = {version = "0.3.0", path = "../runestick"}
 thiserror = "1.0.20"
 log = "0.4.11"
 codespan-reporting = {version = "0.9.5", optional = true}
 slab = "0.4.2"
 hashbrown = "0.8.2"
 num = "0.3.0"
+
+runestick = {version = "0.3.0", path = "../runestick"}
+rune-modules = {version = "0.3.0", path = "../rune-modules", features = ["full"], optional = true}
 
 [dev-dependencies]
 rune-testing = {version = "0.3.0", path = "../rune-testing"}

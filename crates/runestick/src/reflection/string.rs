@@ -11,7 +11,7 @@ impl FromValue for String {
     fn from_value(value: Value) -> Result<Self, ValueError> {
         match value {
             Value::String(string) => Ok(string.borrow_ref()?.clone()),
-            Value::StaticString(string) => Ok(string.as_ref().clone()),
+            Value::StaticString(string) => Ok((**string).clone()),
             actual => Err(ValueError::from(ValueErrorKind::ExpectedString {
                 actual: actual.type_info()?,
             })),
@@ -99,7 +99,7 @@ impl UnsafeFromValue for &String {
                 let (s, guard) = OwnedRef::into_raw(string);
                 (s, Some(guard))
             }
-            Value::StaticString(string) => (string.as_ref(), None),
+            Value::StaticString(string) => (&**string, None),
             actual => {
                 return Err(ValueError::from(ValueErrorKind::ExpectedString {
                     actual: actual.type_info()?,

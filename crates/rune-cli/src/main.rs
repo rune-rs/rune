@@ -22,12 +22,7 @@ async fn main() -> Result<()> {
     let mut dump_types = false;
     let mut help = false;
 
-    let mut context = runestick::Context::with_default_packages()?;
-    context.install(&runestick_http::module()?)?;
-    context.install(&runestick_json::module()?)?;
-    context.install(&runestick_time::module()?)?;
-
-    let mut runtime = rune::Runtime::with_context(context);
+    let mut runtime = rune::Runtime::with_default_context()?;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -210,8 +205,8 @@ async fn main() -> Result<()> {
 
         println!("# strings:");
 
-        for (hash, string) in vm.unit().iter_static_strings() {
-            println!("{} = {:?}", hash, string);
+        for string in vm.unit().iter_static_strings() {
+            println!("{} = {:?}", string.hash(), string);
         }
 
         println!("# object keys:");

@@ -104,10 +104,11 @@ impl FnPtr {
                 match offset.call {
                     UnitFnCall::Generator => Value::Generator(Shared::new(Generator::new(vm))),
                     UnitFnCall::Immediate => {
-                        Future::new(async move { vm.run().run_to_completion().await }).await?
+                        Future::new(async move { vm.run::<Value>().run_to_completion().await })
+                            .await?
                     }
                     UnitFnCall::Async => Value::Future(Shared::new(Future::new(async move {
-                        vm.run().run_to_completion().await
+                        vm.run::<Value>().run_to_completion().await
                     }))),
                 }
             }
@@ -217,11 +218,13 @@ impl FnPtr {
         match call {
             UnitFnCall::Generator => Ok(Value::Generator(Shared::new(Generator::new(vm)))),
             UnitFnCall::Immediate => {
-                let future = Future::new(async move { vm.run().run_to_completion().await });
+                let future =
+                    Future::new(async move { vm.run::<Value>().run_to_completion().await });
                 Ok(future.await?)
             }
             UnitFnCall::Async => {
-                let future = Future::new(async move { vm.run().run_to_completion().await });
+                let future =
+                    Future::new(async move { vm.run::<Value>().run_to_completion().await });
                 Ok(Value::Future(Shared::new(future)))
             }
         }

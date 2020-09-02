@@ -1,14 +1,14 @@
-//! HTTP module for runestick based on reqwest.
+//! The native `http` module for the [Rune Language].
+//!
+//! [Rune Language]: https://github.com/rune-rs/rune
 //!
 //! ## Usage
 //!
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! runestick = "0.2"
-//! runestick-http = "0.2"
-//! # not necessary, but useful
-//! runestick-json = "0.2"
+//! runestick = "0.3"
+//! runestick-modules = {version = "0.3", features = ["http", "json"]}
 //! ```
 //!
 //! Install it into your context:
@@ -16,8 +16,8 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_packages()?;
-//! context.install(&runestick_http::module()?)?;
-//! context.install(&runestick_json::module()?)?;
+//! context.install(&rune_modules::http::module()?)?;
+//! context.install(&rune_modules::json::module()?)?;
 //! # Ok(())
 //! # }
 //! ```

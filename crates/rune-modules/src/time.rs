@@ -1,4 +1,6 @@
-//! The runestick time package.
+//! The native `http` module for the [Rune Language].
+//!
+//! [Rune Language]: https://github.com/rune-rs/rune
 //!
 //! ## Usage
 //!
@@ -6,7 +8,7 @@
 //!
 //! ```toml
 //! runestick = "0.2"
-//! runestick-time = "0.2"
+//! runestick-modules = {version = "0.2", features = ["time"]}
 //! ```
 //!
 //! Install it into your context:
@@ -14,7 +16,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_packages()?;
-//! context.install(&runestick_time::module()?)?;
+//! context.install(&rune_modules::time::module()?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -26,6 +28,7 @@
 //!
 //! fn main() {
 //!     time::delay_for(time::Duration::from_secs(10)).await;
+//!     println("Message after 10 seconds!");
 //! }
 //! ```
 
@@ -52,7 +55,7 @@ async fn delay_for(duration: &Duration) {
 
 runestick::decl_external!(Duration);
 
-/// Get the module for the bytes package.
+/// Get the module for the time package.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["time"]);
     module.function(&["Duration", "from_secs"], Duration::from_secs)?;

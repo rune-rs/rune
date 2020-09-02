@@ -141,8 +141,11 @@ pub enum VmErrorKind {
     #[error("instruction pointer is out-of-bounds")]
     IpOutOfBounds,
     /// Tried to await something on the stack which can't be await:ed.
-    #[error("unsupported target for .await")]
-    UnsupportedAwait,
+    #[error("unsupported target for .await `{actual}`")]
+    UnsupportedAwait {
+        /// The actual target.
+        actual: ValueTypeInfo,
+    },
     /// A bad argument that was received to a function.
     #[error("bad argument `{argument}`")]
     BadArgument {
@@ -255,7 +258,7 @@ pub enum VmErrorKind {
         target: ValueTypeInfo,
     },
     /// An object slot index get operation that is not supported.
-    #[error("the object slot index get operation on `{target}` is not supported")]
+    #[error("field not available on `{target}`")]
     UnsupportedObjectSlotIndexGet {
         /// The target type we tried to perform the object indexing on.
         target: ValueTypeInfo,

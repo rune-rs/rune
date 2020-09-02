@@ -1,6 +1,4 @@
-use crate::{
-    FnPtr, FromValue, OwnedRef, RawOwnedRef, Shared, ToValue, UnsafeFromValue, Value, ValueError,
-};
+use crate::{FnPtr, FromValue, OwnedRef, RawOwnedRef, Shared, UnsafeFromValue, Value, ValueError};
 
 value_types!(crate::FN_PTR_TYPE, FnPtr => FnPtr, &FnPtr, Shared<FnPtr>, OwnedRef<FnPtr>);
 
@@ -34,17 +32,5 @@ impl UnsafeFromValue for &FnPtr {
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         &*output
-    }
-}
-
-impl ToValue for FnPtr {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::FnPtr(Shared::new(self)))
-    }
-}
-
-impl ToValue for Shared<FnPtr> {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::FnPtr(self))
     }
 }

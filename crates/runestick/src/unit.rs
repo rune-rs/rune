@@ -4,7 +4,9 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
-use crate::{Component, Context, Hash, Inst, Item, Meta, ValueType, VmError, VmErrorKind};
+use crate::{
+    Component, Context, Hash, Inst, Item, Meta, StaticString, ValueType, VmError, VmErrorKind,
+};
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
@@ -362,7 +364,7 @@ pub struct Unit {
     /// Function by address.
     functions_rev: HashMap<usize, Hash>,
     /// A static string.
-    static_strings: Vec<Arc<String>>,
+    static_strings: Vec<Arc<StaticString>>,
     /// Reverse lookup for static strings.
     static_string_rev: HashMap<Hash, usize>,
     /// A static byte string.
@@ -520,13 +522,8 @@ impl Unit {
     }
 
     /// Iterate over all static strings in the unit.
-    pub fn iter_static_strings(&self) -> impl Iterator<Item = (Hash, &str)> + '_ {
-        let mut it = self.static_strings.iter();
-
-        std::iter::from_fn(move || {
-            let s = it.next()?;
-            Some((Hash::of(s), s.as_ref().as_ref()))
-        })
+    pub fn iter_static_strings(&self) -> impl Iterator<Item = &Arc<StaticString>> + '_ {
+        self.static_strings.iter()
     }
 
     /// Iterate over all static object keys in the unit.
@@ -570,7 +567,7 @@ impl Unit {
     }
 
     /// Lookup the static string by slot, if it exists.
-    pub fn lookup_string(&self, slot: usize) -> Result<&Arc<String>, VmError> {
+    pub fn lookup_string(&self, slot: usize) -> Result<&Arc<StaticString>, VmError> {
         Ok(self
             .static_strings
             .get(slot)
@@ -596,7 +593,8 @@ impl Unit {
     ///
     /// Only uses up space if the static string is unique.
     pub fn new_static_string(&mut self, current: &str) -> Result<usize, UnitError> {
-        let hash = Hash::of(&current);
+        let current = StaticString::new(current);
+        let hash = current.hash();
 
         if let Some(existing_slot) = self.static_string_rev.get(&hash).copied() {
             let existing = self.static_strings.get(existing_slot).ok_or_else(|| {
@@ -606,11 +604,11 @@ impl Unit {
                 }
             })?;
 
-            if **existing != current {
+            if &***existing != &*current {
                 return Err(UnitError::StaticStringHashConflict {
                     hash,
-                    current: current.to_owned(),
-                    existing: existing.as_ref().clone(),
+                    current: (*current).clone(),
+                    existing: (***existing).clone(),
                 });
             }
 
@@ -618,7 +616,7 @@ impl Unit {
         }
 
         let new_slot = self.static_strings.len();
-        self.static_strings.push(Arc::new(String::from(current)));
+        self.static_strings.push(Arc::new(current));
         self.static_string_rev.insert(hash, new_slot);
         Ok(new_slot)
     }

@@ -2,8 +2,8 @@ use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
     Bytes, Context, FnPtr, FromValue, Future, Generator, Hash, Inst, Integer, IntoArgs,
-    IntoTypeHash, Object, Panic, Shared, Stack, StaticString, ToValue, Tuple, TypeCheck,
-    TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind,
+    IntoTypeHash, Object, Panic, Shared, Stack, ToValue, Tuple, TypeCheck, TypedObject, Unit,
+    Value, VariantObject, VmError, VmErrorKind,
 };
 use std::any;
 use std::fmt;
@@ -168,15 +168,23 @@ impl Vm {
     }
 
     async fn op_await(&mut self) -> Result<(), VmError> {
-        let value = self.stack.pop()?;
+        loop {
+            let value = self.stack.pop()?;
 
-        match value {
-            Value::Future(future) => {
-                let value = future.borrow_mut()?.await?;
-                self.stack.push(value);
-                Ok(())
+            match value {
+                Value::Future(future) => {
+                    let value = future.borrow_mut()?.await?;
+                    self.stack.push(value);
+                    return Ok(());
+                }
+                value => {
+                    if !self.call_instance_fn(&value, crate::INTO_FUTURE, ())? {
+                        return Err(VmError::from(VmErrorKind::UnsupportedAwait {
+                            actual: value.type_info()?,
+                        }));
+                    }
+                }
             }
-            _ => Err(VmError::from(VmErrorKind::UnsupportedAwait)),
         }
     }
 
@@ -234,6 +242,27 @@ impl Vm {
                 return Ok(true);
             }
         }
+
+        let handler = match self.context.lookup(hash) {
+            Some(handler) => handler,
+            None => return Ok(false),
+        };
+
+        args.into_args(&mut self.stack)?;
+
+        self.stack.push(target.clone());
+        handler(&mut self.stack, count)?;
+        Ok(true)
+    }
+
+    /// Helper function to call an external getter.
+    fn call_getter<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
+    where
+        H: IntoTypeHash,
+        A: IntoArgs,
+    {
+        let count = A::count() + 1;
+        let hash = Hash::getter(target.value_type()?, hash.into_type_hash());
 
         let handler = match self.context.lookup(hash) {
             Some(handler) => handler,
@@ -472,7 +501,7 @@ impl Vm {
                 *a == ***b
             }
             // fast string comparison: exact string slot.
-            (Value::StaticString(a), Value::StaticString(b)) => **a == **b,
+            (Value::StaticString(a), Value::StaticString(b)) => ***a == ***b,
             // fast external comparison by slot.
             // TODO: implement ptr equals.
             // (Value::Any(a), Value::Any(b)) => a == b,
@@ -1133,13 +1162,14 @@ impl Vm {
 
     /// Implementation of getting a string index on an object-like type.
     fn try_object_slot_index_get(
-        unit: &Unit,
+        &mut self,
         target: &Value,
         string_slot: usize,
     ) -> Result<Option<Value>, VmError> {
+        let index = self.unit.lookup_string(string_slot)?;
+
         Ok(match target {
             Value::Object(object) => {
-                let index = unit.lookup_string(string_slot)?;
                 let object = object.borrow_ref()?;
 
                 match object.get(&***index).cloned() {
@@ -1152,7 +1182,6 @@ impl Vm {
                 }
             }
             Value::TypedObject(typed_object) => {
-                let index = unit.lookup_string(string_slot)?;
                 let typed_object = typed_object.borrow_ref()?;
 
                 match typed_object.object.get(&***index).cloned() {
@@ -1165,7 +1194,6 @@ impl Vm {
                 }
             }
             Value::VariantObject(variant_object) => {
-                let index = unit.lookup_string(string_slot)?;
                 let variant_object = variant_object.borrow_ref()?;
 
                 match variant_object.object.get(&***index).cloned() {
@@ -1177,7 +1205,15 @@ impl Vm {
                     }
                 }
             }
-            _ => None,
+            target => {
+                let hash = index.hash();
+
+                if self.call_getter(target, hash, ())? {
+                    Some(self.stack.pop()?)
+                } else {
+                    None
+                }
+            }
         })
     }
 
@@ -1186,7 +1222,7 @@ impl Vm {
     fn op_object_slot_index_get(&mut self, string_slot: usize) -> Result<(), VmError> {
         let target = self.stack.pop()?;
 
-        if let Some(value) = Self::try_object_slot_index_get(&self.unit, &target, string_slot)? {
+        if let Some(value) = self.try_object_slot_index_get(&target, string_slot)? {
             self.stack.push(value);
             return Ok(());
         }
@@ -1204,9 +1240,9 @@ impl Vm {
         offset: usize,
         string_slot: usize,
     ) -> Result<(), VmError> {
-        let target = self.stack.at_offset(offset)?;
+        let target = self.stack.at_offset(offset)?.clone();
 
-        if let Some(value) = Self::try_object_slot_index_get(&self.unit, target, string_slot)? {
+        if let Some(value) = self.try_object_slot_index_get(&target, string_slot)? {
             self.stack.push(value);
             return Ok(());
         }
@@ -1291,7 +1327,7 @@ impl Vm {
     #[inline]
     fn op_string(&mut self, slot: usize) -> Result<(), VmError> {
         let string = self.unit.lookup_string(slot)?;
-        let value = Value::StaticString(StaticString::from(string.clone()));
+        let value = Value::StaticString(string.clone());
         self.stack.push(value);
         Ok(())
     }
@@ -1707,7 +1743,7 @@ impl Vm {
         let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
-        let future = Future::new(async move { vm.run().run_to_completion().await });
+        let future = Future::new(async move { vm.run::<Value>().run_to_completion().await });
         self.stack.push(Value::Future(Shared::new(future)));
         Ok(())
     }

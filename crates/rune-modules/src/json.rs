@@ -1,5 +1,6 @@
-//! The json package, providing access to functions to serialize and deserialize
-//! json.
+//! The native `json` module for the [Rune Language].
+//!
+//! [Rune Language]: https://github.com/rune-rs/rune
 //!
 //! ## Usage
 //!
@@ -15,7 +16,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_packages()?;
-//! context.install(&runestick_json::module()?)?;
+//! context.install(&rune_modules::json::module()?)?;
 //! # Ok(())
 //! # }
 //! ```

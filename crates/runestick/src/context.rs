@@ -1,5 +1,5 @@
 use crate::collections::{HashMap, HashSet};
-use crate::module::{ModuleInstanceFunction, ModuleInternalEnum, ModuleType, ModuleUnitType};
+use crate::module::{ModuleAssociatedFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
 use crate::{
     Hash, Item, Meta, MetaStruct, MetaTuple, Module, ReflectValueType, Stack, StaticType,
     TypeCheck, ValueType, ValueTypeInfo, VmError,
@@ -318,8 +318,13 @@ impl Context {
             self.install_internal_enum(module, internal_enum)?;
         }
 
-        for ((value_type, hash), inst) in &module.instance_functions {
-            self.install_module_instance_function(*value_type, *hash, inst)?;
+        for (key, inst) in &module.associated_functions {
+            self.install_associated_function(
+                key.value_type,
+                key.hash,
+                inst,
+                key.kind.into_hash_fn(),
+            )?;
         }
 
         Ok(())
@@ -441,11 +446,12 @@ impl Context {
         Ok(())
     }
 
-    fn install_module_instance_function(
+    fn install_associated_function(
         &mut self,
         value_type: ValueType,
         hash: Hash,
-        inst: &ModuleInstanceFunction,
+        assoc: &ModuleAssociatedFn,
+        hash_fn: impl FnOnce(ValueType, Hash) -> Hash,
     ) -> Result<(), ContextError> {
         let type_info = match self
             .types_rev
@@ -455,17 +461,17 @@ impl Context {
             Some(type_info) => type_info,
             None => {
                 return Err(ContextError::MissingInstance {
-                    instance_type: inst.value_type_info,
+                    instance_type: assoc.value_type_info,
                 });
             }
         };
 
-        let hash = Hash::instance_function(value_type, hash);
+        let hash = hash_fn(value_type, hash);
 
         let signature = FnSignature::new_inst(
             type_info.name.clone(),
-            inst.name.clone(),
-            inst.args,
+            assoc.name.clone(),
+            assoc.args,
             type_info.value_type_info,
         );
 
@@ -476,7 +482,7 @@ impl Context {
             });
         }
 
-        self.functions.insert(hash, inst.handler.clone());
+        self.functions.insert(hash, assoc.handler.clone());
         Ok(())
     }
 

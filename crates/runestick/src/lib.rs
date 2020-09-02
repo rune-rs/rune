@@ -1,9 +1,30 @@
-//! # runestick
+//! <div align="center">
+//! <a href="https://rune-rs.github.io/rune/">
+//!     <b>Read the Book 📖</b>
+//! </a>
+//! </div>
+//!
+//! <br>
+//!
+//! <div align="center">
+//! <a href="https://github.com/rune-rs/rune/actions">
+//!     <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/Build/badge.svg">
+//! </a>
+//!
+//! <a href="https://github.com/rune-rs/rune/actions">
+//!     <img alt="Book Status" src="https://github.com/rune-rs/rune/workflows/Book/badge.svg">
+//! </a>
+//!
+//! <a href="https://discord.gg/v5AeNkT">
+//!     <img alt="Chat on Discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square">
+//! </a>
+//! </div>
+//!
+//! <br>
 //!
 //! A stack-based virtual machine for the Rust programming language.
 //!
-//! This drives the [Rune language].
-//!
+//! This is the driver for the [Rune language].
 //! [Rune Language]: https://github.com/rune-rs/rune
 
 #![deny(missing_docs)]
@@ -77,8 +98,8 @@ pub use crate::inst::{Inst, PanicReason, TypeCheck};
 pub use crate::item::{Component, Item};
 pub use crate::panic::Panic;
 pub use crate::protocol::{
-    Protocol, ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_ITER, MUL, MUL_ASSIGN,
-    NEXT, REM, STRING_DISPLAY, SUB, SUB_ASSIGN,
+    Protocol, ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL,
+    MUL_ASSIGN, NEXT, REM, STRING_DISPLAY, SUB, SUB_ASSIGN,
 };
 pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};

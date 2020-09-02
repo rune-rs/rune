@@ -1,15 +1,9 @@
 use crate::{
-    Bytes, FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue,
-    UnsafeFromValue, Value, ValueError,
+    Bytes, FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, UnsafeFromValue, Value,
+    ValueError,
 };
 
 value_types!(crate::BYTES_TYPE, Bytes => Bytes, &Bytes, &mut Bytes, &[u8]);
-
-impl ToValue for Bytes {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Bytes(Shared::new(self)))
-    }
-}
 
 impl FromValue for Bytes {
     fn from_value(value: Value) -> Result<Self, ValueError> {

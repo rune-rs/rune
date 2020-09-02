@@ -4,6 +4,7 @@ use crate::{
 };
 use std::any;
 use std::fmt;
+use std::sync::Arc;
 
 /// The type of an object.
 pub type Object<T> = crate::collections::HashMap<String, T>;
@@ -101,7 +102,7 @@ pub enum Value {
     ///
     /// `Rc<str>` on the other hand wraps a so-called fat pointer, which is 16
     /// bytes.
-    StaticString(StaticString),
+    StaticString(Arc<StaticString>),
     /// A UTF-8 string.
     String(Shared<String>),
     /// A byte string.
@@ -571,7 +572,7 @@ impl From<()> for Value {
     }
 }
 
-macro_rules! from_primitive {
+macro_rules! from_impl {
     ($ty:ty, $variant:ident) => {
         impl From<$ty> for Value {
             fn from(value: $ty) -> Self {
@@ -581,12 +582,40 @@ macro_rules! from_primitive {
     };
 }
 
-from_primitive!(u8, Byte);
-from_primitive!(bool, Bool);
-from_primitive!(char, Char);
-from_primitive!(i64, Integer);
-from_primitive!(f64, Float);
-from_primitive!(StaticString, StaticString);
+from_impl!(u8, Byte);
+from_impl!(bool, Bool);
+from_impl!(char, Char);
+from_impl!(i64, Integer);
+from_impl!(f64, Float);
+from_impl!(Arc<StaticString>, StaticString);
+
+macro_rules! from_shared_impl {
+    (Shared<$ty:ty>, $variant:ident) => {
+        from_impl!(Shared<$ty>, $variant);
+
+        impl From<$ty> for Value {
+            fn from(value: $ty) -> Self {
+                Self::$variant(Shared::new(value))
+            }
+        }
+    };
+}
+
+from_shared_impl!(Shared<Bytes>, Bytes);
+from_impl!(Shared<Vec<Value>>, Vec);
+from_shared_impl!(Shared<Tuple>, Tuple);
+from_impl!(Shared<Object<Value>>, Object);
+from_shared_impl!(Shared<Future>, Future);
+from_shared_impl!(Shared<Generator>, Generator);
+from_shared_impl!(Shared<GeneratorState>, GeneratorState);
+from_impl!(Shared<Option<Value>>, Option);
+from_impl!(Shared<Result<Value, Value>>, Result);
+from_shared_impl!(Shared<TypedTuple>, TypedTuple);
+from_shared_impl!(Shared<VariantTuple>, VariantTuple);
+from_shared_impl!(Shared<TypedObject>, TypedObject);
+from_shared_impl!(Shared<VariantObject>, VariantObject);
+from_shared_impl!(Shared<FnPtr>, FnPtr);
+from_shared_impl!(Shared<Any>, Any);
 
 /// A type-erased rust number.
 #[derive(Debug, Clone, Copy)]

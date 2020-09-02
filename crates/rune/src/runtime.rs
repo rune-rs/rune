@@ -105,6 +105,25 @@ impl Runtime {
         ))
     }
 
+    /// Construct a runtime with a default context.
+    ///
+    /// If built with the `modules` feature, this includes all available native
+    /// modules.
+    pub fn with_default_context() -> Result<Self, runestick::ContextError> {
+        #[allow(unused_mut)]
+        let mut context = runestick::Context::with_default_packages()?;
+
+        #[cfg(feature = "modules")]
+        {
+            context.install(&rune_modules::http::module()?)?;
+            context.install(&rune_modules::json::module()?)?;
+            context.install(&rune_modules::time::module()?)?;
+            context.install(&rune_modules::process::module()?)?;
+        }
+
+        Ok(Self::with_context(context))
+    }
+
     /// Construct a new runtime with a custom context.
     pub fn with_context(context: runestick::Context) -> Self {
         Self {

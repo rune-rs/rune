@@ -1,6 +1,6 @@
 use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue, UnsafeFromValue,
-    Value, ValueError,
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, UnsafeFromValue, Value,
+    ValueError,
 };
 
 value_types!(crate::GENERATOR_STATE_TYPE, GeneratorState => GeneratorState, &GeneratorState, &mut GeneratorState);
@@ -65,11 +65,5 @@ impl UnsafeFromValue for &mut GeneratorState {
 
     unsafe fn to_arg(output: Self::Output) -> Self {
         &mut *output
-    }
-}
-
-impl ToValue for GeneratorState {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::GeneratorState(Shared::new(self)))
     }
 }

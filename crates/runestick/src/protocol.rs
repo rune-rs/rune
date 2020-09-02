@@ -123,3 +123,9 @@ pub const NEXT: Protocol = Protocol {
     name: "next",
     hash: Hash::new(0xc3cde069de2ba320),
 };
+
+/// Function used to convert an argument into a future.
+pub const INTO_FUTURE: Protocol = Protocol {
+    name: "into_future",
+    hash: Hash::new(0x596e6428deabfda2),
+};

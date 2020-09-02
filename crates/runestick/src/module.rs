@@ -84,11 +84,34 @@ pub(crate) struct ModuleType {
     pub(crate) value_type_info: ValueTypeInfo,
 }
 
-pub(crate) struct ModuleInstanceFunction {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum ModuleAssociatedKind {
+    Getter,
+    Instance,
+}
+
+impl ModuleAssociatedKind {
+    /// Convert the kind into a hash function.
+    pub fn into_hash_fn(self) -> fn(ValueType, Hash) -> Hash {
+        match self {
+            Self::Getter => Hash::getter,
+            Self::Instance => Hash::instance_function,
+        }
+    }
+}
+
+pub(crate) struct ModuleAssociatedFn {
     pub(crate) handler: Arc<Handler>,
     pub(crate) args: Option<usize>,
     pub(crate) value_type_info: ValueTypeInfo,
     pub(crate) name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct ModuleAssocKey {
+    pub(crate) value_type: ValueType,
+    pub(crate) hash: Hash,
+    pub(crate) kind: ModuleAssociatedKind,
 }
 
 /// A collection of functions that can be looked up by type.
@@ -99,7 +122,7 @@ pub struct Module {
     /// Free functions.
     pub(crate) functions: HashMap<Item, (Arc<Handler>, Option<usize>)>,
     /// Instance functions.
-    pub(crate) instance_functions: HashMap<(ValueType, Hash), ModuleInstanceFunction>,
+    pub(crate) associated_functions: HashMap<ModuleAssocKey, ModuleAssociatedFn>,
     /// Registered types.
     pub(crate) types: HashMap<ValueType, ModuleType>,
     /// Registered unit type.
@@ -118,7 +141,7 @@ impl Module {
         Self {
             path: Item::of(path),
             functions: Default::default(),
-            instance_functions: Default::default(),
+            associated_functions: Default::default(),
             types: Default::default(),
             unit_type: None,
             internal_enums: Vec::new(),
@@ -338,13 +361,41 @@ impl Module {
         N: IntoInstFnHash,
         Func: InstFn<Args>,
     {
-        let ty = Func::instance_value_type();
+        self.assoc_fn(name, f, ModuleAssociatedKind::Instance)
+    }
+
+    /// Install a getter for the specified field.
+    pub fn getter<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
+    where
+        N: IntoInstFnHash,
+        Func: InstFn<Args>,
+    {
+        self.assoc_fn(name, f, ModuleAssociatedKind::Getter)
+    }
+
+    /// Install an associated function.
+    fn assoc_fn<N, Func, Args>(
+        &mut self,
+        name: N,
+        f: Func,
+        kind: ModuleAssociatedKind,
+    ) -> Result<(), ContextError>
+    where
+        N: IntoInstFnHash,
+        Func: InstFn<Args>,
+    {
+        let value_type = Func::instance_value_type();
         let value_type_info = Func::instance_value_type_info();
 
-        let key = (ty, name.to_hash());
+        let key = ModuleAssocKey {
+            value_type,
+            hash: name.to_hash(),
+            kind,
+        };
+
         let name = name.to_name();
 
-        if self.instance_functions.contains_key(&key) {
+        if self.associated_functions.contains_key(&key) {
             return Err(ContextError::ConflictingInstanceFunction {
                 value_type_info,
                 name,
@@ -353,15 +404,14 @@ impl Module {
 
         let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
 
-        let instance_function = ModuleInstanceFunction {
+        let instance_function = ModuleAssociatedFn {
             handler,
             args: Some(Func::args()),
             value_type_info,
             name,
         };
 
-        self.instance_functions.insert(key, instance_function);
-
+        self.associated_functions.insert(key, instance_function);
         Ok(())
     }
 
@@ -399,13 +449,18 @@ impl Module {
         N: IntoInstFnHash,
         Func: AsyncInstFn<Args>,
     {
-        let ty = Func::instance_value_type();
+        let value_type = Func::instance_value_type();
         let value_type_info = Func::instance_value_type_info();
 
-        let key = (ty, name.to_hash());
+        let key = ModuleAssocKey {
+            value_type,
+            hash: name.to_hash(),
+            kind: ModuleAssociatedKind::Instance,
+        };
+
         let name = name.to_name();
 
-        if self.instance_functions.contains_key(&key) {
+        if self.associated_functions.contains_key(&key) {
             return Err(ContextError::ConflictingInstanceFunction {
                 value_type_info,
                 name,
@@ -414,14 +469,14 @@ impl Module {
 
         let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
 
-        let instance_function = ModuleInstanceFunction {
+        let instance_function = ModuleAssociatedFn {
             handler,
             args: Some(Func::args()),
             value_type_info,
             name,
         };
 
-        self.instance_functions.insert(key, instance_function);
+        self.associated_functions.insert(key, instance_function);
         Ok(())
     }
 }

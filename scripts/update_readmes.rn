@@ -1,0 +1,16 @@
+use process::Command;
+
+fn main() {
+    let projects = [
+        "crates/rune-testing",
+        "crates/rune-modules",
+        "crates/rune-testing",
+    ];
+
+    for project in projects {
+        let cargo = Command::new("cargo");
+        cargo.args(["readme", "-r", project, "-o", "README.md", "-t", "../../README.tpl"]);
+        let status = cargo.spawn()?.await?;
+        println(`{project}: {status}`);
+    }
+}

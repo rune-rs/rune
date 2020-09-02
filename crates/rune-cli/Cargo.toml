@@ -18,17 +18,12 @@ A standalone interpreter for Rune.
 
 [dependencies]
 tokio = {version = "0.2.22", features = ["rt-core", "net", "fs", "macros"]}
-reqwest = "0.10.7"
 env_logger = "0.7.1"
-
-rune = {version = "0.3.0", path = "../rune"}
-runestick = {version = "0.3.0", path = "../runestick"}
-runestick-http = {version = "0.3.0", path = "../runestick-http"}
-runestick-json = {version = "0.3.0", path = "../runestick-json"}
-runestick-time = {version = "0.3.0", path = "../runestick-time"}
 codespan-reporting = "0.9.5"
-
 anyhow = "1.0.32"
+
+rune = {version = "0.3.0", path = "../rune", features = ["modules"]}
+runestick = {version = "0.3.0", path = "../runestick"}
 
 [[bin]]
 name = "rune"
