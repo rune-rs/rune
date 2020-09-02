@@ -3,8 +3,7 @@ use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
     AccessError, Bytes, Context, FnPtr, FromValue, Future, Generator, Hash, Inst, Integer,
     IntoArgs, IntoTypeHash, Object, Panic, Protocol, Shared, Stack, StackError, StaticString,
-    ToValue, Tuple, TypeCheck, TypedObject, TypedTuple, Unit, Value, ValueError, ValueTypeInfo,
-    VariantObject, VariantTuple,
+    ToValue, Tuple, TypeCheck, TypedObject, Unit, Value, ValueError, ValueTypeInfo, VariantObject,
 };
 use std::any;
 use std::fmt;
@@ -732,8 +731,8 @@ impl Vm {
     ///
     /// This will cause the `args` number of elements on the stack to be
     /// associated and accessible to the new call frame.
-    pub fn push_call_frame(&mut self, ip: usize, args: usize) -> Result<(), VmError> {
-        let stack_top = self.stack.push_stack_top(args)?;
+    pub(crate) fn push_call_frame(&mut self, ip: usize, args: usize) -> Result<(), VmError> {
+        let stack_top = self.stack.swap_stack_top(args)?;
 
         self.call_frames.push(CallFrame {
             ip: self.ip,
@@ -742,46 +741,6 @@ impl Vm {
 
         self.ip = ip.overflowing_sub(1).0;
         Ok(())
-    }
-
-    /// Construct a tuple.
-    #[inline]
-    fn allocate_typed_tuple(&mut self, hash: Hash, args: usize) -> Result<Value, VmError> {
-        let mut tuple = Vec::new();
-
-        for _ in 0..args {
-            tuple.push(self.stack.pop()?);
-        }
-
-        let typed_tuple = Shared::new(TypedTuple {
-            hash,
-            tuple: tuple.into_boxed_slice(),
-        });
-
-        Ok(Value::TypedTuple(typed_tuple))
-    }
-
-    /// Construct a tuple variant.
-    #[inline]
-    fn allocate_tuple_variant(
-        &mut self,
-        enum_hash: Hash,
-        hash: Hash,
-        args: usize,
-    ) -> Result<Value, VmError> {
-        let mut tuple = Vec::new();
-
-        for _ in 0..args {
-            tuple.push(self.stack.pop()?);
-        }
-
-        let typed_tuple = Shared::new(VariantTuple {
-            enum_hash,
-            hash,
-            tuple: tuple.into_boxed_slice(),
-        });
-
-        Ok(Value::VariantTuple(typed_tuple))
     }
 
     /// Pop a call frame and return it.
@@ -2092,11 +2051,9 @@ impl Vm {
     fn call_generator_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
         let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
-
         vm.ip = offset;
-
-        let future = Generator::new(vm);
-        self.stack.push(Value::Generator(Shared::new(future)));
+        let generator = Generator::new(vm);
+        self.stack.push(Value::Generator(Shared::new(generator)));
         Ok(())
     }
 
@@ -2104,11 +2061,8 @@ impl Vm {
     fn call_async_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
         let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
-
         vm.ip = offset;
-
         let future = Future::new(async move { vm.run().run_to_completion().await });
-
         self.stack.push(Value::Future(Shared::new(future)));
         Ok(())
     }
@@ -2207,23 +2161,18 @@ impl Vm {
                     });
                 }
 
-                match &info.kind {
+                match info.kind {
                     UnitFnKind::Offset { offset, call } => {
-                        let offset = *offset;
-                        let call = *call;
                         self.call_offset_fn(offset, call, args)?;
                     }
                     UnitFnKind::Tuple { hash } => {
-                        let hash = *hash;
-                        let args = info.signature.args;
-                        let value = self.allocate_typed_tuple(hash, args)?;
+                        let tuple = self.stack.pop_sequence(info.signature.args)?;
+                        let value = Value::typed_tuple(hash, tuple);
                         self.stack.push(value);
                     }
                     UnitFnKind::TupleVariant { enum_hash, hash } => {
-                        let enum_hash = *enum_hash;
-                        let hash = *hash;
-                        let args = info.signature.args;
-                        let value = self.allocate_tuple_variant(enum_hash, hash, args)?;
+                        let tuple = self.stack.pop_sequence(info.signature.args)?;
+                        let value = Value::variant_tuple(enum_hash, hash, tuple);
                         self.stack.push(value);
                     }
                 }
@@ -2248,7 +2197,7 @@ impl Vm {
     {
         // NB: +1 to include the instance itself.
         let args = args + 1;
-        let instance = self.stack.peek().ok_or_else(|| StackError::StackEmpty)?;
+        let instance = self.stack.last()?;
         let value_type = instance.value_type()?;
         let hash = Hash::instance_function(value_type, hash);
 

@@ -1,31 +1,12 @@
-use crate::{Shared, Tuple, Value};
-use std::iter::FromIterator;
+use crate::Value;
+use std::iter;
+use std::mem;
 use thiserror::Error;
 
 /// An error raised when interacting with the stack.
 #[derive(Debug, Error)]
-pub enum StackError {
-    /// Trying to pop an empty stack.
-    #[error("stack is empty")]
-    StackEmpty,
-    /// Attempt to access out-of-bounds stack item.
-    #[error("tried to access an out-of-bounds stack entry")]
-    StackOutOfBounds,
-    /// Attempt to pop outside of current frame offset.
-    #[error("attempted to pop beyond current stack frame `{frame}`")]
-    PopOutOfBounds {
-        /// CallFrame offset that we tried to pop.
-        frame: usize,
-    },
-    /// We encountered a corrupted stack frame.
-    #[error("stack size `{stack_top}` starts before the current stack frame `{frame_at}`")]
-    CorruptedStackFrame {
-        /// The size of the stack.
-        stack_top: usize,
-        /// The location of the stack frame.
-        frame_at: usize,
-    },
-}
+#[error("tried to access out-of-bounds stack entry")]
+pub struct StackError(());
 
 /// The stack of the virtual machine, where all values are stored.
 #[derive(Debug, Clone)]
@@ -70,13 +51,15 @@ impl Stack {
     }
 
     /// Peek the top of the stack.
+    #[inline]
     pub fn peek(&mut self) -> Option<&Value> {
         self.stack.last()
     }
 
     /// Get the last position on the stack.
+    #[inline]
     pub fn last(&self) -> Result<&Value, StackError> {
-        self.stack.last().ok_or_else(|| StackError::StackEmpty)
+        self.stack.last().ok_or_else(|| StackError(()))
     }
 
     /// Access the value at the given frame offset.
@@ -84,38 +67,19 @@ impl Stack {
         self.stack_top
             .checked_add(offset)
             .and_then(|n| self.stack.get(n))
-            .ok_or_else(|| StackError::StackOutOfBounds)
+            .ok_or_else(|| StackError(()))
     }
 
     /// Get the offset at the given location.
     pub fn at_offset_mut(&mut self, offset: usize) -> Result<&mut Value, StackError> {
         let n = match self.stack_top.checked_add(offset) {
             Some(n) => n,
-            None => return Err(StackError::StackOutOfBounds),
+            None => return Err(StackError(())),
         };
 
         match self.stack.get_mut(n) {
             Some(value) => Ok(value),
-            None => Err(StackError::StackOutOfBounds),
-        }
-    }
-
-    /// Get the given offset, from the top.
-    ///
-    /// 0 mean the top of the stack, 1 means the value just before that.
-    pub fn from_top_mut(&mut self, offset: usize) -> Result<&mut Value, StackError> {
-        let n = match self.stack.len().checked_sub(offset) {
-            Some(n) => n,
-            None => return Err(StackError::StackOutOfBounds),
-        };
-
-        if n < self.stack_top {
-            return Err(StackError::StackOutOfBounds);
-        }
-
-        match self.stack.get_mut(n) {
-            Some(value) => Ok(value),
-            None => Err(StackError::StackOutOfBounds),
+            None => Err(StackError(())),
         }
     }
 
@@ -129,28 +93,15 @@ impl Stack {
     /// Pop a reference to a value from the stack.
     pub fn pop(&mut self) -> Result<Value, StackError> {
         if self.stack.len() == self.stack_top {
-            return Err(StackError::PopOutOfBounds {
-                frame: self.stack_top,
-            });
+            return Err(StackError(()));
         }
 
-        self.stack.pop().ok_or_else(|| StackError::StackEmpty)
+        self.stack.pop().ok_or_else(|| StackError(()))
     }
 
     /// Pop the given number of elements from the stack.
-    pub fn popn(&mut self, n: usize) -> Result<(), StackError> {
-        if self.stack.len().saturating_sub(self.stack_top) < n {
-            return Err(StackError::PopOutOfBounds {
-                frame: self.stack_top,
-            });
-        }
-
-        for _ in 0..n {
-            // NB: bounds have already been checked above.
-            let value = self.stack.pop();
-            debug_assert!(value.is_some());
-        }
-
+    pub fn popn(&mut self, count: usize) -> Result<(), StackError> {
+        drop(self.drain_stack_top(count)?);
         Ok(())
     }
 
@@ -169,61 +120,20 @@ impl Stack {
         self.stack.iter()
     }
 
-    /// Push a tuple, based on the current stack.
-    pub fn push_tuple(&mut self, count: usize) -> Result<(), StackError> {
-        let mut tuple = Vec::with_capacity(count);
-
-        for _ in 0..count {
-            tuple.push(self.pop()?);
-        }
-
-        self.push(Value::Tuple(Shared::new(Tuple::from(tuple))));
-        Ok(())
-    }
-
-    /// Push a tuple, based on the current stack.
-    pub fn push_vec(&mut self, count: usize) -> Result<(), StackError> {
-        let mut vec = Vec::with_capacity(count);
-
-        for _ in 0..count {
-            vec.push(self.pop()?);
-        }
-
-        self.push(Value::Vec(Shared::new(vec)));
-        Ok(())
-    }
-
     /// Pop a sequence of values from the stack.
-    pub fn pop_sequence(&mut self, args: usize) -> Result<Vec<Value>, StackError> {
-        let mut values = Vec::with_capacity(args);
-
-        for _ in 0..args {
-            values.push(self.pop()?);
-        }
-
-        Ok(values)
+    pub fn pop_sequence(&mut self, count: usize) -> Result<Vec<Value>, StackError> {
+        Ok(self.drain_stack_top(count)?.rev().collect::<Vec<_>>())
     }
 
     /// Pop a sub stack of the given size.
-    pub fn drain_stack_top(
+    pub(crate) fn drain_stack_top(
         &mut self,
-        args: usize,
-    ) -> Result<impl Iterator<Item = Value> + '_, StackError> {
-        let start =
-            self.stack
-                .len()
-                .checked_sub(args)
-                .ok_or_else(|| StackError::PopOutOfBounds {
-                    frame: self.stack_top,
-                })?;
-
-        if start < self.stack_top {
-            return Err(StackError::PopOutOfBounds {
-                frame: self.stack_top,
-            });
+        count: usize,
+    ) -> Result<impl DoubleEndedIterator<Item = Value> + '_, StackError> {
+        match self.stack.len().checked_sub(count) {
+            Some(start) if start >= self.stack_top => Ok(self.stack.drain(start..)),
+            _ => Err(StackError(())),
         }
-
-        Ok(self.stack.drain(start..))
     }
 
     /// Modify stack top by subtracting the given count from it while checking
@@ -232,41 +142,35 @@ impl Stack {
     /// This is used internally when returning from a call frame.
     ///
     /// Returns the old stack top.
-    pub(crate) fn push_stack_top(&mut self, count: usize) -> Result<usize, StackError> {
-        let new_stack_top = self
-            .stack
-            .len()
-            .checked_sub(count)
-            .ok_or_else(|| StackError::StackOutOfBounds)?;
-
-        Ok(std::mem::replace(&mut self.stack_top, new_stack_top))
+    pub(crate) fn swap_stack_top(&mut self, count: usize) -> Result<usize, StackError> {
+        match self.stack.len().checked_sub(count) {
+            Some(new_top) => Ok(mem::replace(&mut self.stack_top, new_top)),
+            None => Err(StackError(())),
+        }
     }
 
     // Assert that the stack frame has been restored to the previous top
     // at the point of return.
     pub(crate) fn check_stack_top(&self) -> Result<(), StackError> {
-        if self.stack.len() != self.stack_top {
-            return Err(StackError::CorruptedStackFrame {
-                stack_top: self.stack.len(),
-                frame_at: self.stack_top,
-            });
+        if self.stack.len() == self.stack_top {
+            return Ok(());
         }
 
-        Ok(())
+        Err(StackError(()))
     }
 
     /// Pop the current stack top and modify it to a different one.
     ///
     /// This asserts that the size of the current stack frame is exactly zero
     /// before restoring it.
-    pub(crate) fn pop_stack_top(&mut self, new_stack_top: usize) -> Result<(), StackError> {
+    pub(crate) fn pop_stack_top(&mut self, stack_top: usize) -> Result<(), StackError> {
         self.check_stack_top()?;
-        self.stack_top = new_stack_top;
+        self.stack_top = stack_top;
         Ok(())
     }
 }
 
-impl FromIterator<Value> for Stack {
+impl iter::FromIterator<Value> for Stack {
     fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
         Self {
             stack: iter.into_iter().collect(),
