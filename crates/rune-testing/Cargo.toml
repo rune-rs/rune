@@ -1,6 +1,6 @@
 [package]
 name = "rune-testing"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -17,5 +17,5 @@ Helpers to write test-cases for rune scripts.
 [dependencies]
 futures-executor = "0.3.5"
 
-rune = {version = "0.3.0", path = "../rune"}
-runestick = {version = "0.3.0", path = "../runestick"}
+rune = {version = "0.4.0", path = "../rune"}
+runestick = {version = "0.4.0", path = "../runestick"}

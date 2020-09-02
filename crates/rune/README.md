@@ -75,5 +75,3 @@ See `--help` for more information.
 [support-structs]: https://rune-rs.github.io/rune/5_6_structs.html
 [support-async]: https://rune-rs.github.io/rune/8_async.html
 [support-generators]: https://rune-rs.github.io/rune/7_generators.html
-
-License: MIT/Apache-2.0

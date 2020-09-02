@@ -1,7 +1,14 @@
 use process::Command;
 
+fn update_readme(project, output) {
+    let cargo = Command::new("cargo");
+    cargo.args(["readme", "-r", project, "-o", output, "-t", "../../README.tpl"]);
+    Ok(cargo.spawn()?.await?)
+}
+
 fn main() {
     let projects = [
+        "crates/rune",
         "crates/rune-testing",
         "crates/rune-modules",
         "crates/rune-testing",
@@ -9,9 +16,10 @@ fn main() {
     ];
 
     for project in projects {
-        let cargo = Command::new("cargo");
-        cargo.args(["readme", "-r", project, "-o", "README.md", "-t", "../../README.tpl"]);
-        let status = cargo.spawn()?.await?;
+        let status = update_readme(project, "README.md")?;
         println(`{project}: {status}`);
     }
+
+    let status = update_readme("crates/rune", "../../README.md")?;
+    println(`.: {status}`);
 }
