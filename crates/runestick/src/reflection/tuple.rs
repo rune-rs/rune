@@ -33,10 +33,10 @@ macro_rules! impl_from_value_tuple {
                 let tuple = tuple.take()?;
 
                 if tuple.len() != $count {
-                    return Err($crate::ValueError::ExpectedTupleLength {
+                    return Err($crate::ValueError::from($crate::ValueErrorKind::ExpectedTupleLength {
                         actual: tuple.len(),
                         expected: $count,
-                    });
+                    }));
                 }
 
                 #[allow(unused_mut, unused_variables)]
@@ -46,7 +46,7 @@ macro_rules! impl_from_value_tuple {
                     let $var = match it.next() {
                         Some(value) => <$ty>::from_value(value)?,
                         None => {
-                            return Err($crate::ValueError::IterationError);
+                            return Err($crate::ValueError::from($crate::ValueErrorKind::IterationError));
                         },
                     };
                 )*

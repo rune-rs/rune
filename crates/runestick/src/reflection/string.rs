@@ -2,7 +2,7 @@
 
 use crate::{
     FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue, UnsafeFromValue,
-    Value, ValueError,
+    Value, ValueError, ValueErrorKind,
 };
 
 value_types!(crate::STRING_TYPE, String => String, &String, &mut String, &str, &mut str);
@@ -12,9 +12,9 @@ impl FromValue for String {
         match value {
             Value::String(string) => Ok(string.borrow_ref()?.clone()),
             Value::StaticString(string) => Ok(string.as_ref().clone()),
-            actual => Err(ValueError::ExpectedString {
+            actual => Err(ValueError::from(ValueErrorKind::ExpectedString {
                 actual: actual.type_info()?,
-            }),
+            })),
         }
     }
 }
@@ -52,9 +52,9 @@ impl UnsafeFromValue for &str {
             }
             Value::StaticString(string) => (string.as_ref().as_str(), None),
             actual => {
-                return Err(ValueError::ExpectedString {
+                return Err(ValueError::from(ValueErrorKind::ExpectedString {
                     actual: actual.type_info()?,
-                })
+                }))
             }
         })
     }
@@ -76,9 +76,9 @@ impl UnsafeFromValue for &mut str {
                 ((*s).as_mut_str(), Some(guard))
             }
             actual => {
-                return Err(ValueError::ExpectedString {
+                return Err(ValueError::from(ValueErrorKind::ExpectedString {
                     actual: actual.type_info()?,
-                })
+                }))
             }
         })
     }
@@ -101,9 +101,9 @@ impl UnsafeFromValue for &String {
             }
             Value::StaticString(string) => (string.as_ref(), None),
             actual => {
-                return Err(ValueError::ExpectedString {
+                return Err(ValueError::from(ValueErrorKind::ExpectedString {
                     actual: actual.type_info()?,
-                })
+                }))
             }
         })
     }
@@ -125,9 +125,9 @@ impl UnsafeFromValue for &mut String {
                 (s, guard)
             }
             actual => {
-                return Err(ValueError::ExpectedString {
+                return Err(ValueError::from(ValueErrorKind::ExpectedString {
                     actual: actual.type_info()?,
-                })
+                }))
             }
         })
     }

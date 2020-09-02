@@ -57,9 +57,9 @@ impl VmError {
 
 impl From<ValueError> for VmError {
     fn from(error: ValueError) -> Self {
-        match error {
-            ValueError::VmError { error } => *error,
-            error => VmError::from(VmErrorKind::ValueError { error }),
+        match error.unsmuggle_vm_error() {
+            Ok(error) => error,
+            Err(error) => VmError::from(VmErrorKind::ValueError { error }),
         }
     }
 }

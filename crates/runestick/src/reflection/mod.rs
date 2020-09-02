@@ -1,4 +1,6 @@
-use crate::{Stack, Value, ValueError, ValueType, ValueTypeInfo, VecTuple, VmError};
+use crate::{
+    Stack, Value, ValueError, ValueErrorKind, ValueType, ValueTypeInfo, VecTuple, VmError,
+};
 
 mod bytes;
 mod fn_ptr;
@@ -205,10 +207,10 @@ macro_rules! impl_from_value_tuple_vec {
                 let vec = vec.take()?;
 
                 if vec.len() != $count {
-                    return Err(ValueError::ExpectedTupleLength {
+                    return Err(ValueError::from(ValueErrorKind::ExpectedTupleLength {
                         actual: vec.len(),
                         expected: $count,
-                    });
+                    }));
                 }
 
                 #[allow(unused_mut, unused_variables)]
@@ -218,7 +220,7 @@ macro_rules! impl_from_value_tuple_vec {
                     let $value: $ty = match it.next() {
                         Some(value) => <$ty>::from_value(value)?,
                         None => {
-                            return Err(ValueError::IterationError);
+                            return Err(ValueError::from(ValueErrorKind::IterationError));
                         },
                     };
                 )*

@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
 use crate::{
-    Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, ValueError,
-    ValueType, ValueTypeInfo, VmError, VmErrorKind,
+    Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, ValueType,
+    ValueTypeInfo, VmError, VmErrorKind,
 };
 use std::any::type_name;
 use std::future;
@@ -463,7 +463,7 @@ where
     }
 }
 
-/// Trait used to provide the [function][Context::function] function.
+/// Trait used to provide the [function][Module::function] function.
 pub trait Function<Args>: 'static + Copy + Send + Sync {
     /// The return type of the function.
     type Return;
@@ -475,7 +475,7 @@ pub trait Function<Args>: 'static + Copy + Send + Sync {
     fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
-/// Trait used to provide the [async_function][Context::async_function] function.
+/// Trait used to provide the [async_function][Module::async_function] function.
 pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
     /// The return type of the function.
     type Return;
@@ -487,7 +487,7 @@ pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
     fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
-/// Trait used to provide the [inst_fn][Context::inst_fn] function.
+/// Trait used to provide the [inst_fn][Module::inst_fn] function.
 pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     /// The type of the instance.
     type Instance;
@@ -509,7 +509,7 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
 }
 
-/// Trait used to provide the [async_inst_fn][Context::async_inst_fn] function.
+/// Trait used to provide the [async_inst_fn][Module::async_inst_fn] function.
 pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
     /// The type of the instance.
     type Instance;
@@ -717,18 +717,15 @@ macro_rules! impl_register {
     (@return $stack:ident, $ret:ident, $ty:ty) => {
         let $ret = match $ret.to_value() {
             Ok($ret) => $ret,
-            Err(ValueError::Panic { reason }) => {
-                return Err(VmError::from(VmErrorKind::Panic { reason }));
+            Err(e) => match e.unsmuggle_vm_error() {
+                Ok(e) => return Err(e),
+                Err(error) => {
+                    return Err(VmError::from(VmErrorKind::ReturnConversionError {
+                        error,
+                        ret: type_name::<$ty>()
+                    }));
+                }
             },
-            Err(ValueError::VmError { error }) => {
-                return Err(*error);
-            },
-            Err(error) => {
-                return Err(VmError::from(VmErrorKind::ReturnConversionError {
-                    error,
-                    ret: type_name::<$ty>()
-                }));
-            }
         };
 
         $stack.push($ret);
@@ -739,18 +736,15 @@ macro_rules! impl_register {
         $(
             let $var = match <$ty>::unsafe_from_value($var) {
                 Ok(v) => v,
-                Err(ValueError::Panic { reason }) => {
-                    return Err(VmError::from(VmErrorKind::Panic { reason }));
-                },
-                Err(ValueError::VmError { error }) => {
-                    return Err(*error);
-                },
-                Err(error) => {
-                    return Err(VmError::from(VmErrorKind::ArgumentConversionError {
-                        error,
-                        arg: $count - $num,
-                        to: type_name::<$ty>(),
-                    }));
+                Err(e) => match e.unsmuggle_vm_error() {
+                    Ok(e) => return Err(e),
+                    Err(error) => {
+                        return Err(VmError::from(VmErrorKind::ArgumentConversionError {
+                            error,
+                            arg: $count - $num,
+                            to: type_name::<$ty>(),
+                        }));
+                    }
                 }
             };
         )*
@@ -760,37 +754,31 @@ macro_rules! impl_register {
     (@unsafe-inst-vars $inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         let $inst = match Instance::unsafe_from_value($inst) {
             Ok(v) => v,
-            Err(ValueError::Panic { reason }) => {
-                return Err(VmError::from(VmErrorKind::Panic { reason }));
+            Err(e) => match e.unsmuggle_vm_error() {
+                Ok(e) => return Err(e),
+                Err(error) => {
+                    return Err(VmError::from(VmErrorKind::ArgumentConversionError {
+                        error,
+                        arg: 0,
+                        to: type_name::<Instance>()
+                    }));
+                }
             },
-            Err(ValueError::VmError { error }) => {
-                return Err(*error);
-            },
-            Err(error) => {
-                return Err(VmError::from(VmErrorKind::ArgumentConversionError {
-                    error,
-                    arg: 0,
-                    to: type_name::<Instance>()
-                }));
-            }
         };
 
         $(
             let $var = match <$ty>::unsafe_from_value($var) {
                 Ok(v) => v,
-                Err(ValueError::Panic { reason }) => {
-                    return Err(VmError::from(VmErrorKind::Panic { reason }));
+                Err(e) => match e.unsmuggle_vm_error() {
+                    Ok(e) => return Err(e),
+                    Err(error) => {
+                        return Err(VmError::from(VmErrorKind::ArgumentConversionError {
+                            error,
+                            arg: 1 + $count - $num,
+                            to: type_name::<$ty>()
+                        }));
+                    }
                 },
-                Err(ValueError::VmError { error }) => {
-                    return Err(*error);
-                },
-                Err(error) => {
-                    return Err(VmError::from(VmErrorKind::ArgumentConversionError {
-                        error,
-                        arg: 1 + $count - $num,
-                        to: type_name::<$ty>()
-                    }));
-                }
             };
         )*
     };

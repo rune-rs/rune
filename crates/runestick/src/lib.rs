@@ -36,6 +36,7 @@ mod static_string;
 mod static_type;
 mod tuple;
 pub mod unit;
+mod value_error;
 mod value_type;
 mod value_type_info;
 mod vm_error;
@@ -83,9 +84,9 @@ pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{Span, Unit, UnitError};
 pub use crate::value::{
-    Integer, Object, TypedObject, TypedTuple, Value, ValueError, VariantObject, VariantTuple,
-    VecTuple,
+    Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple, VecTuple,
 };
+pub use crate::value_error::{ValueError, ValueErrorKind};
 pub use crate::vm::{StopReason, Task, Vm};
 pub use crate::vm_error::{VmError, VmErrorKind};
 

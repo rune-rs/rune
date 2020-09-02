@@ -1,6 +1,6 @@
 //! Trait implementations for primitive types.
 
-use crate::{FromValue, Integer, ToValue, Value, ValueError};
+use crate::{FromValue, Integer, ToValue, Value, ValueError, ValueErrorKind};
 
 value_types!(crate::UNIT_TYPE, () => ());
 value_types!(crate::BYTE_TYPE, u8 => u8);
@@ -67,10 +67,10 @@ macro_rules! number_value_trait {
 
                 match self.try_into() {
                     Ok(number) => Ok(Value::Integer(number)),
-                    Err(..) => Err(ValueError::IntegerToValueCoercionError {
+                    Err(..) => Err(ValueError::from(ValueErrorKind::IntegerToValueCoercionError {
                         from: Integer::$variant(self),
                         to: std::any::type_name::<i64>(),
-                    }),
+                    })),
                 }
             }
         }
@@ -82,10 +82,10 @@ macro_rules! number_value_trait {
 
                 match integer.try_into() {
                     Ok(number) => Ok(number),
-                    Err(..) => Err(ValueError::ValueToIntegerCoercionError {
+                    Err(..) => Err(ValueError::from(ValueErrorKind::ValueToIntegerCoercionError {
                         from: Integer::I64(integer),
                         to: std::any::type_name::<Self>(),
-                    }),
+                    })),
                 }
             }
         }

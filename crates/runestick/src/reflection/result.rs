@@ -2,7 +2,7 @@
 
 use crate::{
     FromValue, OwnedRef, Panic, RawOwnedRef, ReflectValueType, Shared, ToValue, UnsafeFromValue,
-    Value, ValueError, ValueType, ValueTypeInfo, VmError,
+    Value, ValueError, ValueErrorKind, ValueType, ValueTypeInfo, VmError,
 };
 use std::fmt;
 use std::io;
@@ -41,7 +41,7 @@ where
     fn to_value(self) -> Result<Value, ValueError> {
         match self {
             Ok(value) => Ok(value.to_value()?),
-            Err(reason) => Err(ValueError::Panic { reason }),
+            Err(reason) => Err(ValueError::from(ValueErrorKind::Panic { reason })),
         }
     }
 }
@@ -65,9 +65,7 @@ where
     fn to_value(self) -> Result<Value, ValueError> {
         match self {
             Ok(value) => Ok(value.to_value()?),
-            Err(error) => Err(ValueError::VmError {
-                error: Box::new(error),
-            }),
+            Err(error) => Err(ValueError::from(ValueErrorKind::VmError { error })),
         }
     }
 }

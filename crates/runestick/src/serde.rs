@@ -6,9 +6,6 @@ use serde::{de, ser};
 use std::fmt;
 
 /// Deserialize implementation for value pointers.
-///
-/// **Warning:** This only works if a `Vm` is accessible through [tls], like by
-/// being set up with [tls::inject_vm] or [tls::InjectVm].
 impl<'de> de::Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -19,9 +16,6 @@ impl<'de> de::Deserialize<'de> for Value {
 }
 
 /// Serialize implementation for value pointers.
-///
-/// **Warning:** This only works if a `Vm` is accessible through [tls], like by
-/// being set up with [tls::inject_vm] or [tls::InjectVm].
 impl ser::Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
