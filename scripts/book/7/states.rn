@@ -1,0 +1,11 @@
+fn print_once() {
+    let out = yield 1;
+    dbg(out);
+    2
+}
+
+fn main() {
+    let printer = print_once();
+    dbg(printer.resume(()).await);
+    dbg(printer.resume("John").await);
+}

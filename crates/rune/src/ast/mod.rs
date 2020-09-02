@@ -40,6 +40,7 @@ mod expr_select;
 mod expr_try;
 mod expr_unary;
 mod expr_while;
+mod expr_yield;
 mod fn_arg;
 mod lit_bool;
 mod lit_byte;
@@ -94,6 +95,7 @@ pub use self::expr_select::ExprSelect;
 pub use self::expr_try::ExprTry;
 pub use self::expr_unary::{ExprUnary, UnaryOp};
 pub use self::expr_while::ExprWhile;
+pub use self::expr_yield::ExprYield;
 pub use self::fn_arg::FnArg;
 pub use self::lit_bool::LitBool;
 pub use self::lit_byte::LitByte;
@@ -192,6 +194,7 @@ decl_tokens! {
     (For, Kind::For),
     (In, Kind::In),
     (Break, Kind::Break),
+    (Yield, Kind::Yield),
     (Return, Kind::Return),
     (Star, Kind::Mul),
     (Rocket, Kind::Rocket),

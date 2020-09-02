@@ -1,0 +1,13 @@
+fn printer() {
+    loop {
+        let out = yield;
+        dbg(out);
+    }
+}
+
+fn main() {
+    let printer = printer();
+    printer.resume(1).await;
+    printer.resume("John").await;
+    printer.resume((1, 2, 3)).await;
+}

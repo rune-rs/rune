@@ -1,10 +1,10 @@
 use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
-    AccessError, Bytes, Context, FnPtr, FromValue, Future, Hash, Inst, Integer, IntoArgs,
-    IntoTypeHash, Object, OptionVariant, Panic, Protocol, ResultVariant, Shared, Stack, StackError,
-    StaticString, ToValue, Tuple, TypeCheck, TypedObject, TypedTuple, Unit, Value, ValueError,
-    ValueTypeInfo, VariantObject, VariantTuple,
+    AccessError, Bytes, Context, FnPtr, FromValue, Future, Generator, Hash, Inst, Integer,
+    IntoArgs, IntoTypeHash, Object, Panic, Protocol, Shared, Stack, StackError, StaticString,
+    ToValue, Tuple, TypeCheck, TypedObject, TypedTuple, Unit, Value, ValueError, ValueTypeInfo,
+    VariantObject, VariantTuple,
 };
 use std::any;
 use std::fmt;
@@ -21,6 +21,12 @@ pub enum VmError {
     Panic {
         /// The reason for the panic.
         reason: Panic,
+    },
+    /// The virtual machine stopped for an unexpected reason.
+    #[error("stopped for unexpected reason `{reason}`")]
+    Stopped {
+        /// The reason why the virtual machine stopped.
+        reason: StopReason,
     },
     /// A vm error that was propagated from somewhere else.
     ///
@@ -54,7 +60,7 @@ pub enum VmError {
     #[error("value error: {error}")]
     ValueError {
         /// Source error.
-        #[from]
+        #[source]
         error: ValueError,
     },
     /// The virtual machine panicked for a specific reason.
@@ -321,6 +327,9 @@ pub enum VmError {
         /// The actual operand.
         actual: ValueTypeInfo,
     },
+    /// Trying to resume a generator that has completed.
+    #[error("cannot resume generator that has completed")]
+    GeneratorComplete,
 }
 
 impl VmError {
@@ -345,11 +354,28 @@ impl VmError {
         }
     }
 
-    /// Unpack an unwinded trace, if it is present.
+    /// Unpack an unwinded error, if it is present.
     pub fn from_unwinded(self) -> (Self, Option<usize>) {
         match self {
             Self::UnwindedVmError { error, ip } => (*error, Some(ip)),
             error => (error, None),
+        }
+    }
+
+    /// Unpack an unwinded error ref, if it is present.
+    pub fn from_unwinded_ref(&self) -> (&Self, Option<usize>) {
+        match self {
+            Self::UnwindedVmError { error, ip } => (&*error, Some(*ip)),
+            error => (error, None),
+        }
+    }
+}
+
+impl From<ValueError> for VmError {
+    fn from(error: ValueError) -> Self {
+        match error {
+            ValueError::VmError { error } => *error,
+            error => VmError::ValueError { error },
         }
     }
 }
@@ -380,8 +406,6 @@ pub struct Vm {
     ip: usize,
     /// The current stack.
     stack: Stack,
-    /// We have exited from the last frame.
-    exited: bool,
     /// Frames relative to the stack.
     call_frames: Vec<CallFrame>,
 }
@@ -399,7 +423,6 @@ impl Vm {
             unit,
             ip: 0,
             stack,
-            exited: false,
             call_frames: Vec::new(),
         }
     }
@@ -433,7 +456,6 @@ impl Vm {
     /// Reset this virtual machine, freeing all memory used.
     pub fn clear(&mut self) {
         self.ip = 0;
-        self.exited = false;
         self.stack.clear();
         self.call_frames.clear();
     }
@@ -1238,18 +1260,18 @@ impl Vm {
     }
 
     #[inline]
-    fn op_return(&mut self) -> Result<(), VmError> {
+    fn op_return(&mut self) -> Result<bool, VmError> {
         let return_value = self.stack.pop()?;
-        self.exited = self.pop_call_frame()?;
+        let exit = self.pop_call_frame()?;
         self.stack.push(return_value);
-        Ok(())
+        Ok(exit)
     }
 
     #[inline]
-    fn op_return_unit(&mut self) -> Result<(), VmError> {
-        self.exited = self.pop_call_frame()?;
+    fn op_return_unit(&mut self) -> Result<bool, VmError> {
+        let exit = self.pop_call_frame()?;
         self.stack.push(Value::Unit);
-        Ok(())
+        Ok(exit)
     }
 
     #[inline]
@@ -1294,8 +1316,8 @@ impl Vm {
                 let result = result.borrow_ref()?;
 
                 match &*result {
-                    Ok(ok) if index == 0 => Some(ok.clone()),
-                    Err(err) if index == 0 => Some(err.clone()),
+                    Ok(value) if index == 0 => Some(value.clone()),
+                    Err(value) if index == 0 => Some(value.clone()),
                     _ => None,
                 }
             }
@@ -1303,7 +1325,17 @@ impl Vm {
                 let option = option.borrow_ref()?;
 
                 match &*option {
-                    Some(some) if index == 0 => Some(some.clone()),
+                    Some(value) if index == 0 => Some(value.clone()),
+                    _ => None,
+                }
+            }
+            Value::GeneratorState(state) => {
+                use crate::GeneratorState::*;
+                let state = state.borrow_ref()?;
+
+                match &*state {
+                    Yielded(value) if index == 0 => Some(value.clone()),
+                    Complete(value) if index == 0 => Some(value.clone()),
                     _ => None,
                 }
             }
@@ -1967,8 +1999,8 @@ impl Vm {
                 let result = result.borrow_ref()?;
 
                 Some(match (v, &*result) {
-                    (ResultVariant::Ok, Ok(ok)) => f(slice::from_ref(ok)),
-                    (ResultVariant::Err, Err(err)) => f(slice::from_ref(err)),
+                    (0, Ok(ok)) => f(slice::from_ref(ok)),
+                    (1, Err(err)) => f(slice::from_ref(err)),
                     _ => return Ok(None),
                 })
             }
@@ -1976,8 +2008,18 @@ impl Vm {
                 let option = option.borrow_ref()?;
 
                 Some(match (v, &*option) {
-                    (OptionVariant::Some, Some(some)) => f(slice::from_ref(some)),
-                    (OptionVariant::None, None) => f(&[]),
+                    (0, Some(some)) => f(slice::from_ref(some)),
+                    (1, None) => f(&[]),
+                    _ => return Ok(None),
+                })
+            }
+            (TypeCheck::GeneratorState(v), Value::GeneratorState(state)) => {
+                use crate::GeneratorState::*;
+                let state = state.borrow_ref()?;
+
+                Some(match (v, &*state) {
+                    (0, Complete(complete)) => f(slice::from_ref(complete)),
+                    (1, Yielded(yielded)) => f(slice::from_ref(yielded)),
                     _ => return Ok(None),
                 })
             }
@@ -2047,13 +2089,25 @@ impl Vm {
     }
 
     /// Construct a future from calling an async function.
+    fn call_generator_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
+        let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
+        let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
+
+        vm.ip = offset;
+
+        let future = Generator::new(vm);
+        self.stack.push(Value::Generator(Shared::new(future)));
+        Ok(())
+    }
+
+    /// Construct a future from calling an async function.
     fn call_async_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
         let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
 
         vm.ip = offset;
 
-        let future = Future::new(async move { vm.run().run_to_completion_unwind().await });
+        let future = Future::new(async move { vm.run().run_to_completion().await });
 
         self.stack.push(Value::Future(Shared::new(future)));
         Ok(())
@@ -2066,11 +2120,14 @@ impl Vm {
         args: usize,
     ) -> Result<(), VmError> {
         match call {
-            UnitFnCall::Async => {
-                self.call_async_fn(offset, args)?;
-            }
             UnitFnCall::Immediate => {
                 self.push_call_frame(offset, args)?;
+            }
+            UnitFnCall::Generator => {
+                self.call_generator_fn(offset, args)?;
+            }
+            UnitFnCall::Async => {
+                self.call_async_fn(offset, args)?;
             }
         }
 
@@ -2254,13 +2311,23 @@ impl Vm {
         Ok(())
     }
 
+    /// Advance the instruction pointer.
+    fn advance(&mut self) {
+        self.ip = self.ip.overflowing_add(1).0;
+    }
+
     /// Evaluate a single instruction.
-    async fn run_for(&mut self, mut limit: Option<usize>) -> Result<(), VmError> {
-        while !self.exited {
+    pub(crate) async fn run_for(
+        &mut self,
+        mut limit: Option<usize>,
+    ) -> Result<StopReason, VmError> {
+        loop {
             let inst = *self
                 .unit
                 .instruction_at(self.ip)
                 .ok_or_else(|| VmError::IpOutOfBounds)?;
+
+            log::trace!("{}: {}", self.ip, inst);
 
             match inst {
                 Inst::Not => {
@@ -2333,10 +2400,16 @@ impl Vm {
                     self.op_index_set()?;
                 }
                 Inst::Return => {
-                    self.op_return()?;
+                    if self.op_return()? {
+                        self.advance();
+                        return Ok(StopReason::Exited);
+                    }
                 }
                 Inst::ReturnUnit => {
-                    self.op_return_unit()?;
+                    if self.op_return_unit()? {
+                        self.advance();
+                        return Ok(StopReason::Exited);
+                    }
                 }
                 Inst::Await => {
                     self.op_await().await?;
@@ -2497,6 +2570,15 @@ impl Vm {
                 } => {
                     self.op_match_object(type_check, slot, exact)?;
                 }
+                Inst::Yield => {
+                    self.advance();
+                    return Ok(StopReason::Yielded);
+                }
+                Inst::YieldUnit => {
+                    self.advance();
+                    self.stack.push(Value::Unit);
+                    return Ok(StopReason::Yielded);
+                }
                 Inst::Panic { reason } => {
                     return Err(VmError::Panic {
                         reason: Panic::from(reason),
@@ -2504,18 +2586,37 @@ impl Vm {
                 }
             }
 
-            self.ip = self.ip.overflowing_add(1).0;
+            self.advance();
 
             if let Some(limit) = &mut limit {
                 if *limit <= 1 {
-                    break;
+                    return Ok(StopReason::Limited);
                 }
 
                 *limit -= 1;
             }
         }
+    }
+}
 
-        Ok(())
+/// The reason why the virtual machine execution stopped.
+#[derive(Debug, Clone, Copy)]
+pub enum StopReason {
+    /// The virtual machine exited by running out of call frames.
+    Exited,
+    /// The virtual machine exited because it ran out of execution quota.
+    Limited,
+    /// The virtual machine yielded.
+    Yielded,
+}
+
+impl fmt::Display for StopReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Exited => write!(f, "exited"),
+            Self::Limited => write!(f, "limited"),
+            Self::Yielded => write!(f, "yielded"),
+        }
     }
 }
 
@@ -2542,12 +2643,11 @@ where
     }
 
     /// Run the given task to completion.
-    pub async fn run_to_completion(&mut self) -> Result<T, VmError> {
-        while !self.vm.exited {
-            match self.vm.run_for(None).await {
-                Ok(()) => (),
-                Err(e) => return Err(e),
-            }
+    async fn inner_run_to_completion(&mut self) -> Result<T, VmError> {
+        match self.vm.run_for(None).await {
+            Ok(StopReason::Exited) => (),
+            Ok(reason) => return Err(VmError::Stopped { reason }),
+            Err(e) => return Err(e),
         }
 
         let value = self.vm.pop_decode()?;
@@ -2556,9 +2656,8 @@ where
     }
 
     /// Run to completion implementation to use internally.
-    #[inline]
-    pub(crate) async fn run_to_completion_unwind(&mut self) -> Result<T, VmError> {
-        match self.run_to_completion().await {
+    pub async fn run_to_completion(&mut self) -> Result<T, VmError> {
+        match self.inner_run_to_completion().await {
             Ok(value) => Ok(value),
             Err(error) => Err(error.into_unwinded(self.vm.ip())),
         }
@@ -2566,14 +2665,14 @@ where
 
     /// Step the given task until the return value is available.
     pub async fn step(&mut self) -> Result<Option<T>, VmError> {
-        self.vm.run_for(Some(1)).await?;
-
-        if self.vm.exited {
-            let value = self.vm.pop_decode()?;
-            debug_assert!(self.vm.stack.is_empty());
-            return Ok(Some(value));
+        match self.vm.run_for(Some(1)).await? {
+            StopReason::Limited => return Ok(None),
+            StopReason::Exited => (),
+            reason => return Err(VmError::Stopped { reason }),
         }
 
-        Ok(None)
+        let value = self.vm.pop_decode()?;
+        debug_assert!(self.vm.stack.is_empty());
+        Ok(Some(value))
     }
 }

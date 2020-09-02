@@ -659,6 +659,25 @@ pub enum CompileError {
         /// The span of the unsupported function call.
         span: Span,
     },
+    /// Attempt to yield outside of a function or a closure.
+    #[error("`yield` must be used in function or closure")]
+    YieldOutsideFunction {
+        /// The span of the unsupported yield.
+        span: Span,
+    },
+    /// Attempt to declare a function which takes `self` outside of an `impl`
+    /// block.
+    #[error("instance function declared outside of `impl` block")]
+    InstanceFunctionOutsideImpl {
+        /// Where the function is declared.
+        span: Span,
+    },
+    /// Attempt to declare an async function with `yield`.
+    #[error("async generators are not supported")]
+    UnsupportedAsyncGenerator {
+        /// The span of the async generator.
+        span: Span,
+    },
 }
 
 impl CompileError {
@@ -710,6 +729,9 @@ impl CompileError {
             Self::LitObjectMissingField { span, .. } => span,
             Self::LitObjectNotField { span, .. } => span,
             Self::NotFunction { span, .. } => span,
+            Self::YieldOutsideFunction { span, .. } => span,
+            Self::InstanceFunctionOutsideImpl { span, .. } => span,
+            Self::UnsupportedAsyncGenerator { span, .. } => span,
         }
     }
 }

@@ -2,6 +2,7 @@
 
 Types in Rune are identified uniquely by their *path*.
 A path is a scope-separated identifier, like `std::float`.
+
 This identifies a type object.
 
 These can be used to perform basic type checking, like this:

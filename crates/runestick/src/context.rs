@@ -1,10 +1,8 @@
-use crate::collections::HashMap;
-use crate::module::{
-    ModuleInstanceFunction, ModuleOptionTypes, ModuleResultTypes, ModuleType, ModuleUnitType,
-};
+use crate::collections::{HashMap, HashSet};
+use crate::module::{ModuleInstanceFunction, ModuleInternalEnum, ModuleType, ModuleUnitType};
 use crate::{
-    Hash, Item, Meta, MetaStruct, MetaTuple, Module, OptionVariant, ReflectValueType,
-    ResultVariant, Stack, TypeCheck, Value, ValueType, ValueTypeInfo, VmError,
+    Hash, Item, Meta, MetaStruct, MetaTuple, Module, ReflectValueType, Stack, StaticType,
+    TypeCheck, ValueType, ValueTypeInfo, VmError,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -16,12 +14,12 @@ pub enum ContextError {
     /// Conflicting `()` types.
     #[error("`()` types are already present")]
     UnitAlreadyPresent,
-    /// Conflicting `Option` types.
-    #[error("`Option` types are already present")]
-    OptionAlreadyPresent,
-    /// Conflicting `Result` types.
-    #[error("`Result` types are already present")]
-    ResultAlreadyPresent,
+    /// Conflicting internal type.
+    #[error("`{name}` types are already present")]
+    InternalAlreadyPresent {
+        /// The name of the internal type already present.
+        name: &'static str,
+    },
     /// A conflicting name.
     #[error("conflicting item `{item}`, inserted `{current}` while `{existing}` already existed")]
     ConflictingMeta {
@@ -237,10 +235,8 @@ pub struct Context {
     types_rev: HashMap<ValueType, Hash>,
     /// Specialized information on unit types, if available.
     unit_type: Option<Hash>,
-    /// Specialized information on `Result` types, if available.
-    result_type: Option<Hash>,
-    /// Specialized information on `Option` types, if available.
-    option_type: Option<Hash>,
+    /// Registered internal enums.
+    internal_enums: HashSet<&'static StaticType>,
 }
 
 impl Context {
@@ -259,6 +255,7 @@ impl Context {
     pub fn with_default_packages() -> Result<Self, ContextError> {
         let mut this = Self::new();
         this.install(&crate::packages::core::module()?)?;
+        this.install(&crate::packages::generator::module()?)?;
         this.install(&crate::packages::bytes::module()?)?;
         this.install(&crate::packages::string::module()?)?;
         this.install(&crate::packages::int::module()?)?;
@@ -276,16 +273,6 @@ impl Context {
     /// Access the currently known unit type.
     pub fn unit_type(&self) -> Option<Hash> {
         self.unit_type
-    }
-
-    /// Access the currently known result type.
-    pub fn result_type(&self) -> Option<Hash> {
-        self.result_type
-    }
-
-    /// Access the currently known option type.
-    pub fn option_type(&self) -> Option<Hash> {
-        self.option_type
     }
 
     /// Access the meta for the given language item.
@@ -327,12 +314,8 @@ impl Context {
             self.install_unit_type(&module, unit_type)?;
         }
 
-        if let Some(result_types) = &module.result_types {
-            self.install_result_types(&module, result_types)?;
-        }
-
-        if let Some(option_types) = &module.option_types {
-            self.install_option_types(&module, option_types)?;
+        for internal_enum in &module.internal_enums {
+            self.install_internal_enum(module, internal_enum)?;
         }
 
         for ((value_type, hash), inst) in &module.instance_functions {
@@ -525,150 +508,77 @@ impl Context {
         Ok(())
     }
 
-    /// Install option types.
-    fn install_result_types(
+    /// Install generator state types.
+    fn install_internal_enum(
         &mut self,
         module: &Module,
-        result_types: &ModuleResultTypes,
+        internal_enum: &ModuleInternalEnum,
     ) -> Result<(), ContextError> {
-        if self.result_type.is_some() {
-            return Err(ContextError::ResultAlreadyPresent);
+        if !self.internal_enums.insert(internal_enum.static_type) {
+            return Err(ContextError::InternalAlreadyPresent {
+                name: internal_enum.name,
+            });
         }
 
-        let result_item = module.path.join(&result_types.result_type);
-        let ok_item = module.path.join(&result_types.ok_type);
-        let err_item = module.path.join(&result_types.err_type);
+        let enum_item = module.path.join(&internal_enum.base_type);
+        let enum_hash = Hash::type_hash(&enum_item);
 
         self.install_meta(
-            result_item.clone(),
+            enum_item.clone(),
             Meta::MetaEnum {
-                value_type: ValueType::StaticType(crate::RESULT_TYPE),
-                item: result_item.clone(),
+                value_type: ValueType::StaticType(internal_enum.static_type),
+                item: enum_item.clone(),
             },
         )?;
-
-        let enum_type = Hash::type_hash(&result_item);
-        self.result_type = Some(enum_type);
-
-        self.add_internal_tuple(
-            Some(result_item.clone()),
-            ok_item.clone(),
-            1,
-            Ok::<Value, Value>,
-        )?;
-        self.add_internal_tuple(
-            Some(result_item.clone()),
-            err_item.clone(),
-            1,
-            Err::<Value, Value>,
-        )?;
-
-        self.install_type_info(
-            enum_type,
-            TypeInfo {
-                type_check: TypeCheck::Type(enum_type),
-                name: result_item,
-                value_type: ValueType::StaticType(crate::RESULT_TYPE),
-                value_type_info: ValueTypeInfo::StaticType(crate::RESULT_TYPE),
-            },
-        )?;
-
-        let hash = Hash::type_hash(&ok_item);
-
-        self.install_variant_type_info(
-            hash,
-            TypeInfo {
-                type_check: TypeCheck::Result(ResultVariant::Ok),
-                name: ok_item,
-                value_type: ValueType::Type(hash),
-                value_type_info: ValueTypeInfo::StaticType(crate::RESULT_TYPE),
-            },
-        )?;
-
-        let hash = Hash::type_hash(&err_item);
-
-        self.install_variant_type_info(
-            hash,
-            TypeInfo {
-                type_check: TypeCheck::Result(ResultVariant::Err),
-                name: err_item,
-                value_type: ValueType::Type(hash),
-                value_type_info: ValueTypeInfo::StaticType(crate::RESULT_TYPE),
-            },
-        )?;
-
-        Ok(())
-    }
-
-    /// Install option types.
-    fn install_option_types(
-        &mut self,
-        module: &Module,
-        option_types: &ModuleOptionTypes,
-    ) -> Result<(), ContextError> {
-        if self.option_type.is_some() {
-            return Err(ContextError::OptionAlreadyPresent);
-        }
-
-        let option_item = module.path.join(&option_types.option_type);
-        let some_item = module.path.join(&option_types.some_type);
-        let none_item = module.path.join(&option_types.none_type);
-
-        self.install_meta(
-            option_item.clone(),
-            Meta::MetaEnum {
-                value_type: ValueType::StaticType(crate::OPTION_TYPE),
-                item: option_item.clone(),
-            },
-        )?;
-
-        let enum_hash = Hash::type_hash(&option_item);
-
-        self.option_type = Some(enum_hash);
-
-        self.add_internal_tuple(
-            Some(option_item.clone()),
-            some_item.clone(),
-            1,
-            Some::<Value>,
-        )?;
-        self.add_internal_tuple(Some(option_item.clone()), none_item.clone(), 0, || {
-            None::<Value>
-        })?;
 
         self.install_type_info(
             enum_hash,
             TypeInfo {
-                type_check: TypeCheck::Type(enum_hash),
-                name: option_item,
-                value_type: ValueType::StaticType(crate::OPTION_TYPE),
-                value_type_info: ValueTypeInfo::StaticType(crate::OPTION_TYPE),
+                type_check: TypeCheck::Type(internal_enum.static_type.hash),
+                name: enum_item.clone(),
+                value_type: ValueType::StaticType(internal_enum.static_type),
+                value_type_info: ValueTypeInfo::StaticType(internal_enum.static_type),
             },
         )?;
 
-        let hash = Hash::type_hash(&some_item);
+        for variant in &internal_enum.variants {
+            let item = enum_item.clone().extended(variant.name);
+            let hash = Hash::type_hash(&item);
 
-        self.install_variant_type_info(
-            hash,
-            TypeInfo {
-                type_check: TypeCheck::Option(OptionVariant::Some),
-                name: some_item,
-                value_type: ValueType::Type(hash),
-                value_type_info: ValueTypeInfo::StaticType(crate::OPTION_TYPE),
-            },
-        )?;
+            self.install_variant_type_info(
+                hash,
+                TypeInfo {
+                    type_check: variant.type_check,
+                    name: item.clone(),
+                    value_type: ValueType::Type(hash),
+                    value_type_info: ValueTypeInfo::StaticType(internal_enum.static_type),
+                },
+            )?;
 
-        let hash = Hash::type_hash(&none_item);
+            let tuple = MetaTuple {
+                item: item.clone(),
+                args: variant.args,
+                hash,
+            };
 
-        self.install_variant_type_info(
-            hash,
-            TypeInfo {
-                type_check: TypeCheck::Option(OptionVariant::None),
-                name: none_item,
-                value_type: ValueType::Type(hash),
-                value_type_info: ValueTypeInfo::StaticType(crate::OPTION_TYPE),
-            },
-        )?;
+            let meta = Meta::MetaVariantTuple {
+                value_type: variant.value_type,
+                enum_item: enum_item.clone(),
+                tuple,
+            };
+
+            self.install_meta(item.clone(), meta)?;
+            let signature = FnSignature::new_free(item, Some(variant.args));
+
+            if let Some(old) = self.functions_info.insert(hash, signature) {
+                return Err(ContextError::ConflictingFunction {
+                    signature: old,
+                    hash,
+                });
+            }
+
+            self.functions.insert(hash, variant.constructor.clone());
+        }
 
         Ok(())
     }

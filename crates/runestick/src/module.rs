@@ -8,7 +8,7 @@ use std::future;
 use std::sync::Arc;
 
 use crate::context::{ContextError, Handler, IntoInstFnHash};
-use crate::item::Item;
+use crate::{GeneratorState, Item, StaticType, TypeCheck, Value};
 
 /// Specialized information on `Option` types.
 pub(crate) struct ModuleUnitType {
@@ -16,24 +16,65 @@ pub(crate) struct ModuleUnitType {
     pub(crate) item: Item,
 }
 
-/// Specialized information on `Result` types.
-pub(crate) struct ModuleResultTypes {
+/// Specialized information on `GeneratorState` types.
+pub(crate) struct ModuleInternalEnum {
+    /// The name of the internal enum.
+    pub(crate) name: &'static str,
     /// The result type.
-    pub(crate) result_type: Item,
-    /// Item of the `Ok` variant.
-    pub(crate) ok_type: Item,
-    ///Item of the `Err` variant.
-    pub(crate) err_type: Item,
+    pub(crate) base_type: Item,
+    /// The static type of the enum.
+    pub(crate) static_type: &'static StaticType,
+    /// Internal variants.
+    pub(crate) variants: Vec<ModuleInternalVariant>,
 }
 
-/// Specialized information on `Option` types.
-pub(crate) struct ModuleOptionTypes {
-    /// Item of the option type.
-    pub(crate) option_type: Item,
-    /// Item of the `Some` variant.
-    pub(crate) some_type: Item,
-    /// Item of the `None` variant.
-    pub(crate) none_type: Item,
+impl ModuleInternalEnum {
+    /// Construct a new handler for an internal enum.
+    pub fn new<N>(name: &'static str, base_type: N, static_type: &'static StaticType) -> Self
+    where
+        N: IntoIterator,
+        N::Item: Into<Component>,
+    {
+        ModuleInternalEnum {
+            name,
+            base_type: Item::of(base_type),
+            static_type,
+            variants: Vec::new(),
+        }
+    }
+
+    /// Register a new variant.
+    fn variant<C, Args>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
+    where
+        C: crate::Function<Args>,
+        C::Return: ReflectValueType,
+    {
+        let constructor: Arc<Handler> =
+            Arc::new(move |stack, args| constructor.fn_call(stack, args));
+        let value_type = C::Return::value_type();
+
+        self.variants.push(ModuleInternalVariant {
+            name,
+            type_check,
+            args: C::args(),
+            constructor,
+            value_type,
+        });
+    }
+}
+
+/// Internal variant.
+pub(crate) struct ModuleInternalVariant {
+    /// The name of the variant.
+    pub(crate) name: &'static str,
+    /// Type check for the variant.
+    pub(crate) type_check: TypeCheck,
+    /// Arguments for the variant.
+    pub(crate) args: usize,
+    /// The constructor of the variant.
+    pub(crate) constructor: Arc<Handler>,
+    /// The value type of the variant.
+    pub(crate) value_type: ValueType,
 }
 
 pub(crate) struct ModuleType {
@@ -63,10 +104,8 @@ pub struct Module {
     pub(crate) types: HashMap<ValueType, ModuleType>,
     /// Registered unit type.
     pub(crate) unit_type: Option<ModuleUnitType>,
-    /// Registered result types.
-    pub(crate) result_types: Option<ModuleResultTypes>,
-    /// Registered option types.
-    pub(crate) option_types: Option<ModuleOptionTypes>,
+    /// Registered generator state type.
+    pub(crate) internal_enums: Vec<ModuleInternalEnum>,
 }
 
 impl Module {
@@ -82,8 +121,7 @@ impl Module {
             instance_functions: Default::default(),
             types: Default::default(),
             unit_type: None,
-            result_types: None,
-            option_types: None,
+            internal_enums: Vec::new(),
         }
     }
 
@@ -123,18 +161,10 @@ impl Module {
         N: IntoIterator,
         N::Item: Into<Component>,
     {
-        if self.option_types.is_some() {
-            return Err(ContextError::OptionAlreadyPresent);
-        }
-
-        let option_type = Item::of(name);
-
-        self.option_types = Some(ModuleOptionTypes {
-            none_type: option_type.extended("None"),
-            some_type: option_type.extended("Some"),
-            option_type,
-        });
-
+        let mut enum_ = ModuleInternalEnum::new("Option", name, crate::OPTION_TYPE);
+        enum_.variant("Some", TypeCheck::Option(0), Option::<Value>::Some);
+        enum_.variant("None", TypeCheck::Option(1), || Option::<Value>::None);
+        self.internal_enums.push(enum_);
         Ok(())
     }
 
@@ -144,18 +174,35 @@ impl Module {
         N: IntoIterator,
         N::Item: Into<Component>,
     {
-        if self.result_types.is_some() {
-            return Err(ContextError::ResultAlreadyPresent);
-        }
+        let mut enum_ = ModuleInternalEnum::new("Result", name, crate::RESULT_TYPE);
+        enum_.variant("Ok", TypeCheck::Result(0), Result::<Value, Value>::Ok);
+        enum_.variant("Err", TypeCheck::Result(1), Result::<Value, Value>::Err);
+        self.internal_enums.push(enum_);
+        return Ok(());
+    }
 
-        let result_type = Item::of(name);
+    /// Construct the type information for the `GeneratorState` type.
+    pub fn generator_state<N>(&mut self, name: N) -> Result<(), ContextError>
+    where
+        N: IntoIterator,
+        N::Item: Into<Component>,
+    {
+        let mut enum_ =
+            ModuleInternalEnum::new("GeneratorState", name, crate::GENERATOR_STATE_TYPE);
 
-        self.result_types = Some(ModuleResultTypes {
-            ok_type: result_type.extended("Ok"),
-            err_type: result_type.extended("Err"),
-            result_type,
-        });
+        enum_.variant(
+            "Complete",
+            TypeCheck::GeneratorState(0),
+            GeneratorState::Complete,
+        );
 
+        enum_.variant(
+            "Yielded",
+            TypeCheck::GeneratorState(1),
+            GeneratorState::Yielded,
+        );
+
+        self.internal_enums.push(enum_);
         Ok(())
     }
 
@@ -673,6 +720,9 @@ macro_rules! impl_register {
             Err(ValueError::Panic { reason }) => {
                 return Err(VmError::Panic { reason });
             },
+            Err(ValueError::VmError { error }) => {
+                return Err(*error);
+            },
             Err(error) => {
                 return Err(VmError::ReturnConversionError {
                     error,
@@ -692,6 +742,9 @@ macro_rules! impl_register {
                 Err(ValueError::Panic { reason }) => {
                     return Err(VmError::Panic { reason });
                 },
+                Err(ValueError::VmError { error }) => {
+                    return Err(*error);
+                },
                 Err(error) => {
                     return Err(VmError::ArgumentConversionError {
                         error,
@@ -710,6 +763,9 @@ macro_rules! impl_register {
             Err(ValueError::Panic { reason }) => {
                 return Err(VmError::Panic { reason });
             },
+            Err(ValueError::VmError { error }) => {
+                return Err(*error);
+            },
             Err(error) => {
                 return Err(VmError::ArgumentConversionError {
                     error,
@@ -724,6 +780,9 @@ macro_rules! impl_register {
                 Ok(v) => v,
                 Err(ValueError::Panic { reason }) => {
                     return Err(VmError::Panic { reason });
+                },
+                Err(ValueError::VmError { error }) => {
+                    return Err(*error);
                 },
                 Err(error) => {
                     return Err(VmError::ArgumentConversionError {

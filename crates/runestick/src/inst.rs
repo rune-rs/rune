@@ -33,42 +33,6 @@ impl fmt::Display for PanicReason {
     }
 }
 
-/// Typecheck a specific option variant.
-#[derive(Debug, Clone, Copy)]
-pub enum OptionVariant {
-    /// Type check for the `Option::Some` variant.
-    Some,
-    /// Type check for the `Option::None` variant.
-    None,
-}
-
-impl fmt::Display for OptionVariant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Some => write!(f, "Some"),
-            Self::None => write!(f, "None"),
-        }
-    }
-}
-
-/// Typecheck a specific result variant.
-#[derive(Debug, Clone, Copy)]
-pub enum ResultVariant {
-    /// Type check for the `Result::Ok` variant.
-    Ok,
-    /// Type check for the `Result::Err` variant.
-    Err,
-}
-
-impl fmt::Display for ResultVariant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Ok => write!(f, "Ok"),
-            Self::Err => write!(f, "Err"),
-        }
-    }
-}
-
 /// An encoded type check.
 #[derive(Debug, Clone, Copy)]
 pub enum TypeCheck {
@@ -80,10 +44,12 @@ pub enum TypeCheck {
     Object,
     /// Matches a vector.
     Vec,
-    /// An option type.
-    Option(OptionVariant),
-    /// A result type.
-    Result(ResultVariant),
+    /// An option type, and the specified variant index.
+    Option(usize),
+    /// A result type, and the specified variant index.
+    Result(usize),
+    /// A generator state type, and the specified variant index.
+    GeneratorState(usize),
     /// Matches the type with the corresponding hash.
     Type(Hash),
     /// Matches the variant with the corresponding hash.
@@ -99,6 +65,7 @@ impl fmt::Display for TypeCheck {
             Self::Vec => write!(fmt, "Vec"),
             Self::Option(variant) => write!(fmt, "Option::{}", variant),
             Self::Result(variant) => write!(fmt, "Result::{}", variant),
+            Self::GeneratorState(variant) => write!(fmt, "GeneratorState::{}", variant),
             Self::Type(hash) => write!(fmt, "Type({})", hash),
             Self::Variant(hash) => write!(fmt, "Variant({})", hash),
         }
@@ -908,6 +875,28 @@ pub enum Inst {
         /// The hash of the type.
         hash: Hash,
     },
+    /// Perform a generator yield where the value yielded is expected to be
+    /// found at the top of the stack.
+    ///
+    /// This causes the virtual machine to suspend itself.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <value>
+    /// ```
+    Yield,
+    /// Perform a generator yield with a unit.
+    ///
+    /// This causes the virtual machine to suspend itself.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <unit>
+    /// ```
+    YieldUnit,
     /// Cause the VM to panic and error out without a reason.
     ///
     /// This should only be used during testing or extreme scenarios that are
@@ -1154,6 +1143,12 @@ impl fmt::Display for Inst {
             }
             Self::Type { hash } => {
                 write!(fmt, "type {}", hash)?;
+            }
+            Self::Yield => {
+                write!(fmt, "yield")?;
+            }
+            Self::YieldUnit => {
+                write!(fmt, "yield-unit")?;
             }
             Self::Panic { reason } => {
                 write!(fmt, "panic {}", reason.ident())?;

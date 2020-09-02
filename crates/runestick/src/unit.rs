@@ -227,6 +227,8 @@ impl fmt::Display for Span {
 /// Async functions create a sub-context and immediately return futures.
 #[derive(Debug, Clone, Copy)]
 pub enum UnitFnCall {
+    /// Function is a generator.
+    Generator,
     /// Functions are immediately called (and control handed over).
     Immediate,
     /// Function is `async` and returns a future that must be await:ed to make
@@ -237,6 +239,9 @@ pub enum UnitFnCall {
 impl fmt::Display for UnitFnCall {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Generator => {
+                write!(fmt, "generator")?;
+            }
             Self::Immediate => {
                 write!(fmt, "immediate")?;
             }

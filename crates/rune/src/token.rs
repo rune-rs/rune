@@ -94,6 +94,8 @@ pub enum Kind {
     False,
     /// A `break` token.
     Break,
+    /// A `yield` token.
+    Yield,
     /// A `return` token.
     Return,
     /// The `await` keyword.
@@ -227,6 +229,7 @@ impl fmt::Display for Kind {
             Self::True => write!(fmt, "true")?,
             Self::False => write!(fmt, "false")?,
             Self::Break => write!(fmt, "break")?,
+            Self::Yield => write!(fmt, "yield")?,
             Self::Return => write!(fmt, "return")?,
             Self::Await => write!(fmt, "await")?,
             Self::Async => write!(fmt, "async")?,

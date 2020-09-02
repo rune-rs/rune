@@ -1,4 +1,4 @@
-use crate::ast::{Break, Expr, Label};
+use crate::ast;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::token::{Kind, Token};
@@ -9,9 +9,9 @@ use runestick::unit::Span;
 #[derive(Debug, Clone)]
 pub enum ExprBreakValue {
     /// Breaking a value out of a loop.
-    Expr(Box<Expr>),
+    Expr(Box<ast::Expr>),
     /// Break and jump to the given label.
-    Label(Label),
+    Label(ast::Label),
 }
 
 impl ExprBreakValue {
@@ -39,7 +39,7 @@ impl Peek for ExprBreakValue {
     fn peek(t1: Option<Token>, t2: Option<Token>) -> bool {
         match t1.map(|t| t.kind) {
             Some(Kind::Label) => true,
-            _ => Expr::peek(t1, t2),
+            _ => ast::Expr::peek(t1, t2),
         }
     }
 }
@@ -48,7 +48,7 @@ impl Peek for ExprBreakValue {
 #[derive(Debug, Clone)]
 pub struct ExprBreak {
     /// The return token.
-    pub break_: Break,
+    pub break_: ast::Break,
     /// An optional expression to break with.
     pub expr: Option<ExprBreakValue>,
 }
@@ -66,14 +66,9 @@ impl ExprBreak {
 
 impl Parse for ExprBreak {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let break_ = parser.parse()?;
-
-        let expr = if parser.peek::<ExprBreakValue>()? {
-            Some(parser.parse()?)
-        } else {
-            None
-        };
-
-        Ok(Self { break_, expr })
+        Ok(Self {
+            break_: parser.parse()?,
+            expr: parser.parse()?,
+        })
     }
 }

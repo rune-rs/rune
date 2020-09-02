@@ -26,6 +26,27 @@ where
     }
 }
 
+/// Parse implementation for something that is boxed.
+impl<T> Parse for Box<T>
+where
+    T: Parse,
+{
+    #[inline]
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(Box::new(parser.parse()?))
+    }
+}
+
+/// Peek implementation for something that is boxed.
+impl<T> Peek for Box<T>
+where
+    T: Peek,
+{
+    fn peek(t1: Option<Token>, t2: Option<Token>) -> bool {
+        T::peek(t1, t2)
+    }
+}
+
 /// Parser implementation for a vector.
 impl<T> Parse for Vec<T>
 where

@@ -1,0 +1,18 @@
+fn printer() {
+    loop {
+        println("waiting for value...");
+        let out = yield;
+        dbg(out);
+    }
+}
+
+fn main() {
+    let printer = printer();
+
+    println("firing off the printer...");
+    printer.resume(()).await;
+    println("ready to go!");
+
+    printer.resume("John").await;
+    printer.resume((1, 2, 3)).await;
+}

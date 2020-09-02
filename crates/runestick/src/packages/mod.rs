@@ -5,6 +5,7 @@ pub mod bytes;
 pub mod core;
 pub mod float;
 pub mod future;
+pub mod generator;
 pub mod int;
 pub mod iter;
 pub mod object;

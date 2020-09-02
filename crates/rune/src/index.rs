@@ -6,7 +6,8 @@ use crate::query::{Build, Function, Indexed, InstanceFunction, Query};
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::warning::Warnings;
-use runestick::{Hash, Meta, ValueType};
+use runestick::unit::UnitFnCall;
+use runestick::{Hash, Item, Meta, Span, ValueType};
 use std::sync::Arc;
 
 pub(super) struct Indexer<'a, 'source> {
@@ -15,6 +16,8 @@ pub(super) struct Indexer<'a, 'source> {
     pub(super) warnings: &'a mut Warnings,
     pub(super) items: Items,
     pub(super) scopes: IndexScopes,
+    /// Set if we are inside of an impl block.
+    impl_items: Vec<Item>,
 }
 
 impl<'a, 'source> Indexer<'a, 'source> {
@@ -30,7 +33,23 @@ impl<'a, 'source> Indexer<'a, 'source> {
             warnings,
             items: Items::new(vec![]),
             scopes: IndexScopes::new(),
+            impl_items: Vec::new(),
         }
+    }
+
+    /// Construct the calling convention based on the parameters.
+    fn unit_fn_call(generator: bool, async_: bool, span: Span) -> Result<UnitFnCall, CompileError> {
+        Ok(if generator {
+            if async_ {
+                return Err(CompileError::UnsupportedAsyncGenerator { span });
+            }
+
+            UnitFnCall::Generator
+        } else if async_ {
+            UnitFnCall::Async
+        } else {
+            UnitFnCall::Immediate
+        })
     }
 }
 
@@ -56,10 +75,16 @@ impl Index<ast::DeclFile> for Indexer<'_, '_> {
 }
 
 impl Index<ast::DeclFn> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::DeclFn) -> Result<(), CompileError> {
-        let _guard = self.scopes.push_function();
+    fn index(&mut self, decl_fn: &ast::DeclFn) -> Result<(), CompileError> {
+        let span = decl_fn.span();
+        let is_toplevel = self.items.is_empty();
+        let _guard = self.items.push_name(decl_fn.name.resolve(self.source)?);
 
-        for (arg, _) in &item.args.items {
+        let item = self.items.item();
+
+        let guard = self.scopes.push_function();
+
+        for (arg, _) in &decl_fn.args.items {
             match arg {
                 ast::FnArg::Self_(s) => {
                     let span = s.span();
@@ -74,7 +99,61 @@ impl Index<ast::DeclFn> for Indexer<'_, '_> {
             }
         }
 
-        self.index(&item.body)?;
+        self.index(&decl_fn.body)?;
+
+        let f = guard.into_function(span)?;
+        let call = Self::unit_fn_call(f.generator, decl_fn.async_.is_some(), span)?;
+
+        let fun = Function {
+            ast: decl_fn.clone(),
+            call,
+        };
+
+        if decl_fn.is_instance() {
+            let impl_item = self
+                .impl_items
+                .last()
+                .ok_or_else(|| CompileError::InstanceFunctionOutsideImpl { span })?;
+
+            let f = InstanceFunction {
+                ast: fun.ast,
+                impl_item: impl_item.clone(),
+                instance_span: span,
+                call: fun.call,
+            };
+
+            // NB: all instance functions must be pre-emptively built,
+            // because statically we don't know if they will be used or
+            // not.
+            self.query
+                .queue
+                .push_back((item.clone(), Build::InstanceFunction(f)));
+
+            let meta = Meta::MetaFunction {
+                value_type: ValueType::Type(Hash::type_hash(&item)),
+                item: item.clone(),
+            };
+
+            self.query.unit.borrow_mut().insert_meta(meta)?;
+        } else if is_toplevel {
+            // NB: immediately compile all toplevel functions.
+            self.query
+                .queue
+                .push_back((item.clone(), Build::Function(fun)));
+
+            self.query
+                .unit
+                .borrow_mut()
+                .insert_meta(Meta::MetaFunction {
+                    value_type: ValueType::Type(Hash::type_hash(&item)),
+                    item,
+                })?;
+        } else {
+            // NB: non toplevel functions can be indexed for later construction.
+            self.query
+                .index(item.clone(), Indexed::Function(fun), span)?;
+        }
+
         Ok(())
     }
 }
@@ -238,6 +317,9 @@ impl Index<ast::Expr> for Indexer<'_, '_> {
             ast::Expr::ExprBreak(expr_break) => {
                 self.index(expr_break)?;
             }
+            ast::Expr::ExprYield(expr_yield) => {
+                self.index(expr_yield)?;
+            }
             ast::Expr::ExprReturn(expr_return) => {
                 self.index(expr_return)?;
             }
@@ -368,88 +450,22 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
                     .index_struct(self.items.item(), decl_struct.clone())?;
             }
             ast::Decl::DeclFn(decl_fn) => {
-                let is_toplevel = self.items.is_empty();
-                let _guard = self.items.push_name(decl_fn.name.resolve(self.source)?);
-
-                let span = decl_fn.span();
-                let item = self.items.item();
-
-                // NB: immediately compile all toplevel functions.
-                if is_toplevel {
-                    self.query.queue.push_back((
-                        item.clone(),
-                        Build::Function(Function {
-                            ast: decl_fn.clone(),
-                        }),
-                    ));
-
-                    self.query
-                        .unit
-                        .borrow_mut()
-                        .insert_meta(Meta::MetaFunction {
-                            value_type: ValueType::Type(Hash::type_hash(&item)),
-                            item,
-                        })?;
-                } else {
-                    self.query.index(
-                        item.clone(),
-                        Indexed::Function(Function {
-                            ast: decl_fn.clone(),
-                        }),
-                        span,
-                    )?;
-                }
-
                 self.index(decl_fn)?;
             }
             ast::Decl::DeclImpl(decl_impl) => {
-                let span = decl_impl.span();
-
                 let mut guards = Vec::new();
 
                 for ident in decl_impl.path.components() {
                     guards.push(self.items.push_name(ident.resolve(self.source)?));
                 }
 
-                let instance_item = self.items.item();
+                self.impl_items.push(self.items.item());
 
                 for decl_fn in &decl_impl.functions {
-                    let _guard = self.items.push_name(decl_fn.name.resolve(self.source)?);
-
-                    let item = self.items.item();
-
-                    // NB: all instance functions must be pre-emptively built,
-                    // because statically we don't know if they will be used or
-                    // not.
-                    if decl_fn.is_instance() {
-                        let f = InstanceFunction {
-                            ast: decl_fn.clone(),
-                            instance_item: instance_item.clone(),
-                            instance_span: span,
-                        };
-
-                        self.query
-                            .queue
-                            .push_back((item.clone(), Build::InstanceFunction(f)));
-
-                        let meta = Meta::MetaFunction {
-                            value_type: ValueType::Type(Hash::type_hash(&item)),
-                            item: item.clone(),
-                        };
-
-                        self.query.unit.borrow_mut().insert_meta(meta)?;
-                    } else {
-                        self.query.index(
-                            item.clone(),
-                            Indexed::Function(Function {
-                                ast: decl_fn.clone(),
-                            }),
-                            span,
-                        )?;
-                    }
-
                     self.index(decl_fn)?;
                 }
+
+                self.impl_items.pop();
             }
         }
 
@@ -518,9 +534,13 @@ impl Index<ast::ExprClosure> for Indexer<'_, '_> {
 
         self.index(&*item.body)?;
 
-        let captures = Arc::new(guard.into_captures(span)?);
+        let c = guard.into_closure(span)?;
+        let captures = Arc::new(c.captures);
+        let call = Self::unit_fn_call(c.generator, item.async_.is_some(), span)?;
+
         self.query
-            .index_closure(self.items.item(), item.clone(), captures)?;
+            .index_closure(self.items.item(), item.clone(), captures, call)?;
+
         Ok(())
     }
 }
@@ -565,6 +585,19 @@ impl Index<ast::ExprBreak> for Indexer<'_, '_> {
                 }
                 ast::ExprBreakValue::Label(..) => (),
             }
+        }
+
+        Ok(())
+    }
+}
+
+impl Index<ast::ExprYield> for Indexer<'_, '_> {
+    fn index(&mut self, item: &ast::ExprYield) -> Result<(), CompileError> {
+        let span = item.span();
+        self.scopes.mark_yield(span)?;
+
+        if let Some(expr) = &item.expr {
+            self.index(&**expr)?;
         }
 
         Ok(())

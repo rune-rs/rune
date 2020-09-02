@@ -19,6 +19,8 @@ mod bytes;
 mod error;
 mod fn_ptr;
 mod future;
+mod generator;
+mod generator_state;
 mod hash;
 mod inst;
 mod item;
@@ -38,13 +40,15 @@ pub mod unit;
 mod value_type;
 mod value_type_info;
 
+pub use self::generator::Generator;
+pub use self::generator_state::GeneratorState;
 pub use self::meta::{Meta, MetaClosureCapture, MetaStruct, MetaTuple};
 pub use self::module::{AsyncFunction, AsyncInstFn, Function, InstFn, Module};
 pub use self::static_string::StaticString;
 pub use self::static_type::{
     StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FN_PTR_TYPE, FUTURE_TYPE,
-    INTEGER_TYPE, OBJECT_TYPE, OPTION_TYPE, RESULT_TYPE, STRING_TYPE, TUPLE_TYPE, UNIT_TYPE,
-    VEC_TYPE,
+    GENERATOR_STATE_TYPE, GENERATOR_TYPE, INTEGER_TYPE, OBJECT_TYPE, OPTION_TYPE, RESULT_TYPE,
+    STRING_TYPE, TUPLE_TYPE, UNIT_TYPE, VEC_TYPE,
 };
 pub use self::tuple::Tuple;
 pub use self::value_type::ValueType;
@@ -60,7 +64,7 @@ pub use crate::error::{Error, Result};
 pub use crate::fn_ptr::FnPtr;
 pub use crate::future::Future;
 pub use crate::hash::{Hash, IntoTypeHash};
-pub use crate::inst::{Inst, OptionVariant, PanicReason, ResultVariant, TypeCheck};
+pub use crate::inst::{Inst, PanicReason, TypeCheck};
 pub use crate::item::{Component, Item};
 pub use crate::panic::Panic;
 pub use crate::protocol::{
@@ -75,7 +79,7 @@ pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, ValueError, VariantObject, VariantTuple,
     VecTuple,
 };
-pub use crate::vm::{Task, Vm, VmError};
+pub use crate::vm::{StopReason, Task, Vm, VmError};
 
 mod collections {
     pub use hashbrown::HashMap;

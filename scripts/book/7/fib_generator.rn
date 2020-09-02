@@ -1,0 +1,23 @@
+fn fib() {
+    let a = 0;
+    let b = 1;
+
+    loop {
+        yield a;
+        let c = a + b;
+        a = b;
+        b = c;
+    }
+}
+
+fn main() {
+    let g = fib();
+
+    while let Some(n) = g.next().await {
+        dbg(n);
+
+        if n > 100 {
+            break;
+        }
+    }
+}

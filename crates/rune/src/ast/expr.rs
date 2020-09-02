@@ -67,6 +67,8 @@ pub enum Expr {
     ExprIndexGet(ast::ExprIndexGet),
     /// A break expression.
     ExprBreak(ast::ExprBreak),
+    /// A yield expression.
+    ExprYield(ast::ExprYield),
     /// A block as an expression.
     ExprBlock(ast::ExprBlock),
     /// A return statement.
@@ -142,6 +144,7 @@ impl Expr {
             Self::ExprBinary(expr) => expr.span(),
             Self::ExprIndexGet(expr) => expr.span(),
             Self::ExprBreak(b) => b.span(),
+            Self::ExprYield(b) => b.span(),
             Self::ExprBlock(b) => b.span(),
             Self::ExprReturn(ret) => ret.span(),
             Self::ExprAwait(ret) => ret.span(),
@@ -289,6 +292,7 @@ impl Expr {
             Kind::True | Kind::False => Self::LitBool(parser.parse()?),
             Kind::Ident => Self::parse_ident_start(parser, eager_brace)?,
             Kind::Break => Self::ExprBreak(parser.parse()?),
+            Kind::Yield => Self::ExprYield(parser.parse()?),
             Kind::Return => Self::ExprReturn(parser.parse()?),
             _ => {
                 return Err(ParseError::ExpectedExpr {
@@ -313,7 +317,7 @@ impl Expr {
                     let index_get = ast::ExprIndexGet {
                         target: Box::new(expr),
                         open: parser.parse()?,
-                        index: Box::new(parser.parse()?),
+                        index: parser.parse()?,
                         close: parser.parse()?,
                     };
 
@@ -324,7 +328,7 @@ impl Expr {
                             index: index_get.index,
                             close: index_get.close,
                             eq: parser.parse()?,
-                            value: Box::new(parser.parse()?),
+                            value: parser.parse()?,
                         }));
                     }
 

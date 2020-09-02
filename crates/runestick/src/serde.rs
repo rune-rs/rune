@@ -87,6 +87,10 @@ impl ser::Serialize for Value {
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
             Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
+            Value::Generator(..) => Err(ser::Error::custom("cannot serialize generators")),
+            Value::GeneratorState(..) => {
+                Err(ser::Error::custom("cannot serialize generator states"))
+            }
             Value::FnPtr(..) => Err(ser::Error::custom("cannot serialize function pointers")),
             Value::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
         }

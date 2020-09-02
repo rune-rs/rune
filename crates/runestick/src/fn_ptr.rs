@@ -1,7 +1,8 @@
 use crate::context::Handler;
 use crate::unit::UnitFnCall;
 use crate::{
-    Context, FromValue, Future, Hash, IntoArgs, Shared, Stack, Tuple, Unit, Value, Vm, VmError,
+    Context, FromValue, Future, Generator, Hash, IntoArgs, Shared, Stack, Tuple, Unit, Value, Vm,
+    VmError,
 };
 use std::fmt;
 use std::rc::Rc;
@@ -100,9 +101,12 @@ impl FnPtr {
                 args.into_args(vm.stack_mut())?;
 
                 match offset.call {
-                    UnitFnCall::Immediate => vm.run().run_to_completion_unwind().await?,
+                    UnitFnCall::Generator => Value::Generator(Shared::new(Generator::new(vm))),
+                    UnitFnCall::Immediate => {
+                        Future::new(async move { vm.run().run_to_completion().await }).await?
+                    }
                     UnitFnCall::Async => Value::Future(Shared::new(Future::new(async move {
-                        vm.run().run_to_completion_unwind().await
+                        vm.run().run_to_completion().await
                     }))),
                 }
             }
@@ -115,12 +119,7 @@ impl FnPtr {
                 vm.stack_mut()
                     .push(Value::Tuple(offset.environment.clone()));
 
-                match offset.call {
-                    UnitFnCall::Immediate => vm.run().run_to_completion_unwind().await?,
-                    UnitFnCall::Async => Value::Future(Shared::new(Future::new(async move {
-                        vm.run().run_to_completion_unwind().await
-                    }))),
-                }
+                Self::call_vm(offset.call, vm).await?
             }
             Inner::FnTuple(tuple) => {
                 Self::check_args(A::count(), tuple.args)?;
@@ -157,12 +156,7 @@ impl FnPtr {
                     Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
                 vm.set_ip(offset.offset);
 
-                let future = Future::new(async move { vm.run().run_to_completion_unwind().await });
-
-                match offset.call {
-                    UnitFnCall::Immediate => future.await?,
-                    UnitFnCall::Async => Value::Future(Shared::new(future)),
-                }
+                Self::call_vm(offset.call, vm).await?
             }
             Inner::FnClosureOffset(offset) => {
                 Self::check_args(args, offset.args)?;
@@ -185,12 +179,7 @@ impl FnPtr {
                     Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
                 vm.set_ip(offset.offset);
 
-                let future = Future::new(async move { vm.run().run_to_completion_unwind().await });
-
-                match offset.call {
-                    UnitFnCall::Immediate => future.await?,
-                    UnitFnCall::Async => Value::Future(Shared::new(future)),
-                }
+                Self::call_vm(offset.call, vm).await?
             }
             Inner::FnTuple(tuple) => {
                 Self::check_args(args, tuple.args)?;
@@ -217,6 +206,21 @@ impl FnPtr {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    async fn call_vm(call: UnitFnCall, mut vm: Vm) -> Result<Value, VmError> {
+        match call {
+            UnitFnCall::Generator => Ok(Value::Generator(Shared::new(Generator::new(vm)))),
+            UnitFnCall::Immediate => {
+                let future = Future::new(async move { vm.run().run_to_completion().await });
+                Ok(future.await?)
+            }
+            UnitFnCall::Async => {
+                let future = Future::new(async move { vm.run().run_to_completion().await });
+                Ok(Value::Future(Shared::new(future)))
+            }
+        }
     }
 }
 

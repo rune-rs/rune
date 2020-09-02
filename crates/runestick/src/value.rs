@@ -1,6 +1,7 @@
 use crate::{
-    AccessError, Any, Bytes, FnPtr, Future, Hash, OwnedMut, OwnedRef, Panic, RawOwnedMut,
-    RawOwnedRef, Shared, StaticString, Tuple, ValueType, ValueTypeInfo, VmError,
+    AccessError, Any, Bytes, FnPtr, Future, Generator, GeneratorState, Hash, OwnedMut, OwnedRef,
+    Panic, RawOwnedMut, RawOwnedRef, Shared, StaticString, Tuple, ValueType, ValueTypeInfo,
+    VmError,
 };
 use std::any;
 use std::fmt;
@@ -52,6 +53,18 @@ pub enum ValueError {
     /// Error raised when we expected a future.
     #[error("expected future, but found `{actual}`")]
     ExpectedFuture {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a generator.
+    #[error("expected generator, but found `{actual}`")]
+    ExpectedGenerator {
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a generator state.
+    #[error("expected generator state, but found `{actual}`")]
+    ExpectedGeneratorState {
         /// The actual type found.
         actual: ValueTypeInfo,
     },
@@ -274,6 +287,10 @@ pub enum Value {
     Object(Shared<Object<Value>>),
     /// A stored future.
     Future(Shared<Future>),
+    /// A stored generator.
+    Generator(Shared<Generator>),
+    /// Generator state.
+    GeneratorState(Shared<GeneratorState>),
     /// An empty value indicating nothing.
     Option(Shared<Option<Value>>),
     /// A stored result in a slot.
@@ -403,6 +420,28 @@ impl Value {
         match self {
             Value::Future(future) => Ok(future),
             actual => Err(ValueError::ExpectedFuture {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
+    /// Try to coerce value into a future.
+    #[inline]
+    pub fn into_generator(self) -> Result<Shared<Generator>, ValueError> {
+        match self {
+            Value::Generator(generator) => Ok(generator),
+            actual => Err(ValueError::ExpectedGenerator {
+                actual: actual.type_info()?,
+            }),
+        }
+    }
+
+    /// Try to coerce value into a future.
+    #[inline]
+    pub fn into_generator_state(self) -> Result<Shared<GeneratorState>, ValueError> {
+        match self {
+            Value::GeneratorState(state) => Ok(state),
+            actual => Err(ValueError::ExpectedGeneratorState {
                 actual: actual.type_info()?,
             }),
         }
@@ -567,6 +606,8 @@ impl Value {
             Self::Tuple(..) => ValueType::StaticType(crate::TUPLE_TYPE),
             Self::Object(..) => ValueType::StaticType(crate::OBJECT_TYPE),
             Self::Future(..) => ValueType::StaticType(crate::FUTURE_TYPE),
+            Self::Generator(..) => ValueType::StaticType(crate::GENERATOR_TYPE),
+            Self::GeneratorState(..) => ValueType::StaticType(crate::GENERATOR_STATE_TYPE),
             Self::Result(..) => ValueType::StaticType(crate::RESULT_TYPE),
             Self::Option(..) => ValueType::StaticType(crate::OPTION_TYPE),
             Self::FnPtr(..) => ValueType::StaticType(crate::FN_PTR_TYPE),
@@ -601,6 +642,8 @@ impl Value {
             Self::Tuple(..) => ValueTypeInfo::StaticType(crate::TUPLE_TYPE),
             Self::Object(..) => ValueTypeInfo::StaticType(crate::OBJECT_TYPE),
             Self::Future(..) => ValueTypeInfo::StaticType(crate::FUTURE_TYPE),
+            Self::Generator(..) => ValueTypeInfo::StaticType(crate::GENERATOR_TYPE),
+            Self::GeneratorState(..) => ValueTypeInfo::StaticType(crate::GENERATOR_STATE_TYPE),
             Self::Option(..) => ValueTypeInfo::StaticType(crate::OPTION_TYPE),
             Self::Result(..) => ValueTypeInfo::StaticType(crate::RESULT_TYPE),
             Self::FnPtr(..) => ValueTypeInfo::StaticType(crate::FN_PTR_TYPE),
@@ -657,6 +700,12 @@ impl fmt::Debug for Value {
                 write!(f, "{:?}", value)?;
             }
             Value::Future(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Generator(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::GeneratorState(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::Option(value) => {

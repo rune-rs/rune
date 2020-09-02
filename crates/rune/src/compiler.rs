@@ -4,7 +4,7 @@ use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
-use runestick::unit::{Assembly, Label, UnitFnCall};
+use runestick::unit::{Assembly, Label};
 use runestick::{Component, Context, Hash, Inst, Item, Meta, MetaClosureCapture, Span, TypeCheck};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -80,34 +80,21 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                     let span = f.ast.span();
                     let count = f.ast.args.items.len();
                     compiler.contexts.push(span);
-
-                    let call = if f.ast.async_.is_some() {
-                        UnitFnCall::Async
-                    } else {
-                        UnitFnCall::Immediate
-                    };
-
                     compiler.compile_decl_fn(f.ast, false)?;
-                    unit.borrow_mut().new_function(item, count, asm, call)?;
+                    unit.borrow_mut().new_function(item, count, asm, f.call)?;
                 }
                 Build::InstanceFunction(f) => {
                     let span = f.ast.span();
                     let count = f.ast.args.items.len();
                     compiler.contexts.push(span);
 
-                    let call = if f.ast.async_.is_some() {
-                        UnitFnCall::Async
-                    } else {
-                        UnitFnCall::Immediate
-                    };
-
                     let name = f.ast.name.resolve(self.source)?;
 
                     let meta = compiler
-                        .lookup_meta(&f.instance_item, f.instance_span)?
+                        .lookup_meta(&f.impl_item, f.instance_span)?
                         .ok_or_else(|| CompileError::MissingType {
                             span: f.instance_span,
-                            item: f.instance_item.clone(),
+                            item: f.impl_item.clone(),
                         })?;
 
                     let value_type = meta.value_type().ok_or_else(|| {
@@ -119,21 +106,14 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
 
                     compiler.compile_decl_fn(f.ast, true)?;
                     unit.borrow_mut()
-                        .new_instance_function(item, value_type, name, count, asm, call)?;
+                        .new_instance_function(item, value_type, name, count, asm, f.call)?;
                 }
                 Build::Closure(c) => {
                     let span = c.ast.span();
                     let count = c.ast.args.len();
                     compiler.contexts.push(span);
-
-                    let call = if c.ast.async_.is_some() {
-                        UnitFnCall::Async
-                    } else {
-                        UnitFnCall::Immediate
-                    };
-
                     compiler.compile_expr_closure_fn(c.ast, &*c.captures)?;
-                    unit.borrow_mut().new_function(item, count, asm, call)?;
+                    unit.borrow_mut().new_function(item, count, asm, c.call)?;
                 }
             }
         }
@@ -459,6 +439,9 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
             ast::Expr::ExprBreak(expr_break) => {
                 self.compile_expr_break(expr_break, needs)?;
+            }
+            ast::Expr::ExprYield(expr_yield) => {
+                self.compile_expr_yield(expr_yield, needs)?;
             }
             ast::Expr::ExprBlock(expr_block) => {
                 self.compile_expr_block(expr_block, needs)?;
@@ -1486,6 +1469,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         needs: Needs,
     ) -> CompileResult<()> {
         let span = expr_break.span();
+        log::trace!("ExprBreak => {:?}", self.source.source(span)?);
 
         if needs.value() {
             self.warnings
@@ -1539,6 +1523,29 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         self.asm.jump(last_loop.break_label, span);
         // NB: loops are expected to produce a value at the end of their expression.
+        Ok(())
+    }
+
+    /// Encode a `yield` expression.
+    fn compile_expr_yield(
+        &mut self,
+        expr_yield: &ast::ExprYield,
+        needs: Needs,
+    ) -> CompileResult<()> {
+        let span = expr_yield.span();
+        log::trace!("ExprYield => {:?}", self.source.source(span)?);
+
+        if let Some(expr) = &expr_yield.expr {
+            self.compile_expr(&*expr, Needs::Value)?;
+            self.asm.push(Inst::Yield, span);
+        } else {
+            self.asm.push(Inst::YieldUnit, span);
+        }
+
+        if !needs.value() {
+            self.asm.push(Inst::Pop, span);
+        }
+
         Ok(())
     }
 

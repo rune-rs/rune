@@ -13,7 +13,7 @@ pub struct IndexScopeGuard {
 
 impl IndexScopeGuard {
     /// Pop the last closure scope and return captured variables.
-    pub fn into_captures(self, span: Span) -> Result<Vec<MetaClosureCapture>, CompileError> {
+    pub(crate) fn into_closure(self, span: Span) -> Result<Closure, CompileError> {
         let this = ManuallyDrop::new(self);
 
         let level = this
@@ -23,8 +23,29 @@ impl IndexScopeGuard {
             .ok_or_else(|| CompileError::internal("missing scope", span))?;
 
         match level {
-            IndexScopeLevel::IndexClosure(closure) => Ok(closure.captures),
+            IndexScopeLevel::IndexClosure(closure) => Ok(Closure {
+                captures: closure.captures,
+                generator: closure.generator,
+            }),
             _ => Err(CompileError::internal("expected closure", span)),
+        }
+    }
+
+    /// Pop the last function scope and return function information.
+    pub(crate) fn into_function(self, span: Span) -> Result<Function, CompileError> {
+        let this = ManuallyDrop::new(self);
+
+        let level = this
+            .levels
+            .borrow_mut()
+            .pop()
+            .ok_or_else(|| CompileError::internal("missing scope", span))?;
+
+        match level {
+            IndexScopeLevel::IndexFunction(fun) => Ok(Function {
+                generator: fun.generator,
+            }),
+            _ => Err(CompileError::internal("expected function", span)),
         }
     }
 }
@@ -57,6 +78,7 @@ pub struct IndexClosure {
     captures: Vec<MetaClosureCapture>,
     existing: HashSet<String>,
     scope: IndexScope,
+    generator: bool,
 }
 
 impl IndexClosure {
@@ -66,20 +88,46 @@ impl IndexClosure {
             captures: Vec::new(),
             existing: HashSet::new(),
             scope: IndexScope::new(),
+            generator: false,
+        }
+    }
+}
+
+pub(crate) struct Function {
+    pub(crate) generator: bool,
+}
+
+pub(crate) struct Closure {
+    pub(crate) captures: Vec<MetaClosureCapture>,
+    pub(crate) generator: bool,
+}
+
+#[derive(Debug)]
+pub struct IndexFunction {
+    scope: IndexScope,
+    generator: bool,
+}
+
+impl IndexFunction {
+    /// Construct a new function.
+    pub fn new() -> Self {
+        Self {
+            scope: IndexScope::new(),
+            generator: false,
         }
     }
 }
 
 #[derive(Debug)]
 enum IndexScopeLevel {
+    /// A regular index scope.
+    IndexScope(IndexScope),
     /// A marker for a closure boundary.
     ///
     /// The scope is the first scope inside of the closure.
     IndexClosure(IndexClosure),
-    /// A regular index scope.
-    IndexScope(IndexScope),
     /// A function (completely isolated scope-wise).
-    IndexFunction(IndexScope),
+    IndexFunction(IndexFunction),
 }
 
 /// An indexing scope.
@@ -107,8 +155,8 @@ impl IndexScopes {
 
         let scope = match level {
             IndexScopeLevel::IndexScope(scope) => scope,
-            IndexScopeLevel::IndexFunction(scope) => scope,
             IndexScopeLevel::IndexClosure(closure) => &mut closure.scope,
+            IndexScopeLevel::IndexFunction(fun) => &mut fun.scope,
         };
 
         scope.locals.insert(var.to_owned(), span);
@@ -146,7 +194,7 @@ impl IndexScopes {
                 }
                 // NB: cannot capture variables outside of functions.
                 IndexScopeLevel::IndexFunction(scope) => {
-                    found = scope.locals.get(var).is_some();
+                    found = scope.scope.locals.get(var).is_some();
                     break;
                 }
             }
@@ -168,11 +216,34 @@ impl IndexScopes {
         }
     }
 
+    /// Mark that a yield was used, meaning the encapsulating function is a
+    /// generator.
+    pub fn mark_yield(&mut self, span: Span) -> Result<(), CompileError> {
+        let mut levels = self.levels.borrow_mut();
+        let mut iter = levels.iter_mut().rev();
+
+        while let Some(level) = iter.next() {
+            match level {
+                IndexScopeLevel::IndexFunction(fun) => {
+                    fun.generator = true;
+                    return Ok(());
+                }
+                IndexScopeLevel::IndexClosure(closure) => {
+                    closure.generator = true;
+                    return Ok(());
+                }
+                IndexScopeLevel::IndexScope(..) => (),
+            }
+        }
+
+        Err(CompileError::YieldOutsideFunction { span })
+    }
+
     /// Push a function.
     pub fn push_function(&mut self) -> IndexScopeGuard {
         self.levels
             .borrow_mut()
-            .push(IndexScopeLevel::IndexFunction(IndexScope::new()));
+            .push(IndexScopeLevel::IndexFunction(IndexFunction::new()));
 
         IndexScopeGuard {
             levels: self.levels.clone(),

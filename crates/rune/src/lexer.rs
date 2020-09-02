@@ -103,6 +103,7 @@ impl<'a> Lexer<'a> {
             "is" => Kind::Is,
             "not" => Kind::Not,
             "break" => Kind::Break,
+            "yield" => Kind::Yield,
             "return" => Kind::Return,
             "await" => Kind::Await,
             "async" => Kind::Async,

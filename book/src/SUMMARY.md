@@ -18,5 +18,6 @@
   - [Structs](./5_6_structs.md)
   - [Enums](./5_7_enums.md)
 - [Try operator](./6_try_operator.md)
+- [Generators](./7_generators.md)
 - [Asynchronous programming](./8_async.md)
 - [Functions and closures](./9_functions_closures.md)

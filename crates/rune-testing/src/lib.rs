@@ -103,6 +103,8 @@ macro_rules! assert_vm_error {
             }
         };
 
+        let (e, _) = e.from_unwinded_ref();
+
         match e {
             $pat => $cond,
             _ => {

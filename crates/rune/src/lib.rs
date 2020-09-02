@@ -1,4 +1,12 @@
 //! <div align="center">
+//! <a href="https://rune-rs.github.io/rune/">
+//!     <b>Read the Book 📖</b>
+//! </a>
+//! </div>
+//!
+//! <br>
+//!
+//! <div align="center">
 //! <a href="https://github.com/rune-rs/rune/actions">
 //!     <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/Build/badge.svg">
 //! </a>
@@ -12,7 +20,7 @@
 //! </a>
 //! </div>
 //!
-//! <br />
+//! <br>
 //!
 //! An embeddable dynamic programming language for Rust.
 //!
@@ -24,7 +32,7 @@
 //! Create an issue about the optimization you want to work on and communicate that
 //! you are working on it.
 //!
-//! <br />
+//! <br>
 //!
 //! ## Features of Rune
 //!
@@ -36,8 +44,9 @@
 //! * Pattern matching ([Book 📖][support-patterns]).
 //! * Structs and enums with associated data and functions ([Book 📖][support-structs]).
 //! * Asynchronous programming ([Book 📖][support-async]).
+//! * Generators ([Book 📖][support-generators]).
 //!
-//! <br />
+//! <br>
 //!
 //! ## Rune Scripts
 //!
@@ -58,11 +67,12 @@
 //!
 //! [rust-ffi]: https://github.com/rune-rs/rune/blob/master/crates/runestick-http/src/lib.rs
 //! [future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
-//! [support-templates]: https://rune-rs.github.io/rune/4_6_template_strings.html
-//! [support-try]: https://rune-rs.github.io/rune/6_1_try_operator.html
-//! [support-patterns]: https://rune-rs.github.io/rune/3_4_pattern_matching.html
-//! [support-structs]: https://rune-rs.github.io/rune/5_structs.html
-//! [support-async]: https://rune-rs.github.io/rune/7_async.html
+//! [support-templates]: https://rune-rs.github.io/rune/4_5_template_strings.html
+//! [support-try]: https://rune-rs.github.io/rune/6_try_operator.html
+//! [support-patterns]: https://rune-rs.github.io/rune/4_4_pattern_matching.html
+//! [support-structs]: https://rune-rs.github.io/rune/5_6_structs.html
+//! [support-async]: https://rune-rs.github.io/rune/8_async.html
+//! [support-generators]: https://rune-rs.github.io/rune/7_generators.html
 
 #![deny(missing_docs)]
 

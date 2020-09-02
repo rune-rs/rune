@@ -1,10 +1,15 @@
-use crate::{Shared, ToValue, Value, ValueError, VmError};
+use crate::{
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue, UnsafeFromValue,
+    Value, ValueError, VmError,
+};
 use pin_project::pin_project;
 use std::fmt;
 /// A future which can be unsafely polled.
 use std::future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
+value_types!(crate::FUTURE_TYPE, Future => Future, &Future, &mut Future);
 
 /// dyn future alias.
 type DynFuture = dyn future::Future<Output = Result<Value, VmError>> + 'static;
@@ -51,12 +56,6 @@ impl future::Future for Future {
     }
 }
 
-impl ToValue for Future {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::Future(Shared::new(self)))
-    }
-}
-
 impl fmt::Debug for Future {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Future")
@@ -98,5 +97,53 @@ where
             },
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+impl FromValue for Shared<Future> {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
+        Ok(value.into_future()?)
+    }
+}
+
+impl FromValue for Future {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
+        let future = value.into_future()?;
+        Ok(future.take()?)
+    }
+}
+
+impl UnsafeFromValue for &Future {
+    type Output = *const Future;
+    type Guard = RawOwnedRef;
+
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+        let future = value.into_future()?;
+        let (future, guard) = OwnedRef::into_raw(future.owned_ref()?);
+        Ok((future, guard))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &*output
+    }
+}
+
+impl UnsafeFromValue for &mut Future {
+    type Output = *mut Future;
+    type Guard = RawOwnedMut;
+
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+        let future = value.into_future()?;
+        Ok(OwnedMut::into_raw(future.owned_mut()?))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &mut *output
+    }
+}
+
+impl ToValue for Future {
+    fn to_value(self) -> Result<Value, ValueError> {
+        Ok(Value::Future(Shared::new(self)))
     }
 }

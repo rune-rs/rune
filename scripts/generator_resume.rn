@@ -1,0 +1,34 @@
+use std::generator::GeneratorState;
+
+fn foo() {
+    let a = yield 1;
+    let b = yield a;
+    b
+}
+
+fn main() {
+    let gen = foo();
+    let result = 0;
+
+    // First argument to resume is ignored since it's just used to start the
+    // generator.
+    if let GeneratorState::Yielded(value) = gen.resume(()).await {
+        result += value;
+    } else {
+        panic("unexpected");
+    }
+
+    if let GeneratorState::Yielded(value) = gen.resume(2).await {
+        result += value;
+    } else {
+        panic("unexpected");
+    }
+
+    if let GeneratorState::Complete(value) = gen.resume(3).await {
+        result += value;
+    } else {
+        panic("unexpected");
+    }
+
+    result
+}

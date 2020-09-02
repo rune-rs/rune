@@ -91,10 +91,22 @@ pub static OBJECT_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x65f4e1cf10b1f34c),
 };
 
-/// The specialized type information for a integer type.
+/// The specialized type information for a future type.
 pub static FUTURE_TYPE: &StaticType = &StaticType {
     name: "future",
     hash: Hash::new(0xafab4a2797436aee),
+};
+
+/// The specialized type information for a generator type.
+pub static GENERATOR_TYPE: &StaticType = &StaticType {
+    name: "generator",
+    hash: Hash::new(0x50deff8c6ef7532c),
+};
+
+/// The specialized type information for a generator state type.
+pub static GENERATOR_STATE_TYPE: &StaticType = &StaticType {
+    name: "generator state",
+    hash: Hash::new(0xdd4141d4d8a3ac31),
 };
 
 /// The specialized type information for a result type.

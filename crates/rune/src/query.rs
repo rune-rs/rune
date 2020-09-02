@@ -6,14 +6,15 @@ use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use runestick::{
-    Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Span, Unit, ValueType,
+    unit::UnitFnCall, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Span, Unit,
+    ValueType,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 
-pub(super) enum Indexed {
+pub(crate) enum Indexed {
     Enum,
     Struct(Struct),
     Variant(Variant),
@@ -46,39 +47,43 @@ impl Variant {
     }
 }
 
-pub(super) struct Function {
+pub(crate) struct Function {
     /// Ast for declaration.
-    pub(super) ast: ast::DeclFn,
+    pub(crate) ast: ast::DeclFn,
+    pub(crate) call: UnitFnCall,
 }
 
-pub(super) struct InstanceFunction {
+pub(crate) struct InstanceFunction {
     /// Ast for the instance function.
-    pub(super) ast: ast::DeclFn,
+    pub(crate) ast: ast::DeclFn,
     /// The item of the instance function.
-    pub(super) instance_item: Item,
+    pub(crate) impl_item: Item,
     /// The span of the instance function.
-    pub(super) instance_span: Span,
+    pub(crate) instance_span: Span,
+    pub(crate) call: UnitFnCall,
 }
 
-pub(super) struct Closure {
+pub(crate) struct Closure {
     /// Ast for closure.
-    pub(super) ast: ast::ExprClosure,
+    pub(crate) ast: ast::ExprClosure,
     /// Captures.
-    pub(super) captures: Arc<Vec<MetaClosureCapture>>,
+    pub(crate) captures: Arc<Vec<MetaClosureCapture>>,
+    /// Calling convention used for closure.
+    pub(crate) call: UnitFnCall,
 }
 
 /// An entry in the build queue.
-pub(super) enum Build {
+pub(crate) enum Build {
     Function(Function),
     InstanceFunction(InstanceFunction),
     Closure(Closure),
 }
 
-pub(super) struct Query<'a> {
-    pub(super) source: Source<'a>,
-    pub(super) queue: VecDeque<(Item, Build)>,
+pub(crate) struct Query<'a> {
+    pub(crate) source: Source<'a>,
+    pub(crate) queue: VecDeque<(Item, Build)>,
     indexed: HashMap<Item, Indexed>,
-    pub(super) unit: Rc<RefCell<Unit>>,
+    pub(crate) unit: Rc<RefCell<Unit>>,
 }
 
 impl<'a> Query<'a> {
@@ -126,10 +131,19 @@ impl<'a> Query<'a> {
         item: Item,
         ast: ast::ExprClosure,
         captures: Arc<Vec<MetaClosureCapture>>,
+        call: UnitFnCall,
     ) -> Result<(), CompileError> {
         let span = ast.span();
         log::trace!("new closure: {}", item);
-        self.index(item, Indexed::Closure(Closure { ast, captures }), span)?;
+        self.index(
+            item,
+            Indexed::Closure(Closure {
+                ast,
+                captures,
+                call,
+            }),
+            span,
+        )?;
         Ok(())
     }
 
