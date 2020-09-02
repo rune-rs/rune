@@ -1,4 +1,4 @@
-use crate::ast::expr::{EagerBrace, FieldAccess};
+use crate::ast::expr::{EagerBrace, ExprChain};
 use crate::ast::Expr;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
@@ -47,7 +47,7 @@ impl Parse for ExprUnary {
             expr: Box::new(Expr::parse_primary(
                 parser,
                 EagerBrace(true),
-                FieldAccess(true),
+                ExprChain(true),
             )?),
         })
     }

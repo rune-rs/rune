@@ -20,9 +20,9 @@ impl ops::Deref for EagerBrace {
 
 /// Indicates if field accesses should be parsed or not.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct FieldAccess(pub(super) bool);
+pub(super) struct ExprChain(pub(super) bool);
 
-impl ops::Deref for FieldAccess {
+impl ops::Deref for ExprChain {
     type Target = bool;
 
     fn deref(&self) -> &Self::Target {
@@ -124,6 +124,16 @@ impl Expr {
         }
     }
 
+    /// Test if expression should be chained by default.
+    pub fn is_chainable(&self) -> bool {
+        match self {
+            Self::ExprWhile(..) => false,
+            Self::ExprLoop(..) => false,
+            Self::ExprFor(..) => false,
+            _ => true,
+        }
+    }
+
     /// Get the span of the expression.
     pub fn span(&self) -> Span {
         match self {
@@ -190,16 +200,16 @@ impl Expr {
     /// are arguments to statements immediately followed by blocks. Like `if`,
     /// `while`, and `match`.
     pub(super) fn parse_without_eager_brace(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_full(parser, EagerBrace(false), FieldAccess(true))
+        Self::parse_full(parser, EagerBrace(false), ExprChain(true))
     }
 
     /// Full, configurable parsing of an expression.
     pub(super) fn parse_full(
         parser: &mut Parser<'_>,
         eager_brace: EagerBrace,
-        field_access: FieldAccess,
+        expr_chain: ExprChain,
     ) -> Result<Self, ParseError> {
-        let lhs = Self::parse_primary(parser, eager_brace, field_access)?;
+        let lhs = Self::parse_primary(parser, eager_brace, expr_chain)?;
         Ok(Self::parse_expr_binary(parser, lhs, 0, eager_brace)?)
     }
 
@@ -228,7 +238,7 @@ impl Expr {
         }
 
         let open = parser.parse::<ast::OpenParen>()?;
-        let expr = ast::Expr::parse_full(parser, EagerBrace(true), FieldAccess(true))?;
+        let expr = ast::Expr::parse_full(parser, EagerBrace(true), ExprChain(true))?;
 
         if parser.peek::<ast::CloseParen>()? {
             return Ok(Expr::ExprGroup(ast::ExprGroup {
@@ -246,7 +256,7 @@ impl Expr {
     pub(super) fn parse_primary(
         parser: &mut Parser<'_>,
         eager_brace: EagerBrace,
-        field_access: FieldAccess,
+        expr_chain: ExprChain,
     ) -> Result<Self, ParseError> {
         let token = parser.token_peek_eof()?;
 
@@ -302,15 +312,15 @@ impl Expr {
             }
         };
 
-        if !*field_access {
+        if !*expr_chain || !expr.is_chainable() {
             return Ok(expr);
         }
 
-        Ok(Self::parse_field_access(parser, expr)?)
+        Ok(Self::parse_expr_chain(parser, expr)?)
     }
 
     /// Parse an expression chain.
-    fn parse_field_access(parser: &mut Parser<'_>, mut expr: Self) -> Result<Self, ParseError> {
+    fn parse_expr_chain(parser: &mut Parser<'_>, mut expr: Self) -> Result<Self, ParseError> {
         while let Some(token) = parser.token_peek()? {
             match token.kind {
                 Kind::Open(Delimiter::Bracket) => {
@@ -365,7 +375,7 @@ impl Expr {
                         }
                     }
 
-                    let next = Expr::parse_primary(parser, EagerBrace(false), FieldAccess(false))?;
+                    let next = Expr::parse_primary(parser, EagerBrace(false), ExprChain(false))?;
 
                     let span = match next {
                         Expr::Path(path) => {
@@ -425,7 +435,7 @@ impl Expr {
                 parser.token_next()?;
             }
 
-            let mut rhs = Self::parse_primary(parser, eager_brace, FieldAccess(true))?;
+            let mut rhs = Self::parse_primary(parser, eager_brace, ExprChain(true))?;
 
             lookahead_tok = parser.token_peek_pair()?;
 
@@ -493,7 +503,7 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_full(parser, EagerBrace(true), FieldAccess(true))
+        Self::parse_full(parser, EagerBrace(true), ExprChain(true))
     }
 }
 
