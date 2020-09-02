@@ -16,7 +16,6 @@ mod vm;
 mod macros;
 mod access;
 mod bytes;
-mod error;
 mod fn_ptr;
 mod future;
 mod generator;
@@ -39,6 +38,15 @@ mod tuple;
 pub mod unit;
 mod value_type;
 mod value_type_info;
+mod vm_error;
+
+decl_external!(anyhow::Error);
+
+/// Exported result type for convenience.
+pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
+
+/// Exported boxed error type for convenience.
+pub type Error = anyhow::Error;
 
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
@@ -60,7 +68,6 @@ pub use crate::access::{
 pub use crate::any::Any;
 pub use crate::bytes::Bytes;
 pub use crate::context::{Context, ContextError, IntoInstFnHash};
-pub use crate::error::{Error, Result};
 pub use crate::fn_ptr::FnPtr;
 pub use crate::future::Future;
 pub use crate::hash::{Hash, IntoTypeHash};
@@ -79,7 +86,8 @@ pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, ValueError, VariantObject, VariantTuple,
     VecTuple,
 };
-pub use crate::vm::{StopReason, Task, Vm, VmError};
+pub use crate::vm::{StopReason, Task, Vm};
+pub use crate::vm_error::{VmError, VmErrorKind};
 
 mod collections {
     pub use hashbrown::HashMap;

@@ -1,6 +1,6 @@
 use crate::{
     vm::StopReason, FromValue, GeneratorState, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef,
-    Shared, ToValue, UnsafeFromValue, Value, ValueError, Vm, VmError,
+    Shared, ToValue, UnsafeFromValue, Value, ValueError, Vm, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::mem;
@@ -27,7 +27,7 @@ impl Generator {
         let vm = match &mut self.vm {
             Some(vm) => vm,
             None => {
-                return Err(VmError::GeneratorComplete);
+                return Err(VmError::from(VmErrorKind::GeneratorComplete));
             }
         };
 
@@ -50,7 +50,7 @@ impl Generator {
         let vm = match &mut self.vm {
             Some(vm) => vm,
             None => {
-                return Err(VmError::GeneratorComplete);
+                return Err(VmError::from(VmErrorKind::GeneratorComplete));
             }
         };
 
@@ -79,7 +79,7 @@ impl Generator {
         match reason {
             StopReason::Yielded => Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
             StopReason::Exited => Ok(GeneratorState::Complete(vm.stack_mut().pop()?)),
-            reason => Err(VmError::Stopped { reason }),
+            reason => Err(VmError::from(VmErrorKind::Stopped { reason })),
         }
     }
 }

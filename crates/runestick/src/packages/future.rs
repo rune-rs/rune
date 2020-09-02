@@ -1,7 +1,7 @@
 //! The future package.
 
 use crate::future::SelectFuture;
-use crate::{ContextError, Future, Module, Shared, Stack, Value, VmError};
+use crate::{ContextError, Future, Module, Shared, Stack, Value, VmError, VmErrorKind};
 
 async fn try_join_impl<'a, I, F>(values: I, len: usize, factory: F) -> Result<Value, VmError>
 where
@@ -17,9 +17,9 @@ where
         let future = match value {
             Value::Future(future) => future.clone().owned_mut()?,
             value => {
-                return Err(VmError::BadArgument {
+                return Err(VmError::from(VmErrorKind::BadArgument {
                     argument: value.type_info()?,
-                })
+                }))
             }
         };
 
@@ -45,19 +45,19 @@ async fn join(value: Value) -> Result<Value, VmError> {
             let vec = vec.borrow_ref()?;
             Ok(try_join_impl(vec.iter(), vec.len(), Value::vec).await?)
         }
-        value => Err(VmError::BadArgument {
+        value => Err(VmError::from(VmErrorKind::BadArgument {
             argument: value.type_info()?,
-        }),
+        })),
     }
 }
 
 /// The join implementation.
 fn raw_join(stack: &mut Stack, args: usize) -> Result<(), VmError> {
     if args != 1 {
-        return Err(VmError::ArgumentCountMismatch {
+        return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
             actual: args,
             expected: 1,
-        });
+        }));
     }
 
     let value = stack.pop()?;

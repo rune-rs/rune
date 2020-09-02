@@ -4,7 +4,7 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
-use crate::{Component, Context, Hash, Inst, Item, Meta, ValueType, VmError};
+use crate::{Component, Context, Hash, Inst, Item, Meta, ValueType, VmError, VmErrorKind};
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
@@ -574,7 +574,7 @@ impl Unit {
         Ok(self
             .static_strings
             .get(slot)
-            .ok_or_else(|| VmError::MissingStaticString { slot })?)
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticString { slot }))?)
     }
 
     /// Lookup the static byte string by slot, if it exists.
@@ -582,7 +582,7 @@ impl Unit {
         Ok(self
             .static_bytes
             .get(slot)
-            .ok_or_else(|| VmError::MissingStaticString { slot })?
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticString { slot }))?
             .as_ref())
     }
 

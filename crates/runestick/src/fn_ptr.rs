@@ -1,5 +1,6 @@
 use crate::context::Handler;
 use crate::unit::UnitFnCall;
+use crate::VmErrorKind;
 use crate::{
     Context, FromValue, Future, Generator, Hash, IntoArgs, Shared, Stack, Tuple, Unit, Value, Vm,
     VmError,
@@ -202,7 +203,10 @@ impl FnPtr {
     #[inline]
     fn check_args(actual: usize, expected: usize) -> Result<(), VmError> {
         if actual != expected {
-            return Err(VmError::ArgumentCountMismatch { expected, actual });
+            return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
+                expected,
+                actual,
+            }));
         }
 
         Ok(())

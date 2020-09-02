@@ -3,10 +3,11 @@
 //! Contains functions such as:
 //! * `int::parse` to parse a string into a number.
 
-use crate::{ContextError, Module, Result};
+use crate::{ContextError, Module};
+use std::num::ParseIntError;
 
 /// Parse an integer.
-fn parse(s: &str) -> Result<i64> {
+fn parse(s: &str) -> Result<i64, ParseIntError> {
     Ok(str::parse::<i64>(s)?)
 }
 
@@ -15,12 +16,14 @@ fn to_float(value: i64) -> f64 {
     value as f64
 }
 
+decl_external!(ParseIntError);
+
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
     module.ty(&["int"]).build::<i64>()?;
-
+    module.ty(&["ParseIntError"]).build::<ParseIntError>()?;
     module.function(&["int", "parse"], parse)?;
     module.inst_fn("to_float", to_float)?;
 

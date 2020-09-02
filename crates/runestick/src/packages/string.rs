@@ -1,15 +1,18 @@
 //! Package containing string functions.
 
-use crate::{Bytes, ContextError, Error, Module};
+use crate::{Bytes, ContextError, Module};
+
+#[derive(Debug, Clone, Copy)]
+struct NotCharBoundary(());
 
 /// into_bytes shim for strings.
 fn into_bytes(s: String) -> Bytes {
     Bytes::from_vec(s.into_bytes())
 }
 
-fn char_at(s: &str, index: usize) -> Result<Option<char>, Error> {
+fn char_at(s: &str, index: usize) -> Result<Option<char>, NotCharBoundary> {
     if !s.is_char_boundary(index) {
-        return Err(Error::msg("index is not a character boundary"));
+        return Err(NotCharBoundary(()));
     }
 
     Ok(s[index..].chars().next())
@@ -22,6 +25,8 @@ fn add(a: &str, b: &str) -> String {
     string.push_str(b);
     string
 }
+
+decl_external!(NotCharBoundary);
 
 /// Get the module for the string package.
 pub fn module() -> Result<Module, ContextError> {

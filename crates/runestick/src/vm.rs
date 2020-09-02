@@ -1,383 +1,15 @@
 use crate::future::SelectFuture;
 use crate::unit::{UnitFnCall, UnitFnKind};
 use crate::{
-    AccessError, Bytes, Context, FnPtr, FromValue, Future, Generator, Hash, Inst, Integer,
-    IntoArgs, IntoTypeHash, Object, Panic, Protocol, Shared, Stack, StackError, StaticString,
-    ToValue, Tuple, TypeCheck, TypedObject, Unit, Value, ValueError, ValueTypeInfo, VariantObject,
+    Bytes, Context, FnPtr, FromValue, Future, Generator, Hash, Inst, Integer, IntoArgs,
+    IntoTypeHash, Object, Panic, Shared, Stack, StaticString, ToValue, Tuple, TypeCheck,
+    TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind,
 };
 use std::any;
 use std::fmt;
 use std::marker;
 use std::mem;
 use std::rc::Rc;
-use thiserror::Error;
-
-/// Errors raised by the execution of the virtual machine.
-#[derive(Debug, Error)]
-pub enum VmError {
-    /// The virtual machine panicked for a specific reason.
-    #[error("panicked `{reason}`")]
-    Panic {
-        /// The reason for the panic.
-        reason: Panic,
-    },
-    /// The virtual machine stopped for an unexpected reason.
-    #[error("stopped for unexpected reason `{reason}`")]
-    Stopped {
-        /// The reason why the virtual machine stopped.
-        reason: StopReason,
-    },
-    /// A vm error that was propagated from somewhere else.
-    ///
-    /// In order to represent this, we need to preserve the instruction pointer
-    /// and eventually unit from where the error happened.
-    #[error("{error} (at {ip})")]
-    UnwindedVmError {
-        /// The actual error.
-        error: Box<VmError>,
-        /// The instruction pointer of where the original error happened.
-        ip: usize,
-    },
-    /// Error raised when external format function results in error.
-    #[error("failed to format argument")]
-    FormatError,
-    /// Error raised when interacting with the stack.
-    #[error("stack error: {error}")]
-    StackError {
-        /// The source error.
-        #[from]
-        error: StackError,
-    },
-    /// Trying to access an inaccessible reference.
-    #[error("failed to access value: {error}")]
-    AccessError {
-        /// Source error.
-        #[from]
-        error: AccessError,
-    },
-    /// Error raised when trying to access a value.
-    #[error("value error: {error}")]
-    ValueError {
-        /// Source error.
-        #[source]
-        error: ValueError,
-    },
-    /// The virtual machine panicked for a specific reason.
-    #[error("panicked `{reason}`")]
-    CustomPanic {
-        /// The reason for the panic.
-        reason: String,
-    },
-    /// The virtual machine encountered a numerical overflow.
-    #[error("numerical overflow")]
-    Overflow,
-    /// The virtual machine encountered a numerical underflow.
-    #[error("numerical underflow")]
-    Underflow,
-    /// The virtual machine encountered a divide-by-zero.
-    #[error("division by zero")]
-    DivideByZero,
-    /// Failure to lookup function.
-    #[error("missing function with hash `{hash}`")]
-    MissingFunction {
-        /// Hash of function to look up.
-        hash: Hash,
-    },
-    /// Failure to lookup instance function.
-    #[error("missing instance function for instance `{instance}` with hash `{hash}`")]
-    MissingInstanceFunction {
-        /// The instance type we tried to look up function on.
-        instance: ValueTypeInfo,
-        /// Hash of function to look up.
-        hash: Hash,
-    },
-    /// Instruction pointer went out-of-bounds.
-    #[error("instruction pointer is out-of-bounds")]
-    IpOutOfBounds,
-    /// Tried to await something on the stack which can't be await:ed.
-    #[error("unsupported target for .await")]
-    UnsupportedAwait,
-    /// A bad argument that was received to a function.
-    #[error("bad argument `{argument}`")]
-    BadArgument {
-        /// The argument type.
-        argument: ValueTypeInfo,
-    },
-    /// Unsupported binary operation.
-    #[error("unsupported vm operation `{lhs} {op} {rhs}`")]
-    UnsupportedBinaryOperation {
-        /// Operation.
-        op: &'static str,
-        /// Left-hand side operator.
-        lhs: ValueTypeInfo,
-        /// Right-hand side operator.
-        rhs: ValueTypeInfo,
-    },
-    /// Unsupported unary operation.
-    #[error("unsupported vm operation `{op}{operand}`")]
-    UnsupportedUnaryOperation {
-        /// Operation.
-        op: &'static str,
-        /// Operand.
-        operand: ValueTypeInfo,
-    },
-    /// Protocol not implemented on type.
-    #[error("`{actual}` does not implement the `{protocol}` protocol")]
-    MissingProtocol {
-        /// The missing protocol.
-        protocol: Protocol,
-        /// The encountered argument.
-        actual: ValueTypeInfo,
-    },
-    /// Indicates that a static string is missing for the given slot.
-    #[error("static string slot `{slot}` does not exist")]
-    MissingStaticString {
-        /// Slot which is missing a static string.
-        slot: usize,
-    },
-    /// Indicates that a static object keys is missing for the given slot.
-    #[error("static object keys slot `{slot}` does not exist")]
-    MissingStaticObjectKeys {
-        /// Slot which is missing a static object keys.
-        slot: usize,
-    },
-    /// Indicates a failure to convert from one type to another.
-    #[error("failed to convert stack value to `{to}`: {error}")]
-    StackConversionError {
-        /// The source of the error.
-        #[source]
-        error: ValueError,
-        /// The expected type to convert towards.
-        to: &'static str,
-    },
-    /// Failure to convert from one type to another.
-    #[error("failed to convert argument #{arg} to `{to}`: {error}")]
-    ArgumentConversionError {
-        /// The underlying stack error.
-        #[source]
-        error: ValueError,
-        /// The argument location that was converted.
-        arg: usize,
-        /// The native type we attempt to convert to.
-        to: &'static str,
-    },
-    /// Wrong number of arguments provided in call.
-    #[error("wrong number of arguments `{actual}`, expected `{expected}`")]
-    ArgumentCountMismatch {
-        /// The actual number of arguments.
-        actual: usize,
-        /// The expected number of arguments.
-        expected: usize,
-    },
-    /// Failure to convert return value.
-    #[error("failed to convert return value `{ret}`")]
-    ReturnConversionError {
-        /// Error describing the failed conversion.
-        #[source]
-        error: ValueError,
-        /// Type of the return value we attempted to convert.
-        ret: &'static str,
-    },
-    /// An index set operation that is not supported.
-    #[error("the index set operation `{target}[{index}] = {value}` is not supported")]
-    UnsupportedIndexSet {
-        /// The target type to set.
-        target: ValueTypeInfo,
-        /// The index to set.
-        index: ValueTypeInfo,
-        /// The value to set.
-        value: ValueTypeInfo,
-    },
-    /// An index get operation that is not supported.
-    #[error("the index get operation `{target}[{index}]` is not supported")]
-    UnsupportedIndexGet {
-        /// The target type to get.
-        target: ValueTypeInfo,
-        /// The index to get.
-        index: ValueTypeInfo,
-    },
-    /// A vector index get operation that is not supported.
-    #[error("the vector index get operation is not supported on `{target}`")]
-    UnsupportedVecIndexGet {
-        /// The target type we tried to perform the vector indexing on.
-        target: ValueTypeInfo,
-    },
-    /// An tuple index get operation that is not supported.
-    #[error("the tuple index get operation is not supported on `{target}`")]
-    UnsupportedTupleIndexGet {
-        /// The target type we tried to perform the tuple indexing on.
-        target: ValueTypeInfo,
-    },
-    /// An tuple index set operation that is not supported.
-    #[error("the tuple index set operation is not supported on `{target}`")]
-    UnsupportedTupleIndexSet {
-        /// The target type we tried to perform the tuple indexing on.
-        target: ValueTypeInfo,
-    },
-    /// An object slot index get operation that is not supported.
-    #[error("the object slot index get operation on `{target}` is not supported")]
-    UnsupportedObjectSlotIndexGet {
-        /// The target type we tried to perform the object indexing on.
-        target: ValueTypeInfo,
-    },
-    /// An is operation is not supported.
-    #[error("`{value} is {test_type}` is not supported")]
-    UnsupportedIs {
-        /// The argument that is not supported.
-        value: ValueTypeInfo,
-        /// The type that is not supported.
-        test_type: ValueTypeInfo,
-    },
-    /// Encountered a value that could not be dereferenced.
-    #[error("replace deref `*{target} = {value}` is not supported")]
-    UnsupportedReplaceDeref {
-        /// The type we try to assign to.
-        target: ValueTypeInfo,
-        /// The type we try to assign.
-        value: ValueTypeInfo,
-    },
-    /// Encountered a value that could not be dereferenced.
-    #[error("`*{actual_type}` is not supported")]
-    UnsupportedDeref {
-        /// The type that could not be de-referenced.
-        actual_type: ValueTypeInfo,
-    },
-    /// Missing type.
-    #[error("no type matching hash `{hash}`")]
-    MissingType {
-        /// Hash of the type missing.
-        hash: Hash,
-    },
-    /// Encountered a value that could not be called as a function
-    #[error("`{actual_type}` cannot be called since it's not a function")]
-    UnsupportedCallFn {
-        /// The type that could not be called.
-        actual_type: ValueTypeInfo,
-    },
-    /// Tried to fetch an index in a vector that doesn't exist.
-    #[error("missing index `{index}` in vector")]
-    VecIndexMissing {
-        /// The missing index.
-        index: usize,
-    },
-    /// Tried to fetch an index in a tuple that doesn't exist.
-    #[error("missing index `{index}` in tuple")]
-    TupleIndexMissing {
-        /// The missing index.
-        index: usize,
-    },
-    /// Tried to fetch an index in an object that doesn't exist.
-    #[error("missing index by static string slot `{slot}` in object")]
-    ObjectIndexMissing {
-        /// The static string slot corresponding to the index that is missing.
-        slot: usize,
-    },
-    /// Error raised when we expect a specific external type but got another.
-    #[error("expected slot `{expected}`, but found `{actual}`")]
-    UnexpectedValueType {
-        /// The type that was expected.
-        expected: &'static str,
-        /// The type that was found.
-        actual: &'static str,
-    },
-    /// Error raised when we expected a vector of the given length.
-    #[error("expected a vector of length `{expected}`, but found one with length `{actual}`")]
-    ExpectedVecLength {
-        /// The actual length observed.
-        actual: usize,
-        /// The expected vector length.
-        expected: usize,
-    },
-    /// Tried to access an index that was missing on a type.
-    #[error("missing index `{}` on `{target}`")]
-    MissingIndex {
-        /// Type where field did not exist.
-        target: ValueTypeInfo,
-        /// Index that we tried to access.
-        index: Integer,
-    },
-    /// Missing a struct field.
-    #[error("missing field `{field}` on `{target}`")]
-    MissingField {
-        /// Type where field did not exist.
-        target: ValueTypeInfo,
-        /// Field that was missing.
-        field: String,
-    },
-    /// Error raised when we try to unwrap something that is not an option or
-    /// result.
-    #[error("expected result or option with value to unwrap, but got `{actual}`")]
-    UnsupportedUnwrap {
-        /// The actual operand.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we try to unwrap an Option that is not Some.
-    #[error("expected Some value, but got `None`")]
-    UnsupportedUnwrapNone,
-    /// Error raised when we try to unwrap a Result that is not Ok.
-    #[error("expected Ok value, but got `Err({err})`")]
-    UnsupportedUnwrapErr {
-        /// The error variant.
-        err: ValueTypeInfo,
-    },
-    /// Value is not supported for `is-value` test.
-    #[error("expected result or option as value, but got `{actual}`")]
-    UnsupportedIsValueOperand {
-        /// The actual operand.
-        actual: ValueTypeInfo,
-    },
-    /// Trying to resume a generator that has completed.
-    #[error("cannot resume generator that has completed")]
-    GeneratorComplete,
-}
-
-impl VmError {
-    /// Generate a custom panic.
-    pub fn custom_panic<D>(reason: D) -> Self
-    where
-        D: fmt::Display,
-    {
-        Self::CustomPanic {
-            reason: reason.to_string(),
-        }
-    }
-
-    /// Convert into an unwinded vm error.
-    pub fn into_unwinded(self, ip: usize) -> Self {
-        match self {
-            Self::UnwindedVmError { error, ip } => Self::UnwindedVmError { error, ip },
-            error => Self::UnwindedVmError {
-                error: Box::new(error),
-                ip,
-            },
-        }
-    }
-
-    /// Unpack an unwinded error, if it is present.
-    pub fn from_unwinded(self) -> (Self, Option<usize>) {
-        match self {
-            Self::UnwindedVmError { error, ip } => (*error, Some(ip)),
-            error => (error, None),
-        }
-    }
-
-    /// Unpack an unwinded error ref, if it is present.
-    pub fn from_unwinded_ref(&self) -> (&Self, Option<usize>) {
-        match self {
-            Self::UnwindedVmError { error, ip } => (&*error, Some(*ip)),
-            error => (error, None),
-        }
-    }
-}
-
-impl From<ValueError> for VmError {
-    fn from(error: ValueError) -> Self {
-        match error {
-            ValueError::VmError { error } => *error,
-            error => VmError::ValueError { error },
-        }
-    }
-}
 
 /// A call frame.
 ///
@@ -493,13 +125,13 @@ impl Vm {
         let function = self
             .unit
             .lookup(hash)
-            .ok_or_else(|| VmError::MissingFunction { hash })?;
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
 
         if function.signature.args != A::count() {
-            return Err(VmError::ArgumentCountMismatch {
+            return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
                 actual: A::count(),
                 expected: function.signature.args,
-            });
+            }));
         }
 
         let offset = match function.kind {
@@ -507,7 +139,7 @@ impl Vm {
             // everything is just async when called externally.
             UnitFnKind::Offset { offset, .. } => offset,
             _ => {
-                return Err(VmError::MissingFunction { hash });
+                return Err(VmError::from(VmErrorKind::MissingFunction { hash }));
             }
         };
 
@@ -544,7 +176,7 @@ impl Vm {
                 self.stack.push(value);
                 Ok(())
             }
-            _ => Err(VmError::UnsupportedAwait),
+            _ => Err(VmError::from(VmErrorKind::UnsupportedAwait)),
         }
     }
 
@@ -585,10 +217,10 @@ impl Vm {
 
         if let Some(info) = self.unit.lookup(hash) {
             if info.signature.args != count {
-                return Err(VmError::ArgumentCountMismatch {
+                return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
                     actual: count,
                     expected: info.signature.args,
-                });
+                }));
             }
 
             if let UnitFnKind::Offset { offset, call } = &info.kind {
@@ -695,11 +327,11 @@ impl Vm {
             (Value::Integer(lhs), Value::Integer(rhs)) => int_op(lhs, rhs),
             (Value::Float(lhs), Value::Float(rhs)) => float_op(lhs, rhs),
             (lhs, rhs) => {
-                return Err(VmError::UnsupportedBinaryOperation {
+                return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                     op,
                     lhs: lhs.type_info()?,
                     rhs: rhs.type_info()?,
-                })
+                }))
             }
         };
 
@@ -768,10 +400,10 @@ impl Vm {
         let value = match T::from_value(value) {
             Ok(value) => value,
             Err(error) => {
-                return Err(VmError::StackConversionError {
+                return Err(VmError::from(VmErrorKind::StackConversionError {
                     error,
                     to: any::type_name::<T>(),
-                });
+                }));
             }
         };
 
@@ -942,7 +574,10 @@ impl Vm {
             Value::Bool(value) => Value::Bool(!value),
             other => {
                 let operand = other.type_info()?;
-                return Err(VmError::UnsupportedUnaryOperation { op: "!", operand });
+                return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
+                    op: "!",
+                    operand,
+                }));
             }
         };
 
@@ -983,11 +618,11 @@ impl Vm {
         };
 
         if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
-            return Err(VmError::UnsupportedBinaryOperation {
+            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                 op,
                 lhs: lhs.type_info()?,
                 rhs: rhs.type_info()?,
-            });
+            }));
         }
 
         Ok(())
@@ -997,7 +632,7 @@ impl Vm {
     fn op_add(&mut self) -> Result<(), VmError> {
         self.internal_numeric_op(
             crate::ADD,
-            || VmError::Overflow,
+            || VmError::from(VmErrorKind::Overflow),
             i64::checked_add,
             std::ops::Add::add,
             "+",
@@ -1009,7 +644,7 @@ impl Vm {
     fn op_sub(&mut self) -> Result<(), VmError> {
         self.internal_numeric_op(
             crate::SUB,
-            || VmError::Underflow,
+            || VmError::from(VmErrorKind::Underflow),
             i64::checked_sub,
             std::ops::Sub::sub,
             "-",
@@ -1021,7 +656,7 @@ impl Vm {
     fn op_mul(&mut self) -> Result<(), VmError> {
         self.internal_numeric_op(
             crate::ADD,
-            || VmError::Overflow,
+            || VmError::from(VmErrorKind::Overflow),
             i64::checked_mul,
             std::ops::Mul::mul,
             "*",
@@ -1033,7 +668,7 @@ impl Vm {
     fn op_div(&mut self) -> Result<(), VmError> {
         self.internal_numeric_op(
             crate::ADD,
-            || VmError::DivideByZero,
+            || VmError::from(VmErrorKind::DivideByZero),
             i64::checked_div,
             std::ops::Div::div,
             "+",
@@ -1045,7 +680,7 @@ impl Vm {
     fn op_rem(&mut self) -> Result<(), VmError> {
         self.internal_numeric_op(
             crate::REM,
-            || VmError::DivideByZero,
+            || VmError::from(VmErrorKind::DivideByZero),
             i64::checked_rem,
             std::ops::Rem::rem,
             "%",
@@ -1086,11 +721,11 @@ impl Vm {
         };
 
         if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
-            return Err(VmError::UnsupportedBinaryOperation {
+            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                 op,
                 lhs: lhs.type_info()?,
                 rhs: rhs.type_info()?,
-            });
+            }));
         }
 
         self.stack.pop()?;
@@ -1102,7 +737,7 @@ impl Vm {
         self.internal_op_assign(
             offset,
             crate::ADD_ASSIGN,
-            || VmError::Overflow,
+            || VmError::from(VmErrorKind::Overflow),
             i64::checked_add,
             std::ops::Add::add,
             "+=",
@@ -1115,7 +750,7 @@ impl Vm {
         self.internal_op_assign(
             offset,
             crate::SUB_ASSIGN,
-            || VmError::Underflow,
+            || VmError::from(VmErrorKind::Underflow),
             i64::checked_sub,
             std::ops::Sub::sub,
             "-=",
@@ -1128,7 +763,7 @@ impl Vm {
         self.internal_op_assign(
             offset,
             crate::MUL_ASSIGN,
-            || VmError::Overflow,
+            || VmError::from(VmErrorKind::Overflow),
             i64::checked_mul,
             std::ops::Mul::mul,
             "*=",
@@ -1141,7 +776,7 @@ impl Vm {
         self.internal_op_assign(
             offset,
             crate::DIV_ASSIGN,
-            || VmError::DivideByZero,
+            || VmError::from(VmErrorKind::DivideByZero),
             i64::checked_div,
             std::ops::Div::div,
             "/=",
@@ -1185,10 +820,10 @@ impl Vm {
                         return Ok(());
                     }
 
-                    return Err(VmError::MissingField {
+                    return Err(VmError::from(VmErrorKind::MissingField {
                         field: field.to_owned(),
                         target: typed_object.type_info(),
-                    });
+                    }));
                 }
                 Value::VariantObject(variant_object) => {
                     let mut variant_object = variant_object.borrow_mut()?;
@@ -1198,21 +833,21 @@ impl Vm {
                         return Ok(());
                     }
 
-                    return Err(VmError::MissingField {
+                    return Err(VmError::from(VmErrorKind::MissingField {
                         field: field.to_owned(),
                         target: variant_object.type_info(),
-                    });
+                    }));
                 }
                 _ => break,
             }
         }
 
         if !self.call_instance_fn(&target, crate::INDEX_SET, (&index, &value))? {
-            return Err(VmError::UnsupportedIndexSet {
+            return Err(VmError::from(VmErrorKind::UnsupportedIndexSet {
                 target: target.type_info()?,
                 index: index.type_info()?,
                 value: value.type_info()?,
-            });
+            }));
         }
 
         Ok(())
@@ -1254,10 +889,10 @@ impl Vm {
         let value = match value {
             Some(value) => value,
             None => {
-                return Err(VmError::MissingField {
+                return Err(VmError::from(VmErrorKind::MissingField {
                     target: target.type_info()?,
                     field: field.to_owned(),
-                });
+                }));
             }
         };
 
@@ -1312,10 +947,10 @@ impl Vm {
         let value = match value {
             Some(value) => value,
             None => {
-                return Err(VmError::MissingIndex {
+                return Err(VmError::from(VmErrorKind::MissingIndex {
                     target: target.type_info()?,
                     index: Integer::Usize(index),
-                });
+                }));
             }
         };
 
@@ -1425,10 +1060,10 @@ impl Vm {
                     let index = match (*index).try_into() {
                         Ok(index) => index,
                         Err(..) => {
-                            return Err(VmError::MissingIndex {
+                            return Err(VmError::from(VmErrorKind::MissingIndex {
                                 target: target.type_info()?,
                                 index: Integer::I64(*index),
-                            });
+                            }));
                         }
                     };
 
@@ -1442,10 +1077,10 @@ impl Vm {
         }
 
         if !self.call_instance_fn(&target, crate::INDEX_GET, (&index,))? {
-            return Err(VmError::UnsupportedIndexGet {
+            return Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
                 target: target.type_info()?,
                 index: index.type_info()?,
-            });
+            }));
         }
 
         Ok(())
@@ -1461,9 +1096,9 @@ impl Vm {
             return Ok(());
         }
 
-        Err(VmError::UnsupportedTupleIndexGet {
+        Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
             target: value.type_info()?,
-        })
+        }))
     }
 
     /// Perform an index get operation specialized for tuples.
@@ -1476,9 +1111,9 @@ impl Vm {
             return Ok(());
         }
 
-        Err(VmError::UnsupportedTupleIndexSet {
+        Err(VmError::from(VmErrorKind::UnsupportedTupleIndexSet {
             target: tuple.type_info()?,
-        })
+        }))
     }
 
     /// Perform an index get operation specialized for tuples.
@@ -1491,9 +1126,9 @@ impl Vm {
             return Ok(());
         }
 
-        Err(VmError::UnsupportedTupleIndexGet {
+        Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
             target: value.type_info()?,
-        })
+        }))
     }
 
     /// Implementation of getting a string index on an object-like type.
@@ -1510,7 +1145,9 @@ impl Vm {
                 match object.get(&***index).cloned() {
                     Some(value) => Some(value),
                     None => {
-                        return Err(VmError::ObjectIndexMissing { slot: string_slot });
+                        return Err(VmError::from(VmErrorKind::ObjectIndexMissing {
+                            slot: string_slot,
+                        }));
                     }
                 }
             }
@@ -1521,7 +1158,9 @@ impl Vm {
                 match typed_object.object.get(&***index).cloned() {
                     Some(value) => Some(value),
                     None => {
-                        return Err(VmError::ObjectIndexMissing { slot: string_slot });
+                        return Err(VmError::from(VmErrorKind::ObjectIndexMissing {
+                            slot: string_slot,
+                        }));
                     }
                 }
             }
@@ -1532,7 +1171,9 @@ impl Vm {
                 match variant_object.object.get(&***index).cloned() {
                     Some(value) => Some(value),
                     None => {
-                        return Err(VmError::ObjectIndexMissing { slot: string_slot });
+                        return Err(VmError::from(VmErrorKind::ObjectIndexMissing {
+                            slot: string_slot,
+                        }));
                     }
                 }
             }
@@ -1551,7 +1192,9 @@ impl Vm {
         }
 
         let target = target.type_info()?;
-        Err(VmError::UnsupportedObjectSlotIndexGet { target })
+        Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
+            target,
+        }))
     }
 
     /// Perform a specialized index get operation on an object.
@@ -1569,7 +1212,9 @@ impl Vm {
         }
 
         let target = target.type_info()?;
-        Err(VmError::UnsupportedObjectSlotIndexGet { target })
+        Err(VmError::from(VmErrorKind::UnsupportedObjectSlotIndexGet {
+            target,
+        }))
     }
 
     /// Operation to allocate an object.
@@ -1578,7 +1223,7 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
 
         let mut object = Object::with_capacity(keys.len());
 
@@ -1598,7 +1243,7 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
 
         let mut object = Object::with_capacity(keys.len());
 
@@ -1624,7 +1269,7 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
 
         let mut object = Object::with_capacity(keys.len());
 
@@ -1690,16 +1335,16 @@ impl Vm {
                         crate::STRING_DISPLAY,
                         (Value::String(b.clone()),),
                     )? {
-                        return Err(VmError::MissingProtocol {
+                        return Err(VmError::from(VmErrorKind::MissingProtocol {
                             protocol: crate::STRING_DISPLAY,
                             actual: actual.type_info()?,
-                        });
+                        }));
                     }
 
                     let value = self.pop_decode::<fmt::Result>()?;
 
                     if let Err(fmt::Error) = value {
-                        return Err(VmError::FormatError);
+                        return Err(VmError::from(VmErrorKind::FormatError));
                     }
 
                     buf = b.take()?;
@@ -1719,21 +1364,21 @@ impl Vm {
             Value::Option(option) => match option.take()? {
                 Some(value) => value,
                 None => {
-                    return Err(VmError::UnsupportedUnwrapNone);
+                    return Err(VmError::from(VmErrorKind::UnsupportedUnwrapNone));
                 }
             },
             Value::Result(result) => match result.take()? {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(VmError::UnsupportedUnwrapErr {
+                    return Err(VmError::from(VmErrorKind::UnsupportedUnwrapErr {
                         err: err.type_info()?,
-                    });
+                    }));
                 }
             },
             other => {
-                return Err(VmError::UnsupportedUnwrap {
+                return Err(VmError::from(VmErrorKind::UnsupportedUnwrap {
                     actual: other.type_info()?,
-                });
+                }));
             }
         };
 
@@ -1749,10 +1394,10 @@ impl Vm {
         let hash = match b {
             Value::Type(hash) => hash,
             _ => {
-                return Err(VmError::UnsupportedIs {
+                return Err(VmError::from(VmErrorKind::UnsupportedIs {
                     value: a.type_info()?,
                     test_type: b.type_info()?,
-                });
+                }));
             }
         };
 
@@ -1789,9 +1434,9 @@ impl Vm {
             Value::Result(result) => result.borrow_ref()?.is_ok(),
             Value::Option(option) => option.borrow_ref()?.is_some(),
             other => {
-                return Err(VmError::UnsupportedIsValueOperand {
+                return Err(VmError::from(VmErrorKind::UnsupportedIsValueOperand {
                     actual: other.type_info()?,
-                })
+                }))
             }
         };
 
@@ -1810,11 +1455,11 @@ impl Vm {
         let out = match (a, b) {
             (Value::Bool(a), Value::Bool(b)) => bool_op(a, b),
             (lhs, rhs) => {
-                return Err(VmError::UnsupportedBinaryOperation {
+                return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
                     op,
                     lhs: lhs.type_info()?,
                     rhs: rhs.type_info()?,
-                });
+                }));
             }
         };
 
@@ -2020,7 +1665,7 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmError::MissingStaticObjectKeys { slot })?;
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
 
         match (type_check, value) {
             (TypeCheck::Object, Value::Object(object)) => {
@@ -2111,7 +1756,7 @@ impl Vm {
                 let handler = self
                     .context
                     .lookup(hash)
-                    .ok_or_else(|| VmError::MissingFunction { hash })?;
+                    .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
 
                 FnPtr::from_handler(handler.clone())
             }
@@ -2126,13 +1771,13 @@ impl Vm {
         let info = self
             .unit
             .lookup(hash)
-            .ok_or_else(|| VmError::MissingFunction { hash })?;
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
 
         let args = info.signature.args;
 
         let (offset, call) = match &info.kind {
             UnitFnKind::Offset { offset, call } => (*offset, *call),
-            _ => return Err(VmError::MissingFunction { hash }),
+            _ => return Err(VmError::from(VmErrorKind::MissingFunction { hash })),
         };
 
         let environment = self.stack.pop_sequence(count)?;
@@ -2155,10 +1800,10 @@ impl Vm {
         match self.unit.lookup(hash) {
             Some(info) => {
                 if info.signature.args != args {
-                    return Err(VmError::ArgumentCountMismatch {
+                    return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
                         actual: args,
                         expected: info.signature.args,
-                    });
+                    }));
                 }
 
                 match info.kind {
@@ -2181,7 +1826,7 @@ impl Vm {
                 let handler = self
                     .context
                     .lookup(hash)
-                    .ok_or_else(|| VmError::MissingFunction { hash })?;
+                    .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
 
                 handler(&mut self.stack, args)?;
             }
@@ -2204,10 +1849,10 @@ impl Vm {
         match self.unit.lookup(hash) {
             Some(info) => {
                 if info.signature.args != args {
-                    return Err(VmError::ArgumentCountMismatch {
+                    return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
                         actual: args,
                         expected: info.signature.args,
-                    });
+                    }));
                 }
 
                 match info.kind {
@@ -2215,10 +1860,10 @@ impl Vm {
                         self.call_offset_fn(offset, call, args)?;
                     }
                     _ => {
-                        return Err(VmError::MissingInstanceFunction {
+                        return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
                             instance: instance.type_info()?,
                             hash,
-                        });
+                        }));
                     }
                 }
             }
@@ -2226,10 +1871,10 @@ impl Vm {
                 let handler = match self.context.lookup(hash) {
                     Some(handler) => handler,
                     None => {
-                        return Err(VmError::MissingInstanceFunction {
+                        return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
                             instance: instance.type_info()?,
                             hash,
-                        });
+                        }));
                     }
                 };
 
@@ -2252,7 +1897,9 @@ impl Vm {
             }
             actual => {
                 let actual_type = actual.type_info()?;
-                return Err(VmError::UnsupportedCallFn { actual_type });
+                return Err(VmError::from(VmErrorKind::UnsupportedCallFn {
+                    actual_type,
+                }));
             }
         };
 
@@ -2274,7 +1921,7 @@ impl Vm {
             let inst = *self
                 .unit
                 .instruction_at(self.ip)
-                .ok_or_else(|| VmError::IpOutOfBounds)?;
+                .ok_or_else(|| VmError::from(VmErrorKind::IpOutOfBounds))?;
 
             log::trace!("{}: {}", self.ip, inst);
 
@@ -2529,9 +2176,9 @@ impl Vm {
                     return Ok(StopReason::Yielded);
                 }
                 Inst::Panic { reason } => {
-                    return Err(VmError::Panic {
+                    return Err(VmError::from(VmErrorKind::Panic {
                         reason: Panic::from(reason),
-                    });
+                    }));
                 }
             }
 
@@ -2595,7 +2242,7 @@ where
     async fn inner_run_to_completion(&mut self) -> Result<T, VmError> {
         match self.vm.run_for(None).await {
             Ok(StopReason::Exited) => (),
-            Ok(reason) => return Err(VmError::Stopped { reason }),
+            Ok(reason) => return Err(VmError::from(VmErrorKind::Stopped { reason })),
             Err(e) => return Err(e),
         }
 
@@ -2617,7 +2264,7 @@ where
         match self.vm.run_for(Some(1)).await? {
             StopReason::Limited => return Ok(None),
             StopReason::Exited => (),
-            reason => return Err(VmError::Stopped { reason }),
+            reason => return Err(VmError::from(VmErrorKind::Stopped { reason })),
         }
 
         let value = self.vm.pop_decode()?;

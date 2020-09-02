@@ -3,7 +3,7 @@ pub use rune::CompileError::*;
 pub use rune::ParseError::*;
 pub use rune::Warning::*;
 use runestick::Item;
-pub use runestick::VmError::*;
+pub use runestick::VmErrorKind::*;
 pub use runestick::{FnPtr, Meta, Span, Value};
 use std::rc::Rc;
 
@@ -103,9 +103,9 @@ macro_rules! assert_vm_error {
             }
         };
 
-        let (e, _) = e.from_unwinded_ref();
+        let (kind, _) = e.kind().from_unwinded_ref();
 
-        match e {
+        match kind {
             $pat => $cond,
             _ => {
                 panic!("expected error `{}` but was `{:?}`", stringify!($pat), e);

@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
 use crate::{
     Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, ValueError,
-    ValueType, ValueTypeInfo, VmError,
+    ValueType, ValueTypeInfo, VmError, VmErrorKind,
 };
 use std::any::type_name;
 use std::future;
@@ -718,16 +718,16 @@ macro_rules! impl_register {
         let $ret = match $ret.to_value() {
             Ok($ret) => $ret,
             Err(ValueError::Panic { reason }) => {
-                return Err(VmError::Panic { reason });
+                return Err(VmError::from(VmErrorKind::Panic { reason }));
             },
             Err(ValueError::VmError { error }) => {
                 return Err(*error);
             },
             Err(error) => {
-                return Err(VmError::ReturnConversionError {
+                return Err(VmError::from(VmErrorKind::ReturnConversionError {
                     error,
                     ret: type_name::<$ty>()
-                });
+                }));
             }
         };
 
@@ -740,17 +740,17 @@ macro_rules! impl_register {
             let $var = match <$ty>::unsafe_from_value($var) {
                 Ok(v) => v,
                 Err(ValueError::Panic { reason }) => {
-                    return Err(VmError::Panic { reason });
+                    return Err(VmError::from(VmErrorKind::Panic { reason }));
                 },
                 Err(ValueError::VmError { error }) => {
                     return Err(*error);
                 },
                 Err(error) => {
-                    return Err(VmError::ArgumentConversionError {
+                    return Err(VmError::from(VmErrorKind::ArgumentConversionError {
                         error,
                         arg: $count - $num,
                         to: type_name::<$ty>(),
-                    });
+                    }));
                 }
             };
         )*
@@ -761,17 +761,17 @@ macro_rules! impl_register {
         let $inst = match Instance::unsafe_from_value($inst) {
             Ok(v) => v,
             Err(ValueError::Panic { reason }) => {
-                return Err(VmError::Panic { reason });
+                return Err(VmError::from(VmErrorKind::Panic { reason }));
             },
             Err(ValueError::VmError { error }) => {
                 return Err(*error);
             },
             Err(error) => {
-                return Err(VmError::ArgumentConversionError {
+                return Err(VmError::from(VmErrorKind::ArgumentConversionError {
                     error,
                     arg: 0,
                     to: type_name::<Instance>()
-                });
+                }));
             }
         };
 
@@ -779,17 +779,17 @@ macro_rules! impl_register {
             let $var = match <$ty>::unsafe_from_value($var) {
                 Ok(v) => v,
                 Err(ValueError::Panic { reason }) => {
-                    return Err(VmError::Panic { reason });
+                    return Err(VmError::from(VmErrorKind::Panic { reason }));
                 },
                 Err(ValueError::VmError { error }) => {
                     return Err(*error);
                 },
                 Err(error) => {
-                    return Err(VmError::ArgumentConversionError {
+                    return Err(VmError::from(VmErrorKind::ArgumentConversionError {
                         error,
                         arg: 1 + $count - $num,
                         to: type_name::<$ty>()
-                    });
+                    }));
                 }
             };
         )*
@@ -797,10 +797,10 @@ macro_rules! impl_register {
 
     (@check-args $expected:expr, $actual:expr) => {
         if $actual != $expected {
-            return Err(VmError::ArgumentCountMismatch {
+            return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
                 actual: $actual,
                 expected: $expected,
-            });
+            }));
         }
     };
 }
