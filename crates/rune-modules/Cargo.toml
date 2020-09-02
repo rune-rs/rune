@@ -1,6 +1,6 @@
 [package]
 name = "rune-modules"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -26,4 +26,4 @@ reqwest = {version = "0.10.7", optional = true}
 tokio = {version = "0.2.22", optional = true}
 serde_json = {version = "1.0.57", optional = true}
 
-runestick = {version = "0.4.0", path = "../runestick"}
+runestick = {version = "0.5.0", path = "../runestick"}

@@ -2,8 +2,8 @@ use process::Command;
 
 fn main() {
     let projects = [
-        // "crates/runestick",
-        // "crates/rune-modules",
+        "crates/runestick",
+        "crates/rune-modules",
         "crates/rune-testing",
         "crates/rune",
         "crates/rune-cli",
@@ -11,7 +11,7 @@ fn main() {
 
     for project in projects {
         let cargo = Command::new("cargo");
-        cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`]);
+        cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`, "--no-verify"]);
         let status = cargo.spawn()?.await?;
         println(`{project}: {status}`);
     }
