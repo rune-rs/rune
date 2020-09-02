@@ -44,4 +44,17 @@ $> cargo run --example vector
 [10]
 ```
 
+If you have a vector which have values of non-uniform types, you can use 
+[`VecTuple`] to deal with them.
+
+```rust,noplaypen
+{{#include ../../crates/rune/examples/vec_tuple.rs}}
+```
+
+```text
+$> cargo run --example vec_tuple
+(2, "Hello World")
+```
+
 [`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
+[`VecTuple`]: https://docs.rs/runestick/0/runestick/struct.VecTuple.html

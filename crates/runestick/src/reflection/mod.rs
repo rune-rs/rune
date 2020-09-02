@@ -1,6 +1,4 @@
-use crate::{
-    Stack, Value, ValueError, ValueErrorKind, ValueType, ValueTypeInfo, VecTuple, VmError,
-};
+use crate::{Stack, Value, ValueError, ValueType, ValueTypeInfo, VmError};
 
 mod bytes;
 mod fn_ptr;
@@ -178,60 +176,6 @@ macro_rules! impl_into_args {
 }
 
 impl_into_args!(
-    {H, h, 8},
-    {G, g, 7},
-    {F, f, 6},
-    {E, e, 5},
-    {D, d, 4},
-    {C, c, 3},
-    {B, b, 2},
-    {A, a, 1},
-);
-
-macro_rules! impl_from_value_tuple_vec {
-    () => {
-    };
-
-    ({$ty:ident, $value:ident, $count:expr}, $({$l_ty:ident, $l_value:ident, $l_count:expr},)*) => {
-        impl_from_value_tuple_vec!{@impl $count, {$ty, $value, $count}, $({$l_ty, $l_value, $l_count},)*}
-        impl_from_value_tuple_vec!{$({$l_ty, $l_value, $l_count},)*}
-    };
-
-    (@impl $count:expr, $({$ty:ident, $value:ident, $ignore_count:expr},)*) => {
-        impl<$($ty,)*> FromValue for VecTuple<($($ty,)*)>
-        where
-            $($ty: FromValue,)*
-        {
-            fn from_value(value: Value) -> Result<Self, ValueError> {
-                let vec = value.into_vec()?;
-                let vec = vec.take()?;
-
-                if vec.len() != $count {
-                    return Err(ValueError::from(ValueErrorKind::ExpectedTupleLength {
-                        actual: vec.len(),
-                        expected: $count,
-                    }));
-                }
-
-                #[allow(unused_mut, unused_variables)]
-                let mut it = vec.into_iter();
-
-                $(
-                    let $value: $ty = match it.next() {
-                        Some(value) => <$ty>::from_value(value)?,
-                        None => {
-                            return Err(ValueError::from(ValueErrorKind::IterationError));
-                        },
-                    };
-                )*
-
-                Ok(VecTuple(($($value,)*)))
-            }
-        }
-    };
-}
-
-impl_from_value_tuple_vec!(
     {H, h, 8},
     {G, g, 7},
     {F, f, 6},

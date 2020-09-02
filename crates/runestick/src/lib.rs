@@ -39,6 +39,7 @@ pub mod unit;
 mod value_error;
 mod value_type;
 mod value_type_info;
+mod vec_tuple;
 mod vm_error;
 
 decl_external!(anyhow::Error);
@@ -84,9 +85,10 @@ pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{Span, Unit, UnitError};
 pub use crate::value::{
-    Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple, VecTuple,
+    Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple,
 };
 pub use crate::value_error::{ValueError, ValueErrorKind};
+pub use crate::vec_tuple::VecTuple;
 pub use crate::vm::{StopReason, Task, Vm};
 pub use crate::vm_error::{VmError, VmErrorKind};
 
