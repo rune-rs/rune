@@ -1,8 +1,8 @@
-# Primitives and References
+# Primitive and reference types
 
-Primitives are values stored immediately on the stack.
-In Rust terminology, these types are `Copy`, so reassigning them to different
-values will create distinct copies of the underlying value.
+Primitives are values stored immediately on the stack. In Rust terminology,
+these types are `Copy`, so reassigning them to different values will create
+distinct copies of the underlying value.
 
 The primitives available in rune are:
 
@@ -12,6 +12,8 @@ The primitives available in rune are:
 * characters, like `'今'`.
 * integers, like `42`.
 * floats, like `3.1418`.
+* static strings.
+* types.
 
 You can see that these bytes are `Copy`, because assigning them to a different
 variable will cause a separate copy of the variable to be used.
@@ -30,8 +32,7 @@ $> cargo run -- scripts/book/5_1/copy.rn
 In contrast, other types like *strings* are stored by reference on the stack.
 
 Assigning them to a different variable will only copy the reference and increase
-its reference count, but they point to the same underlying data.
-As shown here:
+its count, but they point to the same underlying data. As shown here.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/5_1/primitives.rn}}

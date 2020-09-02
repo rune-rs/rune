@@ -1,8 +1,7 @@
 # Enums
 
-Rune has support for *enumerations*.
-These allow you to define a type with zero or more *variants*, where each
-variant can hold a distinct set of data.
+Rune has support for *enumerations*. These allow you to define a type with zero
+or more *variants*, where each variant can hold a distinct set of data.
 
 In a dynamic programming language enums might not seem quite as useful, but it's
 important for Rune to support them to have a level of feature parity with Rust.

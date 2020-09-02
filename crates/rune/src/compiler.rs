@@ -597,7 +597,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 let var = self.scopes.get_var(&*key, span)?;
 
                 if needs.value() {
-                    var.copy(&mut self.asm, span);
+                    var.copy(&mut self.asm, span, format!("name `{}`", key));
                 }
             }
         }
@@ -969,14 +969,17 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let (iter_offset, loop_scope_expected) = {
             let mut loop_scope = self.scopes.child(span)?;
             self.compile_expr(&*expr_for.iter, Needs::Value)?;
-            self.asm.push(
+
+            let iter_offset = loop_scope.decl_anon(span);
+            self.asm.push_with_comment(
                 Inst::CallInstance {
                     hash: *runestick::INTO_ITER,
                     args: 0,
                 },
                 span,
+                format!("into_iter (offset: {})", iter_offset),
             );
-            let iter_offset = loop_scope.decl_anon(span);
+
             let loop_scope_expected = self.scopes.push(loop_scope);
             (iter_offset, loop_scope_expected)
         };
@@ -1003,17 +1006,24 @@ impl<'a, 'source> Compiler<'a, 'source> {
             let span = expr_for.iter.span();
 
             let offset = self.scopes.decl_anon(span)?;
-            let hash = *runestick::NEXT;
 
             // Declare the named loop variable and put it in the scope.
-            self.asm.push(
+            self.asm.push_with_comment(
                 Inst::Copy {
                     offset: iter_offset,
                 },
                 span,
+                "copy iterator (memoize)",
             );
 
-            self.asm.push(Inst::LoadInstanceFn { hash }, span);
+            self.asm.push_with_comment(
+                Inst::LoadInstanceFn {
+                    hash: *runestick::NEXT,
+                },
+                span,
+                "load instance fn (memoize)",
+            );
+
             Some(offset)
         } else {
             None
@@ -1023,18 +1033,20 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         // Use the memoized loop variable.
         if let Some(next_offset) = next_offset {
-            self.asm.push(
+            self.asm.push_with_comment(
                 Inst::Copy {
                     offset: iter_offset,
                 },
                 expr_for.iter.span(),
+                "copy iterator",
             );
 
-            self.asm.push(
+            self.asm.push_with_comment(
                 Inst::Copy {
                     offset: next_offset,
                 },
                 expr_for.iter.span(),
+                "copy next",
             );
 
             self.asm.push(Inst::CallFn { args: 1 }, span);
@@ -1055,12 +1067,13 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 expr_for.iter.span(),
             );
 
-            self.asm.push(
+            self.asm.push_with_comment(
                 Inst::CallInstance {
                     hash: *runestick::NEXT,
                     args: 0,
                 },
                 span,
+                "next",
             );
             self.asm.push(
                 Inst::Replace {
@@ -1176,6 +1189,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 },
                 span,
             );
+
             self.asm.label(ok_label)?;
         }
 
@@ -1202,8 +1216,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
             _ => return Ok(false),
         };
 
-        let target = self.scopes.get_var(target, span)?;
-        target.copy(&mut self.asm, span);
+        let var = self.scopes.get_var(target, span)?;
+        var.copy(&mut self.asm, span, format!("var `{}`", target));
 
         self.asm.push(Inst::TupleIndexSet { index }, span);
         Ok(true)
@@ -1242,8 +1256,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
                             }
                         }
 
-                        let target = self.scopes.get_var(target, span)?;
-                        target.copy(&mut self.asm, span);
+                        let var = self.scopes.get_var(target, span)?;
+                        var.copy(&mut self.asm, span, format!("var `{}`", target));
 
                         self.asm.push(Inst::IndexSet, span);
                         return Ok(());
@@ -1267,7 +1281,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                         }
 
                         let target = self.scopes.get_var("self", span)?;
-                        target.copy(&mut self.asm, span);
+                        target.copy(&mut self.asm, span, "self");
 
                         self.asm.push(Inst::IndexSet, span);
                         return Ok(());
@@ -1427,7 +1441,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     );
                 }
                 Var::Environ(environ) => {
-                    environ.copy(&mut this.asm, span);
+                    environ.copy(&mut this.asm, span, format!("capture `{}`", ident));
                     this.asm.push(Inst::TupleIndexGet { index }, span);
                 }
             }
@@ -1449,8 +1463,15 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let span = expr_index_get.span();
         log::trace!("ExprIndexGet => {:?}", self.source.source(span)?);
 
+        let scope = self.scopes.last(span)?.child();
+        let guard = self.scopes.push(scope);
+
         self.compile_expr(&*expr_index_get.index, Needs::Value)?;
+        self.scopes.decl_anon(span)?;
+
         self.compile_expr(&*expr_index_get.target, Needs::Value)?;
+        self.scopes.decl_anon(span)?;
+
         self.asm.push(Inst::IndexGet, span);
 
         // NB: we still need to perform the operation since it might have side
@@ -1459,6 +1480,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             self.asm.push(Inst::Pop, span);
         }
 
+        self.scopes.pop(guard, span)?;
         Ok(())
     }
 
@@ -1603,7 +1625,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         for capture in &*captures {
             let var = self.scopes.get_var(&capture.ident, span)?;
-            var.copy(&mut self.asm, span);
+            var.copy(&mut self.asm, span, format!("capture `{}`", capture.ident));
         }
 
         self.asm.push(
@@ -1684,7 +1706,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         }
 
         if let Some(var) = self.scopes.try_get_var("self")? {
-            var.copy(&mut self.asm, span);
+            var.copy(&mut self.asm, span, "self");
             return Ok(());
         }
 
@@ -1707,7 +1729,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         if let Needs::Value = needs {
             if let Some(local) = item.as_local() {
                 if let Some(var) = self.scopes.try_get_var(local)? {
-                    var.copy(&mut self.asm, span);
+                    var.copy(&mut self.asm, span, format!("var `{}`", local));
                     return Ok(());
                 }
             }
@@ -1855,7 +1877,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         if let Some(name) = item.as_local() {
             if let Some(var) = self.scopes.try_get_var(name)? {
-                var.copy(&mut self.asm, span);
+                var.copy(&mut self.asm, span, format!("var `{}`", name));
                 self.asm.push(Inst::CallFn { args }, span);
 
                 if !needs.value() {

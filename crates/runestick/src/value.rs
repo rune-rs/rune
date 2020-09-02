@@ -515,7 +515,7 @@ impl fmt::Debug for Value {
                 write!(f, "{:?}", value)?;
             }
             Value::Type(value) => {
-                write!(f, "{:?}", value)?;
+                write!(f, "Type({})", value)?;
             }
             Value::StaticString(value) => {
                 write!(f, "{:?}", value)?;
@@ -566,13 +566,36 @@ impl fmt::Debug for Value {
                 write!(f, "{:?}", value)?;
             }
             Value::Any(value) => {
-                write!(f, "Any({:?})", value)?;
+                write!(f, "{:?}", value)?;
             }
         }
 
         Ok(())
     }
 }
+
+impl From<()> for Value {
+    fn from((): ()) -> Self {
+        Self::Unit
+    }
+}
+
+macro_rules! from_primitive {
+    ($ty:ty, $variant:ident) => {
+        impl From<$ty> for Value {
+            fn from(value: $ty) -> Self {
+                Self::$variant(value)
+            }
+        }
+    };
+}
+
+from_primitive!(u8, Byte);
+from_primitive!(bool, Bool);
+from_primitive!(char, Char);
+from_primitive!(i64, Integer);
+from_primitive!(f64, Float);
+from_primitive!(StaticString, StaticString);
 
 /// A type-erased rust number.
 #[derive(Debug, Clone, Copy)]

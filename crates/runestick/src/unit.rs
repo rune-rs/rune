@@ -329,7 +329,7 @@ pub struct DebugInfo {
     /// The span of the instruction.
     pub span: Span,
     /// The comment for the line.
-    pub comment: Option<Box<str>>,
+    pub comment: Option<String>,
     /// Label associated with the location.
     pub label: Option<Label>,
 }
@@ -928,33 +928,33 @@ impl Unit {
 
             match inst {
                 AssemblyInst::Jump { label } => {
-                    comment = Some(format!("label:{}", label).into_boxed_str());
+                    comment = Some(format!("label:{}", label));
                     let offset = translate_offset(pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::Jump { offset });
                 }
                 AssemblyInst::JumpIf { label } => {
-                    comment = Some(format!("label:{}", label).into_boxed_str());
+                    comment = Some(format!("label:{}", label));
                     let offset = translate_offset(pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIf { offset });
                 }
                 AssemblyInst::JumpIfNot { label } => {
-                    comment = Some(format!("label:{}", label).into_boxed_str());
+                    comment = Some(format!("label:{}", label));
                     let offset = translate_offset(pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIfNot { offset });
                 }
                 AssemblyInst::JumpIfBranch { branch, label } => {
-                    comment = Some(format!("label:{}", label).into_boxed_str());
+                    comment = Some(format!("label:{}", label));
                     let offset = translate_offset(pos, label, &assembly.labels)?;
                     self.instructions
                         .push(Inst::JumpIfBranch { branch, offset });
                 }
                 AssemblyInst::PopAndJumpIf { count, label } => {
-                    comment = Some(format!("label:{}", label).into_boxed_str());
+                    comment = Some(format!("label:{}", label));
                     let offset = translate_offset(pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::PopAndJumpIf { count, offset });
                 }
                 AssemblyInst::PopAndJumpIfNot { count, label } => {
-                    comment = Some(format!("label:{}", label).into_boxed_str());
+                    comment = Some(format!("label:{}", label));
                     let offset = translate_offset(pos, label, &assembly.labels)?;
                     self.instructions
                         .push(Inst::PopAndJumpIfNot { count, offset });
@@ -962,6 +962,16 @@ impl Unit {
                 AssemblyInst::Raw { raw } => {
                     self.instructions.push(raw);
                 }
+            }
+
+            if let Some(comments) = assembly.comments.get(&pos) {
+                let actual = comment
+                    .take()
+                    .into_iter()
+                    .chain(comments.iter().cloned())
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                comment = Some(actual)
             }
 
             self.debug.push(DebugInfo {
@@ -1045,6 +1055,8 @@ pub struct Assembly {
     labels_rev: HashMap<usize, Label>,
     /// Instructions with spans.
     instructions: Vec<(AssemblyInst, Span)>,
+    /// Comments associated with instructions.
+    comments: HashMap<usize, Vec<String>>,
     /// The number of labels.
     label_count: usize,
     /// The collection of functions required by this assembly.
@@ -1058,6 +1070,7 @@ impl Assembly {
             labels: Default::default(),
             labels_rev: Default::default(),
             instructions: Default::default(),
+            comments: Default::default(),
             label_count,
             required_functions: Default::default(),
         }
@@ -1128,6 +1141,21 @@ impl Assembly {
         }
 
         self.instructions.push((AssemblyInst::Raw { raw }, span));
+    }
+
+    /// Push a raw instruction.
+    pub fn push_with_comment<C>(&mut self, raw: Inst, span: Span, comment: C)
+    where
+        C: AsRef<str>,
+    {
+        let pos = self.instructions.len();
+
+        self.comments
+            .entry(pos)
+            .or_default()
+            .push(comment.as_ref().to_owned());
+
+        self.push(raw, span);
     }
 }
 

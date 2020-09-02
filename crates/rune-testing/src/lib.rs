@@ -2,21 +2,42 @@ pub use futures_executor::block_on;
 pub use rune::CompileError::*;
 pub use rune::ParseError::*;
 pub use rune::Warning::*;
-use runestick::Item;
 pub use runestick::VmErrorKind::*;
+use runestick::{Component, Item};
 pub use runestick::{FnPtr, Meta, Span, Value};
 use std::rc::Rc;
 
-pub async fn run_main<T>(source: &str) -> Result<T, Box<dyn std::error::Error>>
+/// The result returned from our functions.
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// The error returned from our functions.
+pub type Error = Box<dyn std::error::Error + 'static + Send + Sync>;
+
+/// Call the specified function in the given script.
+pub async fn run_async<N, A, T>(function: N, args: A, source: &str) -> Result<T>
 where
+    N: IntoIterator,
+    N::Item: Into<Component>,
+    A: runestick::IntoArgs,
     T: runestick::FromValue,
 {
     let context = runestick::Context::with_default_packages()?;
     let (unit, _) = rune::compile(&context, source)?;
     let mut vm = runestick::Vm::new(Rc::new(context), Rc::new(unit));
-    let mut task: runestick::Task<T> = vm.call_function(Item::of(&["main"]), ())?;
+    let mut task: runestick::Task<T> = vm.call_function(Item::of(function), args)?;
     let output = task.run_to_completion().await?;
     Ok(output)
+}
+
+/// Call the specified function in the given script.
+pub fn run<N, A, T>(function: N, args: A, source: &str) -> Result<T>
+where
+    N: IntoIterator,
+    N::Item: Into<Component>,
+    A: runestick::IntoArgs,
+    T: runestick::FromValue,
+{
+    block_on(run_async(function, args, source))
 }
 
 /// Run the given program and return the expected type from it.
@@ -36,7 +57,7 @@ where
 #[macro_export]
 macro_rules! rune {
     ($ty:ty => $source:expr) => {
-        block_on($crate::run_main::<$ty>($source)).expect("program to run successfully")
+        $crate::run::<_, (), $ty>(&["main"], (), $source).expect("program to run successfully")
     };
 }
 
@@ -94,7 +115,7 @@ macro_rules! assert_parse_error {
 #[macro_export]
 macro_rules! assert_vm_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
-        let e = block_on($crate::run_main::<()>($source)).unwrap_err();
+        let e = $crate::run::<_, _, ()>(&["main"], (), $source).unwrap_err();
 
         let e = match e.downcast_ref::<runestick::VmError>() {
             Some(e) => e,

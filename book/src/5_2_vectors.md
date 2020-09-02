@@ -1,7 +1,7 @@
 # Vectors
 
-A vector is a native data structure of Rune which is a dynamic list of values.
-A vector isn't typed, and can store *any* rune values.
+A vector is a native data structure of Rune which is a dynamic list of values. A
+vector isn't typed, and can store *any* rune values.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/5_2/vectors.rn}}
@@ -17,10 +17,8 @@ $> cargo run -- scripts/book/5_2/vectors.rn
 ```
 
 As you can see, you can iterate over a vector because it implements the iterator
-protocol.
-
-It is also possible to create and use an iterator manually using `Vec::iter`,
-giving you more control over it.
+protocol. It is also possible to create and use an iterator manually using
+`Vec::iter`, giving you more control over it.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/5_2/vectors_rev.rn}}
@@ -32,3 +30,18 @@ $> cargo run -- scripts/book/5_2/vectors_rev.rn
 "Hello"
 == () (2.9116ms)
 ```
+
+## Using vectors from Rust
+
+Vectors are represented externally as the standard [`Vec`].
+
+```rust,noplaypen
+{{#include ../../crates/rune/examples/vector.rs}}
+```
+
+```text
+$> cargo run --example vector
+[10]
+```
+
+[`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html

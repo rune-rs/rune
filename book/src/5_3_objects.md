@@ -1,6 +1,7 @@
 # Objects
 
-Objects are anonymous hash maps, which support defining arbitrary string keys.
+Objects are anonymous maps, which support defining and using arbitrary string
+keys.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/5_3/objects.rn}}
@@ -19,8 +20,8 @@ key did not exist
 These are useful because they allow their data to be specified dynamically,
 which is exactly the same use case as storing unknown JSON.
 
-One of the largest motivations for *Rune* to have anonymous objects is so that
-we can handle JSON with an unknown structure.
+One of the biggest motivations for *Rune* to have anonymous objects is so that
+we can natively data with unknown structure.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/5_3/json.rn}}
@@ -36,3 +37,22 @@ cba225dad143779a0a9543cfb05cde9710083af5
 3f6310eeeaca22d0373cc11d8b34d346bd12a364
 == () (331.3324ms)
 ```
+
+## Using objects from Rust
+
+Objects are represented externally as the [`Object`] type alias. The keys are
+always strings, but its value must be specified as the sole type parameter.
+Note that the dynamic [`Value`] can be used if the type is unknown.
+
+```rust,noplaypen
+{{#include ../../crates/rune/examples/object.rs}}
+```
+
+```text
+$> cargo run --example object
+42
+Some("World")
+```
+
+[`Object`]: https://docs.rs/runestick/0/runestick/type.Object.html
+[`Value`]: https://docs.rs/runestick/0/runestick/enum.Value.html

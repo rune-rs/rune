@@ -25,13 +25,17 @@ pub(crate) struct Environ {
 
 impl Environ {
     /// Copy the given variable.
-    pub fn copy(&self, asm: &mut Assembly, span: Span) {
-        asm.push(
+    pub fn copy<C>(&self, asm: &mut Assembly, span: Span, comment: C)
+    where
+        C: AsRef<str>,
+    {
+        asm.push_with_comment(
             Inst::TupleIndexGetAt {
                 offset: self.offset,
                 index: self.index,
             },
             span,
+            comment,
         );
     }
 }
@@ -55,18 +59,22 @@ impl Var {
     }
 
     /// Copy the declared variable.
-    pub fn copy(&self, asm: &mut Assembly, span: Span) {
+    pub fn copy<C>(&self, asm: &mut Assembly, span: Span, comment: C)
+    where
+        C: AsRef<str>,
+    {
         match self {
             Self::Local(local) => {
-                asm.push(
+                asm.push_with_comment(
                     Inst::Copy {
                         offset: local.offset,
                     },
                     span,
+                    comment,
                 );
             }
             Self::Environ(environ) => {
-                environ.copy(asm, span);
+                environ.copy(asm, span, comment);
             }
         }
     }
