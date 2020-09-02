@@ -11,7 +11,7 @@ documentation = "https://docs.rs/rune"
 keywords = ["language", "scripting"]
 categories = []
 description = """
-Rune is a simple dynamic language for the runestick virtual machine.
+An embeddable dynamic programming language for Rust. 
 """
 
 [features]
@@ -30,6 +30,3 @@ num = "0.3.0"
 
 runestick = {version = "0.4.0", path = "../runestick"}
 rune-modules = {version = "0.4.0", path = "../rune-modules", features = ["full"], optional = true}
-
-[dev-dependencies]
-rune-testing = {version = "0.4.0", path = "../rune-testing"}

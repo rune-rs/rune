@@ -2,8 +2,8 @@ use process::Command;
 
 fn main() {
     let projects = [
-        "crates/runestick",
-        "crates/rune-modules",
+        // "crates/runestick",
+        // "crates/rune-modules",
         "crates/rune-testing",
         "crates/rune",
         "crates/rune-cli",

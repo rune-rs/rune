@@ -11,7 +11,7 @@ documentation = "https://docs.rs/rune-modules"
 keywords = ["language", "scripting"]
 categories = []
 description = """
-Native modules for the runestick virtual machine.
+Native modules for Rune, an embeddable dynamic programming language for Rust. 
 """
 
 [features]

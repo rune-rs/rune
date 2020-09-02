@@ -11,7 +11,7 @@ documentation = "https://docs.rs/rune-cli"
 keywords = ["language", "scripting"]
 categories = []
 description = """
-A standalone interpreter for Rune.
+An interpreter for Rune, an embeddable dynamic programming language for Rust. 
 """
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

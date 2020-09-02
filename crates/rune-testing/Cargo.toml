@@ -11,7 +11,7 @@ documentation = "https://docs.rs/rune-testing"
 keywords = ["language", "scripting"]
 categories = []
 description = """
-Helpers to write test-cases for rune scripts.
+Test helpers for Rune, an embeddable dynamic programming language for Rust. 
 """
 
 [dependencies]
