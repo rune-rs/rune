@@ -64,6 +64,14 @@ instrumenting our code a little.
 
 ```text
 $> cargo run -- scripts/book/7/bootup.rn
+firing off the printer...
+waiting for value...
+ready to go!
+"John"
+waiting for value...
+(1, 2, 3)
+waiting for value...
+== () (8.8014ms)
 ```
 
 Ok, so we understand how to *send* values into a generator.
