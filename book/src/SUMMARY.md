@@ -4,6 +4,7 @@
 - [Introduction](./2_introduction.md)
 - [Getting Started](./3_getting_started.md)
 - [Concepts](./4_concepts.md)
+  - [Items and imports](./4_0_items_and_imports.md)
   - [Variables and memory](./4_1_variables.md)
   - [Control flow](./4_2_control_flow.md)
   - [Loops](./4_3_loops.md)
