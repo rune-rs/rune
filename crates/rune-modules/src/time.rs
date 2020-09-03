@@ -33,6 +33,14 @@
 
 use runestick::{ContextError, Module};
 
+/// Construct the `time` module.
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::new(&["time"]);
+    module.function(&["Duration", "from_secs"], Duration::from_secs)?;
+    module.async_function(&["delay_for"], delay_for)?;
+    Ok(module)
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Duration {
     inner: tokio::time::Duration,
@@ -53,11 +61,3 @@ async fn delay_for(duration: &Duration) {
 }
 
 runestick::decl_external!(Duration);
-
-/// Construct the `time` module.
-pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["time"]);
-    module.function(&["Duration", "from_secs"], Duration::from_secs)?;
-    module.async_function(&["delay_for"], delay_for)?;
-    Ok(module)
-}

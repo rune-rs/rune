@@ -33,6 +33,16 @@
 
 use runestick::{Bytes, ContextError, Module, Value};
 
+/// Construct the `json` module.
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::new(&["json"]);
+    module.function(&["from_bytes"], from_bytes)?;
+    module.function(&["from_string"], from_string)?;
+    module.function(&["to_string"], to_string)?;
+    module.function(&["to_bytes"], to_bytes)?;
+    Ok(module)
+}
+
 fn from_bytes(bytes: &[u8]) -> runestick::Result<Value> {
     Ok(serde_json::from_slice(&bytes)?)
 }
@@ -51,14 +61,4 @@ fn to_string(value: Value) -> runestick::Result<String> {
 fn to_bytes(value: Value) -> runestick::Result<Bytes> {
     let bytes = serde_json::to_vec(&value)?;
     Ok(Bytes::from_vec(bytes))
-}
-
-/// Construct the `json` module.
-pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["json"]);
-    module.function(&["from_bytes"], from_bytes)?;
-    module.function(&["from_string"], from_string)?;
-    module.function(&["to_string"], to_string)?;
-    module.function(&["to_bytes"], to_bytes)?;
-    Ok(module)
 }

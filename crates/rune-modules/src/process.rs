@@ -36,6 +36,28 @@ use std::fmt;
 use std::io;
 use tokio::process;
 
+/// Construct the `process` module.
+pub fn module() -> Result<runestick::Module, runestick::ContextError> {
+    let mut module = runestick::Module::new(&["process"]);
+    module.ty(&["Command"]).build::<Command>()?;
+    module.ty(&["Child"]).build::<Child>()?;
+    module.ty(&["ExitStatus"]).build::<ExitStatus>()?;
+    module.ty(&["Output"]).build::<Output>()?;
+
+    module.function(&["Command", "new"], Command::new)?;
+    module.inst_fn("spawn", Command::spawn)?;
+    module.inst_fn("arg", Command::arg)?;
+    module.inst_fn("args", Command::args)?;
+    module.inst_fn(runestick::INTO_FUTURE, Child::into_future)?;
+    module.async_inst_fn("wait_with_output", Child::wait_with_output)?;
+    module.inst_fn(runestick::STRING_DISPLAY, ExitStatus::display)?;
+
+    module.getter("status", Output::status)?;
+    module.getter("stdout", Output::stdout)?;
+    module.getter("stderr", Output::stderr)?;
+    Ok(module)
+}
+
 struct Command {
     inner: process::Command,
 }
@@ -152,25 +174,3 @@ runestick::decl_external!(Command);
 runestick::decl_external!(Child);
 runestick::decl_external!(ExitStatus);
 runestick::decl_external!(Output);
-
-/// Construct the `process` module.
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["process"]);
-    module.ty(&["Command"]).build::<Command>()?;
-    module.ty(&["Child"]).build::<Child>()?;
-    module.ty(&["ExitStatus"]).build::<ExitStatus>()?;
-    module.ty(&["Output"]).build::<Output>()?;
-
-    module.function(&["Command", "new"], Command::new)?;
-    module.inst_fn("spawn", Command::spawn)?;
-    module.inst_fn("arg", Command::arg)?;
-    module.inst_fn("args", Command::args)?;
-    module.inst_fn(runestick::INTO_FUTURE, Child::into_future)?;
-    module.async_inst_fn("wait_with_output", Child::wait_with_output)?;
-    module.inst_fn(runestick::STRING_DISPLAY, ExitStatus::display)?;
-
-    module.getter("status", Output::status)?;
-    module.getter("stdout", Output::stdout)?;
-    module.getter("stderr", Output::stderr)?;
-    Ok(module)
-}

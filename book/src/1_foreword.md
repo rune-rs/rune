@@ -8,8 +8,8 @@ mind, write it out, and there it is. Doing *stuff* which wasn't being done
 before.
 
 Truth be told, I'm scared that people will tell me that I'm wasting my time.
-This has already been done, or "Why not just use X?". An X so glaringly obvious
-that all of my efforts are wasted.
+This has already been done, or "Why not just use X?". An thing so glaringly
+obvious that all of my efforts are wasted.
 
 But you actually don't need a reason. It can simply be for The [Joy of
 Creating], and then it's just you spending your own time as a hobby. No harm

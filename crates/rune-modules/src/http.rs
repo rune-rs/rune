@@ -54,6 +54,33 @@ use runestick::Bytes;
 use std::fmt;
 use std::fmt::Write as _;
 
+/// Construct the `http` module.
+pub fn module() -> Result<runestick::Module, runestick::ContextError> {
+    let mut module = runestick::Module::new(&["http"]);
+
+    module.ty(&["Client"]).build::<Client>()?;
+    module.ty(&["Response"]).build::<Response>()?;
+    module.ty(&["RequestBuilder"]).build::<RequestBuilder>()?;
+    module.ty(&["StatusCode"]).build::<StatusCode>()?;
+    module.ty(&["Error"]).build::<Error>()?;
+
+    module.function(&["Client", "new"], Client::new)?;
+    module.async_function(&["get"], get)?;
+
+    module.async_inst_fn("get", Client::get)?;
+    module.async_inst_fn("post", Client::post)?;
+
+    module.async_inst_fn("text", Response::text)?;
+    module.inst_fn("status", Response::status)?;
+
+    module.async_inst_fn("send", RequestBuilder::send)?;
+    module.inst_fn("header", RequestBuilder::header)?;
+    module.async_inst_fn("body_bytes", RequestBuilder::body_bytes)?;
+
+    module.inst_fn(runestick::STRING_DISPLAY, StatusCode::display)?;
+    Ok(module)
+}
+
 #[derive(Debug)]
 pub struct Error {
     inner: reqwest::Error,
@@ -161,30 +188,3 @@ runestick::decl_external!(Client);
 runestick::decl_external!(Response);
 runestick::decl_external!(RequestBuilder);
 runestick::decl_external!(StatusCode);
-
-/// Construct the `http` module.
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["http"]);
-
-    module.ty(&["Client"]).build::<Client>()?;
-    module.ty(&["Response"]).build::<Response>()?;
-    module.ty(&["RequestBuilder"]).build::<RequestBuilder>()?;
-    module.ty(&["StatusCode"]).build::<StatusCode>()?;
-    module.ty(&["Error"]).build::<Error>()?;
-
-    module.function(&["Client", "new"], Client::new)?;
-    module.async_function(&["get"], get)?;
-
-    module.async_inst_fn("get", Client::get)?;
-    module.async_inst_fn("post", Client::post)?;
-
-    module.async_inst_fn("text", Response::text)?;
-    module.inst_fn("status", Response::status)?;
-
-    module.async_inst_fn("send", RequestBuilder::send)?;
-    module.inst_fn("header", RequestBuilder::header)?;
-    module.async_inst_fn("body_bytes", RequestBuilder::body_bytes)?;
-
-    module.inst_fn(runestick::STRING_DISPLAY, StatusCode::display)?;
-    Ok(module)
-}

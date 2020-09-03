@@ -10,6 +10,7 @@
   - [Loops](./4_4_loops.md)
   - [Pattern Matching](./4_5_pattern_matching.md)
   - [Template strings](./4_6_template_strings.md)
+  - [Instance functions](./4_7_instance_functions.md)
 - [Rune types](./5_types.md)
   - [Primitive and reference types](./5_1_primitives.md)
   - [Vectors](./5_2_vectors.md)

@@ -19,10 +19,10 @@ reference counting.
 
 ## Reference counting and ownership
 
-In rune, all variables are reference counted and can be shared across multiple
-variables. This means that every variable in rune that does not point to a value
-which is `Copy` have *shared ownership*. Every variable that points to that
-value therefore points to the same instance on the heap of that value.
+In Rune, [unless a value is `Copy`](5_1_primitives.md), they are reference
+counted and can be used simultaneously by multiple variables. In other words
+this means that they have *shared ownership*. Every variable that points to that
+value therefore points to *the same instance* on the heap of that value.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/4_2/shared_ownership.rn}}

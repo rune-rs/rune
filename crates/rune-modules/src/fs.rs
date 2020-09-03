@@ -32,13 +32,13 @@
 use std::io;
 use tokio::fs;
 
-async fn read_to_string(path: &str) -> io::Result<String> {
-    fs::read_to_string(path).await
-}
-
 /// Construct the `fs` module.
 pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["fs"]);
     module.async_function(&["read_to_string"], read_to_string)?;
     Ok(module)
+}
+
+async fn read_to_string(path: &str) -> io::Result<String> {
+    fs::read_to_string(path).await
 }

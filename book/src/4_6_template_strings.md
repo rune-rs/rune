@@ -1,10 +1,9 @@
 # Template strings
 
-If you've been paying attention on previous sections you might have seen a
-rather odd looking syntax like `` `Hello {name}` ``.
-
-These are called *template strings*, and allow the programmer to conveniently
-build strings using variables from the environment.
+If you've been paying attention on previous sections you might have seen odd
+looking strings like `` `Hello {name}` ``. These are called *template strings*,
+and allow use to conveniently build strings using variables from the
+environment.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/4_6/basic_template.rn}}
@@ -19,10 +18,10 @@ I am 30 years old!
 Template strings are accelerated by the Vm, each argument uses a *display
 protocol* and it can be a very efficient to build complex strings out of it.
 
-## The display protocol
+## The `STRING_DISPLAY` protocol
 
-The display protocol is a function that can be implemented by any *external*
-type which allows it to be used in a template string.
+The `STRING_DISPLAY` protocol is a function that can be implemented by any
+*external* type which allows it to be used in a template string.
 
 It expects a function with the signature `fn(&self, buf: &mut String) -> fmt::Result`.
 

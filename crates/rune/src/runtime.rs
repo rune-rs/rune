@@ -208,13 +208,24 @@ impl Runtime {
     }
 
     /// Load the given path into the runtime.
+    ///
+    /// The name of the loaded source will be the path as a string.
     pub fn load(&mut self, path: &Path) -> Result<usize, LoadError> {
         let source = fs::read_to_string(path).map_err(|error| LoadError::ReadFile {
             error,
             path: path.to_owned(),
         })?;
 
-        let file_id = self.files.add(path.display().to_string(), source);
+        let name = path.display().to_string();
+        self.load_source(name, source)
+    }
+
+    /// Load the given source and return a number corresponding to its file id.
+    ///
+    /// Use the provided `name` when generating diagnostics to reference the
+    /// file.
+    pub fn load_source(&mut self, name: String, source: String) -> Result<usize, LoadError> {
+        let file_id = self.files.add(name, source);
 
         let file = match self.files.borrow_mut(file_id) {
             Some(file) => file,

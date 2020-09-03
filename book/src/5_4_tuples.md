@@ -1,10 +1,8 @@
 # Tuples
 
-Tuples in Rune are a fixed-size sequences of values. Similarly to a vector
-tuples can contains any sequence of values. But there's no way to change the
-size of a tuple.
-
-Tuples are represented externally using the [`Tuple`] type.
+Tuples in Rune are fixed-size sequences of values. Similarly to a vector tuples
+can contains any sequence of values. But there's no way to change the size of a
+tuple.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/5_4/tuple_masquerade.rn}}
@@ -42,4 +40,17 @@ $> cargo run -- scripts/book/5_4/tuple_patterns.rn
 == () (7.7892ms)
 ```
 
-[`Tuple`]: https://docs.rs/runestick/0/runestick/struct.Tuple.html
+## Using tuples from Rust
+
+Tuples are represented externally as [primitive tuple types].
+
+```rust,noplaypen
+{{#include ../../crates/rune-testing/examples/tuple.rs}}
+```
+
+```text
+$> cargo run --example tuple
+(2, 4)
+```
+
+[primitive tuple types]: https://doc.rust-lang.org/std/primitive.tuple.html

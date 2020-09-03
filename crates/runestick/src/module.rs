@@ -153,10 +153,47 @@ impl Module {
         }
     }
 
-    /// Register a type.
+    /// Register a type. Registering a type is mandatory in order to register
+    /// instance functions using that type.
     ///
     /// This will allow the type to be used within scripts, using the item named
     /// here.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// struct MyBytes {
+    ///     queue: Vec<String>,
+    /// }
+    ///
+    /// impl MyBytes {
+    ///     fn len(&self) -> usize {
+    ///         self.queue.len()
+    ///     }
+    /// }
+    ///
+    /// runestick::decl_external!(MyBytes);
+    ///
+    /// # fn main() -> runestick::Result<()> {
+    /// // Register `len` without registering a type.
+    /// let mut module = runestick::Module::default();
+    /// // Note: cannot do this until we have registered a type.
+    /// module.inst_fn("len", MyBytes::len)?;
+    ///
+    /// let mut context = runestick::Context::new();
+    /// assert!(context.install(&module).is_err());
+    ///
+    /// // Register `len` properly.
+    /// let mut module = runestick::Module::default();
+    ///
+    /// module.ty(&["MyBytes"]).build::<MyBytes>()?;
+    /// module.inst_fn("len", MyBytes::len)?;
+    ///
+    /// let mut context = runestick::Context::new();
+    /// assert!(context.install(&module).is_ok());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn ty<N>(&mut self, name: N) -> TypeBuilder<'_, N>
     where
         N: IntoIterator,
@@ -168,7 +205,21 @@ impl Module {
         }
     }
 
-    /// Construct the option type.
+    /// Construct type information for the `unit` type.
+    ///
+    /// Registering this allows the given type to be used in Rune scripts when
+    /// referring to the `unit` type.
+    ///
+    /// # Examples
+    ///
+    /// This shows how to register the unit type `()` as `nonstd::unit`.
+    ///
+    /// ```rust
+    /// # fn main() -> runestick::Result<()> {
+    /// let mut module = runestick::Module::new(&["nonstd"]);
+    /// module.unit(&["unit"])?;
+    /// # Ok(())
+    /// # }
     pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
@@ -183,26 +234,62 @@ impl Module {
         Ok(())
     }
 
-    /// Construct the option type.
+    /// Construct type information for the `Option` type.
+    ///
+    /// Registering this allows the given type to be used in Rune scripts when
+    /// referring to the `Option` type.
+    ///
+    /// # Examples
+    ///
+    /// This shows how to register the `Option` as `nonstd::option::Option`.
+    ///
+    /// ```rust
+    /// # fn main() -> runestick::Result<()> {
+    /// let mut module = runestick::Module::new(&["nonstd", "option"]);
+    /// module.result(&["Option"])?;
+    /// # Ok(())
+    /// # }
     pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
         N::Item: Into<Component>,
     {
         let mut enum_ = ModuleInternalEnum::new("Option", name, crate::OPTION_TYPE);
+
+        // Note: these numeric variants are magic, and must simply match up with
+        // what's being used in the virtual machine implementation for these
+        // types.
         enum_.variant("Some", TypeCheck::Option(0), Option::<Value>::Some);
         enum_.variant("None", TypeCheck::Option(1), || Option::<Value>::None);
         self.internal_enums.push(enum_);
         Ok(())
     }
 
-    /// Construct the result type.
+    /// Construct type information for the internal `Result` type.
+    ///
+    /// Registering this allows the given type to be used in Rune scripts when
+    /// referring to the `Result` type.
+    ///
+    /// # Examples
+    ///
+    /// This shows how to register the `Result` as `nonstd::result::Result`.
+    ///
+    /// ```rust
+    /// # fn main() -> runestick::Result<()> {
+    /// let mut module = runestick::Module::new(&["nonstd", "result"]);
+    /// module.result(&["Result"])?;
+    /// # Ok(())
+    /// # }
     pub fn result<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
         N::Item: Into<Component>,
     {
         let mut enum_ = ModuleInternalEnum::new("Result", name, crate::RESULT_TYPE);
+
+        // Note: these numeric variants are magic, and must simply match up with
+        // what's being used in the virtual machine implementation for these
+        // types.
         enum_.variant("Ok", TypeCheck::Result(0), Result::<Value, Value>::Ok);
         enum_.variant("Err", TypeCheck::Result(1), Result::<Value, Value>::Err);
         self.internal_enums.push(enum_);
@@ -210,6 +297,21 @@ impl Module {
     }
 
     /// Construct the type information for the `GeneratorState` type.
+    ///
+    /// Registering this allows the given type to be used in Rune scripts when
+    /// referring to the `GeneratorState` type.
+    ///
+    /// # Examples
+    ///
+    /// This shows how to register the `GeneratorState` as
+    /// `nonstd::generator::GeneratorState`.
+    ///
+    /// ```rust
+    /// # fn main() -> runestick::Result<()> {
+    /// let mut module = runestick::Module::new(&["nonstd", "generator"]);
+    /// module.generator_state(&["GeneratorState"])?;
+    /// # Ok(())
+    /// # }
     pub fn generator_state<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
@@ -218,12 +320,14 @@ impl Module {
         let mut enum_ =
             ModuleInternalEnum::new("GeneratorState", name, crate::GENERATOR_STATE_TYPE);
 
+        // Note: these numeric variants are magic, and must simply match up with
+        // what's being used in the virtual machine implementation for these
+        // types.
         enum_.variant(
             "Complete",
             TypeCheck::GeneratorState(0),
             GeneratorState::Complete,
         );
-
         enum_.variant(
             "Yielded",
             TypeCheck::GeneratorState(1),
@@ -239,23 +343,14 @@ impl Module {
     /// # Examples
     ///
     /// ```rust
-    /// use std::collections::VecDeque;
-    ///
-    /// #[derive(Debug, Clone)]
-    /// struct StringQueue(VecDeque<String>);
-    ///
-    /// impl StringQueue {
-    ///     fn new() -> Self {
-    ///         Self(VecDeque::new())
-    ///     }
+    /// fn add_ten(value: i64) -> i64 {
+    ///     value + 10
     /// }
-    ///
-    /// runestick::decl_external!(StringQueue);
     ///
     /// # fn main() -> runestick::Result<()> {
     /// let mut module = runestick::Module::default();
     ///
-    /// module.function(&["bytes"], StringQueue::new)?;
+    /// module.function(&["add_ten"], add_ten)?;
     /// module.function(&["empty"], || Ok::<_, runestick::Error>(()))?;
     /// module.function(&["string"], |a: String| Ok::<_, runestick::Error>(()))?;
     /// module.function(&["optional"], |a: Option<String>| Ok::<_, runestick::Error>(()))?;
@@ -353,29 +448,33 @@ impl Module {
     /// # Examples
     ///
     /// ```rust
-    /// use std::collections::VecDeque;
+    /// struct MyBytes {
+    ///     queue: Vec<String>,
+    /// }
     ///
-    /// #[derive(Debug, Clone)]
-    /// struct StringQueue(VecDeque<String>);
-    ///
-    /// impl StringQueue {
+    /// impl MyBytes {
     ///     fn new() -> Self {
-    ///         Self(VecDeque::new())
+    ///         Self {
+    ///             queue: Vec::new(),
+    ///         }
     ///     }
     ///
     ///     fn len(&self) -> usize {
-    ///         self.0.len()
+    ///         self.queue.len()
     ///     }
     /// }
     ///
-    /// runestick::decl_external!(StringQueue);
+    /// runestick::decl_external!(MyBytes);
     ///
     /// # fn main() -> runestick::Result<()> {
     /// let mut module = runestick::Module::default();
     ///
-    /// module.ty(&["StringQueue"]).build::<StringQueue>()?;
-    /// module.function(&["StringQueue", "bytes"], StringQueue::new)?;
-    /// module.inst_fn("len", StringQueue::len)?;
+    /// module.ty(&["MyBytes"]).build::<MyBytes>()?;
+    /// module.function(&["MyBytes", "new"], MyBytes::new)?;
+    /// module.inst_fn("len", MyBytes::len)?;
+    ///
+    /// let mut context = runestick::Context::new();
+    /// context.install(&module)?;
     /// # Ok(())
     /// # }
     /// ```
