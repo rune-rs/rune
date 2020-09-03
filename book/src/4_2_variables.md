@@ -1,8 +1,7 @@
 # Variables and memory
 
-Variables in Rune are defined using the `let` keyword.
-In contrast to Rust, all variables in Rune are mutable and do not require a
-`mut` keyword to change.
+Variables in Rune are defined using the `let` keyword. In contrast to Rust, all
+variables in Rune are mutable.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/4_2/variables.rn}}
@@ -14,14 +13,16 @@ The value of x is: 5
 The value of x is: 6
 ```
 
-## Reference Counting and Ownership
+Rune is a memory safe language, so regardless of what you do we maintain the
+same safety guarantees as safe Rust. This is accomplished in Rune through
+reference counting.
+
+## Reference counting and ownership
 
 In rune, all variables are reference counted and can be shared across multiple
-variables.
-
-This means that all variables in rune have *shared ownership*.
-This means that every variable that points to an object on the stack, points to
-*the same instance* of that object.
+variables. This means that every variable in rune that does not point to a value
+which is `Copy` have *shared ownership*. Every variable that points to that
+value therefore points to the same instance on the heap of that value.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/4_2/shared_ownership.rn}}
@@ -34,11 +35,10 @@ $> cargo run -- scripts/book/4_2/shared_ownership.rn
 == () (913.4µs)
 ```
 
-This can potentially cause issues if we call an external function that expects
-to take ownership of its arguments.
-
-We say that functions like these *move* their argument, and if we try to use a
-variable which has been moved the virtual machine will error.
+This can cause issues if we call an external function expects to take ownership
+of its arguments. We say that functions like these *move* their argument, and if
+we try to use a variable which has been moved an error will be raised in the
+virtual machine.
 
 > Note: Below we use the `drop` function, which is a built-in function that will
 > take its argument and free it.
@@ -54,8 +54,7 @@ error: virtual machine error
   ┌─ scripts/book/4_2/take_argument.rn:6:22
   │
 6 │     println(`field: {object.field}`);
-  │                      ^^^^^^^^^^^^ failed to access value: not accessible for shared access
-
+  │                      ^^^^^^^^^^^^ failed to access value: cannot read, value is moved
 ```
 
 If you need to, you can test if a variable is still accessible with
@@ -69,4 +68,5 @@ If you need to, you can test if a variable is still accessible with
 $> cargo run -- scripts/book/4_2/is_readable.rn
 field: 1
 object is no longer readable 😢
+== () (943.8µs)
 ```

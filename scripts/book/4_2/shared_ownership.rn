@@ -3,5 +3,7 @@ fn main() {
     let object2 = object;
     println(`{object.field}`);
     object2.field = 2;
-    println(`{object2.field}`);
+
+    // Note: we changed `object2`, but read out `object`
+    println(`{object.field}`);
 }

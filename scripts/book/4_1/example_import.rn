@@ -1,0 +1,5 @@
+use std::test::assert;
+
+fn main() {
+    assert(1 < 2, "one is less than two");
+}
