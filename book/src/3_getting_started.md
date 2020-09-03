@@ -1,39 +1,40 @@
 # Getting Started
 
-The first thing you need to learn about in Rune is the `dbg` function.
-This is used to "debug" whatever values are provided to it, and can be used
-by programmers in any environment to look at values in their program.
+The first thing you need to learn about in Rune is the `dbg` function. This is
+used to "debug" the values provided to it, and can be used to understand what
+values variables have.
 
-The `dbg` function output information on its arguments to stdout, but its exact
-behavior is specific to the environment in which Rune is used.
-
-When embedded into a larger application it might not be suitable to output to
-stdout, so it might for example have been configured to write to a log file
-instead.
-
-Rune does also provide a `print` and `println` functions which can be used to
-write directly to stdout, but these might be disabled if they're not suitable
-for the environment used.
-
-For now, lets use `println` when printing to stdout.
-
-```rust,noplaypen
-fn main() {
-    println("Hello World");
-}
+```rust,noplayground
+{{#include ../../scripts/book/3/dbg.rn}}
 ```
 
-You can execute this with the `rune-cli`, a commandline interface to the rune
-language that comes with this project.
+```text
+$> cargo run -- scripts/book/3/dbg.rn
+[1, 2, 3]
+"Hello World"
+== () (1.0864ms)
+```
 
-After each code snipped there will be a terminal showing the command used, and
-its output.
-Like this:
+The default `dbg` implementation outputs information on its arguments to stdout.
+But its exact behavior can differ depending on how the environment is
+configured. When Rune is embedded into a larger application it might for example
+be more suitable to output to a log file.
+
+Rune also provides `print` and `println` functions which can be used to write
+directly to stdout, but these cannot be relied on to be present to the same
+degree as `dbg`. But for our purposes we will be using `rune-cli`, which has all
+of these modules installed. This is also what was used to run the above code.
+
+So for a more format introduction, here is `"Hello World"` in Rune:
+
+```rust,noplaypen
+{{#include ../../scripts/book/3/hello_world.rn}}
+```
 
 ```text
-$> cargo run -- scripts/hello_world.rn
-Hello World
-== () (412.2µs)
+$> cargo run -- scripts/book/3/hello_world.rn
+"Hello World"
+== () (1.0864ms)
 ```
 
 At the end of the script you see this rather odd looking line:
@@ -50,4 +51,4 @@ And that the execution took `412` microseconds.
 
 So now you know how to run Rune scripts. Well done!
 
-Let's move on with the rest of the book.
+Let's move on to the next chapter.

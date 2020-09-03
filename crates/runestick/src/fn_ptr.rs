@@ -37,11 +37,9 @@ impl FnPtr {
                 args.into_args(vm.stack_mut())?;
 
                 match offset.call {
-                    UnitFnCall::Generator => Value::Generator(Shared::new(Generator::new(vm))),
+                    UnitFnCall::Generator => Value::from(Generator::new(vm)),
                     UnitFnCall::Immediate => vm.complete()?,
-                    UnitFnCall::Async => Value::Future(Shared::new(Future::new(async move {
-                        vm.async_complete().await
-                    }))),
+                    UnitFnCall::Async => Value::from(Future::new(vm.async_complete())),
                 }
             }
             Inner::FnClosureOffset(offset) => {
@@ -50,24 +48,22 @@ impl FnPtr {
                 let mut vm = Vm::new(offset.context.clone(), offset.unit.clone());
                 vm.set_ip(offset.offset);
                 args.into_args(vm.stack_mut())?;
-                vm.stack_mut()
-                    .push(Value::Tuple(offset.environment.clone()));
+                vm.stack_mut().push(offset.environment.clone());
 
                 match offset.call {
-                    UnitFnCall::Generator => Value::Generator(Shared::new(Generator::new(vm))),
+                    UnitFnCall::Generator => Value::from(Generator::new(vm)),
                     UnitFnCall::Immediate => vm.complete()?,
-                    UnitFnCall::Async => {
-                        let future = Future::new(async move { vm.async_complete().await });
-                        Value::Future(Shared::new(future))
-                    }
+                    UnitFnCall::Async => Value::from(Future::new(vm.async_complete())),
                 }
             }
             Inner::FnTuple(tuple) => {
                 Self::check_args(A::count(), tuple.args)?;
+
                 Value::typed_tuple(tuple.hash, args.into_vec()?)
             }
             Inner::FnVariantTuple(tuple) => {
                 Self::check_args(A::count(), tuple.args)?;
+
                 Value::variant_tuple(tuple.enum_hash, tuple.hash, args.into_vec()?)
             }
         };
@@ -197,6 +193,7 @@ impl FnPtr {
             }
             Inner::FnTuple(tuple) => {
                 Self::check_args(args, tuple.args)?;
+
                 let value = Value::typed_tuple(tuple.hash, vm.stack_mut().pop_sequence(args)?);
                 vm.stack_mut().push(value);
                 None
