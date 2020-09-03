@@ -1,0 +1,12 @@
+struct Foo;
+
+impl Foo {
+    fn new() {
+        Foo
+    }
+}
+
+fn main() {
+    let foo = Foo::new();
+    foo.bar();
+}

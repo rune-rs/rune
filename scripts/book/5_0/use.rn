@@ -1,0 +1,5 @@
+use std::test::assert;
+
+fn main() {
+    assert(true, "this is all good");
+}

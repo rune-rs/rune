@@ -1928,36 +1928,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
         };
 
         let item = self.convert_path_to_item(path)?;
-        let a = self.lookup_meta(&item, path.span())?;
-
-        let item = if let Some(meta) = a {
-            match &meta {
-                Meta::MetaTuple { tuple, .. } | Meta::MetaVariantTuple { tuple, .. } => {
-                    if tuple.args != expr_call.args.items.len() {
-                        return Err(CompileError::UnsupportedArgumentCount {
-                            span,
-                            meta: meta.clone(),
-                            expected: tuple.args,
-                            actual: expr_call.args.items.len(),
-                        });
-                    }
-
-                    if tuple.args == 0 {
-                        let tuple = path.span();
-                        self.warnings
-                            .remove_tuple_call_parens(span, tuple, self.context());
-                    }
-
-                    tuple.item.clone()
-                }
-                Meta::MetaFunction { item, .. } => item.clone(),
-                _ => {
-                    return Err(CompileError::NotFunction { span });
-                }
-            }
-        } else {
-            item
-        };
 
         if let Some(name) = item.as_local() {
             if let Some(var) = self.scopes.try_get_var(name)? {
@@ -1972,6 +1942,38 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 return Ok(());
             }
         }
+
+        let meta = match self.lookup_meta(&item, path.span())? {
+            Some(meta) => meta,
+            None => {
+                return Err(CompileError::MissingFunction { span, item });
+            }
+        };
+
+        let item = match &meta {
+            Meta::MetaTuple { tuple, .. } | Meta::MetaVariantTuple { tuple, .. } => {
+                if tuple.args != expr_call.args.items.len() {
+                    return Err(CompileError::UnsupportedArgumentCount {
+                        span,
+                        meta: meta.clone(),
+                        expected: tuple.args,
+                        actual: expr_call.args.items.len(),
+                    });
+                }
+
+                if tuple.args == 0 {
+                    let tuple = path.span();
+                    self.warnings
+                        .remove_tuple_call_parens(span, tuple, self.context());
+                }
+
+                tuple.item.clone()
+            }
+            Meta::MetaFunction { item, .. } => item.clone(),
+            _ => {
+                return Err(CompileError::MissingFunction { span, item });
+            }
+        };
 
         let hash = Hash::type_hash(&item);
         self.asm.push(Inst::Call { hash, args }, span);

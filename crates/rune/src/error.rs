@@ -669,10 +669,12 @@ pub enum CompileError {
         object: Span,
     },
     /// Attempt to call something that is not a function.
-    #[error("cannot be called as a function")]
-    NotFunction {
+    #[error("`{item}` is not a function")]
+    MissingFunction {
         /// The span of the unsupported function call.
         span: Span,
+        /// The item we're trying to call.
+        item: Item,
     },
     /// Attempt to yield outside of a function or a closure.
     #[error("`yield` must be used in function or closure")]
@@ -750,7 +752,7 @@ impl CompileError {
             Self::DuplicateObjectKey { span, .. } => span,
             Self::LitObjectMissingField { span, .. } => span,
             Self::LitObjectNotField { span, .. } => span,
-            Self::NotFunction { span, .. } => span,
+            Self::MissingFunction { span, .. } => span,
             Self::YieldOutsideFunction { span, .. } => span,
             Self::InstanceFunctionOutsideImpl { span, .. } => span,
             Self::UnsupportedAsyncGenerator { span, .. } => span,

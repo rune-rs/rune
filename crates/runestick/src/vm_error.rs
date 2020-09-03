@@ -130,12 +130,12 @@ pub enum VmErrorKind {
         hash: Hash,
     },
     /// Failure to lookup instance function.
-    #[error("missing instance function for instance `{instance}` with hash `{hash}`")]
+    #[error("missing instance function `{hash}` for `{instance}``")]
     MissingInstanceFunction {
-        /// The instance type we tried to look up function on.
-        instance: ValueTypeInfo,
         /// Hash of function to look up.
         hash: Hash,
+        /// The instance type we tried to look up function on.
+        instance: ValueTypeInfo,
     },
     /// Instruction pointer went out-of-bounds.
     #[error("instruction pointer is out-of-bounds")]
