@@ -19,7 +19,7 @@
 //!     <img alt="Chat on Discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square">
 //! </a>
 //! </div>
-//! 
+//!
 //! A cli for the [Rune Language].
 //!
 //! If you're in the repo, you can take it for a spin with:

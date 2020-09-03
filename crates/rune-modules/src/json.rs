@@ -7,7 +7,7 @@
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! rune-modules = {version = "0.5.2", features = ["json"]}
+//! rune-modules = {version = "0.5.3", features = ["json"]}
 //! ```
 //!
 //! Install it into your context:
@@ -47,7 +47,7 @@ fn to_string(value: Value) -> runestick::Result<String> {
     Ok(serde_json::to_string(&value)?)
 }
 
-/// Convert any value to a json string.
+/// Convert any value to json bytes.
 fn to_bytes(value: Value) -> runestick::Result<Bytes> {
     let bytes = serde_json::to_vec(&value)?;
     Ok(Bytes::from_vec(bytes))

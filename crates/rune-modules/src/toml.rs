@@ -7,7 +7,7 @@
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! rune-modules = {version = "0.5.2", features = ["toml"]}
+//! rune-modules = {version = "0.5.3", features = ["toml"]}
 //! ```
 //!
 //! Install it into your context:
@@ -47,7 +47,7 @@ fn to_string(value: Value) -> runestick::Result<String> {
     Ok(toml::to_string(&value)?)
 }
 
-/// Convert any value to a toml string.
+/// Convert any value to toml bytes.
 fn to_bytes(value: Value) -> runestick::Result<Bytes> {
     let bytes = toml::to_vec(&value)?;
     Ok(Bytes::from_vec(bytes))
