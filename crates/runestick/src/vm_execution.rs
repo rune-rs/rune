@@ -32,12 +32,12 @@ impl VmExecution {
     }
 
     /// Run the given task to completion.
-    pub async fn run_to_completion(&mut self) -> Result<Value, VmError> {
+    pub async fn async_complete(&mut self) -> Result<Value, VmError> {
         loop {
             let len = self.vms.len();
             let vm = self.vm_mut()?;
 
-            match vm.run_for(None).await? {
+            match vm.run_for(None)? {
                 StopReason::Exited => (),
                 StopReason::Awaited(awaited) => {
                     // TODO: handle this through polling instead.
@@ -65,12 +65,43 @@ impl VmExecution {
         }
     }
 
+    /// Run the given task to completion without support for async functions.
+    ///
+    /// If any async instructions are encountered, this will error.
+    pub fn complete(&mut self) -> Result<Value, VmError> {
+        loop {
+            let len = self.vms.len();
+            let vm = self.vm_mut()?;
+
+            match vm.run_for(None)? {
+                StopReason::Exited => (),
+                StopReason::CallVm(call_vm) => {
+                    call_vm.into_execution(self)?;
+                    continue;
+                }
+                reason => {
+                    return Err(VmError::from(VmErrorKind::Stopped {
+                        reason: reason.into_info(),
+                    }))
+                }
+            }
+
+            if len == 1 {
+                let value = vm.stack_mut().pop()?;
+                debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
+                return Ok(value);
+            }
+
+            self.pop_vm()?;
+        }
+    }
+
     /// Run the execution for one step.
     pub async fn step(&mut self) -> Result<Option<Value>, VmError> {
         let len = self.vms.len();
         let vm = self.vm_mut()?;
 
-        match vm.run_for(Some(1)).await? {
+        match vm.run_for(Some(1))? {
             StopReason::Exited => (),
             StopReason::Awaited(awaited) => {
                 awaited.wait_with_vm(vm).await?;

@@ -26,6 +26,8 @@ impl IndexScopeGuard {
             IndexScopeLevel::IndexClosure(closure) => Ok(Closure {
                 captures: closure.captures,
                 generator: closure.generator,
+                is_async: closure.is_async,
+                has_await: closure.has_await,
             }),
             _ => Err(CompileError::internal("expected closure", span)),
         }
@@ -44,6 +46,8 @@ impl IndexScopeGuard {
         match level {
             IndexScopeLevel::IndexFunction(fun) => Ok(Function {
                 generator: fun.generator,
+                is_async: fun.is_async,
+                has_await: fun.has_await,
             }),
             _ => Err(CompileError::internal("expected function", span)),
         }
@@ -73,47 +77,59 @@ impl IndexScope {
 
 #[derive(Debug)]
 pub struct IndexClosure {
+    is_async: bool,
     /// Variables which could not be found in the immediate scope, and
     /// marked as needed to be captured from the outer scope.
     captures: Vec<MetaClosureCapture>,
     existing: HashSet<String>,
     scope: IndexScope,
     generator: bool,
+    has_await: bool,
 }
 
 impl IndexClosure {
     /// Construct a new closure.
-    pub fn new() -> Self {
+    pub fn new(is_async: bool) -> Self {
         Self {
+            is_async,
             captures: Vec::new(),
             existing: HashSet::new(),
             scope: IndexScope::new(),
             generator: false,
+            has_await: false,
         }
     }
 }
 
 pub(crate) struct Function {
     pub(crate) generator: bool,
+    pub(crate) is_async: bool,
+    pub(crate) has_await: bool,
 }
 
 pub(crate) struct Closure {
     pub(crate) captures: Vec<MetaClosureCapture>,
     pub(crate) generator: bool,
+    pub(crate) is_async: bool,
+    pub(crate) has_await: bool,
 }
 
 #[derive(Debug)]
 pub struct IndexFunction {
+    is_async: bool,
     scope: IndexScope,
     generator: bool,
+    has_await: bool,
 }
 
 impl IndexFunction {
     /// Construct a new function.
-    pub fn new() -> Self {
+    pub fn new(is_async: bool) -> Self {
         Self {
+            is_async,
             scope: IndexScope::new(),
             generator: false,
+            has_await: false,
         }
     }
 }
@@ -239,11 +255,42 @@ impl IndexScopes {
         Err(CompileError::YieldOutsideFunction { span })
     }
 
+    /// Mark that a yield was used, meaning the encapsulating function is a
+    /// generator.
+    pub fn mark_await(&mut self, span: Span) -> Result<(), CompileError> {
+        let mut levels = self.levels.borrow_mut();
+        let mut iter = levels.iter_mut().rev();
+
+        while let Some(level) = iter.next() {
+            match level {
+                IndexScopeLevel::IndexFunction(fun) => {
+                    if fun.is_async {
+                        fun.has_await = true;
+                        return Ok(());
+                    }
+
+                    break;
+                }
+                IndexScopeLevel::IndexClosure(closure) => {
+                    if closure.is_async {
+                        closure.has_await = true;
+                        return Ok(());
+                    }
+
+                    break;
+                }
+                IndexScopeLevel::IndexScope(..) => (),
+            }
+        }
+
+        Err(CompileError::AwaitOutsideFunction { span })
+    }
+
     /// Push a function.
-    pub fn push_function(&mut self) -> IndexScopeGuard {
+    pub fn push_function(&mut self, is_async: bool) -> IndexScopeGuard {
         self.levels
             .borrow_mut()
-            .push(IndexScopeLevel::IndexFunction(IndexFunction::new()));
+            .push(IndexScopeLevel::IndexFunction(IndexFunction::new(is_async)));
 
         IndexScopeGuard {
             levels: self.levels.clone(),
@@ -251,10 +298,10 @@ impl IndexScopes {
     }
 
     /// Push a closure boundary.
-    pub fn push_closure(&mut self) -> IndexScopeGuard {
+    pub fn push_closure(&mut self, is_async: bool) -> IndexScopeGuard {
         self.levels
             .borrow_mut()
-            .push(IndexScopeLevel::IndexClosure(IndexClosure::new()));
+            .push(IndexScopeLevel::IndexClosure(IndexClosure::new(is_async)));
 
         IndexScopeGuard {
             levels: self.levels.clone(),

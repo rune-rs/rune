@@ -7,7 +7,7 @@ fn printer() {
 
 fn main() {
     let printer = printer();
-    printer.resume(1).await;
-    printer.resume("John").await;
-    printer.resume((1, 2, 3)).await;
+    printer.resume(1);
+    printer.resume("John");
+    printer.resume((1, 2, 3));
 }

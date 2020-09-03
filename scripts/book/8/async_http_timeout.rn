@@ -1,6 +1,6 @@
 struct Timeout;
 
-fn request(timeout) {
+async fn request(timeout) {
     let request = http::get(`http://httpstat.us/200?sleep={timeout}`);
     let timeout = time::delay_for(time::Duration::from_secs(2));
 
@@ -13,12 +13,12 @@ fn request(timeout) {
     Ok(())
 }
 
-fn main() {
-    if let Err(Timeout) = request(1000) {
+async fn main() {
+    if let Err(Timeout) = request(1000).await {
         println("Request timed out!");
     }
 
-    if let Err(Timeout) = request(4000) {
+    if let Err(Timeout) = request(4000).await {
         println("Request timed out!");
     }
 }

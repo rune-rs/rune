@@ -14,7 +14,7 @@ async fn test(timeout, helpful_hint) {
     Ok((result.text().await?, helpful_hint))
 }
 
-fn main() {
+async fn main() {
     let a = test(1000, "first call");
     let b = test(5000, "second call");
 

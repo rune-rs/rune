@@ -326,7 +326,7 @@ pub enum VmErrorKind {
         actual: ValueTypeInfo,
     },
     /// Trying to resume a generator that has completed.
-    #[error("cannot resume generator that has completed")]
+    #[error("cannot resume a generator that has completed")]
     GeneratorComplete,
 }
 

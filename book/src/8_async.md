@@ -57,7 +57,8 @@ To fix this we need two new things: `async` functions and `.await`.
 `async` functions are just like regular functions, except that when called they
 produce a `Future`.
 
-In order to get the result of this `Future` it must be `.await`-ed.
+In order to get the result of this `Future` it must be `.await`ed. And `.await`
+is only permitted inside of `async` functions and closures.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/8/async_http_concurrent.rn}}
@@ -69,14 +70,3 @@ Result: 200 OK
 Request timed out!
 == () (2.0028603s)
 ```
-
-If you've been using future in Rust, one thing immediately pops out to you.
-
-We're using `.await` in a non-`async` function!
-
-Well, in Rune the virtual machine already comes with a Runtime. Every function
-therefore has the ability to `.await` a future, regardless of if the function
-itself is async or not.
-
-In fact, the whole Runtime is asynchronous, but that is for a future, much much
-more advanced chapter!

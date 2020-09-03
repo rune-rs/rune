@@ -12,19 +12,19 @@ fn main() {
 
     // First argument to resume is ignored since it's just used to start the
     // generator.
-    if let GeneratorState::Yielded(value) = gen.resume(()).await {
+    if let GeneratorState::Yielded(value) = gen.resume(()) {
         result += value;
     } else {
         panic("unexpected");
     }
 
-    if let GeneratorState::Yielded(value) = gen.resume(2).await {
+    if let GeneratorState::Yielded(value) = gen.resume(2) {
         result += value;
     } else {
         panic("unexpected");
     }
 
-    if let GeneratorState::Complete(value) = gen.resume(3).await {
+    if let GeneratorState::Complete(value) = gen.resume(3) {
         result += value;
     } else {
         panic("unexpected");

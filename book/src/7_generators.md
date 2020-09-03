@@ -115,6 +115,6 @@ Generator { completed: true }
 error: virtual machine error
    ┌─ scripts/book/7/error.rn:11:9
    │
-11 │     dbg(printer.resume(()).await);
-   │         ^^^^^^^^^^^^^^^^^^^^^^^^ cannot resume generator that has completed
+11 │     dbg(printer.resume(()));
+   │         ^^^^^^^^^^^^^^^^^^ cannot resume a generator that has completed
 ```

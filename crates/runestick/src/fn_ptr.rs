@@ -16,8 +16,8 @@ pub struct FnPtr {
 }
 
 impl FnPtr {
-    /// Perform a call over the function pointer.
-    pub async fn call<A, T>(&self, args: A) -> Result<T, VmError>
+    /// Perform a call over the function represented by this function pointer.
+    pub fn call<A, T>(&self, args: A) -> Result<T, VmError>
     where
         A: IntoArgs,
         T: FromValue,
@@ -38,11 +38,9 @@ impl FnPtr {
 
                 match offset.call {
                     UnitFnCall::Generator => Value::Generator(Shared::new(Generator::new(vm))),
-                    UnitFnCall::Immediate => {
-                        Future::new(async move { vm.run_to_completion().await }).await?
-                    }
+                    UnitFnCall::Immediate => vm.complete()?,
                     UnitFnCall::Async => Value::Future(Shared::new(Future::new(async move {
-                        vm.run_to_completion().await
+                        vm.async_complete().await
                     }))),
                 }
             }
@@ -55,7 +53,14 @@ impl FnPtr {
                 vm.stack_mut()
                     .push(Value::Tuple(offset.environment.clone()));
 
-                Self::call_vm(offset.call, vm).await?
+                match offset.call {
+                    UnitFnCall::Generator => Value::Generator(Shared::new(Generator::new(vm))),
+                    UnitFnCall::Immediate => vm.complete()?,
+                    UnitFnCall::Async => {
+                        let future = Future::new(async move { vm.async_complete().await });
+                        Value::Future(Shared::new(future))
+                    }
+                }
             }
             Inner::FnTuple(tuple) => {
                 Self::check_args(A::count(), tuple.args)?;
@@ -135,7 +140,9 @@ impl FnPtr {
         }
     }
 
-    /// Call with the given virtual machine.
+    /// Call with the given virtual machine. This allows for certain
+    /// optimizations, like avoiding the allocation of a new vm state in case
+    /// the call is internal.
     ///
     /// A stop reason will be returned in case the function call results in
     /// a need to suspend the execution.
@@ -221,21 +228,6 @@ impl FnPtr {
         }
 
         Ok(())
-    }
-
-    #[inline]
-    async fn call_vm(call: UnitFnCall, vm: Vm) -> Result<Value, VmError> {
-        match call {
-            UnitFnCall::Generator => Ok(Value::Generator(Shared::new(Generator::new(vm)))),
-            UnitFnCall::Immediate => {
-                let future = Future::new(async move { vm.run_to_completion().await });
-                Ok(future.await?)
-            }
-            UnitFnCall::Async => {
-                let future = Future::new(async move { vm.run_to_completion().await });
-                Ok(Value::Future(Shared::new(future)))
-            }
-        }
     }
 }
 

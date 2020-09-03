@@ -13,7 +13,7 @@ fn fib() {
 fn main() {
     let g = fib();
 
-    while let Some(n) = g.next().await {
+    while let Some(n) = g.next() {
         dbg(n);
 
         if n > 100 {

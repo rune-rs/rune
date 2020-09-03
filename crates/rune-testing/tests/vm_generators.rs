@@ -11,7 +11,7 @@ fn test_simple_generator() {
                 let gen = foo();
                 let result = 0;
             
-                while let Some(value) = gen.next().await {
+                while let Some(value) = gen.next() {
                     result += value;
                 }
 
@@ -36,19 +36,19 @@ fn test_resume() {
                 let gen = foo();
                 let result = 0;
             
-                if let GeneratorState::Yielded(value) = gen.resume(()).await {
+                if let GeneratorState::Yielded(value) = gen.resume(()) {
                     result += value;
                 } else {
                     panic("unexpected");
                 }
             
-                if let GeneratorState::Yielded(value) = gen.resume(2).await {
+                if let GeneratorState::Yielded(value) = gen.resume(2) {
                     result += value;
                 } else {
                     panic("unexpected");
                 }
             
-                if let GeneratorState::Complete(value) = gen.resume(3).await {
+                if let GeneratorState::Complete(value) = gen.resume(3) {
                     result += value;
                 } else {
                     panic("unexpected");

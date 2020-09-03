@@ -15,15 +15,15 @@ fn test_fn_ptr() {
         "#
     };
 
-    assert_eq!(block_on(fn_ptr.call::<_, i64>((1i64, 3i64))).unwrap(), 4i64);
-    assert!(block_on(fn_ptr.call::<_, i64>((1i64,))).is_err());
+    assert_eq!(fn_ptr.call::<_, i64>((1i64, 3i64)).unwrap(), 4i64);
+    assert!(fn_ptr.call::<_, i64>((1i64,)).is_err());
 
     // ptr to native function
     let fn_ptr = rune! {
         FnPtr => r#"fn main() { Vec::new }"#
     };
 
-    let value: Vec<Value> = block_on(fn_ptr.call(())).unwrap();
+    let value: Vec<Value> = fn_ptr.call(()).unwrap();
     assert_eq!(value.len(), 0);
 
     // ptr to dynamic function.
@@ -34,8 +34,8 @@ fn test_fn_ptr() {
         "#
     };
 
-    assert!(block_on(fn_ptr.call::<_, Value>(())).is_err());
-    let value: Value = block_on(fn_ptr.call((1i64,))).unwrap();
+    assert!(fn_ptr.call::<_, Value>(()).is_err());
+    let value: Value = fn_ptr.call((1i64,)).unwrap();
     assert!(matches!(value, Value::VariantTuple(..)));
 
     // ptr to dynamic function.
@@ -46,7 +46,7 @@ fn test_fn_ptr() {
         "#
     };
 
-    assert!(block_on(fn_ptr.call::<_, Value>(())).is_err());
-    let value: Value = block_on(fn_ptr.call((1i64,))).unwrap();
+    assert!(fn_ptr.call::<_, Value>(()).is_err());
+    let value: Value = fn_ptr.call((1i64,)).unwrap();
     assert!(matches!(value, Value::TypedTuple(..)));
 }

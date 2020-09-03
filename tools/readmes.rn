@@ -1,21 +1,21 @@
 use process::Command;
 
-fn update_readme(project, output) {
+async fn update_readme(project, output) {
     let cargo = Command::new("cargo");
     cargo.args(["readme", "-r", project, "-o", output, "-t", "../../README.tpl"]);
     Ok(cargo.spawn()?.await?)
 }
 
-fn main() {
+async fn main() {
     let cargo_toml = fs::read_to_string("Cargo.toml").await?;
     let cargo_toml = toml::from_string(cargo_toml)?;
     let projects = cargo_toml.workspace.members;
 
     for project in projects {
-        let status = update_readme(project, "README.md")?;
+        let status = update_readme(project, "README.md").await?;
         println(`{project}: {status}`);
     }
 
-    let status = update_readme("crates/rune", "../../README.md")?;
+    let status = update_readme("crates/rune", "../../README.md").await?;
     println(`.: {status}`);
 }

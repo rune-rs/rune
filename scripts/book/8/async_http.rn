@@ -1,4 +1,4 @@
-fn main() {
+async fn main() {
     let a = http::get("https://google.com");
     let b = http::get("https://amazon.com");
 

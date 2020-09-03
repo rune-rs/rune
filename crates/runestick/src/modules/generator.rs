@@ -8,7 +8,7 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty(&["Generator"]).build::<Generator>()?;
     module.generator_state(&["GeneratorState"])?;
 
-    module.async_inst_fn("next", Generator::next)?;
-    module.async_inst_fn("resume", Generator::resume)?;
+    module.inst_fn("next", Generator::next)?;
+    module.inst_fn("resume", Generator::resume)?;
     Ok(module)
 }

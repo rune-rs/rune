@@ -274,7 +274,7 @@ async fn main() -> Result<()> {
             Err(TraceError::VmError(vm)) => Err(vm),
         }
     } else {
-        execution.run_to_completion().await
+        execution.async_complete().await
     };
 
     let result = match result {

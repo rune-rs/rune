@@ -41,14 +41,18 @@ impl<'a, 'source> Indexer<'a, 'source> {
     }
 
     /// Construct the calling convention based on the parameters.
-    fn unit_fn_call(generator: bool, async_: bool, span: Span) -> Result<UnitFnCall, CompileError> {
+    fn unit_fn_call(
+        generator: bool,
+        is_async: bool,
+        span: Span,
+    ) -> Result<UnitFnCall, CompileError> {
         Ok(if generator {
-            if async_ {
+            if is_async {
                 return Err(CompileError::UnsupportedAsyncGenerator { span });
             }
 
             UnitFnCall::Generator
-        } else if async_ {
+        } else if is_async {
             UnitFnCall::Async
         } else {
             UnitFnCall::Immediate
@@ -85,7 +89,7 @@ impl Index<ast::DeclFn> for Indexer<'_, '_> {
 
         let item = self.items.item();
 
-        let guard = self.scopes.push_function();
+        let guard = self.scopes.push_function(decl_fn.async_.is_some());
 
         for (arg, _) in &decl_fn.args.items {
             match arg {
@@ -105,7 +109,11 @@ impl Index<ast::DeclFn> for Indexer<'_, '_> {
         self.index(&decl_fn.body)?;
 
         let f = guard.into_function(span)?;
-        let call = Self::unit_fn_call(f.generator, decl_fn.async_.is_some(), span)?;
+        let call = Self::unit_fn_call(f.generator, f.is_async, span)?;
+
+        if f.is_async && !f.has_await {
+            self.warnings.unecessary_async(decl_fn.item_span());
+        }
 
         let fun = Function {
             ast: decl_fn.clone(),
@@ -515,12 +523,12 @@ impl Index<ast::ExprFor> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprClosure> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprClosure) -> Result<(), CompileError> {
+    fn index(&mut self, expr_closure: &ast::ExprClosure) -> Result<(), CompileError> {
         let _guard = self.items.push_closure();
-        let guard = self.scopes.push_closure();
-        let span = item.span();
+        let guard = self.scopes.push_closure(expr_closure.async_.is_some());
+        let span = expr_closure.span();
 
-        for (arg, _) in item.args.as_slice() {
+        for (arg, _) in expr_closure.args.as_slice() {
             match arg {
                 ast::FnArg::Self_(s) => {
                     return Err(CompileError::UnsupportedSelf { span: s.span() });
@@ -533,14 +541,19 @@ impl Index<ast::ExprClosure> for Indexer<'_, '_> {
             }
         }
 
-        self.index(&*item.body)?;
+        self.index(&*expr_closure.body)?;
 
         let c = guard.into_closure(span)?;
+
+        if c.is_async && !c.has_await {
+            self.warnings.unecessary_async(expr_closure.item_span());
+        }
+
         let captures = Arc::new(c.captures);
-        let call = Self::unit_fn_call(c.generator, item.async_.is_some(), span)?;
+        let call = Self::unit_fn_call(c.generator, c.is_async, span)?;
 
         self.query
-            .index_closure(self.items.item(), item.clone(), captures, call)?;
+            .index_closure(self.items.item(), expr_closure.clone(), captures, call)?;
 
         Ok(())
     }
@@ -617,6 +630,8 @@ impl Index<ast::ExprReturn> for Indexer<'_, '_> {
 
 impl Index<ast::ExprAwait> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::ExprAwait) -> Result<(), CompileError> {
+        let span = item.span();
+        self.scopes.mark_await(span)?;
         self.index(&*item.expr)?;
         Ok(())
     }
@@ -631,6 +646,8 @@ impl Index<ast::ExprTry> for Indexer<'_, '_> {
 
 impl Index<ast::ExprSelect> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::ExprSelect) -> Result<(), CompileError> {
+        self.scopes.mark_await(item.span())?;
+
         for (branch, _) in &item.branches {
             // NB: expression to evaluate future is evaled in parent scope.
             self.index(&*branch.expr)?;

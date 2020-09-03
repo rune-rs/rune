@@ -6,6 +6,6 @@ fn print_once() {
 
 fn main() {
     let printer = print_once();
-    dbg(printer.resume(()).await);
-    dbg(printer.resume("John").await);
+    dbg(printer.resume(()));
+    dbg(printer.resume("John"));
 }

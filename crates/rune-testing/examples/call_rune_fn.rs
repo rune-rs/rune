@@ -13,7 +13,7 @@ fn main() -> runestick::Result<()> {
         "#
     };
 
-    println!("{}", block_on(fn_ptr.call::<(i64, i64), i64>((1, 3)))?);
-    println!("{}", block_on(fn_ptr.call::<(i64, i64), i64>((2, 6)))?);
+    println!("{}", fn_ptr.call::<(i64, i64), i64>((1, 3))?);
+    println!("{}", fn_ptr.call::<(i64, i64), i64>((2, 6))?);
     Ok(())
 }

@@ -44,9 +44,17 @@ impl Vm {
     }
 
     /// Run the given vm to completion.
-    pub async fn run_to_completion(self) -> Result<Value, VmError> {
+    ///
+    /// If any async instructions are encountered, this will error.
+    pub fn complete(self) -> Result<Value, VmError> {
         let mut execution = VmExecution::of(self);
-        execution.run_to_completion().await
+        execution.complete()
+    }
+
+    /// Run the given vm to completion with support for async functions.
+    pub async fn async_complete(self) -> Result<Value, VmError> {
+        let mut execution = VmExecution::of(self);
+        execution.async_complete().await
     }
 
     /// Test if the virtual machine is the same context and unit as specified.
@@ -1636,7 +1644,7 @@ impl Vm {
         let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
-        let future = Future::new(async move { vm.run_to_completion().await });
+        let future = Future::new(async move { vm.async_complete().await });
         self.stack.push(Value::Future(Shared::new(future)));
         Ok(())
     }
@@ -1815,8 +1823,6 @@ impl Vm {
     }
 
     fn op_call_fn(&mut self, args: usize) -> Result<Option<StopReason>, VmError> {
-        println!("call function: {:?} {}", self.stack, args);
-
         let function = self.stack.pop()?;
 
         let hash = match function {
@@ -1843,10 +1849,7 @@ impl Vm {
     }
 
     /// Evaluate a single instruction.
-    pub(crate) async fn run_for(
-        &mut self,
-        mut limit: Option<usize>,
-    ) -> Result<StopReason, VmError> {
+    pub(crate) fn run_for(&mut self, mut limit: Option<usize>) -> Result<StopReason, VmError> {
         loop {
             let inst = *self
                 .unit
@@ -2232,7 +2235,7 @@ impl CallVm {
                 execution.push_vm(self.vm);
             }
             UnitFnCall::Async => {
-                let future = Future::new(async move { self.vm.run_to_completion().await });
+                let future = Future::new(async move { self.vm.async_complete().await });
                 let vm = execution.vm_mut()?;
                 vm.stack.push(Value::from(future));
                 vm.advance();

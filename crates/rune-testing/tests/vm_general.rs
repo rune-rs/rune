@@ -832,7 +832,7 @@ fn test_async_fn() {
                 b / a
             }
 
-            fn main() {
+            async fn main() {
                 foo(2, 4).await + bar(2, 8)
             }
             "#

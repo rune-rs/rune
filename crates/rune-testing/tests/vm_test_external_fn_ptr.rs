@@ -11,8 +11,6 @@ fn test_external_fn_ptr() -> Result<()> {
         "#,
     )?;
 
-    println!("here");
-
     let output: i64 = run(
         &["main"],
         (fn_ptr,),
@@ -21,7 +19,6 @@ fn test_external_fn_ptr() -> Result<()> {
         "#,
     )?;
 
-    println!("here");
     assert_eq!(42, output);
     Ok(())
 }
@@ -41,12 +38,10 @@ fn test_external_generator() -> Result<()> {
         &["main"],
         (fn_ptr,),
         r#"
-        fn main(f) { let gen = f(); (gen.next().await, gen.next().await) }
+        fn main(f) { let gen = f(); (gen.next(), gen.next()) }
         "#,
     )?;
 
-    // TODO: reverse function argument order!
-    assert_eq!(Some(42), output.0);
-    assert_eq!(None, output.1);
+    assert_eq!((Some(42), None), output);
     Ok(())
 }

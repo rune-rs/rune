@@ -7,7 +7,7 @@ fn foo() {
 fn main() {
     let gen = foo();
 
-    while let Some(value) = gen.next().await {
+    while let Some(value) = gen.next() {
         println(`from generator: {value}`);
     }
 }

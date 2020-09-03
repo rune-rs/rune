@@ -41,7 +41,7 @@ async fn main() -> runestick::Result<()> {
 
     let output = vm
         .call_function(Hash::type_hash(Item::of(&["call_instance_fn"])), (33i64,))?
-        .run_to_completion()
+        .async_complete()
         .await?;
 
     let output = i64::from_value(output)?;

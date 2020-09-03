@@ -21,9 +21,22 @@ pub struct DeclFn {
 }
 
 impl DeclFn {
+    /// Get the identifying span for this function.
+    pub fn item_span(&self) -> Span {
+        if let Some(async_) = &self.async_ {
+            async_.span().join(self.args.span())
+        } else {
+            self.fn_.span().join(self.args.span())
+        }
+    }
+
     /// Access the span for the function declaration.
     pub fn span(&self) -> Span {
-        self.fn_.span().join(self.body.span())
+        if let Some(async_) = &self.async_ {
+            async_.span().join(self.body.span())
+        } else {
+            self.fn_.span().join(self.body.span())
+        }
     }
 
     /// Test if function is an instance fn.

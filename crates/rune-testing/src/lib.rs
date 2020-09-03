@@ -56,7 +56,7 @@ where
     let vm = runestick::Vm::new(Rc::new(context), Rc::new(unit));
     let output = vm
         .call_function(Item::of(function), args)?
-        .run_to_completion()
+        .async_complete()
         .await?;
     Ok(T::from_value(output)?)
 }

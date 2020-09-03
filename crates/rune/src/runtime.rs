@@ -449,6 +449,14 @@ impl Runtime {
 
                         None
                     }
+                    Warning::UnecessaryAsync { span } => {
+                        labels.push(
+                            Label::primary(source_file, span.start..span.end)
+                                .with_message("unnecessary use of `async`, function or closure has no `.await` in it"),
+                        );
+
+                        None
+                    }
                 };
 
                 if let Some(context) = context {

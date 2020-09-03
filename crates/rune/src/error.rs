@@ -676,6 +676,12 @@ pub enum CompileError {
         /// The span of the unsupported yield.
         span: Span,
     },
+    /// Attempt to await outside of a function or a closure.
+    #[error("`await` must be used inside an async function or closure")]
+    AwaitOutsideFunction {
+        /// The span of the unsupported await.
+        span: Span,
+    },
     /// Attempt to declare a function which takes `self` outside of an `impl`
     /// block.
     #[error("instance function declared outside of `impl` block")]
@@ -747,6 +753,7 @@ impl CompileError {
             Self::LitObjectNotField { span, .. } => span,
             Self::MissingFunction { span, .. } => span,
             Self::YieldOutsideFunction { span, .. } => span,
+            Self::AwaitOutsideFunction { span, .. } => span,
             Self::InstanceFunctionOutsideImpl { span, .. } => span,
             Self::UnsupportedAsyncGenerator { span, .. } => span,
             Self::MissingPreludeModule { .. } => Span::empty(),

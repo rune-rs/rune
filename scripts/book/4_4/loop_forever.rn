@@ -1,6 +1,6 @@
 use time::Duration;
 
-fn main() {
+async fn main() {
     loop {
         println("loop forever");
         time::delay_for(Duration::from_secs(1)).await;

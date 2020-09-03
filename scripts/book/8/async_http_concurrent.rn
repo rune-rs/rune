@@ -14,7 +14,7 @@ async fn request(timeout) {
     Ok(result)
 }
 
-fn main() {
+async fn main() {
     for result in future::join([request(1000), request(4000)]).await {
         match result {
             Ok(result) => println(`Result: {result.status()}`),

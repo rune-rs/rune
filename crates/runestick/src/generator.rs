@@ -23,7 +23,7 @@ impl Generator {
     }
 
     /// Get the next value produced by this generator.
-    pub async fn next(&mut self) -> Result<Option<Value>, VmError> {
+    pub fn next(&mut self) -> Result<Option<Value>, VmError> {
         let vm = match &mut self.vm {
             Some(vm) => vm,
             None => {
@@ -35,7 +35,7 @@ impl Generator {
             vm.stack_mut().push(Value::Unit);
         }
 
-        match Self::inner_resume(vm).await {
+        match Self::inner_resume(vm) {
             Ok(GeneratorState::Yielded(value)) => Ok(Some(value)),
             Ok(GeneratorState::Complete(_)) => {
                 self.vm = None;
@@ -46,7 +46,7 @@ impl Generator {
     }
 
     /// Get the next value produced by this generator.
-    pub async fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+    pub fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
         let vm = match &mut self.vm {
             Some(vm) => vm,
             None => {
@@ -58,7 +58,7 @@ impl Generator {
             vm.stack_mut().push(value);
         }
 
-        match Self::inner_resume(vm).await {
+        match Self::inner_resume(vm) {
             Ok(value) => {
                 if value.is_complete() {
                     self.vm = None;
@@ -72,8 +72,8 @@ impl Generator {
 
     /// Inner resume implementation.
     #[inline]
-    async fn inner_resume(vm: &mut Vm) -> Result<GeneratorState, VmError> {
-        let reason = vm.run_for(None).await?;
+    fn inner_resume(vm: &mut Vm) -> Result<GeneratorState, VmError> {
+        let reason = vm.run_for(None)?;
 
         match reason {
             StopReason::Yielded => Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),

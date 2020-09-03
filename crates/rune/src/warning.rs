@@ -46,6 +46,11 @@ pub enum Warning {
         /// Span where the semi-colon is.
         span: Span,
     },
+    /// A closure or function is marked as async, but doesn't use any `.await`.
+    UnecessaryAsync {
+        /// Span where the unecessary async function is.
+        span: Span,
+    },
 }
 /// Compilation warnings.
 #[derive(Debug, Clone, Default)]
@@ -55,7 +60,7 @@ pub struct Warnings {
 
 impl Warnings {
     /// Construct a new collection of compilation warnings.
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             warnings: Vec::new(),
         }
@@ -68,30 +73,30 @@ impl Warnings {
 
     /// Construct a warning indicating that the item identified by the span is
     /// not used.
-    pub(super) fn not_used(&mut self, span: Span, context: Option<Span>) {
+    pub(crate) fn not_used(&mut self, span: Span, context: Option<Span>) {
         self.warnings.push(Warning::NotUsed { span, context });
     }
 
     /// Indicate that a pattern might panic.
-    pub(super) fn let_pattern_might_panic(&mut self, span: Span, context: Option<Span>) {
+    pub(crate) fn let_pattern_might_panic(&mut self, span: Span, context: Option<Span>) {
         self.warnings
             .push(Warning::LetPatternMightPanic { span, context });
     }
 
     /// Indicate that a break expression is being used in a value expression.
-    pub(super) fn break_does_not_produce_value(&mut self, span: Span, context: Option<Span>) {
+    pub(crate) fn break_does_not_produce_value(&mut self, span: Span, context: Option<Span>) {
         self.warnings
             .push(Warning::BreakDoesNotProduceValue { span, context });
     }
 
     /// Indicate that we encountered a template string without any expansion groups.
-    pub(super) fn template_without_expansions(&mut self, span: Span, context: Option<Span>) {
+    pub(crate) fn template_without_expansions(&mut self, span: Span, context: Option<Span>) {
         self.warnings
             .push(Warning::TemplateWithoutExpansions { span, context });
     }
 
     /// Remove call parenthesis.
-    pub(super) fn remove_tuple_call_parens(
+    pub(crate) fn remove_tuple_call_parens(
         &mut self,
         span: Span,
         variant: Span,
@@ -105,8 +110,13 @@ impl Warnings {
     }
 
     /// Indicate an unecessary semi colon.
-    pub(super) fn uneccessary_semi_colon(&mut self, span: Span) {
+    pub(crate) fn uneccessary_semi_colon(&mut self, span: Span) {
         self.warnings.push(Warning::UnecessarySemiColon { span });
+    }
+
+    /// Indicate that there is an unecessary use of `async`.
+    pub(crate) fn unecessary_async(&mut self, span: Span) {
+        self.warnings.push(Warning::UnecessaryAsync { span });
     }
 }
 

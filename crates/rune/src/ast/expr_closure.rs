@@ -58,9 +58,22 @@ pub struct ExprClosure {
 }
 
 impl ExprClosure {
+    /// Get the identifying span for this closure.
+    pub fn item_span(&self) -> Span {
+        if let Some(async_) = &self.async_ {
+            async_.span().join(self.args.span())
+        } else {
+            self.args.span()
+        }
+    }
+
     /// Access the span for the closure.
     pub fn span(&self) -> Span {
-        self.args.span().join(self.body.span())
+        if let Some(async_) = &self.async_ {
+            async_.span().join(self.body.span())
+        } else {
+            self.args.span().join(self.body.span())
+        }
     }
 }
 

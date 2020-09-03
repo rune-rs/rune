@@ -10,9 +10,9 @@ fn main() {
     let printer = printer();
 
     println("firing off the printer...");
-    printer.resume(()).await;
+    printer.resume(());
     println("ready to go!");
 
-    printer.resume("John").await;
-    printer.resume((1, 2, 3)).await;
+    printer.resume("John");
+    printer.resume((1, 2, 3));
 }

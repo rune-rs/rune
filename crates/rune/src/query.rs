@@ -135,6 +135,7 @@ impl<'a> Query<'a> {
     ) -> Result<(), CompileError> {
         let span = ast.span();
         log::trace!("new closure: {}", item);
+
         self.index(
             item,
             Indexed::Closure(Closure {
@@ -144,6 +145,7 @@ impl<'a> Query<'a> {
             }),
             span,
         )?;
+
         Ok(())
     }
 
