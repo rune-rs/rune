@@ -1,30 +1,18 @@
-//! The `int` package.
-//!
-//! Contains functions such as:
-//! * `int::parse` to parse a string into a number.
+//! The `std::int` module.
 
 use crate::{ContextError, Module};
 use std::num::ParseIntError;
 
-/// Parse an integer.
-fn parse(s: &str) -> Result<i64, ParseIntError> {
-    Ok(str::parse::<i64>(s)?)
-}
-
-/// Convert a whole number to float.
-fn to_float(value: i64) -> f64 {
-    value as f64
-}
-
-decl_external!(ParseIntError);
-
-/// Install the core package into the given functions namespace.
+/// Construct the `std::int` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
     module.ty(&["int"]).build::<i64>()?;
-    module.ty(&["ParseIntError"]).build::<ParseIntError>()?;
+    module
+        .ty(&["int", "ParseIntError"])
+        .build::<ParseIntError>()?;
     module.function(&["int", "parse"], parse)?;
+
     module.inst_fn("to_float", to_float)?;
 
     module.inst_fn("checked_add", i64::checked_add)?;
@@ -48,3 +36,15 @@ pub fn module() -> Result<Module, ContextError> {
     module.inst_fn("pow", i64::pow)?;
     Ok(module)
 }
+
+/// Parse an integer.
+fn parse(s: &str) -> Result<i64, ParseIntError> {
+    Ok(str::parse::<i64>(s)?)
+}
+
+/// Convert a whole number to float.
+fn to_float(value: i64) -> f64 {
+    value as f64
+}
+
+decl_external!(ParseIntError);

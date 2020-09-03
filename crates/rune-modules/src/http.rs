@@ -7,15 +7,14 @@
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! runestick = "0.3"
-//! runestick-modules = {version = "0.3", features = ["http", "json"]}
+//! rune-modules = {version = "0.5.2", features = ["http", "json"]}
 //! ```
 //!
 //! Install it into your context:
 //!
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_packages()?;
+//! let mut context = runestick::Context::with_default_modules()?;
 //! context.install(&rune_modules::http::module()?)?;
 //! context.install(&rune_modules::json::module()?)?;
 //! # Ok(())
@@ -163,7 +162,7 @@ runestick::decl_external!(Response);
 runestick::decl_external!(RequestBuilder);
 runestick::decl_external!(StatusCode);
 
-/// Construct the http library.
+/// Construct the `http` module.
 pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["http"]);
 

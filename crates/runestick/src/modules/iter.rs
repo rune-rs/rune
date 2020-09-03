@@ -1,11 +1,20 @@
-//! The `std::iter` package.
-//!
-//! Note: This is a very simple prototype implementation.
-//!
-//! Contains functions such as:
-//! * `range` to iterate over a range of integers.
+//! The `std::iter` module.
 
 use crate::{ContextError, Module};
+
+/// Construct the `std::iter` module.
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::new(&["std", "iter"]);
+    module.ty(&["Range"]).build::<Range>()?;
+    module.ty(&["Rev"]).build::<Rev>()?;
+    module.function(&["range"], Range::new)?;
+    module.inst_fn(crate::INTO_ITER, Range::into_iter)?;
+    module.inst_fn(crate::NEXT, Range::next)?;
+    module.inst_fn("rev", Range::rev)?;
+    module.inst_fn(crate::INTO_ITER, Rev::into_iter)?;
+    module.inst_fn(crate::NEXT, Rev::next)?;
+    Ok(module)
+}
 
 #[derive(Debug)]
 struct Rev {
@@ -65,17 +74,3 @@ impl Iterator for Range {
 
 decl_external!(Range);
 decl_external!(Rev);
-
-/// Install the core package into the given functions namespace.
-pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "iter"]);
-    module.ty(&["Range"]).build::<Range>()?;
-    module.ty(&["Rev"]).build::<Rev>()?;
-    module.function(&["range"], Range::new)?;
-    module.inst_fn(crate::INTO_ITER, Range::into_iter)?;
-    module.inst_fn(crate::NEXT, Range::next)?;
-    module.inst_fn("rev", Range::rev)?;
-    module.inst_fn(crate::INTO_ITER, Rev::into_iter)?;
-    module.inst_fn(crate::NEXT, Rev::next)?;
-    Ok(module)
-}

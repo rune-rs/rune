@@ -4,9 +4,11 @@
 pub mod bytes;
 pub mod core;
 pub mod float;
+pub mod fmt;
 pub mod future;
 pub mod generator;
 pub mod int;
+pub mod io;
 pub mod iter;
 pub mod object;
 pub mod option;

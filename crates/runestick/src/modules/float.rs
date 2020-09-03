@@ -1,7 +1,4 @@
-//! The `float` package.
-//!
-//! Contains functions such as:
-//! * `parse` to parse a string into a float.
+//! The `std::float` module.
 
 use crate::{ContextError, Module};
 use std::num::ParseFloatError;
@@ -23,7 +20,9 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
     module.ty(&["float"]).build::<f64>()?;
-    module.ty(&["ParseFloatError"]).build::<ParseFloatError>()?;
+    module
+        .ty(&["float", "ParseFloatError"])
+        .build::<ParseFloatError>()?;
     module.function(&["float", "parse"], parse)?;
     module.inst_fn("to_integer", to_integer)?;
 

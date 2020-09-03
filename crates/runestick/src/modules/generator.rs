@@ -1,8 +1,8 @@
-//! Package containing generator functions.
+//! The `std::generator` module.
 
 use crate::{ContextError, Generator, Module};
 
-/// Get the module for the array package.
+/// Construct the `std::generator` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "generator"]);
     module.ty(&["Generator"]).build::<Generator>()?;

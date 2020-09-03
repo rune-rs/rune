@@ -101,7 +101,7 @@ impl Runtime {
     /// Construct a new runtime with the default context.
     pub fn new() -> Result<Self, runestick::ContextError> {
         Ok(Self::with_context(
-            runestick::Context::with_default_packages()?,
+            runestick::Context::with_default_modules()?,
         ))
     }
 
@@ -111,14 +111,16 @@ impl Runtime {
     /// modules.
     pub fn with_default_context() -> Result<Self, runestick::ContextError> {
         #[allow(unused_mut)]
-        let mut context = runestick::Context::with_default_packages()?;
+        let mut context = runestick::Context::with_default_modules()?;
 
         #[cfg(feature = "modules")]
         {
             context.install(&rune_modules::http::module()?)?;
             context.install(&rune_modules::json::module()?)?;
+            context.install(&rune_modules::toml::module()?)?;
             context.install(&rune_modules::time::module()?)?;
             context.install(&rune_modules::process::module()?)?;
+            context.install(&rune_modules::fs::module()?)?;
         }
 
         Ok(Self::with_context(context))

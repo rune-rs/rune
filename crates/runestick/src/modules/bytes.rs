@@ -1,8 +1,8 @@
-//! The bytes package, providing access to the bytes type.
+//! `std::bytes` module.
 
 use crate::{Bytes, ContextError, Module};
 
-/// Get the module for the bytes package.
+/// Construct the `std::bytes` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "bytes"]);
 

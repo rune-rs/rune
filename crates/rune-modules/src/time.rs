@@ -7,15 +7,14 @@
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! runestick = "0.2"
-//! runestick-modules = {version = "0.2", features = ["time"]}
+//! rune-modules = {version = "0.5.2", features = ["time"]}
 //! ```
 //!
 //! Install it into your context:
 //!
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
-//! let mut context = runestick::Context::with_default_packages()?;
+//! let mut context = runestick::Context::with_default_modules()?;
 //! context.install(&rune_modules::time::module()?)?;
 //! # Ok(())
 //! # }
@@ -55,7 +54,7 @@ async fn delay_for(duration: &Duration) {
 
 runestick::decl_external!(Duration);
 
-/// Get the module for the time package.
+/// Construct the `time` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["time"]);
     module.function(&["Duration", "from_secs"], Duration::from_secs)?;

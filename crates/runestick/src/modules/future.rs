@@ -1,7 +1,15 @@
-//! The future package.
+//! The `std::future` module.
 
 use crate::future::SelectFuture;
 use crate::{ContextError, Future, Module, Shared, Stack, Value, VmError, VmErrorKind};
+
+/// Construct the `std::future` module.
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::new(&["std", "future"]);
+    module.ty(&["Future"]).build::<Future>()?;
+    module.raw_fn(&["join"], raw_join)?;
+    Ok(module)
+}
 
 async fn try_join_impl<'a, I, F>(values: I, len: usize, factory: F) -> Result<Value, VmError>
 where
@@ -64,11 +72,4 @@ fn raw_join(stack: &mut Stack, args: usize) -> Result<(), VmError> {
     let value = Value::Future(Shared::new(Future::new(join(value))));
     stack.push(value);
     Ok(())
-}
-
-/// Get the module for the future package.
-pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "future"]);
-    module.raw_fn(&["join"], raw_join)?;
-    Ok(module)
 }

@@ -51,7 +51,7 @@ where
     A: runestick::IntoArgs,
     T: runestick::FromValue,
 {
-    let context = runestick::Context::with_default_packages()?;
+    let context = runestick::Context::with_default_modules()?;
     let (unit, _) = rune::compile(&context, source)?;
     let mut vm = runestick::Vm::new(Rc::new(context), Rc::new(unit));
     let mut task: runestick::Task<T> = vm.call_function(Item::of(function), args)?;
@@ -110,7 +110,7 @@ macro_rules! rune {
 #[macro_export]
 macro_rules! assert_parse_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
-        let context = runestick::Context::with_default_packages().unwrap();
+        let context = runestick::Context::with_default_modules().unwrap();
         let err = rune::compile(&context, $source).unwrap_err();
 
         match err {
@@ -179,7 +179,7 @@ macro_rules! assert_vm_error {
 #[macro_export]
 macro_rules! assert_parse {
     ($source:expr) => {{
-        let context = runestick::Context::with_default_packages().unwrap();
+        let context = runestick::Context::with_default_modules().unwrap();
         rune::compile(&context, $source).unwrap();
     }};
 }
@@ -203,7 +203,7 @@ macro_rules! assert_parse {
 #[macro_export]
 macro_rules! assert_compile_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
-        let context = runestick::Context::with_default_packages().unwrap();
+        let context = runestick::Context::with_default_modules().unwrap();
         let err = rune::compile(&context, $source).unwrap_err();
 
         match err {
@@ -235,7 +235,7 @@ macro_rules! assert_compile_error {
 #[macro_export]
 macro_rules! assert_warnings {
     ($source:expr $(, $pat:pat => $cond:expr)*) => {{
-        let context = runestick::Context::with_default_packages().unwrap();
+        let context = runestick::Context::with_default_modules().unwrap();
         let (_, warnings) = rune::compile(&context, $source).expect("source should compile");
         assert!(!warnings.is_empty(), "no warnings produced");
 

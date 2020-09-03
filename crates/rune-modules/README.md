@@ -31,6 +31,7 @@ These are modules that can be used with the [Rune language].
 See each module for documentation:
 * [http]
 * [json]
+* [toml]
 * [time]
 * [process]
 
@@ -39,10 +40,12 @@ See each module for documentation:
 * `full` includes all modules.
 * `http` for the [http module][http]
 * `json` for the [json module][json]
+* `toml` for the [toml module][toml]
 * `time` for the [time module][time]
 * `process` for the [process module]][process]
 
 [http]: https://docs.rs/rune-modules/0/rune_modules/http/
 [json]: https://docs.rs/rune-modules/0/rune_modules/json/
+[toml]: https://docs.rs/rune-modules/0/rune_modules/toml/
 [time]: https://docs.rs/rune-modules/0/rune_modules/time/
 [process]: https://docs.rs/rune-modules/0/rune_modules/process/

@@ -7,13 +7,9 @@ fn update_readme(project, output) {
 }
 
 fn main() {
-    let projects = [
-        "crates/rune",
-        "crates/rune-testing",
-        "crates/rune-modules",
-        "crates/rune-testing",
-        "crates/runestick",
-    ];
+    let cargo_toml = fs::read_to_string("Cargo.toml").await?;
+    let cargo_toml = toml::from_string(cargo_toml)?;
+    let projects = cargo_toml.workspace.members;
 
     for project in projects {
         let status = update_readme(project, "README.md")?;

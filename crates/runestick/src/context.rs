@@ -254,21 +254,23 @@ impl Context {
     }
 
     /// Construct a new collection of functions with default packages installed.
-    pub fn with_default_packages() -> Result<Self, ContextError> {
+    pub fn with_default_modules() -> Result<Self, ContextError> {
         let mut this = Self::new();
-        this.install(&crate::packages::core::module()?)?;
-        this.install(&crate::packages::generator::module()?)?;
-        this.install(&crate::packages::bytes::module()?)?;
-        this.install(&crate::packages::string::module()?)?;
-        this.install(&crate::packages::int::module()?)?;
-        this.install(&crate::packages::float::module()?)?;
-        this.install(&crate::packages::test::module()?)?;
-        this.install(&crate::packages::iter::module()?)?;
-        this.install(&crate::packages::vec::module()?)?;
-        this.install(&crate::packages::object::module()?)?;
-        this.install(&crate::packages::result::module()?)?;
-        this.install(&crate::packages::option::module()?)?;
-        this.install(&crate::packages::future::module()?)?;
+        this.install(&crate::modules::core::module()?)?;
+        this.install(&crate::modules::generator::module()?)?;
+        this.install(&crate::modules::bytes::module()?)?;
+        this.install(&crate::modules::string::module()?)?;
+        this.install(&crate::modules::int::module()?)?;
+        this.install(&crate::modules::float::module()?)?;
+        this.install(&crate::modules::test::module()?)?;
+        this.install(&crate::modules::iter::module()?)?;
+        this.install(&crate::modules::vec::module()?)?;
+        this.install(&crate::modules::object::module()?)?;
+        this.install(&crate::modules::result::module()?)?;
+        this.install(&crate::modules::option::module()?)?;
+        this.install(&crate::modules::future::module()?)?;
+        this.install(&crate::modules::io::module()?)?;
+        this.install(&crate::modules::fmt::module()?)?;
         Ok(this)
     }
 

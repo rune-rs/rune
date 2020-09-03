@@ -14,8 +14,6 @@ description = """
 An interpreter for Rune, an embeddable dynamic programming language for Rust. 
 """
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 tokio = {version = "0.2.22", features = ["rt-core", "net", "fs", "macros"]}
 env_logger = "0.7.1"

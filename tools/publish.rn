@@ -1,13 +1,9 @@
 use process::Command;
 
 fn main() {
-    let projects = [
-        "crates/runestick",
-        "crates/rune-modules",
-        "crates/rune-testing",
-        "crates/rune",
-        "crates/rune-cli",
-    ];
+    let cargo_toml = fs::read_to_string("Cargo.toml").await?;
+    let cargo_toml = toml::from_string(cargo_toml)?;
+    let projects = cargo_toml.workspace.members;
 
     for project in projects {
         let cargo = Command::new("cargo");

@@ -1,11 +1,58 @@
-//! The `core` package.
-//!
-//! Contains functions such as:
-//! * `dbg` to debug print to stdout.
+//! The core `std` module.
 
 use crate::{ContextError, Module, Panic, Value, ValueError};
 use std::io;
 use std::io::Write as _;
+
+/// Construct the `std` module.
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::new(&["std"]);
+
+    module.unit(&["unit"])?;
+    module.ty(&["bool"]).build::<bool>()?;
+    module.ty(&["char"]).build::<char>()?;
+    module.ty(&["byte"]).build::<u8>()?;
+
+    module.function(&["print"], |message: &str| {
+        let stdout = io::stdout();
+        let mut stdout = stdout.lock();
+        write!(stdout, "{}", message)
+    })?;
+
+    module.function(&["println"], |message: &str| {
+        let stdout = io::stdout();
+        let mut stdout = stdout.lock();
+        writeln!(stdout, "{}", message)
+    })?;
+
+    module.function(&["panic"], |message: &str| {
+        Err::<(), _>(Panic::custom(message.to_owned()))
+    })?;
+
+    module.raw_fn(&["dbg"], |stack, args| {
+        let stdout = io::stdout();
+        let mut stdout = stdout.lock();
+
+        for _ in 0..args {
+            match stack.pop() {
+                Ok(value) => {
+                    writeln!(stdout, "{:?}", value).unwrap();
+                }
+                Err(e) => {
+                    writeln!(stdout, "{}", e).unwrap();
+                }
+            }
+        }
+
+        stack.push(Value::Unit);
+        Ok(())
+    })?;
+
+    module.function(&["drop"], drop_impl)?;
+    module.function(&["is_readable"], is_readable)?;
+    module.function(&["is_writable"], is_writable)?;
+    Ok(module)
+}
 
 fn drop_impl(value: Value) -> Result<(), ValueError> {
     match value {
@@ -75,54 +122,4 @@ fn is_writable(value: Value) -> bool {
         Value::VariantObject(object) => object.is_writable(),
         _ => true,
     }
-}
-
-/// Install the core package into the given functions namespace.
-pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std"]);
-
-    module.unit(&["unit"])?;
-    module.ty(&["bool"]).build::<bool>()?;
-    module.ty(&["char"]).build::<char>()?;
-    module.ty(&["byte"]).build::<u8>()?;
-
-    module.function(&["print"], |message: &str| {
-        let stdout = io::stdout();
-        let mut stdout = stdout.lock();
-        write!(stdout, "{}", message)
-    })?;
-
-    module.function(&["println"], |message: &str| {
-        let stdout = io::stdout();
-        let mut stdout = stdout.lock();
-        writeln!(stdout, "{}", message)
-    })?;
-
-    module.function(&["panic"], |message: &str| {
-        Err::<(), _>(Panic::custom(message.to_owned()))
-    })?;
-
-    module.raw_fn(&["dbg"], |stack, args| {
-        let stdout = io::stdout();
-        let mut stdout = stdout.lock();
-
-        for _ in 0..args {
-            match stack.pop() {
-                Ok(value) => {
-                    writeln!(stdout, "{:?}", value).unwrap();
-                }
-                Err(e) => {
-                    writeln!(stdout, "{}", e).unwrap();
-                }
-            }
-        }
-
-        stack.push(Value::Unit);
-        Ok(())
-    })?;
-
-    module.function(&["drop"], drop_impl)?;
-    module.function(&["is_readable"], is_readable)?;
-    module.function(&["is_writable"], is_writable)?;
-    Ok(module)
 }

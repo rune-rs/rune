@@ -1,10 +1,14 @@
-//! The `test` package.
-//!
-//! Contains functions such as:
-//! * `assert` assert that a value is true.
+//! The `std::test` module.
 
 use crate::{ContextError, Module, Panic};
 use std::fmt;
+
+/// Construct the `std::test` module.
+pub fn module() -> Result<Module, ContextError> {
+    let mut module = Module::new(&["std", "test"]);
+    module.function(&["assert"], assert)?;
+    Ok(module)
+}
 
 #[derive(Debug)]
 struct AssertionFailed(String);
@@ -22,11 +26,4 @@ fn assert(value: bool, message: &str) -> Result<(), Panic> {
     }
 
     Ok(())
-}
-
-/// Install the core package into the given functions namespace.
-pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std", "test"]);
-    module.function(&["assert"], assert)?;
-    Ok(module)
 }
