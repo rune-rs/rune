@@ -14,11 +14,11 @@ When Rune encounters a break, it will immediately jump out of the loop it is
 currently in and continue running right after it.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_3/while_loop.rn}}
+{{#include ../../scripts/book/4_4/while_loop.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_3/while_loop.rn
+$> cargo run -- scripts/book/4_4/while_loop.rn
 The value is 50
 == () (501.1µs)
 ```
@@ -30,11 +30,11 @@ One that repeats unconditionally forever, until it is exited using another
 control flow operator like a `break` or a `return`.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_3/loop_forever.rn}}
+{{#include ../../scripts/book/4_4/loop_forever.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_3/loop_forever.rn
+$> cargo run -- scripts/book/4_4/loop_forever.rn
 Hello forever!
 Hello forever!
 Hello forever!
@@ -52,11 +52,11 @@ When broken out of, loops produce the value provided as an argument to the
 By default, this is simply a unit `()`.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_3/loop_break.rn}}
+{{#include ../../scripts/book/4_4/loop_break.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_3/loop_break.rn
+$> cargo run -- scripts/book/4_4/loop_break.rn
 The final count is: 11
 == () (281.5µs)
 ```

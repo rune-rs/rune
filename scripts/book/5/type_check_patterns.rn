@@ -1,10 +1,8 @@
 fn dynamic_type(n) {
-    if n is String {
-        "n is a String"
-    } else if n is Vec {
-        "n is a vector"
-    } else {
-        "n is unknown"
+    match n {
+        n if n is String => "n is a String",
+        n if n is Vec => "n is a vector",
+        _ => "n is unknown",
     }
 }
 

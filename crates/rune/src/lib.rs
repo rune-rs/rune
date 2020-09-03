@@ -67,9 +67,9 @@
 //!
 //! [rust-ffi]: https://github.com/rune-rs/rune/blob/master/crates/runestick-http/src/lib.rs
 //! [future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
-//! [support-templates]: https://rune-rs.github.io/rune/4_5_template_strings.html
+//! [support-templates]: https://rune-rs.github.io/rune/4_6_template_strings.html
 //! [support-try]: https://rune-rs.github.io/rune/6_try_operator.html
-//! [support-patterns]: https://rune-rs.github.io/rune/4_4_pattern_matching.html
+//! [support-patterns]: https://rune-rs.github.io/rune/4_5_pattern_matching.html
 //! [support-structs]: https://rune-rs.github.io/rune/5_6_structs.html
 //! [support-async]: https://rune-rs.github.io/rune/8_async.html
 //! [support-generators]: https://rune-rs.github.io/rune/7_generators.html
