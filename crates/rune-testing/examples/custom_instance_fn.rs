@@ -1,5 +1,5 @@
 use rune::{termcolor, Runtime};
-use runestick::{Context, Hash, Item, Module};
+use runestick::{Context, FromValue, Hash, Item, Module};
 use std::io::Write as _;
 
 fn divide_by_three(value: i64) -> i64 {
@@ -37,13 +37,14 @@ async fn main() -> runestick::Result<()> {
         }
     };
 
-    let mut vm = runtime.unit_vm(file_id).unwrap();
+    let vm = runtime.unit_vm(file_id).unwrap();
 
-    let output: i64 = vm
+    let output = vm
         .call_function(Hash::type_hash(Item::of(&["call_instance_fn"])), (33i64,))?
         .run_to_completion()
         .await?;
 
+    let output = i64::from_value(output)?;
     println!("output: {}", output);
     Ok(())
 }

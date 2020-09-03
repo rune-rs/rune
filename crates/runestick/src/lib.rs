@@ -51,6 +51,7 @@ mod names;
 mod panic;
 mod protocol;
 mod reflection;
+mod select;
 mod serde;
 mod shared;
 mod stack;
@@ -63,6 +64,7 @@ mod value_type;
 mod value_type_info;
 mod vec_tuple;
 mod vm_error;
+mod vm_execution;
 
 decl_external!(anyhow::Error);
 
@@ -76,6 +78,7 @@ pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
 pub use self::meta::{Meta, MetaClosureCapture, MetaStruct, MetaTuple};
 pub use self::module::{AsyncFunction, AsyncInstFn, Function, InstFn, Module};
+pub use self::select::Select;
 pub use self::static_string::StaticString;
 pub use self::static_type::{
     StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FN_PTR_TYPE, FUTURE_TYPE,
@@ -112,8 +115,9 @@ pub use crate::value::{
 };
 pub use crate::value_error::{ValueError, ValueErrorKind};
 pub use crate::vec_tuple::VecTuple;
-pub use crate::vm::{StopReason, Task, Vm};
+pub use crate::vm::{CallVm, StopReason, StopReasonInfo, Task, Vm};
 pub use crate::vm_error::{VmError, VmErrorKind};
+pub use crate::vm_execution::VmExecution;
 
 mod collections {
     pub use hashbrown::HashMap;

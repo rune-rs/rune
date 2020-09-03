@@ -53,10 +53,12 @@ where
 {
     let context = runestick::Context::with_default_modules()?;
     let (unit, _) = rune::compile(&context, source)?;
-    let mut vm = runestick::Vm::new(Rc::new(context), Rc::new(unit));
-    let mut task: runestick::Task<T> = vm.call_function(Item::of(function), args)?;
-    let output = task.run_to_completion().await?;
-    Ok(output)
+    let vm = runestick::Vm::new(Rc::new(context), Rc::new(unit));
+    let output = vm
+        .call_function(Item::of(function), args)?
+        .run_to_completion()
+        .await?;
+    Ok(T::from_value(output)?)
 }
 
 /// Call the specified function in the given script.

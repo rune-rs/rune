@@ -39,7 +39,7 @@ use std::io::Write as _;
 use std::path::PathBuf;
 
 use runestick::unit::UnitFnKind;
-use runestick::Item;
+use runestick::{Item, Value, VmExecution};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -149,7 +149,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    let mut vm = runtime
+    let vm = runtime
         .unit_vm(file_id)
         .ok_or_else(|| anyhow!("missing unit `{}`", file_id))?;
 
@@ -264,24 +264,26 @@ async fn main() -> Result<()> {
         println!("---");
     }
 
-    let mut task: runestick::Task<runestick::Value> = vm.call_function(Item::of(&["main"]), ())?;
+    let mut execution: runestick::VmExecution = vm.call_function(Item::of(&["main"]), ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {
-        match do_trace(&mut task, dump_vm).await {
+        match do_trace(&mut execution, dump_vm).await {
             Ok(value) => Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
             Err(TraceError::VmError(vm)) => Err(vm),
         }
     } else {
-        task.run_to_completion().await
+        execution.run_to_completion().await
     };
 
     let result = match result {
         Ok(result) => result,
         Err(error) => {
+            let vm = execution.vm()?;
+
             // NB: this only works if we have debuginfo.
-            match runtime.register_vm_error(task.vm().ip(), file_id, error) {
+            match runtime.register_vm_error(vm.ip(), file_id, error) {
                 Ok(()) => {
                     use rune::termcolor;
                     let mut writer =
@@ -310,9 +312,11 @@ async fn main() -> Result<()> {
     println!("== {:?} ({:?})", result, duration);
 
     if dump_vm {
+        let vm = execution.vm()?;
+
         println!("# stack dump after completion");
 
-        for (n, value) in task.vm().iter_stack_debug().enumerate() {
+        for (n, value) in vm.iter_stack_debug().enumerate() {
             println!("{} = {:?}", n, value);
         }
 
@@ -334,20 +338,18 @@ impl From<std::io::Error> for TraceError {
 }
 
 /// Perform a detailed trace of the program.
-async fn do_trace<T>(task: &mut runestick::Task<'_, T>, dump_vm: bool) -> Result<T, TraceError>
-where
-    T: runestick::FromValue,
-{
+async fn do_trace(execution: &mut VmExecution, dump_vm: bool) -> Result<Value, TraceError> {
     use std::io::Write as _;
     let out = std::io::stdout();
 
     loop {
         {
+            let vm = execution.vm().map_err(TraceError::VmError)?;
             let mut out = out.lock();
 
-            let debug = task.unit().debug_info_at(task.vm().ip());
+            let debug = vm.unit().debug_info_at(vm.ip());
 
-            if let Some((hash, function)) = task.unit().function_at(task.vm().ip()) {
+            if let Some((hash, function)) = vm.unit().function_at(vm.ip()) {
                 writeln!(out, "fn {} ({}):", function.signature, hash)?;
             }
 
@@ -357,10 +359,10 @@ where
                 }
             }
 
-            if let Some(inst) = task.unit().instruction_at(task.vm().ip()) {
-                write!(out, "  {:04} = {}", task.vm().ip(), inst)?;
+            if let Some(inst) = vm.unit().instruction_at(vm.ip()) {
+                write!(out, "  {:04} = {}", vm.ip(), inst)?;
             } else {
-                write!(out, "  {:04} = *out of bounds*", task.vm().ip())?;
+                write!(out, "  {:04} = *out of bounds*", vm.ip())?;
             }
 
             if let Some(debug) = debug {
@@ -372,7 +374,7 @@ where
             writeln!(out,)?;
         }
 
-        let result = match task.step().await {
+        let result = match execution.step().await {
             Ok(result) => result,
             Err(e) => return Err(TraceError::VmError(e)),
         };
@@ -380,9 +382,11 @@ where
         let mut out = out.lock();
 
         if dump_vm {
+            let vm = execution.vm().map_err(TraceError::VmError)?;
+
             writeln!(out, "# stack dump")?;
 
-            for (n, value) in task.vm().iter_stack_debug().enumerate() {
+            for (n, value) in vm.iter_stack_debug().enumerate() {
                 writeln!(out, "{} = {:?}", n, value)?;
             }
 

@@ -74,12 +74,13 @@ impl Generator {
     #[inline]
     async fn inner_resume(vm: &mut Vm) -> Result<GeneratorState, VmError> {
         let reason = vm.run_for(None).await?;
-        log::trace!("{:?}", reason);
 
         match reason {
             StopReason::Yielded => Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
             StopReason::Exited => Ok(GeneratorState::Complete(vm.stack_mut().pop()?)),
-            reason => Err(VmError::from(VmErrorKind::Stopped { reason })),
+            reason => Err(VmError::from(VmErrorKind::Stopped {
+                reason: reason.into_info(),
+            })),
         }
     }
 }

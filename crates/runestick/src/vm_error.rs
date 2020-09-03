@@ -1,5 +1,6 @@
 use crate::{
-    AccessError, Hash, Integer, Panic, Protocol, StackError, StopReason, ValueError, ValueTypeInfo,
+    AccessError, Hash, Integer, Panic, Protocol, StackError, StopReasonInfo, ValueError,
+    ValueTypeInfo,
 };
 use thiserror::Error;
 
@@ -73,11 +74,14 @@ pub enum VmErrorKind {
         /// The reason for the panic.
         reason: Panic,
     },
+    /// Raised when we try to access an empty execution.
+    #[error("no running virtual machines")]
+    NoRunningVm,
     /// The virtual machine stopped for an unexpected reason.
     #[error("stopped for unexpected reason `{reason}`")]
     Stopped {
         /// The reason why the virtual machine stopped.
-        reason: StopReason,
+        reason: StopReasonInfo,
     },
     /// A vm error that was propagated from somewhere else.
     ///

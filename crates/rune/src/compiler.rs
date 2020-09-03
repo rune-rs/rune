@@ -191,7 +191,7 @@ fn process_imports(
     }
 
     for (_, entry) in unit.iter_imports() {
-        if context.contains_name(&entry.item) || unit.contains_name(&entry.item) {
+        if context.contains_prefix(&entry.item) || unit.contains_prefix(&entry.item) {
             continue;
         }
 
