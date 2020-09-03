@@ -69,7 +69,7 @@ pub use self::decl_file::DeclFile;
 pub use self::decl_fn::DeclFn;
 pub use self::decl_impl::DeclImpl;
 pub use self::decl_struct::{DeclStruct, DeclStructBody, EmptyBody, StructBody, TupleBody};
-pub use self::decl_use::DeclUse;
+pub use self::decl_use::{DeclUse, DeclUseComponent};
 pub use self::expr::Expr;
 pub use self::expr_await::ExprAwait;
 pub use self::expr_binary::{BinOp, ExprBinary};
@@ -209,6 +209,7 @@ decl_tokens! {
     (And, Kind::And),
     (Or, Kind::Or),
     (Impl, Kind::Impl),
+    (Mul, Kind::Mul),
 }
 
 impl<'a> Resolve<'a> for Ident {

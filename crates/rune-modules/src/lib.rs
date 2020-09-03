@@ -27,20 +27,23 @@
 //! [Rune Language]: https://github.com/rune-rs/rune
 //!
 //! See each module for documentation:
-//! * [http](https://docs.rs/rune-modules/0/rune_modules/http/)
-//! * [json](https://docs.rs/rune-modules/0/rune_modules/json/)
-//! * [time](https://docs.rs/rune-modules/0/rune_modules/time/)
-//! * [process](https://docs.rs/rune-modules/0/rune_modules/process/)
+//! * [http]
+//! * [json]
+//! * [time]
+//! * [process]
 //!
 //! ## Features
-//! The `full` feature includes all modules.
 //!
-//! Apart from this, you can select which features to build:
+//! * `full` includes all modules.
+//! * `http` for the [http module][http]
+//! * `json` for the [json module][json]
+//! * `time` for the [time module][time]
+//! * `process` for the [process module]][process]
 //!
-//! * [http](https://docs.rs/rune-modules/0/rune_modules/http/)
-//! * [json](https://docs.rs/rune-modules/0/rune_modules/json/)
-//! * [time](https://docs.rs/rune-modules/0/rune_modules/time/)
-//! * [process](https://docs.rs/rune-modules/0/rune_modules/process/)
+//! [http]: https://docs.rs/rune-modules/0/rune_modules/http/
+//! [json]: https://docs.rs/rune-modules/0/rune_modules/json/
+//! [time]: https://docs.rs/rune-modules/0/rune_modules/time/
+//! [process]: https://docs.rs/rune-modules/0/rune_modules/process/
 
 #[cfg(feature = "http")]
 pub mod http;

@@ -12,13 +12,24 @@ pub struct Item {
 
 impl Item {
     /// Construct an empty item.
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self { path: Vec::new() }
     }
 
     /// Construct a new item path.
     pub fn new(path: Vec<Component>) -> Self {
         Self { path }
+    }
+
+    /// Construct a new item path.
+    pub fn of<I>(iter: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: Into<Component>,
+    {
+        Self {
+            path: iter.into_iter().map(Into::into).collect::<Vec<Component>>(),
+        }
     }
 
     /// Check if the item is empty.
@@ -49,17 +60,6 @@ impl Item {
         match self.path.last() {
             Some(Component::String(last)) if self.path.len() == 1 => Some(&*last),
             _ => None,
-        }
-    }
-
-    /// Construct a new item path.
-    pub fn of<I>(iter: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: Into<Component>,
-    {
-        Self {
-            path: iter.into_iter().map(Into::into).collect::<Vec<Component>>(),
         }
     }
 

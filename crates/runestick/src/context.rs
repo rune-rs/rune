@@ -1,8 +1,8 @@
 use crate::collections::{HashMap, HashSet};
-use crate::module::{ModuleAssociatedFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
+use crate::module::{ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
 use crate::{
-    Hash, Item, Meta, MetaStruct, MetaTuple, Module, ReflectValueType, Stack, StaticType,
-    TypeCheck, ValueType, ValueTypeInfo, VmError,
+    Component, Hash, Item, Meta, MetaStruct, MetaTuple, Module, Names, ReflectValueType, Stack,
+    StaticType, TypeCheck, ValueType, ValueTypeInfo, VmError,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -237,6 +237,8 @@ pub struct Context {
     unit_type: Option<Hash>,
     /// Registered internal enums.
     internal_enums: HashSet<&'static StaticType>,
+    /// All available names in the context.
+    names: Names,
 }
 
 impl Context {
@@ -270,9 +272,28 @@ impl Context {
         Ok(this)
     }
 
+    /// Iterate over known child components of the given name.
+    pub fn iter_components<'a, I>(&'a self, iter: I) -> impl Iterator<Item = &'a Component>
+    where
+        I: IntoIterator,
+        I::Item: Into<Component>,
+    {
+        self.names.iter_components(iter)
+    }
+
     /// Access the currently known unit type.
     pub fn unit_type(&self) -> Option<Hash> {
         self.unit_type
+    }
+
+    /// Check if unit contains the given name.
+    pub fn contains_name(&self, item: &Item) -> bool {
+        self.names.contains(item)
+    }
+
+    /// Check if unit contains the given name by prefix.
+    pub fn contains_prefix(&self, item: &Item) -> bool {
+        self.names.contains_prefix(item)
     }
 
     /// Access the meta for the given language item.
@@ -306,8 +327,8 @@ impl Context {
             self.install_type(&module, *value_type, ty)?;
         }
 
-        for (name, (handler, args)) in &module.functions {
-            self.install_function(&module, name, handler, args)?;
+        for (name, f) in &module.functions {
+            self.install_function(&module, name, f)?;
         }
 
         if let Some(unit_type) = &module.unit_type {
@@ -377,34 +398,19 @@ impl Context {
         Ok(())
     }
 
-    fn install_type_info(&mut self, hash: Hash, type_info: TypeInfo) -> Result<(), ContextError> {
-        let value_type = type_info.value_type;
-
-        if let Some(existing) = self.types.insert(hash, type_info) {
-            return Err(ContextError::ConflictingType {
-                name: existing.name,
-                existing: existing.value_type_info,
-            });
-        }
+    fn install_type_info(&mut self, hash: Hash, info: TypeInfo) -> Result<(), ContextError> {
+        self.names.insert(&info.name);
 
         // reverse lookup for types.
-        if let Some(existing) = self.types_rev.insert(value_type, hash) {
+        if let Some(existing) = self.types_rev.insert(info.value_type, hash) {
             return Err(ContextError::ConflictingTypeHash {
                 hash,
                 existing,
-                value_type,
+                value_type: info.value_type,
             });
         }
 
-        Ok(())
-    }
-
-    fn install_variant_type_info(
-        &mut self,
-        hash: Hash,
-        type_info: TypeInfo,
-    ) -> Result<(), ContextError> {
-        if let Some(existing) = self.types.insert(hash, type_info) {
+        if let Some(existing) = self.types.insert(hash, info) {
             return Err(ContextError::ConflictingType {
                 name: existing.name,
                 existing: existing.value_type_info,
@@ -419,12 +425,13 @@ impl Context {
         &mut self,
         module: &Module,
         name: &Item,
-        handler: &Arc<Handler>,
-        args: &Option<usize>,
+        f: &ModuleFn,
     ) -> Result<(), ContextError> {
         let name = module.path.join(name);
+        self.names.insert(&name);
+
         let hash = Hash::type_hash(&name);
-        let signature = FnSignature::new_free(name.clone(), *args);
+        let signature = FnSignature::new_free(name.clone(), f.args);
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
@@ -433,7 +440,7 @@ impl Context {
             });
         }
 
-        self.functions.insert(hash, handler.clone());
+        self.functions.insert(hash, f.handler.clone());
 
         self.meta.insert(
             name.clone(),
@@ -453,12 +460,12 @@ impl Context {
         assoc: &ModuleAssociatedFn,
         hash_fn: impl FnOnce(ValueType, Hash) -> Hash,
     ) -> Result<(), ContextError> {
-        let type_info = match self
+        let info = match self
             .types_rev
             .get(&value_type)
             .and_then(|hash| self.types.get(&hash))
         {
-            Some(type_info) => type_info,
+            Some(info) => info,
             None => {
                 return Err(ContextError::MissingInstance {
                     instance_type: assoc.value_type_info,
@@ -469,10 +476,10 @@ impl Context {
         let hash = hash_fn(value_type, hash);
 
         let signature = FnSignature::new_inst(
-            type_info.name.clone(),
+            info.name.clone(),
             assoc.name.clone(),
             assoc.args,
-            type_info.value_type_info,
+            info.value_type_info,
         );
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -551,7 +558,7 @@ impl Context {
             let item = enum_item.clone().extended(variant.name);
             let hash = Hash::type_hash(&item);
 
-            self.install_variant_type_info(
+            self.install_type_info(
                 hash,
                 TypeInfo {
                     type_check: variant.type_check,

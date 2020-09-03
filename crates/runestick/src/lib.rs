@@ -46,6 +46,7 @@ mod inst;
 mod item;
 mod meta;
 pub(crate) mod module;
+mod names;
 pub mod packages;
 mod panic;
 mod protocol;
@@ -96,6 +97,7 @@ pub use crate::future::Future;
 pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{Inst, PanicReason, TypeCheck};
 pub use crate::item::{Component, Item};
+pub use crate::names::Names;
 pub use crate::panic::Panic;
 pub use crate::protocol::{
     Protocol, ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL,
@@ -104,7 +106,7 @@ pub use crate::protocol::{
 pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
-pub use crate::unit::{Span, Unit, UnitError};
+pub use crate::unit::{ImportEntry, ImportKey, Span, Unit, UnitError};
 pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple,
 };

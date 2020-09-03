@@ -4,7 +4,7 @@ use crate::parser::Parser;
 use crate::source::Source;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Peek, Resolve};
-use runestick::unit::Span;
+use runestick::Span;
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone)]
@@ -48,14 +48,10 @@ impl Path {
 
     /// Parse with the first identifier already parsed.
     pub fn parse_with_first(parser: &mut Parser, first: ast::Ident) -> Result<Self, ParseError> {
-        let mut rest = Vec::new();
-
-        while parser.peek::<ast::Scope>()? {
-            let scope = parser.parse::<ast::Scope>()?;
-            rest.push((scope, parser.parse()?));
-        }
-
-        Ok(Self { first, rest })
+        Ok(Self {
+            first,
+            rest: parser.parse()?,
+        })
     }
 
     /// Iterate over all components in path.

@@ -114,13 +114,18 @@ pub(crate) struct ModuleAssocKey {
     pub(crate) kind: ModuleAssociatedKind,
 }
 
+pub(crate) struct ModuleFn {
+    pub(crate) handler: Arc<Handler>,
+    pub(crate) args: Option<usize>,
+}
+
 /// A collection of functions that can be looked up by type.
 #[derive(Default)]
 pub struct Module {
     /// The name of the module.
     pub(crate) path: Item,
     /// Free functions.
-    pub(crate) functions: HashMap<Item, (Arc<Handler>, Option<usize>)>,
+    pub(crate) functions: HashMap<Item, ModuleFn>,
     /// Instance functions.
     pub(crate) associated_functions: HashMap<ModuleAssocKey, ModuleAssociatedFn>,
     /// Registered types.
@@ -269,8 +274,14 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
-        self.functions.insert(name, (handler, Some(Func::args())));
+        self.functions.insert(
+            name,
+            ModuleFn {
+                handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+                args: Some(Func::args()),
+            },
+        );
+
         Ok(())
     }
 
@@ -301,8 +312,14 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
-        self.functions.insert(name, (handler, Some(Func::args())));
+        self.functions.insert(
+            name,
+            ModuleFn {
+                handler: Arc::new(move |stack, args| f.fn_call(stack, args)),
+                args: Some(Func::args()),
+            },
+        );
+
         Ok(())
     }
 
@@ -320,8 +337,14 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Arc<Handler> = Arc::new(move |stack, args| f(stack, args));
-        self.functions.insert(name, (handler, None));
+        self.functions.insert(
+            name,
+            ModuleFn {
+                handler: Arc::new(move |stack, args| f(stack, args)),
+                args: None,
+            },
+        );
+
         Ok(())
     }
 

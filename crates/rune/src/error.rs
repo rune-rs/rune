@@ -64,6 +64,14 @@ pub enum ParseError {
         /// Kind of the token encountered instead of end-of-file.
         actual: Kind,
     },
+    /// Expected use import but found something else.
+    #[error("expected import component but found `{actual}`")]
+    ExpectedDeclUseImportComponent {
+        /// The span of the component.
+        span: Span,
+        /// The actual token kind.
+        actual: Kind,
+    },
     /// Error encountered when we see a string escape sequence without a
     /// character being escaped.
     #[error("expected escape")]
@@ -383,6 +391,7 @@ impl ParseError {
             Self::UnexpectedCloseBrace { span, .. } => span,
             Self::UnsupportedFieldAccess { span, .. } => span,
             Self::ExpectedFunctionArgument { span, .. } => span,
+            Self::ExpectedDeclUseImportComponent { span, .. } => span,
         }
     }
 }
@@ -447,17 +456,23 @@ pub enum CompileError {
         item: Item,
     },
     /// Tried to use a module that was missing.
-    #[error("missing module `{module}`")]
+    #[error("missing module `{item}`")]
     MissingModule {
         /// The span of the missing module.
         span: Span,
         /// The name of the missing module.
-        module: Item,
+        item: Item,
     },
     /// A specific label is missing.
     #[error("label not found in scope")]
     MissingLabel {
         /// The span of the missing label.
+        span: Span,
+    },
+    /// Unsupported wildcard component in use.
+    #[error("wildcard support not supported in this position")]
+    UnsupportedWildcard {
+        /// Where the wildcard import is.
         span: Span,
     },
     /// Tried to declare an instance function on a type for which it is not
@@ -678,6 +693,12 @@ pub enum CompileError {
         /// The span of the async generator.
         span: Span,
     },
+    /// Import doesn't exist.
+    #[error("import `{item}` (imported in prelude) does not exist")]
+    MissingPreludeModule {
+        /// The item that didn't exist.
+        item: Item,
+    },
 }
 
 impl CompileError {
@@ -703,6 +724,7 @@ impl CompileError {
             Self::MissingType { span, .. } => span,
             Self::MissingModule { span, .. } => span,
             Self::MissingLabel { span, .. } => span,
+            Self::UnsupportedWildcard { span, .. } => span,
             Self::UnsupportedRef { span, .. } => span,
             Self::UnsupportedAwait { span, .. } => span,
             Self::UnsupportedInstanceFunction { span, .. } => span,
@@ -732,6 +754,7 @@ impl CompileError {
             Self::YieldOutsideFunction { span, .. } => span,
             Self::InstanceFunctionOutsideImpl { span, .. } => span,
             Self::UnsupportedAsyncGenerator { span, .. } => span,
+            Self::MissingPreludeModule { .. } => Span::empty(),
         }
     }
 }

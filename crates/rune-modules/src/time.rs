@@ -1,4 +1,4 @@
-//! The native `http` module for the [Rune Language].
+//! The native `time` module for the [Rune Language].
 //!
 //! [Rune Language]: https://github.com/rune-rs/rune
 //!

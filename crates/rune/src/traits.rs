@@ -12,6 +12,16 @@ where
     fn parse(parser: &mut Parser) -> Result<Self, ParseError>;
 }
 
+impl<A, B> Parse for (A, B)
+where
+    A: Parse + Peek,
+    B: Parse,
+{
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok((parser.parse()?, parser.parse()?))
+    }
+}
+
 /// Parse implementation for something that can be optionally parsed.
 impl<T> Parse for Option<T>
 where
@@ -44,6 +54,16 @@ where
 {
     fn peek(t1: Option<Token>, t2: Option<Token>) -> bool {
         T::peek(t1, t2)
+    }
+}
+
+impl<A, B> Peek for (A, B)
+where
+    A: Parse + Peek,
+    B: Parse,
+{
+    fn peek(t1: Option<Token>, t2: Option<Token>) -> bool {
+        A::peek(t1, t2)
     }
 }
 

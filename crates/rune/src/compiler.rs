@@ -5,7 +5,10 @@ use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::ParseAll;
 use runestick::unit::{Assembly, Label};
-use runestick::{Component, Context, Hash, Inst, Item, Meta, MetaClosureCapture, Span, TypeCheck};
+use runestick::{
+    Component, Context, Hash, ImportKey, Inst, Item, Meta, MetaClosureCapture, Span, TypeCheck,
+    Unit,
+};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -56,6 +59,8 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
         let mut query = Query::new(source, unit.clone());
         let mut indexer = Indexer::new(source, &mut query, &mut warnings);
         indexer.index(&file)?;
+
+        process_imports(&indexer, context, &mut *unit.borrow_mut())?;
 
         while let Some((item, build)) = query.queue.pop_front() {
             let mut asm = unit.borrow().new_assembly();
@@ -126,6 +131,83 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
 
         Ok((unit.into_inner(), warnings))
     }
+}
+
+fn process_imports(
+    indexer: &Indexer<'_, '_>,
+    context: &Context,
+    unit: &mut Unit,
+) -> Result<(), CompileError> {
+    for (item, decl_use) in &indexer.imports {
+        let span = decl_use.span();
+
+        let mut name = Item::empty();
+        let first = decl_use.first.resolve(indexer.source)?;
+        name.push(first);
+
+        let mut it = decl_use.rest.iter();
+        let last = it.next_back();
+
+        for (_, c) in it {
+            match c {
+                ast::DeclUseComponent::Wildcard(t) => {
+                    return Err(CompileError::UnsupportedWildcard { span: t.span() });
+                }
+                ast::DeclUseComponent::Ident(ident) => {
+                    name.push(ident.resolve(indexer.source)?);
+                }
+            }
+        }
+
+        if let Some((_, c)) = last {
+            match c {
+                ast::DeclUseComponent::Wildcard(..) => {
+                    let mut new_names = Vec::new();
+
+                    if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
+                        return Err(CompileError::MissingModule { span, item: name });
+                    }
+
+                    let iter = context
+                        .iter_components(&name)
+                        .chain(unit.iter_components(&name));
+
+                    for c in iter {
+                        let mut name = name.clone();
+                        name.push(c);
+                        new_names.push(name);
+                    }
+
+                    for name in new_names {
+                        unit.new_import(item.clone(), &name, span)?;
+                    }
+                }
+                ast::DeclUseComponent::Ident(ident) => {
+                    name.push(ident.resolve(indexer.source)?);
+                    unit.new_import(item.clone(), &name, span)?;
+                }
+            }
+        }
+    }
+
+    for (_, entry) in unit.iter_imports() {
+        if context.contains_name(&entry.item) || unit.contains_name(&entry.item) {
+            continue;
+        }
+
+        if let Some(span) = entry.span {
+            return Err(CompileError::MissingModule {
+                span,
+                item: entry.item.clone(),
+            });
+        } else {
+            return Err(CompileError::MissingPreludeModule {
+                item: entry.item.clone(),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 struct Compiler<'a, 'source> {
@@ -1761,8 +1843,10 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let mut base = self.items.item();
 
         loop {
-            if let Some(item) = unit.lookup_import_by_name(&base, &local).cloned() {
-                return Some(item);
+            let key = ImportKey::new(base.clone(), local.clone());
+
+            if let Some(entry) = unit.lookup_import(&key) {
+                return Some(entry.item.clone());
             }
 
             if base.pop().is_none() {

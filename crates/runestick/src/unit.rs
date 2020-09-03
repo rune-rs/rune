@@ -5,7 +5,8 @@
 
 use crate::collections::HashMap;
 use crate::{
-    Component, Context, Hash, Inst, Item, Meta, StaticString, ValueType, VmError, VmErrorKind,
+    Component, Context, Hash, Inst, Item, Meta, Names, StaticString, ValueType, VmError,
+    VmErrorKind,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -30,12 +31,6 @@ pub enum UnitError {
     #[error("unsupported meta type for item `{existing}`")]
     UnsupportedMeta {
         /// The item used.
-        existing: Item,
-    },
-    /// Tried to add an use that conflicts with an existing one.
-    #[error("conflicting use already exists `{existing}`")]
-    ImportConflict {
-        /// The signature of the old use.
         existing: Item,
     },
     /// Tried to add an item that already exists.
@@ -345,6 +340,62 @@ pub struct UnitTypeInfo {
     pub value_type: ValueType,
 }
 
+/// The key of an import.
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct ImportKey {
+    /// Where the import is located.
+    pub item: Item,
+    /// The component that is imported.
+    pub component: Component,
+}
+
+impl ImportKey {
+    /// Construct a new import key.
+    pub fn new<C>(item: Item, component: C) -> Self
+    where
+        C: Into<Component>,
+    {
+        Self {
+            item,
+            component: component.into(),
+        }
+    }
+
+    /// Construct an import key for a single component.
+    pub fn component<C>(component: C) -> Self
+    where
+        C: Into<Component>,
+    {
+        Self {
+            item: Item::empty(),
+            component: component.into(),
+        }
+    }
+}
+
+/// An imported entry.
+#[derive(Debug)]
+pub struct ImportEntry {
+    /// The item being imported.
+    pub item: Item,
+    /// The span of the import.
+    pub span: Option<Span>,
+}
+
+impl ImportEntry {
+    /// Construct an entry.
+    pub fn of<I>(iter: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: Into<Component>,
+    {
+        Self {
+            item: Item::of(iter),
+            span: None,
+        }
+    }
+}
+
 /// Instructions from a single source file.
 #[derive(Debug, Default)]
 pub struct Unit {
@@ -354,7 +405,7 @@ pub struct Unit {
     ///
     /// Only used to link against the current environment to make sure all
     /// required units are present.
-    imports: HashMap<(Item, Component), Item>,
+    imports: HashMap<ImportKey, ImportEntry>,
     /// Item metadata in the context.
     meta: HashMap<Item, Meta>,
     /// Where functions are located in the collection of instructions.
@@ -386,6 +437,8 @@ pub struct Unit {
     label_count: usize,
     /// A collection of required function hashes.
     required_functions: HashMap<Hash, Vec<Span>>,
+    /// All available names in the context.
+    names: Names,
 }
 
 impl Unit {
@@ -398,101 +451,120 @@ impl Unit {
     pub fn with_default_prelude() -> Self {
         let mut this = Self::new();
         this.imports.insert(
-            (Item::empty(), Component::from("dbg")),
-            Item::of(&["std", "dbg"]),
+            ImportKey::component("dbg"),
+            ImportEntry::of(&["std", "dbg"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("drop")),
-            Item::of(&["std", "drop"]),
+            ImportKey::component("drop"),
+            ImportEntry::of(&["std", "drop"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("is_readable")),
-            Item::of(&["std", "is_readable"]),
+            ImportKey::component("is_readable"),
+            ImportEntry::of(&["std", "is_readable"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("is_writable")),
-            Item::of(&["std", "is_writable"]),
+            ImportKey::component("is_writable"),
+            ImportEntry::of(&["std", "is_writable"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("panic")),
-            Item::of(&["std", "panic"]),
+            ImportKey::component("panic"),
+            ImportEntry::of(&["std", "panic"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("print")),
-            Item::of(&["std", "print"]),
+            ImportKey::component("print"),
+            ImportEntry::of(&["std", "print"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("println")),
-            Item::of(&["std", "println"]),
+            ImportKey::component("println"),
+            ImportEntry::of(&["std", "println"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("unit")),
-            Item::of(&["std", "unit"]),
+            ImportKey::component("unit"),
+            ImportEntry::of(&["std", "unit"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("bool")),
-            Item::of(&["std", "bool"]),
+            ImportKey::component("bool"),
+            ImportEntry::of(&["std", "bool"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("byte")),
-            Item::of(&["std", "byte"]),
+            ImportKey::component("byte"),
+            ImportEntry::of(&["std", "byte"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("char")),
-            Item::of(&["std", "char"]),
+            ImportKey::component("char"),
+            ImportEntry::of(&["std", "char"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("int")),
-            Item::of(&["std", "int"]),
+            ImportKey::component("int"),
+            ImportEntry::of(&["std", "int"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("float")),
-            Item::of(&["std", "float"]),
+            ImportKey::component("float"),
+            ImportEntry::of(&["std", "float"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("Object")),
-            Item::of(&["std", "object", "Object"]),
+            ImportKey::component("Object"),
+            ImportEntry::of(&["std", "object", "Object"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("Vec")),
-            Item::of(&["std", "vec", "Vec"]),
+            ImportKey::component("Vec"),
+            ImportEntry::of(&["std", "vec", "Vec"]),
         );
         this.imports.insert(
-            (Item::empty(), Component::from("String")),
-            Item::of(&["std", "string", "String"]),
-        );
-
-        this.imports.insert(
-            (Item::empty(), Component::from("Result")),
-            Item::of(&["std", "result", "Result"]),
+            ImportKey::component("String"),
+            ImportEntry::of(&["std", "string", "String"]),
         );
 
         this.imports.insert(
-            (Item::empty(), Component::from("Err")),
-            Item::of(&["std", "result", "Result", "Err"]),
+            ImportKey::component("Result"),
+            ImportEntry::of(&["std", "result", "Result"]),
         );
 
         this.imports.insert(
-            (Item::empty(), Component::from("Ok")),
-            Item::of(&["std", "result", "Result", "Ok"]),
+            ImportKey::component("Err"),
+            ImportEntry::of(&["std", "result", "Result", "Err"]),
         );
 
         this.imports.insert(
-            (Item::empty(), Component::from("Option")),
-            Item::of(&["std", "option", "Option"]),
+            ImportKey::component("Ok"),
+            ImportEntry::of(&["std", "result", "Result", "Ok"]),
         );
 
         this.imports.insert(
-            (Item::empty(), Component::from("Some")),
-            Item::of(&["std", "option", "Option", "Some"]),
+            ImportKey::component("Option"),
+            ImportEntry::of(&["std", "option", "Option"]),
         );
 
         this.imports.insert(
-            (Item::empty(), Component::from("None")),
-            Item::of(&["std", "option", "Option", "None"]),
+            ImportKey::component("Some"),
+            ImportEntry::of(&["std", "option", "Option", "Some"]),
+        );
+
+        this.imports.insert(
+            ImportKey::component("None"),
+            ImportEntry::of(&["std", "option", "Option", "None"]),
         );
 
         this
+    }
+
+    /// Check if unit contains the given name.
+    pub fn contains_name(&self, item: &Item) -> bool {
+        self.names.contains(item)
+    }
+
+    /// Check if unit contains the given name by prefix.
+    pub fn contains_prefix(&self, item: &Item) -> bool {
+        self.names.contains_prefix(item)
+    }
+
+    /// Iterate over known child components of the given name.
+    pub fn iter_components<'a, I>(&'a self, iter: I) -> impl Iterator<Item = &'a Component>
+    where
+        I: IntoIterator,
+        I::Item: Into<Component>,
+    {
+        self.names.iter_components(iter)
     }
 
     /// Access the meta for the given language item.
@@ -552,18 +624,10 @@ impl Unit {
     }
 
     /// Iterate over known imports.
-    pub fn iter_imports<'a>(&'a self) -> impl Iterator<Item = (&'a Component, &'a Item)> + '_ {
-        let mut it = self.imports.iter();
-
-        std::iter::from_fn(move || loop {
-            let ((item, k), v) = it.next()?;
-
-            if !item.is_empty() {
-                continue;
-            }
-
-            return Some((k, v));
-        })
+    pub fn iter_imports<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (&'a ImportKey, &'a ImportEntry)> + '_ {
+        self.imports.iter()
     }
 
     /// Lookup the static string by slot, if it exists.
@@ -690,12 +754,12 @@ impl Unit {
     }
 
     /// Look up an use by name.
-    pub fn lookup_import_by_name(&self, item: &Item, name: &Component) -> Option<&Item> {
-        self.imports.get(&(item.clone(), name.clone()))
+    pub fn lookup_import(&self, key: &ImportKey) -> Option<&ImportEntry> {
+        self.imports.get(&key)
     }
 
     /// Declare a new import.
-    pub fn new_import<I>(&mut self, item: Item, path: I) -> Result<(), UnitError>
+    pub fn new_import<I>(&mut self, item: Item, path: I, span: Span) -> Result<(), UnitError>
     where
         I: Copy + IntoIterator,
         I::Item: Into<Component>,
@@ -703,9 +767,13 @@ impl Unit {
         let path = Item::of(path);
 
         if let Some(last) = path.last() {
-            if let Some(existing) = self.imports.insert((item, last.clone()), path) {
-                return Err(UnitError::ImportConflict { existing });
-            }
+            let entry = ImportEntry {
+                item: path.clone(),
+                span: Some(span),
+            };
+
+            self.imports
+                .insert(ImportKey::new(item, last.clone()), entry);
         }
 
         Ok(())
@@ -831,6 +899,8 @@ impl Unit {
             Meta::MetaFunction { item, .. } => item.clone(),
             Meta::MetaClosure { item, .. } => item.clone(),
         };
+
+        self.names.insert(&item);
 
         if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
             return Err(UnitError::MetaConflict {

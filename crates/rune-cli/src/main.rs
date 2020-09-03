@@ -1,6 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use std::env;
 use std::error::Error;
+use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::PathBuf;
 
@@ -183,8 +184,20 @@ async fn main() -> Result<()> {
 
         println!("# imports:");
 
-        for (hash, f) in vm.unit().iter_imports() {
-            println!("{} = {}", hash, f);
+        for (key, entry) in vm.unit().iter_imports() {
+            let mut line = String::new();
+
+            write!(line, "{}", entry.item)?;
+
+            if Some(&key.component) != entry.item.last() {
+                write!(line, " as {}", key.component)?;
+            }
+
+            if !key.item.is_empty() {
+                write!(line, " (in {})", key.item)?;
+            }
+
+            println!("{}", line);
         }
 
         println!("# functions:");

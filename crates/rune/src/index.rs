@@ -10,14 +10,16 @@ use runestick::unit::UnitFnCall;
 use runestick::{Hash, Item, Meta, Span, ValueType};
 use std::sync::Arc;
 
-pub(super) struct Indexer<'a, 'source> {
-    pub(super) source: Source<'source>,
-    pub(super) query: &'a mut Query<'source>,
-    pub(super) warnings: &'a mut Warnings,
-    pub(super) items: Items,
-    pub(super) scopes: IndexScopes,
+pub(crate) struct Indexer<'a, 'source> {
+    pub(crate) source: Source<'source>,
+    pub(crate) query: &'a mut Query<'source>,
+    pub(crate) warnings: &'a mut Warnings,
+    pub(crate) items: Items,
+    pub(crate) scopes: IndexScopes,
     /// Set if we are inside of an impl block.
     impl_items: Vec<Item>,
+    /// Imports to process.
+    pub imports: Vec<(Item, ast::DeclUse)>,
 }
 
 impl<'a, 'source> Indexer<'a, 'source> {
@@ -34,6 +36,7 @@ impl<'a, 'source> Indexer<'a, 'source> {
             items: Items::new(vec![]),
             scopes: IndexScopes::new(),
             impl_items: Vec::new(),
+            imports: Vec::new(),
         }
     }
 
@@ -53,7 +56,7 @@ impl<'a, 'source> Indexer<'a, 'source> {
     }
 }
 
-pub(super) trait Index<T> {
+pub(crate) trait Index<T> {
     /// Walk the current type with the given item.
     fn index(&mut self, item: &T) -> Result<(), CompileError>;
 }
@@ -418,9 +421,7 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
     fn index(&mut self, item: &ast::Decl) -> Result<(), CompileError> {
         match item {
             ast::Decl::DeclUse(import) => {
-                let name = import.path.resolve(self.source)?;
-                let item = self.items.item();
-                self.query.unit.borrow_mut().new_import(item, &name)?;
+                self.imports.push((self.items.item(), import.clone()));
             }
             ast::Decl::DeclEnum(decl_enum) => {
                 let _guard = self.items.push_name(decl_enum.name.resolve(self.source)?);
