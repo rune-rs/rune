@@ -1,6 +1,6 @@
 [package]
 name = "rune-testing"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -18,5 +18,5 @@ Test helpers for Rune, an embeddable dynamic programming language for Rust.
 futures-executor = "0.3.5"
 tokio = {version = "0.2.12", features = ["macros"]}
 
-rune = {version = "0.6.0", path = "../rune"}
-runestick = {version = "0.6.0", path = "../runestick"}
+rune = {version = "0.6.1", path = "../rune"}
+runestick = {version = "0.6.1", path = "../runestick"}
