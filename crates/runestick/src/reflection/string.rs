@@ -19,12 +19,6 @@ impl FromValue for String {
     }
 }
 
-impl ToValue for String {
-    fn to_value(self) -> Result<Value, ValueError> {
-        Ok(Value::String(Shared::new(self)))
-    }
-}
-
 impl ToValue for Box<str> {
     fn to_value(self) -> Result<Value, ValueError> {
         Ok(Value::String(Shared::new(self.to_string())))

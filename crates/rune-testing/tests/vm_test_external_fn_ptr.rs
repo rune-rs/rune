@@ -46,7 +46,7 @@ fn test_external_generator() -> Result<()> {
     )?;
 
     // TODO: reverse function argument order!
-    assert_eq!(Some(42), output.1);
-    assert_eq!(None, output.0);
+    assert_eq!(Some(42), output.0);
+    assert_eq!(None, output.1);
     Ok(())
 }

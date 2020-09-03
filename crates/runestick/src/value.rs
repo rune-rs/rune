@@ -483,6 +483,76 @@ impl Value {
             Self::Any(any) => ValueTypeInfo::Any(any.borrow_ref()?.type_name()),
         })
     }
+
+    /// Optimized function to test if two value pointers are deeply equal to
+    /// each other.
+    ///
+    /// This is the basis for the eq operation (`==`).
+    pub(crate) fn value_ptr_eq(a: &Value, b: &Value) -> Result<bool, ValueError> {
+        Ok(match (a, b) {
+            (Self::Unit, Self::Unit) => true,
+            (Self::Char(a), Self::Char(b)) => a == b,
+            (Self::Bool(a), Self::Bool(b)) => a == b,
+            (Self::Integer(a), Self::Integer(b)) => a == b,
+            (Self::Float(a), Self::Float(b)) => a == b,
+            (Self::Vec(a), Self::Vec(b)) => {
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
+
+                if a.len() != b.len() {
+                    return Ok(false);
+                }
+
+                for (a, b) in a.iter().zip(b.iter()) {
+                    if !Self::value_ptr_eq(a, b)? {
+                        return Ok(false);
+                    }
+                }
+
+                true
+            }
+            (Self::Object(a), Self::Object(b)) => {
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
+
+                if a.len() != b.len() {
+                    return Ok(false);
+                }
+
+                for (key, a) in a.iter() {
+                    let b = match b.get(key) {
+                        Some(b) => b,
+                        None => return Ok(false),
+                    };
+
+                    if !Self::value_ptr_eq(a, b)? {
+                        return Ok(false);
+                    }
+                }
+
+                true
+            }
+            (Self::String(a), Self::String(b)) => {
+                let a = a.borrow_ref()?;
+                let b = b.borrow_ref()?;
+                *a == *b
+            }
+            (Self::StaticString(a), Self::String(b)) => {
+                let b = b.borrow_ref()?;
+                ***a == *b
+            }
+            (Self::String(a), Self::StaticString(b)) => {
+                let a = a.borrow_ref()?;
+                *a == ***b
+            }
+            // fast string comparison: exact string slot.
+            (Self::StaticString(a), Self::StaticString(b)) => ***a == ***b,
+            // fast external comparison by slot.
+            // TODO: implement ptr equals.
+            // (Self::Any(a), Self::Any(b)) => a == b,
+            _ => false,
+        })
+    }
 }
 
 impl fmt::Debug for Value {
@@ -572,7 +642,7 @@ impl From<()> for Value {
     }
 }
 
-macro_rules! from_impl {
+macro_rules! impl_from {
     ($ty:ty, $variant:ident) => {
         impl From<$ty> for Value {
             fn from(value: $ty) -> Self {
@@ -582,16 +652,16 @@ macro_rules! from_impl {
     };
 }
 
-from_impl!(u8, Byte);
-from_impl!(bool, Bool);
-from_impl!(char, Char);
-from_impl!(i64, Integer);
-from_impl!(f64, Float);
-from_impl!(Arc<StaticString>, StaticString);
+impl_from!(u8, Byte);
+impl_from!(bool, Bool);
+impl_from!(char, Char);
+impl_from!(i64, Integer);
+impl_from!(f64, Float);
+impl_from!(Arc<StaticString>, StaticString);
 
-macro_rules! from_shared_impl {
+macro_rules! impl_from_shared {
     (Shared<$ty:ty>, $variant:ident) => {
-        from_impl!(Shared<$ty>, $variant);
+        impl_from!(Shared<$ty>, $variant);
 
         impl From<$ty> for Value {
             fn from(value: $ty) -> Self {
@@ -601,21 +671,22 @@ macro_rules! from_shared_impl {
     };
 }
 
-from_shared_impl!(Shared<Bytes>, Bytes);
-from_impl!(Shared<Vec<Value>>, Vec);
-from_shared_impl!(Shared<Tuple>, Tuple);
-from_impl!(Shared<Object<Value>>, Object);
-from_shared_impl!(Shared<Future>, Future);
-from_shared_impl!(Shared<Generator>, Generator);
-from_shared_impl!(Shared<GeneratorState>, GeneratorState);
-from_impl!(Shared<Option<Value>>, Option);
-from_impl!(Shared<Result<Value, Value>>, Result);
-from_shared_impl!(Shared<TypedTuple>, TypedTuple);
-from_shared_impl!(Shared<VariantTuple>, VariantTuple);
-from_shared_impl!(Shared<TypedObject>, TypedObject);
-from_shared_impl!(Shared<VariantObject>, VariantObject);
-from_shared_impl!(Shared<FnPtr>, FnPtr);
-from_shared_impl!(Shared<Any>, Any);
+impl_from_shared!(Shared<Bytes>, Bytes);
+impl_from_shared!(Shared<String>, String);
+impl_from!(Shared<Vec<Value>>, Vec);
+impl_from_shared!(Shared<Tuple>, Tuple);
+impl_from!(Shared<Object<Value>>, Object);
+impl_from_shared!(Shared<Future>, Future);
+impl_from_shared!(Shared<Generator>, Generator);
+impl_from_shared!(Shared<GeneratorState>, GeneratorState);
+impl_from!(Shared<Option<Value>>, Option);
+impl_from!(Shared<Result<Value, Value>>, Result);
+impl_from_shared!(Shared<TypedTuple>, TypedTuple);
+impl_from_shared!(Shared<VariantTuple>, VariantTuple);
+impl_from_shared!(Shared<TypedObject>, TypedObject);
+impl_from_shared!(Shared<VariantObject>, VariantObject);
+impl_from_shared!(Shared<FnPtr>, FnPtr);
+impl_from_shared!(Shared<Any>, Any);
 
 /// A type-erased rust number.
 #[derive(Debug, Clone, Copy)]

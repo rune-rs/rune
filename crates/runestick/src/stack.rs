@@ -70,6 +70,20 @@ impl Stack {
             .ok_or_else(|| StackError(()))
     }
 
+    /// Peek the value at the given offset from the top.
+    pub fn at_offset_from_top(&self, offset: usize) -> Result<&Value, StackError> {
+        match self
+            .stack
+            .len()
+            .checked_sub(offset)
+            .filter(|n| *n >= self.stack_top)
+            .and_then(|n| self.stack.get(n))
+        {
+            Some(value) => Ok(value),
+            None => Err(StackError(())),
+        }
+    }
+
     /// Get the offset at the given location.
     pub fn at_offset_mut(&mut self, offset: usize) -> Result<&mut Value, StackError> {
         let n = match self.stack_top.checked_add(offset) {
@@ -83,11 +97,12 @@ impl Stack {
         }
     }
 
-    /// Push an unmanaged reference.
-    ///
-    /// The reference count of the value being referenced won't be modified.
-    pub fn push(&mut self, value: Value) {
-        self.stack.push(value);
+    /// Push a value onto the stack.
+    pub fn push<T>(&mut self, value: T)
+    where
+        Value: From<T>,
+    {
+        self.stack.push(Value::from(value));
     }
 
     /// Pop a reference to a value from the stack.
@@ -122,7 +137,7 @@ impl Stack {
 
     /// Pop a sequence of values from the stack.
     pub fn pop_sequence(&mut self, count: usize) -> Result<Vec<Value>, StackError> {
-        Ok(self.drain_stack_top(count)?.rev().collect::<Vec<_>>())
+        Ok(self.drain_stack_top(count)?.collect::<Vec<_>>())
     }
 
     /// Pop a sub stack of the given size.

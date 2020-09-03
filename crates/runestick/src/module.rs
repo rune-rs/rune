@@ -737,7 +737,11 @@ macro_rules! impl_register {
                 args: usize
             ) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
-                $(let $var = stack.pop()?;)*
+
+                #[allow(unused_mut)]
+                let mut it = stack.drain_stack_top($count)?;
+                $(let $var = it.next().unwrap();)*
+                drop(it);
 
                 // Safety: We hold a reference to the stack, so we can
                 // guarantee that it won't be modified.
@@ -775,7 +779,11 @@ macro_rules! impl_register {
                 args: usize
             ) -> Result<(), VmError> {
                 impl_register!{@check-args $count, args}
-                $(let $var = stack.pop()?;)*
+
+                #[allow(unused_mut)]
+                let mut it = stack.drain_stack_top($count)?;
+                $(let $var = it.next().unwrap();)*
+                drop(it);
 
                 // Safety: Future is owned and will only be called within the
                 // context of the virtual machine, which will provide
@@ -822,8 +830,12 @@ macro_rules! impl_register {
 
             fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
                 impl_register!{@check-args ($count + 1), args}
-                let inst = stack.pop()?;
-                $(let $var = stack.pop()?;)*
+
+                #[allow(unused_mut)]
+                let mut it = stack.drain_stack_top($count + 1)?;
+                let inst = it.next().unwrap();
+                $(let $var = it.next().unwrap();)*
+                drop(it);
 
                 // Safety: We hold a reference to the stack, so we can
                 // guarantee that it won't be modified.
@@ -867,8 +879,12 @@ macro_rules! impl_register {
 
             fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
                 impl_register!{@check-args ($count + 1), args}
-                let inst = stack.pop()?;
-                $(let $var = stack.pop()?;)*
+
+                #[allow(unused_mut)]
+                let mut it = stack.drain_stack_top($count + 1)?;
+                let inst = it.next().unwrap();
+                $(let $var = it.next().unwrap();)*
+                drop(it);
 
                 // Safety: Future is owned and will only be called within the
                 // context of the virtual machine, which will provide

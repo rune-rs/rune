@@ -180,8 +180,8 @@ impl Vm {
     fn op_select(&mut self, len: usize) -> Result<Option<Select>, VmError> {
         let futures = futures::stream::FuturesUnordered::new();
 
-        for branch in 0..len {
-            let future = self.stack.pop()?.into_future()?.owned_mut()?;
+        for (branch, value) in self.stack.drain_stack_top(len)?.enumerate() {
+            let future = value.into_future()?.owned_mut()?;
 
             if !future.is_completed() {
                 futures.push(SelectFuture::new(branch, future));
@@ -190,7 +190,7 @@ impl Vm {
 
         // NB: nothing to poll.
         if futures.is_empty() {
-            self.stack.push(Value::Unit);
+            self.stack.push(());
             return Ok(None);
         }
 
@@ -218,9 +218,9 @@ impl Vm {
                 let offset = *offset;
                 let call = *call;
 
+                self.stack.push(target.clone());
                 args.into_args(&mut self.stack)?;
 
-                self.stack.push(target.clone());
                 self.call_offset_fn(offset, call, count)?;
                 return Ok(true);
             }
@@ -231,9 +231,9 @@ impl Vm {
             None => return Ok(false),
         };
 
+        self.stack.push(target.clone());
         args.into_args(&mut self.stack)?;
 
-        self.stack.push(target.clone());
         handler(&mut self.stack, count)?;
         Ok(true)
     }
@@ -347,7 +347,7 @@ impl Vm {
             }
         };
 
-        self.stack.push(Value::Bool(out));
+        self.stack.push(out);
         Ok(())
     }
 
@@ -422,82 +422,12 @@ impl Vm {
         Ok(value)
     }
 
-    /// Optimized function to test if two value pointers are deeply equal to
-    /// each other.
-    ///
-    /// This is the basis for the eq operation (`==`).
-    fn value_ptr_eq(&self, a: &Value, b: &Value) -> Result<bool, VmError> {
-        Ok(match (a, b) {
-            (Value::Unit, Value::Unit) => true,
-            (Value::Char(a), Value::Char(b)) => a == b,
-            (Value::Bool(a), Value::Bool(b)) => a == b,
-            (Value::Integer(a), Value::Integer(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => a == b,
-            (Value::Vec(a), Value::Vec(b)) => {
-                let a = a.borrow_ref()?;
-                let b = b.borrow_ref()?;
-
-                if a.len() != b.len() {
-                    return Ok(false);
-                }
-
-                for (a, b) in a.iter().zip(b.iter()) {
-                    if !self.value_ptr_eq(a, b)? {
-                        return Ok(false);
-                    }
-                }
-
-                true
-            }
-            (Value::Object(a), Value::Object(b)) => {
-                let a = a.borrow_ref()?;
-                let b = b.borrow_ref()?;
-
-                if a.len() != b.len() {
-                    return Ok(false);
-                }
-
-                for (key, a) in a.iter() {
-                    let b = match b.get(key) {
-                        Some(b) => b,
-                        None => return Ok(false),
-                    };
-
-                    if !self.value_ptr_eq(a, b)? {
-                        return Ok(false);
-                    }
-                }
-
-                true
-            }
-            (Value::String(a), Value::String(b)) => {
-                let a = a.borrow_ref()?;
-                let b = b.borrow_ref()?;
-                *a == *b
-            }
-            (Value::StaticString(a), Value::String(b)) => {
-                let b = b.borrow_ref()?;
-                ***a == *b
-            }
-            (Value::String(a), Value::StaticString(b)) => {
-                let a = a.borrow_ref()?;
-                *a == ***b
-            }
-            // fast string comparison: exact string slot.
-            (Value::StaticString(a), Value::StaticString(b)) => ***a == ***b,
-            // fast external comparison by slot.
-            // TODO: implement ptr equals.
-            // (Value::Any(a), Value::Any(b)) => a == b,
-            _ => false,
-        })
-    }
-
     /// Optimized equality implementation.
     #[inline]
     fn op_eq(&mut self) -> Result<(), VmError> {
-        let a = self.stack.pop()?;
         let b = self.stack.pop()?;
-        self.stack.push(Value::Bool(self.value_ptr_eq(&a, &b)?));
+        let a = self.stack.pop()?;
+        self.stack.push(Value::value_ptr_eq(&a, &b)?);
         Ok(())
     }
 
@@ -506,7 +436,7 @@ impl Vm {
     fn op_neq(&mut self) -> Result<(), VmError> {
         let b = self.stack.pop()?;
         let a = self.stack.pop()?;
-        self.stack.push(Value::Bool(!self.value_ptr_eq(&a, &b)?));
+        self.stack.push(!Value::value_ptr_eq(&a, &b)?);
         Ok(())
     }
 
@@ -553,28 +483,16 @@ impl Vm {
     /// Construct a new vec.
     #[inline]
     fn op_vec(&mut self, count: usize) -> Result<(), VmError> {
-        let mut vec = Vec::with_capacity(count);
-
-        for _ in 0..count {
-            vec.push(self.stack.pop()?);
-        }
-
-        let value = Value::Vec(Shared::new(vec));
-        self.stack.push(value);
+        let vec = self.stack.pop_sequence(count)?;
+        self.stack.push(Shared::new(vec));
         Ok(())
     }
 
     /// Construct a new tuple.
     #[inline]
     fn op_tuple(&mut self, count: usize) -> Result<(), VmError> {
-        let mut tuple = Vec::with_capacity(count);
-
-        for _ in 0..count {
-            tuple.push(self.stack.pop()?);
-        }
-
-        let value = Value::Tuple(Shared::new(Tuple::from(tuple)));
-        self.stack.push(value);
+        let tuple = self.stack.pop_sequence(count)?;
+        self.stack.push(Tuple::from(tuple));
         Ok(())
     }
 
@@ -583,7 +501,7 @@ impl Vm {
         let value = self.stack.pop()?;
 
         let value = match value {
-            Value::Bool(value) => Value::Bool(!value),
+            Value::Bool(value) => !value,
             other => {
                 let operand = other.type_info()?;
                 return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
@@ -617,13 +535,11 @@ impl Vm {
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
-                let out = integer_op(lhs, rhs).ok_or_else(error)?;
-                self.stack.push(Value::Integer(out));
+                self.stack.push(integer_op(lhs, rhs).ok_or_else(error)?);
                 return Ok(());
             }
             (Value::Float(lhs), Value::Float(rhs)) => {
-                let out = float_op(lhs, rhs);
-                self.stack.push(Value::Float(out));
+                self.stack.push(float_op(lhs, rhs));
                 return Ok(());
             }
             (lhs, rhs) => (lhs.clone(), rhs),
@@ -876,7 +792,7 @@ impl Vm {
     #[inline]
     fn op_return_unit(&mut self) -> Result<bool, VmError> {
         let exit = self.pop_call_frame()?;
-        self.stack.push(Value::Unit);
+        self.stack.push(());
         Ok(exit)
     }
 
@@ -1245,14 +1161,13 @@ impl Vm {
             .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
 
         let mut object = Object::with_capacity(keys.len());
+        let values = self.stack.drain_stack_top(keys.len())?;
 
-        for key in keys {
-            let value = self.stack.pop()?;
+        for (key, value) in keys.iter().zip(values) {
             object.insert(key.clone(), value);
         }
 
-        let value = Value::Object(Shared::new(object));
-        self.stack.push(value);
+        self.stack.push(Shared::new(object));
         Ok(())
     }
 
@@ -1266,14 +1181,13 @@ impl Vm {
 
         let mut object = Object::with_capacity(keys.len());
 
-        for key in keys {
-            let value = self.stack.pop()?;
+        let values = self.stack.drain_stack_top(keys.len())?;
+
+        for (key, value) in keys.iter().zip(values) {
             object.insert(key.clone(), value);
         }
 
-        let object = TypedObject { hash, object };
-        let value = Value::TypedObject(Shared::new(object));
-        self.stack.push(value);
+        self.stack.push(TypedObject { hash, object });
         Ok(())
     }
 
@@ -1291,35 +1205,32 @@ impl Vm {
             .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
 
         let mut object = Object::with_capacity(keys.len());
+        let values = self.stack.drain_stack_top(keys.len())?;
 
-        for key in keys {
-            let value = self.stack.pop()?;
+        for (key, value) in keys.iter().zip(values) {
             object.insert(key.clone(), value);
         }
 
-        let object = VariantObject {
+        self.stack.push(VariantObject {
             enum_hash,
             hash,
             object,
-        };
-        let value = Value::VariantObject(Shared::new(object));
-        self.stack.push(value);
+        });
+
         Ok(())
     }
 
     #[inline]
     fn op_string(&mut self, slot: usize) -> Result<(), VmError> {
         let string = self.unit.lookup_string(slot)?;
-        let value = Value::StaticString(string.clone());
-        self.stack.push(value);
+        self.stack.push(string.clone());
         Ok(())
     }
 
     #[inline]
     fn op_bytes(&mut self, slot: usize) -> Result<(), VmError> {
         let bytes = self.unit.lookup_bytes(slot)?.to_owned();
-        let value = Value::Bytes(Shared::new(Bytes::from_vec(bytes)));
-        self.stack.push(value);
+        self.stack.push(Bytes::from_vec(bytes));
         Ok(())
     }
 
@@ -1327,10 +1238,9 @@ impl Vm {
     #[inline]
     fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
         let mut buf = String::with_capacity(size_hint);
+        let values = self.stack.drain_stack_top(len)?.collect::<Vec<_>>();
 
-        for _ in 0..len {
-            let value = self.stack.pop()?;
-
+        for value in values {
             match value {
                 Value::String(string) => {
                     buf.push_str(&*string.borrow_ref()?);
@@ -1371,7 +1281,7 @@ impl Vm {
             }
         }
 
-        self.stack.push(Value::String(Shared::new(buf)));
+        self.stack.push(buf);
         Ok(())
     }
 
@@ -1426,21 +1336,21 @@ impl Vm {
     #[inline]
     fn op_is(&mut self) -> Result<(), VmError> {
         let is_instance = self.is_instance()?;
-        self.stack.push(Value::Bool(is_instance));
+        self.stack.push(is_instance);
         Ok(())
     }
 
     #[inline]
     fn op_is_not(&mut self) -> Result<(), VmError> {
         let is_instance = self.is_instance()?;
-        self.stack.push(Value::Bool(!is_instance));
+        self.stack.push(!is_instance);
         Ok(())
     }
 
     #[inline]
     fn op_is_unit(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
-        self.stack.push(Value::Bool(matches!(value, Value::Unit)));
+        self.stack.push(matches!(value, Value::Unit));
         Ok(())
     }
 
@@ -1459,7 +1369,7 @@ impl Vm {
             }
         };
 
-        self.stack.push(Value::Bool(is_value));
+        self.stack.push(is_value);
         Ok(())
     }
 
@@ -1482,7 +1392,7 @@ impl Vm {
             }
         };
 
-        self.stack.push(Value::Bool(out));
+        self.stack.push(out);
         Ok(())
     }
 
@@ -1504,10 +1414,10 @@ impl Vm {
     fn op_eq_byte(&mut self, byte: u8) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        self.stack.push(Value::Bool(match value {
+        self.stack.push(match value {
             Value::Byte(actual) => actual == byte,
             _ => false,
-        }));
+        });
 
         Ok(())
     }
@@ -1516,10 +1426,10 @@ impl Vm {
     fn op_eq_character(&mut self, character: char) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        self.stack.push(Value::Bool(match value {
+        self.stack.push(match value {
             Value::Char(actual) => actual == character,
             _ => false,
-        }));
+        });
 
         Ok(())
     }
@@ -1528,10 +1438,10 @@ impl Vm {
     fn op_eq_integer(&mut self, integer: i64) -> Result<(), VmError> {
         let value = self.stack.pop()?;
 
-        self.stack.push(Value::Bool(match value {
+        self.stack.push(match value {
             Value::Integer(actual) => actual == integer,
             _ => false,
-        }));
+        });
 
         Ok(())
     }
@@ -1861,7 +1771,7 @@ impl Vm {
     {
         // NB: +1 to include the instance itself.
         let args = args + 1;
-        let instance = self.stack.last()?;
+        let instance = self.stack.at_offset_from_top(args)?;
         let value_type = instance.value_type()?;
         let hash = Hash::instance_function(value_type, hash);
 
@@ -1905,6 +1815,8 @@ impl Vm {
     }
 
     fn op_call_fn(&mut self, args: usize) -> Result<Option<StopReason>, VmError> {
+        println!("call function: {:?} {}", self.stack, args);
+
         let function = self.stack.pop()?;
 
         let hash = match function {

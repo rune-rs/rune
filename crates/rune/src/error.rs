@@ -500,12 +500,6 @@ pub enum CompileError {
         /// The meta we tried to treat as a type.
         meta: Meta,
     },
-    /// Argument in unsupported position.
-    #[error("argument not supported here")]
-    UnsupportedArgument {
-        /// Where it occured.
-        span: Span,
-    },
     /// `self` occured in an unsupported position.
     #[error("`self` not supported here")]
     UnsupportedSelf {
@@ -732,7 +726,6 @@ impl CompileError {
             Self::UnsupportedInstanceFunction { span, .. } => span,
             Self::UnsupportedValue { span, .. } => span,
             Self::UnsupportedType { span, .. } => span,
-            Self::UnsupportedArgument { span, .. } => span,
             Self::UnsupportedSelf { span, .. } => span,
             Self::UnsupportedUnaryOp { span, .. } => span,
             Self::UnsupportedBinaryOp { span, .. } => span,

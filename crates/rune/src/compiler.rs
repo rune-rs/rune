@@ -243,24 +243,19 @@ impl<'a, 'source> Compiler<'a, 'source> {
         log::trace!("DeclFn => {:?}", self.source.source(span)?);
         let _guard = self.items.push_block();
 
-        let mut last = false;
+        let mut first = true;
 
-        for (arg, _) in fn_decl.args.items.iter().rev() {
+        for (arg, _) in fn_decl.args.items.iter() {
             let span = arg.span();
-
-            if last {
-                return Err(CompileError::UnsupportedArgument { span });
-            }
 
             match arg {
                 ast::FnArg::Self_(s) => {
-                    if !instance_fn {
+                    if !instance_fn || !first {
                         return Err(CompileError::UnsupportedSelf { span });
                     }
 
                     let span = s.span();
                     self.scopes.last_mut(span)?.new_var("self", span)?;
-                    last = true;
                 }
                 ast::FnArg::Ident(ident) => {
                     let span = ident.span();
@@ -272,6 +267,8 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     self.scopes.decl_anon(span)?;
                 }
             }
+
+            first = false;
         }
 
         if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
@@ -309,7 +306,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let count = {
             let scope = self.scopes.last_mut(span)?;
-            for (arg, _) in expr_closure.args.as_slice().iter().rev() {
+            for (arg, _) in expr_closure.args.as_slice().iter() {
                 let span = arg.span();
 
                 match arg {
@@ -611,7 +608,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let count = lit_vec.items.len();
 
-        for expr in lit_vec.items.iter().rev() {
+        for expr in lit_vec.items.iter() {
             self.compile_expr(expr, Needs::Value)?;
 
             // Evaluate the expressions one by one, then pop them to cause any
@@ -663,7 +660,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
         }
 
-        for assign in lit_object.assignments.iter().rev() {
+        for assign in lit_object.assignments.iter() {
             let span = assign.span();
 
             if let Some((_, expr)) = &assign.assign {
@@ -885,7 +882,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let scope = self.scopes.child(span)?;
         let expected = self.scopes.push(scope);
 
-        for c in template.components.iter().rev() {
+        for c in template.components.iter() {
             match c {
                 ast::TemplateComponent::String(string) => {
                     let slot = self.unit.borrow_mut().new_static_string(&string)?;
@@ -934,7 +931,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             return Ok(());
         }
 
-        for (expr, _) in lit_tuple.items.iter().rev() {
+        for (expr, _) in lit_tuple.items.iter() {
             self.compile_expr(expr, Needs::Value)?;
         }
 
@@ -1885,11 +1882,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let args = expr_call.args.items.len();
 
-        for (expr, _) in expr_call.args.items.iter().rev() {
-            self.compile_expr(expr, Needs::Value)?;
-            self.scopes.decl_anon(span)?;
-        }
-
         // NB: either handle a proper function call by resolving it's meta hash,
         // or expand the expression.
         let path = loop {
@@ -1907,13 +1899,26 @@ impl<'a, 'source> Compiler<'a, 'source> {
                         "ExprCall(ExprFieldAccess) => {:?}",
                         self.source.source(span)?
                     );
+
                     let ident = ident.resolve(self.source)?;
                     self.compile_expr(expr, Needs::Value)?;
+
+                    for (expr, _) in expr_call.args.items.iter() {
+                        self.compile_expr(expr, Needs::Value)?;
+                        self.scopes.decl_anon(span)?;
+                    }
+
                     let hash = Hash::of(ident);
                     self.asm.push(Inst::CallInstance { hash, args }, span);
                 }
                 expr => {
                     log::trace!("ExprCall(Other) => {:?}", self.source.source(span)?);
+
+                    for (expr, _) in expr_call.args.items.iter() {
+                        self.compile_expr(expr, Needs::Value)?;
+                        self.scopes.decl_anon(span)?;
+                    }
+
                     self.compile_expr(expr, Needs::Value)?;
                     self.asm.push(Inst::CallFn { args }, span);
                 }
@@ -1926,6 +1931,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
             self.scopes.pop(guard, span)?;
             return Ok(());
         };
+
+        for (expr, _) in expr_call.args.items.iter() {
+            self.compile_expr(expr, Needs::Value)?;
+            self.scopes.decl_anon(span)?;
+        }
 
         let item = self.convert_path_to_item(path)?;
 
@@ -2387,7 +2397,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             branches.push((label, branch));
         }
 
-        for (_, branch) in branches.iter().rev() {
+        for (_, branch) in &branches {
             self.compile_expr(&branch.expr, Needs::Value)?;
         }
 

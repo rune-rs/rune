@@ -149,7 +149,7 @@ macro_rules! impl_into_args {
             #[allow(unused)]
             fn into_args(self, stack: &mut Stack) -> Result<(), VmError> {
                 let ($($value,)*) = self;
-                impl_into_args!(@push stack, [$($value)*]);
+                $(stack.push($value.to_value()?);)*
                 Ok(())
             }
 
@@ -164,17 +164,6 @@ macro_rules! impl_into_args {
                 $count
             }
         }
-    };
-
-    (@push $stack:ident, [] $($value:ident)*) => {
-        $(
-            let $value = $value.to_value()?;
-            $stack.push($value);
-        )*
-    };
-
-    (@push $vm:ident, [$first:ident $($rest:ident)*] $($value:ident)*) => {
-        impl_into_args!(@push $vm, [$($rest)*] $first $($value)*)
     };
 }
 
