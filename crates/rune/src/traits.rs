@@ -1,3 +1,4 @@
+use crate::error::CompileResult;
 use crate::error::{ParseError, Result};
 use crate::parser::Parser;
 use crate::source::Source;
@@ -96,4 +97,9 @@ pub trait Resolve<'a> {
 
     /// Resolve the value from parsed AST.
     fn resolve(&self, source: Source<'a>) -> Result<Self::Output, ParseError>;
+}
+
+pub(crate) trait Compile<T> {
+    /// Walk the current type with the given item.
+    fn compile(&mut self, item: T) -> CompileResult<()>;
 }

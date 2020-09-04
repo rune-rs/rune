@@ -88,6 +88,7 @@
 #![deny(missing_docs)]
 
 pub mod ast;
+mod compile;
 mod compiler;
 mod error;
 mod index;

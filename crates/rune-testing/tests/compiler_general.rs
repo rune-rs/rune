@@ -25,7 +25,7 @@ fn test_pointers() {
     assert_compile_error! {
         r#"fn main() { let n = 0; foo(&n); }"#,
         UnsupportedRef { span } => {
-            assert_eq!(span, Span::new(28, 29));
+            assert_eq!(span, Span::new(27, 29));
         }
     };
 }
