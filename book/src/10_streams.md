@@ -12,5 +12,7 @@ the generator.
 
 ```text
 $> cargo run -- scripts/book/10/basic_stream.rn
-== () (5.4354ms)
+200 OK
+200 OK
+== () (754.3946ms)
 ```
