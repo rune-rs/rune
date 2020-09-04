@@ -12,9 +12,8 @@ async fn main() {
             let cargo = Command::new("cargo");
             cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`, "--no-verify"]);
             let status = cargo.spawn()?.await?;
-            let code = status.code()?;
 
-            if !(code == 0 || code == 101) {
+            if status.code()? != 0 {
                 all_ok = false;
             }
 
