@@ -1,4 +1,4 @@
-use crate::{FromValue, Shared, ToValue, Value, ValueError};
+use crate::{FromValue, Shared, ToValue, Value, VmError};
 
 macro_rules! impl_map {
     ($($tt:tt)*) => {
@@ -8,7 +8,7 @@ macro_rules! impl_map {
         where
             T: FromValue,
         {
-            fn from_value(value: Value) -> Result<Self, ValueError> {
+            fn from_value(value: Value) -> Result<Self, VmError> {
                 let object = value.into_object()?;
                 let object = object.take()?;
 
@@ -26,7 +26,7 @@ macro_rules! impl_map {
         where
             T: ToValue,
         {
-            fn to_value(self) -> Result<Value, ValueError> {
+            fn to_value(self) -> Result<Value, VmError> {
                 let mut output = crate::collections::HashMap::with_capacity(self.len());
 
                 for (key, value) in self {

@@ -5,7 +5,6 @@ use crate::{
     IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, ToValue, Tuple, TypeCheck,
     TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution,
 };
-use std::any;
 use std::fmt;
 use std::marker;
 use std::mem;
@@ -133,7 +132,7 @@ impl Vm {
             .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
 
         if function.signature.args != A::count() {
-            return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
+            return Err(VmError::from(VmErrorKind::BadArgumentCount {
                 actual: A::count(),
                 expected: function.signature.args,
             }));
@@ -216,7 +215,7 @@ impl Vm {
 
         if let Some(info) = self.unit.lookup(hash) {
             if info.signature.args != count {
-                return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
+                return Err(VmError::from(VmErrorKind::BadArgumentCount {
                     actual: count,
                     expected: info.signature.args,
                 }));
@@ -408,26 +407,6 @@ impl Vm {
         self.stack.pop_stack_top(frame.stack_top)?;
         self.ip = frame.ip;
         Ok(false)
-    }
-
-    /// Pop the last value on the stack and evaluate it as `T`.
-    fn pop_decode<T>(&mut self) -> Result<T, VmError>
-    where
-        T: FromValue,
-    {
-        let value = self.stack.pop()?;
-
-        let value = match T::from_value(value) {
-            Ok(value) => value,
-            Err(error) => {
-                return Err(VmError::from(VmErrorKind::StackConversionError {
-                    error,
-                    to: any::type_name::<T>(),
-                }));
-            }
-        };
-
-        Ok(value)
     }
 
     /// Optimized equality implementation.
@@ -1286,7 +1265,7 @@ impl Vm {
                         }));
                     }
 
-                    let value = self.pop_decode::<fmt::Result>()?;
+                    let value = fmt::Result::from_value(self.stack.pop()?)?;
 
                     if let Err(fmt::Error) = value {
                         return Err(VmError::from(VmErrorKind::FormatError));
@@ -1750,7 +1729,7 @@ impl Vm {
         match self.unit.lookup(hash) {
             Some(info) => {
                 if info.signature.args != args {
-                    return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
+                    return Err(VmError::from(VmErrorKind::BadArgumentCount {
                         actual: args,
                         expected: info.signature.args,
                     }));
@@ -1799,7 +1778,7 @@ impl Vm {
         match self.unit.lookup(hash) {
             Some(info) => {
                 if info.signature.args != args {
-                    return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
+                    return Err(VmError::from(VmErrorKind::BadArgumentCount {
                         actual: args,
                         expected: info.signature.args,
                     }));

@@ -12,7 +12,7 @@ macro_rules! decl_external {
         $crate::decl_internal!($external);
 
         impl $crate::FromValue for $external {
-            fn from_value(value: $crate::Value) -> Result<Self, $crate::ValueError> {
+            fn from_value(value: $crate::Value) -> Result<Self, $crate::VmError> {
                 let any = value.into_any()?;
                 let any = any.take_downcast::<$external>()?;
                 Ok(any)
@@ -62,7 +62,7 @@ macro_rules! decl_internal {
         }
 
         impl $crate::ToValue for $external {
-            fn to_value(self) -> Result<$crate::Value, $crate::ValueError> {
+            fn to_value(self) -> Result<$crate::Value, $crate::VmError> {
                 let any = $crate::Any::new(self);
                 let shared = $crate::Shared::new(any);
                 Ok($crate::Value::Any(shared))
@@ -75,7 +75,7 @@ macro_rules! decl_internal {
 
             unsafe fn unsafe_from_value(
                 value: $crate::Value,
-            ) -> Result<(Self::Output, Self::Guard), $crate::ValueError> {
+            ) -> Result<(Self::Output, Self::Guard), $crate::VmError> {
                 Ok(value.unsafe_into_any_ref()?)
             }
 
@@ -90,7 +90,7 @@ macro_rules! decl_internal {
 
             unsafe fn unsafe_from_value(
                 value: $crate::Value,
-            ) -> Result<(Self::Output, Self::Guard), $crate::ValueError> {
+            ) -> Result<(Self::Output, Self::Guard), $crate::VmError> {
                 Ok(value.unsafe_into_any_mut()?)
             }
 

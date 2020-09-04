@@ -1,4 +1,4 @@
-use crate::{Stack, Value, ValueError, ValueType, ValueTypeInfo, VmError};
+use crate::{Stack, Value, ValueType, ValueTypeInfo, VmError};
 
 mod bytes;
 mod hash_map;
@@ -45,13 +45,13 @@ pub trait ReflectValueType: Sized {
 /// Trait for converting types into values.
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self) -> Result<Value, ValueError>;
+    fn to_value(self) -> Result<Value, VmError>;
 }
 
 /// Trait for converting from a value.
 pub trait FromValue: 'static + Sized {
     /// Try to convert to the given type, from the given value.
-    fn from_value(value: Value) -> Result<Self, ValueError>;
+    fn from_value(value: Value) -> Result<Self, VmError>;
 }
 
 /// A potentially unsafe conversion for value conversion.
@@ -79,7 +79,7 @@ pub trait UnsafeFromValue: Sized {
     ///
     /// You must also make sure that the returned value does not outlive the
     /// guard.
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError>;
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError>;
 
     /// Coerce the output of an unsafe from value into the final output type.
     ///
@@ -100,7 +100,7 @@ where
     type Output = T;
     type Guard = ();
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self, Self::Guard), ValueError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self, Self::Guard), VmError> {
         Ok((T::from_value(value)?, ()))
     }
 
@@ -110,7 +110,7 @@ where
 }
 
 impl FromValue for Value {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(value)
     }
 }
@@ -119,13 +119,13 @@ impl<T> ToValue for T
 where
     Value: From<T>,
 {
-    fn to_value(self) -> Result<Value, ValueError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(Value::from(self))
     }
 }
 
 impl ToValue for &Value {
-    fn to_value(self) -> Result<Value, ValueError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(self.clone())
     }
 }

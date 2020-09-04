@@ -2,8 +2,7 @@ use crate::context::Handler;
 use crate::VmErrorKind;
 use crate::{
     Call, CallVm, Context, FromValue, Future, Generator, Hash, IntoArgs, OwnedRef, RawOwnedRef,
-    Shared, Stack, StopReason, Stream, Tuple, Unit, UnsafeFromValue, Value, ValueError, Vm,
-    VmError,
+    Shared, Stack, StopReason, Stream, Tuple, Unit, UnsafeFromValue, Value, Vm, VmError,
 };
 use std::fmt;
 use std::rc::Rc;
@@ -221,7 +220,7 @@ impl Function {
     #[inline]
     fn check_args(actual: usize, expected: usize) -> Result<(), VmError> {
         if actual != expected {
-            return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
+            return Err(VmError::from(VmErrorKind::BadArgumentCount {
                 expected,
                 actual,
             }));
@@ -353,19 +352,19 @@ struct FnVariantTuple {
 }
 
 impl FromValue for Function {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(value.into_function()?.take()?)
     }
 }
 
 impl FromValue for Shared<Function> {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(value.into_function()?)
     }
 }
 
 impl FromValue for OwnedRef<Function> {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(value.into_function()?.owned_ref()?)
     }
 }
@@ -374,7 +373,7 @@ impl UnsafeFromValue for &Function {
     type Output = *const Function;
     type Guard = RawOwnedRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let function = value.into_function()?;
         let (function, guard) = OwnedRef::into_raw(function.owned_ref()?);
         Ok((function, guard))

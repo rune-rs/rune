@@ -915,15 +915,10 @@ macro_rules! impl_register {
     (@return $stack:ident, $ret:ident, $ty:ty) => {
         let $ret = match $ret.to_value() {
             Ok($ret) => $ret,
-            Err(e) => match e.unsmuggle_vm_error() {
-                Ok(e) => return Err(e),
-                Err(error) => {
-                    return Err(VmError::from(VmErrorKind::ReturnConversionError {
-                        error,
-                        ret: type_name::<$ty>()
-                    }));
-                }
-            },
+            Err(e) => return Err(VmError::from(VmErrorKind::BadReturn {
+                error: e.unpack_critical()?,
+                ret: type_name::<$ty>()
+            })),
         };
 
         $stack.push($ret);
@@ -934,16 +929,11 @@ macro_rules! impl_register {
         $(
             let $var = match <$ty>::unsafe_from_value($var) {
                 Ok(v) => v,
-                Err(e) => match e.unsmuggle_vm_error() {
-                    Ok(e) => return Err(e),
-                    Err(error) => {
-                        return Err(VmError::from(VmErrorKind::ArgumentConversionError {
-                            error,
-                            arg: $count - $num,
-                            to: type_name::<$ty>(),
-                        }));
-                    }
-                }
+                Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
+                    error: e.unpack_critical()?,
+                    arg: $count - $num,
+                    to: type_name::<$ty>(),
+                })),
             };
         )*
     };
@@ -952,38 +942,28 @@ macro_rules! impl_register {
     (@unsafe-inst-vars $inst:ident, $count:expr, $($ty:ty, $var:ident, $num:expr,)*) => {
         let $inst = match Instance::unsafe_from_value($inst) {
             Ok(v) => v,
-            Err(e) => match e.unsmuggle_vm_error() {
-                Ok(e) => return Err(e),
-                Err(error) => {
-                    return Err(VmError::from(VmErrorKind::ArgumentConversionError {
-                        error,
-                        arg: 0,
-                        to: type_name::<Instance>()
-                    }));
-                }
-            },
+            Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
+                error: e.unpack_critical()?,
+                arg: 0,
+                to: type_name::<Instance>()
+            })),
         };
 
         $(
             let $var = match <$ty>::unsafe_from_value($var) {
                 Ok(v) => v,
-                Err(e) => match e.unsmuggle_vm_error() {
-                    Ok(e) => return Err(e),
-                    Err(error) => {
-                        return Err(VmError::from(VmErrorKind::ArgumentConversionError {
-                            error,
-                            arg: 1 + $count - $num,
-                            to: type_name::<$ty>()
-                        }));
-                    }
-                },
+                Err(e) => return Err(VmError::from(VmErrorKind::BadArgument {
+                    error: e.unpack_critical()?,
+                    arg: 1 + $count - $num,
+                    to: type_name::<$ty>()
+                })),
             };
         )*
     };
 
     (@check-args $expected:expr, $actual:expr) => {
         if $actual != $expected {
-            return Err(VmError::from(VmErrorKind::ArgumentCountMismatch {
+            return Err(VmError::from(VmErrorKind::BadArgumentCount {
                 actual: $actual,
                 expected: $expected,
             }));

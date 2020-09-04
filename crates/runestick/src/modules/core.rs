@@ -1,6 +1,6 @@
 //! The core `std` module.
 
-use crate::{ContextError, Module, Panic, Stack, Value, ValueError, VmError};
+use crate::{ContextError, Module, Panic, Stack, Value, VmError};
 use std::io;
 use std::io::Write as _;
 
@@ -24,7 +24,7 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-fn drop_impl(value: Value) -> Result<(), ValueError> {
+fn drop_impl(value: Value) -> Result<(), VmError> {
     match value {
         Value::Any(any) => {
             any.take()?;
@@ -59,7 +59,7 @@ fn drop_impl(value: Value) -> Result<(), ValueError> {
         _ => (),
     }
 
-    Ok::<(), ValueError>(())
+    Ok::<(), VmError>(())
 }
 
 fn dbg_impl(stack: &mut Stack, args: usize) -> Result<(), VmError> {

@@ -61,7 +61,6 @@ mod static_type;
 mod stream;
 mod tuple;
 pub mod unit;
-mod value_error;
 mod value_type;
 mod value_type_info;
 mod vec_tuple;
@@ -117,7 +116,6 @@ pub use crate::unit::{ImportEntry, ImportKey, Span, Unit, UnitError};
 pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple,
 };
-pub use crate::value_error::{ValueError, ValueErrorKind};
 pub use crate::vec_tuple::VecTuple;
 pub use crate::vm::{CallVm, StopReason, StopReasonInfo, Task, Vm};
 pub use crate::vm_error::{VmError, VmErrorKind};

@@ -1,7 +1,7 @@
 use crate::panic::BoxedPanic;
 use crate::{
-    AccessError, Hash, Integer, Panic, Protocol, StackError, StopReasonInfo, ValueError,
-    ValueTypeInfo,
+    AccessError, Hash, Integer, Panic, Protocol, ReflectValueType, StackError, StopReasonInfo,
+    Value, ValueTypeInfo,
 };
 use thiserror::Error;
 
@@ -32,6 +32,34 @@ impl VmError {
         Self::from(VmErrorKind::Panic {
             reason: Panic::custom(message),
         })
+    }
+
+    /// Bad argument.
+    pub fn bad_argument<T>(arg: usize, value: &Value) -> Result<Self, VmError>
+    where
+        T: ReflectValueType,
+    {
+        Ok(Self::from(VmErrorKind::BadArgumentType {
+            arg,
+            expected: T::value_type_info(),
+            actual: value.type_info()?,
+        }))
+    }
+
+    /// Construct an expected error.
+    pub fn expected<T>(actual: ValueTypeInfo) -> Self
+    where
+        T: ReflectValueType,
+    {
+        Self::from(VmErrorKind::Expected {
+            expected: T::value_type_info(),
+            actual,
+        })
+    }
+
+    /// Construct an expected any error.
+    pub fn expected_any(actual: ValueTypeInfo) -> Self {
+        Self::from(VmErrorKind::ExpectedAny { actual })
     }
 
     /// Access the underlying error kind.
@@ -65,13 +93,25 @@ impl VmError {
             }
         }
     }
-}
 
-impl From<ValueError> for VmError {
-    fn from(error: ValueError) -> Self {
-        match error.unsmuggle_vm_error() {
-            Ok(error) => error,
-            Err(error) => VmError::from(VmErrorKind::ValueError { error }),
+    /// Unsmuggles the vm error, returning Ok(Self) in case the error is
+    /// critical and should be propagated unaltered.
+    pub fn unpack_critical(self) -> Result<Self, Self> {
+        if self.is_critical() {
+            Err(self)
+        } else {
+            Ok(self)
+        }
+    }
+
+    /// Test if the error is critical and should be propagated unaltered or not.
+    ///
+    /// Returns `true` if the error should be propagated.
+    fn is_critical(&self) -> bool {
+        match &*self.kind {
+            VmErrorKind::Panic { .. } => true,
+            VmErrorKind::UnwindedVmError { .. } => true,
+            _ => false,
         }
     }
 }
@@ -115,20 +155,6 @@ pub enum VmErrorKind {
         #[from]
         error: StackError,
     },
-    /// Trying to access an inaccessible reference.
-    #[error("failed to access value: {error}")]
-    AccessError {
-        /// Source error.
-        #[from]
-        error: AccessError,
-    },
-    /// Error raised when trying to access a value.
-    #[error("value error: {error}")]
-    ValueError {
-        /// Source error.
-        #[source]
-        error: ValueError,
-    },
     /// The virtual machine encountered a numerical overflow.
     #[error("numerical overflow")]
     Overflow,
@@ -160,12 +186,6 @@ pub enum VmErrorKind {
     UnsupportedAwait {
         /// The actual target.
         actual: ValueTypeInfo,
-    },
-    /// A bad argument that was received to a function.
-    #[error("bad argument `{argument}`")]
-    BadArgument {
-        /// The argument type.
-        argument: ValueTypeInfo,
     },
     /// Unsupported binary operation.
     #[error("unsupported vm operation `{lhs} {op} {rhs}`")]
@@ -205,40 +225,41 @@ pub enum VmErrorKind {
         /// Slot which is missing a static object keys.
         slot: usize,
     },
-    /// Indicates a failure to convert from one type to another.
-    #[error("failed to convert stack value to `{to}`: {error}")]
-    StackConversionError {
-        /// The source of the error.
-        #[source]
-        error: ValueError,
-        /// The expected type to convert towards.
-        to: &'static str,
-    },
-    /// Failure to convert from one type to another.
-    #[error("failed to convert argument #{arg} to `{to}`: {error}")]
-    ArgumentConversionError {
-        /// The underlying stack error.
-        #[source]
-        error: ValueError,
-        /// The argument location that was converted.
-        arg: usize,
-        /// The native type we attempt to convert to.
-        to: &'static str,
-    },
     /// Wrong number of arguments provided in call.
     #[error("wrong number of arguments `{actual}`, expected `{expected}`")]
-    ArgumentCountMismatch {
+    BadArgumentCount {
         /// The actual number of arguments.
         actual: usize,
         /// The expected number of arguments.
         expected: usize,
     },
+    /// Failure to convert from one type to another.
+    #[error("bad argument #{arg}, expected `{expected}` but got `{actual}`")]
+    BadArgumentType {
+        /// The argument location that was converted.
+        arg: usize,
+        /// The argument type we expected.
+        expected: ValueTypeInfo,
+        /// The argument type we got.
+        actual: ValueTypeInfo,
+    },
+    /// Failure to convert from one type to another.
+    #[error("bad argument #{arg} (expected `{to}`): {error}")]
+    BadArgument {
+        /// The underlying stack error.
+        #[source]
+        error: VmError,
+        /// The argument location that was converted.
+        arg: usize,
+        /// The native type we attempt to convert to.
+        to: &'static str,
+    },
     /// Failure to convert return value.
-    #[error("failed to convert return value `{ret}`")]
-    ReturnConversionError {
+    #[error("bad return value (expected `{ret}`): {error}")]
+    BadReturn {
         /// Error describing the failed conversion.
         #[source]
-        error: ValueError,
+        error: VmError,
         /// Type of the return value we attempted to convert.
         ret: &'static str,
     },
@@ -339,6 +360,54 @@ pub enum VmErrorKind {
     /// Trying to resume a generator that has completed.
     #[error("cannot resume a generator that has completed")]
     GeneratorComplete,
+    /// Trying to access an inaccessible reference.
+    #[error("failed to access value: {error}")]
+    AccessError {
+        /// Source error.
+        #[from]
+        error: AccessError,
+    },
+    /// Error raised when we expected one type, but got another.
+    #[error("expected `{expected}`, but found `{actual}`")]
+    Expected {
+        /// The expected value type info.
+        expected: ValueTypeInfo,
+        /// The actual type found.
+        actual: ValueTypeInfo,
+    },
+    /// Error raised when we expected a value.
+    #[error("expected `Any` type, but found `{actual}`")]
+    ExpectedAny {
+        /// The actual type observed instead.
+        actual: ValueTypeInfo,
+    },
+    /// Failure to convert a number into an integer.
+    #[error("failed to convert value `{from}` to integer `{to}`")]
+    ValueToIntegerCoercionError {
+        /// Number we tried to convert from.
+        from: Integer,
+        /// Number type we tried to convert to.
+        to: &'static str,
+    },
+    /// Failure to convert an integer into a value.
+    #[error("failed to convert integer `{from}` to value `{to}`")]
+    IntegerToValueCoercionError {
+        /// Number we tried to convert from.
+        from: Integer,
+        /// Number type we tried to convert to.
+        to: &'static str,
+    },
+    /// Error raised when we expected an tuple of the given length.
+    #[error("expected a tuple of length `{expected}`, but found one with length `{actual}`")]
+    ExpectedTupleLength {
+        /// The actual length observed.
+        actual: usize,
+        /// The expected tuple length.
+        expected: usize,
+    },
+    /// Internal error that happens when we run out of items in a list.
+    #[error("unexpectedly ran out of items to iterate over")]
+    IterationError,
 }
 
 impl VmErrorKind {

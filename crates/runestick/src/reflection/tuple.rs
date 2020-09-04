@@ -28,12 +28,12 @@ macro_rules! impl_from_value_tuple {
         where
             $($ty: $crate::FromValue,)*
         {
-            fn from_value(value: Value) -> Result<Self, $crate::ValueError> {
+            fn from_value(value: Value) -> Result<Self, $crate::VmError> {
                 let tuple = value.into_tuple()?;
                 let tuple = tuple.take()?;
 
                 if tuple.len() != $count {
-                    return Err($crate::ValueError::from($crate::ValueErrorKind::ExpectedTupleLength {
+                    return Err($crate::VmError::from($crate::VmErrorKind::ExpectedTupleLength {
                         actual: tuple.len(),
                         expected: $count,
                     }));
@@ -46,7 +46,7 @@ macro_rules! impl_from_value_tuple {
                     let $var = match it.next() {
                         Some(value) => <$ty>::from_value(value)?,
                         None => {
-                            return Err($crate::ValueError::from($crate::ValueErrorKind::IterationError));
+                            return Err($crate::VmError::from($crate::VmErrorKind::IterationError));
                         },
                     };
                 )*
@@ -59,7 +59,7 @@ macro_rules! impl_from_value_tuple {
         where
             $($ty: $crate::ToValue,)*
         {
-            fn to_value(self) -> Result<$crate::Value, $crate::ValueError> {
+            fn to_value(self) -> Result<$crate::Value, $crate::VmError> {
                 let ($($var,)*) = self;
                 $(let $var = $var.to_value()?;)*
                 Ok(Value::Tuple(Shared::new($crate::Tuple::from(vec![$($var,)*]))))

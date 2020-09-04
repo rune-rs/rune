@@ -1,4 +1,4 @@
-use crate::{FromValue, ToValue, Value, ValueError, ValueErrorKind};
+use crate::{FromValue, ToValue, Value, VmError, VmErrorKind};
 
 value_types!(impl crate::VEC_TYPE, VecTuple<T> => T VecTuple<T>);
 
@@ -35,12 +35,12 @@ macro_rules! impl_from_value_tuple_vec {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: Value) -> Result<Self, ValueError> {
+            fn from_value(value: Value) -> Result<Self, VmError> {
                 let vec = value.into_vec()?;
                 let vec = vec.take()?;
 
                 if vec.len() != $count {
-                    return Err(ValueError::from(ValueErrorKind::ExpectedTupleLength {
+                    return Err(VmError::from(VmErrorKind::ExpectedTupleLength {
                         actual: vec.len(),
                         expected: $count,
                     }));
@@ -53,7 +53,7 @@ macro_rules! impl_from_value_tuple_vec {
                     let $value: $ty = match it.next() {
                         Some(value) => <$ty>::from_value(value)?,
                         None => {
-                            return Err(ValueError::from(ValueErrorKind::IterationError));
+                            return Err(VmError::from(VmErrorKind::IterationError));
                         },
                     };
                 )*
@@ -66,7 +66,7 @@ macro_rules! impl_from_value_tuple_vec {
         where
             $($ty: ToValue,)*
         {
-            fn to_value(self) -> Result<Value, ValueError> {
+            fn to_value(self) -> Result<Value, VmError> {
                 let ($($value,)*) = self.0;
                 let vec = vec![$($value.to_value()?,)*];
                 Ok(Value::vec(vec))

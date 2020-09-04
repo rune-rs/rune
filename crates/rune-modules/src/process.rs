@@ -31,7 +31,7 @@
 //! }
 //! ```
 
-use runestick::{Bytes, Shared, Value, ValueError};
+use runestick::{Bytes, Shared, Value, VmError};
 use std::fmt;
 use std::io;
 use tokio::process;
@@ -72,7 +72,7 @@ impl Command {
     }
 
     /// Add arguments.
-    fn args(&mut self, args: &[Value]) -> Result<(), ValueError> {
+    fn args(&mut self, args: &[Value]) -> Result<(), VmError> {
         for arg in args {
             match arg {
                 Value::String(s) => {
@@ -82,7 +82,7 @@ impl Command {
                     self.inner.arg(&***s);
                 }
                 actual => {
-                    return Err(ValueError::expected::<String>(actual.type_info()?));
+                    return Err(VmError::expected::<String>(actual.type_info()?));
                 }
             }
         }

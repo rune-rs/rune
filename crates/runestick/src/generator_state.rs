@@ -1,6 +1,6 @@
 use crate::{
     FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, UnsafeFromValue, Value,
-    ValueError,
+    VmError,
 };
 
 value_types!(crate::GENERATOR_STATE_TYPE, GeneratorState => GeneratorState, &GeneratorState, &mut GeneratorState);
@@ -27,13 +27,13 @@ impl GeneratorState {
 }
 
 impl FromValue for Shared<GeneratorState> {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(value.into_generator_state()?)
     }
 }
 
 impl FromValue for GeneratorState {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         let state = value.into_generator_state()?;
         Ok(state.take()?)
     }
@@ -43,7 +43,7 @@ impl UnsafeFromValue for &GeneratorState {
     type Output = *const GeneratorState;
     type Guard = RawOwnedRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let state = value.into_generator_state()?;
         let (state, guard) = OwnedRef::into_raw(state.owned_ref()?);
         Ok((state, guard))
@@ -58,7 +58,7 @@ impl UnsafeFromValue for &mut GeneratorState {
     type Output = *mut GeneratorState;
     type Guard = RawOwnedMut;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let state = value.into_generator_state()?;
         Ok(OwnedMut::into_raw(state.owned_mut()?))
     }

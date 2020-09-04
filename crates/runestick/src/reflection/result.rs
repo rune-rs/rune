@@ -2,7 +2,7 @@
 
 use crate::{
     FromValue, OwnedRef, Panic, RawOwnedRef, ReflectValueType, Shared, ToValue, UnsafeFromValue,
-    Value, ValueError, ValueErrorKind, ValueType, ValueTypeInfo, VmError,
+    Value, ValueType, ValueTypeInfo, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::io;
@@ -38,22 +38,10 @@ impl<T> ToValue for Result<T, Panic>
 where
     T: ToValue,
 {
-    fn to_value(self) -> Result<Value, ValueError> {
+    fn to_value(self) -> Result<Value, VmError> {
         match self {
             Ok(value) => Ok(value.to_value()?),
-            Err(reason) => Err(ValueError::from(ValueErrorKind::Panic { reason })),
-        }
-    }
-}
-
-impl<T> ToValue for Result<T, ValueError>
-where
-    T: ToValue,
-{
-    fn to_value(self) -> Result<Value, ValueError> {
-        match self {
-            Ok(value) => Ok(value.to_value()?),
-            Err(error) => Err(error),
+            Err(reason) => Err(VmError::from(VmErrorKind::Panic { reason })),
         }
     }
 }
@@ -62,10 +50,10 @@ impl<T> ToValue for Result<T, VmError>
 where
     T: ToValue,
 {
-    fn to_value(self) -> Result<Value, ValueError> {
+    fn to_value(self) -> Result<Value, VmError> {
         match self {
             Ok(value) => Ok(value.to_value()?),
-            Err(error) => Err(ValueError::from(ValueErrorKind::VmError { error })),
+            Err(error) => Err(error),
         }
     }
 }
@@ -75,7 +63,7 @@ where
     T: ToValue,
     E: ToValue,
 {
-    fn to_value(self) -> Result<Value, ValueError> {
+    fn to_value(self) -> Result<Value, VmError> {
         Ok(match self {
             Ok(ok) => {
                 let ok = ok.to_value()?;
@@ -94,7 +82,7 @@ where
     T: FromValue,
     E: FromValue,
 {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(match value.into_result()?.take()? {
             Ok(ok) => Ok(T::from_value(ok)?),
             Err(err) => Err(E::from_value(err)?),
@@ -106,7 +94,7 @@ impl UnsafeFromValue for &Result<Value, Value> {
     type Output = *const Result<Value, Value>;
     type Guard = RawOwnedRef;
 
-    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let result = value.into_result()?;
         let result = result.owned_ref()?;
         Ok(OwnedRef::into_raw(result))
