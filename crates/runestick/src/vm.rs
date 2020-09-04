@@ -504,6 +504,14 @@ impl Vm {
         Ok(())
     }
 
+    /// Push the tuple that is on top of the stack.
+    #[inline]
+    fn op_push_tuple(&mut self) -> Result<(), VmError> {
+        let tuple = self.stack.pop()?.into_tuple()?;
+        self.stack.extend(tuple.borrow_ref()?.iter().cloned());
+        Ok(())
+    }
+
     #[inline]
     fn op_not(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
@@ -2033,6 +2041,9 @@ impl Vm {
                 }
                 Inst::Tuple { count } => {
                     self.op_tuple(count)?;
+                }
+                Inst::PushTuple => {
+                    self.op_push_tuple()?;
                 }
                 Inst::Object { slot } => {
                     self.op_object(slot)?;

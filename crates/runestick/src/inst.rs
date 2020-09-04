@@ -591,6 +591,19 @@ pub enum Inst {
         /// The size of the tuple.
         count: usize,
     },
+    /// Take the tuple that is on top of the stack and push its content onto the
+    /// stack.
+    ///
+    /// Note: this is used by closures to "unpack" their environment into local
+    /// variables.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <tuple>
+    /// => <value...>
+    /// ```
+    PushTuple,
     /// Construct a push an object onto the stack. The number of elements
     /// in the object are determined the slot of the object keys `slot` and are
     /// popped from the stack.
@@ -1065,6 +1078,9 @@ impl fmt::Display for Inst {
             }
             Self::Tuple { count } => {
                 write!(fmt, "tuple {}", count)?;
+            }
+            Self::PushTuple => {
+                write!(fmt, "push-tuple")?;
             }
             Self::TypedObject { hash, slot } => {
                 write!(fmt, "typed-object {}, {}", hash, slot)?;

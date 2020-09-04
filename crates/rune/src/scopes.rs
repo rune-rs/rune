@@ -5,57 +5,17 @@ use runestick::{Inst, Span};
 
 /// A locally declared variable.
 #[derive(Debug, Clone)]
-pub(crate) struct Local {
+pub(crate) struct Var {
     /// Slot offset from the current stack frame.
     pub(crate) offset: usize,
     /// Token assocaited with the variable.
     span: Span,
 }
 
-/// A variable captures from the environment.
-#[derive(Debug, Clone)]
-pub(crate) struct Environ {
-    /// Slot offset from the current stack frame.
-    pub(crate) offset: usize,
-    /// The index in the environment the variable comes from.
-    pub(crate) index: usize,
-    /// The span the environment variable was declared in.
-    span: Span,
-}
-
-impl Environ {
-    /// Copy the given variable.
-    pub fn copy<C>(&self, asm: &mut Assembly, span: Span, comment: C)
-    where
-        C: AsRef<str>,
-    {
-        asm.push_with_comment(
-            Inst::TupleIndexGetAt {
-                offset: self.offset,
-                index: self.index,
-            },
-            span,
-            comment,
-        );
-    }
-}
-
-/// A declared variable.
-#[derive(Debug, Clone)]
-pub(crate) enum Var {
-    /// A locally declared variable.
-    Local(Local),
-    /// A variable captured in the environment.
-    Environ(Environ),
-}
-
 impl Var {
     /// Get the span of the variable.
     pub fn span(&self) -> Span {
-        match self {
-            Self::Local(local) => local.span,
-            Self::Environ(environ) => environ.span,
-        }
+        self.span
     }
 
     /// Copy the declared variable.
@@ -63,20 +23,13 @@ impl Var {
     where
         C: AsRef<str>,
     {
-        match self {
-            Self::Local(local) => {
-                asm.push_with_comment(
-                    Inst::Copy {
-                        offset: local.offset,
-                    },
-                    span,
-                    comment,
-                );
-            }
-            Self::Environ(environ) => {
-                environ.copy(asm, span, comment);
-            }
-        }
+        asm.push_with_comment(
+            Inst::Copy {
+                offset: self.offset,
+            },
+            span,
+            comment,
+        );
     }
 }
 
@@ -123,35 +76,10 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub(crate) fn new_env_var(
-        &mut self,
-        name: &str,
-        offset: usize,
-        index: usize,
-        span: Span,
-    ) -> CompileResult<()> {
-        let local = Var::Environ(Environ {
-            offset,
-            index,
-            span,
-        });
-
-        if let Some(old) = self.locals.insert(name.to_owned(), local) {
-            return Err(CompileError::VariableConflict {
-                name: name.to_owned(),
-                span,
-                existing_span: old.span(),
-            });
-        }
-
-        Ok(())
-    }
-
-    /// Insert a new local, and return the old one if there's a conflict.
     pub(crate) fn new_var(&mut self, name: &str, span: Span) -> CompileResult<usize> {
         let offset = self.total_var_count;
 
-        let local = Var::Local(Local { offset, span });
+        let local = Var { offset, span };
 
         self.total_var_count += 1;
         self.local_var_count += 1;
@@ -173,8 +101,7 @@ impl Scope {
 
         log::trace!("decl {} => {}", name, offset);
 
-        self.locals
-            .insert(name.to_owned(), Var::Local(Local { offset, span }));
+        self.locals.insert(name.to_owned(), Var { offset, span });
 
         self.total_var_count += 1;
         self.local_var_count += 1;

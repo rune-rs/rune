@@ -6,9 +6,15 @@ fn test_simple_stream() {
         rune! {
             i64 => r#"
             async fn foo() {
-                yield 1;
-                yield 2;
-                yield 3;
+                let n = 0;
+
+                let give = || {
+                    n + 1
+                };
+
+                yield give();
+                yield give();
+                yield give();
             }
 
             async fn main() {
@@ -23,7 +29,7 @@ fn test_simple_stream() {
             }
             "#
         },
-        6,
+        3,
     };
 }
 

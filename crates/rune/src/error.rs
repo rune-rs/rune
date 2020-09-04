@@ -702,6 +702,12 @@ pub enum CompileError {
         /// The item that didn't exist.
         item: Item,
     },
+    /// Trying to use an expression as async when it's not supported.
+    #[error("not supported as an async expression")]
+    UnsupportedAsyncExpr {
+        /// Where the expression is.
+        span: Span,
+    },
 }
 
 impl CompileError {
@@ -757,6 +763,7 @@ impl CompileError {
             Self::AwaitOutsideFunction { span, .. } => span,
             Self::InstanceFunctionOutsideImpl { span, .. } => span,
             Self::MissingPreludeModule { .. } => Span::empty(),
+            Self::UnsupportedAsyncExpr { span, .. } => span,
         }
     }
 }

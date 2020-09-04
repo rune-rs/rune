@@ -91,3 +91,40 @@ fn test_capture_fn_arg() {
         }
     };
 }
+
+#[test]
+fn test_capture_and_environ() {
+    assert_eq! {
+        13,
+        rune! {
+            i64 => r#"
+            async fn foo(cb) {
+                cb(1).await
+            }
+
+            async fn main() {
+                let value = 12;
+                foo(async |n| n + value).await
+            }
+            "#
+        }
+    };
+}
+
+#[test]
+fn test_immediate_call() {
+    assert_eq! {
+        11,
+        rune! {
+            i64 => r#"
+            async fn main() {
+                let future = (async || {
+                    11
+                })();
+
+                future.await
+            }
+            "#
+        }
+    };
+}

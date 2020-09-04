@@ -2,8 +2,9 @@
 
 Streams are the asynchronous version of [Generators](./7_generators.md).
 
-They have identical `next` and `resume` protocols, but we are now allowed to use
-asynchronous functions inside of the generator.
+They have almost identical `next` and `resume` functions, but each must be used
+with `.await`, and we are now allowed to use asynchronous functions inside of
+the generator.
 
 ```rust,noplayground
 {{#include ../../scripts/book/10/basic_stream.rn}}

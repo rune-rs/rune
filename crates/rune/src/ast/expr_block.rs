@@ -22,7 +22,11 @@ pub struct ExprBlock {
 impl ExprBlock {
     /// Get the span of the block.
     pub fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
+        if let Some(async_) = self.async_ {
+            async_.span().join(self.close.span())
+        } else {
+            self.open.span().join(self.close.span())
+        }
     }
 
     /// Test if the block is empty.

@@ -51,6 +51,7 @@ pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     module.inst_fn(runestick::INTO_FUTURE, Child::into_future)?;
     module.async_inst_fn("wait_with_output", Child::wait_with_output)?;
     module.inst_fn(runestick::STRING_DISPLAY, ExitStatus::display)?;
+    module.inst_fn("code", ExitStatus::code)?;
 
     module.getter("status", Output::status)?;
     module.getter("stdout", Output::stdout)?;
@@ -165,6 +166,10 @@ impl ExitStatus {
     fn display(&self, buf: &mut String) -> fmt::Result {
         use std::fmt::Write as _;
         write!(buf, "{}", self.status)
+    }
+
+    fn code(&self) -> Option<i32> {
+        self.status.code()
     }
 }
 

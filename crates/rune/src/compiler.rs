@@ -18,7 +18,7 @@ use crate::items::Items;
 use crate::loops::{Loop, Loops};
 use crate::options::Options;
 use crate::query::{Build, Query};
-use crate::scopes::{Scope, ScopeGuard, Scopes, Var};
+use crate::scopes::{Scope, ScopeGuard, Scopes};
 use crate::warning::Warnings;
 
 /// A needs hint for an expression.
@@ -306,7 +306,16 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
         let count = {
             let scope = self.scopes.last_mut(span)?;
-            for (arg, _) in expr_closure.args.as_slice().iter() {
+
+            if !captures.is_empty() {
+                self.asm.push(Inst::PushTuple, span);
+
+                for capture in captures {
+                    scope.new_var(&capture.ident, span)?;
+                }
+            }
+
+            for (arg, _) in expr_closure.args.as_slice() {
                 let span = arg.span();
 
                 match arg {
@@ -324,17 +333,15 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 }
             }
 
-            let offset = scope.decl_anon(span);
-
-            for (index, capture) in captures.iter().enumerate() {
-                scope.new_env_var(&capture.ident, offset, index, span)?;
-            }
-
             scope.total_var_count
         };
 
         self.compile_expr(&*expr_closure.body, Needs::Value)?;
-        self.asm.push(Inst::Clean { count }, span);
+
+        if count != 0 {
+            self.asm.push(Inst::Clean { count }, span);
+        }
+
         self.asm.push(Inst::Return, span);
 
         self.scopes.pop_last(span)?;
@@ -402,6 +409,11 @@ impl<'a, 'source> Compiler<'a, 'source> {
     /// an item in them which does.
     fn compile_expr_block(&mut self, block: &ast::ExprBlock, needs: Needs) -> CompileResult<()> {
         let span = block.span();
+
+        if let Some(..) = block.async_ {
+            return Err(CompileError::UnsupportedAsyncExpr { span: block.span() });
+        }
+
         log::trace!("ExprBlock => {:?}", self.source.source(span)?);
         let _guard = self.items.push_block();
 
@@ -1371,11 +1383,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
                     let span = first.span();
                     let first = first.resolve(self.source)?;
                     let var = self.scopes.get_var(first, span)?;
-
-                    match var {
-                        Var::Local(local) => break local.offset,
-                        Var::Environ(..) => (),
-                    }
+                    break var.offset;
                 }
                 _ => (),
             };
@@ -1509,21 +1517,13 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 None => return Ok(false),
             };
 
-            match var {
-                Var::Local(local) => {
-                    this.asm.push(
-                        Inst::TupleIndexGetAt {
-                            offset: local.offset,
-                            index,
-                        },
-                        span,
-                    );
-                }
-                Var::Environ(environ) => {
-                    environ.copy(&mut this.asm, span, format!("capture `{}`", ident));
-                    this.asm.push(Inst::TupleIndexGet { index }, span);
-                }
-            }
+            this.asm.push(
+                Inst::TupleIndexGetAt {
+                    offset: var.offset,
+                    index,
+                },
+                span,
+            );
 
             if !needs.value() {
                 this.warnings.not_used(span, this.context());
@@ -1688,10 +1688,13 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let item = self.items.item();
         let hash = Hash::type_hash(&item);
 
-        let meta = self
-            .query
-            .query_meta(&item, span)?
-            .ok_or_else(|| CompileError::MissingType { item, span })?;
+        let meta =
+            self.query
+                .query_meta(&item, span)?
+                .ok_or_else(|| CompileError::MissingType {
+                    item: item.clone(),
+                    span,
+                })?;
 
         let captures = match meta {
             Meta::MetaClosure { captures, .. } => captures,
@@ -1700,20 +1703,29 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
         };
 
-        log::trace!("captures: {} => {:?}", self.items.item(), captures);
+        log::trace!("captures: {} => {:?}", item, captures);
 
-        for capture in &*captures {
-            let var = self.scopes.get_var(&capture.ident, span)?;
-            var.copy(&mut self.asm, span, format!("capture `{}`", capture.ident));
+        if captures.is_empty() {
+            // NB: if closure doesn't capture the environment it acts like a regular
+            // function. No need to store and load the environment.
+            self.asm
+                .push_with_comment(Inst::Type { hash }, span, format!("closure `{}`", item));
+        } else {
+            // Construct a closure environment.
+            for capture in &*captures {
+                let var = self.scopes.get_var(&capture.ident, span)?;
+                var.copy(&mut self.asm, span, format!("capture `{}`", capture.ident));
+            }
+
+            self.asm.push_with_comment(
+                Inst::Closure {
+                    hash,
+                    count: captures.len(),
+                },
+                span,
+                format!("closure `{}`", item),
+            );
         }
-
-        self.asm.push(
-            Inst::Closure {
-                hash,
-                count: captures.len(),
-            },
-            span,
-        );
 
         Ok(())
     }

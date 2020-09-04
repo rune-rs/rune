@@ -1,14 +1,30 @@
 use process::Command;
 
 async fn main() {
-    let cargo_toml = fs::read_to_string("Cargo.toml").await?;
-    let cargo_toml = toml::from_string(cargo_toml)?;
-    let projects = cargo_toml.workspace.members;
+    loop {
+        let all_ok = true;
 
-    for project in projects {
-        let cargo = Command::new("cargo");
-        cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`, "--no-verify"]);
-        let status = cargo.spawn()?.await?;
-        println(`{project}: {status}`);
+        let cargo_toml = fs::read_to_string("Cargo.toml").await?;
+        let cargo_toml = toml::from_string(cargo_toml)?;
+        let projects = cargo_toml.workspace.members;
+
+        for project in projects {
+            let cargo = Command::new("cargo");
+            cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`, "--no-verify"]);
+            let status = cargo.spawn()?.await?;
+            let code = status.code()?;
+
+            if !(code == 0 || code == 101) {
+                all_ok = false;
+            }
+
+            println(`{project}: {status}`);
+        }
+
+        if all_ok {
+            break;
+        }
+
+        time::delay_for(time::Duration::from_secs(5)).await;
     }
 }
