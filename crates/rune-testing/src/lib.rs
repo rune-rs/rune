@@ -34,7 +34,7 @@ pub use rune::ParseError::*;
 pub use rune::Warning::*;
 pub use runestick::VmErrorKind::*;
 use runestick::{Component, Item};
-pub use runestick::{FnPtr, Meta, Span, Value};
+pub use runestick::{Function, Meta, Span, Value};
 use std::rc::Rc;
 
 /// The result returned from our functions.

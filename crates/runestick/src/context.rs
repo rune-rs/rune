@@ -608,7 +608,7 @@ impl Context {
         constructor: C,
     ) -> Result<(), ContextError>
     where
-        C: crate::Function<Args>,
+        C: crate::module::Function<Args>,
         C::Return: ReflectValueType,
     {
         let value_type = <C::Return as ReflectValueType>::value_type();

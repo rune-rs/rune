@@ -50,7 +50,7 @@ Result: 3
 
 Now things get *really* interesting.
 Runestick, the virtual machine driving Rune, has support for passing function
-pointers out of the virtual machine using the `FnPtr` type.
+pointers out of the virtual machine using the `Function` type.
 
 This allows you to write code that takes a function constructed in Rune, and use
 it for something else.

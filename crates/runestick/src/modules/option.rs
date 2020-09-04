@@ -12,9 +12,9 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-use crate::{ContextError, FnPtr, Module, Shared, Value, VmError};
+use crate::{ContextError, Function, Module, Shared, Value, VmError};
 
-fn unwrap_or_else_impl(this: &Option<Value>, default: FnPtr) -> Result<Value, VmError> {
+fn unwrap_or_else_impl(this: &Option<Value>, default: Function) -> Result<Value, VmError> {
     if let Some(this) = this {
         return Ok(this.clone());
     }

@@ -1,8 +1,12 @@
 use rune_testing::*;
 
 #[test]
-fn test_external_fn_ptr() -> Result<()> {
-    let fn_ptr: FnPtr = run(
+fn test_external_function() -> Result<()> {
+    // NB: here we test passing the function from one virtual machine instance
+    // into another, making sure that the function holds everything it needs to
+    // be called.
+
+    let function: Function = run(
         &["main"],
         (),
         r#"
@@ -13,7 +17,7 @@ fn test_external_fn_ptr() -> Result<()> {
 
     let output: i64 = run(
         &["main"],
-        (fn_ptr,),
+        (function,),
         r#"
         fn main(f) { f() }
         "#,
@@ -25,7 +29,11 @@ fn test_external_fn_ptr() -> Result<()> {
 
 #[test]
 fn test_external_generator() -> Result<()> {
-    let fn_ptr: FnPtr = run(
+    // NB: here we test passing the generator from one virtual machine instance
+    // into another, making sure that the function holds everything it needs to
+    // be called.
+
+    let function: Function = run(
         &["main"],
         (),
         r#"
@@ -36,7 +44,7 @@ fn test_external_generator() -> Result<()> {
 
     let output: (Option<i64>, Option<i64>) = run(
         &["main"],
-        (fn_ptr,),
+        (function,),
         r#"
         fn main(f) { let gen = f(); (gen.next(), gen.next()) }
         "#,

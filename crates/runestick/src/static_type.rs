@@ -128,7 +128,7 @@ pub static OPTION_TYPE: &StaticType = &StaticType {
 };
 
 /// The specialized type information for a function pointer type.
-pub static FN_PTR_TYPE: &StaticType = &StaticType {
+pub static FUNCTION_TYPE: &StaticType = &StaticType {
     name: "Function",
     hash: Hash::new(0x45b788b02e7f231c),
 };

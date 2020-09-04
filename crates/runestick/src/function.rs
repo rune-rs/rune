@@ -1,20 +1,22 @@
 use crate::context::Handler;
 use crate::VmErrorKind;
 use crate::{
-    Call, CallVm, Context, FromValue, Future, Generator, Hash, IntoArgs, Shared, Stack, StopReason,
-    Stream, Tuple, Unit, Value, Vm, VmError,
+    Call, CallVm, Context, FromValue, Future, Generator, Hash, IntoArgs, OwnedRef, RawOwnedRef,
+    Shared, Stack, StopReason, Stream, Tuple, Unit, UnsafeFromValue, Value, ValueError, Vm,
+    VmError,
 };
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 
+value_types!(crate::FUNCTION_TYPE, Function => Function, &Function, Shared<Function>, OwnedRef<Function>);
+
 /// A stored function, of some specific kind.
-#[derive(Debug)]
-pub struct FnPtr {
+pub struct Function {
     inner: Inner,
 }
 
-impl FnPtr {
+impl Function {
     /// Perform a call over the function represented by this function pointer.
     pub fn call<A, T>(&self, args: A) -> Result<T, VmError>
     where
@@ -28,7 +30,7 @@ impl FnPtr {
                 (handler.handler)(&mut stack, A::count())?;
                 stack.pop()?
             }
-            Inner::FnPtrOffset(offset) => {
+            Inner::FnOffset(offset) => {
                 Self::check_args(A::count(), offset.args)?;
 
                 let mut vm = Vm::new(offset.context.clone(), offset.unit.clone());
@@ -42,15 +44,15 @@ impl FnPtr {
                     Call::Async => Value::from(Future::new(vm.async_complete())),
                 }
             }
-            Inner::FnClosureOffset(offset) => {
-                Self::check_args(A::count(), offset.args)?;
+            Inner::FnClosureOffset(closure) => {
+                Self::check_args(A::count(), closure.args)?;
 
-                let mut vm = Vm::new(offset.context.clone(), offset.unit.clone());
-                vm.set_ip(offset.offset);
+                let mut vm = Vm::new(closure.context.clone(), closure.unit.clone());
+                vm.set_ip(closure.offset);
                 args.into_args(vm.stack_mut())?;
-                vm.stack_mut().push(offset.environment.clone());
+                vm.stack_mut().push(closure.environment.clone());
 
-                match offset.call {
+                match closure.call {
                     Call::Stream => Value::from(Stream::new(vm)),
                     Call::Generator => Value::from(Generator::new(vm)),
                     Call::Immediate => vm.complete()?,
@@ -88,7 +90,7 @@ impl FnPtr {
         args: usize,
     ) -> Self {
         Self {
-            inner: Inner::FnPtrOffset(FnPtrOffset {
+            inner: Inner::FnOffset(FnOffset {
                 context,
                 unit,
                 offset,
@@ -153,7 +155,7 @@ impl FnPtr {
                 (handler.handler)(vm.stack_mut(), args)?;
                 None
             }
-            Inner::FnPtrOffset(offset) => {
+            Inner::FnOffset(offset) => {
                 Self::check_args(args, offset.args)?;
 
                 // Fast past, just allocate a call frame and keep running.
@@ -229,12 +231,44 @@ impl FnPtr {
     }
 }
 
+impl fmt::Debug for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.inner {
+            Inner::FnHandler(handler) => {
+                write!(f, "native function ({:p})", handler.handler.as_ref())?;
+            }
+            Inner::FnOffset(offset) => {
+                write!(f, "dynamic function (at: 0x{:x})", offset.offset)?;
+            }
+            Inner::FnClosureOffset(closure) => {
+                write!(
+                    f,
+                    "closure (at: 0x{:x}, env:{:?})",
+                    closure.offset, closure.environment
+                )?;
+            }
+            Inner::FnTuple(tuple) => {
+                write!(f, "tuple (type: {})", tuple.hash)?;
+            }
+            Inner::FnVariantTuple(tuple) => {
+                write!(
+                    f,
+                    "variant tuple (enum: {}, type: {})",
+                    tuple.enum_hash, tuple.hash
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 enum Inner {
     FnHandler(FnHandler),
-    FnPtrOffset(FnPtrOffset),
-    FnTuple(FnTuple),
+    FnOffset(FnOffset),
     FnClosureOffset(FnClosureOffset),
+    FnTuple(FnTuple),
     FnVariantTuple(FnVariantTuple),
 }
 
@@ -249,7 +283,7 @@ impl fmt::Debug for FnHandler {
     }
 }
 
-struct FnPtrOffset {
+struct FnOffset {
     context: Rc<Context>,
     /// The unit where the function resides.
     unit: Rc<Unit>,
@@ -261,9 +295,9 @@ struct FnPtrOffset {
     args: usize,
 }
 
-impl fmt::Debug for FnPtrOffset {
+impl fmt::Debug for FnOffset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FnPtrOffset")
+        f.debug_struct("FnOffset")
             .field("context", &(&self.context as *const _))
             .field("unit", &(&self.unit as *const _))
             .field("offset", &self.offset)
@@ -289,7 +323,7 @@ struct FnClosureOffset {
 
 impl fmt::Debug for FnClosureOffset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FnPtrOffset")
+        f.debug_struct("FnOffset")
             .field("context", &(&self.context as *const _))
             .field("unit", &(&self.unit as *const _))
             .field("environment", &self.environment)
@@ -316,4 +350,37 @@ struct FnVariantTuple {
     hash: Hash,
     /// The number of arguments the tuple takes.
     args: usize,
+}
+
+impl FromValue for Function {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
+        Ok(value.into_function()?.take()?)
+    }
+}
+
+impl FromValue for Shared<Function> {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
+        Ok(value.into_function()?)
+    }
+}
+
+impl FromValue for OwnedRef<Function> {
+    fn from_value(value: Value) -> Result<Self, ValueError> {
+        Ok(value.into_function()?.owned_ref()?)
+    }
+}
+
+impl UnsafeFromValue for &Function {
+    type Output = *const Function;
+    type Guard = RawOwnedRef;
+
+    unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
+        let function = value.into_function()?;
+        let (function, guard) = OwnedRef::into_raw(function.owned_ref()?);
+        Ok((function, guard))
+    }
+
+    unsafe fn to_arg(output: Self::Output) -> Self {
+        &*output
+    }
 }

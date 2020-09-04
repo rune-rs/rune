@@ -1,7 +1,6 @@
 use crate::{Stack, Value, ValueError, ValueType, ValueTypeInfo, VmError};
 
 mod bytes;
-mod fn_ptr;
 mod hash_map;
 mod object;
 mod option;

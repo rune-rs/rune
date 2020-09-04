@@ -1,5 +1,5 @@
 use crate::{
-    Any, Bytes, FnPtr, Future, Generator, GeneratorState, Hash, OwnedMut, OwnedRef, RawOwnedMut,
+    Any, Bytes, Function, Future, Generator, GeneratorState, Hash, OwnedMut, OwnedRef, RawOwnedMut,
     RawOwnedRef, Shared, StaticString, Stream, Tuple, ValueError, ValueType, ValueTypeInfo,
 };
 use std::any;
@@ -134,7 +134,7 @@ pub enum Value {
     /// An object variant with a well-defined type.
     VariantObject(Shared<VariantObject>),
     /// A stored function pointer.
-    FnPtr(Shared<FnPtr>),
+    Function(Shared<Function>),
     /// An opaque value that can be downcasted.
     Any(Shared<Any>),
 }
@@ -324,10 +324,10 @@ impl Value {
 
     /// Try to coerce value into a function pointer.
     #[inline]
-    pub fn into_fn_ptr(self) -> Result<Shared<FnPtr>, ValueError> {
+    pub fn into_function(self) -> Result<Shared<Function>, ValueError> {
         match self {
-            Self::FnPtr(fn_ptr) => Ok(fn_ptr),
-            actual => Err(ValueError::expected::<FnPtr>(actual.type_info()?)),
+            Self::Function(function) => Ok(function),
+            actual => Err(ValueError::expected::<Function>(actual.type_info()?)),
         }
     }
 
@@ -409,7 +409,7 @@ impl Value {
             Self::GeneratorState(..) => ValueType::StaticType(crate::GENERATOR_STATE_TYPE),
             Self::Result(..) => ValueType::StaticType(crate::RESULT_TYPE),
             Self::Option(..) => ValueType::StaticType(crate::OPTION_TYPE),
-            Self::FnPtr(..) => ValueType::StaticType(crate::FN_PTR_TYPE),
+            Self::Function(..) => ValueType::StaticType(crate::FUNCTION_TYPE),
             Self::Type(hash) => ValueType::Type(*hash),
             Self::TypedObject(object) => ValueType::Type(object.borrow_ref()?.hash),
             Self::VariantObject(object) => {
@@ -446,7 +446,7 @@ impl Value {
             Self::GeneratorState(..) => ValueTypeInfo::StaticType(crate::GENERATOR_STATE_TYPE),
             Self::Option(..) => ValueTypeInfo::StaticType(crate::OPTION_TYPE),
             Self::Result(..) => ValueTypeInfo::StaticType(crate::RESULT_TYPE),
-            Self::FnPtr(..) => ValueTypeInfo::StaticType(crate::FN_PTR_TYPE),
+            Self::Function(..) => ValueTypeInfo::StaticType(crate::FUNCTION_TYPE),
             Self::Type(hash) => ValueTypeInfo::Type(*hash),
             Self::TypedObject(object) => object.borrow_ref()?.type_info(),
             Self::VariantObject(object) => object.borrow_ref()?.type_info(),
@@ -599,7 +599,7 @@ impl fmt::Debug for Value {
             Value::VariantObject(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::FnPtr(value) => {
+            Value::Function(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::Any(value) => {
@@ -661,7 +661,7 @@ impl_from_shared!(Shared<TypedTuple>, TypedTuple);
 impl_from_shared!(Shared<VariantTuple>, VariantTuple);
 impl_from_shared!(Shared<TypedObject>, TypedObject);
 impl_from_shared!(Shared<VariantObject>, VariantObject);
-impl_from_shared!(Shared<FnPtr>, FnPtr);
+impl_from_shared!(Shared<Function>, Function);
 impl_from_shared!(Shared<Any>, Any);
 
 /// A type-erased rust number.

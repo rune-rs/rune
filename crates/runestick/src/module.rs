@@ -1,3 +1,8 @@
+//! Crate used for definint native *modules*.
+//!
+//! A native module is one that provides runestick functions and types
+//! through native code.
+
 use crate::collections::HashMap;
 use crate::{
     Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, ValueType,
@@ -46,7 +51,7 @@ impl ModuleInternalEnum {
     /// Register a new variant.
     fn variant<C, Args>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
     where
-        C: crate::Function<Args>,
+        C: crate::module::Function<Args>,
         C::Return: ReflectValueType,
     {
         let constructor: Arc<Handler> =

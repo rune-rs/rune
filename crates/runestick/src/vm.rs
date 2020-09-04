@@ -1,7 +1,7 @@
 use crate::future::SelectFuture;
 use crate::unit::UnitFnKind;
 use crate::{
-    Bytes, Call, Context, FnPtr, FromValue, Future, Generator, Hash, Inst, Integer, IntoArgs,
+    Bytes, Call, Context, FromValue, Function, Future, Generator, Hash, Inst, Integer, IntoArgs,
     IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, ToValue, Tuple, TypeCheck,
     TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution,
 };
@@ -48,7 +48,7 @@ impl Vm {
     /// If any async instructions are encountered, this will error.
     pub fn complete(self) -> Result<Value, VmError> {
         let mut execution = VmExecution::of(self);
-        execution.complete()
+        Ok(execution.complete()?)
     }
 
     /// Run the given vm to completion with support for async functions.
@@ -1684,21 +1684,21 @@ impl Vm {
     }
 
     fn op_fn(&mut self, hash: Hash) -> Result<(), VmError> {
-        let fn_ptr = match self.unit.lookup(hash) {
+        let function = match self.unit.lookup(hash) {
             Some(info) => {
                 let args = info.signature.args;
 
                 match &info.kind {
-                    UnitFnKind::Offset { offset, call } => FnPtr::from_offset(
+                    UnitFnKind::Offset { offset, call } => Function::from_offset(
                         self.context.clone(),
                         self.unit.clone(),
                         *offset,
                         *call,
                         args,
                     ),
-                    UnitFnKind::Tuple { hash } => FnPtr::from_tuple(*hash, args),
+                    UnitFnKind::Tuple { hash } => Function::from_tuple(*hash, args),
                     UnitFnKind::TupleVariant { enum_hash, hash } => {
-                        FnPtr::from_variant_tuple(*enum_hash, *hash, args)
+                        Function::from_variant_tuple(*enum_hash, *hash, args)
                     }
                 }
             }
@@ -1708,11 +1708,11 @@ impl Vm {
                     .lookup(hash)
                     .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
 
-                FnPtr::from_handler(handler.clone())
+                Function::from_handler(handler.clone())
             }
         };
 
-        self.stack.push(Value::FnPtr(Shared::new(fn_ptr)));
+        self.stack.push(Value::Function(Shared::new(function)));
         Ok(())
     }
 
@@ -1733,7 +1733,7 @@ impl Vm {
         let environment = self.stack.pop_sequence(count)?;
         let environment = Shared::new(Tuple::from(environment));
 
-        let fn_ptr = FnPtr::from_closure(
+        let function = Function::from_closure(
             self.context.clone(),
             self.unit.clone(),
             environment,
@@ -1741,7 +1741,7 @@ impl Vm {
             call,
             args,
         );
-        self.stack.push(Value::FnPtr(Shared::new(fn_ptr)));
+        self.stack.push(Value::Function(Shared::new(function)));
         Ok(())
     }
 
@@ -1840,9 +1840,9 @@ impl Vm {
 
         let hash = match function {
             Value::Type(hash) => hash,
-            Value::FnPtr(fn_ptr) => {
-                let fn_ptr = fn_ptr.owned_ref()?;
-                return fn_ptr.call_with_vm(self, args);
+            Value::Function(function) => {
+                let function = function.owned_ref()?;
+                return function.call_with_vm(self, args);
             }
             actual => {
                 let actual_type = actual.type_info()?;

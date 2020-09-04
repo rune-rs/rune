@@ -38,7 +38,7 @@ mod macros;
 mod access;
 mod bytes;
 mod call;
-mod fn_ptr;
+mod function;
 mod future;
 mod generator;
 mod generator_state;
@@ -46,7 +46,7 @@ mod hash;
 mod inst;
 mod item;
 mod meta;
-pub(crate) mod module;
+pub mod module;
 pub mod modules;
 mod names;
 mod panic;
@@ -79,13 +79,13 @@ pub type Error = anyhow::Error;
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
 pub use self::meta::{Meta, MetaClosureCapture, MetaStruct, MetaTuple};
-pub use self::module::{AsyncFunction, AsyncInstFn, Function, InstFn, Module};
+pub use self::module::Module;
 pub use self::select::Select;
 pub use self::static_string::StaticString;
 pub use self::static_type::{
-    StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FN_PTR_TYPE, FUTURE_TYPE,
-    GENERATOR_STATE_TYPE, GENERATOR_TYPE, INTEGER_TYPE, OBJECT_TYPE, OPTION_TYPE, RESULT_TYPE,
-    STREAM_TYPE, STRING_TYPE, TUPLE_TYPE, UNIT_TYPE, VEC_TYPE,
+    StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FUNCTION_TYPE,
+    FUTURE_TYPE, GENERATOR_STATE_TYPE, GENERATOR_TYPE, INTEGER_TYPE, OBJECT_TYPE, OPTION_TYPE,
+    RESULT_TYPE, STREAM_TYPE, STRING_TYPE, TUPLE_TYPE, UNIT_TYPE, VEC_TYPE,
 };
 pub use self::stream::Stream;
 pub use self::tuple::Tuple;
@@ -99,7 +99,7 @@ pub use crate::any::Any;
 pub use crate::bytes::Bytes;
 pub use crate::call::Call;
 pub use crate::context::{Context, ContextError, IntoInstFnHash};
-pub use crate::fn_ptr::FnPtr;
+pub use crate::function::Function;
 pub use crate::future::Future;
 pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{Inst, PanicReason, TypeCheck};
