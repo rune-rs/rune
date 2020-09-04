@@ -7,7 +7,7 @@
 //! Add the following to your `Cargo.toml`:
 //!
 //! ```toml
-//! rune-modules = {version = "0.6.4", features = ["http", "json"]}
+//! rune-modules = {version = "0.6.5", features = ["http", "json"]}
 //! ```
 //!
 //! Install it into your context:

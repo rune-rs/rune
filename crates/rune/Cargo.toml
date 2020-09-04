@@ -1,6 +1,6 @@
 [package]
 name = "rune"
-version = "0.6.4"
+version = "0.6.5"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -28,8 +28,8 @@ slab = "0.4.2"
 hashbrown = "0.8.2"
 num = "0.3.0"
 
-runestick = {version = "0.6.4", path = "../runestick"}
-rune-modules = {version = "0.6.4", path = "../rune-modules", features = ["full"], optional = true}
+runestick = {version = "0.6.5", path = "../runestick"}
+rune-modules = {version = "0.6.5", path = "../rune-modules", features = ["full"], optional = true}
 
 [package.metadata.docs.rs]
 all-features = true
