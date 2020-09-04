@@ -227,9 +227,9 @@ macro_rules! assert_compile_error {
 ///
 /// # fn main() {
 /// assert_warnings! {
-///     r#"fn main() { loop { let _ = break; } }"#,
-///     BreakDoesNotProduceValue { span, .. } => {
-///         assert_eq!(span, Span::new(27, 32));
+///     r#"fn main() { `Hello World` }"#,
+///     TemplateWithoutExpansions { span, .. } => {
+///         assert_eq!(span, Span::new(12, 25));
 ///     }
 /// };
 /// # }

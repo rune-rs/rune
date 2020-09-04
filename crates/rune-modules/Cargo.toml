@@ -15,12 +15,13 @@ Native modules for Rune, an embeddable dynamic programming language for Rust.
 """
 
 [features]
-full = ["time", "http", "json", "toml", "process", "fs"]
+full = ["time", "http", "json", "toml", "fs", "process", "signal"]
 time = ["tokio", "tokio/time"]
 fs = ["tokio", "tokio/fs"]
 http = ["reqwest"]
 json = ["serde_json"]
 process = ["tokio/process"]
+signal = ["tokio/signal"]
 
 [dependencies]
 reqwest = {version = "0.10.7", optional = true}

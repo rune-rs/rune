@@ -11,16 +11,6 @@ fn test_let_pattern_might_panic() {
 }
 
 #[test]
-fn test_break_as_value() {
-    assert_warnings! {
-        r#"fn main() { loop { let _ = break; } }"#,
-        BreakDoesNotProduceValue { span, .. } => {
-            assert_eq!(span, Span::new(27, 32));
-        }
-    };
-}
-
-#[test]
 fn test_template_without_variables() {
     assert_warnings! {
         r#"fn main() { `Hello World` }"#,

@@ -121,6 +121,7 @@ impl Runtime {
             context.install(&rune_modules::time::module()?)?;
             context.install(&rune_modules::process::module()?)?;
             context.install(&rune_modules::fs::module()?)?;
+            context.install(&rune_modules::signal::module()?)?;
         }
 
         Ok(Self::with_context(context))
@@ -401,13 +402,6 @@ impl Runtime {
                             notes.push(note);
                         }
 
-                        context
-                    }
-                    Warning::BreakDoesNotProduceValue { span, context } => {
-                        labels.push(
-                            Label::primary(source_file, span.start..span.end)
-                                .with_message("break expressions do not produce a value"),
-                        );
                         context
                     }
                     Warning::TemplateWithoutExpansions { span, context } => {

@@ -1,6 +1,9 @@
 use process::Command;
 
 async fn main() {
+    let ctrl_c = signal::ctrl_c();
+
+    'outer:
     loop {
         let all_ok = true;
 
@@ -11,7 +14,11 @@ async fn main() {
         for project in projects {
             let cargo = Command::new("cargo");
             cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`, "--no-verify"]);
-            let status = cargo.spawn()?.await?;
+
+            let status = select {
+                _ = ctrl_c => break 'outer,
+                status = cargo.spawn()? => status?,
+            };
 
             if status.code()? != 0 {
                 all_ok = false;
@@ -26,4 +33,6 @@ async fn main() {
 
         time::delay_for(time::Duration::from_secs(5)).await;
     }
+
+    println("Bye");
 }

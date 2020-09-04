@@ -48,7 +48,7 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_, '_> {
                 self.compile((expr_index_get, needs))?;
             }
             ast::Expr::ExprBreak(expr_break) => {
-                self.compile((expr_break, needs))?;
+                self.compile(expr_break)?;
             }
             ast::Expr::ExprYield(expr_yield) => {
                 self.compile((expr_yield, needs))?;

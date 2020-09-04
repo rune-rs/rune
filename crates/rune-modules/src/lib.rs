@@ -31,7 +31,9 @@
 //! * [json]
 //! * [toml]
 //! * [time]
+//! * [fs]
 //! * [process]
+//! * [signal]
 //!
 //! ## Features
 //!
@@ -40,13 +42,17 @@
 //! * `json` for the [json module][json]
 //! * `toml` for the [toml module][toml]
 //! * `time` for the [time module][time]
+//! * `fs` for the [fs module]][fs]
 //! * `process` for the [process module]][process]
+//! * `signal` for the [process module]][signal]
 //!
 //! [http]: https://docs.rs/rune-modules/0/rune_modules/http/
 //! [json]: https://docs.rs/rune-modules/0/rune_modules/json/
 //! [toml]: https://docs.rs/rune-modules/0/rune_modules/toml/
 //! [time]: https://docs.rs/rune-modules/0/rune_modules/time/
+//! [fs]: https://docs.rs/rune-modules/0/rune_modules/fs/
 //! [process]: https://docs.rs/rune-modules/0/rune_modules/process/
+//! [signal]: https://docs.rs/rune-modules/0/rune_modules/signal/
 
 #[cfg(feature = "http")]
 pub mod http;
@@ -60,8 +66,11 @@ pub mod toml;
 #[cfg(feature = "time")]
 pub mod time;
 
+#[cfg(feature = "fs")]
+pub mod fs;
+
 #[cfg(feature = "process")]
 pub mod process;
 
-#[cfg(feature = "fs")]
-pub mod fs;
+#[cfg(feature = "signal")]
+pub mod signal;

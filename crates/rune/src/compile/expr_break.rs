@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::compiler::{Compiler, Needs};
+use crate::compiler::Compiler;
 use crate::error::CompileResult;
 use crate::{traits::Compile, CompileError};
 use runestick::Inst;
@@ -7,15 +7,10 @@ use runestick::Inst;
 /// Compile a break expression.
 ///
 /// NB: loops are expected to produce a value at the end of their expression.
-impl Compile<(&ast::ExprBreak, Needs)> for Compiler<'_, '_> {
-    fn compile(&mut self, (expr_break, needs): (&ast::ExprBreak, Needs)) -> CompileResult<()> {
+impl Compile<&ast::ExprBreak> for Compiler<'_, '_> {
+    fn compile(&mut self, expr_break: &ast::ExprBreak) -> CompileResult<()> {
         let span = expr_break.span();
         log::trace!("ExprBreak => {:?}", self.source.source(span)?);
-
-        if needs.value() {
-            self.warnings
-                .break_does_not_produce_value(span, self.context());
-        }
 
         let current_loop = match self.loops.last() {
             Some(current_loop) => current_loop,

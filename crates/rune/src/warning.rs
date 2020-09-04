@@ -18,13 +18,6 @@ pub enum Warning {
         /// The context in which it is used.
         context: Option<Span>,
     },
-    /// A break that does not produce a value.
-    BreakDoesNotProduceValue {
-        /// The span of the break.
-        span: Span,
-        /// The context in which it is used.
-        context: Option<Span>,
-    },
     /// Encountered a template string without an expansion.
     TemplateWithoutExpansions {
         /// Span that caused the error.
@@ -76,12 +69,6 @@ impl Warnings {
     pub(crate) fn let_pattern_might_panic(&mut self, span: Span, context: Option<Span>) {
         self.warnings
             .push(Warning::LetPatternMightPanic { span, context });
-    }
-
-    /// Indicate that a break expression is being used in a value expression.
-    pub(crate) fn break_does_not_produce_value(&mut self, span: Span, context: Option<Span>) {
-        self.warnings
-            .push(Warning::BreakDoesNotProduceValue { span, context });
     }
 
     /// Indicate that we encountered a template string without any expansion groups.

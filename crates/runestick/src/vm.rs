@@ -175,8 +175,21 @@ impl Vm {
     fn op_select(&mut self, len: usize) -> Result<Option<Select>, VmError> {
         let futures = futures::stream::FuturesUnordered::new();
 
-        for (branch, value) in self.stack.drain_stack_top(len)?.enumerate() {
-            let future = value.into_future()?.owned_mut()?;
+        let arguments = self.stack.drain_stack_top(len)?.collect::<Vec<_>>();
+
+        for (branch, value) in arguments.into_iter().enumerate() {
+            let future = match value {
+                Value::Future(future) => future.owned_mut()?,
+                value => {
+                    if !self.call_instance_fn(&value, crate::INTO_FUTURE, ())? {
+                        return Err(VmError::from(VmErrorKind::UnsupportedAwait {
+                            actual: value.type_info()?,
+                        }));
+                    }
+
+                    self.stack.pop()?.into_future()?.owned_mut()?
+                }
+            };
 
             if !future.is_completed() {
                 futures.push(SelectFuture::new(branch, future));
