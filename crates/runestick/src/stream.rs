@@ -43,10 +43,7 @@ impl Stream {
             execution.vm_mut()?.stack_mut().push(value);
         }
 
-        let state = match execution.async_resume().await {
-            Ok(state) => state,
-            Err(e) => return Err(e.into_unwinded(execution.vm()?.ip())),
-        };
+        let state = execution.async_resume().await?;
 
         if state.is_complete() {
             self.execution = None;

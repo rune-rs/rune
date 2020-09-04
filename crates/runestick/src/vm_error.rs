@@ -1,7 +1,7 @@
 use crate::panic::BoxedPanic;
 use crate::{
-    AccessError, Hash, Integer, Panic, Protocol, ReflectValueType, StackError, StopReasonInfo,
-    Value, ValueTypeInfo,
+    AccessError, Hash, Integer, Panic, Protocol, ReflectValueType, StackError, Value,
+    ValueTypeInfo, VmHaltInfo,
 };
 use thiserror::Error;
 
@@ -70,10 +70,8 @@ impl VmError {
     /// Convert into an unwinded vm error.
     pub fn into_unwinded(self, ip: usize) -> Self {
         match *self.kind {
-            VmErrorKind::UnwindedVmError { kind, ip } => {
-                Self::from(VmErrorKind::UnwindedVmError { kind, ip })
-            }
-            kind => Self::from(VmErrorKind::UnwindedVmError {
+            VmErrorKind::Unwound { kind, ip } => Self::from(VmErrorKind::Unwound { kind, ip }),
+            kind => Self::from(VmErrorKind::Unwound {
                 kind: Box::new(kind),
                 ip,
             }),
@@ -81,16 +79,13 @@ impl VmError {
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn from_unwinded(self) -> (Self, Option<usize>) {
+    pub fn into_unwound(self) -> (Self, Option<usize>) {
         match *self.kind {
-            VmErrorKind::UnwindedVmError { kind, ip } => {
+            VmErrorKind::Unwound { kind, ip } => {
                 let error = Self { kind };
                 (error, Some(ip))
             }
-            kind => {
-                let error = Self::from(kind);
-                (error, None)
-            }
+            kind => (Self::from(kind), None),
         }
     }
 
@@ -110,7 +105,7 @@ impl VmError {
     fn is_critical(&self) -> bool {
         match &*self.kind {
             VmErrorKind::Panic { .. } => true,
-            VmErrorKind::UnwindedVmError { .. } => true,
+            VmErrorKind::Unwound { .. } => true,
             _ => false,
         }
     }
@@ -119,6 +114,17 @@ impl VmError {
 /// The kind of error encountered.
 #[derive(Debug, Error)]
 pub enum VmErrorKind {
+    /// A vm error that was propagated from somewhere else.
+    ///
+    /// In order to represent this, we need to preserve the instruction pointer
+    /// and eventually unit from where the error happened.
+    #[error("{kind} (at {ip})")]
+    Unwound {
+        /// The wrapper error.
+        kind: Box<VmErrorKind>,
+        /// The instruction pointer of where the original error happened.
+        ip: usize,
+    },
     /// The virtual machine panicked for a specific reason.
     #[error("panicked `{reason}`")]
     Panic {
@@ -129,21 +135,10 @@ pub enum VmErrorKind {
     #[error("no running virtual machines")]
     NoRunningVm,
     /// The virtual machine stopped for an unexpected reason.
-    #[error("stopped for unexpected reason `{reason}`")]
-    Stopped {
+    #[error("halted for unexpected reason `{halt}`")]
+    Halted {
         /// The reason why the virtual machine stopped.
-        reason: StopReasonInfo,
-    },
-    /// A vm error that was propagated from somewhere else.
-    ///
-    /// In order to represent this, we need to preserve the instruction pointer
-    /// and eventually unit from where the error happened.
-    #[error("{kind} (at {ip})")]
-    UnwindedVmError {
-        /// The actual error.
-        kind: Box<VmErrorKind>,
-        /// The instruction pointer of where the original error happened.
-        ip: usize,
+        halt: VmHaltInfo,
     },
     /// Error raised when external format function results in error.
     #[error("failed to format argument")]
@@ -411,10 +406,10 @@ pub enum VmErrorKind {
 }
 
 impl VmErrorKind {
-    /// Unpack an unwinded error, if it is present.
-    pub fn from_unwinded_ref(&self) -> (&Self, Option<usize>) {
+    /// Unpack an unwound error, if it is present.
+    pub fn into_unwound_ref(&self) -> (&Self, Option<usize>) {
         match self {
-            VmErrorKind::UnwindedVmError { kind, ip } => (&*kind, Some(*ip)),
+            VmErrorKind::Unwound { kind, ip } => (&*kind, Some(*ip)),
             kind => (kind, None),
         }
     }

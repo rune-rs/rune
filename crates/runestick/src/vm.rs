@@ -1,12 +1,11 @@
 use crate::future::SelectFuture;
 use crate::unit::UnitFnKind;
 use crate::{
-    Bytes, Call, Context, FromValue, Function, Future, Generator, Hash, Inst, Integer, IntoArgs,
-    IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, ToValue, Tuple, TypeCheck,
-    TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution,
+    Awaited, Bytes, Call, Context, FromValue, Function, Future, Generator, Hash, Inst, Integer,
+    IntoArgs, IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck,
+    TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution, VmHalt,
 };
 use std::fmt;
-use std::marker;
 use std::mem;
 use std::rc::Rc;
 
@@ -154,17 +153,6 @@ impl Vm {
         // ensuring that the task won't outlive any references passed in.
         args.into_args(&mut self.stack)?;
         Ok(VmExecution::of(self))
-    }
-
-    /// Run the given program on the virtual machine.
-    pub fn run<T>(&mut self) -> Task<'_, T>
-    where
-        T: FromValue,
-    {
-        Task {
-            vm: self,
-            _marker: marker::PhantomData,
-        }
     }
 
     fn op_await(&mut self) -> Result<Shared<Future>, VmError> {
@@ -1814,7 +1802,7 @@ impl Vm {
         Ok(())
     }
 
-    fn op_call_fn(&mut self, args: usize) -> Result<Option<StopReason>, VmError> {
+    fn op_call_fn(&mut self, args: usize) -> Result<Option<VmHalt>, VmError> {
         let function = self.stack.pop()?;
 
         let hash = match function {
@@ -1841,7 +1829,7 @@ impl Vm {
     }
 
     /// Evaluate a single instruction.
-    pub(crate) fn run_for(&mut self, mut limit: Option<usize>) -> Result<StopReason, VmError> {
+    pub(crate) fn run_for(&mut self, mut limit: Option<usize>) -> Result<VmHalt, VmError> {
         loop {
             let inst = *self
                 .unit
@@ -1925,24 +1913,24 @@ impl Vm {
                 Inst::Return => {
                     if self.op_return()? {
                         self.advance();
-                        return Ok(StopReason::Exited);
+                        return Ok(VmHalt::Exited);
                     }
                 }
                 Inst::ReturnUnit => {
                     if self.op_return_unit()? {
                         self.advance();
-                        return Ok(StopReason::Exited);
+                        return Ok(VmHalt::Exited);
                     }
                 }
                 Inst::Await => {
                     let future = self.op_await()?;
                     // NB: the future itself will advance the virtual machine.
-                    return Ok(StopReason::Awaited(Awaited::Future(future)));
+                    return Ok(VmHalt::Awaited(Awaited::Future(future)));
                 }
                 Inst::Select { len } => match self.op_select(len)? {
                     Some(select) => {
                         // NB: the future itself will advance the virtual machine.
-                        return Ok(StopReason::Awaited(Awaited::Select(select)));
+                        return Ok(VmHalt::Awaited(Awaited::Select(select)));
                     }
                     None => (),
                 },
@@ -2104,12 +2092,12 @@ impl Vm {
                 }
                 Inst::Yield => {
                     self.advance();
-                    return Ok(StopReason::Yielded);
+                    return Ok(VmHalt::Yielded);
                 }
                 Inst::YieldUnit => {
                     self.advance();
                     self.stack.push(Value::Unit);
-                    return Ok(StopReason::Yielded);
+                    return Ok(VmHalt::Yielded);
                 }
                 Inst::Panic { reason } => {
                     return Err(VmError::from(VmErrorKind::Panic {
@@ -2122,7 +2110,7 @@ impl Vm {
 
             if let Some(limit) = &mut limit {
                 if *limit <= 1 {
-                    return Ok(StopReason::Limited);
+                    return Ok(VmHalt::Limited);
                 }
 
                 *limit -= 1;
@@ -2144,144 +2132,4 @@ struct CallFrame {
     /// I.e. a function should not be able to manipulate the size of any other
     /// stack than its own.
     stack_top: usize,
-}
-
-/// The reason why the virtual machine execution stopped.
-#[derive(Debug)]
-pub enum StopReason {
-    /// The virtual machine exited by running out of call frames.
-    Exited,
-    /// The virtual machine exited because it ran out of execution quota.
-    Limited,
-    /// The virtual machine yielded.
-    Yielded,
-    /// The virtual machine awaited on the given future.
-    Awaited(Awaited),
-    /// Call into a new virtual machine.
-    CallVm(CallVm),
-}
-
-impl StopReason {
-    /// Convert into cheap info enum which only described the reason.
-    pub fn into_info(self) -> StopReasonInfo {
-        match self {
-            Self::Exited => StopReasonInfo::Exited,
-            Self::Limited => StopReasonInfo::Limited,
-            Self::Yielded => StopReasonInfo::Yielded,
-            Self::Awaited(..) => StopReasonInfo::Awaited,
-            Self::CallVm(..) => StopReasonInfo::CallVm,
-        }
-    }
-}
-
-/// A stored await task.
-#[derive(Debug)]
-pub enum Awaited {
-    /// A future to be awaited.
-    Future(Shared<Future>),
-    /// A select to be awaited.
-    Select(Select),
-}
-
-impl Awaited {
-    /// Wait for the given awaited into the specified virtual machine.
-    pub(crate) async fn wait_with_vm(self, vm: &mut Vm) -> Result<(), VmError> {
-        match self {
-            Self::Future(future) => {
-                let value = future.borrow_mut()?.await?;
-                vm.stack.push(value);
-                vm.advance();
-            }
-            Self::Select(select) => {
-                let (branch, value) = select.await?;
-                vm.stack.push(value);
-                vm.stack.push(ToValue::to_value(branch)?);
-                vm.advance();
-            }
-        }
-
-        Ok(())
-    }
-}
-
-/// An instruction to push a virtual machine to the execution.
-#[derive(Debug)]
-pub struct CallVm {
-    pub(crate) call: Call,
-    pub(crate) vm: Vm,
-}
-
-impl CallVm {
-    /// Construct a new nested vm call.
-    pub(crate) fn new(call: Call, vm: Vm) -> Self {
-        Self { call, vm }
-    }
-
-    /// Encode the push itno an execution.
-    pub(crate) fn into_execution<'vm>(self, execution: &mut VmExecution) -> Result<(), VmError> {
-        let value = match self.call {
-            Call::Async => Value::from(Future::new(self.vm.async_complete())),
-            Call::Stream => Value::from(Stream::new(self.vm)),
-            Call::Generator => Value::from(Generator::new(self.vm)),
-            Call::Immediate => {
-                execution.push_vm(self.vm);
-                return Ok(());
-            }
-        };
-
-        let vm = execution.vm_mut()?;
-        vm.stack.push(value);
-        vm.advance();
-        Ok(())
-    }
-}
-
-/// The reason why the virtual machine execution stopped.
-#[derive(Debug, Clone, Copy)]
-pub enum StopReasonInfo {
-    /// The virtual machine exited by running out of call frames.
-    Exited,
-    /// The virtual machine exited because it ran out of execution quota.
-    Limited,
-    /// The virtual machine yielded.
-    Yielded,
-    /// The virtual machine awaited on the given future.
-    Awaited,
-    /// Received instruction to push the inner virtual machine.
-    CallVm,
-}
-
-impl fmt::Display for StopReasonInfo {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Exited => write!(f, "exited"),
-            Self::Limited => write!(f, "limited"),
-            Self::Yielded => write!(f, "yielded"),
-            Self::Awaited => write!(f, "awaited"),
-            Self::CallVm => write!(f, "calling into other vm"),
-        }
-    }
-}
-
-/// The task of a unit being run.
-pub struct Task<'a, T> {
-    /// The virtual machine associated with the task.
-    vm: &'a mut Vm,
-    /// Marker holding output type.
-    _marker: marker::PhantomData<&'a mut T>,
-}
-
-impl<'a, T> Task<'a, T>
-where
-    T: FromValue,
-{
-    /// Get access to the underlying virtual machine.
-    pub fn vm(&self) -> &Vm {
-        self.vm
-    }
-
-    /// Get access to the used compilation unit.
-    pub fn unit(&self) -> &Unit {
-        &*self.vm.unit
-    }
 }

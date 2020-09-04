@@ -1,8 +1,8 @@
 use crate::context::Handler;
 use crate::VmErrorKind;
 use crate::{
-    Call, CallVm, Context, FromValue, Future, Generator, Hash, IntoArgs, OwnedRef, RawOwnedRef,
-    Shared, Stack, StopReason, Stream, Tuple, Unit, UnsafeFromValue, Value, Vm, VmError,
+    Call, Context, FromValue, Future, Generator, Hash, IntoArgs, OwnedRef, RawOwnedRef, Shared,
+    Stack, Stream, Tuple, Unit, UnsafeFromValue, Value, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
 use std::rc::Rc;
@@ -144,11 +144,7 @@ impl Function {
     ///
     /// A stop reason will be returned in case the function call results in
     /// a need to suspend the execution.
-    pub(crate) fn call_with_vm(
-        &self,
-        vm: &mut Vm,
-        args: usize,
-    ) -> Result<Option<StopReason>, VmError> {
+    pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
         let reason = match &self.inner {
             Inner::FnHandler(handler) => {
                 (handler.handler)(vm.stack_mut(), args)?;
@@ -169,7 +165,7 @@ impl Function {
                 let mut vm =
                     Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
                 vm.set_ip(offset.offset);
-                Some(StopReason::CallVm(CallVm::new(offset.call, vm)))
+                Some(VmHalt::VmCall(VmCall::new(offset.call, vm)))
             }
             Inner::FnClosureOffset(offset) => {
                 Self::check_args(args, offset.args)?;
@@ -191,7 +187,7 @@ impl Function {
                 let mut vm =
                     Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
                 vm.set_ip(offset.offset);
-                Some(StopReason::CallVm(CallVm::new(offset.call, vm)))
+                Some(VmHalt::VmCall(VmCall::new(offset.call, vm)))
             }
             Inner::FnTuple(tuple) => {
                 Self::check_args(args, tuple.args)?;

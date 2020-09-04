@@ -1,4 +1,4 @@
-use crate::{GeneratorState, StopReason, Value, Vm, VmError, VmErrorKind};
+use crate::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt};
 
 /// The execution environment for a virtual machine.
 pub struct VmExecution {
@@ -37,20 +37,19 @@ impl VmExecution {
             let len = self.vms.len();
             let vm = self.vm_mut()?;
 
-            match vm.run_for(None)? {
-                StopReason::Exited => (),
-                StopReason::Awaited(awaited) => {
-                    // TODO: handle this through polling instead.
+            match Self::run_for(vm, None)? {
+                VmHalt::Exited => (),
+                VmHalt::Awaited(awaited) => {
                     awaited.wait_with_vm(vm).await?;
                     continue;
                 }
-                StopReason::CallVm(call_vm) => {
-                    call_vm.into_execution(self)?;
+                VmHalt::VmCall(vm_call) => {
+                    vm_call.into_execution(self)?;
                     continue;
                 }
-                reason => {
-                    return Err(VmError::from(VmErrorKind::Stopped {
-                        reason: reason.into_info(),
+                halt => {
+                    return Err(VmError::from(VmErrorKind::Halted {
+                        halt: halt.into_info(),
                     }))
                 }
             }
@@ -73,15 +72,15 @@ impl VmExecution {
             let len = self.vms.len();
             let vm = self.vm_mut()?;
 
-            match vm.run_for(None)? {
-                StopReason::Exited => (),
-                StopReason::CallVm(call_vm) => {
-                    call_vm.into_execution(self)?;
+            match Self::run_for(vm, None)? {
+                VmHalt::Exited => (),
+                VmHalt::VmCall(vm_call) => {
+                    vm_call.into_execution(self)?;
                     continue;
                 }
-                reason => {
-                    return Err(VmError::from(VmErrorKind::Stopped {
-                        reason: reason.into_info(),
+                halt => {
+                    return Err(VmError::from(VmErrorKind::Halted {
+                        halt: halt.into_info(),
                     }))
                 }
             }
@@ -102,21 +101,20 @@ impl VmExecution {
             let len = self.vms.len();
             let vm = self.vm_mut()?;
 
-            match vm.run_for(None)? {
-                StopReason::Exited => (),
-                StopReason::Awaited(awaited) => {
-                    // TODO: handle this through polling instead.
+            match Self::run_for(vm, None)? {
+                VmHalt::Exited => (),
+                VmHalt::Awaited(awaited) => {
                     awaited.wait_with_vm(vm).await?;
                     continue;
                 }
-                StopReason::CallVm(call_vm) => {
-                    call_vm.into_execution(self)?;
+                VmHalt::VmCall(vm_call) => {
+                    vm_call.into_execution(self)?;
                     continue;
                 }
-                StopReason::Yielded => return Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
-                reason => {
-                    return Err(VmError::from(VmErrorKind::Stopped {
-                        reason: reason.into_info(),
+                VmHalt::Yielded => return Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
+                halt => {
+                    return Err(VmError::from(VmErrorKind::Halted {
+                        halt: halt.into_info(),
                     }))
                 }
             }
@@ -137,16 +135,16 @@ impl VmExecution {
             let len = self.vms.len();
             let vm = self.vm_mut()?;
 
-            match vm.run_for(None)? {
-                StopReason::Exited => (),
-                StopReason::CallVm(call_vm) => {
-                    call_vm.into_execution(self)?;
+            match Self::run_for(vm, None)? {
+                VmHalt::Exited => (),
+                VmHalt::VmCall(vm_call) => {
+                    vm_call.into_execution(self)?;
                     continue;
                 }
-                StopReason::Yielded => return Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
-                reason => {
-                    return Err(VmError::from(VmErrorKind::Stopped {
-                        reason: reason.into_info(),
+                VmHalt::Yielded => return Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
+                halt => {
+                    return Err(VmError::from(VmErrorKind::Halted {
+                        halt: halt.into_info(),
                     }))
                 }
             }
@@ -166,20 +164,20 @@ impl VmExecution {
         let len = self.vms.len();
         let vm = self.vm_mut()?;
 
-        match vm.run_for(Some(1))? {
-            StopReason::Exited => (),
-            StopReason::Awaited(awaited) => {
+        match Self::run_for(vm, Some(1))? {
+            VmHalt::Exited => (),
+            VmHalt::Awaited(awaited) => {
                 awaited.wait_with_vm(vm).await?;
                 return Ok(None);
             }
-            StopReason::CallVm(call_vm) => {
-                call_vm.into_execution(self)?;
+            VmHalt::VmCall(vm_call) => {
+                vm_call.into_execution(self)?;
                 return Ok(None);
             }
-            StopReason::Limited => return Ok(None),
-            reason => {
-                return Err(VmError::from(VmErrorKind::Stopped {
-                    reason: reason.into_info(),
+            VmHalt::Limited => return Ok(None),
+            halt => {
+                return Err(VmError::from(VmErrorKind::Halted {
+                    halt: halt.into_info(),
                 }))
             }
         }
@@ -215,5 +213,13 @@ impl VmExecution {
         onto.stack_mut().push(value);
         onto.advance();
         Ok(())
+    }
+
+    #[inline]
+    fn run_for(vm: &mut Vm, limit: Option<usize>) -> Result<VmHalt, VmError> {
+        match vm.run_for(limit) {
+            Ok(reason) => Ok(reason),
+            Err(error) => Err(error.into_unwinded(vm.ip())),
+        }
     }
 }

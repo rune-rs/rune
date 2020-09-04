@@ -36,6 +36,7 @@ mod vm;
 #[macro_use]
 mod macros;
 mod access;
+mod awaited;
 mod bytes;
 mod call;
 mod function;
@@ -64,8 +65,10 @@ pub mod unit;
 mod value_type;
 mod value_type_info;
 mod vec_tuple;
+mod vm_call;
 mod vm_error;
 mod vm_execution;
+mod vm_halt;
 
 decl_external!(anyhow::Error);
 
@@ -95,6 +98,7 @@ pub use crate::access::{
     RawBorrowedRef,
 };
 pub use crate::any::Any;
+pub use crate::awaited::Awaited;
 pub use crate::bytes::Bytes;
 pub use crate::call::Call;
 pub use crate::context::{Context, ContextError, IntoInstFnHash};
@@ -117,9 +121,11 @@ pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple,
 };
 pub use crate::vec_tuple::VecTuple;
-pub use crate::vm::{CallVm, StopReason, StopReasonInfo, Task, Vm};
+pub use crate::vm::Vm;
+pub use crate::vm_call::VmCall;
 pub use crate::vm_error::{VmError, VmErrorKind};
 pub use crate::vm_execution::VmExecution;
+pub use crate::vm_halt::{VmHalt, VmHaltInfo};
 
 mod collections {
     pub use hashbrown::HashMap;

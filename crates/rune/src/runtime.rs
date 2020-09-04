@@ -167,7 +167,7 @@ impl Runtime {
     /// If we don't have debuginfo, returns Err with the passed in error.
     pub fn register_vm_error(
         &mut self,
-        top_ip: usize,
+        ip: usize,
         file_id: usize,
         error: runestick::VmError,
     ) -> Result<(), runestick::VmError> {
@@ -176,8 +176,8 @@ impl Runtime {
             None => return Err(error),
         };
 
-        let (error, ip) = error.from_unwinded();
-        let ip = ip.unwrap_or(top_ip);
+        let (error, unwound_ip) = error.into_unwound();
+        let ip = unwound_ip.unwrap_or(ip);
 
         if let Some(debug) = unit.debug_info_at(ip) {
             self.errors.push((
