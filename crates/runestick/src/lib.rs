@@ -104,7 +104,7 @@ pub use crate::call::Call;
 pub use crate::context::{Context, ContextError, IntoInstFnHash};
 pub use crate::function::Function;
 pub use crate::future::Future;
-pub use crate::hash::{Hash, IntoTypeHash};
+pub use crate::hash::{Hash, IntoHash};
 pub use crate::inst::{Inst, PanicReason, TypeCheck};
 pub use crate::item::{Component, Item};
 pub use crate::names::Names;

@@ -2,7 +2,7 @@ use crate::future::SelectFuture;
 use crate::unit::UnitFnKind;
 use crate::{
     Awaited, Bytes, Call, Context, FromValue, Function, Future, Generator, Hash, Inst, Integer,
-    IntoArgs, IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck,
+    IntoArgs, IntoHash, Object, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck,
     TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution, VmHalt,
 };
 use std::fmt;
@@ -120,10 +120,10 @@ impl Vm {
     /// Call the given function in the given compilation unit.
     pub fn call_function<A, N>(mut self, hash: N, args: A) -> Result<VmExecution, VmError>
     where
-        N: IntoTypeHash,
+        N: IntoHash,
         A: IntoArgs,
     {
-        let hash = hash.into_type_hash();
+        let hash = hash.into_hash();
 
         let function = self
             .unit
@@ -208,11 +208,11 @@ impl Vm {
     /// Helper function to call an instance function.
     fn call_instance_fn<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
     where
-        H: IntoTypeHash,
+        H: IntoHash,
         A: IntoArgs,
     {
         let count = A::count() + 1;
-        let hash = Hash::instance_function(target.value_type()?, hash.into_type_hash());
+        let hash = Hash::instance_function(target.value_type()?, hash.into_hash());
 
         if let Some(info) = self.unit.lookup(hash) {
             if info.signature.args != count {
@@ -249,11 +249,11 @@ impl Vm {
     /// Helper function to call an external getter.
     fn call_getter<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
     where
-        H: IntoTypeHash,
+        H: IntoHash,
         A: IntoArgs,
     {
         let count = A::count() + 1;
-        let hash = Hash::getter(target.value_type()?, hash.into_type_hash());
+        let hash = Hash::getter(target.value_type()?, hash.into_hash());
 
         let handler = match self.context.lookup(hash) {
             Some(handler) => handler,
@@ -521,7 +521,7 @@ impl Vm {
         op: &'static str,
     ) -> Result<(), VmError>
     where
-        H: IntoTypeHash,
+        H: IntoHash,
         E: Copy + FnOnce() -> VmError,
         I: FnOnce(i64, i64) -> Option<i64>,
         F: FnOnce(f64, f64) -> f64,
@@ -622,7 +622,7 @@ impl Vm {
         op: &'static str,
     ) -> Result<(), VmError>
     where
-        H: IntoTypeHash,
+        H: IntoHash,
         E: Copy + FnOnce() -> VmError,
         I: FnOnce(i64, i64) -> Option<i64>,
         F: FnOnce(f64, f64) -> f64,
@@ -1768,7 +1768,7 @@ impl Vm {
     #[inline]
     fn op_call_instance<H>(&mut self, hash: H, args: usize) -> Result<(), VmError>
     where
-        H: IntoTypeHash,
+        H: IntoHash,
     {
         // NB: +1 to include the instance itself.
         let args = args + 1;

@@ -1,4 +1,4 @@
-use crate::{Hash, IntoInstFnHash, IntoTypeHash};
+use crate::{Hash, IntoHash, IntoInstFnHash};
 use std::fmt;
 
 /// A built in instance function.
@@ -20,8 +20,8 @@ impl IntoInstFnHash for Protocol {
     }
 }
 
-impl IntoTypeHash for Protocol {
-    fn into_type_hash(self) -> Hash {
+impl IntoHash for Protocol {
+    fn into_hash(self) -> Hash {
         self.hash
     }
 }

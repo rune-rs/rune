@@ -36,7 +36,7 @@ impl Any {
                 as_mut_ptr: as_mut_ptr_impl::<T>,
                 take_mut_ptr: as_mut_ptr_impl::<T>,
                 type_name: any::type_name::<T>,
-                type_hash: Hash::of_any::<T>,
+                type_hash: Hash::from_any::<T>,
             },
             data: data as *mut (),
         };
@@ -59,7 +59,7 @@ impl Any {
     where
         T: any::Any,
     {
-        Hash::of_any::<T>() == self.type_hash()
+        Hash::from_any::<T>() == self.type_hash()
     }
 
     /// Returns some reference to the boxed value if it is of type `T`, or
