@@ -1,6 +1,6 @@
 [package]
 name = "rune-modules"
-version = "0.6.5"
+version = "0.6.6"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -29,7 +29,7 @@ tokio = {version = "0.2.22", optional = true}
 serde_json = {version = "1.0.57", optional = true}
 toml = {version = "0.5.6", optional = true}
 
-runestick = {version = "0.6.5", path = "../runestick"}
+runestick = {version = "0.6.6", path = "../runestick"}
 
 [package.metadata.docs.rs]
 all-features = true
