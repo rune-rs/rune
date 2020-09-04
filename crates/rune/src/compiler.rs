@@ -307,14 +307,6 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let count = {
             let scope = self.scopes.last_mut(span)?;
 
-            if !captures.is_empty() {
-                self.asm.push(Inst::PushTuple, span);
-
-                for capture in captures {
-                    scope.new_var(&capture.ident, span)?;
-                }
-            }
-
             for (arg, _) in expr_closure.args.as_slice() {
                 let span = arg.span();
 
@@ -330,6 +322,14 @@ impl<'a, 'source> Compiler<'a, 'source> {
                         // Ignore incoming variable.
                         let _ = scope.decl_anon(span);
                     }
+                }
+            }
+
+            if !captures.is_empty() {
+                self.asm.push(Inst::PushTuple, span);
+
+                for capture in captures {
+                    scope.new_var(&capture.ident, span)?;
                 }
             }
 

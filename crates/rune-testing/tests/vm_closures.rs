@@ -128,3 +128,40 @@ fn test_immediate_call() {
         }
     };
 }
+
+#[test]
+fn test_nested_async_closure() {
+    assert_eq! {
+        6,
+        rune! {
+            i64 => r#"
+            async fn send_requests(list) {
+                let input = 1;
+
+                let do_request = async |url, n| {
+                    Ok(input + n)
+                };
+
+                for url in list {
+                    yield do_request(url, 2).await;
+                }
+            }
+
+            async fn main() {
+                let requests = send_requests([
+                    "https://google.com",
+                    "https://amazon.com",
+                ]);
+
+                let output = 0;
+
+                while let Some(input) = requests.next().await {
+                    output += input?;
+                }
+
+                output
+            }
+            "#
+        }
+    };
+}
