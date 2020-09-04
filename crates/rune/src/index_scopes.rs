@@ -104,6 +104,7 @@ impl IndexClosure {
 pub(crate) struct Function {
     pub(crate) generator: bool,
     pub(crate) is_async: bool,
+    #[allow(dead_code)]
     pub(crate) has_await: bool,
 }
 
@@ -111,6 +112,7 @@ pub(crate) struct Closure {
     pub(crate) captures: Vec<MetaClosureCapture>,
     pub(crate) generator: bool,
     pub(crate) is_async: bool,
+    #[allow(dead_code)]
     pub(crate) has_await: bool,
 }
 

@@ -866,6 +866,7 @@ impl Unit {
             }
             Meta::MetaFunction { item, .. } => item.clone(),
             Meta::MetaClosure { item, .. } => item.clone(),
+            Meta::MetaAsyncBlock { item, .. } => item.clone(),
         };
 
         self.names.insert(&item);

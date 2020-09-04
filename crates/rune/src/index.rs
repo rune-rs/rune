@@ -63,8 +63,8 @@ pub(crate) trait Index<T> {
 }
 
 impl Index<ast::DeclFile> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::DeclFile) -> Result<(), CompileError> {
-        for (decl, semi_colon) in &item.decls {
+    fn index(&mut self, decl_file: &ast::DeclFile) -> Result<(), CompileError> {
+        for (decl, semi_colon) in &decl_file.decls {
             if let Some(semi_colon) = semi_colon {
                 if !decl.needs_semi_colon() {
                     self.warnings.uneccessary_semi_colon(semi_colon.span());
@@ -107,10 +107,6 @@ impl Index<ast::DeclFn> for Indexer<'_, '_> {
 
         let f = guard.into_function(span)?;
         let call = Self::call(f.generator, f.is_async);
-
-        if f.is_async && !f.has_await {
-            self.warnings.unecessary_async(decl_fn.item_span());
-        }
 
         let fun = Function {
             ast: decl_fn.clone(),
@@ -167,16 +163,39 @@ impl Index<ast::DeclFn> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprBlock> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprBlock) -> Result<(), CompileError> {
-        let _guard = self.items.push_block();
-        let _guard = self.scopes.push_scope();
+    fn index(&mut self, expr_block: &ast::ExprBlock) -> Result<(), CompileError> {
+        let span = expr_block.span();
 
-        for (expr, _) in &item.exprs {
-            self.index(expr)?;
-        }
+        if let Some(..) = &expr_block.async_ {
+            let _guard = self.items.push_async_block();
+            let guard = self.scopes.push_closure(true);
 
-        if let Some(expr) = &item.trailing_expr {
-            self.index(&**expr)?;
+            for (expr, _) in &expr_block.exprs {
+                self.index(expr)?;
+            }
+
+            if let Some(expr) = &expr_block.trailing_expr {
+                self.index(&**expr)?;
+            }
+
+            let c = guard.into_closure(span)?;
+
+            let captures = Arc::new(c.captures);
+            let call = Self::call(c.generator, c.is_async);
+
+            self.query
+                .index_async_block(self.items.item(), expr_block.clone(), captures, call)?;
+        } else {
+            let _guard = self.items.push_block();
+            let _guard = self.scopes.push_scope();
+
+            for (expr, _) in &expr_block.exprs {
+                self.index(expr)?;
+            }
+
+            if let Some(expr) = &expr_block.trailing_expr {
+                self.index(&**expr)?;
+            }
         }
 
         Ok(())
@@ -184,25 +203,25 @@ impl Index<ast::ExprBlock> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprLet> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprLet) -> Result<(), CompileError> {
-        self.index(&item.pat)?;
-        self.index(&*item.expr)?;
+    fn index(&mut self, expr_let: &ast::ExprLet) -> Result<(), CompileError> {
+        self.index(&expr_let.pat)?;
+        self.index(&*expr_let.expr)?;
         Ok(())
     }
 }
 
 impl Index<ast::Ident> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::Ident) -> Result<(), CompileError> {
-        let span = item.span();
-        let ident = item.resolve(self.source)?;
+    fn index(&mut self, ident: &ast::Ident) -> Result<(), CompileError> {
+        let span = ident.span();
+        let ident = ident.resolve(self.source)?;
         self.scopes.declare(ident, span)?;
         Ok(())
     }
 }
 
 impl Index<ast::Pat> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::Pat) -> Result<(), CompileError> {
-        match item {
+    fn index(&mut self, pat: &ast::Pat) -> Result<(), CompileError> {
+        match pat {
             ast::Pat::PatPath(pat_path) => {
                 if let Some(ident) = pat_path.path.try_as_ident() {
                     self.index(ident)?;
@@ -230,8 +249,8 @@ impl Index<ast::Pat> for Indexer<'_, '_> {
 }
 
 impl Index<ast::PatTuple> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::PatTuple) -> Result<(), CompileError> {
-        for (pat, _) in &item.items {
+    fn index(&mut self, pat_tuple: &ast::PatTuple) -> Result<(), CompileError> {
+        for (pat, _) in &pat_tuple.items {
             self.index(&**pat)?;
         }
 
@@ -240,8 +259,8 @@ impl Index<ast::PatTuple> for Indexer<'_, '_> {
 }
 
 impl Index<ast::PatObject> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::PatObject) -> Result<(), CompileError> {
-        for (field, _) in &item.fields {
+    fn index(&mut self, pat_object: &ast::PatObject) -> Result<(), CompileError> {
+        for (field, _) in &pat_object.fields {
             if let Some((_, pat)) = &field.binding {
                 self.index(pat)?;
             } else {
@@ -259,8 +278,8 @@ impl Index<ast::PatObject> for Indexer<'_, '_> {
 }
 
 impl Index<ast::PatVec> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::PatVec) -> Result<(), CompileError> {
-        for (pat, _) in &item.items {
+    fn index(&mut self, pat_vec: &ast::PatVec) -> Result<(), CompileError> {
+        for (pat, _) in &pat_vec.items {
             self.index(&**pat)?;
         }
 
@@ -269,8 +288,8 @@ impl Index<ast::PatVec> for Indexer<'_, '_> {
 }
 
 impl Index<ast::Expr> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::Expr) -> Result<(), CompileError> {
-        match item {
+    fn index(&mut self, expr: &ast::Expr) -> Result<(), CompileError> {
+        match expr {
             ast::Expr::Self_(..) => {
                 self.scopes.mark_use("self");
             }
@@ -364,16 +383,16 @@ impl Index<ast::Expr> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprIf> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprIf) -> Result<(), CompileError> {
-        self.index(&item.condition)?;
-        self.index(&*item.block)?;
+    fn index(&mut self, expr_if: &ast::ExprIf) -> Result<(), CompileError> {
+        self.index(&expr_if.condition)?;
+        self.index(&*expr_if.block)?;
 
-        for expr_else_if in &item.expr_else_ifs {
+        for expr_else_if in &expr_if.expr_else_ifs {
             self.index(&expr_else_if.condition)?;
             self.index(&*expr_else_if.block)?;
         }
 
-        if let Some(expr_else) = &item.expr_else {
+        if let Some(expr_else) = &expr_if.expr_else {
             self.index(&*expr_else.block)?;
         }
 
@@ -382,18 +401,18 @@ impl Index<ast::ExprIf> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprBinary> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprBinary) -> Result<(), CompileError> {
-        self.index(&*item.lhs)?;
-        self.index(&*item.rhs)?;
+    fn index(&mut self, expr_binary: &ast::ExprBinary) -> Result<(), CompileError> {
+        self.index(&*expr_binary.lhs)?;
+        self.index(&*expr_binary.rhs)?;
         Ok(())
     }
 }
 
 impl Index<ast::ExprMatch> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprMatch) -> Result<(), CompileError> {
-        self.index(&*item.expr)?;
+    fn index(&mut self, expr_match: &ast::ExprMatch) -> Result<(), CompileError> {
+        self.index(&*expr_match.expr)?;
 
-        for (branch, _) in &item.branches {
+        for (branch, _) in &expr_match.branches {
             if let Some((_, condition)) = &branch.condition {
                 self.index(&**condition)?;
             }
@@ -408,8 +427,8 @@ impl Index<ast::ExprMatch> for Indexer<'_, '_> {
 }
 
 impl Index<ast::Condition> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::Condition) -> Result<(), CompileError> {
-        match item {
+    fn index(&mut self, condition: &ast::Condition) -> Result<(), CompileError> {
+        match condition {
             ast::Condition::Expr(expr) => {
                 self.index(&**expr)?;
             }
@@ -423,8 +442,8 @@ impl Index<ast::Condition> for Indexer<'_, '_> {
 }
 
 impl Index<ast::Decl> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::Decl) -> Result<(), CompileError> {
-        match item {
+    fn index(&mut self, decl: &ast::Decl) -> Result<(), CompileError> {
+        match decl {
             ast::Decl::DeclUse(import) => {
                 self.imports.push((self.items.item(), import.clone()));
             }
@@ -480,8 +499,8 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
 }
 
 impl Index<ast::Path> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::Path) -> Result<(), CompileError> {
-        if let Some(ident) = item.try_as_ident() {
+    fn index(&mut self, path: &ast::Path) -> Result<(), CompileError> {
+        if let Some(ident) = path.try_as_ident() {
             let ident = ident.resolve(self.source)?;
             self.scopes.mark_use(ident);
         }
@@ -491,30 +510,30 @@ impl Index<ast::Path> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprWhile> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprWhile) -> Result<(), CompileError> {
+    fn index(&mut self, expr_while: &ast::ExprWhile) -> Result<(), CompileError> {
         let _guard = self.scopes.push_scope();
-        self.index(&item.condition)?;
-        self.index(&*item.body)?;
+        self.index(&expr_while.condition)?;
+        self.index(&*expr_while.body)?;
         Ok(())
     }
 }
 
 impl Index<ast::ExprLoop> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprLoop) -> Result<(), CompileError> {
+    fn index(&mut self, expr_loop: &ast::ExprLoop) -> Result<(), CompileError> {
         let _guard = self.scopes.push_scope();
-        self.index(&*item.body)?;
+        self.index(&*expr_loop.body)?;
         Ok(())
     }
 }
 
 impl Index<ast::ExprFor> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprFor) -> Result<(), CompileError> {
+    fn index(&mut self, expr_for: &ast::ExprFor) -> Result<(), CompileError> {
         // NB: creating the iterator is evaluated in the parent scope.
-        self.index(&*item.iter)?;
+        self.index(&*expr_for.iter)?;
 
         let _guard = self.scopes.push_scope();
-        self.index(&item.var)?;
-        self.index(&*item.body)?;
+        self.index(&expr_for.var)?;
+        self.index(&*expr_for.body)?;
         Ok(())
     }
 }
@@ -542,10 +561,6 @@ impl Index<ast::ExprClosure> for Indexer<'_, '_> {
 
         let c = guard.into_closure(span)?;
 
-        if c.is_async && !c.has_await {
-            self.warnings.unecessary_async(expr_closure.item_span());
-        }
-
         let captures = Arc::new(c.captures);
         let call = Self::call(c.generator, c.is_async);
 
@@ -557,39 +572,39 @@ impl Index<ast::ExprClosure> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprIndexSet> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprIndexSet) -> Result<(), CompileError> {
-        self.index(&*item.value)?;
-        self.index(&*item.index)?;
-        self.index(&*item.target)?;
+    fn index(&mut self, expr_index_set: &ast::ExprIndexSet) -> Result<(), CompileError> {
+        self.index(&*expr_index_set.value)?;
+        self.index(&*expr_index_set.index)?;
+        self.index(&*expr_index_set.target)?;
         Ok(())
     }
 }
 
 impl Index<ast::ExprFieldAccess> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprFieldAccess) -> Result<(), CompileError> {
-        self.index(&*item.expr)?;
+    fn index(&mut self, expr_field_access: &ast::ExprFieldAccess) -> Result<(), CompileError> {
+        self.index(&*expr_field_access.expr)?;
         Ok(())
     }
 }
 
 impl Index<ast::ExprUnary> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprUnary) -> Result<(), CompileError> {
-        self.index(&*item.expr)?;
+    fn index(&mut self, expr_unary: &ast::ExprUnary) -> Result<(), CompileError> {
+        self.index(&*expr_unary.expr)?;
         Ok(())
     }
 }
 
 impl Index<ast::ExprIndexGet> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprIndexGet) -> Result<(), CompileError> {
-        self.index(&*item.index)?;
-        self.index(&*item.target)?;
+    fn index(&mut self, expr_index_get: &ast::ExprIndexGet) -> Result<(), CompileError> {
+        self.index(&*expr_index_get.index)?;
+        self.index(&*expr_index_get.target)?;
         Ok(())
     }
 }
 
 impl Index<ast::ExprBreak> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprBreak) -> Result<(), CompileError> {
-        if let Some(expr) = &item.expr {
+    fn index(&mut self, expr_break: &ast::ExprBreak) -> Result<(), CompileError> {
+        if let Some(expr) = &expr_break.expr {
             match expr {
                 ast::ExprBreakValue::Expr(expr) => {
                     self.index(&**expr)?;
@@ -603,11 +618,11 @@ impl Index<ast::ExprBreak> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprYield> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprYield) -> Result<(), CompileError> {
-        let span = item.span();
+    fn index(&mut self, expr_yield: &ast::ExprYield) -> Result<(), CompileError> {
+        let span = expr_yield.span();
         self.scopes.mark_yield(span)?;
 
-        if let Some(expr) = &item.expr {
+        if let Some(expr) = &expr_yield.expr {
             self.index(&**expr)?;
         }
 
@@ -616,8 +631,8 @@ impl Index<ast::ExprYield> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprReturn> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprReturn) -> Result<(), CompileError> {
-        if let Some(expr) = item.expr.as_deref() {
+    fn index(&mut self, expr_return: &ast::ExprReturn) -> Result<(), CompileError> {
+        if let Some(expr) = expr_return.expr.as_deref() {
             self.index(expr)?;
         }
 
@@ -626,26 +641,26 @@ impl Index<ast::ExprReturn> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprAwait> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprAwait) -> Result<(), CompileError> {
-        let span = item.span();
+    fn index(&mut self, expr_await: &ast::ExprAwait) -> Result<(), CompileError> {
+        let span = expr_await.span();
         self.scopes.mark_await(span)?;
-        self.index(&*item.expr)?;
+        self.index(&*expr_await.expr)?;
         Ok(())
     }
 }
 
 impl Index<ast::ExprTry> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprTry) -> Result<(), CompileError> {
-        self.index(&*item.expr)?;
+    fn index(&mut self, expr_try: &ast::ExprTry) -> Result<(), CompileError> {
+        self.index(&*expr_try.expr)?;
         Ok(())
     }
 }
 
 impl Index<ast::ExprSelect> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprSelect) -> Result<(), CompileError> {
-        self.scopes.mark_await(item.span())?;
+    fn index(&mut self, expr_select: &ast::ExprSelect) -> Result<(), CompileError> {
+        self.scopes.mark_await(expr_select.span())?;
 
-        for (branch, _) in &item.branches {
+        for (branch, _) in &expr_select.branches {
             // NB: expression to evaluate future is evaled in parent scope.
             self.index(&*branch.expr)?;
 
@@ -654,7 +669,7 @@ impl Index<ast::ExprSelect> for Indexer<'_, '_> {
             self.index(&*branch.body)?;
         }
 
-        if let Some((branch, _)) = &item.default_branch {
+        if let Some((branch, _)) = &expr_select.default_branch {
             let _guard = self.scopes.push_scope();
             self.index(&*branch.body)?;
         }
@@ -664,19 +679,19 @@ impl Index<ast::ExprSelect> for Indexer<'_, '_> {
 }
 
 impl Index<ast::ExprCall> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::ExprCall) -> Result<(), CompileError> {
-        for (expr, _) in item.args.items.iter() {
+    fn index(&mut self, expr_call: &ast::ExprCall) -> Result<(), CompileError> {
+        for (expr, _) in expr_call.args.items.iter() {
             self.index(expr)?;
         }
 
-        self.index(&*item.expr)?;
+        self.index(&*expr_call.expr)?;
         Ok(())
     }
 }
 
 impl Index<ast::LitTemplate> for Indexer<'_, '_> {
-    fn index(&mut self, item: &ast::LitTemplate) -> Result<(), CompileError> {
-        let template = item.resolve(self.source)?;
+    fn index(&mut self, lit_template: &ast::LitTemplate) -> Result<(), CompileError> {
+        let template = lit_template.resolve(self.source)?;
 
         for c in &template.components {
             match c {

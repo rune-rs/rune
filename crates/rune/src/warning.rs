@@ -46,11 +46,6 @@ pub enum Warning {
         /// Span where the semi-colon is.
         span: Span,
     },
-    /// A closure or function is marked as async, but doesn't use any `.await`.
-    UnecessaryAsync {
-        /// Span where the unecessary async function is.
-        span: Span,
-    },
 }
 /// Compilation warnings.
 #[derive(Debug, Clone, Default)]
@@ -112,11 +107,6 @@ impl Warnings {
     /// Indicate an unecessary semi colon.
     pub(crate) fn uneccessary_semi_colon(&mut self, span: Span) {
         self.warnings.push(Warning::UnecessarySemiColon { span });
-    }
-
-    /// Indicate that there is an unecessary use of `async`.
-    pub(crate) fn unecessary_async(&mut self, span: Span) {
-        self.warnings.push(Warning::UnecessaryAsync { span });
     }
 }
 

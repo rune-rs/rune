@@ -139,6 +139,8 @@ pub enum Component {
     Block(usize),
     /// A closure component.
     Closure(usize),
+    /// An async block, like `async {  }`.
+    AsyncBlock(usize),
 }
 
 impl fmt::Display for Component {
@@ -147,6 +149,7 @@ impl fmt::Display for Component {
             Self::String(s) => write!(fmt, "{}", s),
             Self::Block(n) => write!(fmt, "$block{}", n),
             Self::Closure(n) => write!(fmt, "$closure{}", n),
+            Self::AsyncBlock(n) => write!(fmt, "$async{}", n),
         }
     }
 }

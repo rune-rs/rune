@@ -17,6 +17,7 @@ impl Drop for Guard {
 struct Node {
     blocks: usize,
     closures: usize,
+    async_blocks: usize,
     component: Component,
 }
 
@@ -25,6 +26,7 @@ impl From<Component> for Node {
         Self {
             blocks: 0,
             closures: 0,
+            async_blocks: 0,
             component,
         }
     }
@@ -43,6 +45,7 @@ impl Items {
             .map(|component| Node {
                 blocks: 0,
                 closures: 0,
+                async_blocks: 0,
                 component,
             })
             .collect();
@@ -81,6 +84,18 @@ impl Items {
         }
     }
 
+    /// Get the next async block index.
+    fn next_async_block(&mut self) -> usize {
+        let mut path = self.path.borrow_mut();
+
+        if let Some(node) = path.last_mut() {
+            let new = node.async_blocks + 1;
+            mem::replace(&mut node.async_blocks, new)
+        } else {
+            0
+        }
+    }
+
     /// Push a component and return a guard to it.
     pub fn push_block(&mut self) -> Guard {
         let index = self.next_block();
@@ -99,6 +114,19 @@ impl Items {
         self.path
             .borrow_mut()
             .push(Node::from(Component::Closure(index)));
+
+        Guard {
+            path: self.path.clone(),
+        }
+    }
+
+    /// Push a component and return a guard to it.
+    pub fn push_async_block(&mut self) -> Guard {
+        let index = self.next_async_block();
+
+        self.path
+            .borrow_mut()
+            .push(Node::from(Component::AsyncBlock(index)));
 
         Guard {
             path: self.path.clone(),

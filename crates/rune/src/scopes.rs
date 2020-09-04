@@ -195,6 +195,11 @@ impl Scopes {
         }
     }
 
+    /// Construct a new variable.
+    pub(crate) fn new_var(&mut self, name: &str, span: Span) -> CompileResult<usize> {
+        self.last_mut(span)?.new_var(name, span)
+    }
+
     /// Get the local with the given name.
     pub(crate) fn last(&self, span: Span) -> CompileResult<&Scope> {
         Ok(self

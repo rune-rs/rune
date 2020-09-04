@@ -19,6 +19,7 @@ pub(crate) enum Indexed {
     Variant(Variant),
     Function(Function),
     Closure(Closure),
+    AsyncBlock(AsyncBlock),
 }
 
 pub struct Struct {
@@ -71,11 +72,21 @@ pub(crate) struct Closure {
     pub(crate) call: Call,
 }
 
+pub(crate) struct AsyncBlock {
+    /// Ast for block.
+    pub(crate) ast: ast::ExprBlock,
+    /// Captures.
+    pub(crate) captures: Arc<Vec<MetaClosureCapture>>,
+    /// Calling convention used for async block.
+    pub(crate) call: Call,
+}
+
 /// An entry in the build queue.
 pub(crate) enum Build {
     Function(Function),
     InstanceFunction(InstanceFunction),
     Closure(Closure),
+    AsyncBlock(AsyncBlock),
 }
 
 pub(crate) struct Query<'a> {
@@ -148,6 +159,30 @@ impl<'a> Query<'a> {
         Ok(())
     }
 
+    /// Add a new async block.
+    pub fn index_async_block(
+        &mut self,
+        item: Item,
+        ast: ast::ExprBlock,
+        captures: Arc<Vec<MetaClosureCapture>>,
+        call: Call,
+    ) -> Result<(), CompileError> {
+        let span = ast.span();
+        log::trace!("new closure: {}", item);
+
+        self.index(
+            item,
+            Indexed::AsyncBlock(AsyncBlock {
+                ast,
+                captures,
+                call,
+            }),
+            span,
+        )?;
+
+        Ok(())
+    }
+
     /// Index the given element.
     pub fn index(&mut self, item: Item, indexed: Indexed, span: Span) -> Result<(), CompileError> {
         log::trace!("indexed: {}", item);
@@ -200,6 +235,17 @@ impl<'a> Query<'a> {
                 self.queue.push_back((item.clone(), Build::Closure(c)));
 
                 Meta::MetaClosure {
+                    value_type: ValueType::Type(Hash::type_hash(&item)),
+                    item: item.clone(),
+                    captures,
+                }
+            }
+            Indexed::AsyncBlock(async_block) => {
+                let captures = async_block.captures.clone();
+                self.queue
+                    .push_back((item.clone(), Build::AsyncBlock(async_block)));
+
+                Meta::MetaAsyncBlock {
                     value_type: ValueType::Type(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,

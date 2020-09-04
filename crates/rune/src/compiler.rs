@@ -116,6 +116,14 @@ impl<'a> crate::ParseAll<'a, ast::DeclFile> {
                     compiler.compile((c.ast, &c.captures[..]))?;
                     unit.borrow_mut().new_function(item, count, asm, c.call)?;
                 }
+                Build::AsyncBlock(async_block) => {
+                    let span = async_block.ast.span();
+                    let args = async_block.captures.len();
+                    compiler.contexts.push(span);
+                    compiler.compile((async_block.ast, &async_block.captures[..]))?;
+                    unit.borrow_mut()
+                        .new_function(item, args, asm, async_block.call)?;
+                }
             }
         }
 

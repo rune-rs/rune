@@ -482,6 +482,14 @@ pub enum CompileError {
         /// Where the wildcard import is.
         span: Span,
     },
+    /// Tried to use a meta as an async block for which it is not supported.
+    #[error("`{meta}` is not a supported async block")]
+    UnsupportedAsyncBlock {
+        /// The span where we tried to use an async block.
+        span: Span,
+        /// The meta we tried to use as an async block.
+        meta: Meta,
+    },
     /// Tried to declare an instance function on a type for which it is not
     /// supported.
     #[error("cannot declare instance functions for type `{meta}`")]
@@ -736,6 +744,7 @@ impl CompileError {
             Self::UnsupportedWildcard { span, .. } => span,
             Self::UnsupportedRef { span, .. } => span,
             Self::UnsupportedAwait { span, .. } => span,
+            Self::UnsupportedAsyncBlock { span, .. } => span,
             Self::UnsupportedInstanceFunction { span, .. } => span,
             Self::UnsupportedValue { span, .. } => span,
             Self::UnsupportedType { span, .. } => span,

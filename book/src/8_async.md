@@ -70,3 +70,33 @@ Result: 200 OK
 Request timed out!
 == () (2.0028603s)
 ```
+
+## `async` closures
+
+Closures can be prefixed with the `async` keyword, meaning calling them will
+produce a future.
+
+```rust,noplaypen
+{{#include ../../scripts/book/8/async_closure.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/8/async_closure.rn
+Status: 200 OK
+== () (165.4817ms)
+```
+
+## `async` blocks
+
+Blocks can be marked with `async` to produce on-the-fly futures. These blocks
+can capture variables the same way as closures do, but take no arguments.
+
+```rust,noplaypen
+{{#include ../../scripts/book/8/async_blocks.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/8/async_blocks.rn
+Status: 200 OK
+== () (179.9381ms)
+```

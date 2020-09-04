@@ -68,6 +68,15 @@ pub enum Meta {
         /// Sequence of captured variables.
         captures: Arc<Vec<MetaClosureCapture>>,
     },
+    /// An async block.
+    MetaAsyncBlock {
+        /// The value type associated with this meta item.
+        value_type: ValueType,
+        /// The item of the closure.
+        item: Item,
+        /// Sequence of captured variables.
+        captures: Arc<Vec<MetaClosureCapture>>,
+    },
 }
 
 impl Meta {
@@ -81,6 +90,7 @@ impl Meta {
             Meta::MetaEnum { item, .. } => item,
             Meta::MetaFunction { item, .. } => item,
             Meta::MetaClosure { item, .. } => item,
+            Meta::MetaAsyncBlock { item, .. } => item,
         }
     }
 
@@ -94,6 +104,7 @@ impl Meta {
             Self::MetaEnum { value_type, .. } => Some(*value_type),
             Self::MetaFunction { value_type, .. } => Some(*value_type),
             Self::MetaClosure { value_type, .. } => Some(*value_type),
+            Self::MetaAsyncBlock { value_type, .. } => Some(*value_type),
         }
     }
 }
@@ -121,6 +132,9 @@ impl fmt::Display for Meta {
             }
             Self::MetaClosure { item, .. } => {
                 write!(fmt, "closure {}", item)?;
+            }
+            Self::MetaAsyncBlock { item, .. } => {
+                write!(fmt, "async block {}", item)?;
             }
         }
 
