@@ -43,16 +43,16 @@ impl Generator {
             execution.vm_mut()?.stack_mut().push(value);
         }
 
-        match execution.resume() {
-            Ok(state) => {
-                if state.is_complete() {
-                    self.execution = None;
-                }
+        let state = match execution.resume() {
+            Ok(state) => state,
+            Err(e) => return Err(e.into_unwinded(execution.vm()?.ip())),
+        };
 
-                Ok(state)
-            }
-            Err(error) => Err(error.into_unwinded(execution.vm()?.ip())),
+        if state.is_complete() {
+            self.execution = None;
         }
+
+        Ok(state)
     }
 }
 
