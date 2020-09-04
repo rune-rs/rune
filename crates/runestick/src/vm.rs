@@ -156,19 +156,13 @@ impl Vm {
     }
 
     fn op_await(&mut self) -> Result<Shared<Future>, VmError> {
-        loop {
-            let value = self.stack.pop()?;
+        let value = self.stack.pop()?;
 
-            match value {
-                Value::Future(future) => return Ok(future),
-                value => {
-                    if !self.call_instance_fn(&value, crate::INTO_FUTURE, ())? {
-                        return Err(VmError::from(VmErrorKind::UnsupportedAwait {
-                            actual: value.type_info()?,
-                        }));
-                    }
-                }
-            }
+        match self.try_into_future(value)? {
+            Ok(future) => Ok(future),
+            Err(value) => Err(VmError::from(VmErrorKind::UnsupportedAwait {
+                actual: value.type_info()?,
+            })),
         }
     }
 
@@ -178,16 +172,12 @@ impl Vm {
         let arguments = self.stack.drain_stack_top(len)?.collect::<Vec<_>>();
 
         for (branch, value) in arguments.into_iter().enumerate() {
-            let future = match value {
-                Value::Future(future) => future.owned_mut()?,
-                value => {
-                    if !self.call_instance_fn(&value, crate::INTO_FUTURE, ())? {
-                        return Err(VmError::from(VmErrorKind::UnsupportedAwait {
-                            actual: value.type_info()?,
-                        }));
-                    }
-
-                    self.stack.pop()?.into_future()?.owned_mut()?
+            let future = match self.try_into_future(value)? {
+                Ok(future) => future.owned_mut()?,
+                Err(value) => {
+                    return Err(VmError::from(VmErrorKind::UnsupportedAwait {
+                        actual: value.type_info()?,
+                    }));
                 }
             };
 
@@ -799,6 +789,27 @@ impl Vm {
         let hash = Hash::instance_function(ty, hash);
         self.stack.push(Value::Type(hash));
         Ok(())
+    }
+
+    /// Try to convert the given value into a future.
+    ///
+    /// Returns the value we failed to convert as an `Err` variant if we are
+    /// unsuccessful.
+    fn try_into_future(&mut self, value: Value) -> Result<Result<Shared<Future>, Value>, VmError> {
+        match value {
+            Value::Future(future) => return Ok(Ok(future)),
+            value => {
+                if !self.call_instance_fn(&value, crate::INTO_FUTURE, ())? {
+                    return Ok(Err(value));
+                }
+
+                if let Value::Future(future) = self.stack.pop()? {
+                    return Ok(Ok(future));
+                }
+
+                Ok(Err(value))
+            }
+        }
     }
 
     /// Implementation of getting a string index on an object-like type.

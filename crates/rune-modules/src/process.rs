@@ -48,7 +48,7 @@ pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     module.inst_fn("spawn", Command::spawn)?;
     module.inst_fn("arg", Command::arg)?;
     module.inst_fn("args", Command::args)?;
-    module.inst_fn(runestick::INTO_FUTURE, Child::into_future)?;
+    module.async_inst_fn(runestick::INTO_FUTURE, Child::into_future)?;
     module.async_inst_fn("wait_with_output", Child::wait_with_output)?;
     module.inst_fn(runestick::STRING_DISPLAY, ExitStatus::display)?;
     module.inst_fn("code", ExitStatus::code)?;
@@ -109,15 +109,9 @@ struct Child {
 
 impl Child {
     /// Convert the child into a future, use for `.await`.
-    fn into_future(self) -> runestick::Future {
-        runestick::Future::new(async move {
-            let status = match self.inner.await {
-                Ok(status) => status,
-                Err(error) => return Ok(Err(error)),
-            };
-
-            Ok(Ok(ExitStatus { status }))
-        })
+    async fn into_future(&mut self) -> io::Result<ExitStatus> {
+        let status = (&mut self.inner).await?;
+        Ok(ExitStatus { status })
     }
 
     // Returns a future that will resolve to an Output, containing the exit
