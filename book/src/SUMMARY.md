@@ -23,3 +23,4 @@
 - [Generators](./7_generators.md)
 - [Asynchronous programming](./8_async.md)
 - [Functions and closures](./9_functions_closures.md)
+- [Streams](./10_streams.md)

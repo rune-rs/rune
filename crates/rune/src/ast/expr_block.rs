@@ -7,6 +7,8 @@ use runestick::unit::Span;
 /// A block of expressions.
 #[derive(Debug, Clone)]
 pub struct ExprBlock {
+    /// If the block is async or not.
+    pub async_: Option<ast::Async>,
     /// The close brace.
     pub open: ast::OpenBrace,
     /// Expressions in the block.
@@ -48,6 +50,11 @@ impl ExprBlock {
 /// use rune::{parse_all, ast};
 ///
 /// # fn main() -> rune::Result<()> {
+/// let block = parse_all::<ast::ExprBlock>("async {}")?.item;
+/// assert_eq!(block.exprs.len(), 0);
+/// assert!(block.trailing_expr.is_none());
+/// assert!(block.async_.is_some());
+///
 /// let block = parse_all::<ast::ExprBlock>("{}")?.item;
 /// assert_eq!(block.exprs.len(), 0);
 /// assert!(block.trailing_expr.is_none());
@@ -67,6 +74,7 @@ impl ExprBlock {
 ///         baz
 ///     }
 /// "#)?.item;
+/// assert!(block.async_.is_none());
 /// assert_eq!(block.exprs.len(), 2);
 /// assert!(block.trailing_expr.is_some());
 /// # Ok(())
@@ -76,6 +84,7 @@ impl Parse for ExprBlock {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let mut exprs = Vec::new();
 
+        let async_ = parser.parse()?;
         let open = parser.parse()?;
         let mut trailing_expr = None;
 
@@ -111,6 +120,7 @@ impl Parse for ExprBlock {
         let close = parser.parse()?;
 
         Ok(ExprBlock {
+            async_,
             open,
             exprs,
             trailing_expr,

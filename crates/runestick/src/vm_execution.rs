@@ -1,4 +1,4 @@
-use crate::{StopReason, Value, Vm, VmError, VmErrorKind};
+use crate::{GeneratorState, StopReason, Value, Vm, VmError, VmErrorKind};
 
 /// The execution environment for a virtual machine.
 pub struct VmExecution {
@@ -7,7 +7,7 @@ pub struct VmExecution {
 
 impl VmExecution {
     /// Construct an execution from a virtual machine.
-    pub fn of(vm: Vm) -> Self {
+    pub(crate) fn of(vm: Vm) -> Self {
         Self { vms: vec![vm] }
     }
 
@@ -90,6 +90,71 @@ impl VmExecution {
                 let value = vm.stack_mut().pop()?;
                 debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
                 return Ok(value);
+            }
+
+            self.pop_vm()?;
+        }
+    }
+
+    /// Continue executing the current execution.
+    pub async fn async_resume(&mut self) -> Result<GeneratorState, VmError> {
+        loop {
+            let len = self.vms.len();
+            let vm = self.vm_mut()?;
+
+            match vm.run_for(None)? {
+                StopReason::Exited => (),
+                StopReason::Awaited(awaited) => {
+                    // TODO: handle this through polling instead.
+                    awaited.wait_with_vm(vm).await?;
+                    continue;
+                }
+                StopReason::CallVm(call_vm) => {
+                    call_vm.into_execution(self)?;
+                    continue;
+                }
+                StopReason::Yielded => return Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
+                reason => {
+                    return Err(VmError::from(VmErrorKind::Stopped {
+                        reason: reason.into_info(),
+                    }))
+                }
+            }
+
+            if len == 1 {
+                let value = vm.stack_mut().pop()?;
+                debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
+                return Ok(GeneratorState::Complete(value));
+            }
+
+            self.pop_vm()?;
+        }
+    }
+
+    /// Continue executing the current execution.
+    pub fn resume(&mut self) -> Result<GeneratorState, VmError> {
+        loop {
+            let len = self.vms.len();
+            let vm = self.vm_mut()?;
+
+            match vm.run_for(None)? {
+                StopReason::Exited => (),
+                StopReason::CallVm(call_vm) => {
+                    call_vm.into_execution(self)?;
+                    continue;
+                }
+                StopReason::Yielded => return Ok(GeneratorState::Yielded(vm.stack_mut().pop()?)),
+                reason => {
+                    return Err(VmError::from(VmErrorKind::Stopped {
+                        reason: reason.into_info(),
+                    }))
+                }
+            }
+
+            if len == 1 {
+                let value = vm.stack_mut().pop()?;
+                debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
+                return Ok(GeneratorState::Complete(value));
             }
 
             self.pop_vm()?;

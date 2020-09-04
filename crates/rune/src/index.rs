@@ -6,8 +6,7 @@ use crate::query::{Build, Function, Indexed, InstanceFunction, Query};
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::warning::Warnings;
-use runestick::unit::UnitFnCall;
-use runestick::{Hash, Item, Meta, Span, ValueType};
+use runestick::{Call, Hash, Item, Meta, ValueType};
 use std::sync::Arc;
 
 pub(crate) struct Indexer<'a, 'source> {
@@ -41,22 +40,20 @@ impl<'a, 'source> Indexer<'a, 'source> {
     }
 
     /// Construct the calling convention based on the parameters.
-    fn unit_fn_call(
-        generator: bool,
-        is_async: bool,
-        span: Span,
-    ) -> Result<UnitFnCall, CompileError> {
-        Ok(if generator {
-            if is_async {
-                return Err(CompileError::UnsupportedAsyncGenerator { span });
+    fn call(generator: bool, is_async: bool) -> Call {
+        if is_async {
+            if generator {
+                Call::Stream
+            } else {
+                Call::Async
             }
-
-            UnitFnCall::Generator
-        } else if is_async {
-            UnitFnCall::Async
         } else {
-            UnitFnCall::Immediate
-        })
+            if generator {
+                Call::Generator
+            } else {
+                Call::Immediate
+            }
+        }
     }
 }
 
@@ -109,7 +106,7 @@ impl Index<ast::DeclFn> for Indexer<'_, '_> {
         self.index(&decl_fn.body)?;
 
         let f = guard.into_function(span)?;
-        let call = Self::unit_fn_call(f.generator, f.is_async, span)?;
+        let call = Self::call(f.generator, f.is_async);
 
         if f.is_async && !f.has_await {
             self.warnings.unecessary_async(decl_fn.item_span());
@@ -550,7 +547,7 @@ impl Index<ast::ExprClosure> for Indexer<'_, '_> {
         }
 
         let captures = Arc::new(c.captures);
-        let call = Self::unit_fn_call(c.generator, c.is_async, span)?;
+        let call = Self::call(c.generator, c.is_async);
 
         self.query
             .index_closure(self.items.item(), expr_closure.clone(), captures, call)?;

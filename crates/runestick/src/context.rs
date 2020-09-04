@@ -269,6 +269,7 @@ impl Context {
         this.install(&crate::modules::result::module()?)?;
         this.install(&crate::modules::option::module()?)?;
         this.install(&crate::modules::future::module()?)?;
+        this.install(&crate::modules::stream::module()?)?;
         this.install(&crate::modules::io::module()?)?;
         this.install(&crate::modules::fmt::module()?)?;
         Ok(this)

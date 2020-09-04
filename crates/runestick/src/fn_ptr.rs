@@ -1,9 +1,8 @@
 use crate::context::Handler;
-use crate::unit::UnitFnCall;
 use crate::VmErrorKind;
 use crate::{
-    CallVm, Context, FromValue, Future, Generator, Hash, IntoArgs, Shared, Stack, StopReason,
-    Tuple, Unit, Value, Vm, VmError,
+    Call, CallVm, Context, FromValue, Future, Generator, Hash, IntoArgs, Shared, Stack, StopReason,
+    Stream, Tuple, Unit, Value, Vm, VmError,
 };
 use std::fmt;
 use std::rc::Rc;
@@ -37,9 +36,10 @@ impl FnPtr {
                 args.into_args(vm.stack_mut())?;
 
                 match offset.call {
-                    UnitFnCall::Generator => Value::from(Generator::new(vm)),
-                    UnitFnCall::Immediate => vm.complete()?,
-                    UnitFnCall::Async => Value::from(Future::new(vm.async_complete())),
+                    Call::Stream => Value::from(Stream::new(vm)),
+                    Call::Generator => Value::from(Generator::new(vm)),
+                    Call::Immediate => vm.complete()?,
+                    Call::Async => Value::from(Future::new(vm.async_complete())),
                 }
             }
             Inner::FnClosureOffset(offset) => {
@@ -51,9 +51,10 @@ impl FnPtr {
                 vm.stack_mut().push(offset.environment.clone());
 
                 match offset.call {
-                    UnitFnCall::Generator => Value::from(Generator::new(vm)),
-                    UnitFnCall::Immediate => vm.complete()?,
-                    UnitFnCall::Async => Value::from(Future::new(vm.async_complete())),
+                    Call::Stream => Value::from(Stream::new(vm)),
+                    Call::Generator => Value::from(Generator::new(vm)),
+                    Call::Immediate => vm.complete()?,
+                    Call::Async => Value::from(Future::new(vm.async_complete())),
                 }
             }
             Inner::FnTuple(tuple) => {
@@ -83,7 +84,7 @@ impl FnPtr {
         context: Rc<Context>,
         unit: Rc<Unit>,
         offset: usize,
-        call: UnitFnCall,
+        call: Call,
         args: usize,
     ) -> Self {
         Self {
@@ -103,7 +104,7 @@ impl FnPtr {
         unit: Rc<Unit>,
         environment: Shared<Tuple>,
         offset: usize,
-        call: UnitFnCall,
+        call: Call,
         args: usize,
     ) -> Self {
         Self {
@@ -156,7 +157,7 @@ impl FnPtr {
                 Self::check_args(args, offset.args)?;
 
                 // Fast past, just allocate a call frame and keep running.
-                if let UnitFnCall::Immediate = offset.call {
+                if let Call::Immediate = offset.call {
                     if vm.is_same(&offset.context, &offset.unit) {
                         vm.push_call_frame(offset.offset, args)?;
                         return Ok(None);
@@ -174,7 +175,7 @@ impl FnPtr {
 
                 // Fast past, just allocate a call frame, push the environment
                 // onto the stack and keep running.
-                if let UnitFnCall::Immediate = offset.call {
+                if let Call::Immediate = offset.call {
                     if vm.is_same(&offset.context, &offset.unit) {
                         vm.push_call_frame(offset.offset, args)?;
                         vm.stack_mut()
@@ -255,7 +256,7 @@ struct FnPtrOffset {
     /// The offset of the function.
     offset: usize,
     /// The calling convention.
-    call: UnitFnCall,
+    call: Call,
     /// The number of arguments the function takes.
     args: usize,
 }
@@ -281,7 +282,7 @@ struct FnClosureOffset {
     /// The offset of the function.
     offset: usize,
     /// The calling convention.
-    call: UnitFnCall,
+    call: Call,
     /// The number of arguments the function takes.
     args: usize,
 }

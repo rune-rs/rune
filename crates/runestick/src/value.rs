@@ -1,6 +1,6 @@
 use crate::{
     Any, Bytes, FnPtr, Future, Generator, GeneratorState, Hash, OwnedMut, OwnedRef, RawOwnedMut,
-    RawOwnedRef, Shared, StaticString, Tuple, ValueError, ValueErrorKind, ValueType, ValueTypeInfo,
+    RawOwnedRef, Shared, StaticString, Stream, Tuple, ValueError, ValueType, ValueTypeInfo,
 };
 use std::any;
 use std::fmt;
@@ -115,6 +115,8 @@ pub enum Value {
     Object(Shared<Object<Value>>),
     /// A stored future.
     Future(Shared<Future>),
+    /// A Stream.
+    Stream(Shared<Stream>),
     /// A stored generator.
     Generator(Shared<Generator>),
     /// Generator state.
@@ -170,9 +172,7 @@ impl Value {
     pub fn into_unit(self) -> Result<(), ValueError> {
         match self {
             Value::Unit => Ok(()),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedUnit {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<()>(actual.type_info()?)),
         }
     }
 
@@ -181,9 +181,7 @@ impl Value {
     pub fn into_bool(self) -> Result<bool, ValueError> {
         match self {
             Self::Bool(b) => Ok(b),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedBoolean {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<bool>(actual.type_info()?)),
         }
     }
 
@@ -192,9 +190,7 @@ impl Value {
     pub fn into_byte(self) -> Result<u8, ValueError> {
         match self {
             Self::Byte(b) => Ok(b),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedByte {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<u8>(actual.type_info()?)),
         }
     }
 
@@ -203,9 +199,7 @@ impl Value {
     pub fn into_char(self) -> Result<char, ValueError> {
         match self {
             Self::Char(c) => Ok(c),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedChar {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<char>(actual.type_info()?)),
         }
     }
 
@@ -214,9 +208,7 @@ impl Value {
     pub fn into_integer(self) -> Result<i64, ValueError> {
         match self {
             Self::Integer(integer) => Ok(integer),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedInteger {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<i64>(actual.type_info()?)),
         }
     }
 
@@ -225,9 +217,7 @@ impl Value {
     pub fn into_float(self) -> Result<f64, ValueError> {
         match self {
             Self::Float(float) => Ok(float),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedFloat {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<f64>(actual.type_info()?)),
         }
     }
 
@@ -236,9 +226,9 @@ impl Value {
     pub fn into_result(self) -> Result<Shared<Result<Value, Value>>, ValueError> {
         match self {
             Self::Result(result) => Ok(result),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedResult {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<Result<Value, Value>>(
+                actual.type_info()?,
+            )),
         }
     }
 
@@ -247,20 +237,25 @@ impl Value {
     pub fn into_future(self) -> Result<Shared<Future>, ValueError> {
         match self {
             Value::Future(future) => Ok(future),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedFuture {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<Future>(actual.type_info()?)),
         }
     }
 
-    /// Try to coerce value into a future.
+    /// Try to coerce value into a generator.
     #[inline]
     pub fn into_generator(self) -> Result<Shared<Generator>, ValueError> {
         match self {
             Value::Generator(generator) => Ok(generator),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedGenerator {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<Generator>(actual.type_info()?)),
+        }
+    }
+
+    /// Try to coerce value into a stream.
+    #[inline]
+    pub fn into_stream(self) -> Result<Shared<Stream>, ValueError> {
+        match self {
+            Value::Stream(stream) => Ok(stream),
+            actual => Err(ValueError::expected::<Stream>(actual.type_info()?)),
         }
     }
 
@@ -269,9 +264,7 @@ impl Value {
     pub fn into_generator_state(self) -> Result<Shared<GeneratorState>, ValueError> {
         match self {
             Value::GeneratorState(state) => Ok(state),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedGeneratorState {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<GeneratorState>(actual.type_info()?)),
         }
     }
 
@@ -280,9 +273,7 @@ impl Value {
     pub fn into_option(self) -> Result<Shared<Option<Value>>, ValueError> {
         match self {
             Self::Option(option) => Ok(option),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedOption {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<Option<Value>>(actual.type_info()?)),
         }
     }
 
@@ -291,9 +282,7 @@ impl Value {
     pub fn into_string(self) -> Result<Shared<String>, ValueError> {
         match self {
             Self::String(string) => Ok(string),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedString {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<String>(actual.type_info()?)),
         }
     }
 
@@ -302,9 +291,7 @@ impl Value {
     pub fn into_bytes(self) -> Result<Shared<Bytes>, ValueError> {
         match self {
             Self::Bytes(bytes) => Ok(bytes),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedBytes {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<Bytes>(actual.type_info()?)),
         }
     }
 
@@ -313,9 +300,7 @@ impl Value {
     pub fn into_vec(self) -> Result<Shared<Vec<Value>>, ValueError> {
         match self {
             Self::Vec(vec) => Ok(vec),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedVec {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<Vec<Value>>(actual.type_info()?)),
         }
     }
 
@@ -324,9 +309,7 @@ impl Value {
     pub fn into_tuple(self) -> Result<Shared<Tuple>, ValueError> {
         match self {
             Self::Tuple(tuple) => Ok(tuple),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedTuple {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<Tuple>(actual.type_info()?)),
         }
     }
 
@@ -335,9 +318,7 @@ impl Value {
     pub fn into_object(self) -> Result<Shared<Object<Value>>, ValueError> {
         match self {
             Self::Object(object) => Ok(object),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedObject {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<Object<Value>>(actual.type_info()?)),
         }
     }
 
@@ -346,9 +327,7 @@ impl Value {
     pub fn into_fn_ptr(self) -> Result<Shared<FnPtr>, ValueError> {
         match self {
             Self::FnPtr(fn_ptr) => Ok(fn_ptr),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedFnPtr {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<FnPtr>(actual.type_info()?)),
         }
     }
 
@@ -357,10 +336,7 @@ impl Value {
     pub fn into_any(self) -> Result<Shared<Any>, ValueError> {
         match self {
             Self::Any(any) => Ok(any),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedAny {
-                expected: any::type_name::<Any>(),
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected_any(actual.type_info()?)),
         }
     }
 
@@ -384,10 +360,7 @@ impl Value {
                 let (data, guard) = OwnedRef::into_raw(any);
                 Ok((data, guard))
             }
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedAny {
-                expected: any::type_name::<T>(),
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected_any(actual.type_info()?)),
         }
     }
 
@@ -411,10 +384,7 @@ impl Value {
                 let (data, guard) = OwnedMut::into_raw(any);
                 Ok((data, guard))
             }
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedAny {
-                expected: any::type_name::<T>(),
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected_any(actual.type_info()?)),
         }
     }
 
@@ -434,6 +404,7 @@ impl Value {
             Self::Tuple(..) => ValueType::StaticType(crate::TUPLE_TYPE),
             Self::Object(..) => ValueType::StaticType(crate::OBJECT_TYPE),
             Self::Future(..) => ValueType::StaticType(crate::FUTURE_TYPE),
+            Self::Stream(..) => ValueType::StaticType(crate::STREAM_TYPE),
             Self::Generator(..) => ValueType::StaticType(crate::GENERATOR_TYPE),
             Self::GeneratorState(..) => ValueType::StaticType(crate::GENERATOR_STATE_TYPE),
             Self::Result(..) => ValueType::StaticType(crate::RESULT_TYPE),
@@ -470,6 +441,7 @@ impl Value {
             Self::Tuple(..) => ValueTypeInfo::StaticType(crate::TUPLE_TYPE),
             Self::Object(..) => ValueTypeInfo::StaticType(crate::OBJECT_TYPE),
             Self::Future(..) => ValueTypeInfo::StaticType(crate::FUTURE_TYPE),
+            Self::Stream(..) => ValueTypeInfo::StaticType(crate::STREAM_TYPE),
             Self::Generator(..) => ValueTypeInfo::StaticType(crate::GENERATOR_TYPE),
             Self::GeneratorState(..) => ValueTypeInfo::StaticType(crate::GENERATOR_STATE_TYPE),
             Self::Option(..) => ValueTypeInfo::StaticType(crate::OPTION_TYPE),
@@ -600,6 +572,9 @@ impl fmt::Debug for Value {
             Value::Future(value) => {
                 write!(f, "{:?}", value)?;
             }
+            Value::Stream(value) => {
+                write!(f, "{:?}", value)?;
+            }
             Value::Generator(value) => {
                 write!(f, "{:?}", value)?;
             }
@@ -677,6 +652,7 @@ impl_from!(Shared<Vec<Value>>, Vec);
 impl_from_shared!(Shared<Tuple>, Tuple);
 impl_from!(Shared<Object<Value>>, Object);
 impl_from_shared!(Shared<Future>, Future);
+impl_from_shared!(Shared<Stream>, Stream);
 impl_from_shared!(Shared<Generator>, Generator);
 impl_from_shared!(Shared<GeneratorState>, GeneratorState);
 impl_from!(Shared<Option<Value>>, Option);

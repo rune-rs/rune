@@ -63,66 +63,72 @@ pub static FLOAT_TYPE: &StaticType = &StaticType {
 
 /// The specialized type information for a string type.
 pub static STRING_TYPE: &StaticType = &StaticType {
-    name: "string",
+    name: "String",
     hash: Hash::new(0x823ede4114ff8de6),
 };
 
 /// The specialized type information for a bytes type.
 pub static BYTES_TYPE: &StaticType = &StaticType {
-    name: "bytes",
+    name: "Bytes",
     hash: Hash::new(0x957fa73126817683),
 };
 
 /// The specialized type information for a vector type.
 pub static VEC_TYPE: &StaticType = &StaticType {
-    name: "vector",
+    name: "Vec",
     hash: Hash::new(0x6c129752545b4223),
 };
 
 /// The specialized type information for an anonymous tuple type.
 pub static TUPLE_TYPE: &StaticType = &StaticType {
-    name: "tuple",
+    name: "Tuple",
     hash: Hash::new(0x6da74f62cfa5cc1f),
 };
 
 /// The specialized type information for an anonymous object type.
 pub static OBJECT_TYPE: &StaticType = &StaticType {
-    name: "object",
+    name: "Object",
     hash: Hash::new(0x65f4e1cf10b1f34c),
 };
 
 /// The specialized type information for a future type.
 pub static FUTURE_TYPE: &StaticType = &StaticType {
-    name: "future",
+    name: "Future",
     hash: Hash::new(0xafab4a2797436aee),
 };
 
 /// The specialized type information for a generator type.
 pub static GENERATOR_TYPE: &StaticType = &StaticType {
-    name: "generator",
+    name: "Generator",
     hash: Hash::new(0x50deff8c6ef7532c),
 };
 
 /// The specialized type information for a generator state type.
 pub static GENERATOR_STATE_TYPE: &StaticType = &StaticType {
-    name: "generator state",
+    name: "GeneratorState",
     hash: Hash::new(0xdd4141d4d8a3ac31),
+};
+
+/// The specialized type information for the `Stream` type.
+pub static STREAM_TYPE: &StaticType = &StaticType {
+    name: "Stream",
+    hash: Hash::new(0xd94133730d02c3ea),
 };
 
 /// The specialized type information for a result type.
 pub static RESULT_TYPE: &StaticType = &StaticType {
-    name: "result",
+    name: "Result",
     hash: Hash::new(0xecec15e1363240ac),
 };
 
 /// The specialized type information for a option type.
 pub static OPTION_TYPE: &StaticType = &StaticType {
-    name: "option",
+    name: "Option",
     hash: Hash::new(0x5e08dc3f663c72db),
 };
 
 /// The specialized type information for a function pointer type.
 pub static FN_PTR_TYPE: &StaticType = &StaticType {
-    name: "fn-ptr",
+    name: "Function",
     hash: Hash::new(0x45b788b02e7f231c),
 };

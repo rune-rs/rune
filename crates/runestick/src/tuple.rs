@@ -2,6 +2,8 @@ use crate::Value;
 use std::fmt;
 use std::ops;
 
+value_types!(crate::TUPLE_TYPE, Tuple => Tuple, &Tuple, &mut Tuple);
+
 /// Struct representing an anonymous tuple.
 #[derive(Clone)]
 #[repr(transparent)]

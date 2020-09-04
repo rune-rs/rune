@@ -3,8 +3,8 @@ use json;
 
 fn main() {
     let client = http::Client::new();
-    let response = client.get("http://worldtimeapi.org/api/ip");
-    let text = response.text();
+    let response = client.get("http://worldtimeapi.org/api/ip").await?;
+    let text = response.text().await?;
     let json = json::from_string(text);
 
     let timezone = json["timezone"];

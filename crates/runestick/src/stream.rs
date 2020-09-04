@@ -5,16 +5,16 @@ use crate::{
 use std::fmt;
 use std::mem;
 
-value_types!(crate::GENERATOR_TYPE, Generator => Generator, &Generator, &mut Generator);
+value_types!(crate::STREAM_TYPE, Stream => Stream, &Stream, &mut Stream);
 
-/// A generator with a stored virtual machine.
-pub struct Generator {
+/// A stream with a stored virtual machine.
+pub struct Stream {
     execution: Option<VmExecution>,
     first: bool,
 }
 
-impl Generator {
-    /// Construct a generator from a virtual machine.
+impl Stream {
+    /// Construct a stream from a virtual machine.
     pub(crate) fn new(vm: Vm) -> Self {
         Self {
             execution: Some(VmExecution::of(vm)),
@@ -23,15 +23,15 @@ impl Generator {
     }
 
     /// Get the next value produced by this stream.
-    pub fn next(&mut self) -> Result<Option<Value>, VmError> {
-        Ok(match self.resume(Value::Unit)? {
+    pub async fn next(&mut self) -> Result<Option<Value>, VmError> {
+        Ok(match self.resume(Value::Unit).await? {
             GeneratorState::Yielded(value) => Some(value),
             GeneratorState::Complete(_) => None,
         })
     }
 
     /// Get the next value produced by this stream.
-    pub fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+    pub async fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
         let execution = match &mut self.execution {
             Some(execution) => execution,
             None => {
@@ -43,7 +43,7 @@ impl Generator {
             execution.vm_mut()?.stack_mut().push(value);
         }
 
-        match execution.resume() {
+        match execution.async_resume().await {
             Ok(state) => {
                 if state.is_complete() {
                     self.execution = None;
@@ -56,35 +56,35 @@ impl Generator {
     }
 }
 
-impl fmt::Debug for Generator {
+impl fmt::Debug for Stream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Generator")
+        f.debug_struct("Stream")
             .field("completed", &self.execution.is_none())
             .finish()
     }
 }
 
-impl FromValue for Shared<Generator> {
+impl FromValue for Shared<Stream> {
     fn from_value(value: Value) -> Result<Self, ValueError> {
-        Ok(value.into_generator()?)
+        Ok(value.into_stream()?)
     }
 }
 
-impl FromValue for Generator {
+impl FromValue for Stream {
     fn from_value(value: Value) -> Result<Self, ValueError> {
-        let generator = value.into_generator()?;
-        Ok(generator.take()?)
+        let stream = value.into_stream()?;
+        Ok(stream.take()?)
     }
 }
 
-impl UnsafeFromValue for &Generator {
-    type Output = *const Generator;
+impl UnsafeFromValue for &Stream {
+    type Output = *const Stream;
     type Guard = RawOwnedRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
-        let generator = value.into_generator()?;
-        let (generator, guard) = OwnedRef::into_raw(generator.owned_ref()?);
-        Ok((generator, guard))
+        let stream = value.into_stream()?;
+        let (stream, guard) = OwnedRef::into_raw(stream.owned_ref()?);
+        Ok((stream, guard))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -92,13 +92,13 @@ impl UnsafeFromValue for &Generator {
     }
 }
 
-impl UnsafeFromValue for &mut Generator {
-    type Output = *mut Generator;
+impl UnsafeFromValue for &mut Stream {
+    type Output = *mut Stream;
     type Guard = RawOwnedMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), ValueError> {
-        let generator = value.into_generator()?;
-        Ok(OwnedMut::into_raw(generator.owned_mut()?))
+        let stream = value.into_stream()?;
+        Ok(OwnedMut::into_raw(stream.owned_mut()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

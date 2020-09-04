@@ -2,7 +2,7 @@
 
 use crate::{
     FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue, UnsafeFromValue,
-    Value, ValueError, ValueErrorKind,
+    Value, ValueError,
 };
 
 value_types!(crate::STRING_TYPE, String => String, &String, &mut String, &str, &mut str);
@@ -12,9 +12,7 @@ impl FromValue for String {
         match value {
             Value::String(string) => Ok(string.borrow_ref()?.clone()),
             Value::StaticString(string) => Ok((**string).clone()),
-            actual => Err(ValueError::from(ValueErrorKind::ExpectedString {
-                actual: actual.type_info()?,
-            })),
+            actual => Err(ValueError::expected::<String>(actual.type_info()?)),
         }
     }
 }
@@ -45,11 +43,7 @@ impl UnsafeFromValue for &str {
                 ((*s).as_str(), Some(guard))
             }
             Value::StaticString(string) => (string.as_ref().as_str(), None),
-            actual => {
-                return Err(ValueError::from(ValueErrorKind::ExpectedString {
-                    actual: actual.type_info()?,
-                }))
-            }
+            actual => return Err(ValueError::expected::<String>(actual.type_info()?)),
         })
     }
 
@@ -70,9 +64,7 @@ impl UnsafeFromValue for &mut str {
                 ((*s).as_mut_str(), Some(guard))
             }
             actual => {
-                return Err(ValueError::from(ValueErrorKind::ExpectedString {
-                    actual: actual.type_info()?,
-                }))
+                return Err(ValueError::expected::<String>(actual.type_info()?));
             }
         })
     }
@@ -95,9 +87,7 @@ impl UnsafeFromValue for &String {
             }
             Value::StaticString(string) => (&**string, None),
             actual => {
-                return Err(ValueError::from(ValueErrorKind::ExpectedString {
-                    actual: actual.type_info()?,
-                }))
+                return Err(ValueError::expected::<String>(actual.type_info()?));
             }
         })
     }
@@ -119,9 +109,7 @@ impl UnsafeFromValue for &mut String {
                 (s, guard)
             }
             actual => {
-                return Err(ValueError::from(ValueErrorKind::ExpectedString {
-                    actual: actual.type_info()?,
-                }))
+                return Err(ValueError::expected::<String>(actual.type_info()?));
             }
         })
     }

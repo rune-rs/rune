@@ -344,6 +344,12 @@ pub enum ParseError {
         /// Where the argument is.
         span: Span,
     },
+    /// Trying to use an expression as async when it's not supported.
+    #[error("not supported as an async expression")]
+    UnsupportedAsyncExpr {
+        /// Where the expression is.
+        span: Span,
+    },
 }
 
 impl ParseError {
@@ -392,6 +398,7 @@ impl ParseError {
             Self::UnsupportedFieldAccess { span, .. } => span,
             Self::ExpectedFunctionArgument { span, .. } => span,
             Self::ExpectedDeclUseImportComponent { span, .. } => span,
+            Self::UnsupportedAsyncExpr { span, .. } => span,
         }
     }
 }
@@ -689,12 +696,6 @@ pub enum CompileError {
         /// Where the function is declared.
         span: Span,
     },
-    /// Attempt to declare an async function with `yield`.
-    #[error("async generators are not supported")]
-    UnsupportedAsyncGenerator {
-        /// The span of the async generator.
-        span: Span,
-    },
     /// Import doesn't exist.
     #[error("import `{item}` (imported in prelude) does not exist")]
     MissingPreludeModule {
@@ -755,7 +756,6 @@ impl CompileError {
             Self::YieldOutsideFunction { span, .. } => span,
             Self::AwaitOutsideFunction { span, .. } => span,
             Self::InstanceFunctionOutsideImpl { span, .. } => span,
-            Self::UnsupportedAsyncGenerator { span, .. } => span,
             Self::MissingPreludeModule { .. } => Span::empty(),
         }
     }

@@ -1,4 +1,4 @@
-use crate::{AccessError, Integer, Panic, ValueTypeInfo, VmError, VmErrorKind};
+use crate::{AccessError, Integer, Panic, ReflectValueType, ValueTypeInfo, VmError, VmErrorKind};
 use thiserror::Error;
 /// Errors raised by the execution of the virtual machine.
 #[derive(Error, Debug)]
@@ -59,113 +59,17 @@ pub enum ValueErrorKind {
         #[from]
         error: AccessError,
     },
-    /// Error raised when we expected a object.
-    #[error("expected a object but found `{actual}`")]
-    ExpectedObject {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a function pointer.
-    #[error("expected a function pointer but found `{actual}`")]
-    ExpectedFnPtr {
-        /// The actual type observed instead.
+    /// Error raised when we expected one type, but got another.
+    #[error("expected `{expected}`, but found `{actual}`")]
+    Expected {
+        /// The expected value type info.
+        expected: ValueTypeInfo,
+        /// The actual type found.
         actual: ValueTypeInfo,
     },
     /// Error raised when we expected a value.
-    #[error("expected a value of `{expected}` but found `{actual}`")]
+    #[error("expected `Any` type, but found `{actual}`")]
     ExpectedAny {
-        /// Expected type.
-        expected: &'static str,
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a future.
-    #[error("expected future, but found `{actual}`")]
-    ExpectedFuture {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a generator.
-    #[error("expected generator, but found `{actual}`")]
-    ExpectedGenerator {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a generator state.
-    #[error("expected generator state, but found `{actual}`")]
-    ExpectedGeneratorState {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when expecting a unit.
-    #[error("expected unit, but found `{actual}`")]
-    ExpectedUnit {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when expecting an option.
-    #[error("expected option, but found `{actual}`")]
-    ExpectedOption {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expecting a result.
-    #[error("expected result, but found `{actual}`")]
-    ExpectedResult {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a boolean value.
-    #[error("expected booleant, but found `{actual}`")]
-    ExpectedBoolean {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a byte value.
-    #[error("expected byte, but found `{actual}`")]
-    ExpectedByte {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a char value.
-    #[error("expected char, but found `{actual}`")]
-    ExpectedChar {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when an integer value was expected.
-    #[error("expected integer, but found `{actual}`")]
-    ExpectedInteger {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a float value.
-    #[error("expected float, but found `{actual}`")]
-    ExpectedFloat {
-        /// The actual type found.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a string.
-    #[error("expected a string but found `{actual}`")]
-    ExpectedString {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a byte string.
-    #[error("expected a byte string but found `{actual}`")]
-    ExpectedBytes {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a vector.
-    #[error("expected a vector but found `{actual}`")]
-    ExpectedVec {
-        /// The actual type observed instead.
-        actual: ValueTypeInfo,
-    },
-    /// Error raised when we expected a tuple.
-    #[error("expected a tuple but found `{actual}`")]
-    ExpectedTuple {
         /// The actual type observed instead.
         actual: ValueTypeInfo,
     },
@@ -196,4 +100,22 @@ pub enum ValueErrorKind {
     /// Internal error that happens when we run out of items in a list.
     #[error("unexpectedly ran out of items to iterate over")]
     IterationError,
+}
+
+impl ValueError {
+    /// Construct an expected error.
+    pub fn expected<T>(actual: ValueTypeInfo) -> Self
+    where
+        T: ReflectValueType,
+    {
+        Self::from(ValueErrorKind::Expected {
+            expected: T::value_type_info(),
+            actual,
+        })
+    }
+
+    /// Construct an expected any error.
+    pub fn expected_any(actual: ValueTypeInfo) -> Self {
+        Self::from(ValueErrorKind::ExpectedAny { actual })
+    }
 }

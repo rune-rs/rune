@@ -261,6 +261,26 @@ impl Expr {
         let token = parser.token_peek_eof()?;
 
         let expr = match token.kind {
+            Kind::Async => {
+                let async_: ast::Async = parser.parse()?;
+                let expr: Self = Self::parse_primary(parser, eager_brace, expr_chain)?;
+
+                match expr {
+                    Self::ExprClosure(expr_closure) => Self::ExprClosure(ast::ExprClosure {
+                        async_: Some(async_),
+                        args: expr_closure.args,
+                        body: expr_closure.body,
+                    }),
+                    Self::ExprBlock(expr_block) => Self::ExprBlock(ast::ExprBlock {
+                        async_: Some(async_),
+                        open: expr_block.open,
+                        exprs: expr_block.exprs,
+                        trailing_expr: expr_block.trailing_expr,
+                        close: expr_block.close,
+                    }),
+                    _ => return Err(ParseError::UnsupportedAsyncExpr { span: expr.span() }),
+                }
+            }
             Kind::Self_ => Self::Self_(parser.parse()?),
             Kind::Select => Self::ExprSelect(parser.parse()?),
             Kind::Or | Kind::Pipe => Self::ExprClosure(parser.parse()?),
@@ -312,7 +332,7 @@ impl Expr {
             }
         };
 
-        if !*expr_chain || !expr.is_chainable() {
+        if !*expr_chain {
             return Ok(expr);
         }
 
@@ -322,8 +342,10 @@ impl Expr {
     /// Parse an expression chain.
     fn parse_expr_chain(parser: &mut Parser<'_>, mut expr: Self) -> Result<Self, ParseError> {
         while let Some(token) = parser.token_peek()? {
+            let is_chainable = expr.is_chainable();
+
             match token.kind {
-                Kind::Open(Delimiter::Bracket) => {
+                Kind::Open(Delimiter::Bracket) if is_chainable => {
                     let index_get = ast::ExprIndexGet {
                         target: Box::new(expr),
                         open: parser.parse()?,
@@ -344,19 +366,19 @@ impl Expr {
 
                     expr = Self::ExprIndexGet(index_get);
                 }
-                Kind::Try => {
-                    expr = Expr::ExprTry(ast::ExprTry {
-                        expr: Box::new(expr),
-                        try_: parser.parse()?,
-                    });
-                }
                 // Chained function call.
-                Kind::Open(Delimiter::Parenthesis) => {
+                Kind::Open(Delimiter::Parenthesis) if is_chainable => {
                     let args = parser.parse::<ast::Parenthesized<ast::Expr, ast::Comma>>()?;
 
                     expr = Expr::ExprCall(ast::ExprCall {
                         expr: Box::new(expr),
                         args,
+                    });
+                }
+                Kind::Try => {
+                    expr = Expr::ExprTry(ast::ExprTry {
+                        expr: Box::new(expr),
+                        try_: parser.parse()?,
                     });
                 }
                 Kind::Dot => {
@@ -515,6 +537,7 @@ impl Peek for Expr {
         };
 
         match t1.kind {
+            Kind::Async => true,
             Kind::Self_ => true,
             Kind::Select => true,
             Kind::Label => matches!(t2.map(|t| t.kind), Some(Kind::Colon)),

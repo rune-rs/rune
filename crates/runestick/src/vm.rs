@@ -1,9 +1,9 @@
 use crate::future::SelectFuture;
-use crate::unit::{UnitFnCall, UnitFnKind};
+use crate::unit::UnitFnKind;
 use crate::{
-    Bytes, Context, FnPtr, FromValue, Future, Generator, Hash, Inst, Integer, IntoArgs,
-    IntoTypeHash, Object, Panic, Select, Shared, Stack, ToValue, Tuple, TypeCheck, TypedObject,
-    Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution,
+    Bytes, Call, Context, FnPtr, FromValue, Future, Generator, Hash, Inst, Integer, IntoArgs,
+    IntoTypeHash, Object, Panic, Select, Shared, Stack, Stream, ToValue, Tuple, TypeCheck,
+    TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution,
 };
 use std::any;
 use std::fmt;
@@ -1634,36 +1634,41 @@ impl Vm {
         let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
-        let generator = Generator::new(vm);
-        self.stack.push(Value::Generator(Shared::new(generator)));
+        self.stack.push(Generator::new(vm));
         Ok(())
     }
 
-    /// Construct a future from calling an async function.
+    /// Construct a stream from calling a function.
+    fn call_stream_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
+        let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
+        let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
+        vm.ip = offset;
+        self.stack.push(Stream::new(vm));
+        Ok(())
+    }
+
+    /// Construct a future from calling a function.
     fn call_async_fn(&mut self, offset: usize, args: usize) -> Result<(), VmError> {
         let stack = self.stack.drain_stack_top(args)?.collect::<Stack>();
         let mut vm = Self::new_with_stack(self.context.clone(), self.unit.clone(), stack);
         vm.ip = offset;
-        let future = Future::new(async move { vm.async_complete().await });
-        self.stack.push(Value::Future(Shared::new(future)));
+        self.stack.push(Future::new(vm.async_complete()));
         Ok(())
     }
 
-    fn call_offset_fn(
-        &mut self,
-        offset: usize,
-        call: UnitFnCall,
-        args: usize,
-    ) -> Result<(), VmError> {
+    fn call_offset_fn(&mut self, offset: usize, call: Call, args: usize) -> Result<(), VmError> {
         match call {
-            UnitFnCall::Immediate => {
-                self.push_call_frame(offset, args)?;
+            Call::Async => {
+                self.call_async_fn(offset, args)?;
             }
-            UnitFnCall::Generator => {
+            Call::Stream => {
+                self.call_stream_fn(offset, args)?;
+            }
+            Call::Generator => {
                 self.call_generator_fn(offset, args)?;
             }
-            UnitFnCall::Async => {
-                self.call_async_fn(offset, args)?;
+            Call::Immediate => {
+                self.push_call_frame(offset, args)?;
             }
         }
 
@@ -2212,36 +2217,31 @@ impl Awaited {
 /// An instruction to push a virtual machine to the execution.
 #[derive(Debug)]
 pub struct CallVm {
-    pub(crate) call: UnitFnCall,
+    pub(crate) call: Call,
     pub(crate) vm: Vm,
 }
 
 impl CallVm {
     /// Construct a new nested vm call.
-    pub(crate) fn new(call: UnitFnCall, vm: Vm) -> Self {
+    pub(crate) fn new(call: Call, vm: Vm) -> Self {
         Self { call, vm }
     }
 
     /// Encode the push itno an execution.
     pub(crate) fn into_execution<'vm>(self, execution: &mut VmExecution) -> Result<(), VmError> {
-        match self.call {
-            UnitFnCall::Generator => {
-                let value = Value::from(Generator::new(self.vm));
-                let vm = execution.vm_mut()?;
-                vm.stack.push(value);
-                vm.advance();
-            }
-            UnitFnCall::Immediate => {
+        let value = match self.call {
+            Call::Async => Value::from(Future::new(self.vm.async_complete())),
+            Call::Stream => Value::from(Stream::new(self.vm)),
+            Call::Generator => Value::from(Generator::new(self.vm)),
+            Call::Immediate => {
                 execution.push_vm(self.vm);
+                return Ok(());
             }
-            UnitFnCall::Async => {
-                let future = Future::new(async move { self.vm.async_complete().await });
-                let vm = execution.vm_mut()?;
-                vm.stack.push(Value::from(future));
-                vm.advance();
-            }
-        }
+        };
 
+        let vm = execution.vm_mut()?;
+        vm.stack.push(value);
+        vm.advance();
         Ok(())
     }
 }

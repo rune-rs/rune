@@ -1,0 +1,23 @@
+async fn send_requests(list) {
+    let client = http::Client::new();
+
+    let do_request = async |url| {
+        let response = client.get(url).await?;
+        Ok(response.send().await?.status())
+    };
+
+    for url in list {
+        yield do_request(url).await;
+    }
+}
+
+async fn main() {
+    let requests = send_requests([
+        "https://google.com",
+        "https://amazon.com",
+    ]);
+
+    while let Some(status) = requests.next().await {
+        println(`{status?}`);
+    }
+}

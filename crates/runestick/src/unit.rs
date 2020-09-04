@@ -5,7 +5,7 @@
 
 use crate::collections::HashMap;
 use crate::{
-    Component, Context, Hash, Inst, Item, Meta, Names, StaticString, ValueType, VmError,
+    Call, Component, Context, Hash, Inst, Item, Meta, Names, StaticString, ValueType, VmError,
     VmErrorKind,
 };
 use std::fmt;
@@ -219,38 +219,6 @@ impl fmt::Display for Span {
     }
 }
 
-/// How the function is called.
-///
-/// Async functions create a sub-context and immediately return futures.
-#[derive(Debug, Clone, Copy)]
-pub enum UnitFnCall {
-    /// Function is a generator.
-    Generator,
-    /// Functions are immediately called (and control handed over).
-    Immediate,
-    /// Function is `async` and returns a future that must be await:ed to make
-    /// progress.
-    Async,
-}
-
-impl fmt::Display for UnitFnCall {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Generator => {
-                write!(fmt, "generator")?;
-            }
-            Self::Immediate => {
-                write!(fmt, "immediate")?;
-            }
-            Self::Async => {
-                write!(fmt, "async")?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
 /// The kind of a registered function.
 #[derive(Debug, Clone, Copy)]
 pub enum UnitFnKind {
@@ -259,7 +227,7 @@ pub enum UnitFnKind {
         /// Offset of the registered function.
         offset: usize,
         /// The way the function is called.
-        call: UnitFnCall,
+        call: Call,
     },
     /// A tuple constructor.
     Tuple {
@@ -923,7 +891,7 @@ impl Unit {
         path: Item,
         args: usize,
         assembly: Assembly,
-        call: UnitFnCall,
+        call: Call,
     ) -> Result<(), UnitError> {
         let offset = self.instructions.len();
         let hash = Hash::type_hash(&path);
@@ -953,7 +921,7 @@ impl Unit {
         name: &str,
         args: usize,
         assembly: Assembly,
-        call: UnitFnCall,
+        call: Call,
     ) -> Result<(), UnitError> {
         log::trace!("instance fn: {}", path);
 

@@ -6,8 +6,7 @@ use crate::error::CompileError;
 use crate::source::Source;
 use crate::traits::Resolve as _;
 use runestick::{
-    unit::UnitFnCall, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Span, Unit,
-    ValueType,
+    Call, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Span, Unit, ValueType,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -50,7 +49,7 @@ impl Variant {
 pub(crate) struct Function {
     /// Ast for declaration.
     pub(crate) ast: ast::DeclFn,
-    pub(crate) call: UnitFnCall,
+    pub(crate) call: Call,
 }
 
 pub(crate) struct InstanceFunction {
@@ -60,7 +59,7 @@ pub(crate) struct InstanceFunction {
     pub(crate) impl_item: Item,
     /// The span of the instance function.
     pub(crate) instance_span: Span,
-    pub(crate) call: UnitFnCall,
+    pub(crate) call: Call,
 }
 
 pub(crate) struct Closure {
@@ -69,7 +68,7 @@ pub(crate) struct Closure {
     /// Captures.
     pub(crate) captures: Arc<Vec<MetaClosureCapture>>,
     /// Calling convention used for closure.
-    pub(crate) call: UnitFnCall,
+    pub(crate) call: Call,
 }
 
 /// An entry in the build queue.
@@ -131,7 +130,7 @@ impl<'a> Query<'a> {
         item: Item,
         ast: ast::ExprClosure,
         captures: Arc<Vec<MetaClosureCapture>>,
-        call: UnitFnCall,
+        call: Call,
     ) -> Result<(), CompileError> {
         let span = ast.span();
         log::trace!("new closure: {}", item);

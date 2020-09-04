@@ -31,7 +31,7 @@
 //! }
 //! ```
 
-use runestick::{Bytes, Shared, Value, ValueError, ValueErrorKind};
+use runestick::{Bytes, Shared, Value, ValueError};
 use std::fmt;
 use std::io;
 use tokio::process;
@@ -81,9 +81,7 @@ impl Command {
                     self.inner.arg(&***s);
                 }
                 actual => {
-                    return Err(ValueError::from(ValueErrorKind::ExpectedString {
-                        actual: actual.type_info()?,
-                    }))
+                    return Err(ValueError::expected::<String>(actual.type_info()?));
                 }
             }
         }
