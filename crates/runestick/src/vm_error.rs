@@ -1,3 +1,4 @@
+use crate::panic::BoxedPanic;
 use crate::{
     AccessError, Hash, Integer, Panic, Protocol, StackError, StopReasonInfo, ValueError,
     ValueTypeInfo,
@@ -23,6 +24,16 @@ where
 }
 
 impl VmError {
+    /// Return an error encapsulating a panic.
+    pub fn panic<D>(message: D) -> Self
+    where
+        D: BoxedPanic,
+    {
+        Self::from(VmErrorKind::Panic {
+            reason: Panic::custom(message),
+        })
+    }
+
     /// Access the underlying error kind.
     pub fn kind(&self) -> &VmErrorKind {
         &*self.kind

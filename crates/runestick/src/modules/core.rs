@@ -1,6 +1,6 @@
 //! The core `std` module.
 
-use crate::{ContextError, Module, Panic, Value, ValueError};
+use crate::{ContextError, Module, Panic, Stack, Value, ValueError, VmError};
 use std::io;
 use std::io::Write as _;
 
@@ -13,40 +13,10 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty(&["char"]).build::<char>()?;
     module.ty(&["byte"]).build::<u8>()?;
 
-    module.function(&["print"], |message: &str| {
-        let stdout = io::stdout();
-        let mut stdout = stdout.lock();
-        write!(stdout, "{}", message)
-    })?;
-
-    module.function(&["println"], |message: &str| {
-        let stdout = io::stdout();
-        let mut stdout = stdout.lock();
-        writeln!(stdout, "{}", message)
-    })?;
-
-    module.function(&["panic"], |message: &str| {
-        Err::<(), _>(Panic::custom(message.to_owned()))
-    })?;
-
-    module.raw_fn(&["dbg"], |stack, args| {
-        let stdout = io::stdout();
-        let mut stdout = stdout.lock();
-
-        for _ in 0..args {
-            match stack.pop() {
-                Ok(value) => {
-                    writeln!(stdout, "{:?}", value).unwrap();
-                }
-                Err(e) => {
-                    writeln!(stdout, "{}", e).unwrap();
-                }
-            }
-        }
-
-        stack.push(Value::Unit);
-        Ok(())
-    })?;
+    module.function(&["print"], print_impl)?;
+    module.function(&["println"], println_impl)?;
+    module.function(&["panic"], panic_impl)?;
+    module.raw_fn(&["dbg"], dbg_impl)?;
 
     module.function(&["drop"], drop_impl)?;
     module.function(&["is_readable"], is_readable)?;
@@ -90,6 +60,41 @@ fn drop_impl(value: Value) -> Result<(), ValueError> {
     }
 
     Ok::<(), ValueError>(())
+}
+
+fn dbg_impl(stack: &mut Stack, args: usize) -> Result<(), VmError> {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+
+    for _ in 0..args {
+        match stack.pop() {
+            Ok(value) => {
+                writeln!(stdout, "{:?}", value).map_err(VmError::panic)?;
+            }
+            Err(e) => {
+                writeln!(stdout, "{}", e).map_err(VmError::panic)?;
+            }
+        }
+    }
+
+    stack.push(Value::Unit);
+    Ok(())
+}
+
+fn print_impl(m: &str) -> Result<(), Panic> {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+    write!(stdout, "{}", m).map_err(Panic::custom)
+}
+
+fn println_impl(m: &str) -> Result<(), Panic> {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+    writeln!(stdout, "{}", m).map_err(Panic::custom)
+}
+
+fn panic_impl(m: &str) -> Result<(), Panic> {
+    Err(Panic::custom(m.to_owned()))
 }
 
 fn is_readable(value: Value) -> bool {

@@ -74,14 +74,17 @@ impl Compile<(CallAsync, &ast::ExprBlock)> for Compiler<'_, '_> {
             var.copy(&mut self.asm, span, format!("captures `{}`", ident.ident));
         }
 
-        let hash = Hash::type_hash(meta.item());
-        self.asm.push(
+        let item = meta.item();
+        let hash = Hash::type_hash(item);
+        self.asm.push_with_comment(
             Inst::Call {
                 hash,
                 args: captures.len(),
             },
             span,
+            format!("fn `{}`", item),
         );
+
         Ok(())
     }
 }

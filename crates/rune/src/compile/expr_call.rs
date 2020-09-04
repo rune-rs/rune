@@ -120,7 +120,8 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
         };
 
         let hash = Hash::type_hash(&item);
-        self.asm.push(Inst::Call { hash, args }, span);
+        self.asm
+            .push_with_comment(Inst::Call { hash, args }, span, format!("fn `{}`", item));
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.

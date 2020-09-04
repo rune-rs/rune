@@ -307,32 +307,49 @@ impl<'a, 'source> Compiler<'a, 'source> {
         while let Needs::Value = needs {
             match meta {
                 Meta::MetaTuple { tuple, .. } if tuple.args == 0 => {
-                    self.asm.push(
+                    self.asm.push_with_comment(
                         Inst::Call {
                             hash: tuple.hash,
                             args: 0,
                         },
                         span,
+                        format!("tuple `{}`", tuple.item),
                     );
                 }
-                Meta::MetaVariantTuple { tuple, .. } if tuple.args == 0 => {
-                    self.asm.push(
+                Meta::MetaVariantTuple {
+                    enum_item, tuple, ..
+                } if tuple.args == 0 => {
+                    self.asm.push_with_comment(
                         Inst::Call {
                             hash: tuple.hash,
                             args: 0,
                         },
                         span,
+                        format!("tuple variant `{}::{}`", enum_item, tuple.item),
                     );
                 }
                 Meta::MetaTuple { tuple, .. } => {
-                    self.asm.push(Inst::Fn { hash: tuple.hash }, span);
+                    self.asm.push_with_comment(
+                        Inst::Fn { hash: tuple.hash },
+                        span,
+                        format!("tuple `{}`", tuple.item),
+                    );
                 }
-                Meta::MetaVariantTuple { tuple, .. } => {
-                    self.asm.push(Inst::Fn { hash: tuple.hash }, span);
+                Meta::MetaVariantTuple {
+                    enum_item, tuple, ..
+                } => {
+                    self.asm.push_with_comment(
+                        Inst::Fn { hash: tuple.hash },
+                        span,
+                        format!("tuple variant `{}::{}`", enum_item, tuple.item),
+                    );
                 }
-                Meta::MetaFunction { value_type, .. } => {
+                Meta::MetaFunction {
+                    value_type, item, ..
+                } => {
                     let hash = value_type.as_type_hash();
-                    self.asm.push(Inst::Fn { hash }, span);
+                    self.asm
+                        .push_with_comment(Inst::Fn { hash }, span, format!("fn `{}`", item));
                 }
                 meta => {
                     return Err(CompileError::UnsupportedValue {
