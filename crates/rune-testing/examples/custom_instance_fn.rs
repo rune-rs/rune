@@ -20,7 +20,6 @@ async fn main() -> runestick::Result<()> {
         &context,
         &options,
         &mut warnings,
-        true,
         Source::new(
             "test",
             r#"

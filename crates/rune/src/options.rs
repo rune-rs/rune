@@ -2,8 +2,10 @@ use crate::error::ConfigurationError;
 
 /// Compiler options.
 pub struct Options {
+    /// Perform link-time checks.
+    pub(crate) link_checks: bool,
     /// Memoize the instance function in a loop.
-    pub(super) memoize_instance_fn: bool,
+    pub(crate) memoize_instance_fn: bool,
 }
 
 impl Options {
@@ -12,6 +14,9 @@ impl Options {
         let mut it = option.split('=');
 
         match it.next() {
+            Some("link-checks") => {
+                self.link_checks = it.next() != Some("false");
+            }
             Some("memoize-instance-fn") => {
                 self.memoize_instance_fn = it.next() != Some("false");
             }
@@ -29,6 +34,7 @@ impl Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
+            link_checks: true,
             memoize_instance_fn: true,
         }
     }

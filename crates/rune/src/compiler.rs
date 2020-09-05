@@ -40,7 +40,7 @@ pub fn compile(
     unit: &Rc<RefCell<runestick::Unit>>,
     warnings: &mut Warnings,
 ) -> CompileResult<()> {
-    compile_with_options(context, source, unit, warnings, &Default::default())?;
+    compile_with_options(context, source, &Default::default(), unit, warnings)?;
     Ok(())
 }
 
@@ -48,9 +48,9 @@ pub fn compile(
 pub fn compile_with_options(
     context: &Context,
     source: &Source,
+    options: &Options,
     unit: &Rc<RefCell<runestick::Unit>>,
     warnings: &mut Warnings,
-    options: &Options,
 ) -> CompileResult<()> {
     let source_id = unit
         .borrow_mut()

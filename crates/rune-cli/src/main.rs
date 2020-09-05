@@ -54,7 +54,6 @@ async fn main() -> Result<()> {
     let mut dump_functions = false;
     let mut dump_types = false;
     let mut help = false;
-    let mut linking = true;
 
     let mut options = rune::Options::default();
     let context = Arc::new(rune::default_context()?);
@@ -94,9 +93,6 @@ async fn main() -> Result<()> {
 
                 options.parse_option(&opt)?;
             }
-            "--no-linking" => {
-                linking = false;
-            }
             "--help" | "-h" => {
                 help = true;
             }
@@ -125,10 +121,11 @@ async fn main() -> Result<()> {
         println!("  --no-linking      - Disable link time checks.");
         println!();
         println!("Compiler options:");
-        println!("  -O <optimization> - Update the given optimization option.");
+        println!("  -O <option>       - Update the given compiler option.");
         println!();
-        println!("Available <optimization> arguments:");
+        println!("Available <option> arguments:");
         println!("  memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.");
+        println!("  link-checks[=<true/false>] - Perform linker checks which makes sure that called functions exist.");
         return Ok(());
     }
 
@@ -141,7 +138,7 @@ async fn main() -> Result<()> {
 
     let mut warnings = rune::Warnings::new();
 
-    let unit = match rune::load_path(&*context, &options, &mut warnings, &path, linking) {
+    let unit = match rune::load_path(&*context, &options, &mut warnings, &path) {
         Ok(unit) => Arc::new(unit),
         Err(error) => {
             use rune::termcolor;

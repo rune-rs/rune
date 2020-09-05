@@ -182,7 +182,6 @@ pub fn load_path(
     options: &Options,
     warnings: &mut Warnings,
     path: &Path,
-    linking: bool,
 ) -> Result<Unit, LoadError> {
     let source = fs::read_to_string(path).map_err(|error| LoadError::ReadFile {
         error,
@@ -190,15 +189,7 @@ pub fn load_path(
     })?;
 
     let name = path.display().to_string();
-
-    let unit = load_source(
-        context,
-        options,
-        warnings,
-        linking,
-        Source::new(name, source),
-    )?;
-
+    let unit = load_source(context, options, warnings, Source::new(name, source))?;
     Ok(unit)
 }
 
@@ -210,22 +201,30 @@ pub fn load_source(
     context: &Context,
     options: &Options,
     warnings: &mut Warnings,
-    linking: bool,
     code_source: Source,
 ) -> Result<Unit, LoadError> {
     let unit = Rc::new(RefCell::new(Unit::with_default_prelude()));
 
-    match compiler::compile_with_options(&*context, &code_source, &unit, warnings, &options) {
-        Ok(unit) => unit,
-        Err(error) => {
-            return Err(LoadError::CompileError { error, code_source });
-        }
+    if let Err(error) =
+        compiler::compile_with_options(&*context, &code_source, &options, &unit, warnings)
+    {
+        return Err(LoadError::CompileError { error, code_source });
     }
 
-    let mut errors = LinkerErrors::new();
+    let unit = match Rc::try_unwrap(unit) {
+        Ok(unit) => unit.into_inner(),
+        Err(..) => {
+            return Err(LoadError::CompileError {
+                error: CompileError::internal("unit is not exlusively held", Span::empty()),
+                code_source,
+            })
+        }
+    };
 
-    if linking {
-        if !unit.borrow().link(&*context, &mut errors) {
+    if options.link_checks {
+        let mut errors = LinkerErrors::new();
+
+        if !unit.link(&*context, &mut errors) {
             return Err(LoadError::LinkError {
                 errors,
                 code_source,
@@ -233,13 +232,7 @@ pub fn load_source(
         }
     }
 
-    match Rc::try_unwrap(unit) {
-        Ok(unit) => Ok(unit.into_inner()),
-        Err(..) => Err(LoadError::CompileError {
-            error: CompileError::internal("unit is not exlusively held", Span::empty()),
-            code_source,
-        }),
-    }
+    Ok(unit)
 }
 
 /// Emit warning diagnostics.
