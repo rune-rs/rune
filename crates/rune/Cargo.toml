@@ -15,8 +15,8 @@ An embeddable dynamic programming language for Rust.
 """
 
 [features]
-default = ["runtime"]
-runtime = ["codespan-reporting"]
+default = ["diagnostics"]
+diagnostics = ["codespan-reporting"]
 # include all native modules in the default context.
 modules = ["rune-modules"]
 

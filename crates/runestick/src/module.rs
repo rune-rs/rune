@@ -298,7 +298,7 @@ impl Module {
         enum_.variant("Ok", TypeCheck::Result(0), Result::<Value, Value>::Ok);
         enum_.variant("Err", TypeCheck::Result(1), Result::<Value, Value>::Err);
         self.internal_enums.push(enum_);
-        return Ok(());
+        Ok(())
     }
 
     /// Construct the type information for the `GeneratorState` type.

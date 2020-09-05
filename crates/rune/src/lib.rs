@@ -90,6 +90,8 @@
 pub mod ast;
 mod compile;
 mod compiler;
+#[cfg(feature = "diagnostics")]
+mod diagnostics;
 mod error;
 mod index;
 mod index_scopes;
@@ -101,8 +103,6 @@ mod loops;
 mod options;
 mod parser;
 mod query;
-#[cfg(feature = "runtime")]
-mod runtime;
 mod scopes;
 mod traits;
 mod warning;
@@ -122,13 +122,15 @@ pub use crate::parser::Parser;
 pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
 
-#[cfg(feature = "runtime")]
-pub use runtime::{emit_warning_diagnostics, termcolor, DiagnosticsError, EmitDiagnostics};
+#[cfg(feature = "diagnostics")]
+pub use diagnostics::{emit_warning_diagnostics, termcolor, DiagnosticsError, EmitDiagnostics};
 
 /// Construct a a default context runestick context.
 ///
 /// If built with the `modules` feature, this includes all available native
 /// modules.
+///
+/// See [load_path](crate::load_path) for how to use.
 pub fn default_context() -> Result<runestick::Context, runestick::ContextError> {
     #[allow(unused_mut)]
     let mut context = runestick::Context::with_default_modules()?;
@@ -149,10 +151,6 @@ pub fn default_context() -> Result<runestick::Context, runestick::ContextError> 
 
 /// Parse the given input as the given type that implements
 /// [Parse][crate::traits::Parse].
-///
-/// This required the whole input to be parsed.
-///
-/// Returns the wrapped source and the parsed type.
 pub fn parse_all<T>(source: &str) -> Result<T, ParseError>
 where
     T: crate::traits::Parse,

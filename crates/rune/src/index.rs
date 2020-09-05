@@ -49,12 +49,10 @@ impl<'a, 'source> Indexer<'a, 'source> {
             } else {
                 Call::Async
             }
+        } else if generator {
+            Call::Generator
         } else {
-            if generator {
-                Call::Generator
-            } else {
-                Call::Immediate
-            }
+            Call::Immediate
         }
     }
 }
@@ -157,8 +155,7 @@ impl Index<ast::DeclFn> for Indexer<'_, '_> {
                 })?;
         } else {
             // NB: non toplevel functions can be indexed for later construction.
-            self.query
-                .index(item.clone(), Indexed::Function(fun), span)?;
+            self.query.index(item, Indexed::Function(fun), span)?;
         }
 
         Ok(())

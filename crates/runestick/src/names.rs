@@ -81,7 +81,7 @@ impl Names {
 
     /// Iterate over all known components immediately under the specified `iter`
     /// path.
-    pub fn iter_components<'a, I>(&'a self, iter: I) -> impl Iterator<Item = &'a Component>
+    pub fn iter_components<I>(&self, iter: I) -> impl Iterator<Item = &'_ Component>
     where
         I: IntoIterator,
         I::Item: Into<Component>,

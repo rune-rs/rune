@@ -797,7 +797,7 @@ impl Vm {
     /// unsuccessful.
     fn try_into_future(&mut self, value: Value) -> Result<Result<Shared<Future>, Value>, VmError> {
         match value {
-            Value::Future(future) => return Ok(Ok(future)),
+            Value::Future(future) => Ok(Ok(future)),
             value => {
                 if !self.call_instance_fn(&value, crate::INTO_FUTURE, ())? {
                     return Ok(Err(value));
@@ -1951,13 +1951,12 @@ impl Vm {
                     // NB: the future itself will advance the virtual machine.
                     return Ok(VmHalt::Awaited(Awaited::Future(future)));
                 }
-                Inst::Select { len } => match self.op_select(len)? {
-                    Some(select) => {
+                Inst::Select { len } => {
+                    if let Some(select) = self.op_select(len)? {
                         // NB: the future itself will advance the virtual machine.
                         return Ok(VmHalt::Awaited(Awaited::Select(select)));
                     }
-                    None => (),
-                },
+                }
                 Inst::Pop => {
                     self.stack.pop()?;
                 }

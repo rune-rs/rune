@@ -418,7 +418,7 @@ impl Unit {
     }
 
     /// Iterate over known child components of the given name.
-    pub fn iter_components<'a, I>(&'a self, iter: I) -> impl Iterator<Item = &'a Component>
+    pub fn iter_components<I>(&self, iter: I) -> impl Iterator<Item = &'_ Component>
     where
         I: IntoIterator,
         I::Item: Into<Component>,
@@ -533,7 +533,7 @@ impl Unit {
                 }
             })?;
 
-            if &***existing != &*current {
+            if ***existing != *current {
                 return Err(UnitError::StaticStringHashConflict {
                     hash,
                     current: (*current).clone(),
@@ -768,7 +768,7 @@ impl Unit {
 
         self.names.insert(&item);
 
-        if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
+        if let Some(existing) = self.meta.insert(item, meta.clone()) {
             return Err(UnitError::MetaConflict {
                 current: meta,
                 existing,

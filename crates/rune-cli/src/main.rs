@@ -58,7 +58,6 @@ async fn main() -> Result<()> {
     let mut help = false;
 
     let mut options = rune::Options::default();
-    let context = Arc::new(rune::default_context()?);
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -138,6 +137,7 @@ async fn main() -> Result<()> {
         }
     };
 
+    let context = Arc::new(rune::default_context()?);
     let mut warnings = rune::Warnings::new();
 
     let unit = match rune::load_path(&*context, &options, &mut warnings, &path) {
@@ -152,7 +152,6 @@ async fn main() -> Result<()> {
     let vm = runestick::Vm::new(context.clone(), unit.clone());
 
     if !warnings.is_empty() {
-        use rune::termcolor::{ColorChoice, StandardStream};
         let mut writer = StandardStream::stderr(ColorChoice::Always);
         rune::emit_warning_diagnostics(&mut writer, &warnings, &*unit)?;
     }

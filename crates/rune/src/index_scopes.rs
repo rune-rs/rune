@@ -184,12 +184,12 @@ impl IndexScopes {
     /// Mark that the given variable is used.
     pub fn mark_use(&mut self, var: &str) {
         let mut levels = self.levels.borrow_mut();
-        let mut iter = levels.iter_mut().rev();
+        let iter = levels.iter_mut().rev();
 
         let mut closures = Vec::new();
         let mut found = false;
 
-        while let Some(level) = iter.next() {
+        for level in iter {
             match level {
                 IndexScopeLevel::IndexScope(scope) => {
                     if scope.locals.get(var).is_some() {
@@ -238,9 +238,9 @@ impl IndexScopes {
     /// generator.
     pub fn mark_yield(&mut self, span: Span) -> Result<(), CompileError> {
         let mut levels = self.levels.borrow_mut();
-        let mut iter = levels.iter_mut().rev();
+        let iter = levels.iter_mut().rev();
 
-        while let Some(level) = iter.next() {
+        for level in iter {
             match level {
                 IndexScopeLevel::IndexFunction(fun) => {
                     fun.generator = true;
@@ -261,9 +261,9 @@ impl IndexScopes {
     /// generator.
     pub fn mark_await(&mut self, span: Span) -> Result<(), CompileError> {
         let mut levels = self.levels.borrow_mut();
-        let mut iter = levels.iter_mut().rev();
+        let iter = levels.iter_mut().rev();
 
-        while let Some(level) = iter.next() {
+        for level in iter {
             match level {
                 IndexScopeLevel::IndexFunction(fun) => {
                     if fun.is_async {

@@ -18,6 +18,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
 
         // NB: either handle a proper function call by resolving it's meta hash,
         // or expand the expression.
+        #[allow(clippy::never_loop)]
         let path = loop {
             match &*expr_call.expr {
                 ast::Expr::Path(path) => {

@@ -41,10 +41,7 @@ impl DeclFn {
 
     /// Test if function is an instance fn.
     pub fn is_instance(&self) -> bool {
-        match self.args.items.iter().next() {
-            Some((ast::FnArg::Self_(..), _)) => true,
-            _ => false,
-        }
+        matches!(self.args.items.first(), Some((ast::FnArg::Self_(..), _)))
     }
 }
 

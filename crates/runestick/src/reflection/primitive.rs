@@ -36,16 +36,7 @@ impl FromValue for char {
 
 impl FromValue for i64 {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        use std::convert::TryInto as _;
-        let integer = value.into_integer()?;
-
-        match integer.try_into() {
-            Ok(number) => Ok(number),
-            Err(..) => Err(VmError::from(VmErrorKind::ValueToIntegerCoercionError {
-                from: Integer::I64(integer),
-                to: std::any::type_name::<Self>(),
-            })),
-        }
+        Ok(value.into_integer()?)
     }
 }
 

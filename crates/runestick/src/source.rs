@@ -4,9 +4,9 @@ use crate::Span;
 #[derive(Debug, Clone)]
 pub struct Source {
     /// The name of the source.
-    pub name: String,
+    name: String,
     /// The source string.
-    pub source: String,
+    source: String,
 }
 
 impl Source {
@@ -21,9 +21,12 @@ impl Source {
             source: source.as_ref().to_owned(),
         }
     }
-}
 
-impl Source {
+    /// Get the name of the source.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     /// Fetch source for the given span.
     pub fn source(&self, span: Span) -> Option<&'_ str> {
         self.source.get(span.start..span.end)

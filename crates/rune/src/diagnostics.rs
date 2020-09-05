@@ -15,7 +15,7 @@ use codespan_reporting::term::termcolor::WriteColor;
 
 pub use codespan_reporting::term::termcolor;
 
-/// Error emitted when we saw an error while we were emitting diagnostics.
+/// Errors that can be raised when formatting diagnostics.
 #[derive(Debug, Error)]
 pub enum DiagnosticsError {
     /// Source Error.
@@ -27,6 +27,8 @@ pub enum DiagnosticsError {
 }
 
 /// Emit warning diagnostics.
+///
+/// See [load_path](crate::load_path) for how to use.
 pub fn emit_warning_diagnostics<O>(
     out: &mut O,
     warnings: &Warnings,
@@ -42,7 +44,7 @@ where
 
     if let Some(debug_info) = unit.debug_info() {
         for (source_id, source) in debug_info.sources() {
-            let file_id = files.add(&source.name, source.as_str());
+            let file_id = files.add(source.name(), source.as_str());
             debug_assert!(file_id == source_id);
         }
     }
@@ -142,6 +144,8 @@ where
 }
 
 /// Helper trait for emitting diagnostics.
+///
+/// See [load_path](crate::load_path) for how to use.
 pub trait EmitDiagnostics {
     /// Emit diagnostics for the current type.
     fn emit_diagnostics<O>(self, out: &mut O) -> Result<(), DiagnosticsError>
@@ -150,7 +154,6 @@ pub trait EmitDiagnostics {
 }
 
 impl EmitDiagnostics for VmError {
-    /// Emit diagnostics for the given vm error.
     fn emit_diagnostics<O>(self, out: &mut O) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
@@ -207,7 +210,7 @@ impl EmitDiagnostics for VmError {
         let config = codespan_reporting::term::Config::default();
 
         let mut files = SimpleFiles::new();
-        let id = files.add(&source.name, &source.source);
+        let id = files.add(source.name(), source.as_str());
 
         let mut labels = Vec::new();
         let span = debug_inst.span;
@@ -224,9 +227,6 @@ impl EmitDiagnostics for VmError {
 }
 
 impl EmitDiagnostics for LoadError {
-    /// Emit diagnostics about the error encountered.
-    ///
-    /// This writes detailed and rich diagnostics to the specified writer.
     fn emit_diagnostics<O>(self, out: &mut O) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
@@ -235,17 +235,17 @@ impl EmitDiagnostics for LoadError {
 
         let mut labels = Vec::new();
 
-        let (span, code_source) = match self.kind() {
+        let (span, source) = match self.kind() {
             LoadErrorKind::ReadFile { error, path } => {
                 writeln!(out, "failed to read file: {}: {}", path.display(), error)?;
                 return Ok(());
             }
             LoadErrorKind::LinkError {
                 errors,
-                code_source,
+                code_source: source,
             } => {
                 let mut files = SimpleFiles::new();
-                let source_id = files.add(&code_source.name, &code_source.source);
+                let source_id = files.add(source.name(), source.as_str());
 
                 for error in errors {
                     match error {
@@ -270,7 +270,10 @@ impl EmitDiagnostics for LoadError {
 
                 return Ok(());
             }
-            LoadErrorKind::CompileError { error, code_source } => {
+            LoadErrorKind::CompileError {
+                error,
+                code_source: source,
+            } => {
                 let span = match error {
                     CompileError::ReturnLocalReferences {
                         block,
@@ -316,12 +319,12 @@ impl EmitDiagnostics for LoadError {
                     error => error.span(),
                 };
 
-                (span, code_source)
+                (span, source)
             }
         };
 
         let mut files = SimpleFiles::new();
-        let source_id = files.add(&code_source.name, &code_source.source);
+        let source_id = files.add(source.name(), source.as_str());
 
         if let Some(e) = self.source() {
             labels
