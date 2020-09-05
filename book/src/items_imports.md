@@ -42,7 +42,4 @@ error: compile error
 ```
 
 Every item used in a Rune program must be known at compile time. This is one of
-the guarantees a Rune scripts are required to fulfill. It's otherwise typical
-for dynamic programming languages not to require this. But while Rune is also a
-dynamic language, it tries to be as helpful as possible and avoid patterns which
-might be a source for bugs.
+the guarantees a Rune scripts are required to fulfill.

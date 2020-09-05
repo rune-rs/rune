@@ -1,4 +1,4 @@
-# Functions and closures
+# Closures
 
 We've gone over functions before, and while incredibly useful there's a few more
 tricks worth mentioning.
