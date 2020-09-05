@@ -3,35 +3,20 @@ use process::Command;
 async fn main() {
     let ctrl_c = signal::ctrl_c();
 
-    'outer:
-    loop {
-        let all_ok = true;
+    let cargo_toml = fs::read_to_string("Cargo.toml").await?;
+    let cargo_toml = toml::from_string(cargo_toml)?;
+    let projects = cargo_toml.workspace.members;
 
-        let cargo_toml = fs::read_to_string("Cargo.toml").await?;
-        let cargo_toml = toml::from_string(cargo_toml)?;
-        let projects = cargo_toml.workspace.members;
+    for project in projects {
+        let cargo = Command::new("cargo");
+        cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`, "--no-verify"]);
 
-        for project in projects {
-            let cargo = Command::new("cargo");
-            cargo.args(["publish", "--manifest-path", `{project}/Cargo.toml`, "--no-verify"]);
+        let status = select {
+            _ = ctrl_c => break,
+            status = cargo.spawn()? => status?,
+        };
 
-            let status = select {
-                _ = ctrl_c => break 'outer,
-                status = cargo.spawn()? => status?,
-            };
-
-            if status.code()? != 0 {
-                all_ok = false;
-            }
-
-            println(`{project}: {status}`);
-        }
-
-        if all_ok {
-            break;
-        }
-
-        time::delay_for(time::Duration::from_secs(5)).await;
+        println(`{project}: {status}`);
     }
 
     println("Bye");
