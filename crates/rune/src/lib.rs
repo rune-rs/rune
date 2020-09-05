@@ -15,6 +15,14 @@
 //!     <img alt="Book Status" src="https://github.com/rune-rs/rune/workflows/Book/badge.svg">
 //! </a>
 //!
+//! <a href="https://crates.io/crates/rune">
+//!     <img alt="crates.io" src="https://img.shields.io/crates/v/rune.svg">
+//! </a>
+//!
+//! <a href="https://docs.rs/rune">
+//!     <img alt="docs.rs" src="https://docs.rs/rune/badge.svg">
+//! </a>
+//!
 //! <a href="https://discord.gg/v5AeNkT">
 //!     <img alt="Chat on Discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square">
 //! </a>
@@ -47,7 +55,7 @@
 //! * First-class [async support 📖][support-async].
 //! * [Generators 📖][support-generators].
 //! * Dynamic [instance functions 📖][support-instance-functions].
-//! * Stack isolation between function calls.
+//! * [Stack isolation 📖][support-stack-isolation] between function calls.
 //! * Stack-based C FFI, like Lua's (TBD).
 //!
 //! <br>
@@ -70,7 +78,7 @@
 //! See `--help` for more information.
 //!
 //! ## Running scripts from Rust
-//! 
+//!
 //! > You can find more examples [in the `examples` folder].
 //!
 //! The following is a complete example, including rich diagnostics using
@@ -140,6 +148,7 @@
 //! [support-async]: https://rune-rs.github.io/rune/async.html
 //! [support-generators]: https://rune-rs.github.io/rune/generators.html
 //! [support-instance-functions]: https://rune-rs.github.io/rune/instance_functions.html
+//! [support-stack-isolation]: https://rune-rs.github.io/rune/call_frames.html
 //! [support-dynamic-vectors]: https://rune-rs.github.io/rune/vectors.html
 //! [support-anon-objects]: https://rune-rs.github.io/rune/objects.html
 //! [support-anon-tuples]: https://rune-rs.github.io/rune/tuples.html

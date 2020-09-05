@@ -17,6 +17,14 @@
     <img alt="Book Status" src="https://github.com/rune-rs/rune/workflows/Book/badge.svg">
 </a>
 
+<a href="https://crates.io/crates/rune">
+    <img alt="crates.io" src="https://img.shields.io/crates/v/rune.svg">
+</a>
+
+<a href="https://docs.rs/rune">
+    <img alt="docs.rs" src="https://docs.rs/rune/badge.svg">
+</a>
+
 <a href="https://discord.gg/v5AeNkT">
     <img alt="Chat on Discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square">
 </a>
