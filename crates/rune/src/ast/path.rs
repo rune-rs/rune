@@ -1,10 +1,9 @@
 use crate::ast;
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::source::Source;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Peek, Resolve};
-use runestick::Span;
+use runestick::{Source, Span};
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone)]
@@ -90,7 +89,7 @@ impl Parse for Path {
 impl<'a> Resolve<'a> for Path {
     type Output = Vec<&'a str>;
 
-    fn resolve(&self, source: Source<'a>) -> Result<Vec<&'a str>, ParseError> {
+    fn resolve(&self, source: &'a Source) -> Result<Vec<&'a str>, ParseError> {
         let mut output = Vec::new();
 
         output.push(self.first.resolve(source)?);

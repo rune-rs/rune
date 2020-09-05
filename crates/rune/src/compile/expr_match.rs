@@ -8,7 +8,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_match, needs): (&ast::ExprMatch, Needs)) -> CompileResult<()> {
         let span = expr_match.span();
-        log::trace!("ExprMatch => {:?}", self.source.source(span)?);
+        log::trace!("ExprMatch => {:?}", self.source.source(span));
 
         let new_scope = self.scopes.child(span)?;
         let expected_scopes = self.scopes.push(new_scope);

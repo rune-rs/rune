@@ -1,10 +1,10 @@
 use crate::ast;
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::source::Source;
 use crate::token::Kind;
 use crate::traits::{Parse, Resolve};
 use runestick::unit::Span;
+use runestick::Source;
 use std::borrow::Cow;
 
 /// A literal object identifier.
@@ -118,11 +118,8 @@ impl LitObjectKey {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::LitObjectKey>("foo")?;
-/// parse_all::<ast::LitObjectKey>("\"foo \\n bar\"")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::LitObjectKey>("foo").unwrap();
+/// parse_all::<ast::LitObjectKey>("\"foo \\n bar\"").unwrap();
 /// ```
 impl Parse for LitObjectKey {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
@@ -144,7 +141,7 @@ impl Parse for LitObjectKey {
 impl<'a> Resolve<'a> for LitObjectKey {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, source: Source<'a>) -> Result<Self::Output, ParseError> {
+    fn resolve(&self, source: &'a Source) -> Result<Self::Output, ParseError> {
         Ok(match self {
             Self::LitStr(lit_str) => lit_str.resolve(source)?,
             Self::Ident(ident) => Cow::Borrowed(ident.resolve(source)?),

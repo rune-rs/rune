@@ -1,6 +1,5 @@
-use rune::{termcolor, Runtime};
-use runestick::{Context, FromValue, Hash, Item, Module};
-use std::io::Write as _;
+use runestick::{Context, FromValue, Hash, Item, Module, Source};
+use std::sync::Arc;
 
 fn divide_by_three(value: i64) -> i64 {
     value / 3
@@ -14,11 +13,16 @@ async fn main() -> runestick::Result<()> {
     let mut context = Context::with_default_modules()?;
     context.install(&my_module)?;
 
-    let mut runtime = Runtime::with_context(context);
+    let options = rune::Options::default();
+    let mut warnings = rune::Warnings::default();
 
-    let result = runtime.load_source(
-        String::from("test"),
-        String::from(
+    let result = rune::load_source(
+        &context,
+        &options,
+        &mut warnings,
+        true,
+        Source::new(
+            "test",
             r#"
             fn call_instance_fn(number) {
                 number.divide_by_three()
@@ -27,17 +31,17 @@ async fn main() -> runestick::Result<()> {
         ),
     );
 
-    let file_id = match result {
-        Ok(file_id) => file_id,
-        Err(e) => {
+    let unit = match result {
+        Ok(unit) => unit,
+        Err(error) => {
+            use rune::termcolor;
             let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Never);
-            writeln!(writer, "failed to load source: {}", e)?;
-            runtime.emit_diagnostics(&mut writer)?;
+            error.emit_diagnostics(&mut writer)?;
             return Ok(());
         }
     };
 
-    let vm = runtime.unit_vm(file_id).unwrap();
+    let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));
 
     let output = vm
         .call_function(Hash::type_hash(Item::of(&["call_instance_fn"])), (33i64,))?

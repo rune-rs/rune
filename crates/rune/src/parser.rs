@@ -1,4 +1,4 @@
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::lexer::Lexer;
 use crate::token::Token;
 use crate::traits::{Parse, Peek};

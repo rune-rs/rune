@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::token::{Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek};
@@ -511,7 +511,7 @@ impl Expr {
 ///     if 1 { } else { if 2 { } else { } }
 /// "#).unwrap();
 ///
-/// if let ast::Expr::ExprIf(..) = expr.item {
+/// if let ast::Expr::ExprIf(..) = expr {
 /// } else {
 ///     panic!("not an if statement");
 /// }

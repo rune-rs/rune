@@ -2,7 +2,16 @@ use runestick::Span;
 
 /// Compilation warning.
 #[derive(Debug, Clone, Copy)]
-pub enum Warning {
+pub struct Warning {
+    /// The id of the source where the id happened.
+    pub source_id: usize,
+    /// The kind of the warning.
+    pub kind: WarningKind,
+}
+
+/// Compilation warning kind.
+#[derive(Debug, Clone, Copy)]
+pub enum WarningKind {
     /// Item identified by the span is not used.
     NotUsed {
         /// The span that is not used.
@@ -47,8 +56,8 @@ pub struct Warnings {
 }
 
 impl Warnings {
-    /// Construct a new collection of compilation warnings.
-    pub(crate) fn new() -> Self {
+    /// Construct a new, empty collection of compilation warnings.
+    pub fn new() -> Self {
         Self {
             warnings: Vec::new(),
         }
@@ -61,47 +70,71 @@ impl Warnings {
 
     /// Construct a warning indicating that the item identified by the span is
     /// not used.
-    pub(crate) fn not_used(&mut self, span: Span, context: Option<Span>) {
-        self.warnings.push(Warning::NotUsed { span, context });
+    pub(crate) fn not_used(&mut self, source_id: usize, span: Span, context: Option<Span>) {
+        self.warnings.push(Warning {
+            source_id,
+            kind: WarningKind::NotUsed { span, context },
+        });
     }
 
     /// Indicate that a pattern might panic.
-    pub(crate) fn let_pattern_might_panic(&mut self, span: Span, context: Option<Span>) {
-        self.warnings
-            .push(Warning::LetPatternMightPanic { span, context });
+    pub(crate) fn let_pattern_might_panic(
+        &mut self,
+        source_id: usize,
+        span: Span,
+        context: Option<Span>,
+    ) {
+        self.warnings.push(Warning {
+            source_id,
+            kind: WarningKind::LetPatternMightPanic { span, context },
+        });
     }
 
     /// Indicate that we encountered a template string without any expansion groups.
-    pub(crate) fn template_without_expansions(&mut self, span: Span, context: Option<Span>) {
-        self.warnings
-            .push(Warning::TemplateWithoutExpansions { span, context });
+    pub(crate) fn template_without_expansions(
+        &mut self,
+        source_id: usize,
+        span: Span,
+        context: Option<Span>,
+    ) {
+        self.warnings.push(Warning {
+            source_id,
+            kind: WarningKind::TemplateWithoutExpansions { span, context },
+        });
     }
 
     /// Remove call parenthesis.
     pub(crate) fn remove_tuple_call_parens(
         &mut self,
+        source_id: usize,
         span: Span,
         variant: Span,
         context: Option<Span>,
     ) {
-        self.warnings.push(Warning::RemoveTupleCallParams {
-            span,
-            variant,
-            context,
+        self.warnings.push(Warning {
+            source_id,
+            kind: WarningKind::RemoveTupleCallParams {
+                span,
+                variant,
+                context,
+            },
         });
     }
 
     /// Indicate an unecessary semi colon.
-    pub(crate) fn uneccessary_semi_colon(&mut self, span: Span) {
-        self.warnings.push(Warning::UnecessarySemiColon { span });
+    pub(crate) fn uneccessary_semi_colon(&mut self, source_id: usize, span: Span) {
+        self.warnings.push(Warning {
+            source_id,
+            kind: WarningKind::UnecessarySemiColon { span },
+        });
     }
 }
 
-impl IntoIterator for Warnings {
-    type IntoIter = std::vec::IntoIter<Warning>;
-    type Item = Warning;
+impl<'a> IntoIterator for &'a Warnings {
+    type IntoIter = std::slice::Iter<'a, Warning>;
+    type Item = &'a Warning;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.warnings.into_iter()
+        self.warnings.iter()
     }
 }

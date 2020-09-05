@@ -9,7 +9,7 @@ use runestick::{Hash, Inst, Meta};
 impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_call, needs): (&ast::ExprCall, Needs)) -> CompileResult<()> {
         let span = expr_call.span();
-        log::trace!("ExprCall => {:?}", self.source.source(span)?);
+        log::trace!("ExprCall => {:?}", self.source.source(span));
 
         let scope = self.scopes.child(span)?;
         let guard = self.scopes.push(scope);
@@ -21,7 +21,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
         let path = loop {
             match &*expr_call.expr {
                 ast::Expr::Path(path) => {
-                    log::trace!("ExprCall(Path) => {:?}", self.source.source(span)?);
+                    log::trace!("ExprCall(Path) => {:?}", self.source.source(span));
                     break path;
                 }
                 ast::Expr::ExprFieldAccess(ast::ExprFieldAccess {
@@ -31,7 +31,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
                 }) => {
                     log::trace!(
                         "ExprCall(ExprFieldAccess) => {:?}",
-                        self.source.source(span)?
+                        self.source.source(span)
                     );
 
                     let ident = ident.resolve(self.source)?;
@@ -46,7 +46,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
                     self.asm.push(Inst::CallInstance { hash, args }, span);
                 }
                 expr => {
-                    log::trace!("ExprCall(Other) => {:?}", self.source.source(span)?);
+                    log::trace!("ExprCall(Other) => {:?}", self.source.source(span));
 
                     for (expr, _) in expr_call.args.items.iter() {
                         self.compile((expr, Needs::Value))?;
@@ -107,8 +107,12 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
 
                 if tuple.args == 0 {
                     let tuple = path.span();
-                    self.warnings
-                        .remove_tuple_call_parens(span, tuple, self.context());
+                    self.warnings.remove_tuple_call_parens(
+                        self.source_id,
+                        span,
+                        tuple,
+                        self.context(),
+                    );
                 }
 
                 tuple.item.clone()

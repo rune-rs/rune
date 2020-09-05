@@ -76,12 +76,9 @@ impl LitTuple {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::LitTuple>("(1, \"two\")").unwrap();
 /// parse_all::<ast::LitTuple>("(1, 2,)").unwrap();
 /// parse_all::<ast::LitTuple>("(1, 2, foo())").unwrap();
-/// # Ok(())
-/// # }
 /// ```
 impl Parse for LitTuple {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

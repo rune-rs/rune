@@ -12,7 +12,7 @@ use runestick::{Hash, Inst, Item, Meta, Span};
 impl Compile<(&ast::LitObject, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (lit_object, needs): (&ast::LitObject, Needs)) -> CompileResult<()> {
         let span = lit_object.span();
-        log::trace!("LitObject => {:?}", self.source.source(span)?);
+        log::trace!("LitObject => {:?}", self.source.source(span));
 
         if !needs.value() && lit_object.is_const() {
             // Don't encode unecessary literals.
@@ -61,7 +61,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_, '_> {
 
         // No need to encode an object since the value is not needed.
         if !needs.value() {
-            self.warnings.not_used(span, self.context());
+            self.warnings.not_used(self.source_id, span, self.context());
             return Ok(());
         }
 

@@ -1,8 +1,9 @@
 use crate::panic::BoxedPanic;
 use crate::{
-    AccessError, Hash, Integer, Panic, Protocol, ReflectValueType, StackError, Value,
+    AccessError, Hash, Integer, Panic, Protocol, ReflectValueType, StackError, Unit, Value,
     ValueTypeInfo, VmHaltInfo,
 };
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Errors raised by the execution of the virtual machine.
@@ -68,22 +69,24 @@ impl VmError {
     }
 
     /// Convert into an unwinded vm error.
-    pub fn into_unwinded(self, ip: usize) -> Self {
-        match *self.kind {
-            VmErrorKind::Unwound { kind, ip } => Self::from(VmErrorKind::Unwound { kind, ip }),
-            kind => Self::from(VmErrorKind::Unwound {
-                kind: Box::new(kind),
-                ip,
-            }),
+    pub fn into_unwinded(self, unit: &Arc<Unit>, ip: usize) -> Self {
+        if let VmErrorKind::Unwound { .. } = &*self.kind {
+            return self;
         }
+
+        Self::from(VmErrorKind::Unwound {
+            kind: self.kind,
+            unit: unit.clone(),
+            ip,
+        })
     }
 
     /// Unpack an unwinded error, if it is present.
-    pub fn into_unwound(self) -> (Self, Option<usize>) {
+    pub fn into_unwound(self) -> (Self, Option<(Arc<Unit>, usize)>) {
         match *self.kind {
-            VmErrorKind::Unwound { kind, ip } => {
+            VmErrorKind::Unwound { kind, unit, ip } => {
                 let error = Self { kind };
-                (error, Some(ip))
+                (error, Some((unit, ip)))
             }
             kind => (Self::from(kind), None),
         }
@@ -122,6 +125,8 @@ pub enum VmErrorKind {
     Unwound {
         /// The wrapper error.
         kind: Box<VmErrorKind>,
+        /// Associated unit.
+        unit: Arc<Unit>,
         /// The instruction pointer of where the original error happened.
         ip: usize,
     },
@@ -166,7 +171,7 @@ pub enum VmErrorKind {
         hash: Hash,
     },
     /// Failure to lookup instance function.
-    #[error("missing instance function `{hash}` for `{instance}``")]
+    #[error("missing instance function `{hash}` for `{instance}`")]
     MissingInstanceFunction {
         /// Hash of function to look up.
         hash: Hash,
@@ -407,9 +412,9 @@ pub enum VmErrorKind {
 
 impl VmErrorKind {
     /// Unpack an unwound error, if it is present.
-    pub fn into_unwound_ref(&self) -> (&Self, Option<usize>) {
+    pub fn into_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize)>) {
         match self {
-            VmErrorKind::Unwound { kind, ip } => (&*kind, Some(*ip)),
+            VmErrorKind::Unwound { kind, unit, ip } => (&*kind, Some((unit.clone(), *ip))),
             kind => (kind, None),
         }
     }

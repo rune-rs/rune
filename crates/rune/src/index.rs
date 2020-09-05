@@ -3,14 +3,14 @@ use crate::error::CompileError;
 use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::query::{Build, Function, Indexed, InstanceFunction, Query};
-use crate::source::Source;
 use crate::traits::Resolve as _;
 use crate::warning::Warnings;
-use runestick::{Call, Hash, Item, Meta, ValueType};
+use runestick::{Call, Hash, Item, Meta, Source, ValueType};
 use std::sync::Arc;
 
 pub(crate) struct Indexer<'a, 'source> {
-    pub(crate) source: Source<'source>,
+    pub(crate) source_id: usize,
+    pub(crate) source: &'source Source,
     pub(crate) query: &'a mut Query<'source>,
     pub(crate) warnings: &'a mut Warnings,
     pub(crate) items: Items,
@@ -24,11 +24,13 @@ pub(crate) struct Indexer<'a, 'source> {
 impl<'a, 'source> Indexer<'a, 'source> {
     /// Construct a new indexer.
     pub(crate) fn new(
-        source: Source<'source>,
+        source_id: usize,
+        source: &'source Source,
         query: &'a mut Query<'source>,
         warnings: &'a mut Warnings,
     ) -> Self {
         Self {
+            source_id,
             source,
             query,
             warnings,
@@ -67,7 +69,8 @@ impl Index<ast::DeclFile> for Indexer<'_, '_> {
         for (decl, semi_colon) in &decl_file.decls {
             if let Some(semi_colon) = semi_colon {
                 if !decl.needs_semi_colon() {
-                    self.warnings.uneccessary_semi_colon(semi_colon.span());
+                    self.warnings
+                        .uneccessary_semi_colon(self.source_id, semi_colon.span());
                 }
             }
 

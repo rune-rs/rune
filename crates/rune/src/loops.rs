@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::Needs;
 use crate::error::{CompileError, CompileResult};
-use crate::source::Source;
 use runestick::unit::Label;
+use runestick::Source;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -61,7 +61,7 @@ impl Loops {
     /// Find the loop with the matching label.
     pub(crate) fn walk_until_label(
         &self,
-        source: Source<'_>,
+        source: &Source,
         expected: ast::Label,
     ) -> CompileResult<(Loop, Vec<usize>)> {
         use crate::traits::Resolve as _;

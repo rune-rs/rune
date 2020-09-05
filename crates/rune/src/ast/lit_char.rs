@@ -1,10 +1,10 @@
 use crate::ast::utils;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::source::Source;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
 use runestick::unit::Span;
+use runestick::Source;
 
 /// A character literal.
 #[derive(Debug, Clone)]
@@ -27,14 +27,11 @@ impl LitChar {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::LitChar>("'a'")?;
-/// parse_all::<ast::LitChar>("'\\0'")?;
-/// parse_all::<ast::LitChar>("'\\n'")?;
-/// parse_all::<ast::LitChar>("'\\r'")?;
-/// parse_all::<ast::LitChar>("'\\''")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::LitChar>("'a'").unwrap();
+/// parse_all::<ast::LitChar>("'\\0'").unwrap();
+/// parse_all::<ast::LitChar>("'\\n'").unwrap();
+/// parse_all::<ast::LitChar>("'\\r'").unwrap();
+/// parse_all::<ast::LitChar>("'\\''").unwrap();
 /// ```
 impl Parse for LitChar {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -55,9 +52,11 @@ impl Parse for LitChar {
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
-    fn resolve(&self, source: Source<'a>) -> Result<char, ParseError> {
+    fn resolve(&self, source: &'a Source) -> Result<char, ParseError> {
         let span = self.token.span;
-        let string = source.source(span.narrow(1))?;
+        let string = source
+            .source(span.narrow(1))
+            .ok_or_else(|| ParseError::BadSlice { span })?;
         let mut it = string
             .char_indices()
             .map(|(n, c)| (span.start + n, c))

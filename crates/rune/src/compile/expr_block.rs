@@ -15,7 +15,7 @@ impl Compile<(ast::ExprBlock, &[MetaClosureCapture])> for Compiler<'_, '_> {
         (expr_block, captures): (ast::ExprBlock, &[MetaClosureCapture]),
     ) -> CompileResult<()> {
         let span = expr_block.span();
-        log::trace!("ExprBlock (procedure) => {:?}", self.source.source(span)?);
+        log::trace!("ExprBlock (procedure) => {:?}", self.source.source(span));
 
         let scope = self.scopes.last(span)?.child();
         let guard = self.scopes.push(scope);
@@ -96,8 +96,8 @@ impl Compile<(BlockBody, &ast::ExprBlock, Needs)> for Compiler<'_, '_> {
         (_, expr_block, needs): (BlockBody, &ast::ExprBlock, Needs),
     ) -> CompileResult<()> {
         let span = expr_block.span();
+        log::trace!("ExprBlock => {:?}", self.source.source(span));
 
-        log::trace!("ExprBlock => {:?}", self.source.source(span)?);
         let _guard = self.items.push_block();
 
         self.contexts.push(span);

@@ -102,52 +102,50 @@ mod query;
 #[cfg(feature = "runtime")]
 mod runtime;
 mod scopes;
-mod source;
 mod token;
 mod traits;
 mod warning;
 
-pub use crate::error::{CompileError, Error, ParseError, Result};
+pub use crate::error::{CompileError, ParseError};
 pub use crate::lexer::Lexer;
 pub use crate::options::Options;
 pub use crate::parser::Parser;
-#[cfg(feature = "runtime")]
-pub use crate::runtime::{termcolor, Runtime};
-pub use crate::source::Source;
 pub use crate::token::{Kind, Token};
 pub use crate::traits::{Parse, Resolve};
-pub use crate::warning::{Warning, Warnings};
+pub use crate::warning::{Warning, WarningKind, Warnings};
+pub use compiler::compile;
 pub use runestick::unit::Span;
-use runestick::Context;
+#[cfg(feature = "runtime")]
+pub use runtime::{
+    emit_vm_error_diagnostics, emit_warning_diagnostics, load_path, load_source, termcolor,
+    DiagnosticsError, LoadError,
+};
 
-/// Helper function to compile the given source.
+mod collections {
+    pub use hashbrown::{hash_map, HashMap};
+    pub use hashbrown::{hash_set, HashSet};
+}
+
+/// Construct a runtime with a default context.
 ///
-/// Discards any warnings produced.
-pub fn compile(context: &Context, source: &str) -> Result<(runestick::Unit, Warnings)> {
-    let unit = parse_all::<ast::DeclFile>(&source)?;
-    let (unit, warnings) = unit.compile(context)?;
-    Ok((unit, warnings))
-}
+/// If built with the `modules` feature, this includes all available native
+/// modules.
+pub fn default_context() -> Result<runestick::Context, runestick::ContextError> {
+    #[allow(unused_mut)]
+    let mut context = runestick::Context::with_default_modules()?;
 
-/// The result from parsing a string.
-pub struct ParseAll<'a, T> {
-    /// The source parsed.
-    ///
-    /// Is needed to resolve things on the item through [Resolve::resolve]
-    /// later.
-    pub source: Source<'a>,
-    /// The item parsed.
-    pub item: T,
-}
-
-impl<'a, T> ParseAll<'a, T>
-where
-    T: Resolve<'a>,
-{
-    /// Resolve the item encapsulated in the parse.
-    pub fn resolve(&self) -> Result<T::Output, ParseError> {
-        self.item.resolve(self.source)
+    #[cfg(feature = "modules")]
+    {
+        context.install(&rune_modules::http::module()?)?;
+        context.install(&rune_modules::json::module()?)?;
+        context.install(&rune_modules::toml::module()?)?;
+        context.install(&rune_modules::time::module()?)?;
+        context.install(&rune_modules::process::module()?)?;
+        context.install(&rune_modules::fs::module()?)?;
+        context.install(&rune_modules::signal::module()?)?;
     }
+
+    Ok(context)
 }
 
 /// Parse the given input as the given type that implements
@@ -156,7 +154,7 @@ where
 /// This required the whole input to be parsed.
 ///
 /// Returns the wrapped source and the parsed type.
-pub fn parse_all<T>(source: &str) -> Result<ParseAll<T>, ParseError>
+pub fn parse_all<T>(source: &str) -> Result<T, ParseError>
 where
     T: crate::traits::Parse,
 {
@@ -170,13 +168,5 @@ where
         });
     }
 
-    Ok(ParseAll {
-        source: Source { source },
-        item: ast,
-    })
-}
-
-mod collections {
-    pub use hashbrown::{hash_map, HashMap};
-    pub use hashbrown::{hash_set, HashSet};
+    Ok(ast)
 }

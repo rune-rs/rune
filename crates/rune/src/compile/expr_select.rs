@@ -9,7 +9,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_select, needs): (&ast::ExprSelect, Needs)) -> CompileResult<()> {
         let span = expr_select.span();
-        log::trace!("ExprSelect => {:?}", self.source.source(span)?);
+        log::trace!("ExprSelect => {:?}", self.source.source(span));
         let len = expr_select.branches.len();
         self.contexts.push(span);
 

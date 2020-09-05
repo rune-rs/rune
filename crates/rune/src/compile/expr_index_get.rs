@@ -11,7 +11,7 @@ impl Compile<(&ast::ExprIndexGet, Needs)> for Compiler<'_, '_> {
         (expr_index_get, needs): (&ast::ExprIndexGet, Needs),
     ) -> CompileResult<()> {
         let span = expr_index_get.span();
-        log::trace!("ExprIndexGet => {:?}", self.source.source(span)?);
+        log::trace!("ExprIndexGet => {:?}", self.source.source(span));
 
         let scope = self.scopes.last(span)?.child();
         let guard = self.scopes.push(scope);

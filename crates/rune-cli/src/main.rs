@@ -31,12 +31,11 @@
 //! [Rune Language]: https://github.com/rune-rs/rune
 //! [runestick]: https://github.com/rune-rs/rune
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use std::env;
-use std::error::Error;
 use std::fmt::Write as _;
-use std::io::Write as _;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use runestick::unit::UnitFnKind;
 use runestick::{Item, Value, VmExecution};
@@ -55,8 +54,10 @@ async fn main() -> Result<()> {
     let mut dump_functions = false;
     let mut dump_types = false;
     let mut help = false;
+    let mut linking = true;
 
-    let mut runtime = rune::Runtime::with_default_context()?;
+    let mut options = rune::Options::default();
+    let context = Arc::new(rune::default_context()?);
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -91,10 +92,10 @@ async fn main() -> Result<()> {
                     }
                 };
 
-                runtime.parse_optimization(&[&opt])?;
+                options.parse_option(&opt)?;
             }
             "--no-linking" => {
-                runtime.disable_linking();
+                linking = false;
             }
             "--help" | "-h" => {
                 help = true;
@@ -138,31 +139,30 @@ async fn main() -> Result<()> {
         }
     };
 
-    let file_id = match runtime.load(&path) {
-        Ok(file_id) => file_id,
-        Err(e) => {
+    let mut warnings = rune::Warnings::new();
+
+    let unit = match rune::load_path(&*context, &options, &mut warnings, &path, linking) {
+        Ok(unit) => Arc::new(unit),
+        Err(error) => {
             use rune::termcolor;
             let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
-            writeln!(writer, "failed to load: {}: {}", path.display(), e)?;
-            runtime.emit_diagnostics(&mut writer)?;
+            error.emit_diagnostics(&mut writer)?;
             return Ok(());
         }
     };
 
-    let vm = runtime
-        .unit_vm(file_id)
-        .ok_or_else(|| anyhow!("missing unit `{}`", file_id))?;
+    let vm = runestick::Vm::new(context.clone(), unit.clone());
 
-    if runtime.has_issues() {
+    if !warnings.is_empty() {
         use rune::termcolor;
         let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
-        runtime.emit_diagnostics(&mut writer)?;
+        rune::emit_warning_diagnostics(&mut writer, &warnings, &*unit)?;
     }
 
     if dump_functions {
         println!("# functions");
 
-        for (i, (hash, f)) in runtime.context().iter_functions().enumerate() {
+        for (i, (hash, f)) in context.iter_functions().enumerate() {
             println!("{:04} = {} ({})", i, f, hash);
         }
     }
@@ -170,7 +170,7 @@ async fn main() -> Result<()> {
     if dump_types {
         println!("# types");
 
-        for (i, (hash, ty)) in runtime.context().iter_types().enumerate() {
+        for (i, (hash, ty)) in context.iter_types().enumerate() {
             println!("{:04} = {} ({})", i, ty, hash);
         }
     }
@@ -186,7 +186,10 @@ async fn main() -> Result<()> {
             let out = std::io::stdout();
             let mut out = out.lock();
 
-            let debug = vm.unit().debug_info_at(n);
+            let debug_inst = vm
+                .unit()
+                .debug_info()
+                .and_then(|debug| debug.instruction_at(n));
 
             if let Some((hash, function)) = vm.unit().function_at(n) {
                 if first_function {
@@ -198,16 +201,16 @@ async fn main() -> Result<()> {
                 println!("fn {} ({}):", function.signature, hash);
             }
 
-            if let Some(debug) = debug {
-                if let Some(label) = debug.label {
+            if let Some(inst) = debug_inst {
+                if let Some(label) = inst.label {
                     println!("{}:", label);
                 }
             }
 
             write!(out, "  {:04} = {}", n, inst)?;
 
-            if let Some(debug) = debug {
-                if let Some(comment) = &debug.comment {
+            if let Some(inst) = debug_inst {
+                if let Some(comment) = &inst.comment {
                     write!(out, " // {}", comment)?;
                 }
             }
@@ -280,30 +283,9 @@ async fn main() -> Result<()> {
     let result = match result {
         Ok(result) => result,
         Err(error) => {
-            let vm = execution.vm()?;
-
-            // NB: this only works if we have debuginfo.
-            match runtime.register_vm_error(vm.ip(), file_id, error) {
-                Ok(()) => {
-                    use rune::termcolor;
-                    let mut writer =
-                        termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
-                    runtime.emit_diagnostics(&mut writer)?;
-                }
-                Err(e) => {
-                    println!("#0: {}", e);
-
-                    let mut e = &e as &dyn Error;
-                    let mut i = 1;
-
-                    while let Some(err) = e.source() {
-                        println!("#{}: {}", i, err);
-                        i += 1;
-                        e = err;
-                    }
-                }
-            }
-
+            let mut writer =
+                rune::termcolor::StandardStream::stderr(rune::termcolor::ColorChoice::Always);
+            rune::emit_vm_error_diagnostics(&mut writer, error)?;
             return Ok(());
         }
     };
@@ -347,14 +329,17 @@ async fn do_trace(execution: &mut VmExecution, dump_vm: bool) -> Result<Value, T
             let vm = execution.vm().map_err(TraceError::VmError)?;
             let mut out = out.lock();
 
-            let debug = vm.unit().debug_info_at(vm.ip());
-
             if let Some((hash, function)) = vm.unit().function_at(vm.ip()) {
                 writeln!(out, "fn {} ({}):", function.signature, hash)?;
             }
 
-            if let Some(debug) = debug {
-                if let Some(label) = debug.label {
+            let debug_inst = vm
+                .unit()
+                .debug_info()
+                .and_then(|debug| debug.instruction_at(vm.ip()));
+
+            if let Some(inst) = debug_inst {
+                if let Some(label) = inst.label {
                     writeln!(out, "{}:", label)?;
                 }
             }
@@ -365,8 +350,8 @@ async fn do_trace(execution: &mut VmExecution, dump_vm: bool) -> Result<Value, T
                 write!(out, "  {:04} = *out of bounds*", vm.ip())?;
             }
 
-            if let Some(debug) = debug {
-                if let Some(comment) = &debug.comment {
+            if let Some(inst) = debug_inst {
+                if let Some(comment) = &inst.comment {
                     write!(out, " // {}", comment)?;
                 }
             }

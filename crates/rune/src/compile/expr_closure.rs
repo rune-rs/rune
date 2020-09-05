@@ -12,7 +12,7 @@ impl Compile<(ast::ExprClosure, &[MetaClosureCapture])> for Compiler<'_, '_> {
         (expr_closure, captures): (ast::ExprClosure, &[MetaClosureCapture]),
     ) -> CompileResult<()> {
         let span = expr_closure.span();
-        log::trace!("ExprClosure => {:?}", self.source.source(span)?);
+        log::trace!("ExprClosure => {:?}", self.source.source(span));
 
         let count = {
             let scope = self.scopes.last_mut(span)?;
@@ -63,10 +63,10 @@ impl Compile<(ast::ExprClosure, &[MetaClosureCapture])> for Compiler<'_, '_> {
 impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_closure, needs): (&ast::ExprClosure, Needs)) -> CompileResult<()> {
         let span = expr_closure.span();
-        log::trace!("ExprClosure => {:?}", self.source.source(span)?);
+        log::trace!("ExprClosure => {:?}", self.source.source(span));
 
         if !needs.value() {
-            self.warnings.not_used(span, self.context());
+            self.warnings.not_used(self.source_id, span, self.context());
             return Ok(());
         }
 

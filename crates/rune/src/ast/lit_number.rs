@@ -1,9 +1,9 @@
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::source::Source;
 use crate::token::{self, Kind, Token};
 use crate::traits::{Parse, Resolve};
 use runestick::unit::Span;
+use runestick::Source;
 
 /// A resolved number literal.
 pub enum Number {
@@ -40,13 +40,10 @@ impl LitNumber {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::LitNumber>("42")?;
-/// parse_all::<ast::LitNumber>("42.42")?;
-/// parse_all::<ast::LitNumber>("0.42")?;
-/// parse_all::<ast::LitNumber>("0.42e10")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::LitNumber>("42").unwrap();
+/// parse_all::<ast::LitNumber>("42.42").unwrap();
+/// parse_all::<ast::LitNumber>("0.42").unwrap();
+/// parse_all::<ast::LitNumber>("0.42e10").unwrap();
 /// ```
 impl Parse for LitNumber {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -77,14 +74,16 @@ impl Parse for LitNumber {
 impl<'a> Resolve<'a> for LitNumber {
     type Output = Number;
 
-    fn resolve(&self, source: Source<'a>) -> Result<Number, ParseError> {
+    fn resolve(&self, source: &'a Source) -> Result<Number, ParseError> {
         use num::{Num as _, ToPrimitive as _};
         use std::ops::Neg as _;
         use std::str::FromStr as _;
 
         let span = self.token.span;
 
-        let string = source.source(span)?;
+        let string = source
+            .source(span)
+            .ok_or_else(|| ParseError::BadSlice { span })?;
 
         let string = if self.is_negative {
             &string[1..]

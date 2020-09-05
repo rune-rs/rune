@@ -1,5 +1,5 @@
 use crate::ast::{Else, ExprBlock};
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
 use runestick::unit::Span;

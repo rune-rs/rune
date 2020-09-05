@@ -1,10 +1,10 @@
 use crate::ast::utils;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::source::Source;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
 use runestick::unit::Span;
+use runestick::Source;
 
 /// A byte literal.
 #[derive(Debug, Clone)]
@@ -52,9 +52,12 @@ impl Parse for LitByte {
 impl<'a> Resolve<'a> for LitByte {
     type Output = u8;
 
-    fn resolve(&self, source: Source<'a>) -> Result<u8, ParseError> {
+    fn resolve(&self, source: &'a Source) -> Result<u8, ParseError> {
         let span = self.token.span;
-        let string = source.source(span.trim_start(2).trim_end(1))?;
+
+        let string = source
+            .source(span.trim_start(2).trim_end(1))
+            .ok_or_else(|| ParseError::BadSlice { span })?;
 
         let mut it = string
             .char_indices()

@@ -9,7 +9,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprWhile, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_while, needs): (&ast::ExprWhile, Needs)) -> CompileResult<()> {
         let span = expr_while.span();
-        log::trace!("ExprWhile => {:?}", self.source.source(span)?);
+        log::trace!("ExprWhile => {:?}", self.source.source(span));
 
         let start_label = self.asm.new_label("while_test");
         let then_label = self.asm.new_label("while_then");

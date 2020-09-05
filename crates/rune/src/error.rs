@@ -1,41 +1,10 @@
 use crate::ast;
 use crate::token::Kind;
 use runestick::{Item, Meta, Span};
-use std::fmt;
-use std::io;
 use thiserror::Error;
 
 /// A compile result.
 pub type CompileResult<T, E = CompileError> = std::result::Result<T, E>;
-
-/// Result alias used by this frontend.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// Error capable of collecting all error types emitted by this crate.
-#[derive(Debug, Error)]
-pub enum Error {
-    /// Source parse error.
-    #[error("parse error")]
-    ParseError(#[from] ParseError),
-    /// Compiler error.
-    #[error("compile error")]
-    CompileError(#[from] CompileError),
-    /// Configuration error.
-    #[error("configuration error")]
-    ConfigurationError(#[from] ConfigurationError),
-    /// I/O error.
-    #[error("I/O error")]
-    Io(#[from] io::Error),
-    /// Formatting error.
-    #[error("formatting error")]
-    Fmt(#[from] fmt::Error),
-    /// Errors raised by the virtual machine.
-    #[error("virtual machine error")]
-    VmError(#[from] runestick::VmError),
-    /// Errors raised when setting up context.
-    #[error("context error")]
-    ContextError(#[from] runestick::ContextError),
-}
 
 #[derive(Debug, Clone, Error)]
 pub enum ConfigurationError {

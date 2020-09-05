@@ -9,7 +9,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprUnary, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_unary, needs): (&ast::ExprUnary, Needs)) -> CompileResult<()> {
         let span = expr_unary.span();
-        log::trace!("ExprUnary => {:?}", self.source.source(span)?);
+        log::trace!("ExprUnary => {:?}", self.source.source(span));
 
         // NB: special unary expressions.
         if let ast::UnaryOp::BorrowRef { .. } = expr_unary.op {

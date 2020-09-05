@@ -7,15 +7,15 @@ use crate::{
 };
 use std::fmt;
 use std::mem;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A stack which references variables indirectly from a slab.
 #[derive(Debug, Clone)]
 pub struct Vm {
     /// Context associated with virtual machine.
-    context: Rc<Context>,
+    context: Arc<Context>,
     /// Unit associated with virtual machine.
-    unit: Rc<Unit>,
+    unit: Arc<Unit>,
     /// The current instruction pointer.
     ip: usize,
     /// The current stack.
@@ -26,12 +26,12 @@ pub struct Vm {
 
 impl Vm {
     /// Construct a new runestick virtual machine.
-    pub const fn new(context: Rc<Context>, unit: Rc<Unit>) -> Self {
+    pub const fn new(context: Arc<Context>, unit: Arc<Unit>) -> Self {
         Self::new_with_stack(context, unit, Stack::new())
     }
 
     /// Construct a new runestick virtual machine.
-    pub const fn new_with_stack(context: Rc<Context>, unit: Rc<Unit>, stack: Stack) -> Self {
+    pub const fn new_with_stack(context: Arc<Context>, unit: Arc<Unit>, stack: Stack) -> Self {
         Self {
             context,
             unit,
@@ -56,8 +56,8 @@ impl Vm {
     }
 
     /// Test if the virtual machine is the same context and unit as specified.
-    pub fn is_same(&self, context: &Rc<Context>, unit: &Rc<Unit>) -> bool {
-        Rc::ptr_eq(&self.context, context) && Rc::ptr_eq(&self.unit, unit)
+    pub fn is_same(&self, context: &Arc<Context>, unit: &Arc<Unit>) -> bool {
+        Arc::ptr_eq(&self.context, context) && Arc::ptr_eq(&self.unit, unit)
     }
 
     /// Set  the current instruction pointer.
@@ -79,12 +79,12 @@ impl Vm {
     }
 
     /// Access the context related to the virtual machine.
-    pub fn context(&self) -> &Rc<Context> {
+    pub fn context(&self) -> &Arc<Context> {
         &self.context
     }
 
     /// Access the underlying unit of the virtual machine.
-    pub fn unit(&self) -> &Rc<Unit> {
+    pub fn unit(&self) -> &Arc<Unit> {
         &self.unit
     }
 

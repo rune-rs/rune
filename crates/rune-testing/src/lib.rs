@@ -31,17 +31,35 @@
 pub use futures_executor::block_on;
 pub use rune::CompileError::*;
 pub use rune::ParseError::*;
-pub use rune::Warning::*;
+pub use rune::WarningKind::*;
+use rune::Warnings;
 pub use runestick::VmErrorKind::*;
-use runestick::{Component, Item};
+use runestick::{Component, Item, Source, Unit};
 pub use runestick::{Function, Meta, Span, Value};
+use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// The result returned from our functions.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The error returned from our functions.
 pub type Error = Box<dyn std::error::Error + 'static + Send + Sync>;
+
+/// Compile the given source into a unit and collection of warnings.
+pub fn compile_source(
+    context: &runestick::Context,
+    source: &str,
+) -> Result<(Unit, Warnings), rune::CompileError> {
+    let source = Source::new("main", source.to_owned());
+    let unit = Rc::new(RefCell::new(Unit::with_default_prelude()));
+    let mut warnings = Warnings::new();
+
+    rune::compile(context, &source, &unit, &mut warnings)?;
+
+    let unit = Rc::try_unwrap(unit).unwrap().into_inner();
+    Ok((unit, warnings))
+}
 
 /// Call the specified function in the given script.
 pub async fn run_async<N, A, T>(function: N, args: A, source: &str) -> Result<T>
@@ -52,12 +70,14 @@ where
     T: runestick::FromValue,
 {
     let context = runestick::Context::with_default_modules()?;
-    let (unit, _) = rune::compile(&context, source)?;
-    let vm = runestick::Vm::new(Rc::new(context), Rc::new(unit));
+    let (unit, _) = compile_source(&context, &source)?;
+
+    let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));
     let output = vm
         .call_function(Item::of(function), args)?
         .async_complete()
         .await?;
+
     Ok(T::from_value(output)?)
 }
 
@@ -113,10 +133,10 @@ macro_rules! rune {
 macro_rules! assert_parse_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
         let context = runestick::Context::with_default_modules().unwrap();
-        let err = rune::compile(&context, $source).unwrap_err();
+        let err = $crate::compile_source(&context, &$source).unwrap_err();
 
         match err {
-            rune::Error::ParseError($pat) => ($cond),
+            rune::CompileError::ParseError { error: $pat } => ($cond),
             _ => {
                 panic!("expected error `{}` but was `{:?}`", stringify!($pat), err);
             }
@@ -182,7 +202,7 @@ macro_rules! assert_vm_error {
 macro_rules! assert_parse {
     ($source:expr) => {{
         let context = runestick::Context::with_default_modules().unwrap();
-        rune::compile(&context, $source).unwrap();
+        $crate::compile_source(&context, $source).unwrap()
     }};
 }
 
@@ -206,10 +226,10 @@ macro_rules! assert_parse {
 macro_rules! assert_compile_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
         let context = runestick::Context::with_default_modules().unwrap();
-        let err = rune::compile(&context, $source).unwrap_err();
+        let err = $crate::compile_source(&context, $source).unwrap_err();
 
         match err {
-            rune::Error::CompileError($pat) => ($cond),
+            $pat => ($cond),
             _ => {
                 panic!("expected error `{}` but was `{:?}`", stringify!($pat), err);
             }
@@ -238,7 +258,7 @@ macro_rules! assert_compile_error {
 macro_rules! assert_warnings {
     ($source:expr $(, $pat:pat => $cond:expr)*) => {{
         let context = runestick::Context::with_default_modules().unwrap();
-        let (_, warnings) = rune::compile(&context, $source).expect("source should compile");
+        let (_, warnings) = $crate::compile_source(&context, $source).expect("source should compile");
         assert!(!warnings.is_empty(), "no warnings produced");
 
         let mut it = warnings.into_iter();
@@ -246,7 +266,7 @@ macro_rules! assert_warnings {
         $(
             let warning = it.next().expect("expected a warning");
 
-            match warning {
+            match warning.kind {
                 $pat => ($cond),
                 warning => {
                     panic!("expected warning `{}` but was `{:?}`", stringify!($pat), warning);

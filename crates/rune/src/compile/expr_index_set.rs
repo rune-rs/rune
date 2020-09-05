@@ -11,7 +11,7 @@ impl Compile<(&ast::ExprIndexSet, Needs)> for Compiler<'_, '_> {
         (expr_index_set, needs): (&ast::ExprIndexSet, Needs),
     ) -> CompileResult<()> {
         let span = expr_index_set.span();
-        log::trace!("ExprIndexSet => {:?}", self.source.source(span)?);
+        log::trace!("ExprIndexSet => {:?}", self.source.source(span));
 
         self.compile((&*expr_index_set.value, Needs::Value))?;
         self.compile((&*expr_index_set.index, Needs::Value))?;

@@ -7,11 +7,11 @@ use crate::{traits::Compile, CompileError};
 impl Compile<(&ast::Path, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (path, needs): (&ast::Path, Needs)) -> CompileResult<()> {
         let span = path.span();
-        log::trace!("Path => {:?}", self.source.source(span)?);
+        log::trace!("Path => {:?}", self.source.source(span));
 
         // NB: do nothing if we don't need a value.
         if !needs.value() {
-            self.warnings.not_used(span, self.context());
+            self.warnings.not_used(self.source_id, span, self.context());
             return Ok(());
         }
 

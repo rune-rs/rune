@@ -59,17 +59,16 @@ impl Peek for DeclFn {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{ParseAll, parse_all, ast, Resolve as _};
+/// use rune::{parse_all, ast};
 ///
 /// parse_all::<ast::DeclFn>("async fn hello() {}").unwrap();
 /// assert!(parse_all::<ast::DeclFn>("fn async hello() {}").is_err());
 ///
-/// let ParseAll { item, .. } = parse_all::<ast::DeclFn>("fn hello() {}").unwrap();
+/// let item = parse_all::<ast::DeclFn>("fn hello() {}").unwrap();
 /// assert_eq!(item.args.items.len(), 0);
 ///
-/// let ParseAll  { source, item } = parse_all::<ast::DeclFn>("fn hello(foo, bar) {}").unwrap();
+/// let item = parse_all::<ast::DeclFn>("fn hello(foo, bar) {}").unwrap();
 /// assert_eq!(item.args.items.len(), 2);
-/// assert_eq!(item.name.resolve(source).unwrap(), "hello");
 /// ```
 impl Parse for DeclFn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

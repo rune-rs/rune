@@ -53,21 +53,20 @@ impl ExprBlock {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// let block = parse_all::<ast::ExprBlock>("async {}")?.item;
+/// let block = parse_all::<ast::ExprBlock>("async {}").unwrap();
 /// assert_eq!(block.exprs.len(), 0);
 /// assert!(block.trailing_expr.is_none());
 /// assert!(block.async_.is_some());
 ///
-/// let block = parse_all::<ast::ExprBlock>("{}")?.item;
+/// let block = parse_all::<ast::ExprBlock>("{}").unwrap();
 /// assert_eq!(block.exprs.len(), 0);
 /// assert!(block.trailing_expr.is_none());
 ///
-/// let block = parse_all::<ast::ExprBlock>("{ foo }")?.item;
+/// let block = parse_all::<ast::ExprBlock>("{ foo }").unwrap();
 /// assert_eq!(block.exprs.len(), 0);
 /// assert!(block.trailing_expr.is_some());
 ///
-/// let block = parse_all::<ast::ExprBlock>("{ foo; }")?.item;
+/// let block = parse_all::<ast::ExprBlock>("{ foo; }").unwrap();
 /// assert_eq!(block.exprs.len(), 1);
 /// assert!(block.trailing_expr.is_none());
 ///
@@ -77,12 +76,10 @@ impl ExprBlock {
 ///         let bar = "string";
 ///         baz
 ///     }
-/// "#)?.item;
+/// "#).unwrap();
 /// assert!(block.async_.is_none());
 /// assert_eq!(block.exprs.len(), 2);
 /// assert!(block.trailing_expr.is_some());
-/// # Ok(())
-/// # }
 /// ```
 impl Parse for ExprBlock {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

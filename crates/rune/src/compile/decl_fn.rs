@@ -8,7 +8,7 @@ use runestick::Inst;
 impl Compile<(ast::DeclFn, bool)> for Compiler<'_, '_> {
     fn compile(&mut self, (fn_decl, instance_fn): (ast::DeclFn, bool)) -> CompileResult<()> {
         let span = fn_decl.span();
-        log::trace!("DeclFn => {:?}", self.source.source(span)?);
+        log::trace!("DeclFn => {:?}", self.source.source(span));
         let _guard = self.items.push_block();
 
         let mut first = true;

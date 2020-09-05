@@ -1,11 +1,11 @@
 use crate::ast::utils;
 use crate::ast::Expr;
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::source::Source;
 use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
 use runestick::unit::Span;
+use runestick::Source;
 
 /// A string literal.
 #[derive(Debug, Clone)]
@@ -43,9 +43,11 @@ pub struct Template {
 impl<'a> Resolve<'a> for LitTemplate {
     type Output = Template;
 
-    fn resolve(&self, source: Source<'a>) -> Result<Self::Output, ParseError> {
+    fn resolve(&self, source: &'a Source) -> Result<Self::Output, ParseError> {
         let span = self.span().narrow(1);
-        let string = source.source(span)?;
+        let string = source
+            .source(span)
+            .ok_or_else(|| ParseError::BadSlice { span })?;
 
         let mut it = string
             .char_indices()
@@ -109,11 +111,8 @@ impl<'a> Resolve<'a> for LitTemplate {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::LitTemplate>("`hello world`")?;
-/// parse_all::<ast::LitTemplate>("`hello\\n world`")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::LitTemplate>("`hello world`").unwrap();
+/// parse_all::<ast::LitTemplate>("`hello\\n world`").unwrap();
 /// ```
 impl Parse for LitTemplate {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

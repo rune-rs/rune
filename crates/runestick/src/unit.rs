@@ -5,8 +5,8 @@
 
 use crate::collections::HashMap;
 use crate::{
-    Call, Component, Context, Hash, Inst, Item, Meta, Names, StaticString, ValueType, VmError,
-    VmErrorKind,
+    Call, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Meta, Names, StaticString,
+    ValueType, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -288,17 +288,6 @@ impl fmt::Display for UnitFnSignature {
     }
 }
 
-/// Debug information for every instruction.
-#[derive(Debug)]
-pub struct DebugInfo {
-    /// The span of the instruction.
-    pub span: Span,
-    /// The comment for the line.
-    pub comment: Option<String>,
-    /// Label associated with the location.
-    pub label: Option<Label>,
-}
-
 /// Information on a type.
 #[derive(Debug)]
 pub struct UnitTypeInfo {
@@ -399,14 +388,14 @@ pub struct Unit {
     static_object_keys: Vec<Box<[String]>>,
     /// Used to detect duplicates in the collection of static object keys.
     static_object_keys_rev: HashMap<Hash, usize>,
-    /// Debug info for each line.
-    debug: Vec<DebugInfo>,
     /// The current label count.
     label_count: usize,
     /// A collection of required function hashes.
     required_functions: HashMap<Hash, Vec<Span>>,
     /// All available names in the context.
     names: Names,
+    /// Debug info if available for unit.
+    debug: Option<Box<DebugInfo>>,
 }
 
 impl Unit {
@@ -552,8 +541,14 @@ impl Unit {
     }
 
     /// Access debug information for the given location if it is available.
-    pub fn debug_info_at(&self, n: usize) -> Option<&DebugInfo> {
-        self.debug.get(n)
+    pub fn debug_info(&self) -> Option<&DebugInfo> {
+        let debug = self.debug.as_ref()?;
+        Some(&**debug)
+    }
+
+    /// Insert and access a builder for debug information.
+    pub fn debug_info_mut(&mut self) -> &mut DebugInfo {
+        self.debug.get_or_insert_with(Default::default)
     }
 
     /// Get the instruction at the given instruction pointer.
@@ -889,6 +884,7 @@ impl Unit {
     /// Declare a new function at the current instruction pointer.
     pub fn new_function(
         &mut self,
+        source_id: usize,
         path: Item,
         args: usize,
         assembly: Assembly,
@@ -910,13 +906,14 @@ impl Unit {
             });
         }
 
-        self.add_assembly(assembly)?;
+        self.add_assembly(source_id, assembly)?;
         Ok(())
     }
 
     /// Declare a new instance function at the current instruction pointer.
     pub fn new_instance_function(
         &mut self,
+        source_id: usize,
         path: Item,
         value_type: ValueType,
         name: &str,
@@ -949,12 +946,12 @@ impl Unit {
         }
 
         self.functions_rev.insert(offset, hash);
-        self.add_assembly(assembly)?;
+        self.add_assembly(source_id, assembly)?;
         Ok(())
     }
 
     /// Translate the given assembly into instructions.
-    fn add_assembly(&mut self, assembly: Assembly) -> Result<(), UnitError> {
+    fn add_assembly(&mut self, source_id: usize, assembly: Assembly) -> Result<(), UnitError> {
         self.label_count = assembly.label_count;
 
         self.required_functions.extend(assembly.required_functions);
@@ -1011,7 +1008,10 @@ impl Unit {
                 comment = Some(actual)
             }
 
-            self.debug.push(DebugInfo {
+            let debug = self.debug.get_or_insert_with(Default::default);
+
+            debug.instructions.push(DebugInst {
+                source_id,
                 span,
                 comment,
                 label,

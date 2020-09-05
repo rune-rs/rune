@@ -8,7 +8,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprReturn, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (return_expr, _needs): (&ast::ExprReturn, Needs)) -> CompileResult<()> {
         let span = return_expr.span();
-        log::trace!("ExprReturn => {:?}", self.source.source(span)?);
+        log::trace!("ExprReturn => {:?}", self.source.source(span));
 
         // NB: drop any loop temporaries.
         for l in self.loops.iter() {

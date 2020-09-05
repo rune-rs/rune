@@ -8,11 +8,11 @@ use runestick::Inst;
 impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (lit_template, needs): (&ast::LitTemplate, Needs)) -> CompileResult<()> {
         let span = lit_template.span();
-        log::trace!("LitTemplate => {:?}", self.source.source(span)?);
+        log::trace!("LitTemplate => {:?}", self.source.source(span));
 
         // NB: Elide the entire literal if it's not needed.
         if !needs.value() {
-            self.warnings.not_used(span, self.context());
+            self.warnings.not_used(self.source_id, span, self.context());
             return Ok(());
         }
 
@@ -20,7 +20,7 @@ impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_, '_> {
 
         if !template.has_expansions {
             self.warnings
-                .template_without_expansions(span, self.context());
+                .template_without_expansions(self.source_id, span, self.context());
         }
 
         let scope = self.scopes.child(span)?;

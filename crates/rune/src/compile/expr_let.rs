@@ -9,7 +9,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprLet, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_let, needs): (&ast::ExprLet, Needs)) -> CompileResult<()> {
         let span = expr_let.span();
-        log::trace!("ExprLet => {:?}", self.source.source(span)?);
+        log::trace!("ExprLet => {:?}", self.source.source(span));
 
         // NB: assignments "move" the value being assigned.
         self.compile((&*expr_let.expr, Needs::Value))?;
@@ -21,7 +21,8 @@ impl Compile<(&ast::ExprLet, Needs)> for Compiler<'_, '_> {
         let false_label = self.asm.new_label("let_panic");
 
         if self.compile_pat(&mut scope, &expr_let.pat, false_label, &load)? {
-            self.warnings.let_pattern_might_panic(span, self.context());
+            self.warnings
+                .let_pattern_might_panic(self.source_id, span, self.context());
 
             let ok_label = self.asm.new_label("let_ok");
             self.asm.jump(ok_label, span);

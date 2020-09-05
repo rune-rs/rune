@@ -1,5 +1,5 @@
 use crate::ast::utils;
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::token::{Delimiter, Kind, LitNumber, Token};
 use runestick::unit::Span;
 
@@ -18,9 +18,8 @@ impl<'a> Lexer<'a> {
     /// ```rust
     /// use rune::{Lexer, Kind, Span, Token};
     ///
-    /// # fn main() -> rune::Result<()> {
     /// assert_eq! {
-    ///     Lexer::new("fn").next()?.unwrap(),
+    ///     Lexer::new("fn").next().unwrap().unwrap(),
     ///     Token {
     ///         kind: Kind::Fn,
     ///         span: Span { start: 0, end: 2 },
@@ -28,14 +27,12 @@ impl<'a> Lexer<'a> {
     /// };
     ///
     /// assert_eq! {
-    ///     Lexer::new("name").next()?.unwrap(),
+    ///     Lexer::new("name").next().unwrap().unwrap(),
     ///     Token {
     ///         kind: Kind::Ident,
     ///         span: Span { start: 0, end: 4 },
     ///     }
     /// };
-    /// # Ok(())
-    /// # }
     /// ```
     pub fn new(source: &'a str) -> Self {
         Self { cursor: 0, source }

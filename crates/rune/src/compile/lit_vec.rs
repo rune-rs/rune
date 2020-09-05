@@ -8,7 +8,7 @@ use runestick::Inst;
 impl Compile<(&ast::LitVec, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (lit_vec, needs): (&ast::LitVec, Needs)) -> CompileResult<()> {
         let span = lit_vec.span();
-        log::trace!("LitVec => {:?}", self.source.source(span)?);
+        log::trace!("LitVec => {:?}", self.source.source(span));
 
         if !needs.value() && lit_vec.is_const() {
             // Don't encode unecessary literals.
@@ -29,7 +29,7 @@ impl Compile<(&ast::LitVec, Needs)> for Compiler<'_, '_> {
 
         // No need to create a vector if it's not needed.
         if !needs.value() {
-            self.warnings.not_used(span, self.context());
+            self.warnings.not_used(self.source_id, span, self.context());
             return Ok(());
         }
 

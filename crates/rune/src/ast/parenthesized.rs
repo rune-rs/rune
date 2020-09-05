@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::{Parse, Peek};
 use runestick::unit::Span;
@@ -29,12 +29,9 @@ impl<T, S> Parenthesized<T, S> {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, \"two\")")?;
-/// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2,)")?;
-/// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2, foo())")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, \"two\")").unwrap();
+/// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2,)").unwrap();
+/// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2, foo())").unwrap();
 /// ```
 impl<T, S> Parse for Parenthesized<T, S>
 where

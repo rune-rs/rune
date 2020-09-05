@@ -8,7 +8,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprIf, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_if, needs): (&ast::ExprIf, Needs)) -> CompileResult<()> {
         let span = expr_if.span();
-        log::trace!("ExprIf => {:?}", self.source.source(span)?);
+        log::trace!("ExprIf => {:?}", self.source.source(span));
 
         let then_label = self.asm.new_label("if_then");
         let end_label = self.asm.new_label("if_end");

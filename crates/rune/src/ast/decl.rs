@@ -2,6 +2,7 @@ use crate::ast;
 use crate::parser::Parser;
 use crate::token::Kind;
 use crate::traits::{Parse, Peek};
+use crate::ParseError;
 use runestick::Span;
 
 /// A declaration.
@@ -61,7 +62,7 @@ impl Peek for Decl {
 }
 
 impl Parse for Decl {
-    fn parse(parser: &mut Parser) -> crate::Result<Self, crate::ParseError> {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(match parser.token_peek_eof()?.kind {
             Kind::Use => Self::DeclUse(parser.parse()?),
             Kind::Enum => Self::DeclEnum(parser.parse()?),

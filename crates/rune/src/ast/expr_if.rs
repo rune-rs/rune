@@ -1,5 +1,5 @@
 use crate::ast::{Condition, Else, ExprBlock, ExprElse, ExprElseIf, If};
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
 use runestick::unit::Span;
@@ -44,13 +44,10 @@ impl ExprIf {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::ExprIf>("if 0 {  }")?;
-/// parse_all::<ast::ExprIf>("if 0 {  } else {  }")?;
-/// parse_all::<ast::ExprIf>("if 0 {  } else if 0 {  } else {  }")?;
-/// parse_all::<ast::ExprIf>("if let v = v {  }")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::ExprIf>("if 0 {  }").unwrap();
+/// parse_all::<ast::ExprIf>("if 0 {  } else {  }").unwrap();
+/// parse_all::<ast::ExprIf>("if 0 {  } else if 0 {  } else {  }").unwrap();
+/// parse_all::<ast::ExprIf>("if let v = v {  }").unwrap();
 /// ```
 impl Parse for ExprIf {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

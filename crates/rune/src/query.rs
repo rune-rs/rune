@@ -3,10 +3,10 @@
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
-use crate::source::Source;
 use crate::traits::Resolve as _;
 use runestick::{
-    Call, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Span, Unit, ValueType,
+    Call, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Source, Span, Unit,
+    ValueType,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -90,7 +90,7 @@ pub(crate) enum Build {
 }
 
 pub(crate) struct Query<'a> {
-    pub(crate) source: Source<'a>,
+    pub(crate) source: &'a Source,
     pub(crate) queue: VecDeque<(Item, Build)>,
     indexed: HashMap<Item, Indexed>,
     pub(crate) unit: Rc<RefCell<Unit>>,
@@ -98,7 +98,7 @@ pub(crate) struct Query<'a> {
 
 impl<'a> Query<'a> {
     /// Construct a new compilation context.
-    pub fn new(source: Source<'a>, unit: Rc<RefCell<Unit>>) -> Self {
+    pub fn new(source: &'a Source, unit: Rc<RefCell<Unit>>) -> Self {
         Self {
             source,
             queue: VecDeque::new(),

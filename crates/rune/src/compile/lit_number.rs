@@ -8,11 +8,11 @@ use runestick::Inst;
 impl Compile<(&ast::LitNumber, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (lit_number, needs): (&ast::LitNumber, Needs)) -> CompileResult<()> {
         let span = lit_number.span();
-        log::trace!("LitNumber => {:?}", self.source.source(span)?);
+        log::trace!("LitNumber => {:?}", self.source.source(span));
 
         // NB: don't encode unecessary literal.
         if !needs.value() {
-            self.warnings.not_used(span, self.context());
+            self.warnings.not_used(self.source_id, span, self.context());
             return Ok(());
         }
 

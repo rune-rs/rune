@@ -1,11 +1,9 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileError;
-use crate::source::Source;
 use crate::traits::{Compile as _, Resolve as _};
-use crate::ParseAll;
 use runestick::unit::{Assembly, Label};
-use runestick::{Component, Context, ImportKey, Inst, Item, Meta, Span, TypeCheck, Unit};
+use runestick::{Component, Context, ImportKey, Inst, Item, Meta, Source, Span, TypeCheck, Unit};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -35,106 +33,109 @@ impl Needs {
     }
 }
 
-impl<'a> crate::ParseAll<'a, ast::DeclFile> {
-    /// Compile the parse with default options.
-    pub fn compile(self, context: &Context) -> CompileResult<(runestick::Unit, Warnings)> {
-        self.compile_with_options(context, &Default::default())
-    }
+/// Helper function to compile the given source.
+pub fn compile(
+    context: &Context,
+    source: &Source,
+    unit: &Rc<RefCell<runestick::Unit>>,
+    warnings: &mut Warnings,
+) -> CompileResult<()> {
+    compile_with_options(context, source, unit, warnings, &Default::default())?;
+    Ok(())
+}
 
-    /// Encode the given object into a collection of asm.
-    pub fn compile_with_options(
-        self,
-        context: &Context,
-        options: &Options,
-    ) -> CompileResult<(runestick::Unit, Warnings)> {
-        let ParseAll { source, item: file } = self;
+/// Encode the given object into a collection of asm.
+pub fn compile_with_options(
+    context: &Context,
+    source: &Source,
+    unit: &Rc<RefCell<runestick::Unit>>,
+    warnings: &mut Warnings,
+    options: &Options,
+) -> CompileResult<()> {
+    let source_id = unit
+        .borrow_mut()
+        .debug_info_mut()
+        .insert_source(source.clone());
 
-        let mut warnings = Warnings::new();
+    let mut query = Query::new(source, unit.clone());
+    let mut indexer = Indexer::new(source_id, source, &mut query, warnings);
+    let file = crate::parse_all::<ast::DeclFile>(source.as_str())?;
+    indexer.index(&file)?;
 
-        let unit = Rc::new(RefCell::new(runestick::Unit::with_default_prelude()));
+    process_imports(&indexer, context, &mut *unit.borrow_mut())?;
 
-        let mut query = Query::new(source, unit.clone());
-        let mut indexer = Indexer::new(source, &mut query, &mut warnings);
-        indexer.index(&file)?;
+    while let Some((item, build)) = query.queue.pop_front() {
+        let mut asm = unit.borrow().new_assembly();
 
-        process_imports(&indexer, context, &mut *unit.borrow_mut())?;
+        let mut compiler = Compiler {
+            source_id,
+            context,
+            query: &mut query,
+            asm: &mut asm,
+            items: Items::new(item.as_vec()),
+            unit: unit.clone(),
+            scopes: Scopes::new(),
+            contexts: vec![],
+            source,
+            loops: Loops::new(),
+            options,
+            warnings,
+        };
 
-        while let Some((item, build)) = query.queue.pop_front() {
-            let mut asm = unit.borrow().new_assembly();
+        match build {
+            Build::Function(f) => {
+                let span = f.ast.span();
+                let count = f.ast.args.items.len();
+                compiler.contexts.push(span);
+                compiler.compile((f.ast, false))?;
+                unit.borrow_mut()
+                    .new_function(source_id, item, count, asm, f.call)?;
+            }
+            Build::InstanceFunction(f) => {
+                let span = f.ast.span();
+                let count = f.ast.args.items.len();
+                compiler.contexts.push(span);
 
-            let mut compiler = Compiler {
-                context,
-                query: &mut query,
-                asm: &mut asm,
-                items: Items::new(item.as_vec()),
-                unit: unit.clone(),
-                scopes: Scopes::new(),
-                contexts: vec![],
-                source,
-                loops: Loops::new(),
-                options,
-                warnings: &mut warnings,
-            };
+                let name = f.ast.name.resolve(&source)?;
 
-            match build {
-                Build::Function(f) => {
-                    let span = f.ast.span();
-                    let count = f.ast.args.items.len();
-                    compiler.contexts.push(span);
-                    compiler.compile((f.ast, false))?;
-                    unit.borrow_mut().new_function(item, count, asm, f.call)?;
-                }
-                Build::InstanceFunction(f) => {
-                    let span = f.ast.span();
-                    let count = f.ast.args.items.len();
-                    compiler.contexts.push(span);
-
-                    let name = f.ast.name.resolve(self.source)?;
-
-                    let meta = compiler
-                        .lookup_meta(&f.impl_item, f.instance_span)?
-                        .ok_or_else(|| CompileError::MissingType {
-                            span: f.instance_span,
-                            item: f.impl_item.clone(),
-                        })?;
-
-                    let value_type = meta.value_type().ok_or_else(|| {
-                        CompileError::UnsupportedInstanceFunction {
-                            meta: meta.clone(),
-                            span,
-                        }
+                let meta = compiler
+                    .lookup_meta(&f.impl_item, f.instance_span)?
+                    .ok_or_else(|| CompileError::MissingType {
+                        span: f.instance_span,
+                        item: f.impl_item.clone(),
                     })?;
 
-                    compiler.compile((f.ast, true))?;
-                    unit.borrow_mut()
-                        .new_instance_function(item, value_type, name, count, asm, f.call)?;
-                }
-                Build::Closure(c) => {
-                    let span = c.ast.span();
-                    let count = c.ast.args.len();
-                    compiler.contexts.push(span);
-                    compiler.compile((c.ast, &c.captures[..]))?;
-                    unit.borrow_mut().new_function(item, count, asm, c.call)?;
-                }
-                Build::AsyncBlock(async_block) => {
-                    let span = async_block.ast.span();
-                    let args = async_block.captures.len();
-                    compiler.contexts.push(span);
-                    compiler.compile((async_block.ast, &async_block.captures[..]))?;
-                    unit.borrow_mut()
-                        .new_function(item, args, asm, async_block.call)?;
-                }
+                let value_type =
+                    meta.value_type()
+                        .ok_or_else(|| CompileError::UnsupportedInstanceFunction {
+                            meta: meta.clone(),
+                            span,
+                        })?;
+
+                compiler.compile((f.ast, true))?;
+                unit.borrow_mut()
+                    .new_instance_function(source_id, item, value_type, name, count, asm, f.call)?;
+            }
+            Build::Closure(c) => {
+                let span = c.ast.span();
+                let count = c.ast.args.len();
+                compiler.contexts.push(span);
+                compiler.compile((c.ast, &c.captures[..]))?;
+                unit.borrow_mut()
+                    .new_function(source_id, item, count, asm, c.call)?;
+            }
+            Build::AsyncBlock(async_block) => {
+                let span = async_block.ast.span();
+                let args = async_block.captures.len();
+                compiler.contexts.push(span);
+                compiler.compile((async_block.ast, &async_block.captures[..]))?;
+                unit.borrow_mut()
+                    .new_function(source_id, item, args, asm, async_block.call)?;
             }
         }
-
-        // query holds a reference to the unit, we need to drop it.
-        drop(query);
-
-        let unit = Rc::try_unwrap(unit)
-            .map_err(|_| CompileError::internal("unit is not exlusively held", Span::empty()))?;
-
-        Ok((unit.into_inner(), warnings))
     }
+
+    Ok(())
 }
 
 fn process_imports(
@@ -215,6 +216,7 @@ fn process_imports(
 }
 
 pub(crate) struct Compiler<'a, 'source> {
+    pub(crate) source_id: usize,
     /// The context we are compiling for.
     context: &'a Context,
     /// Query system to compile required items.
@@ -230,7 +232,7 @@ pub(crate) struct Compiler<'a, 'source> {
     /// Context for which to emit warnings.
     pub(crate) contexts: Vec<Span>,
     /// The source we are compiling for.
-    pub(crate) source: Source<'source>,
+    pub(crate) source: &'source Source,
     /// The nesting of loop we are currently in.
     pub(crate) loops: Loops,
     /// Enabled optimizations.
@@ -420,7 +422,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         then_label: Label,
     ) -> CompileResult<Scope> {
         let span = condition.span();
-        log::trace!("Condition => {:?}", self.source.source(span)?);
+        log::trace!("Condition => {:?}", self.source.source(span));
 
         match condition {
             ast::Condition::Expr(expr) => {
@@ -462,7 +464,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         load: &dyn Fn(&mut Assembly),
     ) -> CompileResult<()> {
         let span = pat_vec.span();
-        log::trace!("PatVec => {:?}", self.source.source(span)?);
+        log::trace!("PatVec => {:?}", self.source.source(span));
 
         // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
         // interact with it multiple times.
@@ -507,7 +509,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         load: &dyn Fn(&mut Assembly),
     ) -> CompileResult<()> {
         let span = pat_tuple.span();
-        log::trace!("PatTuple => {:?}", self.source.source(span)?);
+        log::trace!("PatTuple => {:?}", self.source.source(span));
 
         // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
         // interact with it multiple times.
@@ -592,7 +594,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         load: &dyn Fn(&mut Assembly),
     ) -> CompileResult<()> {
         let span = pat_object.span();
-        log::trace!("PatObject => {:?}", self.source.source(span)?);
+        log::trace!("PatObject => {:?}", self.source.source(span));
 
         // NB: bind the loaded variable (once) to an anonymous var.
         // We reduce the number of copy operations by having specialized
@@ -775,7 +777,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         load: &dyn Fn(&mut Assembly),
     ) -> CompileResult<bool> {
         let span = pat.span();
-        log::trace!("Pat => {:?}", self.source.source(span)?);
+        log::trace!("Pat => {:?}", self.source.source(span));
 
         match pat {
             ast::Pat::PatPath(path) => {

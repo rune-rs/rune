@@ -9,7 +9,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_binary, needs): (&ast::ExprBinary, Needs)) -> CompileResult<()> {
         let span = expr_binary.span();
-        log::trace!("ExprBinary => {:?}", self.source.source(span)?);
+        log::trace!("ExprBinary => {:?}", self.source.source(span));
 
         // Special expressions which operates on the stack in special ways.
         match expr_binary.op {

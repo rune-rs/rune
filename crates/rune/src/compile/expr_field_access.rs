@@ -47,7 +47,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_, '_> {
                     self.asm.push(Inst::TupleIndexGet { index }, span);
 
                     if !needs.value() {
-                        self.warnings.not_used(span, self.context());
+                        self.warnings.not_used(self.source_id, span, self.context());
                         self.asm.push(Inst::Pop, span);
                     }
 
@@ -60,7 +60,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_, '_> {
                     self.asm.push(Inst::ObjectSlotIndexGet { slot }, span);
 
                     if !needs.value() {
-                        self.warnings.not_used(span, self.context());
+                        self.warnings.not_used(self.source_id, span, self.context());
                         self.asm.push(Inst::Pop, span);
                     }
 
@@ -111,7 +111,7 @@ fn try_immediate_field_access_optimization(
     );
 
     if !needs.value() {
-        this.warnings.not_used(span, this.context());
+        this.warnings.not_used(this.source_id, span, this.context());
         this.asm.push(Inst::Pop, span);
     }
 

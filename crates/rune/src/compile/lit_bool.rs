@@ -8,7 +8,7 @@ use runestick::Inst;
 impl Compile<(&ast::LitBool, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (lit_bool, needs): (&ast::LitBool, Needs)) -> CompileResult<()> {
         let span = lit_bool.span();
-        log::trace!("LitBool => {:?}", self.source.source(span)?);
+        log::trace!("LitBool => {:?}", self.source.source(span));
 
         // If the value is not needed, no need to encode it.
         if !needs.value() {

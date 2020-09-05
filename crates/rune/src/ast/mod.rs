@@ -1,11 +1,11 @@
 //! AST for the Rune language.
 
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::source::Source;
 use crate::token::{Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek, Resolve};
 use runestick::unit::Span;
+use runestick::Source;
 
 mod condition;
 mod decl;
@@ -215,16 +215,24 @@ decl_tokens! {
 impl<'a> Resolve<'a> for Ident {
     type Output = &'a str;
 
-    fn resolve(&self, source: Source<'a>) -> Result<&'a str, ParseError> {
-        source.source(self.token.span)
+    fn resolve(&self, source: &'a Source) -> Result<&'a str, ParseError> {
+        let span = self.token.span;
+
+        source
+            .source(span)
+            .ok_or_else(|| ParseError::BadSlice { span })
     }
 }
 
 impl<'a> Resolve<'a> for Label {
     type Output = &'a str;
 
-    fn resolve(&self, source: Source<'a>) -> Result<&'a str, ParseError> {
-        source.source(self.token.span.trim_start(1))
+    fn resolve(&self, source: &'a Source) -> Result<&'a str, ParseError> {
+        let span = self.token.span;
+
+        source
+            .source(span.trim_start(1))
+            .ok_or_else(|| ParseError::BadSlice { span })
     }
 }
 
@@ -254,7 +262,7 @@ mod tests {
         )
         .unwrap();
 
-        if let ast::Expr::ExprIf(..) = expr.item {
+        if let ast::Expr::ExprIf(..) = expr {
         } else {
             panic!("not an if statement");
         }

@@ -1,6 +1,6 @@
 use crate::ast::utils;
 use crate::ast::{CloseBrace, Comma, Expr, If, Match, OpenBrace, Pat, Rocket};
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
 use runestick::unit::Span;
@@ -35,12 +35,9 @@ impl ExprMatchBranch {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{ParseAll, parse_all, ast};
+/// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::ExprMatchBranch>("1 => { foo }")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::ExprMatchBranch>("1 => { foo }").unwrap();
 /// ```
 impl Parse for ExprMatchBranch {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
@@ -88,12 +85,9 @@ impl ExprMatch {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{ParseAll, parse_all, ast};
+/// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::ExprMatch>("match 0 { _ => 1, }")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::ExprMatch>("match 0 { _ => 1, }").unwrap();
 /// ```
 impl Parse for ExprMatch {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

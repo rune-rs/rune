@@ -31,11 +31,8 @@ impl Condition {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::Condition>("true")?;
-/// parse_all::<ast::Condition>("let [a, ..] = v")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::Condition>("true").unwrap();
+/// parse_all::<ast::Condition>("let [a, ..] = v").unwrap();
 /// ```
 impl Parse for Condition {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

@@ -10,7 +10,7 @@ use runestick::Inst;
 impl Compile<&ast::ExprBreak> for Compiler<'_, '_> {
     fn compile(&mut self, expr_break: &ast::ExprBreak) -> CompileResult<()> {
         let span = expr_break.span();
-        log::trace!("ExprBreak => {:?}", self.source.source(span)?);
+        log::trace!("ExprBreak => {:?}", self.source.source(span));
 
         let current_loop = match self.loops.last() {
             Some(current_loop) => current_loop,

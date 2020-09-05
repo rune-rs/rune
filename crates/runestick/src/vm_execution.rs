@@ -219,7 +219,7 @@ impl VmExecution {
     fn run_for(vm: &mut Vm, limit: Option<usize>) -> Result<VmHalt, VmError> {
         match vm.run_for(limit) {
             Ok(reason) => Ok(reason),
-            Err(error) => Err(error.into_unwinded(vm.ip())),
+            Err(error) => Err(error.into_unwinded(vm.unit(), vm.ip())),
         }
     }
 }

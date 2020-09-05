@@ -5,7 +5,6 @@ use crate::{
     Stack, Stream, Tuple, Unit, UnsafeFromValue, Value, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
-use std::rc::Rc;
 use std::sync::Arc;
 
 value_types!(crate::FUNCTION_TYPE, Function => Function, &Function, Shared<Function>, OwnedRef<Function>);
@@ -82,8 +81,8 @@ impl Function {
 
     /// Create a function pointer from an offset.
     pub(crate) fn from_offset(
-        context: Rc<Context>,
-        unit: Rc<Unit>,
+        context: Arc<Context>,
+        unit: Arc<Unit>,
         offset: usize,
         call: Call,
         args: usize,
@@ -101,8 +100,8 @@ impl Function {
 
     /// Create a function pointer from an offset.
     pub(crate) fn from_closure(
-        context: Rc<Context>,
-        unit: Rc<Unit>,
+        context: Arc<Context>,
+        unit: Arc<Unit>,
         environment: Shared<Tuple>,
         offset: usize,
         call: Call,
@@ -279,9 +278,9 @@ impl fmt::Debug for FnHandler {
 }
 
 struct FnOffset {
-    context: Rc<Context>,
+    context: Arc<Context>,
     /// The unit where the function resides.
-    unit: Rc<Unit>,
+    unit: Arc<Unit>,
     /// The offset of the function.
     offset: usize,
     /// The calling convention.
@@ -303,9 +302,9 @@ impl fmt::Debug for FnOffset {
 }
 
 struct FnClosureOffset {
-    context: Rc<Context>,
+    context: Arc<Context>,
     /// The unit where the function resides.
-    unit: Rc<Unit>,
+    unit: Arc<Unit>,
     /// Captured environment.
     environment: Shared<Tuple>,
     /// The offset of the function.

@@ -34,12 +34,9 @@ impl DeclUse {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
-/// parse_all::<ast::DeclUse>("use foo;")?;
-/// parse_all::<ast::DeclUse>("use foo::bar;")?;
-/// parse_all::<ast::DeclUse>("use foo::bar::baz;")?;
-/// # Ok(())
-/// # }
+/// parse_all::<ast::DeclUse>("use foo;").unwrap();
+/// parse_all::<ast::DeclUse>("use foo::bar;").unwrap();
+/// parse_all::<ast::DeclUse>("use foo::bar::baz;").unwrap();
 /// ```
 impl Parse for DeclUse {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

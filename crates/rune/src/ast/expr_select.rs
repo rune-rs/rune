@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::ast::utils;
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
 use runestick::unit::Span;

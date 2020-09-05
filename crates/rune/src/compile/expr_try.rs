@@ -8,7 +8,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprTry, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_try, needs): (&ast::ExprTry, Needs)) -> CompileResult<()> {
         let span = expr_try.span();
-        log::trace!("ExprTry => {:?}", self.source.source(span)?);
+        log::trace!("ExprTry => {:?}", self.source.source(span));
 
         let not_error = self.asm.new_label("try_not_error");
 

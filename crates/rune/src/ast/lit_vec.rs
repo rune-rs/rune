@@ -1,5 +1,5 @@
 use crate::ast::{CloseBracket, Comma, Expr, OpenBracket};
-use crate::error::{ParseError, Result};
+use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
 use runestick::unit::Span;
@@ -36,12 +36,9 @@ impl LitVec {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// # fn main() -> rune::Result<()> {
 /// parse_all::<ast::LitVec>("[1, \"two\"]").unwrap();
 /// parse_all::<ast::LitVec>("[1, 2,]").unwrap();
 /// parse_all::<ast::LitVec>("[1, 2, foo()]").unwrap();
-/// # Ok(())
-/// # }
 /// ```
 impl Parse for LitVec {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

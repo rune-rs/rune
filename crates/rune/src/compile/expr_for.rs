@@ -9,7 +9,7 @@ use runestick::Inst;
 impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_for, needs): (&ast::ExprFor, Needs)) -> CompileResult<()> {
         let span = expr_for.span();
-        log::trace!("ExprFor => {:?}", self.source.source(span)?);
+        log::trace!("ExprFor => {:?}", self.source.source(span));
 
         let start_label = self.asm.new_label("for_start");
         let end_label = self.asm.new_label("for_end");
