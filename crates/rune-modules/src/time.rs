@@ -60,4 +60,4 @@ async fn delay_for(duration: &Duration) {
     tokio::time::delay_for(duration.inner).await;
 }
 
-runestick::decl_external!(Duration);
+runestick::impl_external!(Duration);

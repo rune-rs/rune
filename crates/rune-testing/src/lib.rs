@@ -66,7 +66,7 @@ pub async fn run_async<N, A, T>(function: N, args: A, source: &str) -> Result<T>
 where
     N: IntoIterator,
     N::Item: Into<Component>,
-    A: runestick::IntoArgs,
+    A: runestick::Args,
     T: runestick::FromValue,
 {
     let context = runestick::Context::with_default_modules()?;
@@ -86,7 +86,7 @@ pub fn run<N, A, T>(function: N, args: A, source: &str) -> Result<T>
 where
     N: IntoIterator,
     N::Item: Into<Component>,
-    A: runestick::IntoArgs,
+    A: runestick::Args,
     T: runestick::FromValue,
 {
     block_on(run_async(function, args, source))

@@ -2,14 +2,6 @@
 
 use crate::{FromValue, Integer, ToValue, Value, VmError, VmErrorKind};
 
-value_types!(crate::UNIT_TYPE, () => ());
-value_types!(crate::BYTE_TYPE, u8 => u8);
-value_types!(crate::BOOL_TYPE, bool => bool);
-value_types!(crate::CHAR_TYPE, char => char);
-value_types!(crate::INTEGER_TYPE, i64 => i64);
-value_types!(crate::FLOAT_TYPE, f64 => f64);
-value_types!(crate::FLOAT_TYPE, f32 => f32);
-
 impl FromValue for () {
     fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(value.into_unit()?)
@@ -42,8 +34,6 @@ impl FromValue for i64 {
 
 macro_rules! number_value_trait {
     ($ty:ty, $variant:ident) => {
-        value_types!(crate::INTEGER_TYPE, $ty => $ty);
-
         impl ToValue for $ty {
             fn to_value(self) -> Result<Value, VmError> {
                 use std::convert::TryInto as _;

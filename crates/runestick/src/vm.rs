@@ -1,9 +1,9 @@
 use crate::future::SelectFuture;
 use crate::unit::UnitFnKind;
 use crate::{
-    Awaited, Bytes, Call, Context, FromValue, Function, Future, Generator, Hash, Inst, Integer,
-    IntoArgs, IntoHash, Object, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck,
-    TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution, VmHalt,
+    Args, Awaited, Bytes, Call, Context, FromValue, Function, Future, Generator, Hash, Inst,
+    Integer, IntoHash, Object, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject,
+    Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution, VmHalt,
 };
 use std::fmt;
 use std::mem;
@@ -121,7 +121,7 @@ impl Vm {
     pub fn call_function<A, N>(mut self, hash: N, args: A) -> Result<VmExecution, VmError>
     where
         N: IntoHash,
-        A: IntoArgs,
+        A: Args,
     {
         let hash = hash.into_hash();
 
@@ -151,7 +151,7 @@ impl Vm {
 
         // Safety: we bind the lifetime of the arguments to the outgoing task,
         // ensuring that the task won't outlive any references passed in.
-        args.into_args(&mut self.stack)?;
+        args.into_stack(&mut self.stack)?;
         Ok(VmExecution::of(self))
     }
 
@@ -199,7 +199,7 @@ impl Vm {
     fn call_instance_fn<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
     where
         H: IntoHash,
-        A: IntoArgs,
+        A: Args,
     {
         let count = A::count() + 1;
         let hash = Hash::instance_function(target.value_type()?, hash.into_hash());
@@ -217,7 +217,7 @@ impl Vm {
                 let call = *call;
 
                 self.stack.push(target.clone());
-                args.into_args(&mut self.stack)?;
+                args.into_stack(&mut self.stack)?;
 
                 self.call_offset_fn(offset, call, count)?;
                 return Ok(true);
@@ -230,7 +230,7 @@ impl Vm {
         };
 
         self.stack.push(target.clone());
-        args.into_args(&mut self.stack)?;
+        args.into_stack(&mut self.stack)?;
 
         handler(&mut self.stack, count)?;
         Ok(true)
@@ -240,7 +240,7 @@ impl Vm {
     fn call_getter<H, A>(&mut self, target: &Value, hash: H, args: A) -> Result<bool, VmError>
     where
         H: IntoHash,
-        A: IntoArgs,
+        A: Args,
     {
         let count = A::count() + 1;
         let hash = Hash::getter(target.value_type()?, hash.into_hash());
@@ -250,7 +250,7 @@ impl Vm {
             None => return Ok(false),
         };
 
-        args.into_args(&mut self.stack)?;
+        args.into_stack(&mut self.stack)?;
 
         self.stack.push(target.clone());
         handler(&mut self.stack, count)?;

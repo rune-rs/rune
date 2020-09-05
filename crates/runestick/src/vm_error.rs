@@ -1,7 +1,7 @@
 use crate::panic::BoxedPanic;
 use crate::{
-    AccessError, Hash, Integer, Panic, Protocol, ReflectValueType, StackError, TypeInfo, Unit,
-    Value, VmHaltInfo,
+    AccessError, Hash, Integer, Panic, Protocol, StackError, TypeInfo, Unit, Value, ValueType,
+    VmHaltInfo,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -27,7 +27,7 @@ impl VmError {
     /// Bad argument.
     pub fn bad_argument<T>(arg: usize, value: &Value) -> Result<Self, VmError>
     where
-        T: ReflectValueType,
+        T: ValueType,
     {
         Ok(Self::from(VmErrorKind::BadArgumentType {
             arg,
@@ -39,7 +39,7 @@ impl VmError {
     /// Construct an expected error.
     pub fn expected<T>(actual: TypeInfo) -> Self
     where
-        T: ReflectValueType,
+        T: ValueType,
     {
         Self::from(VmErrorKind::Expected {
             expected: T::type_info(),

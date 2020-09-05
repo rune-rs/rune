@@ -1,7 +1,5 @@
 use crate::{FromValue, ToValue, Value, VmError, VmErrorKind};
 
-value_types!(impl crate::VEC_TYPE, VecTuple<T> => T VecTuple<T>);
-
 /// A helper type to deserialize arrays with different interior types.
 ///
 /// This implements [FromValue], allowing it to be used as a return value from

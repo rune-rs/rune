@@ -5,8 +5,8 @@
 
 use crate::collections::HashMap;
 use crate::{
-    Component, Future, Hash, ReflectValueType, Stack, ToValue, Type, TypeInfo, UnsafeFromValue,
-    VmError, VmErrorKind,
+    Component, Future, Hash, Stack, ToValue, Type, TypeInfo, UnsafeFromValue, ValueType, VmError,
+    VmErrorKind,
 };
 use std::any::type_name;
 use std::future;
@@ -52,7 +52,7 @@ impl ModuleInternalEnum {
     fn variant<C, Args>(&mut self, name: &'static str, type_check: TypeCheck, constructor: C)
     where
         C: crate::module::Function<Args>,
-        C::Return: ReflectValueType,
+        C::Return: ValueType,
     {
         let constructor: Arc<Handler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
@@ -177,7 +177,7 @@ impl Module {
     ///     }
     /// }
     ///
-    /// runestick::decl_external!(MyBytes);
+    /// runestick::impl_external!(MyBytes);
     ///
     /// # fn main() -> runestick::Result<()> {
     /// // Register `len` without registering a type.
@@ -469,7 +469,7 @@ impl Module {
     ///     }
     /// }
     ///
-    /// runestick::decl_external!(MyBytes);
+    /// runestick::impl_external!(MyBytes);
     ///
     /// # fn main() -> runestick::Result<()> {
     /// let mut module = runestick::Module::default();
@@ -547,7 +547,7 @@ impl Module {
     /// use std::sync::atomic::AtomicU32;
     /// use std::sync::Arc;
     ///
-    /// runestick::decl_external!(MyType);
+    /// runestick::impl_external!(MyType);
     ///
     /// #[derive(Clone, Debug)]
     /// struct MyType {
@@ -617,7 +617,7 @@ where
     /// Construct a new type, specifying which type it is with the parameter.
     pub fn build<T>(self) -> Result<(), ContextError>
     where
-        T: ReflectValueType,
+        T: ValueType,
     {
         let name = Item::of(self.name);
         let value_type = T::value_type();
@@ -667,8 +667,6 @@ pub trait AsyncFunction<Args>: 'static + Copy + Send + Sync {
 pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     /// The type of the instance.
     type Instance;
-    /// The owned type of the instance.
-    type Owned;
     /// The return type of the function.
     type Return;
 
@@ -689,8 +687,6 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
 pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
     /// The type of the instance.
     type Instance;
-    /// The owned type of the instance.
-    type Owned;
     /// The return type of the function.
     type Return;
 
@@ -808,11 +804,10 @@ macro_rules! impl_register {
         where
             Func: 'static + Copy + Send + Sync + Fn(Instance $(, $ty)*) -> Return,
             Return: ToValue,
-            Instance: UnsafeFromValue + ReflectValueType,
+            Instance: UnsafeFromValue + ValueType,
             $($ty: UnsafeFromValue,)*
         {
             type Instance = Instance;
-            type Owned = <Instance as ReflectValueType>::Owned;
             type Return = Return;
 
             fn args() -> usize {
@@ -857,11 +852,10 @@ macro_rules! impl_register {
             Func: 'static + Copy + Send + Sync + Fn(Instance $(, $ty)*) -> Return,
             Return: future::Future,
             Return::Output: ToValue,
-            Instance: UnsafeFromValue + ReflectValueType,
+            Instance: UnsafeFromValue + ValueType,
             $($ty: UnsafeFromValue,)*
         {
             type Instance = Instance;
-            type Owned = <Instance as ReflectValueType>::Owned;
             type Return = Return;
 
             fn args() -> usize {

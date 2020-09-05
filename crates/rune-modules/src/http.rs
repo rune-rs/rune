@@ -183,8 +183,8 @@ async fn get(url: &str) -> Result<Response, Error> {
     })
 }
 
-runestick::decl_external!(Error);
-runestick::decl_external!(Client);
-runestick::decl_external!(Response);
-runestick::decl_external!(RequestBuilder);
-runestick::decl_external!(StatusCode);
+runestick::impl_external!(Error);
+runestick::impl_external!(Client);
+runestick::impl_external!(Response);
+runestick::impl_external!(RequestBuilder);
+runestick::impl_external!(StatusCode);

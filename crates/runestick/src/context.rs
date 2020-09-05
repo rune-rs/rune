@@ -1,8 +1,8 @@
 use crate::collections::{HashMap, HashSet};
 use crate::module::{ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
 use crate::{
-    Component, Hash, Item, Meta, MetaStruct, MetaTuple, Module, Names, ReflectValueType, Stack,
-    StaticType, Type, TypeCheck, TypeInfo, VmError,
+    Component, Hash, Item, Meta, MetaStruct, MetaTuple, Module, Names, Stack, StaticType, Type,
+    TypeCheck, TypeInfo, ValueType, VmError,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -609,9 +609,9 @@ impl Context {
     ) -> Result<(), ContextError>
     where
         C: crate::module::Function<Args>,
-        C::Return: ReflectValueType,
+        C::Return: ValueType,
     {
-        let value_type = <C::Return as ReflectValueType>::value_type();
+        let value_type = <C::Return as ValueType>::value_type();
         let hash = Hash::type_hash(&item);
 
         let tuple = MetaTuple {

@@ -2,8 +2,6 @@ use crate::{
     Bytes, FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, UnsafeFromValue, Value, VmError,
 };
 
-value_types!(crate::BYTES_TYPE, Bytes => Bytes, [u8]);
-
 impl FromValue for Bytes {
     fn from_value(value: Value) -> Result<Self, VmError> {
         let bytes = value.into_bytes()?;

@@ -5,8 +5,6 @@ use crate::{
     Value, VmError,
 };
 
-value_types!(crate::STRING_TYPE, String => String, str);
-
 impl FromValue for String {
     fn from_value(value: Value) -> Result<Self, VmError> {
         match value {

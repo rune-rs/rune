@@ -52,4 +52,4 @@ fn add(a: &str, b: &str) -> String {
     string
 }
 
-decl_external!(NotCharBoundary);
+impl_external!(NotCharBoundary);

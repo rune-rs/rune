@@ -1,21 +1,9 @@
 //! Trait implementations for Option<T>.
 
 use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared, ToValue,
-    Type, TypeInfo, UnsafeFromValue, Value, VmError,
+    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue, UnsafeFromValue,
+    Value, VmError,
 };
-
-impl<T> ReflectValueType for Option<T> {
-    type Owned = Option<T>;
-
-    fn value_type() -> Type {
-        Type::StaticType(crate::OPTION_TYPE)
-    }
-
-    fn type_info() -> TypeInfo {
-        TypeInfo::StaticType(crate::OPTION_TYPE)
-    }
-}
 
 impl<T> ToValue for Option<T>
 where

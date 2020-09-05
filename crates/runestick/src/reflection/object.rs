@@ -3,8 +3,6 @@ use crate::{
     UnsafeFromValue, Value, VmError,
 };
 
-value_types!(impl crate::OBJECT_TYPE, Object<T> => T Object<T>);
-
 impl<T> FromValue for Object<T>
 where
     T: FromValue,

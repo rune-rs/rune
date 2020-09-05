@@ -1,18 +1,16 @@
-use crate::{FromValue, Shared, ToValue, Value, VmError};
-
 macro_rules! impl_map {
-    ($($tt:tt)*) => {
-        value_types!(impl crate::OBJECT_TYPE, $($tt)*<String, T> => T $($tt)*<String, T>);
+    ($ty:ty) => {
+        impl_static_type!(impl<T> $ty => crate::OBJECT_TYPE);
 
-        impl<T> FromValue for $($tt)*<String, T>
+        impl<T> $crate::FromValue for $ty
         where
-            T: FromValue,
+            T: $crate::FromValue,
         {
-            fn from_value(value: Value) -> Result<Self, VmError> {
+            fn from_value(value: $crate::Value) -> Result<Self, $crate::VmError> {
                 let object = value.into_object()?;
                 let object = object.take()?;
 
-                let mut output = $($tt)*::with_capacity(object.len());
+                let mut output = <$ty>::with_capacity(object.len());
 
                 for (key, value) in object {
                     output.insert(key, T::from_value(value)?);
@@ -22,21 +20,21 @@ macro_rules! impl_map {
             }
         }
 
-        impl<T> ToValue for $($tt)*<String, T>
+        impl<T> $crate::ToValue for $ty
         where
-            T: ToValue,
+            T: $crate::ToValue,
         {
-            fn to_value(self) -> Result<Value, VmError> {
+            fn to_value(self) -> Result<$crate::Value, $crate::VmError> {
                 let mut output = crate::collections::HashMap::with_capacity(self.len());
 
                 for (key, value) in self {
                     output.insert(key, value.to_value()?);
                 }
 
-                Ok(Value::Object(Shared::new(output)))
+                Ok($crate::Value::Object($crate::Shared::new(output)))
             }
         }
     }
 }
 
-impl_map!(std::collections::HashMap);
+impl_map!(std::collections::HashMap<String, T>);

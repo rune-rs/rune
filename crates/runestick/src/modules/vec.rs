@@ -56,5 +56,5 @@ fn vec_iter(vec: &[Value]) -> Iter {
     }
 }
 
-decl_external!(Iter);
-decl_external!(Rev<Iter>);
+impl_external!(Iter);
+impl_external!(Rev<Iter>);

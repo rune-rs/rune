@@ -7,27 +7,9 @@
 ///
 /// [specialization]: https://github.com/rust-lang/rust/issues/31844
 #[macro_export]
-macro_rules! decl_external {
+macro_rules! impl_external {
     ($external:ty) => {
-        $crate::decl_internal!($external);
-
-        impl $crate::FromValue for $external {
-            fn from_value(value: $crate::Value) -> Result<Self, $crate::VmError> {
-                let any = value.into_any()?;
-                let any = any.take_downcast::<$external>()?;
-                Ok(any)
-            }
-        }
-    };
-}
-
-/// Implement the value trait for an internal type.
-#[macro_export]
-macro_rules! decl_internal {
-    ($external:ty) => {
-        impl $crate::ReflectValueType for $external {
-            type Owned = $external;
-
+        impl $crate::ValueType for $external {
             fn value_type() -> $crate::Type {
                 $crate::Type::Hash($crate::Hash::from_type_id(
                     std::any::TypeId::of::<$external>(),
@@ -36,6 +18,14 @@ macro_rules! decl_internal {
 
             fn type_info() -> $crate::TypeInfo {
                 $crate::TypeInfo::Any(std::any::type_name::<$external>())
+            }
+        }
+
+        impl $crate::FromValue for $external {
+            fn from_value(value: $crate::Value) -> Result<Self, $crate::VmError> {
+                let any = value.into_any()?;
+                let any = any.take_downcast::<$external>()?;
+                Ok(any)
             }
         }
 
@@ -79,37 +69,29 @@ macro_rules! decl_internal {
     };
 }
 
-/// Declare value types for the specific kind.
-macro_rules! value_types {
-    ($static_type:expr, $owned:ty => $($(impl <$param:ident>)? $ty:ty),+) => {
-        $(
-            impl $(<$($param),*>)? $crate::ReflectValueType for $ty {
-                type Owned = $owned;
-
-                fn value_type() -> $crate::Type {
-                    $crate::Type::StaticType($static_type)
-                }
-
-                fn type_info() -> $crate::TypeInfo {
-                    $crate::TypeInfo::StaticType($static_type)
-                }
+/// Build an implementation of `ValueType` basic of a static type.
+macro_rules! impl_static_type {
+    (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {
+        impl<$($p,)*> $crate::ValueType for $ty {
+            fn value_type() -> $crate::Type {
+                $crate::Type::StaticType($static_type)
             }
-        )*
+
+            fn type_info() -> $crate::TypeInfo {
+                $crate::TypeInfo::StaticType($static_type)
+            }
+        }
     };
 
-    (impl $static_type:expr, $owned:ty => $($param:ident $ty:ty),+) => {
-        $(
-            impl<$param> $crate::ReflectValueType for $ty {
-                type Owned = $owned;
-
-                fn value_type() -> $crate::Type {
-                    $crate::Type::StaticType($static_type)
-                }
-
-                fn type_info() -> $crate::TypeInfo {
-                    $crate::TypeInfo::StaticType($static_type)
-                }
+    ($ty:ty => $static_type:expr) => {
+        impl $crate::ValueType for $ty {
+            fn value_type() -> $crate::Type {
+                $crate::Type::StaticType($static_type)
             }
-        )*
+
+            fn type_info() -> $crate::TypeInfo {
+                $crate::TypeInfo::StaticType($static_type)
+            }
+        }
     };
 }

@@ -1,4 +1,4 @@
-use crate::{Stack, Type, TypeInfo, Value, VmError};
+use crate::{Type, TypeInfo, Value, VmError};
 
 mod bytes;
 mod hash_map;
@@ -10,31 +10,8 @@ mod string;
 mod tuple;
 mod vec;
 
-/// Trait for converting arguments into values unsafely.
-///
-/// This has the ability to encode references.
-pub trait IntoArgs {
-    /// Encode arguments into a stack.
-    ///
-    /// # Safety
-    ///
-    /// This has the ability to encode references into the stack.
-    /// The caller must ensure that the stack is cleared with
-    /// [clear][Stack::clear] before the references are no longer valid.
-    fn into_args(self, stack: &mut Stack) -> Result<(), VmError>;
-
-    /// Convert arguments into a vector.
-    fn into_vec(self) -> Result<Vec<Value>, VmError>;
-
-    /// The number of arguments.
-    fn count() -> usize;
-}
-
 /// Trait for converting types into values.
-pub trait ReflectValueType {
-    /// The internal, owned type used for this value.
-    type Owned;
-
+pub trait ValueType {
     /// Convert into a value type.
     fn value_type() -> Type;
 
@@ -42,12 +19,11 @@ pub trait ReflectValueType {
     fn type_info() -> TypeInfo;
 }
 
-impl<T: ?Sized> ReflectValueType for &T
+/// Blanket implementation for references.
+impl<T: ?Sized> ValueType for &T
 where
-    T: ReflectValueType,
+    T: ValueType,
 {
-    type Owned = T::Owned;
-
     fn value_type() -> Type {
         T::value_type()
     }
@@ -57,12 +33,11 @@ where
     }
 }
 
-impl<T: ?Sized> ReflectValueType for &mut T
+/// Blanket implementation for mutable references.
+impl<T: ?Sized> ValueType for &mut T
 where
-    T: ReflectValueType,
+    T: ValueType,
 {
-    type Owned = T::Owned;
-
     fn value_type() -> Type {
         T::value_type()
     }
@@ -159,50 +134,3 @@ impl ToValue for &Value {
         Ok(self.clone())
     }
 }
-
-macro_rules! impl_into_args {
-    () => {
-        impl_into_args!{@impl 0,}
-    };
-
-    ({$ty:ident, $value:ident, $count:expr}, $({$l_ty:ident, $l_value:ident, $l_count:expr},)*) => {
-        impl_into_args!{@impl $count, {$ty, $value, $count}, $({$l_ty, $l_value, $l_count},)*}
-        impl_into_args!{$({$l_ty, $l_value, $l_count},)*}
-    };
-
-    (@impl $count:expr, $({$ty:ident, $value:ident, $ignore_count:expr},)*) => {
-        impl<$($ty,)*> IntoArgs for ($($ty,)*)
-        where
-            $($ty: ToValue + std::fmt::Debug,)*
-        {
-            #[allow(unused)]
-            fn into_args(self, stack: &mut Stack) -> Result<(), VmError> {
-                let ($($value,)*) = self;
-                $(stack.push($value.to_value()?);)*
-                Ok(())
-            }
-
-            #[allow(unused)]
-            fn into_vec(self) -> Result<Vec<Value>, VmError> {
-                let ($($value,)*) = self;
-                $(let $value = <$ty>::to_value($value)?;)*
-                Ok(vec![$($value,)*])
-            }
-
-            fn count() -> usize {
-                $count
-            }
-        }
-    };
-}
-
-impl_into_args!(
-    {H, h, 8},
-    {G, g, 7},
-    {F, f, 6},
-    {E, e, 5},
-    {D, d, 4},
-    {C, c, 3},
-    {B, b, 2},
-    {A, a, 1},
-);

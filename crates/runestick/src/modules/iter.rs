@@ -72,5 +72,5 @@ impl Iterator for Range {
     }
 }
 
-decl_external!(Range);
-decl_external!(Rev);
+impl_external!(Range);
+impl_external!(Rev);

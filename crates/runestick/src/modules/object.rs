@@ -68,5 +68,5 @@ fn get(object: &Object<Value>, key: &str) -> Option<Value> {
     object.get(key).cloned()
 }
 
-decl_external!(Iter);
-decl_external!(Rev<Iter>);
+impl_external!(Iter);
+impl_external!(Rev<Iter>);

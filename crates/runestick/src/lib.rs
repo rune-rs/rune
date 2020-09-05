@@ -36,6 +36,7 @@ mod vm;
 #[macro_use]
 mod macros;
 mod access;
+mod args;
 mod awaited;
 mod bytes;
 mod call;
@@ -73,7 +74,7 @@ mod vm_error;
 mod vm_execution;
 mod vm_halt;
 
-decl_external!(anyhow::Error);
+impl_external!(anyhow::Error);
 
 /// Exported result type for convenience.
 pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
@@ -81,6 +82,7 @@ pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
 /// Exported boxed error type for convenience.
 pub type Error = anyhow::Error;
 
+pub use self::args::Args;
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
 pub use self::meta::{Meta, MetaClosureCapture, MetaStruct, MetaTuple};
@@ -119,7 +121,7 @@ pub use crate::protocol::{
     Protocol, ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL,
     MUL_ASSIGN, NEXT, REM, STRING_DISPLAY, SUB, SUB_ASSIGN,
 };
-pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
+pub use crate::reflection::{FromValue, ToValue, UnsafeFromValue, ValueType};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{ImportEntry, ImportKey, Unit, UnitError};

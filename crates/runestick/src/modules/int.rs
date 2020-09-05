@@ -47,4 +47,4 @@ fn to_float(value: i64) -> f64 {
     value as f64
 }
 
-decl_external!(ParseIntError);
+impl_external!(ParseIntError);

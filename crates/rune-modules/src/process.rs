@@ -191,7 +191,7 @@ impl ExitStatus {
     }
 }
 
-runestick::decl_external!(Command);
-runestick::decl_external!(Child);
-runestick::decl_external!(ExitStatus);
-runestick::decl_external!(Output);
+runestick::impl_external!(Command);
+runestick::impl_external!(Child);
+runestick::impl_external!(ExitStatus);
+runestick::impl_external!(Output);

@@ -1,6 +1,6 @@
 //! Trait implementation for decoding tuples.
 
-use crate::{Shared, Type, TypeInfo, Value};
+use crate::{Shared, Value};
 
 macro_rules! impl_from_value_tuple {
     () => {
@@ -12,25 +12,14 @@ macro_rules! impl_from_value_tuple {
     };
 
     (@impl $count:expr, $({$ty:ident, $var:ident, $ignore_count:expr},)*) => {
-        impl <$($ty,)*> $crate::ReflectValueType for ($($ty,)*) {
-            type Owned = ($($ty,)*);
-
-            fn value_type() -> Type {
-                Type::StaticType($crate::TUPLE_TYPE)
-            }
-
-            fn type_info() -> TypeInfo {
-                TypeInfo::StaticType($crate::TUPLE_TYPE)
-            }
-        }
+        impl_static_type!(impl <$($ty),*> ($($ty,)*) => $crate::TUPLE_TYPE);
 
         impl <$($ty,)*> $crate::FromValue for ($($ty,)*)
         where
             $($ty: $crate::FromValue,)*
         {
             fn from_value(value: Value) -> Result<Self, $crate::VmError> {
-                let tuple = value.into_tuple()?;
-                let tuple = tuple.take()?;
+                let tuple = value.into_tuple()?.take()?;
 
                 if tuple.len() != $count {
                     return Err($crate::VmError::from($crate::VmErrorKind::ExpectedTupleLength {
@@ -69,12 +58,12 @@ macro_rules! impl_from_value_tuple {
 }
 
 impl_from_value_tuple!(
-    {H, h, 8},
-    {G, g, 7},
-    {F, f, 6},
-    {E, e, 5},
-    {D, d, 4},
-    {C, c, 3},
-    {B, b, 2},
-    {A, a, 1},
+    {A, a, 8},
+    {B, b, 7},
+    {C, c, 6},
+    {D, d, 5},
+    {E, e, 4},
+    {F, f, 3},
+    {G, g, 2},
+    {H, h, 1},
 );

@@ -1,13 +1,11 @@
 use crate::context::Handler;
 use crate::VmErrorKind;
 use crate::{
-    Call, Context, FromValue, Future, Generator, Hash, IntoArgs, OwnedRef, RawOwnedRef, Shared,
-    Stack, Stream, Tuple, Unit, UnsafeFromValue, Value, Vm, VmCall, VmError, VmHalt,
+    Args, Call, Context, FromValue, Future, Generator, Hash, OwnedRef, RawOwnedRef, Shared, Stack,
+    Stream, Tuple, Unit, UnsafeFromValue, Value, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
 use std::sync::Arc;
-
-value_types!(crate::FUNCTION_TYPE, Function => Function, Shared<Function>, OwnedRef<Function>);
 
 /// A stored function, of some specific kind.
 pub struct Function {
@@ -18,13 +16,13 @@ impl Function {
     /// Perform a call over the function represented by this function pointer.
     pub fn call<A, T>(&self, args: A) -> Result<T, VmError>
     where
-        A: IntoArgs,
+        A: Args,
         T: FromValue,
     {
         let value = match &self.inner {
             Inner::FnHandler(handler) => {
                 let mut stack = Stack::with_capacity(A::count());
-                args.into_args(&mut stack)?;
+                args.into_stack(&mut stack)?;
                 (handler.handler)(&mut stack, A::count())?;
                 stack.pop()?
             }
@@ -33,7 +31,7 @@ impl Function {
 
                 let mut vm = Vm::new(offset.context.clone(), offset.unit.clone());
                 vm.set_ip(offset.offset);
-                args.into_args(vm.stack_mut())?;
+                args.into_stack(vm.stack_mut())?;
 
                 match offset.call {
                     Call::Stream => Value::from(Stream::new(vm)),
@@ -47,7 +45,7 @@ impl Function {
 
                 let mut vm = Vm::new(closure.context.clone(), closure.unit.clone());
                 vm.set_ip(closure.offset);
-                args.into_args(vm.stack_mut())?;
+                args.into_stack(vm.stack_mut())?;
                 vm.stack_mut().push(closure.environment.clone());
 
                 match closure.call {
