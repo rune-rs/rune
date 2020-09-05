@@ -19,8 +19,8 @@ compact code. [Python] is a great example of this, and is along with [Rhai] and
 [Lua] biggest inspirations for this project.
 
 To read this book, you will definitely want to go to [the GitHub project] and
-grab yourself a clone of it. Many things referenced in this book are interactive
-using this project.
+grab yourself a clone of it. All the examples are in there, and it's highly
+recommended that you run and tinker them yourself as you encounter them.
 
 [Python]: https://python.org
 [Rhai]: https://github.com/jonathandturner/rhai

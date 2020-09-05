@@ -9,11 +9,11 @@ access to what you need.
 Below are some examples of its common uses to match on branch conditions:
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_5/big_match.rn}}
+{{#include ../../scripts/book/pattern_matching/big_match.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_5/big_match.rn
+$> cargo run -- scripts/book/pattern_matching/big_match.rn
 The number one.
 Another number: 2.
 A vector starting with one and two, followed by 42.
@@ -52,11 +52,11 @@ The ignore directive looks like an underscore `_`, which tells rune to *ignore*
 the value, allowing it to have any value.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_5/ignore.rn}}
+{{#include ../../scripts/book/pattern_matching/ignore.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_5/ignore.rn
+$> cargo run -- scripts/book/pattern_matching/ignore.rn
 Second item in vector is 2.
 == () (281.3µs)
 ```
@@ -65,11 +65,11 @@ In contrast to ignoring, we cal also *bind* the value to a variable that is then
 in scope of the match arm.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_5/bind.rn}}
+{{#include ../../scripts/book/pattern_matching/bind.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_5/bind.rn
+$> cargo run -- scripts/book/pattern_matching/bind.rn
 Second item in vector is 2.
 == () (6.25ms)
 ```
@@ -85,11 +85,11 @@ values in a collection that might be present when matching a vector or an
 object.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/4_5/fast_cars.rn}}
+{{#include ../../scripts/book/pattern_matching/fast_cars.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_5/fast_cars.rn
+$> cargo run -- scripts/book/pattern_matching/fast_cars.rn
 Pretty fast!
 Can't tell 😞
 What, where did you get that?

@@ -10,11 +10,11 @@ With this, we can create a fairly efficient generator to build fibonacci
 numbers.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/7/fib_generator.rn}}
+{{#include ../../scripts/book/generators/fib_generator.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/7/fib_generator.rn
+$> cargo run -- scripts/book/generators/fib_generator.rn
 0
 1
 1
@@ -41,11 +41,11 @@ The first thing to know is that `yield` itself can actually *produce* a value,
 allowing the calling procedure to send values to the generator.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/7/send_values.rn}}
+{{#include ../../scripts/book/generators/send_values.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/7/send_values.rn
+$> cargo run -- scripts/book/generators/send_values.rn
 "John"
 (1, 2, 3)
 == () (883.2µs)
@@ -59,11 +59,11 @@ At that point it runs the block prior to the first yield, we can see this by
 instrumenting our code a little.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/7/bootup.rn}}
+{{#include ../../scripts/book/generators/bootup.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/7/bootup.rn
+$> cargo run -- scripts/book/generators/bootup.rn
 firing off the printer...
 waiting for value...
 ready to go!
@@ -82,11 +82,11 @@ This enum has two variants: `Yielded` and `Complete`, and represents all the
 possible states a generator can suspend itself into.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/7/states.rn}}
+{{#include ../../scripts/book/generators/states.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/7/states.rn
+$> cargo run -- scripts/book/generators/states.rn
 Yielded(1)
 "John"
 Complete(2)
@@ -103,17 +103,17 @@ Trying to resume the generator after this will cause the virtual machine to
 error.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/7/error.rn}}
+{{#include ../../scripts/book/generators/error.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/7/error.rn
+$> cargo run -- scripts/book/generators/error.rn
 Generator { completed: false }
 Yielded(1)
 Complete("John")
 Generator { completed: true }
 error: virtual machine error
-   ┌─ scripts/book/7/error.rn:11:9
+   ┌─ scripts/book/generators/error.rn:11:9
    │
 11 │     dbg(printer.resume(()));
    │         ^^^^^^^^^^^^^^^^^^ cannot resume a generator that has completed

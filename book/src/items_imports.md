@@ -18,24 +18,24 @@ If we wanted to use `assert` we would have to import it first with a `use`
 statement:
 
 ```rust,noplayground
-{{#include ../../scripts/book/4_1/example_import.rn}}
+{{#include ../../scripts/book/items_imports/example_import.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_1/example_import.rn
+$> cargo run -- scripts/book/items_imports/example_import.rn
 == () (34.6µs)
 ```
 
 Trying to use an item which doesn't exist results in a compile error:
 
 ```rust,noplayground
-{{#include ../../scripts/book/4_1/missing_item.rn}}
+{{#include ../../scripts/book/items_imports/missing_item.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_1/missing_item.rn
+$> cargo run -- scripts/book/items_imports/missing_item.rn
 error: compile error
-  ┌─ scripts/book/4_1/missing_item.rn:2:15
+  ┌─ scripts/book/items_imports/missing_item.rn:2:15
   │
 2 │     let foo = Foo::new();
   │               ^^^^^^^^^^ `Foo::new` is not a function

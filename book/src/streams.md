@@ -7,11 +7,11 @@ with `.await`, and we are now allowed to use asynchronous functions inside of
 the generator.
 
 ```rust,noplayground
-{{#include ../../scripts/book/10/basic_stream.rn}}
+{{#include ../../scripts/book/streams/basic_stream.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/10/basic_stream.rn
+$> cargo run -- scripts/book/streams/basic_stream.rn
 200 OK
 200 OK
 == () (754.3946ms)

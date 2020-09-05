@@ -101,7 +101,8 @@ project. They have been an an immense inspiration to me. If you need an embedded
 scripting engine that is more mature right now than *Rune*, please do take
 *Rhai* for a spin.
 
-You can find the project at [its GitHub page]. I hope you'll enjoy it!
+You can find the project at [its GitHub page]. I hope you'll enjoy using this
+project as much as I've enjoyed writing it!
 
 &mdash; John-John Tedro
 

@@ -74,15 +74,15 @@ See `--help` for more information.
 [future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
 [Open Issues]: https://github.com/rune-rs/rune/issues
 [support-rust-integration]: https://github.com/rune-rs/rune/tree/master/crates/rune-modules
-[support-reference-counted]: https://rune-rs.github.io/rune/4_2_variables.html
-[support-templates]: https://rune-rs.github.io/rune/4_6_template_strings.html
-[support-try]: https://rune-rs.github.io/rune/6_try_operator.html
-[support-patterns]: https://rune-rs.github.io/rune/4_5_pattern_matching.html
-[support-structs]: https://rune-rs.github.io/rune/5_6_structs.html
-[support-async]: https://rune-rs.github.io/rune/8_async.html
-[support-generators]: https://rune-rs.github.io/rune/7_generators.html
-[support-instance-functions]: https://rune-rs.github.io/rune/4_7_instance_functions.html
-[support-dynamic-vectors]: https://rune-rs.github.io/rune/5_2_vectors.html
-[support-anon-objects]: https://rune-rs.github.io/rune/5_3_objects.html
-[support-anon-tuples]: https://rune-rs.github.io/rune/5_4_tuples.html
+[support-reference-counted]: https://rune-rs.github.io/rune/variables.html
+[support-templates]: https://rune-rs.github.io/rune/template_strings.html
+[support-try]: https://rune-rs.github.io/rune/try_operator.html
+[support-patterns]: https://rune-rs.github.io/rune/pattern_matching.html
+[support-structs]: https://rune-rs.github.io/rune/structs.html
+[support-async]: https://rune-rs.github.io/rune/async.html
+[support-generators]: https://rune-rs.github.io/rune/generators.html
+[support-instance-functions]: https://rune-rs.github.io/rune/instance_functions.html
+[support-dynamic-vectors]: https://rune-rs.github.io/rune/vectors.html
+[support-anon-objects]: https://rune-rs.github.io/rune/objects.html
+[support-anon-tuples]: https://rune-rs.github.io/rune/tuples.html
 [support-serde]: https://github.com/rune-rs/rune/blob/master/crates/rune-modules/src/json.rs

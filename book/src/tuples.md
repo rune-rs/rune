@@ -5,11 +5,11 @@ can contains any sequence of values. But there's no way to change the size of a
 tuple.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/5_4/tuple_masquerade.rn}}
+{{#include ../../scripts/book/tuples/tuple_masquerade.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/5_4/tuple_masquerade.rn
+$> cargo run -- scripts/book/tuples/tuple_masquerade.rn
 ("Now", "You", "See", "Me")
 ("Now", "You", "Don\'t", "!")
 == () (38.3136ms)
@@ -18,11 +18,11 @@ $> cargo run -- scripts/book/5_4/tuple_masquerade.rn
 The following is a simple example of a function returning a tuple:
 
 ```rust,noplaypen
-{{#include ../../scripts/book/5_4/basic_tuples.rn}}
+{{#include ../../scripts/book/tuples/basic_tuples.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/5_4/basic_tuples.rn
+$> cargo run -- scripts/book/tuples/basic_tuples.rn
 (1, "test")
 == () (387.6µs)
 ```
@@ -30,11 +30,11 @@ $> cargo run -- scripts/book/5_4/basic_tuples.rn
 Tuples can also be pattern matched:
 
 ```rust,noplaypen
-{{#include ../../scripts/book/5_4/tuple_patterns.rn}}
+{{#include ../../scripts/book/tuples/tuple_patterns.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/5_4/tuple_patterns.rn
+$> cargo run -- scripts/book/tuples/tuple_patterns.rn
 "the first part was a number:"
 1
 == () (7.7892ms)

@@ -12,11 +12,11 @@ the result of those tasks.
 A typical example would be if we want to perform multiple HTTP requests at once:
 
 ```rust,noplaypen
-{{#include ../../scripts/book/8/async_http.rn}}
+{{#include ../../scripts/book/async/async_http.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/8/async_http.rn
+$> cargo run -- scripts/book/async/async_http.rn
 200 OK
 200 OK
 == () (591.0319ms)
@@ -34,11 +34,11 @@ A simple example of this is if we were to implement a simple request with a
 timeout:
 
 ```rust,noplaypen
-{{#include ../../scripts/book/8/async_http_timeout.rn}}
+{{#include ../../scripts/book/async/async_http_timeout.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/8/async_http_timeout.rn
+$> cargo run -- scripts/book/async/async_http_timeout.rn
 200 OK
 Request timed out!
 == () (3.2231404s)
@@ -61,11 +61,11 @@ In order to get the result of this `Future` it must be `.await`ed. And `.await`
 is only permitted inside of `async` functions and closures.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/8/async_http_concurrent.rn}}
+{{#include ../../scripts/book/async/async_http_concurrent.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/8/async_http_concurrent.rn
+$> cargo run -- scripts/book/async/async_http_concurrent.rn
 Result: 200 OK
 Request timed out!
 == () (2.0028603s)
@@ -77,11 +77,11 @@ Closures can be prefixed with the `async` keyword, meaning calling them will
 produce a future.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/8/async_closure.rn}}
+{{#include ../../scripts/book/async/async_closure.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/8/async_closure.rn
+$> cargo run -- scripts/book/async/async_closure.rn
 Status: 200 OK
 == () (165.4817ms)
 ```
@@ -92,11 +92,11 @@ Blocks can be marked with `async` to produce on-the-fly futures. These blocks
 can capture variables the same way as closures do, but take no arguments.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/8/async_blocks.rn}}
+{{#include ../../scripts/book/async/async_blocks.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/8/async_blocks.rn
+$> cargo run -- scripts/book/async/async_blocks.rn
 Status: 200 OK
 == () (179.9381ms)
 ```

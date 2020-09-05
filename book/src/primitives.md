@@ -19,11 +19,11 @@ You can see that these bytes are `Copy` when assigning them to a different
 variable, because a separate copy of the variable will be used.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/5_1/copy.rn}}
+{{#include ../../scripts/book/primitives/copy.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/5_1/copy.rn
+$> cargo run -- scripts/book/primitives/copy.rn
 2
 1
 == () (691.3µs)
@@ -34,11 +34,11 @@ to a different variable will only *copy their reference*, but they still point
 to the same underlying data.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/5_1/primitives.rn}}
+{{#include ../../scripts/book/primitives/primitives.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/5_1/primitives.rn
+$> cargo run -- scripts/book/primitives/primitives.rn
 Hello World
 Hello World
 == () (9.7406ms)

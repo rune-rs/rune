@@ -4,11 +4,11 @@ Objects are anonymous maps, which support defining and using arbitrary string
 keys.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/5_3/objects.rn}}
+{{#include ../../scripts/book/objects/objects.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/5_3/objects.rn
+$> cargo run -- scripts/book/objects/objects.rn
 "bar"
 42
 key did not exist
@@ -24,11 +24,11 @@ One of the biggest motivations for *Rune* to have anonymous objects is so that
 we can natively data with unknown structure.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/5_3/json.rn}}
+{{#include ../../scripts/book/objects/json.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/5_3/json.rn
+$> cargo run -- scripts/book/objects/json.rn
 9c4bdaf194410d8b2f5d7f9f52eb3e64709d3414
 06419f2580e7a18838f483321055fc06c0d75c4c
 cba225dad143779a0a9543cfb05cde9710083af5

@@ -16,11 +16,11 @@ This allows for some really neat tricks, like passing in a function which
 represents the operation you want another function to use.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/9/function_pointers.rn}}
+{{#include ../../scripts/book/closures/function_pointers.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/9/function_pointers.rn
+$> cargo run -- scripts/book/closures/function_pointers.rn
 Result: 3
 Result: -1
 == () (5.4354ms)
@@ -33,11 +33,11 @@ This means that they capture any variables used inside of the closure, allowing
 them to be used when the function is being called.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/9/basic_closure.rn}}
+{{#include ../../scripts/book/closures/basic_closure.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/9/basic_closure.rn
+$> cargo run -- scripts/book/closures/basic_closure.rn
 Result: 4
 Result: 3
 == () (5.4354ms)

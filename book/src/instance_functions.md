@@ -9,13 +9,13 @@ can't tell at compile time which instance any specific `value` can be. So
 instance functions must be looked up at runtime.
 
 ```rust,noplayground
-{{#include ../../scripts/book/4_7/missing_instance_fn.rn}}
+{{#include ../../scripts/book/instance_functions/missing_instance_fn.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/4_7/missing_instance_fn.rn
+$> cargo run -- scripts/book/instance_functions/missing_instance_fn.rn
 error: virtual machine error
-   ┌─ scripts/book/4_7/missing_instance_fn.rn:11:5
+   ┌─ scripts/book/instance_functions/missing_instance_fn.rn:11:5
    │
 11 │     foo.bar();
    │     ^^^^^^^^^ missing instance function `0xfb67fa086988a22d` for `type(0xc153807c3ddc98d7)``
@@ -31,7 +31,7 @@ based on its item. So the hash for the item `Foo::new` will always be the same.
 In Rust, we can calculate this hash using `Item` and `Hash::function` method:
 
 ```rust,noplayground
-{{#include ../../crates/rune-testing/examples/function_hash}}
+{{#include ../../crates/rune-testing/examples/function_hash.rs}}
 ```
 
 ```text

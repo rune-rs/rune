@@ -7,11 +7,11 @@ For `Option`, this causes the function to return if it has the `Option::None`
 variant.
 
 ```rust,noplaypen
-{{#include ../../scripts/book/6/basic_try.rn}}
+{{#include ../../scripts/book/try_operator/basic_try.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/6/basic_try.rn
+$> cargo run -- scripts/book/try_operator/basic_try.rn
 Result: 2, 1
 == () (7.4912ms)
 ```

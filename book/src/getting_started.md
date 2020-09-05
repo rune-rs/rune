@@ -5,11 +5,11 @@ used to "debug" values provided to it in order to understand them. Anything can
 be provided to it, and it will do its best to describe it.
 
 ```rust,noplayground
-{{#include ../../scripts/book/3/dbg.rn}}
+{{#include ../../scripts/book/getting_started/dbg.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/3/dbg.rn
+$> cargo run -- scripts/book/getting_started/dbg.rn
 [1, 2, 3]
 '今'
 dynamic function (at: 0x17)
@@ -31,11 +31,11 @@ of these modules installed. This is also what was used to run the above code.
 So for a more formal introduction, here is the officla Rune `"Hello World"`:
 
 ```rust,noplaypen
-{{#include ../../scripts/book/3/hello_world.rn}}
+{{#include ../../scripts/book/getting_started/hello_world.rn}}
 ```
 
 ```text
-$> cargo run -- scripts/book/3/hello_world.rn
+$> cargo run -- scripts/book/getting_started/hello_world.rn
 Hello World
 == () (1.0864ms)
 ```
