@@ -31,7 +31,7 @@ macro_rules! impl_map {
                     output.insert(key, value.to_value()?);
                 }
 
-                Ok($crate::Value::Object($crate::Shared::new(output)))
+                Ok($crate::Value::from($crate::Shared::new(output)))
             }
         }
     }

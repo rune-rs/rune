@@ -10,7 +10,7 @@ where
     T: ToValue,
 {
     fn to_value(self) -> Result<Value, VmError> {
-        Ok(Value::Option(Shared::new(match self {
+        Ok(Value::from(Shared::new(match self {
             Some(some) => {
                 let value = some.to_value()?;
                 Some(value)

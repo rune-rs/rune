@@ -1,10 +1,7 @@
 //! Trait implementation for decoding tuples.
 
-use crate::{Shared, Value};
-
 macro_rules! impl_from_value_tuple {
-    () => {
-    };
+    () => {};
 
     ({$ty:ident, $var:ident, $count:expr}, $({$l_ty:ident, $l_var:ident, $l_count:expr},)*) => {
         impl_from_value_tuple!{@impl $count, {$ty, $var, $count}, $({$l_ty, $l_var, $l_count},)*}
@@ -18,7 +15,7 @@ macro_rules! impl_from_value_tuple {
         where
             $($ty: $crate::FromValue,)*
         {
-            fn from_value(value: Value) -> Result<Self, $crate::VmError> {
+            fn from_value(value: $crate::Value) -> Result<Self, $crate::VmError> {
                 let tuple = value.into_tuple()?.take()?;
 
                 if tuple.len() != $count {
@@ -51,19 +48,10 @@ macro_rules! impl_from_value_tuple {
             fn to_value(self) -> Result<$crate::Value, $crate::VmError> {
                 let ($($var,)*) = self;
                 $(let $var = $var.to_value()?;)*
-                Ok(Value::Tuple(Shared::new($crate::Tuple::from(vec![$($var,)*]))))
+                Ok($crate::Value::from($crate::Tuple::from(vec![$($var,)*])))
             }
         }
     };
 }
 
-impl_from_value_tuple!(
-    {A, a, 8},
-    {B, b, 7},
-    {C, c, 6},
-    {D, d, 5},
-    {E, e, 4},
-    {F, f, 3},
-    {G, g, 2},
-    {H, h, 1},
-);
+repeat_macro!(impl_from_value_tuple);

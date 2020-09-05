@@ -17,7 +17,7 @@ impl FromValue for String {
 
 impl ToValue for Box<str> {
     fn to_value(self) -> Result<Value, VmError> {
-        Ok(Value::String(Shared::new(self.to_string())))
+        Ok(Value::from(Shared::new(self.to_string())))
     }
 }
 

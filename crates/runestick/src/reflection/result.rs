@@ -43,11 +43,11 @@ where
         Ok(match self {
             Ok(ok) => {
                 let ok = ok.to_value()?;
-                Value::Result(Shared::new(Ok(ok)))
+                Value::from(Shared::new(Ok(ok)))
             }
             Err(err) => {
                 let err = err.to_value()?;
-                Value::Result(Shared::new(Err(err)))
+                Value::from(Shared::new(Err(err)))
             }
         })
     }

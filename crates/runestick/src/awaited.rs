@@ -11,7 +11,7 @@ pub enum Awaited {
 
 impl Awaited {
     /// Wait for the given awaited into the specified virtual machine.
-    pub(crate) async fn wait_with_vm(self, vm: &mut Vm) -> Result<(), VmError> {
+    pub(crate) async fn into_vm(self, vm: &mut Vm) -> Result<(), VmError> {
         match self {
             Self::Future(future) => {
                 let value = future.borrow_mut()?.await?;

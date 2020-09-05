@@ -75,6 +75,6 @@ where
             vec.push(value.to_value()?);
         }
 
-        Ok(Value::Vec(Shared::new(vec)))
+        Ok(Value::from(Shared::new(vec)))
     }
 }

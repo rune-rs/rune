@@ -73,13 +73,4 @@ macro_rules! impl_from_value_tuple_vec {
     };
 }
 
-impl_from_value_tuple_vec!(
-    {H, h, 8},
-    {G, g, 7},
-    {F, f, 6},
-    {E, e, 5},
-    {D, d, 4},
-    {C, c, 3},
-    {B, b, 2},
-    {A, a, 1},
-);
+repeat_macro!(impl_from_value_tuple_vec);

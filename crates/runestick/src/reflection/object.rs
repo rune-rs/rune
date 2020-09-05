@@ -61,6 +61,6 @@ where
             object.insert(key, value.to_value()?);
         }
 
-        Ok(Value::Object(Shared::new(object)))
+        Ok(Value::from(Shared::new(object)))
     }
 }

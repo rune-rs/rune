@@ -1,4 +1,4 @@
-use crate::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt};
+use crate::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo};
 
 /// The execution environment for a virtual machine.
 pub struct VmExecution {
@@ -31,36 +31,13 @@ impl VmExecution {
         }
     }
 
-    /// Run the given task to completion.
+    /// Run the given task to completion asynchronously.
     pub async fn async_complete(&mut self) -> Result<Value, VmError> {
-        loop {
-            let len = self.vms.len();
-            let vm = self.vm_mut()?;
-
-            match Self::run_for(vm, None)? {
-                VmHalt::Exited => (),
-                VmHalt::Awaited(awaited) => {
-                    awaited.wait_with_vm(vm).await?;
-                    continue;
-                }
-                VmHalt::VmCall(vm_call) => {
-                    vm_call.into_execution(self)?;
-                    continue;
-                }
-                halt => {
-                    return Err(VmError::from(VmErrorKind::Halted {
-                        halt: halt.into_info(),
-                    }))
-                }
-            }
-
-            if len == 1 {
-                let value = vm.stack_mut().pop()?;
-                debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
-                return Ok(value);
-            }
-
-            self.pop_vm()?;
+        match self.async_resume().await? {
+            GeneratorState::Complete(value) => Ok(value),
+            GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
+                halt: VmHaltInfo::Yielded,
+            })),
         }
     }
 
@@ -68,30 +45,11 @@ impl VmExecution {
     ///
     /// If any async instructions are encountered, this will error.
     pub fn complete(&mut self) -> Result<Value, VmError> {
-        loop {
-            let len = self.vms.len();
-            let vm = self.vm_mut()?;
-
-            match Self::run_for(vm, None)? {
-                VmHalt::Exited => (),
-                VmHalt::VmCall(vm_call) => {
-                    vm_call.into_execution(self)?;
-                    continue;
-                }
-                halt => {
-                    return Err(VmError::from(VmErrorKind::Halted {
-                        halt: halt.into_info(),
-                    }))
-                }
-            }
-
-            if len == 1 {
-                let value = vm.stack_mut().pop()?;
-                debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
-                return Ok(value);
-            }
-
-            self.pop_vm()?;
+        match self.resume()? {
+            GeneratorState::Complete(value) => Ok(value),
+            GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
+                halt: VmHaltInfo::Yielded,
+            })),
         }
     }
 
@@ -104,7 +62,7 @@ impl VmExecution {
             match Self::run_for(vm, None)? {
                 VmHalt::Exited => (),
                 VmHalt::Awaited(awaited) => {
-                    awaited.wait_with_vm(vm).await?;
+                    awaited.into_vm(vm).await?;
                     continue;
                 }
                 VmHalt::VmCall(vm_call) => {
@@ -122,6 +80,7 @@ impl VmExecution {
             if len == 1 {
                 let value = vm.stack_mut().pop()?;
                 debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
+                self.vms.clear();
                 return Ok(GeneratorState::Complete(value));
             }
 
@@ -152,6 +111,7 @@ impl VmExecution {
             if len == 1 {
                 let value = vm.stack_mut().pop()?;
                 debug_assert!(vm.stack().is_empty(), "the final vm should be empty");
+                self.vms.clear();
                 return Ok(GeneratorState::Complete(value));
             }
 
@@ -167,7 +127,7 @@ impl VmExecution {
         match Self::run_for(vm, Some(1))? {
             VmHalt::Exited => (),
             VmHalt::Awaited(awaited) => {
-                awaited.wait_with_vm(vm).await?;
+                awaited.into_vm(vm).await?;
                 return Ok(None);
             }
             VmHalt::VmCall(vm_call) => {
