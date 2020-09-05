@@ -38,19 +38,19 @@ is a lot of fun. I made something which helps people do something cool.
 
 All the commands in the bot are written in [Rust], and [compiled straight into
 the bot]. This is nice because Rust is an incredible language. But Rust is also
-complex. Not nedlessly mind you. In my view it's complex because it decided to
-tackle *really hard problems*. And that usually comes with a [base level of
+complex. Not nedlessly mind you. I believe it's complex because it
+tackles *really hard problems*. And that usually comes with a [base level of
 complexity] that it's very hard to get rid of.
 
 But it's still tricky enough that streamers who have limited programming
-experience struggle getting up and running*. I wanted them to be able to write
+experience struggle getting up and running. I wanted them to be able to write
 their own commands. Ones they could just drop into a folder and *presto* -
 you're up and running.
 
-> *: To this day I've tutored two of these streamers who were interested in
+> To this day I've tutored two of these streamers who were interested in
 > learning Rust to write their own commands.
 
-Embedding a Rust compiler isn't feasible. So for this reason I started looking
+Embedding a Rust compiler isn't feasible. So I started looking
 into dynamic programming languages. Ones that could be embedded into an existing
 application with little to no effort. That seemlessly integrates with its
 environment.
@@ -64,7 +64,7 @@ piece of cake.
 
 But Rhai has a set of design decisions which didn't *exactly* scratch my itch.
 And the more I used it, the more I got inspired and started thinking about
-things that could be changed or added. [I contributed a bit to the project]. But
+things that could be changed or added. [I contributed a bit to the project]. And
 it started to dawn on me that Rhai's approach wasn't exactly what I wanted.
 There's nothing wrong with this. The authors of Rhai have specific goals and
 ideas of what they want to accomplish. And while I believe that it's feasible to
@@ -87,13 +87,13 @@ When I started working on Rune I had the following *rough* goals in mind:
   this book.
 
 Rune is now in a state where I want people to poke at it. Not *too* hard mind
-you. It's still very early days. The compiler is very much in flux and a
+you. It's still early days. The compiler is very much in flux and a
 miscompilation will definitely cause the wrong closure to be called. You know,
 the one that *doesn't* doesn't perform your security checks 😅.
 
 But the more poking and prodding people do, the more issues will be found. Every
 solved issue brings Rune one step close to being production ready. Every set of
-eyeballs that takes a look can bring new perspective and ideas, making the
+eyeballs that takes a look can bring fresh perspective and ideas, making the
 project better for me and everyone else.
 
 I really want to thank Jonathan Turner and all the contributors to the Rhai
