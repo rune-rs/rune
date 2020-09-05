@@ -38,7 +38,7 @@ is a lot of fun. I made something which helps people do something cool.
 
 All the commands in the bot are written in [Rust], and [compiled straight into
 the bot]. This is nice because Rust is an incredible language. But Rust is also
-complex. Not nedlessly mind you. In believe it's complex because it
+complex. Not nedlessly mind you. I believe it's complex because it
 tackles *really hard problems*. And that usually comes with a [base level of
 complexity] that it's very hard to get rid of.
 
