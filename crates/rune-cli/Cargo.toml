@@ -1,6 +1,6 @@
 [package]
 name = "rune-cli"
-version = "0.6.14"
+version = "0.6.15"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -20,8 +20,8 @@ env_logger = "0.7.1"
 codespan-reporting = "0.9.5"
 anyhow = "1.0.32"
 
-rune = {version = "0.6.14", path = "../rune", features = ["modules"]}
-runestick = {version = "0.6.14", path = "../runestick"}
+rune = {version = "0.6.15", path = "../rune", features = ["modules"]}
+runestick = {version = "0.6.15", path = "../runestick"}
 
 [[bin]]
 name = "rune"
