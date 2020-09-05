@@ -1,6 +1,6 @@
 [package]
 name = "runestick"
-version = "0.6.15"
+version = "0.6.16"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
