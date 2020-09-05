@@ -1,7 +1,6 @@
 use crate::collections::HashMap;
 use crate::error::{CompileError, CompileResult};
-use runestick::unit::Assembly;
-use runestick::{Inst, Span};
+use runestick::{Assembly, Inst, Span};
 
 /// A locally declared variable.
 #[derive(Debug, Clone)]

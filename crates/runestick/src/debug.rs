@@ -1,4 +1,4 @@
-use crate::unit::Label;
+use crate::assembly::Label;
 use crate::{Source, Span};
 
 /// Debug information about a unit.

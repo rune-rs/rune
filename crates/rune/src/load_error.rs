@@ -1,6 +1,5 @@
 use crate::CompileError;
-use runestick::unit::LinkerErrors;
-use runestick::Source;
+use runestick::{LinkerErrors, Source};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;

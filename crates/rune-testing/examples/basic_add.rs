@@ -1,17 +1,8 @@
-use runestick::{Context, FromValue, Module, Source};
+use runestick::{Context, FromValue, Source};
 use std::sync::Arc;
 
-fn divide_by_three(value: i64) -> i64 {
-    value / 3
-}
-
-#[tokio::main]
-async fn main() -> runestick::Result<()> {
-    let mut my_module = Module::new(&["mymodule"]);
-    my_module.inst_fn("divide_by_three", divide_by_three)?;
-
-    let mut context = Context::with_default_modules()?;
-    context.install(&my_module)?;
+fn main() -> runestick::Result<()> {
+    let context = Context::with_default_modules()?;
 
     let options = rune::Options::default();
     let mut warnings = rune::Warnings::default();
@@ -23,10 +14,10 @@ async fn main() -> runestick::Result<()> {
         Source::new(
             "test",
             r#"
-            fn main(number) {
-                number.divide_by_three()
-            }
-            "#,
+             fn main(number) {
+                 number + 10
+             }
+             "#,
         ),
     )?;
 

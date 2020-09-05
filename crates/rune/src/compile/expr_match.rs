@@ -2,8 +2,7 @@ use crate::ast;
 use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::traits::Compile;
-use runestick::unit::Assembly;
-use runestick::Inst;
+use runestick::{Assembly, Inst};
 
 impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_, '_> {
     fn compile(&mut self, (expr_match, needs): (&ast::ExprMatch, Needs)) -> CompileResult<()> {

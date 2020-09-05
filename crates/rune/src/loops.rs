@@ -1,8 +1,7 @@
 use crate::ast;
 use crate::compiler::Needs;
 use crate::error::{CompileError, CompileResult};
-use runestick::unit::Label;
-use runestick::Source;
+use runestick::{Label, Source};
 use std::cell::RefCell;
 use std::rc::Rc;
 

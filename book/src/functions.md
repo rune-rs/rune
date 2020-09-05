@@ -44,3 +44,16 @@ Hello
 Depending on who you talk to, this is either the best things since sliced bread
 or quite scary. It allows for a larger ability to express a program, but at the
 same time it can be harder to reason on what your program will do.
+
+## Calling functions in Rust
+
+Rune functions can be easily set up and called from Rust.
+
+```rust,noplayground
+{{#include ../../crates/rune-testing/examples/basic_add.rs}}
+```
+
+```text
+$> cargo run --example basic_add
+output: 11
+```

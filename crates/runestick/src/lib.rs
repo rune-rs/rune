@@ -37,6 +37,7 @@ mod vm;
 mod macros;
 mod access;
 mod args;
+mod assembly;
 mod awaited;
 mod bytes;
 mod call;
@@ -67,7 +68,7 @@ mod stream;
 mod tuple;
 mod type_;
 mod type_info;
-pub mod unit;
+mod unit;
 mod vec_tuple;
 mod vm_call;
 mod vm_error;
@@ -83,6 +84,7 @@ pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
 pub type Error = anyhow::Error;
 
 pub use self::args::Args;
+pub use self::assembly::{Assembly, Label};
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
 pub use self::meta::{Meta, MetaClosureCapture, MetaStruct, MetaTuple};
@@ -124,7 +126,9 @@ pub use crate::protocol::{
 pub use crate::reflection::{FromValue, ToValue, UnsafeFromValue, ValueType};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
-pub use crate::unit::{ImportEntry, ImportKey, Unit, UnitError};
+pub use crate::unit::{
+    ImportEntry, ImportKey, LinkerError, LinkerErrors, Unit, UnitError, UnitFnKind,
+};
 pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple,
 };

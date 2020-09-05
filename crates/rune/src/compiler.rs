@@ -2,8 +2,9 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileError;
 use crate::traits::{Compile as _, Resolve as _};
-use runestick::unit::{Assembly, Label};
-use runestick::{Component, Context, ImportKey, Inst, Item, Meta, Source, Span, TypeCheck, Unit};
+use runestick::{
+    Assembly, Component, Context, ImportKey, Inst, Item, Label, Meta, Source, Span, TypeCheck, Unit,
+};
 use std::cell::RefCell;
 use std::rc::Rc;
 

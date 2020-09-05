@@ -2,8 +2,7 @@ use crate::ast;
 use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::traits::Compile;
-use runestick::unit::Assembly;
-use runestick::Inst;
+use runestick::{Assembly, Inst};
 
 /// Compile a let expression.
 impl Compile<(&ast::ExprLet, Needs)> for Compiler<'_, '_> {

@@ -117,13 +117,44 @@ impl Vm {
         self.stack.iter()
     }
 
-    /// Call the given function in the given compilation unit.
-    pub fn call_function<A, N>(mut self, hash: N, args: A) -> Result<VmExecution, VmError>
+    /// Call the function identified by the given name.
+    ///
+    /// Computing the function hash from the name can be a bit costly, so it's
+    /// worth noting that it can be precalculated:
+    ///
+    /// ```rust
+    /// use runestick::{Hash, Item};
+    ///
+    /// let name = Hash::type_hash(Item::of(&["main"]));
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use runestick::{Context, Unit, FromValue, Source};
+    /// use std::sync::Arc;
+    ///
+    /// fn main() -> runestick::Result<()> {
+    ///     let context = Context::with_default_modules()?;
+    ///     let unit = Unit::new();
+    ///     // NB: normally the unit would be created by compiling some source,
+    ///     // and since this one is empty it won't do anything.
+    ///
+    ///     let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));
+    ///
+    ///     let output = vm.call(&["main"], (33i64,))?.complete()?;
+    ///     let output = i64::from_value(output)?;
+    ///
+    ///     println!("output: {}", output);
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn call<A, N>(mut self, name: N, args: A) -> Result<VmExecution, VmError>
     where
         N: IntoHash,
         A: Args,
     {
-        let hash = hash.into_hash();
+        let hash = name.into_hash();
 
         let function = self
             .unit

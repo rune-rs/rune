@@ -116,7 +116,7 @@
 //!
 //!     let vm = Vm::new(context.clone(), Arc::new(unit));
 //!
-//!     let mut execution = vm.call_function(Item::of(&["calculate"]), (10i64, 20i64))?;
+//!     let mut execution = vm.call(&["calculate"], (10i64, 20i64))?;
 //!     let value = execution.async_complete().await?;
 //!
 //!     let value = i64::from_value(value)?;

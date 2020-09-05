@@ -73,10 +73,7 @@ where
     let (unit, _) = compile_source(&context, &source)?;
 
     let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));
-    let output = vm
-        .call_function(Item::of(function), args)?
-        .async_complete()
-        .await?;
+    let output = vm.call(Item::of(function), args)?.async_complete().await?;
 
     Ok(T::from_value(output)?)
 }

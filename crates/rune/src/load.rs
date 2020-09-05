@@ -1,7 +1,6 @@
 use crate::compiler;
 use crate::{CompileError, LoadError, LoadErrorKind, Options, Warnings};
-use runestick::unit::LinkerErrors;
-use runestick::{Context, Source, Span, Unit};
+use runestick::{Context, LinkerErrors, Source, Span, Unit};
 use std::cell::RefCell;
 use std::fs;
 use std::path::Path;

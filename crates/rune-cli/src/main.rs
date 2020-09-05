@@ -39,8 +39,7 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use runestick::unit::UnitFnKind;
-use runestick::{Item, Value, VmExecution};
+use runestick::{Item, UnitFnKind, Value, VmExecution};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -264,7 +263,7 @@ async fn main() -> Result<()> {
         println!("---");
     }
 
-    let mut execution: runestick::VmExecution = vm.call_function(Item::of(&["main"]), ())?;
+    let mut execution: runestick::VmExecution = vm.call(Item::of(&["main"]), ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {
