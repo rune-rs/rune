@@ -98,32 +98,56 @@ impl Command {
     /// Spawn the command.
     fn spawn(mut self) -> io::Result<Child> {
         Ok(Child {
-            inner: self.inner.spawn()?,
+            inner: Some(self.inner.spawn()?),
         })
     }
 }
 
 struct Child {
-    inner: process::Child,
+    // we use an option to avoid a panic if we try to complete the child process
+    // multiple times.
+    //
+    // TODO: enapculate this pattern in some better way.
+    inner: Option<process::Child>,
 }
 
 impl Child {
     /// Convert the child into a future, use for `.await`.
-    async fn into_future(&mut self) -> io::Result<ExitStatus> {
-        let status = (&mut self.inner).await?;
-        Ok(ExitStatus { status })
+    async fn into_future(&mut self) -> Result<io::Result<ExitStatus>, VmError> {
+        let result = match &mut self.inner {
+            Some(inner) => match inner.await {
+                Ok(status) => Ok(ExitStatus { status }),
+                Err(e) => Err(e),
+            },
+            None => {
+                return Err(VmError::panic("already completed"));
+            }
+        };
+
+        self.inner = None;
+        Ok(result)
     }
 
     // Returns a future that will resolve to an Output, containing the exit
     // status, stdout, and stderr of the child process.
-    async fn wait_with_output(self) -> io::Result<Output> {
-        let inner = self.inner.wait_with_output().await?;
+    async fn wait_with_output(self) -> Result<io::Result<Output>, VmError> {
+        let inner = match self.inner {
+            Some(inner) => inner,
+            None => {
+                return Err(VmError::panic("already completed"));
+            }
+        };
 
-        Ok(Output {
-            status: inner.status,
-            stdout: Shared::new(Bytes::from_vec(inner.stdout)),
-            stderr: Shared::new(Bytes::from_vec(inner.stderr)),
-        })
+        let output = match inner.wait_with_output().await {
+            Ok(output) => output,
+            Err(error) => return Ok(Err(error)),
+        };
+
+        Ok(Ok(Output {
+            status: output.status,
+            stdout: Shared::new(Bytes::from_vec(output.stdout)),
+            stderr: Shared::new(Bytes::from_vec(output.stderr)),
+        }))
     }
 }
 

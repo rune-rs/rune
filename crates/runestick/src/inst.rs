@@ -10,14 +10,17 @@ pub enum PanicReason {
     NotImplemented,
     /// A pattern didn't match where it unconditionally has to.
     UnmatchedPattern,
+    /// Tried to poll a future that has already been completed.
+    FutureCompleted,
 }
 
 impl PanicReason {
     /// The identifier of the panic.
     fn ident(&self) -> &'static str {
         match *self {
-            Self::NotImplemented => "not-implemented",
-            Self::UnmatchedPattern => "unmatched-pattern",
+            Self::NotImplemented => "not implemented",
+            Self::UnmatchedPattern => "unmatched pattern",
+            Self::FutureCompleted => "future completed",
         }
     }
 }
@@ -27,6 +30,9 @@ impl fmt::Display for PanicReason {
         match *self {
             Self::NotImplemented => write!(fmt, "functionality has not been implemented yet")?,
             Self::UnmatchedPattern => write!(fmt, "pattern did not match")?,
+            Self::FutureCompleted => {
+                write!(fmt, "tried to poll future that has already been completed")?
+            }
         }
 
         Ok(())

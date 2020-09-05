@@ -101,6 +101,8 @@ project. They have been an an immense inspiration to me. If you need an embedded
 scripting engine that is more mature right now than *Rune*, please do take
 *Rhai* for a spin.
 
+You can find the project at [its GitHub page]. I hope you'll enjoy it!
+
 &mdash; John-John Tedro
 
 [Joy of Creating]: https://en.wikipedia.org/wiki/The_Joy_of_Painting
@@ -113,3 +115,4 @@ scripting engine that is more mature right now than *Rune*, please do take
 [I contributed a bit to the project]: https://github.com/jonathandturner/rhai/commits?author=udoprog
 [like Lua]: https://www.lua.org/pil/26.1.html
 [cranelift]: https://github.com/bytecodealliance/wasmtime/tree/main/cranelift
+[its GitHub page]: https://github.com/rune-rs/rune/
