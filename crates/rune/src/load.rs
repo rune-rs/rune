@@ -34,7 +34,7 @@ use std::rc::Rc;
 /// let mut options = rune::Options::default();
 /// let mut warnings = rune::Warnings::new();
 ///
-/// let unit = match rune::load_path(&*context, &options, &mut warnings, &path) {
+/// let unit = match rune::load_path(&*context, &options, &path, &mut warnings) {
 ///     Ok(unit) => unit,
 ///     Err(error) => {
 ///         let mut writer = StandardStream::stderr(ColorChoice::Always);
@@ -57,8 +57,8 @@ use std::rc::Rc;
 pub fn load_path(
     context: &Context,
     options: &Options,
-    warnings: &mut Warnings,
     path: &Path,
+    warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
     let source = fs::read_to_string(path).map_err(|error| {
         LoadError::from(LoadErrorKind::ReadFile {
@@ -68,7 +68,7 @@ pub fn load_path(
     })?;
 
     let name = path.display().to_string();
-    let unit = load_source(context, options, warnings, Source::new(name, source))?;
+    let unit = load_source(context, options, Source::new(name, source), warnings)?;
     Ok(unit)
 }
 
@@ -101,7 +101,7 @@ pub fn load_path(
 /// }
 /// "#);
 ///
-/// let unit = match rune::load_source(&*context, &options, &mut warnings, source) {
+/// let unit = match rune::load_source(&*context, &options, source, &mut warnings) {
 ///     Ok(unit) => unit,
 ///     Err(error) => {
 ///         let mut writer = StandardStream::stderr(ColorChoice::Always);
@@ -124,8 +124,8 @@ pub fn load_path(
 pub fn load_source(
     context: &Context,
     options: &Options,
-    warnings: &mut Warnings,
     code_source: Source,
+    warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
     let unit = Rc::new(RefCell::new(Unit::with_default_prelude()));
 

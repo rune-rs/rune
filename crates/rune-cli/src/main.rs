@@ -139,7 +139,7 @@ async fn main() -> Result<()> {
     let context = Arc::new(rune::default_context()?);
     let mut warnings = rune::Warnings::new();
 
-    let unit = match rune::load_path(&*context, &options, &mut warnings, &path) {
+    let unit = match rune::load_path(&*context, &options, &path, &mut warnings) {
         Ok(unit) => Arc::new(unit),
         Err(error) => {
             let mut writer = StandardStream::stderr(ColorChoice::Always);

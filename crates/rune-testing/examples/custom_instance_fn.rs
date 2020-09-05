@@ -14,12 +14,11 @@ async fn main() -> runestick::Result<()> {
     context.install(&my_module)?;
 
     let options = rune::Options::default();
-    let mut warnings = rune::Warnings::default();
+    let mut warnings = rune::Warnings::disabled();
 
     let unit = rune::load_source(
         &context,
         &options,
-        &mut warnings,
         Source::new(
             "test",
             r#"
@@ -28,6 +27,7 @@ async fn main() -> runestick::Result<()> {
             }
             "#,
         ),
+        &mut warnings,
     )?;
 
     let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));

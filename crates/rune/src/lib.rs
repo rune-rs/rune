@@ -100,7 +100,7 @@
 //!     let options = rune::Options::default();
 //!     let mut warnings = rune::Warnings::new();
 //!
-//!     let unit = match rune::load_source(&*context, &options, &mut warnings, source) {
+//!     let unit = match rune::load_source(&*context, &options, source, &mut warnings) {
 //!         Ok(unit) => unit,
 //!         Err(error) => {
 //!             let mut writer = StandardStream::stderr(ColorChoice::Always);

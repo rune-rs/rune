@@ -5,12 +5,11 @@ fn main() -> runestick::Result<()> {
     let context = Context::with_default_modules()?;
 
     let options = rune::Options::default();
-    let mut warnings = rune::Warnings::default();
+    let mut warnings = rune::Warnings::disabled();
 
     let unit = rune::load_source(
         &context,
         &options,
-        &mut warnings,
         Source::new(
             "test",
             r#"
@@ -19,6 +18,7 @@ fn main() -> runestick::Result<()> {
              }
              "#,
         ),
+        &mut warnings,
     )?;
 
     let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));
