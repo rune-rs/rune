@@ -1,6 +1,6 @@
 [package]
 name = "rune"
-version = "0.6.12"
+version = "0.6.13"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -27,8 +27,8 @@ codespan-reporting = {version = "0.9.5", optional = true}
 hashbrown = "0.8.2"
 num = "0.3.0"
 
-runestick = {version = "0.6.12", path = "../runestick"}
-rune-modules = {version = "0.6.12", path = "../rune-modules", features = ["full"], optional = true}
+runestick = {version = "0.6.13", path = "../runestick"}
+rune-modules = {version = "0.6.13", path = "../rune-modules", features = ["full"], optional = true}
 
 [dev-dependencies]
 tokio = {version = "0.2.12", features = ["macros"]}
