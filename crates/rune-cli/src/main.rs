@@ -51,7 +51,7 @@ async fn main() -> Result<()> {
     let mut path = None;
     let mut trace = false;
     let mut dump_unit = false;
-    let mut dump_vm = false;
+    let mut dump_stack = false;
     let mut dump_functions = false;
     let mut dump_types = false;
     let mut help = false;
@@ -66,15 +66,15 @@ async fn main() -> Result<()> {
             }
             "--dump" => {
                 dump_unit = true;
-                dump_vm = true;
+                dump_stack = true;
                 dump_functions = true;
                 dump_types = true;
             }
             "--dump-unit" => {
                 dump_unit = true;
             }
-            "--dump-vm" => {
-                dump_vm = true;
+            "--dump-stack" => {
+                dump_stack = true;
             }
             "--dump-functions" => {
                 dump_functions = true;
@@ -115,7 +115,7 @@ async fn main() -> Result<()> {
         println!("  --trace           - Provide detailed tracing for each instruction executed.");
         println!("  --dump            - Dump all forms of diagnostic.");
         println!("  --dump-unit       - Dump diagnostics on the unit generated from the file.");
-        println!("  --dump-vm         - Dump diagnostics on VM state. If combined with `--trace`, does so afte each instruction.");
+        println!("  --dump-stack      - Dump the state of the stack after completion. If compiled with `--trace` will dump it after each instruction.");
         println!("  --dump-functions  - Dump available functions.");
         println!("  --dump-types      - Dump available types.");
         println!("  --no-linking      - Disable link time checks.");
@@ -267,7 +267,7 @@ async fn main() -> Result<()> {
     let last = std::time::Instant::now();
 
     let result = if trace {
-        match do_trace(&mut execution, dump_vm).await {
+        match do_trace(&mut execution, dump_stack).await {
             Ok(value) => Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
             Err(TraceError::VmError(vm)) => Err(vm),
@@ -276,28 +276,68 @@ async fn main() -> Result<()> {
         execution.async_complete().await
     };
 
-    let result = match result {
-        Ok(result) => result,
+    let errored;
+
+    match result {
+        Ok(result) => {
+            let duration = std::time::Instant::now().duration_since(last);
+            println!("== {:?} ({:?})", result, duration);
+            errored = None;
+        }
         Err(error) => {
-            let mut writer = StandardStream::stderr(ColorChoice::Always);
-            error.emit_diagnostics(&mut writer)?;
-            return Ok(());
+            let duration = std::time::Instant::now().duration_since(last);
+            println!("== ! ({}) ({:?})", error, duration);
+            errored = Some(error);
         }
     };
 
-    let duration = std::time::Instant::now().duration_since(last);
-    println!("== {:?} ({:?})", result, duration);
+    if dump_stack {
+        println!("# full stack dump after halting");
 
-    if dump_vm {
         let vm = execution.vm()?;
 
-        println!("# stack dump after completion");
+        let frames = vm.call_frames();
+        let stack = vm.stack();
 
-        for (n, value) in vm.iter_stack_debug().enumerate() {
-            println!("{} = {:?}", n, value);
+        let mut it = frames.iter().enumerate().peekable();
+
+        while let Some((count, frame)) = it.next() {
+            let stack_top = match it.peek() {
+                Some((_, next)) => next.stack_bottom(),
+                None => stack.stack_bottom(),
+            };
+
+            let values = stack
+                .get(frame.stack_bottom()..stack_top)
+                .expect("bad stack slice");
+            println!("  frame #{} (+{})", count, frame.stack_bottom());
+
+            if values.is_empty() {
+                println!("    *empty*");
+            }
+
+            for (n, value) in stack.iter().enumerate() {
+                println!("{}+{} = {:?}", frame.stack_bottom(), n, value);
+            }
         }
 
-        println!("---");
+        // NB: print final frame
+        println!("  frame #{} (+{})", frames.len(), stack.stack_bottom());
+
+        let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
+
+        if values.is_empty() {
+            println!("    *empty*");
+        }
+
+        for (n, value) in values.iter().enumerate() {
+            println!("    {}+{} = {:?}", stack.stack_bottom(), n, value);
+        }
+    }
+
+    if let Some(error) = errored {
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
+        error.emit_diagnostics(&mut writer)?;
     }
 
     Ok(())
@@ -315,9 +355,15 @@ impl From<std::io::Error> for TraceError {
 }
 
 /// Perform a detailed trace of the program.
-async fn do_trace(execution: &mut VmExecution, dump_vm: bool) -> Result<Value, TraceError> {
+async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value, TraceError> {
     use std::io::Write as _;
     let out = std::io::stdout();
+
+    let mut current_frame_len = execution
+        .vm()
+        .map_err(TraceError::VmError)?
+        .call_frames()
+        .len();
 
     loop {
         {
@@ -361,16 +407,31 @@ async fn do_trace(execution: &mut VmExecution, dump_vm: bool) -> Result<Value, T
 
         let mut out = out.lock();
 
-        if dump_vm {
+        if dump_stack {
             let vm = execution.vm().map_err(TraceError::VmError)?;
+            let frames = vm.call_frames();
 
-            writeln!(out, "# stack dump")?;
+            let stack = vm.stack();
 
-            for (n, value) in vm.iter_stack_debug().enumerate() {
-                writeln!(out, "{} = {:?}", n, value)?;
+            if current_frame_len != frames.len() {
+                if current_frame_len < frames.len() {
+                    println!("=> frame {} ({}):", frames.len(), stack.stack_bottom());
+                } else {
+                    println!("<= frame {} ({}):", frames.len(), stack.stack_bottom());
+                }
+
+                current_frame_len = frames.len();
             }
 
-            writeln!(out, "---")?;
+            let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
+
+            if values.is_empty() {
+                println!("    *empty*");
+            }
+
+            for (n, value) in values.iter().enumerate() {
+                writeln!(out, "    {}+{} = {:?}", stack.stack_bottom(), n, value)?;
+            }
         }
 
         if let Some(result) = result {

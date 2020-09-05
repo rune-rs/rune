@@ -1,6 +1,7 @@
 use crate::Value;
 use std::iter;
 use std::mem;
+use std::slice;
 use thiserror::Error;
 
 /// An error raised when interacting with the stack.
@@ -16,7 +17,7 @@ pub struct Stack {
     /// The top of the current stack frame.
     ///
     /// It is not possible to interact with values below this stack frame.
-    stack_top: usize,
+    stack_bottom: usize,
 }
 
 impl Stack {
@@ -24,7 +25,7 @@ impl Stack {
     pub const fn new() -> Self {
         Self {
             stack: Vec::new(),
-            stack_top: 0,
+            stack_bottom: 0,
         }
     }
 
@@ -36,18 +37,31 @@ impl Stack {
         self.stack.extend(iter);
     }
 
+    /// Get the offset that corresponds to the top of the stack right now.
+    pub fn stack_bottom(&self) -> usize {
+        self.stack_bottom
+    }
+
     /// Construct a new stack with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             stack: Vec::with_capacity(capacity),
-            stack_top: 0,
+            stack_bottom: 0,
         }
     }
 
     /// Clear the current stack.
     pub fn clear(&mut self) {
         self.stack.clear();
-        self.stack_top = 0;
+        self.stack_bottom = 0;
+    }
+
+    /// Get the given slice of the stack, if it isn't out of range.
+    pub fn get<I>(&self, index: I) -> Option<&<I as slice::SliceIndex<[Value]>>::Output>
+    where
+        I: slice::SliceIndex<[Value]>,
+    {
+        self.stack.get(index)
     }
 
     /// Peek the top of the stack.
@@ -64,7 +78,7 @@ impl Stack {
 
     /// Access the value at the given frame offset.
     pub fn at_offset(&self, offset: usize) -> Result<&Value, StackError> {
-        self.stack_top
+        self.stack_bottom
             .checked_add(offset)
             .and_then(|n| self.stack.get(n))
             .ok_or_else(|| StackError(()))
@@ -76,7 +90,7 @@ impl Stack {
             .stack
             .len()
             .checked_sub(offset)
-            .filter(|n| *n >= self.stack_top)
+            .filter(|n| *n >= self.stack_bottom)
             .and_then(|n| self.stack.get(n))
         {
             Some(value) => Ok(value),
@@ -86,7 +100,7 @@ impl Stack {
 
     /// Get the offset at the given location.
     pub fn at_offset_mut(&mut self, offset: usize) -> Result<&mut Value, StackError> {
-        let n = match self.stack_top.checked_add(offset) {
+        let n = match self.stack_bottom.checked_add(offset) {
             Some(n) => n,
             None => return Err(StackError(())),
         };
@@ -107,7 +121,7 @@ impl Stack {
 
     /// Pop a reference to a value from the stack.
     pub fn pop(&mut self) -> Result<Value, StackError> {
-        if self.stack.len() == self.stack_top {
+        if self.stack.len() == self.stack_bottom {
             return Err(StackError(()));
         }
 
@@ -146,7 +160,7 @@ impl Stack {
         count: usize,
     ) -> Result<impl DoubleEndedIterator<Item = Value> + '_, StackError> {
         match self.stack.len().checked_sub(count) {
-            Some(start) if start >= self.stack_top => Ok(self.stack.drain(start..)),
+            Some(start) if start >= self.stack_bottom => Ok(self.stack.drain(start..)),
             _ => Err(StackError(())),
         }
     }
@@ -157,9 +171,9 @@ impl Stack {
     /// This is used internally when returning from a call frame.
     ///
     /// Returns the old stack top.
-    pub(crate) fn swap_stack_top(&mut self, count: usize) -> Result<usize, StackError> {
+    pub(crate) fn swap_stack_bottom(&mut self, count: usize) -> Result<usize, StackError> {
         match self.stack.len().checked_sub(count) {
-            Some(new_top) => Ok(mem::replace(&mut self.stack_top, new_top)),
+            Some(new_top) => Ok(mem::replace(&mut self.stack_bottom, new_top)),
             None => Err(StackError(())),
         }
     }
@@ -167,7 +181,7 @@ impl Stack {
     // Assert that the stack frame has been restored to the previous top
     // at the point of return.
     pub(crate) fn check_stack_top(&self) -> Result<(), StackError> {
-        if self.stack.len() == self.stack_top {
+        if self.stack.len() == self.stack_bottom {
             return Ok(());
         }
 
@@ -178,9 +192,9 @@ impl Stack {
     ///
     /// This asserts that the size of the current stack frame is exactly zero
     /// before restoring it.
-    pub(crate) fn pop_stack_top(&mut self, stack_top: usize) -> Result<(), StackError> {
+    pub(crate) fn pop_stack_top(&mut self, stack_bottom: usize) -> Result<(), StackError> {
         self.check_stack_top()?;
-        self.stack_top = stack_top;
+        self.stack_bottom = stack_bottom;
         Ok(())
     }
 }
@@ -189,7 +203,7 @@ impl iter::FromIterator<Value> for Stack {
     fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
         Self {
             stack: iter.into_iter().collect(),
-            stack_top: 0,
+            stack_bottom: 0,
         }
     }
 }
@@ -198,7 +212,7 @@ impl From<Vec<Value>> for Stack {
     fn from(stack: Vec<Value>) -> Self {
         Self {
             stack,
-            stack_top: 0,
+            stack_bottom: 0,
         }
     }
 }

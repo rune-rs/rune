@@ -70,6 +70,8 @@
 //! See `--help` for more information.
 //!
 //! ## Running scripts from Rust
+//! 
+//! > You can find more examples [in the `examples` folder].
 //!
 //! The following is a complete example, including rich diagnostics using
 //! [`termcolor`]. It can be made much simpler if this is not needed.
@@ -126,6 +128,7 @@
 //! }
 //! ```
 //!
+//! [in the `examples` folder]: https://github.com/rune-rs/rune/tree/master/crates/rune-testing/examples
 //! [future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
 //! [Open Issues]: https://github.com/rune-rs/rune/issues
 //! [support-rust-integration]: https://github.com/rune-rs/rune/tree/master/crates/rune-modules

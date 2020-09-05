@@ -13,16 +13,19 @@ The value of x is: 5
 The value of x is: 6
 ```
 
-Rune is a memory safe language. Regardless of what you write in a Rune scripts,
+Rune is a memory safe language. Regardless of what you write in a Rune script,
 we maintain the same memory safety guarantees as safe Rust. This is accomplished
-in Rune through reference counting.
+through reference counting.
 
-## Reference counting and ownership
+[Unless a value is `Copy`](5_1_primitives.md), they are reference counted and
+can be used at multiple locations. This means that they have *shared ownership*.
+Every variable that points to that value therefore points to *the same instance*
+of that value. You can think of every nontrivial value being automatically
+wrapped in an `Rc<RefCell<T>>` if that helps you out.
 
-In Rune, [unless a value is `Copy`](5_1_primitives.md), they are reference
-counted and can be used simultaneously at multiple locations. In other words
-this means that they have *shared ownership*. Every variable that points to that
-value therefore points to *the same instance* of that value.
+> This is not exactly what's going on. If you're interested to learn more, Rune
+> uses a container called [`Shared<T>`] which is *like* an `Rc<RefCell<T>>`, but
+> has a few more tricks.
 
 We can see how this works by sharing and mutating one object across two
 variables:
@@ -75,3 +78,5 @@ field: 1
 object is no longer readable 😢
 == () (943.8µs)
 ```
+
+[`Shared<T>`]: https://docs.rs/runestick/0/runestick/struct.Shared.html

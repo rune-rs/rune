@@ -1,0 +1,8 @@
+fn foo(a, b) {
+    a + b
+}
+
+fn main() {
+    let a = 3;
+    foo(1, 2) + a
+}

@@ -12,14 +12,13 @@ This has already been done, or "Why not just use X?". An thing so glaringly
 obvious that all of my efforts are wasted.
 
 But you actually don't need a reason. It can simply be for The [Joy of
-Creating], and then it's just you spending your own time as a hobby. No harm
-done. But I want to talk about why I'm making Rune beyond just for fun. So I'm
-dedicating this foreword to it. Because I want others to benefit from this I'm
-obligated to describe why it might matter to them.
+Creating], and then it's just you. Spending your own time. No harm done.
 
-So here's why I started making a new programming language.
+But I want to talk about why I'm making Rune beyond just for fun. So I'm
+dedicating this foreword to it. I feel obligated to describe why this might
+matter to others.
 
-## The other project
+So here's why I'm making a new programming language.
 
 I've spent a lot of effort working on [OxidizeBot], a Twitch bot that streamers
 can use to add commands and other interactive things in their chat. I built it
@@ -33,9 +32,9 @@ efficient. I care much more about doing things the right way.
 Ok, I *sometimes* do that professionally as well. But a working environment is
 much more constrained. Personal projects should be fun!
 
-Anyway, that means the bot isn't incredibly specialized to only suit my needs
-and can be used by others. It's starting to see a little bit of that use now
-which is a lot of fun. I made something which helps people do something cool.
+Anyway, that means the bot isn't overly specialized to only suit my needs and
+can be used by others. It's starting to see a little bit of that use now which
+is a lot of fun. I made something which helps people do something cool.
 
 All the commands in the bot are written in [Rust], and [compiled straight into
 the bot]. This is nice because Rust is an incredible language. But Rust is also
@@ -88,21 +87,22 @@ When I started working on Rune I had the following *rough* goals in mind:
   this book.
 
 Rune is now in a state where I want people to poke at it. Not *too* hard mind
-you, because it's still very early days. So don't use it in anything user-facing
-or security critical just yet. The compiler is very much in flux and a
+you. It's still very early days. The compiler is very much in flux and a
 miscompilation will definitely cause the wrong closure to be called. You know,
-the one that *doesn't* do all your fancy security checks 😅.
+the one that *doesn't* doesn't perform your security checks 😅.
 
 But the more poking and prodding people do, the more issues will be found. Every
-solved issue brings Rune one step close to being production ready.
+solved issue brings Rune one step close to being production ready. Every set of
+eyeballs that takes a look can bring new perspective and ideas, making the
+project better for me and everyone else.
 
 I really want to thank Jonathan Turner and all the contributors to the Rhai
 project. They have been an an immense inspiration to me. If you need an embedded
 scripting engine that is more mature right now than *Rune*, please do take
 *Rhai* for a spin.
 
-You can find the project at [its GitHub page]. I hope you'll enjoy using this
-project as much as I've enjoyed writing it!
+You can find the project [on its GitHub page][github]. I hope you'll enjoy using
+it as much as I've enjoyed making it!
 
 &mdash; John-John Tedro
 
@@ -116,4 +116,4 @@ project as much as I've enjoyed writing it!
 [I contributed a bit to the project]: https://github.com/jonathandturner/rhai/commits?author=udoprog
 [like Lua]: https://www.lua.org/pil/26.1.html
 [cranelift]: https://github.com/bytecodealliance/wasmtime/tree/main/cranelift
-[its GitHub page]: https://github.com/rune-rs/rune/
+[github]: https://github.com/rune-rs/rune/

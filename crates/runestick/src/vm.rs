@@ -68,6 +68,12 @@ impl Vm {
 
     /// Get the stack.
     #[inline]
+    pub fn call_frames(&self) -> &[CallFrame] {
+        &self.call_frames
+    }
+
+    /// Get the stack.
+    #[inline]
     pub fn stack(&self) -> &Stack {
         &self.stack
     }
@@ -109,12 +115,6 @@ impl Vm {
         };
 
         Ok(())
-    }
-
-    /// Iterate over the stack, producing the value associated with each stack
-    /// item.
-    pub fn iter_stack_debug(&self) -> impl Iterator<Item = &Value> + '_ {
-        self.stack.iter()
     }
 
     /// Call the function identified by the given name.
@@ -405,11 +405,11 @@ impl Vm {
     /// This will cause the `args` number of elements on the stack to be
     /// associated and accessible to the new call frame.
     pub(crate) fn push_call_frame(&mut self, ip: usize, args: usize) -> Result<(), VmError> {
-        let stack_top = self.stack.swap_stack_top(args)?;
+        let stack_top = self.stack.swap_stack_bottom(args)?;
 
         self.call_frames.push(CallFrame {
             ip: self.ip,
-            stack_top,
+            stack_bottom: stack_top,
         });
 
         self.ip = ip.overflowing_sub(1).0;
@@ -426,7 +426,7 @@ impl Vm {
             }
         };
 
-        self.stack.pop_stack_top(frame.stack_top)?;
+        self.stack.pop_stack_top(frame.stack_bottom)?;
         self.ip = frame.ip;
         Ok(false)
     }
@@ -2177,7 +2177,7 @@ impl Vm {
 ///
 /// This is used to store the return point after an instruction has been run.
 #[derive(Debug, Clone, Copy)]
-struct CallFrame {
+pub struct CallFrame {
     /// The stored instruction pointer.
     ip: usize,
     /// The top of the stack at the time of the call to ensure stack isolation
@@ -2185,5 +2185,17 @@ struct CallFrame {
     ///
     /// I.e. a function should not be able to manipulate the size of any other
     /// stack than its own.
-    stack_top: usize,
+    stack_bottom: usize,
+}
+
+impl CallFrame {
+    /// Get the instruction pointer of the call frame.
+    pub fn ip(&self) -> usize {
+        self.ip
+    }
+
+    /// Get the bottom of the stack of the current call frame.
+    pub fn stack_bottom(&self) -> usize {
+        self.stack_bottom
+    }
 }

@@ -133,7 +133,7 @@ pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple,
 };
 pub use crate::vec_tuple::VecTuple;
-pub use crate::vm::Vm;
+pub use crate::vm::{CallFrame, Vm};
 pub use crate::vm_call::VmCall;
 pub use crate::vm_error::{VmError, VmErrorKind};
 pub use crate::vm_execution::VmExecution;
