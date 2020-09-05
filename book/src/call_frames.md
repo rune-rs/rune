@@ -1,8 +1,30 @@
 # Call frames
 
-Call frames are a cheap function isolation mechanism available in the virtual
-machine. They create a subslice in the stack, preventing the vm from accessing
-any values that are at an address below the current call frame.
+Call frames are a cheap isolation mechanism available in the virtual machine.
+They define a subslice in the stack, preventing the vm from accessing values
+that are outside of the slice.
+
+They have the following rules:
+* Instructions cannot access values outside of their current call frame.
+* When we return from the call frame the subslice must be empty.
+
+If any these two conditions aren't maintained, the virtual machine will error.
+
+Call frames fill two purposes. The subslice provides a well-defined variable
+region. Stack-relative operations like `copy 0` are always defined relative to
+the top of their call frame. Where `copy 0` would mean "copy from offset 0 of
+the current stack frame".
+
+They also provide a cheap security mechanism against *miscompilations*. This
+might be made optional in the future once Rune is more stable, but for now it's
+helpful to detect errors early and protect the user against bad instructions.
+But don't mistake it for perfect security. Like [stack protection] which is
+common in modern operating systems, the mechanism can be circumvented by
+malicious code. 
+
+[stack protection]: https://en.wikipedia.org/wiki/Buffer_overflow_protection
+
+To look close at the mechanism, let's trace the following program:
 
 ```rust,noplaypen
 {{#include ../../scripts/book/the_stack/call_and_add.rn}}
@@ -61,16 +83,17 @@ fn foo(arg, arg) (0xbfd58656ec9a8ebe):
     *empty*
 ```
 
-We're not going to go through each instruction step-by-step as in the last
-section. Instead I will point out the things which are worth noting.
+We're not going to go through each instruction step-by-step like in the last
+section. Instead we will only examine the parts related to call frames.
 
-We have an instruction shown as `call 0xbfd58656ec9a8ebe, 2`, which means tells
-the virtual machine to call the function with the hash `0xbfd58656ec9a8ebe`, and
-use the top two values on the stack as arguments to this function.
+We have a `call 0xbfd58656ec9a8ebe, 2` instruction, which tells the virtual
+machine to jump to the function corresponding to the type hash
+`0xbfd58656ec9a8ebe`, and isolate the top two values on the stack in the next
+call frame.
 
-We can see that the first argument `a` is on the *lowest* position, and the
-second argument `b` is on the *highest* position. Let's examine this function call closer.
-
+We can see that the first argument `a` is in the *lowest* position, and the
+second argument `b` is on the *highest* position. Let's examine the effects this
+function call has on the stack.
 
 ```text
     0+0 = 3
@@ -82,14 +105,15 @@ second argument `b` is on the *highest* position. Let's examine this function ca
     1+1 = 2
 ```
 
-Here we can see the call being executed. A new stack frame `frame 1` is
-allocated, and we can see that it contains two items, `1` and `2`.
+Here we can see a new call frame `frame 1` being allocated, and that it contains
+two items: `1` and `2`.
 
-We can also see that the items are offset from position `1`. `1+0` and `1+1`.
-This is to indicate that the call frame relative position of the items are `0`
-and `1`, but the global stack location is `1+0`, which is `1`. And `1+1` which
-is `2`. The value `3` at `0+0` is no longer visible to the call frame. But we
-can see it become visible again later one when the call frame returns.
+We can also see that the items are offset from position `1`, which is the base
+of the current call frame. This is shown as the addresses `1+0` and `1+1`. The
+value `3` at `0+0` is no longer visible, because it is outside of the current
+call frame.
+
+Let's have a look at what happens when we `return`:
 
 ```
     1+0 = 1
@@ -103,7 +127,7 @@ can see it become visible again later one when the call frame returns.
     0+1 = 3
 ```
 
-Here we can see the `clean 2` instruction. Which tells the vm to preserve the
-top of the stack `1+2`, and clean two items off it. Then we `return`, after
-which we can see that we return to `frame 0`, which now has `0+0` visible *and*
+We call the `clean 2` instruction. Which tells the vm to preserve the top of the
+stack (`1+2`), and clean two items below it, leaving us with `3`. We then
+`return`, which jumps us back to `frame 0`, which now has `0+0` visible *and*
 our return value at `0+1`.
