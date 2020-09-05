@@ -1,7 +1,7 @@
+use crate::ast;
 use crate::ast::utils;
 use crate::error::ParseError;
-use crate::token::{Delimiter, Kind, LitNumber, Token};
-use runestick::unit::Span;
+use runestick::Span;
 
 /// Lexer for the rune language.
 #[derive(Debug, Clone)]
@@ -16,7 +16,9 @@ impl<'a> Lexer<'a> {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{Lexer, Kind, Span, Token};
+    /// use rune::Lexer;
+    /// use rune::ast::{Kind, Token};
+    /// use runestick::Span;
     ///
     /// assert_eq! {
     ///     Lexer::new("fn").next().unwrap().unwrap(),
@@ -62,7 +64,7 @@ impl<'a> Lexer<'a> {
             .unwrap_or_else(|| self.source.len())
     }
 
-    fn next_ident<I>(&mut self, it: &mut I, start: usize) -> Result<Option<Token>, ParseError>
+    fn next_ident<I>(&mut self, it: &mut I, start: usize) -> Result<Option<ast::Token>, ParseError>
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
@@ -82,35 +84,35 @@ impl<'a> Lexer<'a> {
         let ident = &self.source[start..self.cursor];
 
         let kind = match ident {
-            "self" => Kind::Self_,
-            "fn" => Kind::Fn,
-            "enum" => Kind::Enum,
-            "struct" => Kind::Struct,
-            "let" => Kind::Let,
-            "if" => Kind::If,
-            "match" => Kind::Match,
-            "else" => Kind::Else,
-            "use" => Kind::Use,
-            "while" => Kind::While,
-            "for" => Kind::For,
-            "loop" => Kind::Loop,
-            "in" => Kind::In,
-            "true" => Kind::True,
-            "false" => Kind::False,
-            "is" => Kind::Is,
-            "not" => Kind::Not,
-            "break" => Kind::Break,
-            "yield" => Kind::Yield,
-            "return" => Kind::Return,
-            "await" => Kind::Await,
-            "async" => Kind::Async,
-            "select" => Kind::Select,
-            "default" => Kind::Default,
-            "impl" => Kind::Impl,
-            _ => Kind::Ident,
+            "self" => ast::Kind::Self_,
+            "fn" => ast::Kind::Fn,
+            "enum" => ast::Kind::Enum,
+            "struct" => ast::Kind::Struct,
+            "let" => ast::Kind::Let,
+            "if" => ast::Kind::If,
+            "match" => ast::Kind::Match,
+            "else" => ast::Kind::Else,
+            "use" => ast::Kind::Use,
+            "while" => ast::Kind::While,
+            "for" => ast::Kind::For,
+            "loop" => ast::Kind::Loop,
+            "in" => ast::Kind::In,
+            "true" => ast::Kind::True,
+            "false" => ast::Kind::False,
+            "is" => ast::Kind::Is,
+            "not" => ast::Kind::Not,
+            "break" => ast::Kind::Break,
+            "yield" => ast::Kind::Yield,
+            "return" => ast::Kind::Return,
+            "await" => ast::Kind::Await,
+            "async" => ast::Kind::Async,
+            "select" => ast::Kind::Select,
+            "default" => ast::Kind::Default,
+            "impl" => ast::Kind::Impl,
+            _ => ast::Kind::Ident,
         };
 
-        Ok(Some(Token {
+        Ok(Some(ast::Token {
             kind,
             span: Span {
                 start,
@@ -126,7 +128,7 @@ impl<'a> Lexer<'a> {
         c: char,
         start: usize,
         is_negative: bool,
-    ) -> Result<Option<Token>, ParseError>
+    ) -> Result<Option<ast::Token>, ParseError>
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
@@ -137,10 +139,10 @@ impl<'a> Lexer<'a> {
             #[allow(clippy::never_loop)]
             loop {
                 let number = match m {
-                    'x' => LitNumber::Hex,
-                    'b' => LitNumber::Binary,
-                    'o' => LitNumber::Octal,
-                    _ => break LitNumber::Decimal,
+                    'x' => ast::NumberKind::Hex,
+                    'b' => ast::NumberKind::Binary,
+                    'o' => ast::NumberKind::Octal,
+                    _ => break ast::NumberKind::Decimal,
                 };
 
                 // consume character.
@@ -148,7 +150,7 @@ impl<'a> Lexer<'a> {
                 break number;
             }
         } else {
-            LitNumber::Decimal
+            ast::NumberKind::Decimal
         };
 
         self.cursor = loop {
@@ -171,8 +173,8 @@ impl<'a> Lexer<'a> {
             }
         };
 
-        Ok(Some(Token {
-            kind: Kind::LitNumber {
+        Ok(Some(ast::Token {
+            kind: ast::Kind::LitNumber {
                 is_fractional,
                 is_negative,
                 number,
@@ -189,7 +191,7 @@ impl<'a> Lexer<'a> {
         &mut self,
         it: &mut I,
         start: usize,
-    ) -> Result<Option<Token>, ParseError>
+    ) -> Result<Option<ast::Token>, ParseError>
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
@@ -250,16 +252,16 @@ impl<'a> Lexer<'a> {
         };
 
         if is_label {
-            Ok(Some(Token {
-                kind: Kind::Label,
+            Ok(Some(ast::Token {
+                kind: ast::Kind::Label,
                 span: Span {
                     start,
                     end: self.cursor,
                 },
             }))
         } else {
-            Ok(Some(Token {
-                kind: Kind::LitChar,
+            Ok(Some(ast::Token {
+                kind: ast::Kind::LitChar,
                 span: Span {
                     start,
                     end: self.cursor,
@@ -269,7 +271,11 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a string literal.
-    fn next_lit_byte<I>(&mut self, it: &mut I, start: usize) -> Result<Option<Token>, ParseError>
+    fn next_lit_byte<I>(
+        &mut self,
+        it: &mut I,
+        start: usize,
+    ) -> Result<Option<ast::Token>, ParseError>
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
@@ -309,8 +315,8 @@ impl<'a> Lexer<'a> {
             }
         };
 
-        Ok(Some(Token {
-            kind: Kind::LitByte,
+        Ok(Some(ast::Token {
+            kind: ast::Kind::LitByte,
             span: Span {
                 start,
                 end: self.cursor,
@@ -319,7 +325,11 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a string literal.
-    fn next_lit_str<I>(&mut self, it: &mut I, start: usize) -> Result<Option<Token>, ParseError>
+    fn next_lit_str<I>(
+        &mut self,
+        it: &mut I,
+        start: usize,
+    ) -> Result<Option<ast::Token>, ParseError>
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
@@ -356,8 +366,8 @@ impl<'a> Lexer<'a> {
             };
         };
 
-        Ok(Some(Token {
-            kind: Kind::LitStr { escaped },
+        Ok(Some(ast::Token {
+            kind: ast::Kind::LitStr { escaped },
             span: Span {
                 start,
                 end: self.cursor,
@@ -370,7 +380,7 @@ impl<'a> Lexer<'a> {
         &mut self,
         it: &mut I,
         start: usize,
-    ) -> Result<Option<Token>, ParseError>
+    ) -> Result<Option<ast::Token>, ParseError>
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
@@ -407,8 +417,8 @@ impl<'a> Lexer<'a> {
             };
         };
 
-        Ok(Some(Token {
-            kind: Kind::LitByteStr { escaped },
+        Ok(Some(ast::Token {
+            kind: ast::Kind::LitByteStr { escaped },
             span: Span {
                 start,
                 end: self.cursor,
@@ -417,7 +427,11 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a string literal.
-    fn next_template<I>(&mut self, it: &mut I, start: usize) -> Result<Option<Token>, ParseError>
+    fn next_template<I>(
+        &mut self,
+        it: &mut I,
+        start: usize,
+    ) -> Result<Option<ast::Token>, ParseError>
     where
         I: Clone + Iterator<Item = (usize, char)>,
     {
@@ -459,8 +473,8 @@ impl<'a> Lexer<'a> {
             };
         };
 
-        Ok(Some(Token {
-            kind: Kind::LitTemplate { escaped },
+        Ok(Some(ast::Token {
+            kind: ast::Kind::LitTemplate { escaped },
             span: Span {
                 start,
                 end: self.cursor,
@@ -483,7 +497,7 @@ impl<'a> Lexer<'a> {
 
     /// Consume the next token from the lexer.
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Result<Option<Token>, ParseError> {
+    pub fn next(&mut self) -> Result<Option<ast::Token>, ParseError> {
         let mut it = self.source[self.cursor..].char_indices();
 
         'outer: while let Some((start, c)) = it.next() {
@@ -500,19 +514,19 @@ impl<'a> Lexer<'a> {
                     match (c, c2) {
                         ('+', '=') => {
                             it.next();
-                            break Kind::AddAssign;
+                            break ast::Kind::AddAssign;
                         }
                         ('-', '=') => {
                             it.next();
-                            break Kind::SubAssign;
+                            break ast::Kind::SubAssign;
                         }
                         ('*', '=') => {
                             it.next();
-                            break Kind::MulAssign;
+                            break ast::Kind::MulAssign;
                         }
                         ('/', '=') => {
                             it.next();
-                            break Kind::DivAssign;
+                            break ast::Kind::DivAssign;
                         }
                         ('/', '/') => {
                             self.consume_line(&mut it);
@@ -520,39 +534,39 @@ impl<'a> Lexer<'a> {
                         }
                         (':', ':') => {
                             it.next();
-                            break Kind::Scope;
+                            break ast::Kind::Scope;
                         }
                         ('<', '=') => {
                             it.next();
-                            break Kind::Lte;
+                            break ast::Kind::Lte;
                         }
                         ('>', '=') => {
                             it.next();
-                            break Kind::Gte;
+                            break ast::Kind::Gte;
                         }
                         ('=', '=') => {
                             it.next();
-                            break Kind::EqEq;
+                            break ast::Kind::EqEq;
                         }
                         ('!', '=') => {
                             it.next();
-                            break Kind::Neq;
+                            break ast::Kind::Neq;
                         }
                         ('&', '&') => {
                             it.next();
-                            break Kind::And;
+                            break ast::Kind::And;
                         }
                         ('|', '|') => {
                             it.next();
-                            break Kind::Or;
+                            break ast::Kind::Or;
                         }
                         ('.', '.') => {
                             it.next();
-                            break Kind::DotDot;
+                            break ast::Kind::DotDot;
                         }
                         ('=', '>') => {
                             it.next();
-                            break Kind::Rocket;
+                            break ast::Kind::Rocket;
                         }
                         ('-', c @ '0'..='9') => {
                             it.next();
@@ -573,30 +587,30 @@ impl<'a> Lexer<'a> {
                 }
 
                 break match c {
-                    '(' => Kind::Open(Delimiter::Parenthesis),
-                    ')' => Kind::Close(Delimiter::Parenthesis),
-                    '{' => Kind::Open(Delimiter::Brace),
-                    '}' => Kind::Close(Delimiter::Brace),
-                    '[' => Kind::Open(Delimiter::Bracket),
-                    ']' => Kind::Close(Delimiter::Bracket),
-                    '_' => Kind::Underscore,
-                    ',' => Kind::Comma,
-                    ':' => Kind::Colon,
-                    '#' => Kind::Hash,
-                    '.' => Kind::Dot,
-                    ';' => Kind::SemiColon,
-                    '=' => Kind::Eq,
-                    '+' => Kind::Add,
-                    '-' => Kind::Sub,
-                    '/' => Kind::Div,
-                    '*' => Kind::Mul,
-                    '&' => Kind::Ampersand,
-                    '>' => Kind::Gt,
-                    '<' => Kind::Lt,
-                    '!' => Kind::Bang,
-                    '?' => Kind::Try,
-                    '|' => Kind::Pipe,
-                    '%' => Kind::Rem,
+                    '(' => ast::Kind::Open(ast::Delimiter::Parenthesis),
+                    ')' => ast::Kind::Close(ast::Delimiter::Parenthesis),
+                    '{' => ast::Kind::Open(ast::Delimiter::Brace),
+                    '}' => ast::Kind::Close(ast::Delimiter::Brace),
+                    '[' => ast::Kind::Open(ast::Delimiter::Bracket),
+                    ']' => ast::Kind::Close(ast::Delimiter::Bracket),
+                    '_' => ast::Kind::Underscore,
+                    ',' => ast::Kind::Comma,
+                    ':' => ast::Kind::Colon,
+                    '#' => ast::Kind::Hash,
+                    '.' => ast::Kind::Dot,
+                    ';' => ast::Kind::SemiColon,
+                    '=' => ast::Kind::Eq,
+                    '+' => ast::Kind::Add,
+                    '-' => ast::Kind::Sub,
+                    '/' => ast::Kind::Div,
+                    '*' => ast::Kind::Mul,
+                    '&' => ast::Kind::Ampersand,
+                    '>' => ast::Kind::Gt,
+                    '<' => ast::Kind::Lt,
+                    '!' => ast::Kind::Bang,
+                    '?' => ast::Kind::Try,
+                    '|' => ast::Kind::Pipe,
+                    '%' => ast::Kind::Rem,
                     'a'..='z' | 'A'..='Z' => {
                         return self.next_ident(&mut it, start);
                     }
@@ -625,7 +639,7 @@ impl<'a> Lexer<'a> {
 
             self.cursor = self.end_span(&it);
 
-            return Ok(Some(Token {
+            return Ok(Some(ast::Token {
                 kind,
                 span: Span {
                     start,
@@ -642,8 +656,8 @@ impl<'a> Lexer<'a> {
 #[cfg(test)]
 mod tests {
     use super::Lexer;
-    use crate::token::{Delimiter, Kind, LitNumber, Token};
-    use runestick::unit::Span;
+    use crate::ast;
+    use runestick::Span;
 
     macro_rules! test_lexer {
         ($source:expr $(, $pat:expr)* $(,)?) => {{
@@ -657,17 +671,17 @@ mod tests {
     fn test_char_literal() {
         test_lexer! {
             "'a'",
-            Token {
+            ast::Token {
                 span: Span::new(0, 3),
-                kind: Kind::LitChar,
+                kind: ast::Kind::LitChar,
             }
         };
 
         test_lexer! {
             "'\\u{abcd}'",
-            Token {
+            ast::Token {
                 span: Span::new(0, 10),
-                kind: Kind::LitChar,
+                kind: ast::Kind::LitChar,
             }
         };
     }
@@ -676,17 +690,17 @@ mod tests {
     fn test_label() {
         test_lexer! {
             "'asdf 'a' \"foo bar\"",
-            Token {
+            ast::Token {
                 span: Span::new(0, 5),
-                kind: Kind::Label,
+                kind: ast::Kind::Label,
             },
-            Token {
+            ast::Token {
                 span: Span::new(6, 9),
-                kind: Kind::LitChar,
+                kind: ast::Kind::LitChar,
             },
-            Token {
+            ast::Token {
                 span: Span::new(10, 19),
-                kind: Kind::LitStr {
+                kind: ast::Kind::LitStr {
                     escaped: false,
                 },
             }
@@ -697,37 +711,37 @@ mod tests {
     fn test_operators() {
         test_lexer! {
             "+ += - -= * *= / /=",
-            Token {
+            ast::Token {
                 span: Span::new(0, 1),
-                kind: Kind::Add,
+                kind: ast::Kind::Add,
             },
-            Token {
+            ast::Token {
                 span: Span::new(2, 4),
-                kind: Kind::AddAssign,
+                kind: ast::Kind::AddAssign,
             },
-            Token {
+            ast::Token {
                 span: Span::new(5, 6),
-                kind: Kind::Sub,
+                kind: ast::Kind::Sub,
             },
-            Token {
+            ast::Token {
                 span: Span::new(7, 9),
-                kind: Kind::SubAssign,
+                kind: ast::Kind::SubAssign,
             },
-            Token {
+            ast::Token {
                 span: Span::new(10, 11),
-                kind: Kind::Mul,
+                kind: ast::Kind::Mul,
             },
-            Token {
+            ast::Token {
                 span: Span::new(12, 14),
-                kind: Kind::MulAssign,
+                kind: ast::Kind::MulAssign,
             },
-            Token {
+            ast::Token {
                 span: Span::new(15, 16),
-                kind: Kind::Div,
+                kind: ast::Kind::Div,
             },
-            Token {
+            ast::Token {
                 span: Span::new(17, 19),
-                kind: Kind::DivAssign,
+                kind: ast::Kind::DivAssign,
             }
         };
     }
@@ -736,33 +750,33 @@ mod tests {
     fn test_idents() {
         test_lexer! {
             "a.checked_div(10)",
-            Token {
+            ast::Token {
                 span: Span::new(0, 1),
-                kind: Kind::Ident,
+                kind: ast::Kind::Ident,
             },
-            Token {
+            ast::Token {
                 span: Span::new(1, 2),
-                kind: Kind::Dot,
+                kind: ast::Kind::Dot,
             },
-            Token {
+            ast::Token {
                 span: Span::new(2, 13),
-                kind: Kind::Ident,
+                kind: ast::Kind::Ident,
             },
-            Token {
+            ast::Token {
                 span: Span::new(13, 14),
-                kind: Kind::Open(Delimiter::Parenthesis),
+                kind: ast::Kind::Open(ast::Delimiter::Parenthesis),
             },
-            Token {
+            ast::Token {
                 span: Span::new(14, 16),
-                kind: Kind::LitNumber {
+                kind: ast::Kind::LitNumber {
                     is_fractional: false,
                     is_negative: false,
-                    number: LitNumber::Decimal,
+                    number: ast::NumberKind::Decimal,
                 },
             },
-            Token {
+            ast::Token {
                 span: Span::new(16, 17),
-                kind: Kind::Close(Delimiter::Parenthesis),
+                kind: ast::Kind::Close(ast::Delimiter::Parenthesis),
             },
         };
     }
@@ -771,9 +785,9 @@ mod tests {
     fn test_template_literals() {
         test_lexer! {
             "`foo {bar} \\` baz`",
-            Token {
+            ast::Token {
                 span: Span::new(0, 18),
-                kind: Kind::LitTemplate { escaped: true },
+                kind: ast::Kind::LitTemplate { escaped: true },
             },
         };
     }
@@ -782,9 +796,9 @@ mod tests {
     fn test_literals() {
         test_lexer! {
             r#"b"hello world""#,
-            Token {
+            ast::Token {
                 span: Span::new(0, 14),
-                kind: Kind::LitByteStr {
+                kind: ast::Kind::LitByteStr {
                     escaped: false,
                 },
             },
@@ -792,41 +806,41 @@ mod tests {
 
         test_lexer! {
             "b'\\\\''",
-            Token {
+            ast::Token {
                 span: Span::new(0, 6),
-                kind: Kind::LitByte,
+                kind: ast::Kind::LitByte,
             },
         };
 
         test_lexer! {
             "'label 'a' b'a'",
-            Token {
+            ast::Token {
                 span: Span::new(0, 6),
-                kind: Kind::Label,
+                kind: ast::Kind::Label,
             },
-            Token {
+            ast::Token {
                 span: Span::new(7, 10),
-                kind: Kind::LitChar,
+                kind: ast::Kind::LitChar,
             },
-            Token {
+            ast::Token {
                 span: Span::new(11, 15),
-                kind: Kind::LitByte,
+                kind: ast::Kind::LitByte,
             },
         };
 
         test_lexer! {
             "b'a'",
-            Token {
+            ast::Token {
                 span: Span::new(0, 4),
-                kind: Kind::LitByte,
+                kind: ast::Kind::LitByte,
             },
         };
 
         test_lexer! {
             "b'\\n'",
-            Token {
+            ast::Token {
                 span: Span::new(0, 5),
-                kind: Kind::LitByte,
+                kind: ast::Kind::LitByte,
             },
         };
     }

@@ -2,7 +2,7 @@ use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::{Parse, Peek};
-use runestick::unit::Span;
+use runestick::Span;
 
 /// Something parenthesized and comma separated `(<T,>*)`.
 #[derive(Debug, Clone)]

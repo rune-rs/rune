@@ -1,17 +1,15 @@
-use crate::ast::utils;
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
-use runestick::unit::Span;
-use runestick::Source;
+use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A string literal.
 #[derive(Debug, Clone)]
 pub struct LitStr {
     /// The token corresponding to the literal.
-    token: Token,
+    token: ast::Token,
     /// If the string literal is escaped.
     escaped: bool,
 }
@@ -33,9 +31,11 @@ impl LitStr {
 
         while let Some((n, c)) = it.next() {
             buffer.push(match c {
-                '\\' => {
-                    utils::parse_char_escape(span.with_start(n), &mut it, utils::WithBrace(false))?
-                }
+                '\\' => ast::utils::parse_char_escape(
+                    span.with_start(n),
+                    &mut it,
+                    ast::utils::WithBrace(false),
+                )?,
                 c => c,
             });
         }
@@ -76,7 +76,7 @@ impl Parse for LitStr {
         let token = parser.token_next()?;
 
         match token.kind {
-            Kind::LitStr { escaped } => Ok(LitStr { token, escaped }),
+            ast::Kind::LitStr { escaped } => Ok(LitStr { token, escaped }),
             _ => Err(ParseError::ExpectedString {
                 actual: token.kind,
                 span: token.span,

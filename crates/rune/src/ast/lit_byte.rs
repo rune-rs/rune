@@ -1,16 +1,14 @@
-use crate::ast::utils;
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
-use runestick::unit::Span;
-use runestick::Source;
+use runestick::{Source, Span};
 
 /// A byte literal.
 #[derive(Debug, Clone)]
 pub struct LitByte {
     /// The token corresponding to the literal.
-    pub token: Token,
+    pub token: ast::Token,
 }
 
 impl LitByte {
@@ -38,7 +36,7 @@ impl Parse for LitByte {
         let token = parser.token_next()?;
 
         Ok(match token.kind {
-            Kind::LitByte => LitByte { token },
+            ast::Kind::LitByte => LitByte { token },
             _ => {
                 return Err(ParseError::ExpectedByte {
                     actual: token.kind,
@@ -72,7 +70,7 @@ impl<'a> Resolve<'a> for LitByte {
         };
 
         let c = match c {
-            '\\' => utils::parse_byte_escape(span.with_start(n), &mut it)?,
+            '\\' => ast::utils::parse_byte_escape(span.with_start(n), &mut it)?,
             c if c.is_ascii() && !c.is_control() => c as u8,
             _ => {
                 return Err(ParseError::BadByteLiteral { span });

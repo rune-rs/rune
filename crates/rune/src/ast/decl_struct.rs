@@ -1,7 +1,7 @@
 use crate::ast;
+use crate::ast::{Delimiter, Kind};
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Delimiter, Kind};
 use crate::traits::Parse;
 use runestick::Span;
 

@@ -3,7 +3,7 @@ use crate::ast::{CloseBrace, Comma, Expr, If, Match, OpenBrace, Pat, Rocket};
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
-use runestick::unit::Span;
+use runestick::Span;
 
 /// A match branch.
 #[derive(Debug, Clone)]

@@ -1,5 +1,5 @@
 use crate::ast;
-use runestick::unit::Span;
+use runestick::Span;
 
 /// The field being accessed.
 #[derive(Debug, Clone)]

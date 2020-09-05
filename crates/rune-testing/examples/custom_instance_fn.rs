@@ -1,3 +1,5 @@
+use rune::termcolor::{ColorChoice, StandardStream};
+use rune::EmitDiagnostics as _;
 use runestick::{Context, FromValue, Hash, Item, Module, Source};
 use std::sync::Arc;
 
@@ -33,8 +35,7 @@ async fn main() -> runestick::Result<()> {
     let unit = match result {
         Ok(unit) => unit,
         Err(error) => {
-            use rune::termcolor;
-            let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Never);
+            let mut writer = StandardStream::stderr(ColorChoice::Never);
             error.emit_diagnostics(&mut writer)?;
             return Ok(());
         }

@@ -1,9 +1,9 @@
 use crate::ast;
+use crate::ast::{Kind, Token};
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Kind, Token};
 use crate::traits::{Parse, Peek};
-use runestick::unit::Span;
+use runestick::Span;
 
 /// Things that we can break on.
 #[derive(Debug, Clone)]
@@ -29,7 +29,7 @@ impl Parse for ExprBreakValue {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            Kind::Label => Self::Label(parser.parse()?),
+            ast::Kind::Label => Self::Label(parser.parse()?),
             _ => Self::Expr(Box::new(parser.parse()?)),
         })
     }

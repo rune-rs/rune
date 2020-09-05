@@ -1,8 +1,8 @@
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Kind, Token};
 use crate::traits::{Parse, Peek};
-use runestick::unit::Span;
+use runestick::Span;
 
 /// The unit literal `()`.
 #[derive(Debug, Clone)]
@@ -10,7 +10,7 @@ pub struct LitBool {
     /// The value of the literal.
     pub value: bool,
     /// The token of the literal.
-    pub token: Token,
+    pub token: ast::Token,
 }
 
 impl LitBool {
@@ -35,8 +35,8 @@ impl Parse for LitBool {
         let token = parser.token_next()?;
 
         let value = match token.kind {
-            Kind::True => true,
-            Kind::False => false,
+            ast::Kind::True => true,
+            ast::Kind::False => false,
             _ => {
                 return Err(ParseError::ExpectedBool {
                     span: token.span,
@@ -50,15 +50,15 @@ impl Parse for LitBool {
 }
 
 impl Peek for LitBool {
-    fn peek(p1: Option<Token>, _: Option<Token>) -> bool {
+    fn peek(p1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
         let p1 = match p1 {
             Some(p1) => p1,
             None => return false,
         };
 
         match p1.kind {
-            Kind::True => true,
-            Kind::False => true,
+            ast::Kind::True => true,
+            ast::Kind::False => true,
             _ => false,
         }
     }

@@ -58,6 +58,7 @@ mod select;
 mod serde;
 mod shared;
 mod source;
+mod span;
 mod stack;
 mod static_string;
 mod static_type;
@@ -86,6 +87,7 @@ pub use self::meta::{Meta, MetaClosureCapture, MetaStruct, MetaTuple};
 pub use self::module::Module;
 pub use self::select::Select;
 pub use self::source::Source;
+pub use self::span::Span;
 pub use self::static_string::StaticString;
 pub use self::static_type::{
     StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FUNCTION_TYPE,
@@ -120,7 +122,7 @@ pub use crate::protocol::{
 pub use crate::reflection::{FromValue, IntoArgs, ReflectValueType, ToValue, UnsafeFromValue};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
-pub use crate::unit::{ImportEntry, ImportKey, Span, Unit, UnitError};
+pub use crate::unit::{ImportEntry, ImportKey, Unit, UnitError};
 pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple,
 };

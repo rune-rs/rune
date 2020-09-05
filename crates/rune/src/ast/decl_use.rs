@@ -1,7 +1,7 @@
 use crate::ast;
+use crate::ast::Kind;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::Kind;
 use crate::traits::{Parse, Peek};
 use runestick::Span;
 
@@ -72,8 +72,8 @@ impl Parse for DeclUseComponent {
         let t = parser.token_peek_eof()?;
 
         Ok(match t.kind {
-            Kind::Ident => Self::Ident(parser.parse()?),
-            Kind::Mul => Self::Wildcard(parser.parse()?),
+            ast::Kind::Ident => Self::Ident(parser.parse()?),
+            ast::Kind::Mul => Self::Wildcard(parser.parse()?),
             actual => {
                 return Err(ParseError::ExpectedDeclUseImportComponent {
                     span: t.span,
@@ -85,7 +85,7 @@ impl Parse for DeclUseComponent {
 }
 
 impl Peek for DeclUseComponent {
-    fn peek(t1: Option<crate::Token>, _: Option<crate::Token>) -> bool {
+    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
         let kind = match t1 {
             Some(t) => t.kind,
             None => return false,

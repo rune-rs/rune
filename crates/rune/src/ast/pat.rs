@@ -1,9 +1,9 @@
 use crate::ast;
+use crate::ast::{Delimiter, Kind, Token};
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek};
-use runestick::unit::Span;
+use runestick::Span;
 
 /// A pattern match.
 #[derive(Debug, Clone)]
@@ -53,18 +53,20 @@ impl Pat {
 
         if let Some(token) = parser.token_peek()? {
             match token.kind {
-                Kind::Scope | Kind::Open(Delimiter::Parenthesis) | Kind::Open(Delimiter::Brace) => {
+                ast::Kind::Scope
+                | Kind::Open(Delimiter::Parenthesis)
+                | Kind::Open(Delimiter::Brace) => {
                     let path = ast::Path::parse_with_first(parser, first)?;
 
                     if let Some(t) = parser.token_peek()? {
                         match t.kind {
-                            Kind::Open(Delimiter::Parenthesis) => {
+                            ast::Kind::Open(Delimiter::Parenthesis) => {
                                 return Ok(Self::PatTuple(ast::PatTuple::parse_with_path(
                                     parser,
                                     Some(path),
                                 )?));
                             }
-                            Kind::Open(Delimiter::Brace) => {
+                            ast::Kind::Open(Delimiter::Brace) => {
                                 let ident = ast::LitObjectIdent::Named(path);
 
                                 return Ok(Self::PatObject(ast::PatObject::parse_with_ident(
@@ -110,21 +112,21 @@ impl Parse for Pat {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            Kind::Open(Delimiter::Parenthesis) => {
+            ast::Kind::Open(Delimiter::Parenthesis) => {
                 if parser.peek::<ast::LitUnit>()? {
                     Self::PatUnit(parser.parse()?)
                 } else {
                     Self::PatTuple(parser.parse()?)
                 }
             }
-            Kind::Open(Delimiter::Bracket) => Self::PatVec(parser.parse()?),
-            Kind::Hash => Self::PatObject(parser.parse()?),
-            Kind::LitByte { .. } => Self::PatByte(parser.parse()?),
-            Kind::LitChar { .. } => Self::PatChar(parser.parse()?),
-            Kind::LitNumber { .. } => Self::PatNumber(parser.parse()?),
-            Kind::LitStr { .. } => Self::PatString(parser.parse()?),
-            Kind::Underscore => Self::PatIgnore(parser.parse()?),
-            Kind::Ident => Self::parse_ident(parser)?,
+            ast::Kind::Open(Delimiter::Bracket) => Self::PatVec(parser.parse()?),
+            ast::Kind::Hash => Self::PatObject(parser.parse()?),
+            ast::Kind::LitByte { .. } => Self::PatByte(parser.parse()?),
+            ast::Kind::LitChar { .. } => Self::PatChar(parser.parse()?),
+            ast::Kind::LitNumber { .. } => Self::PatNumber(parser.parse()?),
+            ast::Kind::LitStr { .. } => Self::PatString(parser.parse()?),
+            ast::Kind::Underscore => Self::PatIgnore(parser.parse()?),
+            ast::Kind::Ident => Self::parse_ident(parser)?,
             _ => {
                 return Err(ParseError::ExpectedPatError {
                     span: token.span,
@@ -143,15 +145,15 @@ impl Peek for Pat {
         };
 
         match t1.kind {
-            Kind::Open(Delimiter::Parenthesis) => true,
-            Kind::Open(Delimiter::Bracket) => true,
-            Kind::Hash => true,
-            Kind::LitByte { .. } => true,
-            Kind::LitChar { .. } => true,
-            Kind::LitNumber { .. } => true,
-            Kind::LitStr { .. } => true,
-            Kind::Underscore => true,
-            Kind::Ident => true,
+            ast::Kind::Open(Delimiter::Parenthesis) => true,
+            ast::Kind::Open(Delimiter::Bracket) => true,
+            ast::Kind::Hash => true,
+            ast::Kind::LitByte { .. } => true,
+            ast::Kind::LitChar { .. } => true,
+            ast::Kind::LitNumber { .. } => true,
+            ast::Kind::LitStr { .. } => true,
+            ast::Kind::Underscore => true,
+            ast::Kind::Ident => true,
             _ => false,
         }
     }

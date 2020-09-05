@@ -2,7 +2,7 @@ use crate::ast::{CloseBracket, Comma, DotDot, OpenBracket, Pat};
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
-use runestick::unit::Span;
+use runestick::Span;
 
 /// An array pattern.
 #[derive(Debug, Clone)]

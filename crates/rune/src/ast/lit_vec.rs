@@ -2,7 +2,7 @@ use crate::ast::{CloseBracket, Comma, Expr, OpenBracket};
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
-use runestick::unit::Span;
+use runestick::Span;
 
 /// A number literal.
 #[derive(Debug, Clone)]

@@ -1,10 +1,9 @@
+use crate::ast;
 use crate::ast::expr::{EagerBrace, ExprChain};
-use crate::ast::Expr;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Kind, Token};
 use crate::traits::Parse;
-use runestick::unit::Span;
+use runestick::Span;
 use std::fmt;
 
 /// A unary expression.
@@ -13,9 +12,9 @@ pub struct ExprUnary {
     /// The operation to apply.
     pub op: UnaryOp,
     /// Token associated with operator.
-    pub token: Token,
+    pub token: ast::Token,
     /// The expression of the operation.
-    pub expr: Box<Expr>,
+    pub expr: Box<ast::Expr>,
 }
 
 impl ExprUnary {
@@ -44,7 +43,7 @@ impl Parse for ExprUnary {
         Ok(Self {
             op,
             token,
-            expr: Box::new(Expr::parse_primary(
+            expr: Box::new(ast::Expr::parse_primary(
                 parser,
                 EagerBrace(true),
                 ExprChain(true),
@@ -66,11 +65,11 @@ pub enum UnaryOp {
 
 impl UnaryOp {
     /// Convert a unary operator from a token.
-    pub fn from_token(token: Token) -> Result<Self, ParseError> {
+    pub fn from_token(token: ast::Token) -> Result<Self, ParseError> {
         Ok(match token.kind {
-            Kind::Bang => Self::Not,
-            Kind::Ampersand => Self::BorrowRef,
-            Kind::Mul => Self::Deref,
+            ast::Kind::Bang => Self::Not,
+            ast::Kind::Ampersand => Self::BorrowRef,
+            ast::Kind::Mul => Self::Deref,
             actual => {
                 return Err(ParseError::ExpectedUnaryOperator {
                     span: token.span,

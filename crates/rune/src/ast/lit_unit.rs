@@ -1,17 +1,16 @@
-use crate::ast::{CloseParen, OpenParen};
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek};
-use runestick::unit::Span;
+use runestick::Span;
 
 /// The unit literal `()`.
 #[derive(Debug, Clone)]
 pub struct LitUnit {
     /// The open parenthesis.
-    pub open: OpenParen,
+    pub open: ast::OpenParen,
     /// The close parenthesis.
-    pub close: CloseParen,
+    pub close: ast::CloseParen,
 }
 
 impl LitUnit {
@@ -40,7 +39,7 @@ impl Parse for LitUnit {
 }
 
 impl Peek for LitUnit {
-    fn peek(p1: Option<Token>, p2: Option<Token>) -> bool {
+    fn peek(p1: Option<ast::Token>, p2: Option<ast::Token>) -> bool {
         let (p1, p2) = match (p1, p2) {
             (Some(p1), Some(p2)) => (p1, p2),
             _ => return false,
@@ -49,8 +48,8 @@ impl Peek for LitUnit {
         matches! {
             (p1.kind, p2.kind),
             (
-                Kind::Open(Delimiter::Parenthesis),
-                Kind::Close(Delimiter::Parenthesis),
+                ast::Kind::Open(ast::Delimiter::Parenthesis),
+                ast::Kind::Close(ast::Delimiter::Parenthesis),
             )
         }
     }

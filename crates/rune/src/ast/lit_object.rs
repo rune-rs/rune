@@ -1,10 +1,8 @@
 use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::Kind;
 use crate::traits::{Parse, Resolve};
-use runestick::unit::Span;
-use runestick::Source;
+use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A literal object identifier.
@@ -31,7 +29,7 @@ impl Parse for LitObjectIdent {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            Kind::Hash => Self::Anonymous(parser.parse()?),
+            ast::Kind::Hash => Self::Anonymous(parser.parse()?),
             _ => Self::Named(parser.parse()?),
         })
     }
@@ -126,8 +124,8 @@ impl Parse for LitObjectKey {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
-            Kind::Ident => Self::Ident(parser.parse()?),
+            ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
+            ast::Kind::Ident => Self::Ident(parser.parse()?),
             _ => {
                 return Err(ParseError::ExpectedLitObjectKey {
                     actual: token.kind,

@@ -1,9 +1,8 @@
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{self, Kind, Token};
 use crate::traits::{Parse, Resolve};
-use runestick::unit::Span;
-use runestick::Source;
+use runestick::{Source, Span};
 
 /// A resolved number literal.
 pub enum Number {
@@ -21,9 +20,9 @@ pub struct LitNumber {
     /// Indicates if the number is fractional.
     is_fractional: bool,
     /// The kind of the number literal.
-    number: token::LitNumber,
+    number: ast::NumberKind,
     /// The token corresponding to the literal.
-    token: Token,
+    token: ast::Token,
 }
 
 impl LitNumber {
@@ -50,7 +49,7 @@ impl Parse for LitNumber {
         let token = parser.token_next()?;
 
         Ok(match token.kind {
-            Kind::LitNumber {
+            ast::Kind::LitNumber {
                 is_negative,
                 is_fractional,
                 number,
@@ -97,10 +96,10 @@ impl<'a> Resolve<'a> for LitNumber {
         }
 
         let (s, radix) = match self.number {
-            token::LitNumber::Binary => (2, 2),
-            token::LitNumber::Octal => (2, 8),
-            token::LitNumber::Hex => (2, 16),
-            token::LitNumber::Decimal => (0, 10),
+            ast::NumberKind::Binary => (2, 2),
+            ast::NumberKind::Octal => (2, 8),
+            ast::NumberKind::Hex => (2, 16),
+            ast::NumberKind::Decimal => (0, 10),
         };
 
         let number = num::BigUint::from_str_radix(&string[s..], radix).map_err(err_span(span))?;

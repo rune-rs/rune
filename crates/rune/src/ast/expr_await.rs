@@ -2,7 +2,7 @@ use crate::ast::{Await, Dot, Expr};
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
-use runestick::unit::Span;
+use runestick::Span;
 
 /// A return statement `<expr>.await`.
 #[derive(Debug, Clone)]

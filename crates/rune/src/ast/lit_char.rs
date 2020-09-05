@@ -1,16 +1,14 @@
-use crate::ast::utils;
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
-use runestick::unit::Span;
-use runestick::Source;
+use runestick::{Source, Span};
 
 /// A character literal.
 #[derive(Debug, Clone)]
 pub struct LitChar {
     /// The token corresponding to the literal.
-    pub token: Token,
+    pub token: ast::Token,
 }
 
 impl LitChar {
@@ -38,7 +36,7 @@ impl Parse for LitChar {
         let token = parser.token_next()?;
 
         Ok(match token.kind {
-            Kind::LitChar => LitChar { token },
+            ast::Kind::LitChar => LitChar { token },
             _ => {
                 return Err(ParseError::ExpectedChar {
                     actual: token.kind,
@@ -70,7 +68,11 @@ impl<'a> Resolve<'a> for LitChar {
         };
 
         let c = match c {
-            '\\' => utils::parse_char_escape(span.with_start(n), &mut it, utils::WithBrace(false))?,
+            '\\' => ast::utils::parse_char_escape(
+                span.with_start(n),
+                &mut it,
+                ast::utils::WithBrace(false),
+            )?,
             c => c,
         };
 

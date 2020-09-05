@@ -1,7 +1,7 @@
 use crate::ast;
+use crate::ast::{Kind, Token};
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Kind, Token};
 use crate::traits::{Parse, Peek, Resolve};
 use runestick::{Source, Span};
 

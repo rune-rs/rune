@@ -1,9 +1,9 @@
 use crate::ast;
+use crate::ast::{Delimiter, Kind, Token};
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek};
-use runestick::unit::Span;
+use runestick::Span;
 use std::ops;
 
 /// Indicator that an expression should be parsed with an eager brace.
@@ -261,7 +261,7 @@ impl Expr {
         let token = parser.token_peek_eof()?;
 
         let expr = match token.kind {
-            Kind::Async => {
+            ast::Kind::Async => {
                 let async_: ast::Async = parser.parse()?;
                 let expr: Self = Self::parse_primary(parser, eager_brace, expr_chain)?;
 
@@ -281,19 +281,21 @@ impl Expr {
                     _ => return Err(ParseError::UnsupportedAsyncExpr { span: expr.span() }),
                 }
             }
-            Kind::Self_ => Self::Self_(parser.parse()?),
-            Kind::Select => Self::ExprSelect(parser.parse()?),
-            Kind::Or | Kind::Pipe => Self::ExprClosure(parser.parse()?),
-            Kind::Label => {
+            ast::Kind::Self_ => Self::Self_(parser.parse()?),
+            ast::Kind::Select => Self::ExprSelect(parser.parse()?),
+            ast::Kind::Or | Kind::Pipe => Self::ExprClosure(parser.parse()?),
+            ast::Kind::Label => {
                 let label = Some((parser.parse::<ast::Label>()?, parser.parse::<ast::Colon>()?));
                 let token = parser.token_peek_eof()?;
 
                 return Ok(match token.kind {
-                    Kind::While => {
+                    ast::Kind::While => {
                         Self::ExprWhile(ast::ExprWhile::parse_with_label(parser, label)?)
                     }
-                    Kind::Loop => Self::ExprLoop(ast::ExprLoop::parse_with_label(parser, label)?),
-                    Kind::For => Self::ExprFor(ast::ExprFor::parse_with_label(parser, label)?),
+                    ast::Kind::Loop => {
+                        Self::ExprLoop(ast::ExprLoop::parse_with_label(parser, label)?)
+                    }
+                    ast::Kind::For => Self::ExprFor(ast::ExprFor::parse_with_label(parser, label)?),
                     _ => {
                         return Err(ParseError::ExpectedLoop {
                             actual: token.kind,
@@ -302,28 +304,28 @@ impl Expr {
                     }
                 });
             }
-            Kind::Hash => Self::LitObject(parser.parse()?),
-            Kind::Bang | Kind::Ampersand | Kind::Mul => Self::ExprUnary(parser.parse()?),
-            Kind::While => Self::ExprWhile(parser.parse()?),
-            Kind::Loop => Self::ExprLoop(parser.parse()?),
-            Kind::For => Self::ExprFor(parser.parse()?),
-            Kind::Let => Self::ExprLet(parser.parse()?),
-            Kind::If => Self::ExprIf(parser.parse()?),
-            Kind::Match => Self::ExprMatch(parser.parse()?),
-            Kind::LitNumber { .. } => Self::LitNumber(parser.parse()?),
-            Kind::LitChar { .. } => Self::LitChar(parser.parse()?),
-            Kind::LitByte { .. } => Self::LitByte(parser.parse()?),
-            Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
-            Kind::LitByteStr { .. } => Self::LitByteStr(parser.parse()?),
-            Kind::LitTemplate { .. } => Self::LitTemplate(parser.parse()?),
-            Kind::Open(Delimiter::Parenthesis) => Self::parse_open_paren(parser)?,
-            Kind::Open(Delimiter::Bracket) => Self::LitVec(parser.parse()?),
-            Kind::Open(Delimiter::Brace) => Self::ExprBlock(parser.parse()?),
-            Kind::True | Kind::False => Self::LitBool(parser.parse()?),
-            Kind::Ident => Self::parse_ident_start(parser, eager_brace)?,
-            Kind::Break => Self::ExprBreak(parser.parse()?),
-            Kind::Yield => Self::ExprYield(parser.parse()?),
-            Kind::Return => Self::ExprReturn(parser.parse()?),
+            ast::Kind::Hash => Self::LitObject(parser.parse()?),
+            ast::Kind::Bang | Kind::Ampersand | Kind::Mul => Self::ExprUnary(parser.parse()?),
+            ast::Kind::While => Self::ExprWhile(parser.parse()?),
+            ast::Kind::Loop => Self::ExprLoop(parser.parse()?),
+            ast::Kind::For => Self::ExprFor(parser.parse()?),
+            ast::Kind::Let => Self::ExprLet(parser.parse()?),
+            ast::Kind::If => Self::ExprIf(parser.parse()?),
+            ast::Kind::Match => Self::ExprMatch(parser.parse()?),
+            ast::Kind::LitNumber { .. } => Self::LitNumber(parser.parse()?),
+            ast::Kind::LitChar { .. } => Self::LitChar(parser.parse()?),
+            ast::Kind::LitByte { .. } => Self::LitByte(parser.parse()?),
+            ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
+            ast::Kind::LitByteStr { .. } => Self::LitByteStr(parser.parse()?),
+            ast::Kind::LitTemplate { .. } => Self::LitTemplate(parser.parse()?),
+            ast::Kind::Open(Delimiter::Parenthesis) => Self::parse_open_paren(parser)?,
+            ast::Kind::Open(Delimiter::Bracket) => Self::LitVec(parser.parse()?),
+            ast::Kind::Open(Delimiter::Brace) => Self::ExprBlock(parser.parse()?),
+            ast::Kind::True | Kind::False => Self::LitBool(parser.parse()?),
+            ast::Kind::Ident => Self::parse_ident_start(parser, eager_brace)?,
+            ast::Kind::Break => Self::ExprBreak(parser.parse()?),
+            ast::Kind::Yield => Self::ExprYield(parser.parse()?),
+            ast::Kind::Return => Self::ExprReturn(parser.parse()?),
             _ => {
                 return Err(ParseError::ExpectedExpr {
                     actual: token.kind,
@@ -345,7 +347,7 @@ impl Expr {
             let is_chainable = expr.is_chainable();
 
             match token.kind {
-                Kind::Open(Delimiter::Bracket) if is_chainable => {
+                ast::Kind::Open(Delimiter::Bracket) if is_chainable => {
                     let index_get = ast::ExprIndexGet {
                         target: Box::new(expr),
                         open: parser.parse()?,
@@ -367,7 +369,7 @@ impl Expr {
                     expr = Self::ExprIndexGet(index_get);
                 }
                 // Chained function call.
-                Kind::Open(Delimiter::Parenthesis) if is_chainable => {
+                ast::Kind::Open(Delimiter::Parenthesis) if is_chainable => {
                     let args = parser.parse::<ast::Parenthesized<ast::Expr, ast::Comma>>()?;
 
                     expr = Expr::ExprCall(ast::ExprCall {
@@ -375,13 +377,13 @@ impl Expr {
                         args,
                     });
                 }
-                Kind::Try => {
+                ast::Kind::Try => {
                     expr = Expr::ExprTry(ast::ExprTry {
                         expr: Box::new(expr),
                         try_: parser.parse()?,
                     });
                 }
-                Kind::Dot => {
+                ast::Kind::Dot => {
                     let dot = parser.parse()?;
                     let token = parser.token_peek()?;
 
@@ -537,30 +539,30 @@ impl Peek for Expr {
         };
 
         match t1.kind {
-            Kind::Async => true,
-            Kind::Self_ => true,
-            Kind::Select => true,
-            Kind::Label => matches!(t2.map(|t| t.kind), Some(Kind::Colon)),
-            Kind::Hash => true,
-            Kind::Bang | Kind::Ampersand | Kind::Mul => true,
-            Kind::While => true,
-            Kind::Loop => true,
-            Kind::For => true,
-            Kind::Let => true,
-            Kind::If => true,
-            Kind::LitNumber { .. } => true,
-            Kind::LitChar { .. } => true,
-            Kind::LitByte { .. } => true,
-            Kind::LitStr { .. } => true,
-            Kind::LitByteStr { .. } => true,
-            Kind::LitTemplate { .. } => true,
-            Kind::Open(Delimiter::Parenthesis) => true,
-            Kind::Open(Delimiter::Bracket) => true,
-            Kind::Open(Delimiter::Brace) => true,
-            Kind::True | Kind::False => true,
-            Kind::Ident => true,
-            Kind::Break => true,
-            Kind::Return => true,
+            ast::Kind::Async => true,
+            ast::Kind::Self_ => true,
+            ast::Kind::Select => true,
+            ast::Kind::Label => matches!(t2.map(|t| t.kind), Some(Kind::Colon)),
+            ast::Kind::Hash => true,
+            ast::Kind::Bang | Kind::Ampersand | Kind::Mul => true,
+            ast::Kind::While => true,
+            ast::Kind::Loop => true,
+            ast::Kind::For => true,
+            ast::Kind::Let => true,
+            ast::Kind::If => true,
+            ast::Kind::LitNumber { .. } => true,
+            ast::Kind::LitChar { .. } => true,
+            ast::Kind::LitByte { .. } => true,
+            ast::Kind::LitStr { .. } => true,
+            ast::Kind::LitByteStr { .. } => true,
+            ast::Kind::LitTemplate { .. } => true,
+            ast::Kind::Open(Delimiter::Parenthesis) => true,
+            ast::Kind::Open(Delimiter::Bracket) => true,
+            ast::Kind::Open(Delimiter::Brace) => true,
+            ast::Kind::True | Kind::False => true,
+            ast::Kind::Ident => true,
+            ast::Kind::Break => true,
+            ast::Kind::Return => true,
             _ => false,
         }
     }

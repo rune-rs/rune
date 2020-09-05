@@ -1,9 +1,18 @@
-use runestick::unit::Span;
+use runestick::Span;
 use std::fmt;
+
+/// A single token encountered during parsing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Token {
+    /// The span of the token.
+    pub span: Span,
+    /// The kind of the token.
+    pub kind: Kind,
+}
 
 /// The kind of a number literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum LitNumber {
+pub enum NumberKind {
     /// A decimal number literal, like `3.14`.
     Decimal,
     /// A hex literal, like `0xffff`.
@@ -14,7 +23,7 @@ pub enum LitNumber {
     Binary,
 }
 
-impl fmt::Display for LitNumber {
+impl fmt::Display for NumberKind {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Decimal => write!(fmt, "decimal"),
@@ -25,9 +34,10 @@ impl fmt::Display for LitNumber {
     }
 }
 
+/// A delimiter, `{`, `{`, or `[`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Delimiter {
-    /// A parenthesis delimiter `{` and `}`.
+    /// A parenthesis delimiter `(` and `)`.
     Parenthesis,
     /// A brace delimiter `{` and `}`.
     Brace,
@@ -119,7 +129,7 @@ pub enum Kind {
         /// Indicates if the number is negative.
         is_negative: bool,
         /// The number literal kind.
-        number: LitNumber,
+        number: NumberKind,
     },
     /// A characer literal.
     LitChar,
@@ -281,13 +291,4 @@ impl fmt::Display for Kind {
 
         Ok(())
     }
-}
-
-/// A single token used during parsing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Token {
-    /// The span of the token.
-    pub span: Span,
-    /// The kind of the token.
-    pub kind: Kind,
 }

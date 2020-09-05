@@ -1,17 +1,14 @@
-use crate::ast::utils;
-use crate::ast::Expr;
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Kind, Token};
 use crate::traits::{Parse, Resolve};
-use runestick::unit::Span;
-use runestick::Source;
+use runestick::{Source, Span};
 
 /// A string literal.
 #[derive(Debug, Clone)]
 pub struct LitTemplate {
     /// The token corresponding to the literal.
-    token: Token,
+    token: ast::Token,
     /// If the string literal is escaped.
     escaped: bool,
 }
@@ -29,7 +26,7 @@ pub enum TemplateComponent {
     /// A literal string.
     String(String),
     /// An expression inside of the template. Like `{1 + 2}`.
-    Expr(Box<Expr>),
+    Expr(Box<ast::Expr>),
 }
 
 /// A resolved and parsed string template.
@@ -63,7 +60,8 @@ impl<'a> Resolve<'a> for LitTemplate {
         while let Some((_, c)) = it.next() {
             match c {
                 '\\' => {
-                    let c = utils::parse_char_escape(span, &mut it, utils::WithBrace(true))?;
+                    let c =
+                        ast::utils::parse_char_escape(span, &mut it, ast::utils::WithBrace(true))?;
                     buf.push(c);
                 }
                 '}' => {
@@ -76,11 +74,11 @@ impl<'a> Resolve<'a> for LitTemplate {
                         buf.clear();
                     }
 
-                    let span = utils::template_expr(span, &mut it)?;
+                    let span = ast::utils::template_expr(span, &mut it)?;
                     let source = &source.as_str()[..span.end];
 
                     let mut parser = Parser::new_with_start(source, span.start);
-                    let expr = Expr::parse(&mut parser)?;
+                    let expr = ast::Expr::parse(&mut parser)?;
                     components.push(TemplateComponent::Expr(Box::new(expr)));
                     has_expansions = true;
                 }
@@ -119,7 +117,7 @@ impl Parse for LitTemplate {
         let token = parser.token_next()?;
 
         match token.kind {
-            Kind::LitTemplate { escaped } => Ok(LitTemplate { token, escaped }),
+            ast::Kind::LitTemplate { escaped } => Ok(LitTemplate { token, escaped }),
             _ => Err(ParseError::ExpectedString {
                 actual: token.kind,
                 span: token.span,

@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::Kind;
 use crate::traits::Parse;
-use runestick::unit::Span;
+use runestick::Span;
 
 /// An if condition.
 #[derive(Debug, Clone)]
@@ -39,7 +38,9 @@ impl Parse for Condition {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            Kind::Let => Self::ExprLet(Box::new(ast::ExprLet::parse_without_eager_brace(parser)?)),
+            ast::Kind::Let => {
+                Self::ExprLet(Box::new(ast::ExprLet::parse_without_eager_brace(parser)?))
+            }
             _ => Self::Expr(Box::new(ast::Expr::parse_without_eager_brace(parser)?)),
         })
     }

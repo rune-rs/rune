@@ -95,6 +95,8 @@ mod index;
 mod index_scopes;
 mod items;
 mod lexer;
+mod load;
+mod load_error;
 mod loops;
 mod options;
 mod parser;
@@ -102,31 +104,28 @@ mod query;
 #[cfg(feature = "runtime")]
 mod runtime;
 mod scopes;
-mod token;
 mod traits;
 mod warning;
 
-pub use crate::error::{CompileError, ParseError};
-pub use crate::lexer::Lexer;
-pub use crate::options::Options;
-pub use crate::parser::Parser;
-pub use crate::token::{Kind, Token};
-pub use crate::traits::{Parse, Resolve};
-pub use crate::warning::{Warning, WarningKind, Warnings};
-pub use compiler::compile;
-pub use runestick::unit::Span;
-#[cfg(feature = "runtime")]
-pub use runtime::{
-    emit_vm_error_diagnostics, emit_warning_diagnostics, load_path, load_source, termcolor,
-    DiagnosticsError, LoadError,
-};
-
+/// Internal collection re-export.
 mod collections {
     pub use hashbrown::{hash_map, HashMap};
     pub use hashbrown::{hash_set, HashSet};
 }
 
-/// Construct a runtime with a default context.
+pub use crate::error::{CompileError, ParseError};
+pub use crate::lexer::Lexer;
+pub use crate::load::{load_path, load_source};
+pub use crate::load_error::{LoadError, LoadErrorKind};
+pub use crate::options::Options;
+pub use crate::parser::Parser;
+pub use crate::warning::{Warning, WarningKind, Warnings};
+pub use compiler::compile;
+
+#[cfg(feature = "runtime")]
+pub use runtime::{emit_warning_diagnostics, termcolor, DiagnosticsError, EmitDiagnostics};
+
+/// Construct a a default context runestick context.
 ///
 /// If built with the `modules` feature, this includes all available native
 /// modules.

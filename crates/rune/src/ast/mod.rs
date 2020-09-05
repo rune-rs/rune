@@ -2,10 +2,8 @@
 
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::{Delimiter, Kind, Token};
 use crate::traits::{Parse, Peek, Resolve};
-use runestick::unit::Span;
-use runestick::Source;
+use runestick::{Source, Span};
 
 mod condition;
 mod decl;
@@ -60,6 +58,7 @@ mod pat_path;
 mod pat_tuple;
 mod pat_vec;
 mod path;
+mod token;
 pub(super) mod utils;
 
 pub use self::condition::Condition;
@@ -115,6 +114,7 @@ pub use self::pat_path::PatPath;
 pub use self::pat_tuple::PatTuple;
 pub use self::pat_vec::PatVec;
 pub use self::path::Path;
+pub use self::token::{Delimiter, Kind, NumberKind, Token};
 
 macro_rules! decl_tokens {
     ($(($parser:ident, $($kind:tt)*),)*) => {

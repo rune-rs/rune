@@ -1,5 +1,5 @@
 use crate::ast;
-use runestick::unit::Span;
+use runestick::Span;
 
 /// A function call `<expr>(<args>)`.
 #[derive(Debug, Clone)]

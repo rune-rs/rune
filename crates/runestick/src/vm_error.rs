@@ -13,17 +13,6 @@ pub struct VmError {
     kind: Box<VmErrorKind>,
 }
 
-impl<E> From<E> for VmError
-where
-    VmErrorKind: From<E>,
-{
-    fn from(err: E) -> Self {
-        Self {
-            kind: Box::new(VmErrorKind::from(err)),
-        }
-    }
-}
-
 impl VmError {
     /// Return an error encapsulating a panic.
     pub fn panic<D>(message: D) -> Self
@@ -110,6 +99,17 @@ impl VmError {
             VmErrorKind::Panic { .. } => true,
             VmErrorKind::Unwound { .. } => true,
             _ => false,
+        }
+    }
+}
+
+impl<E> From<E> for VmError
+where
+    VmErrorKind: From<E>,
+{
+    fn from(err: E) -> Self {
+        Self {
+            kind: Box::new(VmErrorKind::from(err)),
         }
     }
 }

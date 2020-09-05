@@ -33,7 +33,7 @@ impl Needs {
     }
 }
 
-/// Helper function to compile the given source.
+/// Compile the given source with default options.
 pub fn compile(
     context: &Context,
     source: &Source,

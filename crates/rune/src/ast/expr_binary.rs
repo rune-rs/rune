@@ -1,18 +1,17 @@
-use crate::ast::Expr;
-use crate::token::{Kind, Token};
+use crate::ast;
 use crate::traits::Peek;
-use runestick::unit::Span;
+use runestick::Span;
 use std::fmt;
 
 /// A binary expression.
 #[derive(Debug, Clone)]
 pub struct ExprBinary {
     /// The left-hand side of a binary operation.
-    pub lhs: Box<Expr>,
+    pub lhs: Box<ast::Expr>,
     /// The operation to apply.
     pub op: BinOp,
     /// The right-hand side of a binary operation.
-    pub rhs: Box<Expr>,
+    pub rhs: Box<ast::Expr>,
 }
 
 impl ExprBinary {
@@ -109,35 +108,35 @@ impl BinOp {
     }
 
     /// Convert from a token.
-    pub(super) fn from_token((t1, t2): (Token, Option<Token>)) -> Option<(BinOp, Span)> {
+    pub(super) fn from_token((t1, t2): (ast::Token, Option<ast::Token>)) -> Option<(BinOp, Span)> {
         let op = match t1.kind {
-            Kind::Add => Self::Add,
-            Kind::AddAssign => Self::AddAssign,
-            Kind::Sub => Self::Sub,
-            Kind::SubAssign => Self::SubAssign,
-            Kind::Div => Self::Div,
-            Kind::DivAssign => Self::DivAssign,
-            Kind::Mul => Self::Mul,
-            Kind::Rem => Self::Rem,
-            Kind::MulAssign => Self::MulAssign,
-            Kind::EqEq => Self::Eq,
-            Kind::Neq => Self::Neq,
-            Kind::Lt => Self::Lt,
-            Kind::Gt => Self::Gt,
-            Kind::Lte => Self::Lte,
-            Kind::Gte => Self::Gte,
-            Kind::Is => {
+            ast::Kind::Add => Self::Add,
+            ast::Kind::AddAssign => Self::AddAssign,
+            ast::Kind::Sub => Self::Sub,
+            ast::Kind::SubAssign => Self::SubAssign,
+            ast::Kind::Div => Self::Div,
+            ast::Kind::DivAssign => Self::DivAssign,
+            ast::Kind::Mul => Self::Mul,
+            ast::Kind::Rem => Self::Rem,
+            ast::Kind::MulAssign => Self::MulAssign,
+            ast::Kind::EqEq => Self::Eq,
+            ast::Kind::Neq => Self::Neq,
+            ast::Kind::Lt => Self::Lt,
+            ast::Kind::Gt => Self::Gt,
+            ast::Kind::Lte => Self::Lte,
+            ast::Kind::Gte => Self::Gte,
+            ast::Kind::Is => {
                 if let Some(t2) = t2 {
-                    if let Kind::Not = t2.kind {
+                    if let ast::Kind::Not = t2.kind {
                         return Some((Self::IsNot, t1.span.join(t2.span)));
                     }
                 }
 
                 Self::Is
             }
-            Kind::Eq => Self::Assign,
-            Kind::And => Self::And,
-            Kind::Or => Self::Or,
+            ast::Kind::Eq => Self::Assign,
+            ast::Kind::And => Self::And,
+            ast::Kind::Or => Self::Or,
             _ => return None,
         };
 
@@ -223,22 +222,22 @@ impl fmt::Display for BinOp {
 }
 
 impl Peek for BinOp {
-    fn peek(p1: Option<Token>, _: Option<Token>) -> bool {
+    fn peek(p1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
         match p1 {
             Some(p1) => match p1.kind {
-                Kind::Add => true,
-                Kind::Sub => true,
-                Kind::Mul => true,
-                Kind::Rem => true,
-                Kind::Div => true,
-                Kind::EqEq => true,
-                Kind::Neq => true,
-                Kind::Gt => true,
-                Kind::Lt => true,
-                Kind::Gte => true,
-                Kind::Lte => true,
-                Kind::Dot => true,
-                Kind::Is => true,
+                ast::Kind::Add => true,
+                ast::Kind::Sub => true,
+                ast::Kind::Mul => true,
+                ast::Kind::Rem => true,
+                ast::Kind::Div => true,
+                ast::Kind::EqEq => true,
+                ast::Kind::Neq => true,
+                ast::Kind::Gt => true,
+                ast::Kind::Lt => true,
+                ast::Kind::Gte => true,
+                ast::Kind::Lte => true,
+                ast::Kind::Dot => true,
+                ast::Kind::Is => true,
                 _ => false,
             },
             None => false,

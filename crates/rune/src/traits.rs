@@ -1,7 +1,7 @@
+use crate::ast::Token;
 use crate::error::CompileResult;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::token::Token;
 use runestick::Source;
 
 /// The parse trait, implemented by items that can be parsed.

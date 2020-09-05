@@ -3,7 +3,7 @@ use crate::ast::utils;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
-use runestick::unit::Span;
+use runestick::Span;
 
 /// A single selection branch.
 #[derive(Debug, Clone)]

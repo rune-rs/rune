@@ -32,6 +32,8 @@
 //! [runestick]: https://github.com/rune-rs/rune
 
 use anyhow::{bail, Result};
+use rune::termcolor::{ColorChoice, StandardStream};
+use rune::EmitDiagnostics as _;
 use std::env;
 use std::fmt::Write as _;
 use std::path::PathBuf;
@@ -141,8 +143,7 @@ async fn main() -> Result<()> {
     let unit = match rune::load_path(&*context, &options, &mut warnings, &path) {
         Ok(unit) => Arc::new(unit),
         Err(error) => {
-            use rune::termcolor;
-            let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
+            let mut writer = StandardStream::stderr(ColorChoice::Always);
             error.emit_diagnostics(&mut writer)?;
             return Ok(());
         }
@@ -151,8 +152,8 @@ async fn main() -> Result<()> {
     let vm = runestick::Vm::new(context.clone(), unit.clone());
 
     if !warnings.is_empty() {
-        use rune::termcolor;
-        let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Always);
+        use rune::termcolor::{ColorChoice, StandardStream};
+        let mut writer = StandardStream::stderr(ColorChoice::Always);
         rune::emit_warning_diagnostics(&mut writer, &warnings, &*unit)?;
     }
 
@@ -280,9 +281,8 @@ async fn main() -> Result<()> {
     let result = match result {
         Ok(result) => result,
         Err(error) => {
-            let mut writer =
-                rune::termcolor::StandardStream::stderr(rune::termcolor::ColorChoice::Always);
-            rune::emit_vm_error_diagnostics(&mut writer, error)?;
+            let mut writer = StandardStream::stderr(ColorChoice::Always);
+            error.emit_diagnostics(&mut writer)?;
             return Ok(());
         }
     };

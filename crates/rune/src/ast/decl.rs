@@ -1,6 +1,5 @@
 use crate::ast;
 use crate::parser::Parser;
-use crate::token::Kind;
 use crate::traits::{Parse, Peek};
 use crate::ParseError;
 use runestick::Span;
@@ -45,17 +44,17 @@ impl Decl {
 }
 
 impl Peek for Decl {
-    fn peek(t1: Option<crate::Token>, _: Option<crate::Token>) -> bool {
+    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
         let t1 = match t1 {
             Some(t1) => t1,
             None => return false,
         };
 
         match t1.kind {
-            Kind::Use => true,
-            Kind::Enum => true,
-            Kind::Struct => true,
-            Kind::Fn => true,
+            ast::Kind::Use => true,
+            ast::Kind::Enum => true,
+            ast::Kind::Struct => true,
+            ast::Kind::Fn => true,
             _ => false,
         }
     }
@@ -64,10 +63,10 @@ impl Peek for Decl {
 impl Parse for Decl {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(match parser.token_peek_eof()?.kind {
-            Kind::Use => Self::DeclUse(parser.parse()?),
-            Kind::Enum => Self::DeclEnum(parser.parse()?),
-            Kind::Struct => Self::DeclStruct(parser.parse()?),
-            Kind::Impl => Self::DeclImpl(parser.parse()?),
+            ast::Kind::Use => Self::DeclUse(parser.parse()?),
+            ast::Kind::Enum => Self::DeclEnum(parser.parse()?),
+            ast::Kind::Struct => Self::DeclStruct(parser.parse()?),
+            ast::Kind::Impl => Self::DeclImpl(parser.parse()?),
             _ => Self::DeclFn(parser.parse()?),
         })
     }

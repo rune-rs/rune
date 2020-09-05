@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::token::Kind;
+use crate::ast::Kind;
 use runestick::{Item, Meta, Span};
 use thiserror::Error;
 

@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::error::ParseError;
-use runestick::unit::Span;
+use runestick::Span;
 use std::iter::Peekable;
 use std::ops;
 
@@ -235,7 +235,7 @@ pub(crate) fn is_block_end(expr: &ast::Expr, comma: Option<&ast::Comma>) -> bool
 #[cfg(test)]
 mod tests {
     use super::{parse_hex_escape, parse_unicode_escape};
-    use runestick::unit::Span;
+    use runestick::Span;
 
     macro_rules! input {
         ($string:expr) => {

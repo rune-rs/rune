@@ -1,5 +1,5 @@
 use crate::ast::{CloseBracket, Expr, OpenBracket};
-use runestick::unit::Span;
+use runestick::Span;
 
 /// An index get operation `<target>[<index>]`.
 #[derive(Debug, Clone)]

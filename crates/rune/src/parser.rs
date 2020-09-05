@@ -1,6 +1,6 @@
+use crate::ast::Token;
 use crate::error::ParseError;
 use crate::lexer::Lexer;
-use crate::token::Token;
 use crate::traits::{Parse, Peek};
 
 /// Parser for the rune language.

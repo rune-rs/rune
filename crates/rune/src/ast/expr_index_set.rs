@@ -1,5 +1,5 @@
 use crate::ast::{CloseBracket, Eq, Expr, OpenBracket};
-use runestick::unit::Span;
+use runestick::Span;
 
 /// An index set operation `<target>[<index>] = <value>`.
 #[derive(Debug, Clone)]

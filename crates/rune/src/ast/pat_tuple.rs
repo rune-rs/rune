@@ -2,7 +2,7 @@ use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
-use runestick::unit::Span;
+use runestick::Span;
 
 /// A tuple pattern.
 #[derive(Debug, Clone)]
