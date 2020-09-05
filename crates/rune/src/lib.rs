@@ -35,7 +35,7 @@
 //!
 //! <br>
 //!
-//! ## Features of Rune
+//! ## Highlights of Rune
 //!
 //! * Clean [Rust Integration 💻][support-rust-integration].
 //! * Memory safe through [reference counting 📖][support-reference-counted].
@@ -52,7 +52,7 @@
 //!
 //! <br>
 //!
-//! ## Rune Scripts
+//! ## Rune scripts
 //!
 //! You can run Rune programs with the bundled CLI:
 //!
@@ -68,6 +68,60 @@
 //! ```
 //!
 //! See `--help` for more information.
+//!
+//! ## Running scripts from Rust
+//!
+//! ```rust
+//! use rune::termcolor::{ColorChoice, StandardStream};
+//! use rune::EmitDiagnostics as _;
+//! use runestick::{FromValue as _, Item, Source};
+//!
+//! use std::error::Error;
+//! use std::sync::Arc;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn Error>> {
+//!     let source = Source::new(
+//!         "script",
+//!         r#"
+//!         fn calculate(a, b) {
+//!             println("Hello World");
+//!             a + b
+//!         }
+//!         "#,
+//!     );
+//!
+//!     let context = Arc::new(rune::default_context()?);
+//!     let options = rune::Options::default();
+//!     let mut warnings = rune::Warnings::new();
+//!
+//!     let unit = match rune::load_source(&*context, &options, &mut warnings, source) {
+//!         Ok(unit) => unit,
+//!         Err(error) => {
+//!             let mut writer = StandardStream::stderr(ColorChoice::Always);
+//!             error.emit_diagnostics(&mut writer)?;
+//!             return Ok(());
+//!         }
+//!     };
+//!
+//!     let unit = Arc::new(unit);
+//!     let vm = runestick::Vm::new(context.clone(), unit.clone());
+//!
+//!     if !warnings.is_empty() {
+//!         let mut writer = StandardStream::stderr(ColorChoice::Always);
+//!         rune::emit_warning_diagnostics(&mut writer, &warnings, &*unit)?;
+//!     }
+//!
+//!     let mut execution: runestick::VmExecution =
+//!         vm.call_function(Item::of(&["calculate"]), (10i64, 20i64))?;
+//!     let value = execution.async_complete().await?;
+//!
+//!     let value = i64::from_value(value)?;
+//!
+//!     println!("{}", value);
+//!     Ok(())
+//! }
+//! ```
 //!
 //! [future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
 //! [Open Issues]: https://github.com/rune-rs/rune/issues

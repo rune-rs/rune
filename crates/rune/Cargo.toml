@@ -30,5 +30,8 @@ num = "0.3.0"
 runestick = {version = "0.6.9", path = "../runestick"}
 rune-modules = {version = "0.6.9", path = "../rune-modules", features = ["full"], optional = true}
 
+[dev-dependencies]
+tokio = {version = "0.2.12", features = ["macros"]}
+
 [package.metadata.docs.rs]
 all-features = true
