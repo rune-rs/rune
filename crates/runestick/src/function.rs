@@ -7,7 +7,7 @@ use crate::{
 use std::fmt;
 use std::sync::Arc;
 
-value_types!(crate::FUNCTION_TYPE, Function => Function, &Function, Shared<Function>, OwnedRef<Function>);
+value_types!(crate::FUNCTION_TYPE, Function => Function, Shared<Function>, OwnedRef<Function>);
 
 /// A stored function, of some specific kind.
 pub struct Function {

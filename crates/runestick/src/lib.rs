@@ -64,9 +64,9 @@ mod static_string;
 mod static_type;
 mod stream;
 mod tuple;
+mod type_;
+mod type_info;
 pub mod unit;
-mod value_type;
-mod value_type_info;
 mod vec_tuple;
 mod vm_call;
 mod vm_error;
@@ -96,8 +96,8 @@ pub use self::static_type::{
 };
 pub use self::stream::Stream;
 pub use self::tuple::Tuple;
-pub use self::value_type::ValueType;
-pub use self::value_type_info::ValueTypeInfo;
+pub use self::type_::Type;
+pub use self::type_info::TypeInfo;
 pub use crate::access::{
     AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawBorrowedMut,
     RawBorrowedRef,

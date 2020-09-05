@@ -1,8 +1,8 @@
 //! Trait implementations for `Result` types.
 
 use crate::{
-    FromValue, OwnedRef, Panic, RawOwnedRef, ReflectValueType, Shared, ToValue, UnsafeFromValue,
-    Value, ValueType, ValueTypeInfo, VmError, VmErrorKind,
+    FromValue, OwnedRef, Panic, RawOwnedRef, ReflectValueType, Shared, ToValue, Type, TypeInfo,
+    UnsafeFromValue, Value, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::io;
@@ -13,24 +13,12 @@ decl_external!(io::Error);
 impl<T, E> ReflectValueType for Result<T, E> {
     type Owned = Result<T, E>;
 
-    fn value_type() -> ValueType {
-        ValueType::StaticType(crate::RESULT_TYPE)
+    fn value_type() -> Type {
+        Type::StaticType(crate::RESULT_TYPE)
     }
 
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::StaticType(crate::RESULT_TYPE)
-    }
-}
-
-impl<T, E> ReflectValueType for &Result<T, E> {
-    type Owned = Result<T, E>;
-
-    fn value_type() -> ValueType {
-        ValueType::StaticType(crate::RESULT_TYPE)
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::StaticType(crate::RESULT_TYPE)
+    fn type_info() -> TypeInfo {
+        TypeInfo::StaticType(crate::RESULT_TYPE)
     }
 }
 

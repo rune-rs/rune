@@ -28,38 +28,14 @@ macro_rules! decl_internal {
         impl $crate::ReflectValueType for $external {
             type Owned = $external;
 
-            fn value_type() -> $crate::ValueType {
-                $crate::ValueType::Type($crate::Hash::from_type_id(
+            fn value_type() -> $crate::Type {
+                $crate::Type::Hash($crate::Hash::from_type_id(
                     std::any::TypeId::of::<$external>(),
                 ))
             }
 
-            fn value_type_info() -> $crate::ValueTypeInfo {
-                $crate::ValueTypeInfo::Any(std::any::type_name::<$external>())
-            }
-        }
-
-        impl<'a> $crate::ReflectValueType for &'a $external {
-            type Owned = $external;
-
-            fn value_type() -> $crate::ValueType {
-                <$external>::value_type()
-            }
-
-            fn value_type_info() -> $crate::ValueTypeInfo {
-                <$external>::value_type_info()
-            }
-        }
-
-        impl<'a> $crate::ReflectValueType for &'a mut $external {
-            type Owned = $external;
-
-            fn value_type() -> $crate::ValueType {
-                <$external>::value_type()
-            }
-
-            fn value_type_info() -> $crate::ValueTypeInfo {
-                <$external>::value_type_info()
+            fn type_info() -> $crate::TypeInfo {
+                $crate::TypeInfo::Any(std::any::type_name::<$external>())
             }
         }
 
@@ -110,12 +86,12 @@ macro_rules! value_types {
             impl $(<$($param),*>)? $crate::ReflectValueType for $ty {
                 type Owned = $owned;
 
-                fn value_type() -> $crate::ValueType {
-                    $crate::ValueType::StaticType($static_type)
+                fn value_type() -> $crate::Type {
+                    $crate::Type::StaticType($static_type)
                 }
 
-                fn value_type_info() -> $crate::ValueTypeInfo {
-                    $crate::ValueTypeInfo::StaticType($static_type)
+                fn type_info() -> $crate::TypeInfo {
+                    $crate::TypeInfo::StaticType($static_type)
                 }
             }
         )*
@@ -126,12 +102,12 @@ macro_rules! value_types {
             impl<$param> $crate::ReflectValueType for $ty {
                 type Owned = $owned;
 
-                fn value_type() -> $crate::ValueType {
-                    $crate::ValueType::StaticType($static_type)
+                fn value_type() -> $crate::Type {
+                    $crate::Type::StaticType($static_type)
                 }
 
-                fn value_type_info() -> $crate::ValueTypeInfo {
-                    $crate::ValueTypeInfo::StaticType($static_type)
+                fn type_info() -> $crate::TypeInfo {
+                    $crate::TypeInfo::StaticType($static_type)
                 }
             }
         )*

@@ -1,4 +1,4 @@
-use crate::{Stack, Value, ValueType, ValueTypeInfo, VmError};
+use crate::{Stack, Type, TypeInfo, Value, VmError};
 
 mod bytes;
 mod hash_map;
@@ -31,15 +31,45 @@ pub trait IntoArgs {
 }
 
 /// Trait for converting types into values.
-pub trait ReflectValueType: Sized {
+pub trait ReflectValueType {
     /// The internal, owned type used for this value.
     type Owned;
 
     /// Convert into a value type.
-    fn value_type() -> ValueType;
+    fn value_type() -> Type;
 
     /// Access diagnostical information on the value type.
-    fn value_type_info() -> ValueTypeInfo;
+    fn type_info() -> TypeInfo;
+}
+
+impl<T: ?Sized> ReflectValueType for &T
+where
+    T: ReflectValueType,
+{
+    type Owned = T::Owned;
+
+    fn value_type() -> Type {
+        T::value_type()
+    }
+
+    fn type_info() -> TypeInfo {
+        T::type_info()
+    }
+}
+
+impl<T: ?Sized> ReflectValueType for &mut T
+where
+    T: ReflectValueType,
+{
+    type Owned = T::Owned;
+
+    fn value_type() -> Type {
+        T::value_type()
+    }
+
+    fn type_info() -> TypeInfo {
+        T::type_info()
+    }
 }
 
 /// Trait for converting types into values.

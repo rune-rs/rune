@@ -3,7 +3,7 @@ use crate::{
     VmError,
 };
 
-value_types!(crate::GENERATOR_STATE_TYPE, GeneratorState => GeneratorState, &GeneratorState, &mut GeneratorState);
+value_types!(crate::GENERATOR_STATE_TYPE, GeneratorState => GeneratorState);
 
 /// The state of a generator.
 #[derive(Debug)]

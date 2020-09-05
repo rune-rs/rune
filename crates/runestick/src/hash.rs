@@ -1,4 +1,4 @@
-use crate::{Component, ValueType};
+use crate::{Component, Type};
 use std::any;
 use std::fmt;
 use std::hash;
@@ -40,7 +40,7 @@ impl Hash {
 
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
-    pub fn instance_function<N>(value_type: ValueType, name: N) -> Self
+    pub fn instance_function<N>(value_type: Type, name: N) -> Self
     where
         N: IntoHash,
     {
@@ -49,7 +49,7 @@ impl Hash {
     }
 
     /// Construct a hash corresponding to a getter.
-    pub fn getter<N>(value_type: ValueType, name: N) -> Self
+    pub fn getter<N>(value_type: Type, name: N) -> Self
     where
         N: IntoHash,
     {

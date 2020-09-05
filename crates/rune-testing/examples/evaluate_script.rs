@@ -1,6 +1,6 @@
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::EmitDiagnostics as _;
-use runestick::{FromValue as _, Item, Source};
+use runestick::{FromValue as _, Item, Source, Vm};
 
 use std::error::Error;
 use std::sync::Arc;
@@ -30,16 +30,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let unit = Arc::new(unit);
-    let vm = runestick::Vm::new(context.clone(), unit.clone());
-
     if !warnings.is_empty() {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
-        rune::emit_warning_diagnostics(&mut writer, &warnings, &*unit)?;
+        rune::emit_warning_diagnostics(&mut writer, &warnings, &unit)?;
     }
 
-    let mut execution: runestick::VmExecution =
-        vm.call_function(Item::of(&["calculate"]), (10i64, 20i64))?;
+    let vm = Vm::new(context.clone(), Arc::new(unit));
+
+    let mut execution = vm.call_function(Item::of(&["calculate"]), (10i64, 20i64))?;
     let value = execution.async_complete().await?;
 
     let value = i64::from_value(value)?;

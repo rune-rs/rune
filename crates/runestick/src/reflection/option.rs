@@ -2,30 +2,18 @@
 
 use crate::{
     FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, ReflectValueType, Shared, ToValue,
-    UnsafeFromValue, Value, ValueType, ValueTypeInfo, VmError,
+    Type, TypeInfo, UnsafeFromValue, Value, VmError,
 };
 
 impl<T> ReflectValueType for Option<T> {
     type Owned = Option<T>;
 
-    fn value_type() -> ValueType {
-        ValueType::StaticType(crate::OPTION_TYPE)
+    fn value_type() -> Type {
+        Type::StaticType(crate::OPTION_TYPE)
     }
 
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::StaticType(crate::OPTION_TYPE)
-    }
-}
-
-impl<T> ReflectValueType for &Option<T> {
-    type Owned = Option<T>;
-
-    fn value_type() -> ValueType {
-        ValueType::StaticType(crate::OPTION_TYPE)
-    }
-
-    fn value_type_info() -> ValueTypeInfo {
-        ValueTypeInfo::StaticType(crate::OPTION_TYPE)
+    fn type_info() -> TypeInfo {
+        TypeInfo::StaticType(crate::OPTION_TYPE)
     }
 }
 

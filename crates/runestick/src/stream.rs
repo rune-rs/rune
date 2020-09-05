@@ -5,7 +5,7 @@ use crate::{
 use std::fmt;
 use std::mem;
 
-value_types!(crate::STREAM_TYPE, Stream => Stream, &Stream, &mut Stream);
+value_types!(crate::STREAM_TYPE, Stream => Stream);
 
 /// A stream with a stored virtual machine.
 pub struct Stream {

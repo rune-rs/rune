@@ -37,11 +37,11 @@
 //!
 //! ## Highlights of Rune
 //!
-//! * Clean [Rust Integration 💻][support-rust-integration].
+//! * Clean [Rust integration 💻][support-rust-integration].
 //! * Memory safe through [reference counting 📖][support-reference-counted].
 //! * [Template strings 📖][support-templates].
 //! * [Try operators 📖][support-try].
-//! * Pattern matching [📖][support-patterns].
+//! * [Pattern matching 📖][support-patterns].
 //! * [Structs and enums 📖][support-structs] with associated data and functions.
 //! * Dynamic [vectors 📖][support-dynamic-vectors], [objects 📖][support-anon-objects], and [tuples 📖][support-anon-tuples] with built-in [serde support 💻][support-serde].
 //! * First-class [async support 📖][support-async].
@@ -71,10 +71,15 @@
 //!
 //! ## Running scripts from Rust
 //!
+//! The following is a complete example, including rich diagnostics using
+//! [`termcolor`]. It can be made much simpler if this is not needed.
+//!
+//! [`termcolor`]: https://docs.rs/termcolor
+//!
 //! ```rust
 //! use rune::termcolor::{ColorChoice, StandardStream};
 //! use rune::EmitDiagnostics as _;
-//! use runestick::{FromValue as _, Item, Source};
+//! use runestick::{Vm, FromValue as _, Item, Source};
 //!
 //! use std::error::Error;
 //! use std::sync::Arc;
@@ -104,16 +109,14 @@
 //!         }
 //!     };
 //!
-//!     let unit = Arc::new(unit);
-//!     let vm = runestick::Vm::new(context.clone(), unit.clone());
-//!
 //!     if !warnings.is_empty() {
 //!         let mut writer = StandardStream::stderr(ColorChoice::Always);
-//!         rune::emit_warning_diagnostics(&mut writer, &warnings, &*unit)?;
+//!         rune::emit_warning_diagnostics(&mut writer, &warnings, &unit)?;
 //!     }
 //!
-//!     let mut execution: runestick::VmExecution =
-//!         vm.call_function(Item::of(&["calculate"]), (10i64, 20i64))?;
+//!     let vm = Vm::new(context.clone(), Arc::new(unit));
+//!
+//!     let mut execution = vm.call_function(Item::of(&["calculate"]), (10i64, 20i64))?;
 //!     let value = execution.async_complete().await?;
 //!
 //!     let value = i64::from_value(value)?;

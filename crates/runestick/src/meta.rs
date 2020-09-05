@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use crate::{Hash, Item, ValueType};
+use crate::{Hash, Item, Type};
 use std::fmt;
 use std::sync::Arc;
 
@@ -16,14 +16,14 @@ pub enum Meta {
     /// Metadata about a tuple.
     MetaTuple {
         /// The value type associated with this meta item.
-        value_type: ValueType,
+        value_type: Type,
         /// The underlying tuple.
         tuple: MetaTuple,
     },
     /// Metadata about a tuple variant.
     MetaVariantTuple {
         /// The value type associated with this meta item.
-        value_type: ValueType,
+        value_type: Type,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying tuple.
@@ -32,14 +32,14 @@ pub enum Meta {
     /// Metadata about an object.
     MetaStruct {
         /// The value type associated with this meta item.
-        value_type: ValueType,
+        value_type: Type,
         /// The underlying object.
         object: MetaStruct,
     },
     /// Metadata about a variant object.
     MetaVariantStruct {
         /// The value type associated with this meta item.
-        value_type: ValueType,
+        value_type: Type,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying object.
@@ -48,21 +48,21 @@ pub enum Meta {
     /// An enum item.
     MetaEnum {
         /// The value type associated with this meta item.
-        value_type: ValueType,
+        value_type: Type,
         /// The item of the enum.
         item: Item,
     },
     /// A function declaration.
     MetaFunction {
         /// The value type associated with this meta item.
-        value_type: ValueType,
+        value_type: Type,
         /// The item of the function declaration.
         item: Item,
     },
     /// A closure.
     MetaClosure {
         /// The value type associated with this meta item.
-        value_type: ValueType,
+        value_type: Type,
         /// The item of the closure.
         item: Item,
         /// Sequence of captured variables.
@@ -71,7 +71,7 @@ pub enum Meta {
     /// An async block.
     MetaAsyncBlock {
         /// The value type associated with this meta item.
-        value_type: ValueType,
+        value_type: Type,
         /// The item of the closure.
         item: Item,
         /// Sequence of captured variables.
@@ -95,7 +95,7 @@ impl Meta {
     }
 
     /// Get the value type of the meta item.
-    pub fn value_type(&self) -> Option<ValueType> {
+    pub fn value_type(&self) -> Option<Type> {
         match self {
             Self::MetaTuple { value_type, .. } => Some(*value_type),
             Self::MetaVariantTuple { .. } => None,

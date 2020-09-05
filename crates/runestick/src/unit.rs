@@ -6,7 +6,7 @@
 use crate::collections::HashMap;
 use crate::{
     Call, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Meta, Names, Span,
-    StaticString, ValueType, VmError, VmErrorKind,
+    StaticString, Type, VmError, VmErrorKind,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -196,7 +196,7 @@ pub struct UnitTypeInfo {
     /// A type declared in a unit.
     pub hash: Hash,
     /// value type of the given type.
-    pub value_type: ValueType,
+    pub value_type: Type,
 }
 
 /// The key of an import.
@@ -664,7 +664,7 @@ impl Unit {
 
                 let info = UnitTypeInfo {
                     hash: tuple.hash,
-                    value_type: ValueType::Type(tuple.hash),
+                    value_type: Type::Hash(tuple.hash),
                 };
 
                 if self.types.insert(tuple.hash, info).is_some() {
@@ -699,7 +699,7 @@ impl Unit {
 
                 let info = UnitTypeInfo {
                     hash: tuple.hash,
-                    value_type: ValueType::Type(enum_hash),
+                    value_type: Type::Hash(enum_hash),
                 };
 
                 if self.types.insert(tuple.hash, info).is_some() {
@@ -715,7 +715,7 @@ impl Unit {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: ValueType::Type(hash),
+                    value_type: Type::Hash(hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -734,7 +734,7 @@ impl Unit {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: ValueType::Type(enum_hash),
+                    value_type: Type::Hash(enum_hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -750,7 +750,7 @@ impl Unit {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: ValueType::Type(hash),
+                    value_type: Type::Hash(hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -817,7 +817,7 @@ impl Unit {
         &mut self,
         source_id: usize,
         path: Item,
-        value_type: ValueType,
+        value_type: Type,
         name: &str,
         args: usize,
         assembly: Assembly,

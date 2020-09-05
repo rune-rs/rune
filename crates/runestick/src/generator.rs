@@ -5,7 +5,7 @@ use crate::{
 use std::fmt;
 use std::mem;
 
-value_types!(crate::GENERATOR_TYPE, Generator => Generator, &Generator, &mut Generator);
+value_types!(crate::GENERATOR_TYPE, Generator => Generator);
 
 /// A generator with a stored virtual machine.
 pub struct Generator {

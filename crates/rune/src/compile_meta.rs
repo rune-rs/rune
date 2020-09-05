@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use runestick::{Hash, Item, ValueType};
+use runestick::{Hash, Item, Type};
 use std::fmt;
 use std::sync::Arc;
 

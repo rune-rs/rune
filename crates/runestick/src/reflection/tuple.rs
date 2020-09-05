@@ -1,6 +1,6 @@
 //! Trait implementation for decoding tuples.
 
-use crate::{Shared, Value, ValueType, ValueTypeInfo};
+use crate::{Shared, Type, TypeInfo, Value};
 
 macro_rules! impl_from_value_tuple {
     () => {
@@ -15,12 +15,12 @@ macro_rules! impl_from_value_tuple {
         impl <$($ty,)*> $crate::ReflectValueType for ($($ty,)*) {
             type Owned = ($($ty,)*);
 
-            fn value_type() -> ValueType {
-                ValueType::StaticType($crate::TUPLE_TYPE)
+            fn value_type() -> Type {
+                Type::StaticType($crate::TUPLE_TYPE)
             }
 
-            fn value_type_info() -> ValueTypeInfo {
-                ValueTypeInfo::StaticType($crate::TUPLE_TYPE)
+            fn type_info() -> TypeInfo {
+                TypeInfo::StaticType($crate::TUPLE_TYPE)
             }
         }
 

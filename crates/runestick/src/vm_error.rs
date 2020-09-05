@@ -1,7 +1,7 @@
 use crate::panic::BoxedPanic;
 use crate::{
-    AccessError, Hash, Integer, Panic, Protocol, ReflectValueType, StackError, Unit, Value,
-    ValueTypeInfo, VmHaltInfo,
+    AccessError, Hash, Integer, Panic, Protocol, ReflectValueType, StackError, TypeInfo, Unit,
+    Value, VmHaltInfo,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -31,24 +31,24 @@ impl VmError {
     {
         Ok(Self::from(VmErrorKind::BadArgumentType {
             arg,
-            expected: T::value_type_info(),
+            expected: T::type_info(),
             actual: value.type_info()?,
         }))
     }
 
     /// Construct an expected error.
-    pub fn expected<T>(actual: ValueTypeInfo) -> Self
+    pub fn expected<T>(actual: TypeInfo) -> Self
     where
         T: ReflectValueType,
     {
         Self::from(VmErrorKind::Expected {
-            expected: T::value_type_info(),
+            expected: T::type_info(),
             actual,
         })
     }
 
     /// Construct an expected any error.
-    pub fn expected_any(actual: ValueTypeInfo) -> Self {
+    pub fn expected_any(actual: TypeInfo) -> Self {
         Self::from(VmErrorKind::ExpectedAny { actual })
     }
 
@@ -176,7 +176,7 @@ pub enum VmErrorKind {
         /// Hash of function to look up.
         hash: Hash,
         /// The instance type we tried to look up function on.
-        instance: ValueTypeInfo,
+        instance: TypeInfo,
     },
     /// Instruction pointer went out-of-bounds.
     #[error("instruction pointer is out-of-bounds")]
@@ -185,7 +185,7 @@ pub enum VmErrorKind {
     #[error("unsupported target for .await `{actual}`")]
     UnsupportedAwait {
         /// The actual target.
-        actual: ValueTypeInfo,
+        actual: TypeInfo,
     },
     /// Unsupported binary operation.
     #[error("unsupported vm operation `{lhs} {op} {rhs}`")]
@@ -193,9 +193,9 @@ pub enum VmErrorKind {
         /// Operation.
         op: &'static str,
         /// Left-hand side operator.
-        lhs: ValueTypeInfo,
+        lhs: TypeInfo,
         /// Right-hand side operator.
-        rhs: ValueTypeInfo,
+        rhs: TypeInfo,
     },
     /// Unsupported unary operation.
     #[error("unsupported vm operation `{op}{operand}`")]
@@ -203,7 +203,7 @@ pub enum VmErrorKind {
         /// Operation.
         op: &'static str,
         /// Operand.
-        operand: ValueTypeInfo,
+        operand: TypeInfo,
     },
     /// Protocol not implemented on type.
     #[error("`{actual}` does not implement the `{protocol}` protocol")]
@@ -211,7 +211,7 @@ pub enum VmErrorKind {
         /// The missing protocol.
         protocol: Protocol,
         /// The encountered argument.
-        actual: ValueTypeInfo,
+        actual: TypeInfo,
     },
     /// Indicates that a static string is missing for the given slot.
     #[error("static string slot `{slot}` does not exist")]
@@ -239,9 +239,9 @@ pub enum VmErrorKind {
         /// The argument location that was converted.
         arg: usize,
         /// The argument type we expected.
-        expected: ValueTypeInfo,
+        expected: TypeInfo,
         /// The argument type we got.
-        actual: ValueTypeInfo,
+        actual: TypeInfo,
     },
     /// Failure to convert from one type to another.
     #[error("bad argument #{arg} (expected `{to}`): {error}")]
@@ -267,51 +267,51 @@ pub enum VmErrorKind {
     #[error("the index set operation `{target}[{index}] = {value}` is not supported")]
     UnsupportedIndexSet {
         /// The target type to set.
-        target: ValueTypeInfo,
+        target: TypeInfo,
         /// The index to set.
-        index: ValueTypeInfo,
+        index: TypeInfo,
         /// The value to set.
-        value: ValueTypeInfo,
+        value: TypeInfo,
     },
     /// An index get operation that is not supported.
     #[error("the index get operation `{target}[{index}]` is not supported")]
     UnsupportedIndexGet {
         /// The target type to get.
-        target: ValueTypeInfo,
+        target: TypeInfo,
         /// The index to get.
-        index: ValueTypeInfo,
+        index: TypeInfo,
     },
     /// An tuple index get operation that is not supported.
     #[error("the tuple index get operation is not supported on `{target}`")]
     UnsupportedTupleIndexGet {
         /// The target type we tried to perform the tuple indexing on.
-        target: ValueTypeInfo,
+        target: TypeInfo,
     },
     /// An tuple index set operation that is not supported.
     #[error("the tuple index set operation is not supported on `{target}`")]
     UnsupportedTupleIndexSet {
         /// The target type we tried to perform the tuple indexing on.
-        target: ValueTypeInfo,
+        target: TypeInfo,
     },
     /// An object slot index get operation that is not supported.
     #[error("field not available on `{target}`")]
     UnsupportedObjectSlotIndexGet {
         /// The target type we tried to perform the object indexing on.
-        target: ValueTypeInfo,
+        target: TypeInfo,
     },
     /// An is operation is not supported.
     #[error("`{value} is {test_type}` is not supported")]
     UnsupportedIs {
         /// The argument that is not supported.
-        value: ValueTypeInfo,
+        value: TypeInfo,
         /// The type that is not supported.
-        test_type: ValueTypeInfo,
+        test_type: TypeInfo,
     },
     /// Encountered a value that could not be called as a function
     #[error("`{actual_type}` cannot be called since it's not a function")]
     UnsupportedCallFn {
         /// The type that could not be called.
-        actual_type: ValueTypeInfo,
+        actual_type: TypeInfo,
     },
     /// Tried to fetch an index in an object that doesn't exist.
     #[error("missing index by static string slot `{slot}` in object")]
@@ -323,7 +323,7 @@ pub enum VmErrorKind {
     #[error("missing index `{}` on `{target}`")]
     MissingIndex {
         /// Type where field did not exist.
-        target: ValueTypeInfo,
+        target: TypeInfo,
         /// Index that we tried to access.
         index: Integer,
     },
@@ -331,7 +331,7 @@ pub enum VmErrorKind {
     #[error("missing field `{field}` on `{target}`")]
     MissingField {
         /// Type where field did not exist.
-        target: ValueTypeInfo,
+        target: TypeInfo,
         /// Field that was missing.
         field: String,
     },
@@ -340,7 +340,7 @@ pub enum VmErrorKind {
     #[error("expected result or option with value to unwrap, but got `{actual}`")]
     UnsupportedUnwrap {
         /// The actual operand.
-        actual: ValueTypeInfo,
+        actual: TypeInfo,
     },
     /// Error raised when we try to unwrap an Option that is not Some.
     #[error("expected Some value, but got `None`")]
@@ -349,13 +349,13 @@ pub enum VmErrorKind {
     #[error("expected Ok value, but got `Err({err})`")]
     UnsupportedUnwrapErr {
         /// The error variant.
-        err: ValueTypeInfo,
+        err: TypeInfo,
     },
     /// Value is not supported for `is-value` test.
     #[error("expected result or option as value, but got `{actual}`")]
     UnsupportedIsValueOperand {
         /// The actual operand.
-        actual: ValueTypeInfo,
+        actual: TypeInfo,
     },
     /// Trying to resume a generator that has completed.
     #[error("cannot resume a generator that has completed")]
@@ -371,15 +371,15 @@ pub enum VmErrorKind {
     #[error("expected `{expected}`, but found `{actual}`")]
     Expected {
         /// The expected value type info.
-        expected: ValueTypeInfo,
+        expected: TypeInfo,
         /// The actual type found.
-        actual: ValueTypeInfo,
+        actual: TypeInfo,
     },
     /// Error raised when we expected a value.
     #[error("expected `Any` type, but found `{actual}`")]
     ExpectedAny {
         /// The actual type observed instead.
-        actual: ValueTypeInfo,
+        actual: TypeInfo,
     },
     /// Failure to convert a number into an integer.
     #[error("failed to convert value `{from}` to integer `{to}`")]

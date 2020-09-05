@@ -5,8 +5,8 @@
 
 use crate::collections::HashMap;
 use crate::{
-    Component, Future, Hash, ReflectValueType, Stack, ToValue, UnsafeFromValue, ValueType,
-    ValueTypeInfo, VmError, VmErrorKind,
+    Component, Future, Hash, ReflectValueType, Stack, ToValue, Type, TypeInfo, UnsafeFromValue,
+    VmError, VmErrorKind,
 };
 use std::any::type_name;
 use std::future;
@@ -79,14 +79,14 @@ pub(crate) struct ModuleInternalVariant {
     /// The constructor of the variant.
     pub(crate) constructor: Arc<Handler>,
     /// The value type of the variant.
-    pub(crate) value_type: ValueType,
+    pub(crate) value_type: Type,
 }
 
 pub(crate) struct ModuleType {
     /// The item of the installed type.
     pub(crate) name: Item,
     /// Type information for the installed type.
-    pub(crate) value_type_info: ValueTypeInfo,
+    pub(crate) type_info: TypeInfo,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -97,7 +97,7 @@ pub(crate) enum ModuleAssociatedKind {
 
 impl ModuleAssociatedKind {
     /// Convert the kind into a hash function.
-    pub fn into_hash_fn(self) -> fn(ValueType, Hash) -> Hash {
+    pub fn into_hash_fn(self) -> fn(Type, Hash) -> Hash {
         match self {
             Self::Getter => Hash::getter,
             Self::Instance => Hash::instance_function,
@@ -108,13 +108,13 @@ impl ModuleAssociatedKind {
 pub(crate) struct ModuleAssociatedFn {
     pub(crate) handler: Arc<Handler>,
     pub(crate) args: Option<usize>,
-    pub(crate) value_type_info: ValueTypeInfo,
+    pub(crate) type_info: TypeInfo,
     pub(crate) name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct ModuleAssocKey {
-    pub(crate) value_type: ValueType,
+    pub(crate) value_type: Type,
     pub(crate) hash: Hash,
     pub(crate) kind: ModuleAssociatedKind,
 }
@@ -134,7 +134,7 @@ pub struct Module {
     /// Instance functions.
     pub(crate) associated_functions: HashMap<ModuleAssocKey, ModuleAssociatedFn>,
     /// Registered types.
-    pub(crate) types: HashMap<ValueType, ModuleType>,
+    pub(crate) types: HashMap<Type, ModuleType>,
     /// Registered unit type.
     pub(crate) unit_type: Option<ModuleUnitType>,
     /// Registered generator state type.
@@ -512,7 +512,7 @@ impl Module {
         Func: InstFn<Args>,
     {
         let value_type = Func::instance_value_type();
-        let value_type_info = Func::instance_value_type_info();
+        let type_info = Func::instance_value_type_info();
 
         let key = ModuleAssocKey {
             value_type,
@@ -523,10 +523,7 @@ impl Module {
         let name = name.to_name();
 
         if self.associated_functions.contains_key(&key) {
-            return Err(ContextError::ConflictingInstanceFunction {
-                value_type_info,
-                name,
-            });
+            return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
         let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
@@ -534,7 +531,7 @@ impl Module {
         let instance_function = ModuleAssociatedFn {
             handler,
             args: Some(Func::args()),
-            value_type_info,
+            type_info,
             name,
         };
 
@@ -577,7 +574,7 @@ impl Module {
         Func: AsyncInstFn<Args>,
     {
         let value_type = Func::instance_value_type();
-        let value_type_info = Func::instance_value_type_info();
+        let type_info = Func::instance_value_type_info();
 
         let key = ModuleAssocKey {
             value_type,
@@ -588,10 +585,7 @@ impl Module {
         let name = name.to_name();
 
         if self.associated_functions.contains_key(&key) {
-            return Err(ContextError::ConflictingInstanceFunction {
-                value_type_info,
-                name,
-            });
+            return Err(ContextError::ConflictingInstanceFunction { type_info, name });
         }
 
         let handler: Arc<Handler> = Arc::new(move |stack, args| f.fn_call(stack, args));
@@ -599,7 +593,7 @@ impl Module {
         let instance_function = ModuleAssociatedFn {
             handler,
             args: Some(Func::args()),
-            value_type_info,
+            type_info,
             name,
         };
 
@@ -612,7 +606,7 @@ impl Module {
 #[must_use = "must be consumed with build::<T>() to construct a type"]
 pub struct TypeBuilder<'a, N> {
     name: N,
-    types: &'a mut HashMap<ValueType, ModuleType>,
+    types: &'a mut HashMap<Type, ModuleType>,
 }
 
 impl<N> TypeBuilder<'_, N>
@@ -627,17 +621,17 @@ where
     {
         let name = Item::of(self.name);
         let value_type = T::value_type();
-        let value_type_info = T::value_type_info();
+        let type_info = T::type_info();
 
         let ty = ModuleType {
             name: name.clone(),
-            value_type_info,
+            type_info,
         };
 
         if let Some(old) = self.types.insert(value_type, ty) {
             return Err(ContextError::ConflictingType {
                 name,
-                existing: old.value_type_info,
+                existing: old.type_info,
             });
         }
 
@@ -682,10 +676,10 @@ pub trait InstFn<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Access the value type of the instance.
-    fn instance_value_type() -> ValueType;
+    fn instance_value_type() -> Type;
 
     /// Access the value type info of the instance.
-    fn instance_value_type_info() -> ValueTypeInfo;
+    fn instance_value_type_info() -> TypeInfo;
 
     /// Perform the vm call.
     fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
@@ -704,10 +698,10 @@ pub trait AsyncInstFn<Args>: 'static + Copy + Send + Sync {
     fn args() -> usize;
 
     /// Access the value type of the instance.
-    fn instance_value_type() -> ValueType;
+    fn instance_value_type() -> Type;
 
     /// Access the value type of the instance.
-    fn instance_value_type_info() -> ValueTypeInfo;
+    fn instance_value_type_info() -> TypeInfo;
 
     /// Perform the vm call.
     fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError>;
@@ -825,12 +819,12 @@ macro_rules! impl_register {
                 $count + 1
             }
 
-            fn instance_value_type() -> ValueType {
+            fn instance_value_type() -> Type {
                 Instance::value_type()
             }
 
-            fn instance_value_type_info() -> ValueTypeInfo {
-                Instance::value_type_info()
+            fn instance_value_type_info() -> TypeInfo {
+                Instance::type_info()
             }
 
             fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {
@@ -874,12 +868,12 @@ macro_rules! impl_register {
                 $count + 1
             }
 
-            fn instance_value_type() -> ValueType {
+            fn instance_value_type() -> Type {
                 Instance::value_type()
             }
 
-            fn instance_value_type_info() -> ValueTypeInfo {
-                Instance::value_type_info()
+            fn instance_value_type_info() -> TypeInfo {
+                Instance::type_info()
             }
 
             fn fn_call(self, stack: &mut Stack, args: usize) -> Result<(), VmError> {

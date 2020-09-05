@@ -5,8 +5,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use crate::traits::Resolve as _;
 use runestick::{
-    Call, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Source, Span, Unit,
-    ValueType,
+    Call, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Source, Span, Type, Unit,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -213,7 +212,7 @@ impl<'a> Query<'a> {
 
         let meta = match entry {
             Indexed::Enum => Meta::MetaEnum {
-                value_type: ValueType::Type(Hash::type_hash(&item)),
+                value_type: Type::Hash(Hash::type_hash(&item)),
                 item: item.clone(),
             },
             Indexed::Variant(variant) => {
@@ -226,7 +225,7 @@ impl<'a> Query<'a> {
                 self.queue.push_back((item.clone(), Build::Function(f)));
 
                 Meta::MetaFunction {
-                    value_type: ValueType::Type(Hash::type_hash(&item)),
+                    value_type: Type::Hash(Hash::type_hash(&item)),
                     item: item.clone(),
                 }
             }
@@ -235,7 +234,7 @@ impl<'a> Query<'a> {
                 self.queue.push_back((item.clone(), Build::Closure(c)));
 
                 Meta::MetaClosure {
-                    value_type: ValueType::Type(Hash::type_hash(&item)),
+                    value_type: Type::Hash(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
                 }
@@ -246,7 +245,7 @@ impl<'a> Query<'a> {
                     .push_back((item.clone(), Build::AsyncBlock(async_block)));
 
                 Meta::MetaAsyncBlock {
-                    value_type: ValueType::Type(Hash::type_hash(&item)),
+                    value_type: Type::Hash(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
                 }
@@ -268,7 +267,7 @@ impl<'a> Query<'a> {
         body: ast::DeclStructBody,
         enum_item: Option<Item>,
     ) -> Result<Meta, CompileError> {
-        let value_type = ValueType::Type(Hash::type_hash(item));
+        let value_type = Type::Hash(Hash::type_hash(item));
 
         Ok(match body {
             ast::DeclStructBody::EmptyBody(..) => {

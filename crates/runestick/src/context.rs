@@ -2,7 +2,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::module::{ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
 use crate::{
     Component, Hash, Item, Meta, MetaStruct, MetaTuple, Module, Names, ReflectValueType, Stack,
-    StaticType, TypeCheck, ValueType, ValueTypeInfo, VmError,
+    StaticType, Type, TypeCheck, TypeInfo, VmError,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -45,10 +45,10 @@ pub enum ContextError {
         name: Item,
     },
     /// Error raised when attempting to register a conflicting instance function.
-    #[error("instance function `{name}` for type `{value_type_info}` already exists")]
+    #[error("instance function `{name}` for type `{type_info}` already exists")]
     ConflictingInstanceFunction {
         /// Type that we register the instance function for.
-        value_type_info: ValueTypeInfo,
+        type_info: TypeInfo,
         /// The name of the conflicting function.
         name: String,
     },
@@ -66,7 +66,7 @@ pub enum ContextError {
         /// The name we tried to register.
         name: Item,
         /// The type information for the type that already existed.
-        existing: ValueTypeInfo,
+        existing: TypeInfo,
     },
     /// Raised when we try to register a conflicting type hash.
     #[error("tried to insert conflicting hash type `{hash}` (existing `{existing}`) for type `{value_type}`")]
@@ -76,7 +76,7 @@ pub enum ContextError {
         /// The hash that already existed.
         existing: Hash,
         /// The type we're trying to insert.
-        value_type: ValueType,
+        value_type: Type,
     },
     /// Error raised when attempting to register a conflicting function.
     #[error("variant with name `{name}` already exists")]
@@ -89,14 +89,14 @@ pub enum ContextError {
     #[error("instance `{instance_type}` does not exist in module")]
     MissingInstance {
         /// The instance type.
-        instance_type: ValueTypeInfo,
+        instance_type: TypeInfo,
     },
     /// Error raised when attempting to register a type that doesn't have a type
     /// hash into a context.
     #[error("type `{value_type}` cannot be defined dynamically")]
     UnsupportedValueType {
         /// The type we tried to register.
-        value_type: ValueType,
+        value_type: Type,
     },
 }
 
@@ -105,7 +105,7 @@ pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Syn
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
-pub struct TypeInfo {
+pub struct ContextTypeInfo {
     /// The type check used for the current type.
     ///
     /// If absent, the type cannot be type checked for.
@@ -113,14 +113,14 @@ pub struct TypeInfo {
     /// The name of the type.
     pub name: Item,
     /// The value type of the type.
-    pub value_type: ValueType,
+    pub value_type: Type,
     /// Information on the type.
-    pub value_type_info: ValueTypeInfo,
+    pub type_info: TypeInfo,
 }
 
-impl fmt::Display for TypeInfo {
+impl fmt::Display for ContextTypeInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{} => {}", self.name, self.value_type_info)?;
+        write!(fmt, "{} => {}", self.name, self.type_info)?;
         Ok(())
     }
 }
@@ -142,7 +142,7 @@ pub enum FnSignature {
         /// Arguments.
         args: Option<usize>,
         /// Information on the self type.
-        self_type_info: ValueTypeInfo,
+        self_type_info: TypeInfo,
     },
 }
 
@@ -157,7 +157,7 @@ impl FnSignature {
         path: Item,
         name: String,
         args: Option<usize>,
-        self_type_info: ValueTypeInfo,
+        self_type_info: TypeInfo,
     ) -> Self {
         Self::Instance {
             path,
@@ -230,9 +230,9 @@ pub struct Context {
     /// Information on functions.
     functions_info: HashMap<Hash, FnSignature>,
     /// Registered types.
-    types: HashMap<Hash, TypeInfo>,
+    types: HashMap<Hash, ContextTypeInfo>,
     /// Reverse lookup for types.
-    types_rev: HashMap<ValueType, Hash>,
+    types_rev: HashMap<Type, Hash>,
     /// Specialized information on unit types, if available.
     unit_type: Option<Hash>,
     /// Registered internal enums.
@@ -315,7 +315,7 @@ impl Context {
     }
 
     /// Iterate over all available types.
-    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &TypeInfo)> {
+    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &ContextTypeInfo)> {
         let mut it = self.types.iter();
 
         std::iter::from_fn(move || {
@@ -371,7 +371,7 @@ impl Context {
     fn install_type(
         &mut self,
         module: &Module,
-        value_type: ValueType,
+        value_type: Type,
         ty: &ModuleType,
     ) -> Result<(), ContextError> {
         let name = module.path.join(&ty.name);
@@ -379,11 +379,11 @@ impl Context {
 
         self.install_type_info(
             hash,
-            TypeInfo {
+            ContextTypeInfo {
                 type_check: TypeCheck::Type(value_type.as_type_hash()),
                 name: name.clone(),
                 value_type,
-                value_type_info: ty.value_type_info,
+                type_info: ty.type_info,
             },
         )?;
 
@@ -401,7 +401,7 @@ impl Context {
         Ok(())
     }
 
-    fn install_type_info(&mut self, hash: Hash, info: TypeInfo) -> Result<(), ContextError> {
+    fn install_type_info(&mut self, hash: Hash, info: ContextTypeInfo) -> Result<(), ContextError> {
         self.names.insert(&info.name);
 
         // reverse lookup for types.
@@ -416,7 +416,7 @@ impl Context {
         if let Some(existing) = self.types.insert(hash, info) {
             return Err(ContextError::ConflictingType {
                 name: existing.name,
-                existing: existing.value_type_info,
+                existing: existing.type_info,
             });
         }
 
@@ -448,7 +448,7 @@ impl Context {
         self.meta.insert(
             name.clone(),
             Meta::MetaFunction {
-                value_type: ValueType::Type(hash),
+                value_type: Type::Hash(hash),
                 item: name.clone(),
             },
         );
@@ -458,10 +458,10 @@ impl Context {
 
     fn install_associated_function(
         &mut self,
-        value_type: ValueType,
+        value_type: Type,
         hash: Hash,
         assoc: &ModuleAssociatedFn,
-        hash_fn: impl FnOnce(ValueType, Hash) -> Hash,
+        hash_fn: impl FnOnce(Type, Hash) -> Hash,
     ) -> Result<(), ContextError> {
         let info = match self
             .types_rev
@@ -471,7 +471,7 @@ impl Context {
             Some(info) => info,
             None => {
                 return Err(ContextError::MissingInstance {
-                    instance_type: assoc.value_type_info,
+                    instance_type: assoc.type_info,
                 });
             }
         };
@@ -482,7 +482,7 @@ impl Context {
             info.name.clone(),
             assoc.name.clone(),
             assoc.args,
-            info.value_type_info,
+            info.type_info,
         );
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -513,11 +513,11 @@ impl Context {
 
         self.install_type_info(
             hash,
-            TypeInfo {
+            ContextTypeInfo {
                 type_check: TypeCheck::Unit,
                 name: item.clone(),
-                value_type: ValueType::StaticType(crate::UNIT_TYPE),
-                value_type_info: ValueTypeInfo::StaticType(crate::UNIT_TYPE),
+                value_type: Type::StaticType(crate::UNIT_TYPE),
+                type_info: TypeInfo::StaticType(crate::UNIT_TYPE),
             },
         )?;
 
@@ -542,18 +542,18 @@ impl Context {
         self.install_meta(
             enum_item.clone(),
             Meta::MetaEnum {
-                value_type: ValueType::StaticType(internal_enum.static_type),
+                value_type: Type::StaticType(internal_enum.static_type),
                 item: enum_item.clone(),
             },
         )?;
 
         self.install_type_info(
             enum_hash,
-            TypeInfo {
+            ContextTypeInfo {
                 type_check: TypeCheck::Type(internal_enum.static_type.hash),
                 name: enum_item.clone(),
-                value_type: ValueType::StaticType(internal_enum.static_type),
-                value_type_info: ValueTypeInfo::StaticType(internal_enum.static_type),
+                value_type: Type::StaticType(internal_enum.static_type),
+                type_info: TypeInfo::StaticType(internal_enum.static_type),
             },
         )?;
 
@@ -563,11 +563,11 @@ impl Context {
 
             self.install_type_info(
                 hash,
-                TypeInfo {
+                ContextTypeInfo {
                     type_check: variant.type_check,
                     name: item.clone(),
-                    value_type: ValueType::Type(hash),
-                    value_type_info: ValueTypeInfo::StaticType(internal_enum.static_type),
+                    value_type: Type::Hash(hash),
+                    type_info: TypeInfo::StaticType(internal_enum.static_type),
                 },
             )?;
 

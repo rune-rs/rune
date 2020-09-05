@@ -9,7 +9,7 @@ use std::future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-value_types!(crate::FUTURE_TYPE, Future => Future, &Future, &mut Future);
+value_types!(crate::FUTURE_TYPE, Future => Future);
 
 /// dyn future alias.
 type DynFuture = dyn future::Future<Output = Result<Value, VmError>> + 'static;

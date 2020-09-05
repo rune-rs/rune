@@ -3,7 +3,7 @@ use crate::{
     Value, VmError,
 };
 
-value_types!(impl crate::VEC_TYPE, Vec<T> => T Vec<T>, T &Vec<T>, T &mut Vec<T>);
+value_types!(impl crate::VEC_TYPE, Vec<T> => T Vec<T>);
 value_types!(crate::VEC_TYPE, Vec<Value> => &[Value]);
 
 impl<T> FromValue for Vec<T>
