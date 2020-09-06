@@ -33,6 +33,14 @@ pub enum ParseError {
         /// Kind of the token encountered instead of end-of-file.
         actual: Kind,
     },
+    /// Error raised when we expect a declaration.
+    #[error("expected declaration `fn`, `mod`, `struct`, `enum`, or `use`. got `{actual}`.")]
+    ExpectedDecl {
+        /// Span that caused the error.
+        span: Span,
+        /// Kind of the token encountered instead of a declaration.
+        actual: Kind,
+    },
     /// Expected use import but found something else.
     #[error("expected import component but found `{actual}`")]
     ExpectedDeclUseImportComponent {
@@ -327,6 +335,7 @@ impl ParseError {
         match *self {
             Self::UnexpectedEof { span, .. } => span,
             Self::ExpectedEof { span, .. } => span,
+            Self::ExpectedDecl { span, .. } => span,
             Self::ExpectedStringEscape { span, .. } => span,
             Self::UnterminatedStrLit { span, .. } => span,
             Self::UnterminatedCharLit { span, .. } => span,

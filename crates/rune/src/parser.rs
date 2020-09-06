@@ -38,11 +38,6 @@ impl<'a> Parser<'a> {
         Self { lexer, p1, p2, p3 }
     }
 
-    /// Test if we are at the end of file.
-    pub(crate) fn is_eof(&self) -> Result<bool, ParseError> {
-        Ok(self.p1?.is_none())
-    }
-
     /// Parse a specific item from the parser.
     pub fn parse<T>(&mut self) -> Result<T, ParseError>
     where

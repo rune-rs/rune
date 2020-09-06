@@ -4,6 +4,7 @@ use crate::parser::Parser;
 use crate::traits::Parse;
 
 /// A parsed file.
+#[derive(Debug, Clone)]
 pub struct DeclFile {
     /// All the declarations in a file.
     pub decls: Vec<(ast::Decl, Option<ast::SemiColon>)>,
@@ -52,7 +53,7 @@ impl Parse for DeclFile {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let mut decls = Vec::new();
 
-        while !parser.is_eof()? {
+        while parser.peek::<ast::Decl>()? {
             let decl: ast::Decl = parser.parse()?;
 
             let semi_colon = if decl.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {

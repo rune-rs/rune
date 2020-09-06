@@ -11,6 +11,7 @@ mod decl_enum;
 mod decl_file;
 mod decl_fn;
 mod decl_impl;
+mod decl_mod;
 mod decl_struct;
 mod decl_use;
 mod expr;
@@ -67,6 +68,7 @@ pub use self::decl_enum::DeclEnum;
 pub use self::decl_file::DeclFile;
 pub use self::decl_fn::DeclFn;
 pub use self::decl_impl::DeclImpl;
+pub use self::decl_mod::{DeclMod, DeclModBody};
 pub use self::decl_struct::{DeclStruct, DeclStructBody, EmptyBody, StructBody, TupleBody};
 pub use self::decl_use::{DeclUse, DeclUseComponent};
 pub use self::expr::Expr;
@@ -117,9 +119,9 @@ pub use self::path::Path;
 pub use self::token::{Delimiter, Kind, NumberKind, Token};
 
 macro_rules! decl_tokens {
-    ($(($parser:ident, $($kind:tt)*),)*) => {
+    ($(($parser:ident, $doc:expr, $($kind:tt)*),)*) => {
         $(
-            /// Helper parser for a specifik token kind
+            #[doc = $doc]
             #[derive(Debug, Clone, Copy)]
             pub struct $parser {
                 /// Associated token.
@@ -163,53 +165,53 @@ macro_rules! decl_tokens {
 }
 
 decl_tokens! {
-    (Self_, Kind::Self_),
-    (Fn, Kind::Fn),
-    (Is, Kind::Is),
-    (Not, Kind::Not),
-    (Enum, Kind::Enum),
-    (Struct, Kind::Struct),
-    (If, Kind::If),
-    (Match, Kind::Match),
-    (Else, Kind::Else),
-    (Let, Kind::Let),
-    (Ident, Kind::Ident),
-    (Label, Kind::Label),
-    (OpenParen, Kind::Open(Delimiter::Parenthesis)),
-    (CloseParen, Kind::Close(Delimiter::Parenthesis)),
-    (OpenBrace, Kind::Open(Delimiter::Brace)),
-    (CloseBrace, Kind::Close(Delimiter::Brace)),
-    (OpenBracket, Kind::Open(Delimiter::Bracket)),
-    (CloseBracket, Kind::Close(Delimiter::Bracket)),
-    (Underscore, Kind::Underscore),
-    (Comma, Kind::Comma),
-    (Colon, Kind::Colon),
-    (Dot, Kind::Dot),
-    (SemiColon, Kind::SemiColon),
-    (Eq, Kind::Eq),
-    (Use, Kind::Use),
-    (Scope, Kind::Scope),
-    (While, Kind::While),
-    (Loop, Kind::Loop),
-    (For, Kind::For),
-    (In, Kind::In),
-    (Break, Kind::Break),
-    (Yield, Kind::Yield),
-    (Return, Kind::Return),
-    (Star, Kind::Mul),
-    (Rocket, Kind::Rocket),
-    (Hash, Kind::Hash),
-    (DotDot, Kind::DotDot),
-    (Await, Kind::Await),
-    (Async, Kind::Async),
-    (Select, Kind::Select),
-    (Default, Kind::Default),
-    (Try, Kind::Try),
-    (Pipe, Kind::Pipe),
-    (And, Kind::And),
-    (Or, Kind::Or),
-    (Impl, Kind::Impl),
-    (Mul, Kind::Mul),
+    (OpenParen, "An opening parenthesis `(`.", Kind::Open(Delimiter::Parenthesis)),
+    (CloseParen, "An closing parenthesis `)`.", Kind::Close(Delimiter::Parenthesis)),
+    (OpenBrace, "An opening brace `{`.", Kind::Open(Delimiter::Brace)),
+    (CloseBrace, "An closing brace `}`.", Kind::Close(Delimiter::Brace)),
+    (OpenBracket, "An open bracket `[`.", Kind::Open(Delimiter::Bracket)),
+    (CloseBracket, "An open bracket `]`.", Kind::Close(Delimiter::Bracket)),
+    (Self_, "The `self` keyword.", Kind::Self_),
+    (Fn, "The `fn` keyword.", Kind::Fn),
+    (Is, "The `is` keyword.", Kind::Is),
+    (Not, "The `!` operator.", Kind::Not),
+    (Enum, "The `enum` keyword.", Kind::Enum),
+    (Struct, "The `struct` keyword.", Kind::Struct),
+    (If, "The `if` keyword.", Kind::If),
+    (Match, "The `match` keyword.", Kind::Match),
+    (Else, "The `else` keyword.", Kind::Else),
+    (Let, "The `let` keyword.", Kind::Let),
+    (Ident, "An identifier, like `foo` or `Hello`.", Kind::Ident),
+    (Label, "A label, like `'foo`", Kind::Label),
+    (Underscore, "The underscore `_`.", Kind::Underscore),
+    (Comma, "A comma `,`.", Kind::Comma),
+    (Colon, "A colon `:`.", Kind::Colon),
+    (Dot, "A dot `.`.", Kind::Dot),
+    (SemiColon, "A semicolon `;`.", Kind::SemiColon),
+    (Eq, "An equals sign `=`.", Kind::Eq),
+    (Use, "The `use` keyword.", Kind::Use),
+    (Scope, "A scope `::` declaration.", Kind::Scope),
+    (While, "The `while` keyword.", Kind::While),
+    (Loop, "The `loop` keyword.", Kind::Loop),
+    (For, "The `for` keyword.", Kind::For),
+    (In, "The `in` keyword.", Kind::In),
+    (Break, "The `break` keyword.", Kind::Break),
+    (Yield, "The `yield` keyword.", Kind::Yield),
+    (Return, "The `return` keyword.", Kind::Return),
+    (Rocket, "The rocket `=>`.", Kind::Rocket),
+    (Hash, "The hash `#`.", Kind::Hash),
+    (DotDot, "Two dots `..`.", Kind::DotDot),
+    (Await, "The `await` keyword.", Kind::Await),
+    (Async, "The `async` keyword.", Kind::Async),
+    (Select, "The `select` keyword.", Kind::Select),
+    (Default, "The `default` keyword.", Kind::Default),
+    (Try, "The `?` operator.", Kind::Try),
+    (Pipe, "A pipe `|`.", Kind::Pipe),
+    (And, "And `&&` operator.", Kind::And),
+    (Or, "Or `||` operator.", Kind::Or),
+    (Impl, "The `impl` keyword", Kind::Impl),
+    (Mul, "Multiply `*` operator.", Kind::Mul),
+    (Mod, "The `mod` keyword.", Kind::Mod),
 }
 
 impl<'a> Resolve<'a> for Ident {

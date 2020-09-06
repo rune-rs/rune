@@ -47,7 +47,12 @@ impl DeclFn {
 
 impl Peek for DeclFn {
     fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
-        matches!(t1, Some(Token { kind: Kind::Fn, .. }))
+        let t = match t1 {
+            Some(t) => t,
+            None => return false,
+        };
+
+        matches!(t.kind, Kind::Fn | Kind::Async)
     }
 }
 
