@@ -49,7 +49,7 @@ Native instance functions are added to a runtime environment using the
 identified as the first argument of the instance function, and must be a type
 registered in the module using [`Module::ty`].
 
-```rune
+```rust,noplaypen
 {{#include ../../crates/rune-testing/examples/custom_instance_fn.rs}}
 ```
 

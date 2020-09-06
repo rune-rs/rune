@@ -44,7 +44,7 @@ Objects are represented externally as the [`Object`] type alias. The keys are
 always strings, but its value must be specified as the sole type parameter.
 Note that the dynamic [`Value`] can be used if the type is unknown.
 
-```rune
+```rust,noplaypen
 {{#include ../../crates/rune-testing/examples/object.rs}}
 ```
 

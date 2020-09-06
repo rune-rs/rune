@@ -57,7 +57,7 @@ it for something else.
 
 Below we showcase this, with the help of the `rune!` macro from `rune-testing`.
 
-```rune
+```rust,noplaypen
 {{#include ../../crates/rune-testing/examples/call_rune_fn.rs}}
 ```
 

@@ -35,7 +35,7 @@ $> cargo run -- scripts/book/vectors/vectors_rev.rn
 
 Vectors are represented externally as the standard [`Vec`].
 
-```rune
+```rust
 {{#include ../../crates/rune-testing/examples/vector.rs}}
 ```
 
@@ -47,7 +47,7 @@ $> cargo run --example vector
 If you have a vector which has values of non-uniform types, you can use 
 [`VecTuple`] to deal with them.
 
-```rune
+```rust
 {{#include ../../crates/rune-testing/examples/vec_tuple.rs}}
 ```
 

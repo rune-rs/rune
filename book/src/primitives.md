@@ -12,8 +12,8 @@ The primitives available in Rune are:
 * characters, like `'今'`.
 * integers, like `42`.
 * floats, like `3.1418`.
-* static strings.
-* types.
+* static strings, like `"Hello World"`.
+* type hashes.
 
 You can see that these bytes are `Copy` when assigning them to a different
 variable, because a separate copy of the variable will be used.

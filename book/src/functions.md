@@ -49,7 +49,7 @@ same time it can be harder to reason on what your program will do.
 
 Rune functions can be easily set up and called from Rust.
 
-```rune
+```rust,noplaypen
 {{#include ../../crates/rune-testing/examples/basic_add.rs}}
 ```
 
