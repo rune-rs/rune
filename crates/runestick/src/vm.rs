@@ -518,7 +518,8 @@ impl Vm {
         let value = self.stack.pop()?;
 
         let value = match value {
-            Value::Bool(value) => !value,
+            Value::Bool(value) => Value::from(!value),
+            Value::Integer(value) => Value::from(!value),
             other => {
                 let operand = other.type_info()?;
                 return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
@@ -532,50 +533,9 @@ impl Vm {
         Ok(())
     }
 
-    /// Internal impl of a numeric operation.
-    fn internal_numeric_op<H, E, I, F>(
-        &mut self,
-        hash: H,
-        error: E,
-        integer_op: I,
-        float_op: F,
-        op: &'static str,
-    ) -> Result<(), VmError>
-    where
-        H: IntoHash,
-        E: Copy + FnOnce() -> VmError,
-        I: FnOnce(i64, i64) -> Option<i64>,
-        F: FnOnce(f64, f64) -> f64,
-    {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.pop()?;
-
-        let (lhs, rhs) = match (lhs, rhs) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => {
-                self.stack.push(integer_op(lhs, rhs).ok_or_else(error)?);
-                return Ok(());
-            }
-            (Value::Float(lhs), Value::Float(rhs)) => {
-                self.stack.push(float_op(lhs, rhs));
-                return Ok(());
-            }
-            (lhs, rhs) => (lhs.clone(), rhs),
-        };
-
-        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
-            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                op,
-                lhs: lhs.type_info()?,
-                rhs: rhs.type_info()?,
-            }));
-        }
-
-        Ok(())
-    }
-
     #[inline]
     fn op_add(&mut self) -> Result<(), VmError> {
-        self.internal_numeric_op(
+        self.internal_num(
             crate::ADD,
             || VmError::from(VmErrorKind::Overflow),
             i64::checked_add,
@@ -587,7 +547,7 @@ impl Vm {
 
     #[inline]
     fn op_sub(&mut self) -> Result<(), VmError> {
-        self.internal_numeric_op(
+        self.internal_num(
             crate::SUB,
             || VmError::from(VmErrorKind::Underflow),
             i64::checked_sub,
@@ -599,7 +559,7 @@ impl Vm {
 
     #[inline]
     fn op_mul(&mut self) -> Result<(), VmError> {
-        self.internal_numeric_op(
+        self.internal_num(
             crate::ADD,
             || VmError::from(VmErrorKind::Overflow),
             i64::checked_mul,
@@ -611,7 +571,7 @@ impl Vm {
 
     #[inline]
     fn op_div(&mut self) -> Result<(), VmError> {
-        self.internal_numeric_op(
+        self.internal_num(
             crate::ADD,
             || VmError::from(VmErrorKind::DivideByZero),
             i64::checked_div,
@@ -623,7 +583,7 @@ impl Vm {
 
     #[inline]
     fn op_rem(&mut self) -> Result<(), VmError> {
-        self.internal_numeric_op(
+        self.internal_num(
             crate::REM,
             || VmError::from(VmErrorKind::DivideByZero),
             i64::checked_rem,
@@ -633,53 +593,106 @@ impl Vm {
         Ok(())
     }
 
-    fn internal_op_assign<H, E, I, F>(
-        &mut self,
-        offset: usize,
-        hash: H,
-        error: E,
-        integer_op: I,
-        float_op: F,
-        op: &'static str,
-    ) -> Result<(), VmError>
-    where
-        H: IntoHash,
-        E: Copy + FnOnce() -> VmError,
-        I: FnOnce(i64, i64) -> Option<i64>,
-        F: FnOnce(f64, f64) -> f64,
-    {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.at_offset_mut(offset)?;
+    #[inline]
+    fn op_bit_and(&mut self) -> Result<(), VmError> {
+        self.internal_infallible_bitwise(crate::BIT_AND, std::ops::BitAnd::bitand, "&")?;
+        Ok(())
+    }
 
-        let (lhs, rhs) = match (lhs, rhs) {
-            (Value::Integer(lhs), Value::Integer(rhs)) => {
-                let out = integer_op(*lhs, rhs).ok_or_else(error)?;
-                *lhs = out;
-                return Ok(());
-            }
-            (Value::Float(lhs), Value::Float(rhs)) => {
-                let out = float_op(*lhs, rhs);
-                *lhs = out;
-                return Ok(());
-            }
-            (lhs, rhs) => (lhs.clone(), rhs),
-        };
+    #[inline]
+    fn op_bit_xor(&mut self) -> Result<(), VmError> {
+        self.internal_infallible_bitwise(crate::BIT_XOR, std::ops::BitXor::bitxor, "^")?;
+        Ok(())
+    }
 
-        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
-            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
-                op,
-                lhs: lhs.type_info()?,
-                rhs: rhs.type_info()?,
-            }));
-        }
+    #[inline]
+    fn op_bit_or(&mut self) -> Result<(), VmError> {
+        self.internal_infallible_bitwise(crate::BIT_OR, std::ops::BitOr::bitor, "|")?;
+        Ok(())
+    }
 
-        self.stack.pop()?;
+    #[inline]
+    fn op_bit_and_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        self.internal_infallible_bitwise_assign(
+            offset,
+            crate::BIT_AND_ASSIGN,
+            std::ops::BitAndAssign::bitand_assign,
+            "&=",
+        )?;
+        Ok(())
+    }
+
+    #[inline]
+    fn op_bit_xor_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        self.internal_infallible_bitwise_assign(
+            offset,
+            crate::BIT_XOR_ASSIGN,
+            std::ops::BitXorAssign::bitxor_assign,
+            "^=",
+        )?;
+        Ok(())
+    }
+
+    #[inline]
+    fn op_bit_or_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        self.internal_infallible_bitwise_assign(
+            offset,
+            crate::BIT_OR_ASSIGN,
+            std::ops::BitOrAssign::bitor_assign,
+            "|=",
+        )?;
+        Ok(())
+    }
+
+    #[inline]
+    fn op_shl(&mut self) -> Result<(), VmError> {
+        use std::convert::TryFrom as _;
+
+        self.internal_bitwise(
+            crate::SHL,
+            || VmError::from(VmErrorKind::Overflow),
+            |a, b| a.checked_shl(u32::try_from(b).ok()?),
+            "<<",
+        )?;
+
+        Ok(())
+    }
+
+    #[inline]
+    fn op_shr(&mut self) -> Result<(), VmError> {
+        self.internal_infallible_bitwise(crate::SHR, std::ops::Shr::shr, ">>")?;
+        Ok(())
+    }
+
+    #[inline]
+    fn op_shl_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        use std::convert::TryFrom as _;
+
+        self.internal_bitwise_assign(
+            offset,
+            crate::SHL_ASSIGN,
+            || VmError::from(VmErrorKind::Overflow),
+            |a, b| a.checked_shl(u32::try_from(b).ok()?),
+            "<<=",
+        )?;
+
+        Ok(())
+    }
+
+    #[inline]
+    fn op_shr_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        self.internal_infallible_bitwise_assign(
+            offset,
+            crate::SHR_ASSIGN,
+            std::ops::ShrAssign::shr_assign,
+            ">>=",
+        )?;
         Ok(())
     }
 
     #[inline]
     fn op_add_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_op_assign(
+        self.internal_num_assign(
             offset,
             crate::ADD_ASSIGN,
             || VmError::from(VmErrorKind::Overflow),
@@ -692,7 +705,7 @@ impl Vm {
 
     #[inline]
     fn op_sub_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_op_assign(
+        self.internal_num_assign(
             offset,
             crate::SUB_ASSIGN,
             || VmError::from(VmErrorKind::Underflow),
@@ -705,7 +718,7 @@ impl Vm {
 
     #[inline]
     fn op_mul_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_op_assign(
+        self.internal_num_assign(
             offset,
             crate::MUL_ASSIGN,
             || VmError::from(VmErrorKind::Overflow),
@@ -718,13 +731,26 @@ impl Vm {
 
     #[inline]
     fn op_div_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_op_assign(
+        self.internal_num_assign(
             offset,
             crate::DIV_ASSIGN,
             || VmError::from(VmErrorKind::DivideByZero),
             i64::checked_div,
             std::ops::Div::div,
             "/=",
+        )?;
+        Ok(())
+    }
+
+    #[inline]
+    fn op_rem_assign(&mut self, offset: usize) -> Result<(), VmError> {
+        self.internal_num_assign(
+            offset,
+            crate::REM_ASSIGN,
+            || VmError::from(VmErrorKind::DivideByZero),
+            i64::checked_rem,
+            std::ops::Rem::rem,
+            "%=",
         )?;
         Ok(())
     }
@@ -1924,6 +1950,9 @@ impl Vm {
                 Inst::Rem => {
                     self.op_rem()?;
                 }
+                Inst::RemAssign { offset } => {
+                    self.op_rem_assign(offset)?;
+                }
                 Inst::Fn { hash } => {
                     self.op_fn(hash)?;
                 }
@@ -2118,6 +2147,36 @@ impl Vm {
                 Inst::Or => {
                     self.op_or()?;
                 }
+                Inst::BitAnd => {
+                    self.op_bit_and()?;
+                }
+                Inst::BitAndAssign { offset } => {
+                    self.op_bit_and_assign(offset)?;
+                }
+                Inst::BitXor => {
+                    self.op_bit_xor()?;
+                }
+                Inst::BitXorAssign { offset } => {
+                    self.op_bit_xor_assign(offset)?;
+                }
+                Inst::BitOr => {
+                    self.op_bit_or()?;
+                }
+                Inst::BitOrAssign { offset } => {
+                    self.op_bit_or_assign(offset)?;
+                }
+                Inst::Shl => {
+                    self.op_shl()?;
+                }
+                Inst::ShlAssign { offset } => {
+                    self.op_shl_assign(offset)?;
+                }
+                Inst::Shr => {
+                    self.op_shr()?;
+                }
+                Inst::ShrAssign { offset } => {
+                    self.op_shr_assign(offset)?;
+                }
                 Inst::EqByte { byte } => {
                     self.op_eq_byte(byte)?;
                 }
@@ -2170,6 +2229,228 @@ impl Vm {
                 *limit -= 1;
             }
         }
+    }
+
+    fn internal_num_assign<H, E, I, F>(
+        &mut self,
+        offset: usize,
+        hash: H,
+        error: E,
+        integer_op: I,
+        float_op: F,
+        op: &'static str,
+    ) -> Result<(), VmError>
+    where
+        H: IntoHash,
+        E: Copy + FnOnce() -> VmError,
+        I: FnOnce(i64, i64) -> Option<i64>,
+        F: FnOnce(f64, f64) -> f64,
+    {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.at_offset_mut(offset)?;
+
+        let (lhs, rhs) = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => {
+                let out = integer_op(*lhs, rhs).ok_or_else(error)?;
+                *lhs = out;
+                return Ok(());
+            }
+            (Value::Float(lhs), Value::Float(rhs)) => {
+                let out = float_op(*lhs, rhs);
+                *lhs = out;
+                return Ok(());
+            }
+            (lhs, rhs) => (lhs.clone(), rhs),
+        };
+
+        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                op,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
+            }));
+        }
+
+        self.stack.pop()?;
+        Ok(())
+    }
+
+    /// Internal impl of a numeric operation.
+    fn internal_num<H, E, I, F>(
+        &mut self,
+        hash: H,
+        error: E,
+        integer_op: I,
+        float_op: F,
+        op: &'static str,
+    ) -> Result<(), VmError>
+    where
+        H: IntoHash,
+        E: Copy + FnOnce() -> VmError,
+        I: FnOnce(i64, i64) -> Option<i64>,
+        F: FnOnce(f64, f64) -> f64,
+    {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.pop()?;
+
+        let (lhs, rhs) = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => {
+                self.stack.push(integer_op(lhs, rhs).ok_or_else(error)?);
+                return Ok(());
+            }
+            (Value::Float(lhs), Value::Float(rhs)) => {
+                self.stack.push(float_op(lhs, rhs));
+                return Ok(());
+            }
+            (lhs, rhs) => (lhs.clone(), rhs),
+        };
+
+        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                op,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
+            }));
+        }
+
+        Ok(())
+    }
+
+    /// Internal impl of a numeric operation.
+    fn internal_infallible_bitwise<H, I>(
+        &mut self,
+        hash: H,
+        integer_op: I,
+        op: &'static str,
+    ) -> Result<(), VmError>
+    where
+        H: IntoHash,
+        I: FnOnce(i64, i64) -> i64,
+    {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.pop()?;
+
+        let (lhs, rhs) = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => {
+                self.stack.push(integer_op(lhs, rhs));
+                return Ok(());
+            }
+            (lhs, rhs) => (lhs.clone(), rhs),
+        };
+
+        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                op,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
+            }));
+        }
+
+        Ok(())
+    }
+
+    fn internal_infallible_bitwise_assign<H, I>(
+        &mut self,
+        offset: usize,
+        hash: H,
+        integer_op: I,
+        op: &'static str,
+    ) -> Result<(), VmError>
+    where
+        H: IntoHash,
+        I: FnOnce(&mut i64, i64),
+    {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.at_offset_mut(offset)?;
+
+        let (lhs, rhs) = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => {
+                integer_op(lhs, rhs);
+                return Ok(());
+            }
+            (lhs, rhs) => (lhs.clone(), rhs),
+        };
+
+        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                op,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
+            }));
+        }
+
+        self.stack.pop()?;
+        Ok(())
+    }
+
+    fn internal_bitwise<H, E, I>(
+        &mut self,
+        hash: H,
+        error: E,
+        integer_op: I,
+        op: &'static str,
+    ) -> Result<(), VmError>
+    where
+        H: IntoHash,
+        E: FnOnce() -> VmError,
+        I: FnOnce(i64, i64) -> Option<i64>,
+    {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.pop()?;
+
+        let (lhs, rhs) = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => {
+                self.stack.push(integer_op(lhs, rhs).ok_or_else(error)?);
+                return Ok(());
+            }
+            (lhs, rhs) => (lhs.clone(), rhs),
+        };
+
+        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                op,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
+            }));
+        }
+
+        Ok(())
+    }
+
+    fn internal_bitwise_assign<H, E, I>(
+        &mut self,
+        offset: usize,
+        hash: H,
+        error: E,
+        integer_op: I,
+        op: &'static str,
+    ) -> Result<(), VmError>
+    where
+        H: IntoHash,
+        E: FnOnce() -> VmError,
+        I: FnOnce(i64, i64) -> Option<i64>,
+    {
+        let rhs = self.stack.pop()?;
+        let lhs = self.stack.at_offset_mut(offset)?;
+
+        let (lhs, rhs) = match (lhs, rhs) {
+            (Value::Integer(lhs), Value::Integer(rhs)) => {
+                let out = integer_op(*lhs, rhs).ok_or_else(error)?;
+                *lhs = out;
+                return Ok(());
+            }
+            (lhs, rhs) => (lhs.clone(), rhs),
+        };
+
+        if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
+            return Err(VmError::from(VmErrorKind::UnsupportedBinaryOperation {
+                op,
+                lhs: lhs.type_info()?,
+                rhs: rhs.type_info()?,
+            }));
+        }
+
+        Ok(())
     }
 }
 

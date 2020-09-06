@@ -433,7 +433,7 @@ impl Value {
             Self::Byte(..) => TypeInfo::StaticType(crate::BYTE_TYPE),
             Self::Char(..) => TypeInfo::StaticType(crate::CHAR_TYPE),
             Self::Integer(..) => TypeInfo::StaticType(crate::INTEGER_TYPE),
-            Self::Float(..) => TypeInfo::StaticType(crate::STRING_TYPE),
+            Self::Float(..) => TypeInfo::StaticType(crate::FLOAT_TYPE),
             Self::StaticString(..) => TypeInfo::StaticType(crate::STRING_TYPE),
             Self::String(..) => TypeInfo::StaticType(crate::STRING_TYPE),
             Self::Bytes(..) => TypeInfo::StaticType(crate::BYTES_TYPE),

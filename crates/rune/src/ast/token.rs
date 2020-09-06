@@ -156,140 +156,167 @@ pub enum Kind {
     Open(Delimiter),
     /// A close delimiter: `)`, `}`, or `]`.
     Close(Delimiter),
-    /// A hash `#`.
+    /// `#`.
     Hash,
-    /// A dot `.`.
+    /// `.`.
     Dot,
-    /// A scope `::`.
-    Scope,
-    /// An underscore `_`.
+    /// `::`.
+    ColonColon,
+    /// `_`.
     Underscore,
-    /// A comma `,`.
+    /// `,`.
     Comma,
-    /// A colon `:`.
+    /// `:`.
     Colon,
-    /// A semi-colon `;`.
+    /// `;`.
     SemiColon,
-    /// An add operator `+`.
-    Add,
-    /// An add assign operator `+=`.
-    AddAssign,
-    /// A sub operator `-`.
-    Sub,
-    /// An sub assign operator `-=`.
-    SubAssign,
-    /// A division operator `/`.
+    /// `+`.
+    Plus,
+    /// `-`.
+    Dash,
+    /// `/`.
     Div,
-    /// An division assign operator `/=`.
-    DivAssign,
-    /// A multiply operator `*`.
-    Mul,
-    /// An multiply assign operator `*=`.
-    MulAssign,
-    /// An ampersand literal `&`.
-    Ampersand,
-    /// An equals sign `=`.
+    /// `*`.
+    Star,
+    /// `&`.
+    Amp,
+    /// `=`.
     Eq,
-    /// Two equals sign `==`.
+    /// `==`.
     EqEq,
-    /// Not equals `!=`.
-    Neq,
-    /// The rocket token `=>`.
+    /// `!=`.
+    BangEq,
+    /// `=>`.
     Rocket,
-    /// Less than comparison `<`.
+    /// `<`.
     Lt,
-    /// Greater than comparison `>`.
+    /// `>`.
     Gt,
-    /// Less than or equal comparison `<=`.
-    Lte,
-    /// Greater than or equal comparison `>=`.
-    Gte,
-    /// Bang operator `!`.
+    /// `<=`.
+    LtEq,
+    /// `>=`.
+    GtEq,
+    /// `!`.
     Bang,
-    /// Try operator `?`.
-    Try,
-    /// Double dots `..`.
+    /// `?`.
+    QuestionMark,
+    /// `..`.
     DotDot,
-    /// And operator.
-    And,
-    /// Or operator.
-    Or,
-    /// A `|` pipe.
+    /// `&&`.
+    AmpAmp,
+    /// `||`.
+    PipePipe,
+    /// `|`.
     Pipe,
-    /// A `%` operator.
-    Rem,
+    /// `%`.
+    Perc,
+    /// `<<`.
+    LtLt,
+    /// `>>`.
+    GtGt,
+    /// `^`.
+    Caret,
+    /// `+=`.
+    PlusEq,
+    /// `-=`.
+    DashEq,
+    /// `*=`.
+    StarEq,
+    /// `/=`.
+    SlashEq,
+    /// `%=`.
+    PercEq,
+    /// `&=`.
+    AmpEq,
+    /// `^=`.
+    CaretEq,
+    /// |=`.
+    PipeEq,
+    /// `<<=`.
+    LtLtEq,
+    /// `>>=`.
+    GtGtEq,
 }
 
 impl fmt::Display for Kind {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Self::Self_ => write!(fmt, "self")?,
-            Self::Fn => write!(fmt, "fn")?,
-            Self::Enum => write!(fmt, "enum")?,
-            Self::Struct => write!(fmt, "struct")?,
-            Self::Is => write!(fmt, "is")?,
-            Self::Not => write!(fmt, "not")?,
-            Self::Let => write!(fmt, "let")?,
-            Self::If => write!(fmt, "if")?,
-            Self::Match => write!(fmt, "match")?,
-            Self::Else => write!(fmt, "else")?,
-            Self::Use => write!(fmt, "use")?,
-            Self::While => write!(fmt, "while")?,
-            Self::Loop => write!(fmt, "loop")?,
-            Self::For => write!(fmt, "for")?,
-            Self::In => write!(fmt, "in")?,
-            Self::True => write!(fmt, "true")?,
-            Self::False => write!(fmt, "false")?,
-            Self::Break => write!(fmt, "break")?,
-            Self::Yield => write!(fmt, "yield")?,
-            Self::Return => write!(fmt, "return")?,
-            Self::Await => write!(fmt, "await")?,
-            Self::Async => write!(fmt, "async")?,
-            Self::Select => write!(fmt, "select")?,
-            Self::Default => write!(fmt, "default")?,
-            Self::Impl => write!(fmt, "impl")?,
-            Self::Mod => write!(fmt, "mod")?,
-            Self::Ident => write!(fmt, "ident")?,
-            Self::Label => write!(fmt, "label")?,
-            Self::LitNumber { .. } => write!(fmt, "number")?,
-            Self::LitStr { .. } => write!(fmt, "string")?,
-            Self::LitByteStr { .. } => write!(fmt, "byte string")?,
-            Self::LitTemplate { .. } => write!(fmt, "template")?,
-            Self::LitChar { .. } => write!(fmt, "char")?,
-            Self::LitByte { .. } => write!(fmt, "byte")?,
-            Self::Open(delimiter) => write!(fmt, "{}", delimiter.open())?,
-            Self::Close(delimiter) => write!(fmt, "{}", delimiter.close())?,
-            Self::Underscore => write!(fmt, "_")?,
-            Self::Comma => write!(fmt, ",")?,
-            Self::Colon => write!(fmt, ":")?,
-            Self::Hash => write!(fmt, "#")?,
-            Self::Dot => write!(fmt, ".")?,
-            Self::Scope => write!(fmt, "::")?,
-            Self::SemiColon => write!(fmt, ";")?,
-            Self::Add => write!(fmt, "+")?,
-            Self::AddAssign => write!(fmt, "+=")?,
-            Self::Sub => write!(fmt, "-")?,
-            Self::SubAssign => write!(fmt, "-=")?,
-            Self::Div => write!(fmt, "/")?,
-            Self::DivAssign => write!(fmt, "/=")?,
-            Self::Mul => write!(fmt, "*")?,
-            Self::MulAssign => write!(fmt, "*=")?,
-            Self::Ampersand => write!(fmt, "&")?,
-            Self::Eq => write!(fmt, "=")?,
-            Self::EqEq => write!(fmt, "==")?,
-            Self::Neq => write!(fmt, "!=")?,
-            Self::Rocket => write!(fmt, "=>")?,
-            Self::Lt => write!(fmt, "<")?,
-            Self::Gt => write!(fmt, ">")?,
-            Self::Lte => write!(fmt, "<=")?,
-            Self::Gte => write!(fmt, ">=")?,
-            Self::Bang => write!(fmt, "!")?,
-            Self::Try => write!(fmt, "?")?,
-            Self::DotDot => write!(fmt, "..")?,
-            Self::And => write!(fmt, "&&")?,
-            Self::Or => write!(fmt, "||")?,
-            Self::Pipe => write!(fmt, "|")?,
-            Self::Rem => write!(fmt, "%")?,
+            Self::Self_ => write!(f, "self")?,
+            Self::Fn => write!(f, "fn")?,
+            Self::Enum => write!(f, "enum")?,
+            Self::Struct => write!(f, "struct")?,
+            Self::Is => write!(f, "is")?,
+            Self::Not => write!(f, "not")?,
+            Self::Let => write!(f, "let")?,
+            Self::If => write!(f, "if")?,
+            Self::Match => write!(f, "match")?,
+            Self::Else => write!(f, "else")?,
+            Self::Use => write!(f, "use")?,
+            Self::While => write!(f, "while")?,
+            Self::Loop => write!(f, "loop")?,
+            Self::For => write!(f, "for")?,
+            Self::In => write!(f, "in")?,
+            Self::True => write!(f, "true")?,
+            Self::False => write!(f, "false")?,
+            Self::Break => write!(f, "break")?,
+            Self::Yield => write!(f, "yield")?,
+            Self::Return => write!(f, "return")?,
+            Self::Await => write!(f, "await")?,
+            Self::Async => write!(f, "async")?,
+            Self::Select => write!(f, "select")?,
+            Self::Default => write!(f, "default")?,
+            Self::Impl => write!(f, "impl")?,
+            Self::Mod => write!(f, "mod")?,
+            Self::Ident => write!(f, "ident")?,
+            Self::Label => write!(f, "label")?,
+            Self::LitNumber { .. } => write!(f, "number")?,
+            Self::LitStr { .. } => write!(f, "string")?,
+            Self::LitByteStr { .. } => write!(f, "byte string")?,
+            Self::LitTemplate { .. } => write!(f, "template")?,
+            Self::LitChar { .. } => write!(f, "char")?,
+            Self::LitByte { .. } => write!(f, "byte")?,
+            Self::Open(delimiter) => write!(f, "{}", delimiter.open())?,
+            Self::Close(delimiter) => write!(f, "{}", delimiter.close())?,
+            Self::Underscore => write!(f, "_")?,
+            Self::Comma => write!(f, ",")?,
+            Self::Colon => write!(f, ":")?,
+            Self::Hash => write!(f, "#")?,
+            Self::Dot => write!(f, ".")?,
+            Self::ColonColon => write!(f, "::")?,
+            Self::SemiColon => write!(f, ";")?,
+            Self::Caret => write!(f, "^")?,
+            Self::Plus => write!(f, "+")?,
+            Self::Dash => write!(f, "-")?,
+            Self::Div => write!(f, "/")?,
+            Self::PlusEq => write!(f, "+=")?,
+            Self::DashEq => write!(f, "-=")?,
+            Self::StarEq => write!(f, "*=")?,
+            Self::SlashEq => write!(f, "/=")?,
+            Self::PercEq => write!(f, "%=")?,
+            Self::AmpEq => write!(f, "&=")?,
+            Self::CaretEq => write!(f, "^=")?,
+            Self::PipeEq => write!(f, "|=")?,
+            Self::LtLt => write!(f, "<<")?,
+            Self::GtGt => write!(f, ">>")?,
+            Self::LtLtEq => write!(f, "<<=")?,
+            Self::GtGtEq => write!(f, ">>=")?,
+            Self::Star => write!(f, "*")?,
+            Self::Amp => write!(f, "&")?,
+            Self::Eq => write!(f, "=")?,
+            Self::EqEq => write!(f, "==")?,
+            Self::BangEq => write!(f, "!=")?,
+            Self::Rocket => write!(f, "=>")?,
+            Self::Lt => write!(f, "<")?,
+            Self::Gt => write!(f, ">")?,
+            Self::LtEq => write!(f, "<=")?,
+            Self::GtEq => write!(f, ">=")?,
+            Self::Bang => write!(f, "!")?,
+            Self::QuestionMark => write!(f, "?")?,
+            Self::DotDot => write!(f, "..")?,
+            Self::AmpAmp => write!(f, "&&")?,
+            Self::PipePipe => write!(f, "||")?,
+            Self::Pipe => write!(f, "|")?,
+            Self::Perc => write!(f, "%")?,
         }
 
         Ok(())

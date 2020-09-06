@@ -83,3 +83,6 @@ separate files:
 $> cargo run -- scripts/book/items_imports/modules.rn
 == 3 (37.5µs)
 ```
+
+> Note: Rust has visibility rules (`pub`, `pub(crate)`, ...) which are not yet
+> implemented in Rune. See [issue #5](https://github.com/rune-rs/rune/issues/5).

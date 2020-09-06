@@ -73,7 +73,7 @@ impl Parse for DeclUseComponent {
 
         Ok(match t.kind {
             ast::Kind::Ident => Self::Ident(parser.parse()?),
-            ast::Kind::Mul => Self::Wildcard(parser.parse()?),
+            ast::Kind::Star => Self::Wildcard(parser.parse()?),
             actual => {
                 return Err(ParseError::ExpectedDeclUseImportComponent {
                     span: t.span,
@@ -91,6 +91,6 @@ impl Peek for DeclUseComponent {
             None => return false,
         };
 
-        matches!(kind, Kind::Ident | Kind::Mul)
+        matches!(kind, Kind::Ident | Kind::Star)
     }
 }

@@ -147,6 +147,14 @@ pub enum Inst {
     /// => <value>
     /// ```
     Rem,
+    /// Calculate the remainder based on the value of the given offset and the
+    /// top of the stack.
+    ///
+    /// This is the result of an `<offset> %= <b>` expression.
+    RemAssign {
+        /// The frame offset to assign to.
+        offset: usize,
+    },
     /// Encode a function pointer on the stack.
     ///
     /// # Operation
@@ -768,6 +776,126 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     Or,
+    /// Pop two values from the stack and perform a bitwise and operation over
+    /// them.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// <value>
+    /// => <value>
+    /// ```
+    BitAnd,
+    /// Pop a value from the stack and perform a bitwise and operation over the
+    /// offset and that value.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <value>
+    /// ```
+    BitAndAssign {
+        /// The offset to assign the result to.
+        offset: usize,
+    },
+    /// Pop two values from the stack and perform a bitwise xor operation over
+    /// them.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// <value>
+    /// => <value>
+    /// ```
+    BitXor,
+    /// Pop a value from the stack and perform a bitwise xor operation over the
+    /// offset and that value.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <value>
+    /// ```
+    BitXorAssign {
+        /// The offset to assign the result to.
+        offset: usize,
+    },
+    /// Pop two values from the stack and perform a bitwise or operation over
+    /// them.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// <value>
+    /// => <value>
+    /// ```
+    BitOr,
+    /// Pop a value from the stack and perform a bitwise or operation over the
+    /// offset and that value.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <value>
+    /// ```
+    BitOrAssign {
+        /// The offset to assign the result to.
+        offset: usize,
+    },
+    /// Pop two values from the stack and perform a bitwise shift left operation
+    /// over them.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// <value>
+    /// => <value>
+    /// ```
+    Shl,
+    /// Pop a value from the stack and perform a bitwise shift left operation
+    /// over the offset and that value.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <value>
+    /// ```
+    ShlAssign {
+        /// The offset to assign the result to.
+        offset: usize,
+    },
+    /// Pop two values from the stack and perform a bitwise shift right
+    /// operation over them.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// <value>
+    /// => <value>
+    /// ```
+    Shr,
+    /// Pop a value from the stack and perform a bitwise shift right operation
+    /// over the offset and that value.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// => <value>
+    /// ```
+    ShrAssign {
+        /// The offset to assign the result to.
+        offset: usize,
+    },
     /// Test if the top of the stack is a unit.
     ///
     /// # Operation
@@ -962,6 +1090,9 @@ impl fmt::Display for Inst {
             Self::Rem => {
                 write!(fmt, "rem")?;
             }
+            Self::RemAssign { offset } => {
+                write!(fmt, "rem-assign {}", offset)?;
+            }
             Self::Call { hash, args } => {
                 write!(fmt, "call {}, {}", hash, args)?;
             }
@@ -1127,6 +1258,36 @@ impl fmt::Display for Inst {
             }
             Self::Or => {
                 write!(fmt, "or")?;
+            }
+            Self::BitAnd => {
+                write!(fmt, "bit-and")?;
+            }
+            Self::BitAndAssign { offset } => {
+                write!(fmt, "bit-and-assign {}", offset)?;
+            }
+            Self::BitXor => {
+                write!(fmt, "bit-xor")?;
+            }
+            Self::BitXorAssign { offset } => {
+                write!(fmt, "bit-xor-assign {}", offset)?;
+            }
+            Self::BitOr => {
+                write!(fmt, "bit-or")?;
+            }
+            Self::BitOrAssign { offset } => {
+                write!(fmt, "bit-or-assign {}", offset)?;
+            }
+            Self::Shl => {
+                write!(fmt, "shl")?;
+            }
+            Self::ShlAssign { offset } => {
+                write!(fmt, "shl-assign {}", offset)?;
+            }
+            Self::Shr => {
+                write!(fmt, "shr")?;
+            }
+            Self::ShrAssign { offset } => {
+                write!(fmt, "shr-assign {}", offset)?;
             }
             Self::IsUnit => {
                 write!(fmt, "is-unit")?;

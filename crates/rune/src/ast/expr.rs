@@ -283,7 +283,7 @@ impl Expr {
             }
             ast::Kind::Self_ => Self::Self_(parser.parse()?),
             ast::Kind::Select => Self::ExprSelect(parser.parse()?),
-            ast::Kind::Or | Kind::Pipe => Self::ExprClosure(parser.parse()?),
+            ast::Kind::PipePipe | Kind::Pipe => Self::ExprClosure(parser.parse()?),
             ast::Kind::Label => {
                 let label = Some((parser.parse::<ast::Label>()?, parser.parse::<ast::Colon>()?));
                 let token = parser.token_peek_eof()?;
@@ -305,7 +305,7 @@ impl Expr {
                 });
             }
             ast::Kind::Hash => Self::LitObject(parser.parse()?),
-            ast::Kind::Bang | Kind::Ampersand | Kind::Mul => Self::ExprUnary(parser.parse()?),
+            ast::Kind::Bang | Kind::Amp | Kind::Star => Self::ExprUnary(parser.parse()?),
             ast::Kind::While => Self::ExprWhile(parser.parse()?),
             ast::Kind::Loop => Self::ExprLoop(parser.parse()?),
             ast::Kind::For => Self::ExprFor(parser.parse()?),
@@ -377,7 +377,7 @@ impl Expr {
                         args,
                     });
                 }
-                ast::Kind::Try => {
+                ast::Kind::QuestionMark => {
                     expr = Expr::ExprTry(ast::ExprTry {
                         expr: Box::new(expr),
                         try_: parser.parse()?,
@@ -466,7 +466,7 @@ impl Expr {
             loop {
                 let (lh, _) = match lookahead_tok.and_then(ast::BinOp::from_token) {
                     Some((lh, _)) if lh.precedence() > op.precedence() => (lh, token),
-                    Some((lh, _)) if lh.precedence() == op.precedence() && !lh.is_assoc(op) => {
+                    Some((lh, _)) if lh.precedence() == op.precedence() && !op.is_assoc() => {
                         return Err(ParseError::PrecedenceGroupRequired {
                             span: lhs.span().join(rhs.span()),
                         });
@@ -544,7 +544,7 @@ impl Peek for Expr {
             ast::Kind::Select => true,
             ast::Kind::Label => matches!(t2.map(|t| t.kind), Some(Kind::Colon)),
             ast::Kind::Hash => true,
-            ast::Kind::Bang | Kind::Ampersand | Kind::Mul => true,
+            ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => true,
             ast::Kind::While => true,
             ast::Kind::Loop => true,
             ast::Kind::For => true,
