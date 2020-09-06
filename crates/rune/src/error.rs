@@ -1,6 +1,9 @@
 use crate::ast;
 use crate::ast::Kind;
+use crate::SourceId;
 use runestick::{Item, Meta, Span};
+use std::io;
+use std::path::PathBuf;
 use thiserror::Error;
 
 /// A compile result.
@@ -392,6 +395,35 @@ pub enum CompileError {
         /// Where the invariant was broken.
         span: Span,
     },
+    /// Cannot find a file corresponding to a module.
+    #[error("file not found, expected a module file like `{path}.rn`")]
+    ModNotFound {
+        /// Path where file failed to be loaded from.
+        path: PathBuf,
+        /// Span of the
+        span: Span,
+    },
+    /// Failed to load file from the given path.
+    #[error("failed to load `{path}`: {error}")]
+    ModFileError {
+        /// Path where file failed to be loaded from.
+        path: PathBuf,
+        /// Span of the
+        span: Span,
+        /// The underlying error.
+        #[source]
+        error: io::Error,
+    },
+    /// A module that has already been loaded.
+    #[error("module `{item}` has already been loaded")]
+    ModAlreadyLoaded {
+        /// Base path of a module that has already been loaded.
+        item: Item,
+        /// Span of the
+        span: Span,
+        /// The existing location of the module.
+        existing: (SourceId, Span),
+    },
     /// Unit error from runestick encoding.
     #[error("unit construction error: {error}")]
     UnitError {
@@ -694,6 +726,12 @@ pub enum CompileError {
         /// Where the expression is.
         span: Span,
     },
+    /// Trying to use a filesystem module from an in-memory soruce.
+    #[error("cannot load external modules from in-memory sources")]
+    UnsupportedFileMod {
+        /// The span where the error happened.
+        span: Span,
+    },
 }
 
 impl CompileError {
@@ -712,6 +750,9 @@ impl CompileError {
         match *self {
             Self::UnitError { .. } => Span::default(),
             Self::Internal { span, .. } => span,
+            Self::ModNotFound { span, .. } => span,
+            Self::ModFileError { span, .. } => span,
+            Self::ModAlreadyLoaded { span, .. } => span,
             Self::ParseError { error, .. } => error.span(),
             Self::ItemConflict { span, .. } => span,
             Self::VariableConflict { span, .. } => span,
@@ -751,6 +792,7 @@ impl CompileError {
             Self::InstanceFunctionOutsideImpl { span, .. } => span,
             Self::MissingPreludeModule { .. } => Span::empty(),
             Self::UnsupportedAsyncExpr { span, .. } => span,
+            Self::UnsupportedFileMod { span, .. } => span,
         }
     }
 }

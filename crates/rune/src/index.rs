@@ -1,11 +1,14 @@
 use crate::ast;
+use crate::collections::HashMap;
 use crate::error::CompileError;
 use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::query::{Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query};
+use crate::sources::Sources;
 use crate::traits::Resolve as _;
 use crate::warning::Warnings;
-use runestick::{Call, Hash, Item, Meta, Source, Type};
+use crate::SourceId;
+use runestick::{Call, Hash, Item, Meta, Source, Span, Type};
 use std::sync::Arc;
 
 /// Import to process.
@@ -17,7 +20,9 @@ pub(crate) struct Import {
 }
 
 pub(crate) struct Indexer<'a> {
-    pub(crate) source_id: usize,
+    loaded: &'a mut HashMap<Item, (SourceId, Span)>,
+    sources: &'a mut Sources,
+    pub(crate) source_id: SourceId,
     pub(crate) source: Arc<Source>,
     pub(crate) query: &'a mut Query,
     pub(crate) warnings: &'a mut Warnings,
@@ -32,19 +37,24 @@ pub(crate) struct Indexer<'a> {
 impl<'a> Indexer<'a> {
     /// Construct a new indexer.
     pub(crate) fn new(
-        source_id: usize,
+        item: Item,
+        loaded: &'a mut HashMap<Item, (SourceId, Span)>,
+        sources: &'a mut Sources,
+        source_id: SourceId,
         source: Arc<Source>,
         query: &'a mut Query,
         warnings: &'a mut Warnings,
         imports: &'a mut Vec<Import>,
     ) -> Self {
         Self {
+            loaded,
+            sources,
             source_id,
             source,
             query,
             warnings,
             imports,
-            items: Items::new(vec![]),
+            items: Items::new(item.into_vec()),
             scopes: IndexScopes::new(),
             impl_items: Vec::new(),
         }
@@ -63,6 +73,75 @@ impl<'a> Indexer<'a> {
         } else {
             Call::Immediate
         }
+    }
+
+    /// Handle a filesystem module.
+    pub(crate) fn handle_file_mod(&mut self, decl_mod: &ast::DeclMod) -> Result<(), CompileError> {
+        let span = decl_mod.span();
+        let name = decl_mod.name.resolve(&*self.source)?;
+        let _guard = self.items.push_name(name);
+
+        let path = match self.source.path() {
+            Some(path) => path,
+            None => {
+                return Err(CompileError::UnsupportedFileMod { span });
+            }
+        };
+
+        let base = match path.parent() {
+            Some(parent) => parent.join(name),
+            None => {
+                return Err(CompileError::UnsupportedFileMod { span });
+            }
+        };
+
+        let candidates = [
+            base.join("mod").with_extension("rn"),
+            base.with_extension("rn"),
+        ];
+
+        let mut found = None;
+
+        for path in &candidates[..] {
+            if path.is_file() {
+                found = Some(path);
+                break;
+            }
+        }
+
+        let path = match found {
+            Some(path) => path,
+            None => {
+                return Err(CompileError::ModNotFound {
+                    path: base.to_owned(),
+                    span,
+                });
+            }
+        };
+
+        let item = self.items.item();
+
+        if let Some(existing) = self.loaded.insert(item.clone(), (self.source_id, span)) {
+            return Err(CompileError::ModAlreadyLoaded {
+                item: item.clone(),
+                span,
+                existing,
+            });
+        }
+
+        let source = match Source::from_path(path) {
+            Ok(source) => source,
+            Err(error) => {
+                return Err(CompileError::ModFileError {
+                    span,
+                    path: path.to_owned(),
+                    error,
+                });
+            }
+        };
+
+        self.sources.insert(item, source);
+        Ok(())
     }
 }
 
@@ -540,17 +619,12 @@ impl Index<ast::Decl> for Indexer<'_> {
                 self.impl_items.pop();
             }
             ast::Decl::DeclMod(decl_mod) => {
-                let name = decl_mod.name.resolve(&*self.source)?;
-
                 if let Some(body) = &decl_mod.body {
+                    let name = decl_mod.name.resolve(&*self.source)?;
                     let _guard = self.items.push_name(name);
                     self.index(&*body.file)?;
                 } else {
-                    let span = decl_mod.span();
-                    return Err(CompileError::internal(
-                        "loading file modules is not supported yet",
-                        span,
-                    ));
+                    self.handle_file_mod(decl_mod)?;
                 }
             }
         }

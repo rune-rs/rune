@@ -17,7 +17,7 @@ importing it. But what about `assert`?
 If we wanted to use `assert` we would have to import it first with a `use`
 statement:
 
-```rust,noplayground
+```rune
 {{#include ../../scripts/book/items_imports/example_import.rn}}
 ```
 
@@ -28,7 +28,7 @@ $> cargo run -- scripts/book/items_imports/example_import.rn
 
 Trying to use an item which doesn't exist results in a compile error:
 
-```rust,noplayground
+```rune
 {{#include ../../scripts/book/items_imports/missing_item.rn}}
 ```
 
@@ -43,3 +43,43 @@ error: compile error
 
 Every item used in a Rune program must be known at compile time. This is one of
 the guarantees a Rune scripts are required to fulfill.
+
+# Dynamic modules
+
+Rune has support for dynamic modules, purely defined in Rune itself. This is
+done using the `mod` keyword. And the module can either be loaded from a
+different file matching the name of the module or defined directly inside of the
+source file.
+
+The following is an example of an *inline* module:
+
+```rune
+{{#include ../../scripts/book/items_imports/inline_modules.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/items_imports/inline_modules.rn
+== 3 (33.2µs)
+```
+
+And this is the equivalent modules loaded from the filesystem. These are three
+separate files:
+
+```rune
+{{#include ../../scripts/book/items_imports/modules.rn}}
+```
+
+```rune
+// file: ./foo/mod.rn
+{{#include ../../scripts/book/items_imports/foo/mod.rn}}
+```
+
+```rune
+// file: ./bar.rn
+{{#include ../../scripts/book/items_imports/bar.rn}}
+```
+
+```text
+$> cargo run -- scripts/book/items_imports/modules.rn
+== 3 (37.5µs)
+```

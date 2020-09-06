@@ -101,7 +101,7 @@
 //!     let mut warnings = rune::Warnings::new();
 //!     let mut sources = rune::Sources::new();
 //!
-//!     sources.insert(Source::new(
+//!     sources.insert_default(Source::new(
 //!         "script",
 //!         r#"
 //!         fn calculate(a, b) {
@@ -177,6 +177,9 @@ mod scopes;
 mod sources;
 mod traits;
 mod warning;
+
+/// The identifier of a source file.
+pub type SourceId = usize;
 
 /// Internal collection re-export.
 mod collections {

@@ -646,6 +646,11 @@ impl Unit {
         Ok(())
     }
 
+    /// Insert the given name into the unit.
+    pub fn insert_name(&mut self, item: &Item) {
+        self.names.insert(item);
+    }
+
     /// Declare a new struct.
     pub fn insert_meta(&mut self, meta: Meta) -> Result<(), UnitError> {
         let item = match &meta {
@@ -767,8 +772,6 @@ impl Unit {
             Meta::MetaClosure { item, .. } => item.clone(),
             Meta::MetaAsyncBlock { item, .. } => item.clone(),
         };
-
-        self.names.insert(&item);
 
         if let Some(existing) = self.meta.insert(item, meta.clone()) {
             return Err(UnitError::MetaConflict {

@@ -4,7 +4,7 @@ The first thing you need to learn about in Rune is the `dbg` function. This is
 used to "debug" values provided to it in order to understand them. Anything can
 be provided to it, and it will do its best to describe it.
 
-```rust,noplayground
+```rune
 {{#include ../../scripts/book/getting_started/dbg.rn}}
 ```
 

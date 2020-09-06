@@ -61,7 +61,7 @@ pub fn load_path(
     path: &Path,
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
-    sources.insert(Source::from_path(path).map_err(|error| {
+    sources.insert_default(Source::from_path(path).map_err(|error| {
         LoadError::from(LoadErrorKind::ReadFile {
             error,
             path: path.to_owned(),
@@ -96,7 +96,7 @@ pub fn load_path(
 /// let mut sources = rune::Sources::new();
 /// let mut warnings = rune::Warnings::new();
 ///
-/// sources.insert(Source::new("entry", r#"
+/// sources.insert_default(Source::new("entry", r#"
 /// fn main() {
 ///     println("Hello World");
 /// }

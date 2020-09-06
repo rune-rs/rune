@@ -6,7 +6,7 @@ it.
 
 The following is a quick example of a `struct`:
 
-```rust,noplayground
+```rune
 {{#include ../../scripts/book/dynamic_types/greeting.rn}}
 ```
 

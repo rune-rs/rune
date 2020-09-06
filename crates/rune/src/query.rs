@@ -253,6 +253,8 @@ impl Query {
     ) -> Result<(), CompileError> {
         log::trace!("indexed: {}", item);
 
+        self.unit.borrow_mut().insert_name(&item);
+
         if let Some(..) = self.indexed.insert(item.clone(), entry) {
             return Err(CompileError::ItemConflict {
                 existing: item,

@@ -259,6 +259,8 @@ impl EmitDiagnostics for LoadError {
             }
             LoadErrorKind::ParseError { source_id, error } => (error.span(), *source_id),
             LoadErrorKind::CompileError { source_id, error } => {
+                let source_id = *source_id;
+
                 let span = match error {
                     CompileError::ReturnLocalReferences {
                         block,
@@ -272,13 +274,13 @@ impl EmitDiagnostics for LoadError {
                             }
 
                             labels.push(
-                                Label::secondary(0, ref_span.start..ref_span.end)
+                                Label::secondary(source_id, ref_span.start..ref_span.end)
                                     .with_message("reference created here"),
                             );
                         }
 
                         labels.push(
-                            Label::secondary(0, block.start..block.end)
+                            Label::secondary(source_id, block.start..block.end)
                                 .with_message("block returned from"),
                         );
 
@@ -290,13 +292,26 @@ impl EmitDiagnostics for LoadError {
                         object,
                     } => {
                         labels.push(
-                            Label::secondary(0, existing.start..existing.end)
+                            Label::secondary(source_id, existing.start..existing.end)
                                 .with_message("previously defined here"),
                         );
 
                         labels.push(
-                            Label::secondary(0, object.start..object.end)
+                            Label::secondary(source_id, object.start..object.end)
                                 .with_message("object being defined here"),
+                        );
+
+                        *span
+                    }
+                    CompileError::ModAlreadyLoaded { span, existing, .. } => {
+                        let (existing_source_id, existing_span) = *existing;
+
+                        labels.push(
+                            Label::secondary(
+                                existing_source_id,
+                                existing_span.start..existing_span.end,
+                            )
+                            .with_message("previously loaded here"),
                         );
 
                         *span
@@ -304,7 +319,7 @@ impl EmitDiagnostics for LoadError {
                     error => error.span(),
                 };
 
-                (span, *source_id)
+                (span, source_id)
             }
         };
 

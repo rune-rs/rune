@@ -62,7 +62,7 @@ pub fn compile_source(
 ) -> Result<(Unit, Warnings), rune::LoadError> {
     let mut warnings = Warnings::new();
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source.to_owned()));
+    sources.insert_default(Source::new("main", source.to_owned()));
     let unit = Rc::new(RefCell::new(Unit::with_default_prelude()));
 
     rune::compile(context, &mut sources, &unit, &mut warnings)?;

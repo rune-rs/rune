@@ -1,0 +1,3 @@
+fn get_number() {
+    1
+}

@@ -2,6 +2,7 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileError;
 use crate::traits::{Compile as _, Resolve as _};
+use crate::SourceId;
 use runestick::{
     Assembly, Component, Context, ImportKey, Inst, Item, Label, Meta, Source, Span, TypeCheck, Unit,
 };
@@ -58,8 +59,9 @@ pub fn compile_with_options(
 ) -> Result<(), LoadError> {
     let mut imports = Vec::new();
     let mut query = Query::new(unit.clone());
+    let mut loaded = HashMap::<Item, (SourceId, Span)>::new();
 
-    while let Some(source_id) = sources.next_source() {
+    while let Some((item, source_id)) = sources.next_source() {
         let source = match sources.get(source_id).cloned() {
             Some(source) => source,
             None => return Err(LoadError::internal("missing queued source by id")),
@@ -75,7 +77,16 @@ pub fn compile_with_options(
             }
         };
 
-        let mut indexer = Indexer::new(source_id, source, &mut query, warnings, &mut imports);
+        let mut indexer = Indexer::new(
+            item,
+            &mut loaded,
+            sources,
+            source_id,
+            source,
+            &mut query,
+            warnings,
+            &mut imports,
+        );
 
         if let Err(error) = indexer.index(&file) {
             return Err(LoadError::from(LoadErrorKind::CompileError {

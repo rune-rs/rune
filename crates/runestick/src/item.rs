@@ -55,6 +55,11 @@ impl Item {
         self.path.clone()
     }
 
+    /// Convert into a vector from the current item.
+    pub fn into_vec(self) -> Vec<Component> {
+        self.path
+    }
+
     /// If the item only contains one element, return that element.
     pub fn as_local(&self) -> Option<&str> {
         match self.path.last() {

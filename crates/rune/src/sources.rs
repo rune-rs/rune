@@ -1,11 +1,11 @@
-use runestick::Source;
+use runestick::{Item, Source};
 use std::collections::VecDeque;
 use std::sync::Arc;
 
 /// A collection of source files, and a queue of things to compile.
 pub struct Sources {
     sources: Vec<Arc<Source>>,
-    queue: VecDeque<usize>,
+    queue: VecDeque<(Item, usize)>,
 }
 
 impl Sources {
@@ -23,11 +23,16 @@ impl Sources {
     }
 
     /// Insert a new source and return its associated id.
-    pub fn insert(&mut self, source: Source) -> usize {
+    pub fn insert(&mut self, item: Item, source: Source) -> usize {
         let source_id = self.sources.len();
-        self.queue.push_back(source_id);
+        self.queue.push_back((item, source_id));
         self.sources.push(Arc::new(source));
         source_id
+    }
+
+    /// Insert a new source and return its associated id.
+    pub fn insert_default(&mut self, source: Source) -> usize {
+        self.insert(Item::default(), source)
     }
 
     /// Get the source matching the given source id.
@@ -36,7 +41,7 @@ impl Sources {
     }
 
     /// Get the next source in the queue to compile.
-    pub(crate) fn next_source(&mut self) -> Option<usize> {
+    pub(crate) fn next_source(&mut self) -> Option<(Item, usize)> {
         self.queue.pop_front()
     }
 
