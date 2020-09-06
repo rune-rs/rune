@@ -2,7 +2,7 @@
 
 If you've been paying attention on previous sections you might have seen odd
 looking strings like `` `Hello {name}` ``. These are called *template strings*,
-and allow use to conveniently build strings using variables from the
+and allow you to conveniently build strings using variables from the
 environment.
 
 ```rune
@@ -16,7 +16,7 @@ I am 30 years old!
 ```
 
 Template strings are accelerated by the Vm, each argument uses a *display
-protocol* and it can be a very efficient to build complex strings out of it.
+protocol* and it can be very efficient to build complex strings out of it.
 
 ## The `STRING_DISPLAY` protocol
 

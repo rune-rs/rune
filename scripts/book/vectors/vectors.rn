@@ -2,7 +2,7 @@ fn main() {
     let values = ["Hello", 42];
 
     dbg(values[0]);
-    dbg(values.1); // items be accessed like tuples fields.
+    dbg(values.1); // items be accessed like tuple fields.
 
     for v in values {
         dbg(v);

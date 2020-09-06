@@ -127,7 +127,7 @@ Let's have a look at what happens when we `return`:
     0+1 = 3
 ```
 
-We call the `clean 2` instruction. Which tells the vm to preserve the top of the
+We call the `clean 2` instruction, which tells the vm to preserve the top of the
 stack (`1+2`), and clean two items below it, leaving us with `3`. We then
 `return`, which jumps us back to `frame 0`, which now has `0+0` visible *and*
 our return value at `0+1`.

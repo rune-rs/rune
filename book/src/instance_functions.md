@@ -58,7 +58,7 @@ $> cargo run --example custom_instance_fn
 output: 11
 ```
 
-For more example on how Modules can be used you can have a look at the source
+For more examples on how modules can be used you can have a look at the source
 for the [`rune-modules`] crate.
 
 [`Module::inst_fn`]: https://docs.rs/runestick/0.5.3/runestick/struct.Module.html#method.inst_fn

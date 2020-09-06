@@ -1,7 +1,7 @@
 # Vectors
 
 A vector is a native data structure of Rune which is a dynamic list of values. A
-vector isn't typed, and can store *any* rune values.
+vector isn't typed, and can store *any* Rune values.
 
 ```rune
 {{#include ../../scripts/book/vectors/vectors.rn}}
@@ -44,7 +44,7 @@ $> cargo run --example vector
 [10]
 ```
 
-If you have a vector which have values of non-uniform types, you can use 
+If you have a vector which has values of non-uniform types, you can use 
 [`VecTuple`] to deal with them.
 
 ```rune

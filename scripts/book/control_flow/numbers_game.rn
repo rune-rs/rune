@@ -7,6 +7,6 @@ fn foo(n) {
 }
 
 fn main() {
-    println(foo(0)) // => outputs: "less than one"
+    println(foo(0)); // => outputs: "less than one"
     println(foo(10)); // => outputs: "something else"
 }

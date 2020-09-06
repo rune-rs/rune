@@ -43,7 +43,7 @@ $> cargo run -- scripts/book/variables/shared_ownership.rn
 
 This can cause issues if we call an external function which expects to take
 ownership of its arguments. We say that functions like these *move* their
-argument, and if we try to use a variable which has been move,d an error will be
+argument, and if we try to use a variable which has been moved an error will be
 raised in the virtual machine.
 
 > Note: Below we use the `drop` function, which is a built-in function that will
@@ -66,7 +66,7 @@ error: virtual machine error
 If you need to, you can test if a variable is still accessible for reading with
 `is_readable`, and for writing with `is_writable`. These are both imported in
 the prelude. An object which is writable is also *movable*, and can be provided
-to functions which needs to move the value, like `drop`.
+to functions which need to move the value, like `drop`.
 
 ```rune
 {{#include ../../scripts/book/variables/is_readable.rn}}
