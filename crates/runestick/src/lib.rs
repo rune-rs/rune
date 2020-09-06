@@ -114,7 +114,7 @@ pub use crate::access::{
     AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawBorrowedMut,
     RawBorrowedRef,
 };
-pub use crate::any::Any;
+pub use crate::any::{Any, AnyVtable};
 pub use crate::awaited::Awaited;
 pub use crate::bytes::Bytes;
 pub use crate::call::Call;

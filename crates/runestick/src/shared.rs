@@ -1,5 +1,5 @@
 use crate::access::{Access, AccessError, BorrowMut, BorrowRef, RawBorrowedMut, RawBorrowedRef};
-use crate::any::Any;
+use crate::{Any, Hash};
 use std::any;
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
@@ -362,7 +362,9 @@ impl Shared<Any> {
             // exclusive access (see above).
             let any = ptr::read(inner.data.get());
 
-            match any.take_mut_ptr(any::TypeId::of::<T>()) {
+            let expected = Hash::from_type_id(any::TypeId::of::<T>());
+
+            match any.take_mut_ptr(expected) {
                 Ok(value) => Ok(*Box::from_raw(value as *mut T)),
                 Err(any) => {
                     let actual = any.type_name();
@@ -395,8 +397,9 @@ impl Shared<Any> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.shared()?;
+            let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
-            let data = match (*inner.data.get()).as_ptr(any::TypeId::of::<T>()) {
+            let data = match (*inner.data.get()).as_ptr(expected) {
                 Some(data) => data,
                 None => {
                     return Err(AccessError::UnexpectedType {
@@ -419,8 +422,9 @@ impl Shared<Any> {
             let (data, guard) = {
                 let inner = self.inner.as_ref();
                 let guard = inner.access.shared()?;
+                let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
-                match (*inner.data.get()).as_ptr(any::TypeId::of::<T>()) {
+                match (*inner.data.get()).as_ptr(expected) {
                     Some(data) => (data, guard),
                     None => {
                         return Err(AccessError::UnexpectedType {
@@ -452,8 +456,9 @@ impl Shared<Any> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.exclusive()?;
+            let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
-            let data = match (*inner.data.get()).as_mut_ptr(any::TypeId::of::<T>()) {
+            let data = match (*inner.data.get()).as_mut_ptr(expected) {
                 Some(data) => data,
                 None => {
                     return Err(AccessError::UnexpectedType {
@@ -476,8 +481,9 @@ impl Shared<Any> {
             let (data, guard) = {
                 let inner = self.inner.as_ref();
                 let guard = inner.access.exclusive()?;
+                let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
-                match (*inner.data.get()).as_mut_ptr(any::TypeId::of::<T>()) {
+                match (*inner.data.get()).as_mut_ptr(expected) {
                     Some(data) => (data, guard),
                     None => {
                         return Err(AccessError::UnexpectedType {

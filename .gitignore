@@ -1,4 +1,5 @@
 /Cargo.lock
 /target
-*.lua
+/*.lua
+/*.py
 /scripts/test.rn

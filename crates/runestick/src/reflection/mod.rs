@@ -61,10 +61,10 @@ pub trait FromValue: 'static + Sized {
 
 /// A potentially unsafe conversion for value conversion.
 ///
-/// This trait is specifically implemented for reference types to allow
-/// registered functions to take references to their inner value.
-///
-/// This is specifically safe, because a guard is always held to the reference.
+/// This trait is used to convert values to references, which can be safely used
+/// while an external function call is used. That sort of use is safe because we
+/// hold onto the guard returned by the conversion during external function
+/// calls.
 pub trait UnsafeFromValue: Sized {
     /// The output type from the unsafe coercion.
     type Output: 'static;
