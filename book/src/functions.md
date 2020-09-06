@@ -28,7 +28,7 @@ Hello World
 
 In Rune, you don't have to specify the return type of a function. Given that
 Rune is a dynamic programming language, this allows a function to return
-anything. Even completely distinct types.
+anything, even completely distinct types.
 
 ```rune
 {{#include ../../scripts/book/functions/return_value.rn}}
