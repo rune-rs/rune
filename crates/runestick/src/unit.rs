@@ -310,6 +310,7 @@ impl Unit {
     /// Construct a new unit with the default prelude.
     pub fn with_default_prelude() -> Self {
         let mut this = Self::new();
+
         this.imports.insert(
             ImportKey::component("dbg"),
             ImportEntry::of(&["std", "dbg"]),
@@ -374,32 +375,26 @@ impl Unit {
             ImportKey::component("String"),
             ImportEntry::of(&["std", "string", "String"]),
         );
-
         this.imports.insert(
             ImportKey::component("Result"),
             ImportEntry::of(&["std", "result", "Result"]),
         );
-
         this.imports.insert(
             ImportKey::component("Err"),
             ImportEntry::of(&["std", "result", "Result", "Err"]),
         );
-
         this.imports.insert(
             ImportKey::component("Ok"),
             ImportEntry::of(&["std", "result", "Result", "Ok"]),
         );
-
         this.imports.insert(
             ImportKey::component("Option"),
             ImportEntry::of(&["std", "option", "Option"]),
         );
-
         this.imports.insert(
             ImportKey::component("Some"),
             ImportEntry::of(&["std", "option", "Option", "Some"]),
         );
-
         this.imports.insert(
             ImportKey::component("None"),
             ImportEntry::of(&["std", "option", "Option", "None"]),

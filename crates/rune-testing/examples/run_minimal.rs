@@ -1,0 +1,24 @@
+use rune::{Options, Warnings};
+use runestick::{Context, FromValue, Module, Source};
+use std::sync::Arc;
+
+fn main() -> runestick::Result<()> {
+    let mut context = Context::default();
+
+    let mut module = Module::default();
+    module.function(&["add"], |a: i64| a + 1)?;
+    context.install(&module)?;
+
+    let unit = rune::load_source(
+        &context,
+        &Options::default(),
+        Source::new("test", r#"fn main(a) { add(a) }"#),
+        &mut Warnings::disabled(),
+    )?;
+
+    let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));
+    let output = i64::from_value(vm.call(&["main"], (1,))?.complete()?)?;
+
+    println!("output: {}", output);
+    Ok(())
+}

@@ -1,6 +1,6 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::EmitDiagnostics as _;
-use runestick::{FromValue as _, Item, Source, Vm};
+use rune::{EmitDiagnostics as _, Options, Warnings};
+use runestick::{FromValue as _, Source, Vm};
 
 use std::error::Error;
 use std::sync::Arc;
@@ -18,8 +18,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     );
 
     let context = Arc::new(rune::default_context()?);
-    let options = rune::Options::default();
-    let mut warnings = rune::Warnings::new();
+    let options = Options::default();
+    let mut warnings = Warnings::new();
 
     let unit = match rune::load_source(&*context, &options, source, &mut warnings) {
         Ok(unit) => unit,
@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let vm = Vm::new(context.clone(), Arc::new(unit));
 
-    let mut execution = vm.call(Item::of(&["calculate"]), (10i64, 20i64))?;
+    let mut execution = vm.call(&["calculate"], (10i64, 20i64))?;
     let value = execution.async_complete().await?;
 
     let value = i64::from_value(value)?;

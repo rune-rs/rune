@@ -127,7 +127,7 @@ pub fn load_source(
     code_source: Source,
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
-    let unit = Rc::new(RefCell::new(Unit::with_default_prelude()));
+    let unit = Rc::new(RefCell::new(context.new_unit()));
 
     if let Err(error) =
         compiler::compile_with_options(&*context, &code_source, &options, &unit, warnings)

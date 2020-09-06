@@ -2,7 +2,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::module::{ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
 use crate::{
     Component, Hash, Item, Meta, MetaStruct, MetaTuple, Module, Names, Stack, StaticType, Type,
-    TypeCheck, TypeInfo, ValueType, VmError,
+    TypeCheck, TypeInfo, Unit, ValueType, VmError,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -223,6 +223,8 @@ impl fmt::Display for FnSignature {
 /// * Type definitions.
 #[derive(Default)]
 pub struct Context {
+    /// Whether or not to include the prelude when constructing a new unit.
+    with_prelude: bool,
     /// Item metadata in the context.
     meta: HashMap<Item, Meta>,
     /// Free functions.
@@ -272,7 +274,25 @@ impl Context {
         this.install(&crate::modules::stream::module()?)?;
         this.install(&crate::modules::io::module()?)?;
         this.install(&crate::modules::fmt::module()?)?;
+        this.with_prelude = true;
         Ok(this)
+    }
+
+    /// Construct a new unit based on this context.
+    ///
+    /// What this does is primarily determined by how the context was
+    /// constructed. If it was constructed through [with_default_modules], then
+    /// this will construct a unit with a default prelude.
+    ///
+    /// Otherwise an empty unit will be constructed.
+    ///
+    /// [with_default_modules]: Self::with_default_modules
+    pub fn new_unit(&self) -> Unit {
+        if self.with_prelude {
+            Unit::with_default_prelude()
+        } else {
+            Unit::default()
+        }
     }
 
     /// Iterate over known child components of the given name.
