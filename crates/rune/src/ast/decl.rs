@@ -17,6 +17,8 @@ pub enum Decl {
     DeclStruct(ast::DeclStruct),
     /// An impl declaration.
     DeclImpl(ast::DeclImpl),
+    /// A module declaration.
+    DeclMod(ast::DeclMod),
 }
 
 impl Decl {
@@ -28,6 +30,7 @@ impl Decl {
             Self::DeclEnum(decl) => decl.span(),
             Self::DeclStruct(decl) => decl.span(),
             Self::DeclImpl(decl) => decl.span(),
+            Self::DeclMod(decl) => decl.span(),
         }
     }
 
@@ -39,6 +42,7 @@ impl Decl {
             Self::DeclEnum(..) => false,
             Self::DeclStruct(decl_struct) => decl_struct.needs_semi_colon(),
             Self::DeclImpl(..) => false,
+            Self::DeclMod(decl_mod) => decl_mod.needs_semi_colon(),
         }
     }
 }
@@ -54,7 +58,9 @@ impl Peek for Decl {
             ast::Kind::Use => true,
             ast::Kind::Enum => true,
             ast::Kind::Struct => true,
-            ast::Kind::Fn => true,
+            ast::Kind::Impl => true,
+            ast::Kind::Async | ast::Kind::Fn => true,
+            ast::Kind::Mod => true,
             _ => false,
         }
     }
@@ -62,12 +68,21 @@ impl Peek for Decl {
 
 impl Parse for Decl {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(match parser.token_peek_eof()?.kind {
+        let t = parser.token_peek_eof()?;
+
+        Ok(match t.kind {
             ast::Kind::Use => Self::DeclUse(parser.parse()?),
             ast::Kind::Enum => Self::DeclEnum(parser.parse()?),
             ast::Kind::Struct => Self::DeclStruct(parser.parse()?),
             ast::Kind::Impl => Self::DeclImpl(parser.parse()?),
-            _ => Self::DeclFn(parser.parse()?),
+            ast::Kind::Async | ast::Kind::Fn => Self::DeclFn(parser.parse()?),
+            ast::Kind::Mod => Self::DeclMod(parser.parse()?),
+            _ => {
+                return Err(ParseError::ExpectedDecl {
+                    actual: t.kind,
+                    span: t.span,
+                })
+            }
         })
     }
 }

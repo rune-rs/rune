@@ -492,6 +492,20 @@ impl Index<ast::Decl> for Indexer<'_, '_> {
 
                 self.impl_items.pop();
             }
+            ast::Decl::DeclMod(decl_mod) => {
+                let name = decl_mod.name.resolve(self.source)?;
+
+                if let Some(body) = &decl_mod.body {
+                    let _guard = self.items.push_name(name);
+                    self.index(&*body.file)?;
+                } else {
+                    let span = decl_mod.span();
+                    return Err(CompileError::internal(
+                        "loading file modules is not supported yet",
+                        span,
+                    ));
+                }
+            }
         }
 
         Ok(())

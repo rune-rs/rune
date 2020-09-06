@@ -109,6 +109,7 @@ impl<'a> Lexer<'a> {
             "select" => ast::Kind::Select,
             "default" => ast::Kind::Default,
             "impl" => ast::Kind::Impl,
+            "mod" => ast::Kind::Mod,
             _ => ast::Kind::Ident,
         };
 
