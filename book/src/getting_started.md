@@ -28,7 +28,7 @@ directly to stdout, but these cannot be relied on to be present to the same
 degree as `dbg`. But for our purposes we will be using `rune-cli`, which has all
 of these modules installed. This is also what was used to run the above code.
 
-So for a more formal introduction, here is the officla Rune `"Hello World"`:
+So for a more formal introduction, here is the official Rune `"Hello World"`:
 
 ```rune
 {{#include ../../scripts/book/getting_started/hello_world.rn}}

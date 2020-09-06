@@ -1,7 +1,7 @@
 # Tuples
 
-Tuples in Rune are fixed-size sequences of values. Similarly to a vector tuples
-can contains any sequence of values. But there's no way to change the size of a
+Tuples in Rune are fixed-size sequences of values. Similarly to a vector, tuples
+can contain any sequence of values. But there's no way to change the size of a
 tuple.
 
 ```rune

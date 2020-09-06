@@ -28,7 +28,7 @@ Hello World
 
 In Rune, you don't have to specify the return type of a function. Given that
 Rune is a dynamic programming language, this allows a function to return
-anything. Every completely distinct types.
+anything. Even completely distinct types.
 
 ```rune
 {{#include ../../scripts/book/functions/return_value.rn}}
@@ -41,7 +41,7 @@ Hello
 == () (8.437ms)
 ```
 
-Depending on who you talk to, this is either the best things since sliced bread
+Depending on who you talk to, this is either the best thing since sliced bread
 or quite scary. It allows for a larger ability to express a program, but at the
 same time it can be harder to reason on what your program will do.
 
@@ -55,5 +55,5 @@ Rune functions can be easily set up and called from Rust.
 
 ```text
 $> cargo run --example basic_add
-output: 11
+output: 43
 ```

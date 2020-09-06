@@ -3,7 +3,7 @@
 In this section we will be discussing *Pattern Matching*.
 
 Pattern matching is a flexible mechanism that allows for validating the
-structure and type of the argument, while also destructing it to give easy
+structure and type of the argument, while also destructuring it to give easy
 access to what you need.
 
 Below are some examples of its common uses to match on branch conditions:
@@ -26,7 +26,7 @@ We will be covering each of these variants in detail in the coming sections.
 
 ## Matching Literals
 
-Literals are the simplest form of matching. Where we test if the branch is
+Literals are the simplest form of matching, where we test if the branch is
 exactly equal to a literal.
 
 Literals take a number of form:
@@ -61,7 +61,7 @@ Second item in vector is 2.
 == () (281.3µs)
 ```
 
-In contrast to ignoring, we cal also *bind* the value to a variable that is then
+In contrast to ignoring, we can also *bind* the value to a variable that is then
 in scope of the match arm.
 
 ```rune

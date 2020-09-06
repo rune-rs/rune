@@ -1,7 +1,7 @@
 # Rune types
 
 Types in Rune are identified uniquely by their *item*. An item path is a
-scope-separated identifier, like `std::float`. This particular item identifiers
+scope-separated identifier, like `std::float`. This particular item identifies
 a type.
 
 These items can be used to perform basic type checking using the `is` and `is
@@ -32,7 +32,7 @@ error: virtual machine error
   │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ panicked `assertion failed `vectors should be strings``
 ```
 
-This gives us insight at runtime which type is which, and allows rune scripts to
+This gives us insight at runtime which type is which, and allows Rune scripts to
 make decisions depending on what type a value has.
 
 ```rune
@@ -47,7 +47,7 @@ n is unknown
 == () (1.0544ms)
 ```
 
-A tighter way to accomplish this would be by using pattern matching. A mechanism
+A tighter way to accomplish this would be by using pattern matching, a mechanism
 especially suited for many conditional branches. Especially when the branches
 are different types or variants in an enum.
 

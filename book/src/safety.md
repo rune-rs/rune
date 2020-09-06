@@ -7,7 +7,7 @@ currently `unsafe`, rationalize, and document potential soundness holes.
 
 ## Conflicts in type hashes
 
-GitHub issue: https://github.com/rune-rs/rune/issues/15
+GitHub issue: [https://github.com/rune-rs/rune/issues/15](https://github.com/rune-rs/rune/issues/15)
 
 A type hash is a 64-bit hash which uniquely identifies a type in Rune. The type
 hash for an external `Any` type is currently defined like this:
@@ -57,7 +57,7 @@ So the current conclusion is:
 
 Rune uses an [internal `Any` type].
 
-Apart from the [hash conflict](#conflicts-in-type-hashes) documented above. The
+Apart from the [hash conflict](#conflicts-in-type-hashes) documented above, the
 implementation should be sound. We have an internal `Any` type instead of
 relying on `Box<dyn Any>` to allow [`AnyVtable`] to be implementable by external
 types to support external types through a C ffi.
@@ -76,7 +76,7 @@ pointer and a raw guard, which is used in many implementations of
 [`UnsafeFromValue`].
 
 [`UnsafeFromValue`] is a conversion trait which is strictly used internally to
-convert values into references. Its safety documented in the trait.
+convert values into references. Its safety is documented in the trait.
 
 ["owned borrows"]: https://docs.rs/runestick/0/runestick/struct.Shared.html#method.owned_ref
 [`UnsafeFromValue`]: https://docs.rs/runestick/0/runestick/trait.UnsafeFromValue.html

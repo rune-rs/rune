@@ -25,7 +25,7 @@ The value is 50
 
 ## `loop` Expressions
 
-The `loop` keywords builds the most fundamental form of loop in Rune.
+The `loop` keyword builds the most fundamental form of loop in Rune.
 One that repeats unconditionally forever, until it is exited using another
 control flow operator like a `break` or a `return`.
 
