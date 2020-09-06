@@ -53,7 +53,7 @@ impl Pat {
 
         if let Some(token) = parser.token_peek()? {
             match token.kind {
-                ast::Kind::Scope
+                ast::Kind::ColonColon
                 | Kind::Open(Delimiter::Parenthesis)
                 | Kind::Open(Delimiter::Brace) => {
                     let path = ast::Path::parse_with_first(parser, first)?;

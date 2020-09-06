@@ -515,19 +515,35 @@ impl<'a> Lexer<'a> {
                     match (c, c2) {
                         ('+', '=') => {
                             it.next();
-                            break ast::Kind::AddAssign;
+                            break ast::Kind::PlusEq;
                         }
                         ('-', '=') => {
                             it.next();
-                            break ast::Kind::SubAssign;
+                            break ast::Kind::DashEq;
                         }
                         ('*', '=') => {
                             it.next();
-                            break ast::Kind::MulAssign;
+                            break ast::Kind::StarEq;
                         }
                         ('/', '=') => {
                             it.next();
-                            break ast::Kind::DivAssign;
+                            break ast::Kind::SlashEq;
+                        }
+                        ('%', '=') => {
+                            it.next();
+                            break ast::Kind::PercEq;
+                        }
+                        ('&', '=') => {
+                            it.next();
+                            break ast::Kind::AmpEq;
+                        }
+                        ('^', '=') => {
+                            it.next();
+                            break ast::Kind::CaretEq;
+                        }
+                        ('|', '=') => {
+                            it.next();
+                            break ast::Kind::PipeEq;
                         }
                         ('/', '/') => {
                             self.consume_line(&mut it);
@@ -535,15 +551,15 @@ impl<'a> Lexer<'a> {
                         }
                         (':', ':') => {
                             it.next();
-                            break ast::Kind::Scope;
+                            break ast::Kind::ColonColon;
                         }
                         ('<', '=') => {
                             it.next();
-                            break ast::Kind::Lte;
+                            break ast::Kind::LtEq;
                         }
                         ('>', '=') => {
                             it.next();
-                            break ast::Kind::Gte;
+                            break ast::Kind::GtEq;
                         }
                         ('=', '=') => {
                             it.next();
@@ -551,15 +567,35 @@ impl<'a> Lexer<'a> {
                         }
                         ('!', '=') => {
                             it.next();
-                            break ast::Kind::Neq;
+                            break ast::Kind::BangEq;
                         }
                         ('&', '&') => {
                             it.next();
-                            break ast::Kind::And;
+                            break ast::Kind::AmpAmp;
                         }
                         ('|', '|') => {
                             it.next();
-                            break ast::Kind::Or;
+                            break ast::Kind::PipePipe;
+                        }
+                        ('<', '<') => {
+                            it.next();
+
+                            break if matches!(it.next().clone(), Some((_, '='))) {
+                                it.next();
+                                ast::Kind::LtLtEq
+                            } else {
+                                ast::Kind::LtLt
+                            };
+                        }
+                        ('>', '>') => {
+                            it.next();
+
+                            break if matches!(it.next().clone(), Some((_, '='))) {
+                                it.next();
+                                ast::Kind::GtGtEq
+                            } else {
+                                ast::Kind::GtGt
+                            };
                         }
                         ('.', '.') => {
                             it.next();
@@ -601,17 +637,18 @@ impl<'a> Lexer<'a> {
                     '.' => ast::Kind::Dot,
                     ';' => ast::Kind::SemiColon,
                     '=' => ast::Kind::Eq,
-                    '+' => ast::Kind::Add,
-                    '-' => ast::Kind::Sub,
+                    '+' => ast::Kind::Plus,
+                    '-' => ast::Kind::Dash,
                     '/' => ast::Kind::Div,
-                    '*' => ast::Kind::Mul,
-                    '&' => ast::Kind::Ampersand,
+                    '*' => ast::Kind::Star,
+                    '&' => ast::Kind::Amp,
                     '>' => ast::Kind::Gt,
                     '<' => ast::Kind::Lt,
                     '!' => ast::Kind::Bang,
-                    '?' => ast::Kind::Try,
+                    '?' => ast::Kind::QuestionMark,
                     '|' => ast::Kind::Pipe,
-                    '%' => ast::Kind::Rem,
+                    '%' => ast::Kind::Perc,
+                    '^' => ast::Kind::Caret,
                     'a'..='z' | 'A'..='Z' => {
                         return self.next_ident(&mut it, start);
                     }
@@ -714,27 +751,27 @@ mod tests {
             "+ += - -= * *= / /=",
             ast::Token {
                 span: Span::new(0, 1),
-                kind: ast::Kind::Add,
+                kind: ast::Kind::Plus,
             },
             ast::Token {
                 span: Span::new(2, 4),
-                kind: ast::Kind::AddAssign,
+                kind: ast::Kind::PlusEq,
             },
             ast::Token {
                 span: Span::new(5, 6),
-                kind: ast::Kind::Sub,
+                kind: ast::Kind::Dash,
             },
             ast::Token {
                 span: Span::new(7, 9),
-                kind: ast::Kind::SubAssign,
+                kind: ast::Kind::DashEq,
             },
             ast::Token {
                 span: Span::new(10, 11),
-                kind: ast::Kind::Mul,
+                kind: ast::Kind::Star,
             },
             ast::Token {
                 span: Span::new(12, 14),
-                kind: ast::Kind::MulAssign,
+                kind: ast::Kind::StarEq,
             },
             ast::Token {
                 span: Span::new(15, 16),
@@ -742,7 +779,7 @@ mod tests {
             },
             ast::Token {
                 span: Span::new(17, 19),
-                kind: ast::Kind::DivAssign,
+                kind: ast::Kind::SlashEq,
             }
         };
     }

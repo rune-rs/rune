@@ -17,7 +17,13 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
             | ast::BinOp::AddAssign
             | ast::BinOp::SubAssign
             | ast::BinOp::MulAssign
-            | ast::BinOp::DivAssign => {
+            | ast::BinOp::DivAssign
+            | ast::BinOp::RemAssign
+            | ast::BinOp::BitAndAssign
+            | ast::BinOp::BitXorAssign
+            | ast::BinOp::BitOrAssign
+            | ast::BinOp::ShlAssign
+            | ast::BinOp::ShrAssign => {
                 compile_assign_binop(
                     self,
                     &*expr_binary.lhs,
@@ -83,6 +89,21 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
             }
             ast::BinOp::Or { .. } => {
                 self.asm.push(Inst::Or, span);
+            }
+            ast::BinOp::BitAnd { .. } => {
+                self.asm.push(Inst::BitAnd, span);
+            }
+            ast::BinOp::BitXor { .. } => {
+                self.asm.push(Inst::BitXor, span);
+            }
+            ast::BinOp::BitOr { .. } => {
+                self.asm.push(Inst::BitOr, span);
+            }
+            ast::BinOp::Shl { .. } => {
+                self.asm.push(Inst::Shl, span);
+            }
+            ast::BinOp::Shr { .. } => {
+                self.asm.push(Inst::Shr, span);
             }
             op => {
                 return Err(CompileError::UnsupportedBinaryOp { span, op });
@@ -204,6 +225,24 @@ fn compile_assign_binop(
         }
         ast::BinOp::DivAssign => {
             compiler.asm.push(Inst::DivAssign { offset }, span);
+        }
+        ast::BinOp::RemAssign => {
+            compiler.asm.push(Inst::RemAssign { offset }, span);
+        }
+        ast::BinOp::BitAndAssign => {
+            compiler.asm.push(Inst::BitAndAssign { offset }, span);
+        }
+        ast::BinOp::BitXorAssign => {
+            compiler.asm.push(Inst::BitXorAssign { offset }, span);
+        }
+        ast::BinOp::BitOrAssign => {
+            compiler.asm.push(Inst::BitOrAssign { offset }, span);
+        }
+        ast::BinOp::ShlAssign => {
+            compiler.asm.push(Inst::ShlAssign { offset }, span);
+        }
+        ast::BinOp::ShrAssign => {
+            compiler.asm.push(Inst::ShrAssign { offset }, span);
         }
         op => {
             return Err(CompileError::UnsupportedAssignBinOp { span, op });

@@ -128,8 +128,9 @@ pub use crate::item::{Component, Item};
 pub use crate::names::Names;
 pub use crate::panic::Panic;
 pub use crate::protocol::{
-    Protocol, ADD, ADD_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL,
-    MUL_ASSIGN, NEXT, REM, STRING_DISPLAY, SUB, SUB_ASSIGN,
+    Protocol, ADD, ADD_ASSIGN, BIT_AND, BIT_AND_ASSIGN, BIT_OR, BIT_OR_ASSIGN, BIT_XOR,
+    BIT_XOR_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL, MUL_ASSIGN,
+    NEXT, REM, REM_ASSIGN, SHL, SHL_ASSIGN, SHR, SHR_ASSIGN, STRING_DISPLAY, SUB, SUB_ASSIGN,
 };
 pub use crate::reflection::{FromValue, ToValue, UnsafeFromValue, ValueType};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};

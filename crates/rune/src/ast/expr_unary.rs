@@ -68,8 +68,8 @@ impl UnaryOp {
     pub fn from_token(token: ast::Token) -> Result<Self, ParseError> {
         Ok(match token.kind {
             ast::Kind::Bang => Self::Not,
-            ast::Kind::Ampersand => Self::BorrowRef,
-            ast::Kind::Mul => Self::Deref,
+            ast::Kind::Amp => Self::BorrowRef,
+            ast::Kind::Star => Self::Deref,
             actual => {
                 return Err(ParseError::ExpectedUnaryOperator {
                     span: token.span,
