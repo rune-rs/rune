@@ -8,7 +8,7 @@ mind, write it out, and there it is. Doing *stuff* which wasn't being done
 before.
 
 Truth be told, I'm scared that people will tell me that I'm wasting my time.
-This has already been done, or "Why not just use X?". An thing so glaringly
+This has already been done, or "Why not just use X?". A thing so glaringly
 obvious that all of my efforts are wasted.
 
 But you actually don't need a reason. It can simply be for The [Joy of
@@ -24,7 +24,7 @@ I've spent a lot of effort working on [OxidizeBot], a Twitch bot that streamers
 can use to add commands and other interactive things in their chat. I built it
 for myself while streaming. When adding features I always spend way to much time
 tinkering with it. Making it as generic as possible so it can solve more than
-just one problem. And when it's a personal project, I don't care about being
+just one problem. When it's a personal project, I don't care about being
 efficient. I care much more about doing things the right way.
 
 ...
@@ -38,7 +38,7 @@ is a lot of fun. I made something which helps people do something cool.
 
 All the commands in the bot are written in [Rust], and [compiled straight into
 the bot]. This is nice because Rust is an incredible language. But Rust is also
-complex. Not nedlessly mind you. I believe it's complex because it
+complex. Not needlessly mind you. I believe it's complex because it
 tackles *really hard problems*. And that usually comes with a [base level of
 complexity] it's very hard to get rid of.
 
@@ -52,8 +52,8 @@ you're up and running.
 
 Embedding a Rust compiler isn't feasible. So I started looking into dynamic
 programming languages. Ones that could be embedded into an existing application
-with little to no effort. That seemlessly integrates with its environment.
-Anumber of candidates came up, but the one that stood out the most to me was
+with little to no effort. That seamlessly integrates with its environment.
+A number of candidates came up, but the one that stood out the most to me was
 [Rhai].
 
 So why is Rhai awesome? It has Rust-like syntax. The runtime is fully written in
@@ -61,14 +61,14 @@ mostly safe Rust, and can be easily embedded. Hooking up Rust functions is a
 piece of cake.
 
 But Rhai has a set of design decisions which didn't *exactly* scratch my itch.
-And the more I used it, the more I got inspired and started thinking about
-things that could be changed or added. [I contributed a bit to the project]. And
-it started to dawn on me that Rhai's approach wasn't exactly what I wanted.
-There's nothing wrong with this. The authors of Rhai have specific goals and
-ideas of what they want to accomplish. And while it would be feasible to push
-Rhai in a different direction, the project would emerge looking much different
-on the other side. Which wouldn't be fair towards the people leveraging Rhai's
-strengths today. So I wanted a fresh slate to find my own compromises. To
+The more I used it, the more I got inspired and started thinking about things
+that could be changed or added. [I contributed a bit to the project]. And it
+started to dawn on me that Rhai's approach wasn't exactly what I wanted. There's
+nothing wrong with this. The authors of Rhai have specific goals and ideas of
+what they want to accomplish. While it would be feasible to push Rhai in a
+different direction, the project would emerge looking much different on the
+other side. Which wouldn't be fair towards the people leveraging Rhai's
+strengths today. So I wanted a clean slate to find my own compromises. To
 discover freely what works and doesn't work well.
 
 When I started working on Rune I had the following *rough* goals in mind:
@@ -80,7 +80,7 @@ When I started working on Rune I had the following *rough* goals in mind:
 * Excellent support for asynchronous programming (i.e. native `select` statements).
 * Be as good as Rhai when it comes to integrating with native Rust.
 * Work well through C bindings.
-* A minimalistic stack-based runtime that is strictly singlethreaded*.
+* A minimalistic stack-based runtime that is strictly single threaded*.
 
 > *: If this feels like a step backwards to you, don't worry too much. We can
   still have concurrency and threading using async code as you'll see later in
