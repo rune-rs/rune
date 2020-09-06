@@ -45,13 +45,13 @@ impl Vm {
     ///
     /// If any async instructions are encountered, this will error.
     pub fn complete(self) -> Result<Value, VmError> {
-        let mut execution = VmExecution::of(self);
+        let mut execution = VmExecution::new(self);
         Ok(execution.complete()?)
     }
 
     /// Run the given vm to completion with support for async functions.
     pub async fn async_complete(self) -> Result<Value, VmError> {
-        let mut execution = VmExecution::of(self);
+        let mut execution = VmExecution::new(self);
         execution.async_complete().await
     }
 
@@ -183,7 +183,7 @@ impl Vm {
         // Safety: we bind the lifetime of the arguments to the outgoing task,
         // ensuring that the task won't outlive any references passed in.
         args.into_stack(&mut self.stack)?;
-        Ok(VmExecution::of(self))
+        Ok(VmExecution::new(self))
     }
 
     fn op_await(&mut self) -> Result<Shared<Future>, VmError> {

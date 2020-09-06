@@ -15,7 +15,7 @@ impl Generator {
     /// Construct a generator from a virtual machine.
     pub(crate) fn new(vm: Vm) -> Self {
         Self {
-            execution: Some(VmExecution::of(vm)),
+            execution: Some(VmExecution::new(vm)),
             first: true,
         }
     }

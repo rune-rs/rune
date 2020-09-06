@@ -7,7 +7,7 @@ pub struct VmExecution {
 
 impl VmExecution {
     /// Construct an execution from a virtual machine.
-    pub(crate) fn of(vm: Vm) -> Self {
+    pub(crate) fn new(vm: Vm) -> Self {
         Self { vms: vec![vm] }
     }
 
