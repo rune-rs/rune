@@ -14,7 +14,7 @@ Rune has native support for `Option`, the same enum available in Rust that
 allows you to represent data that can either be present with `Option::Some`, or
 absent with `Option::None`.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/enums/count_numbers.rn}}
 ```
 

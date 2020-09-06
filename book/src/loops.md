@@ -13,7 +13,7 @@ Every loop documented in this section can be *terminated early* using the
 When Rune encounters a break, it will immediately jump out of the loop it is
 currently in and continue running right after it.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/loops/while_loop.rn}}
 ```
 
@@ -29,7 +29,7 @@ The `loop` keywords builds the most fundamental form of loop in Rune.
 One that repeats unconditionally forever, until it is exited using another
 control flow operator like a `break` or a `return`.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/loops/loop_forever.rn}}
 ```
 
@@ -51,7 +51,7 @@ When broken out of, loops produce the value provided as an argument to the
 `break` keyword.
 By default, this is simply a unit `()`.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/loops/loop_break.rn}}
 ```
 

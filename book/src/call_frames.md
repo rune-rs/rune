@@ -26,7 +26,7 @@ malicious code.
 
 To look close at the mechanism, let's trace the following program:
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/the_stack/call_and_add.rn}}
 ```
 

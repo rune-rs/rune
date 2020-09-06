@@ -16,7 +16,7 @@ In Rune, functions are declared with the `fn` keyword. You've already seen one
 which is used in every example, `main`. This is not a special function, but is
 simply what the Rune cli looks for when deciding what to execute.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/functions/main_function.rn}}
 ```
 
@@ -30,7 +30,7 @@ In Rune, you don't have to specify the return type of a function. Given that
 Rune is a dynamic programming language, this allows a function to return
 anything. Every completely distinct types.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/functions/return_value.rn}}
 ```
 

@@ -30,7 +30,7 @@ of these modules installed. This is also what was used to run the above code.
 
 So for a more formal introduction, here is the officla Rune `"Hello World"`:
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/getting_started/hello_world.rn}}
 ```
 

@@ -15,7 +15,7 @@ its name without calling it.
 This allows for some really neat tricks, like passing in a function which
 represents the operation you want another function to use.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/closures/function_pointers.rn}}
 ```
 
@@ -32,7 +32,7 @@ Closures are anonymous functions which closes over their environment.
 This means that they capture any variables used inside of the closure, allowing
 them to be used when the function is being called.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/closures/basic_closure.rn}}
 ```
 
@@ -57,7 +57,7 @@ it for something else.
 
 Below we showcase this, with the help of the `rune!` macro from `rune-testing`.
 
-```rust,noplaypen
+```rune
 {{#include ../../crates/rune-testing/examples/call_rune_fn.rs}}
 ```
 

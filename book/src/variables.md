@@ -3,7 +3,7 @@
 Variables in Rune are defined using the `let` keyword. In contrast to Rust, all
 variables in Rune are mutable and can be changed at any time.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/variables/variables.rn}}
 ```
 
@@ -30,7 +30,7 @@ wrapped in an `Rc<RefCell<T>>` if that helps you out.
 We can see how this works by sharing and mutating one object across two
 variables:
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/variables/shared_ownership.rn}}
 ```
 
@@ -49,7 +49,7 @@ raised in the virtual machine.
 > Note: Below we use the `drop` function, which is a built-in function that will
 > take its argument and free it.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/variables/take_argument.rn}}
 ```
 
@@ -68,7 +68,7 @@ If you need to, you can test if a variable is still accessible for reading with
 the prelude. An object which is writable is also *movable*, and can be provided
 to functions which needs to move the value, like `drop`.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/variables/is_readable.rn}}
 ```
 
