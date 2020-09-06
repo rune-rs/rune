@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile a literal tuple.
-impl Compile<(&ast::LitTuple, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::LitTuple, Needs)> for Compiler<'_> {
     fn compile(&mut self, (lit_tuple, needs): (&ast::LitTuple, Needs)) -> CompileResult<()> {
         let span = lit_tuple.span();
         log::trace!("LitTuple => {:?}", self.source.source(span));

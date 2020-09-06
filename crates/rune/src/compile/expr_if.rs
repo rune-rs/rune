@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile an if expression.
-impl Compile<(&ast::ExprIf, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprIf, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_if, needs): (&ast::ExprIf, Needs)) -> CompileResult<()> {
         let span = expr_if.span();
         log::trace!("ExprIf => {:?}", self.source.source(span));

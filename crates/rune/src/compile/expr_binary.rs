@@ -6,7 +6,7 @@ use crate::CompileError;
 use runestick::Inst;
 
 /// Compile a binary expression.
-impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_binary, needs): (&ast::ExprBinary, Needs)) -> CompileResult<()> {
         let span = expr_binary.span();
         log::trace!("ExprBinary => {:?}", self.source.source(span));
@@ -110,7 +110,7 @@ fn rhs_needs_of(op: ast::BinOp) -> Needs {
 }
 
 fn compile_assign_binop(
-    compiler: &mut Compiler<'_, '_>,
+    compiler: &mut Compiler<'_>,
     lhs: &ast::Expr,
     rhs: &ast::Expr,
     bin_op: ast::BinOp,
@@ -125,13 +125,14 @@ fn compile_assign_binop(
             ast::Expr::ExprFieldAccess(get) => match (&*get.expr, &get.expr_field) {
                 (ast::Expr::Path(ast::Path { first, rest }), expr_field) if rest.is_empty() => {
                     let span = first.span();
-                    let target = first.resolve(compiler.source)?;
                     compiler.compile((rhs, Needs::Value))?;
+                    let source = compiler.source.clone();
+                    let target = first.resolve(&*source)?;
 
                     match expr_field {
                         ast::ExprField::Ident(index) => {
                             let span = index.span();
-                            let index = index.resolve(compiler.source)?;
+                            let index = index.resolve(&*compiler.source)?;
                             let index = compiler.unit.borrow_mut().new_static_string(index)?;
                             compiler.asm.push(Inst::String { slot: index }, span);
                         }
@@ -155,7 +156,7 @@ fn compile_assign_binop(
                     match expr_field {
                         ast::ExprField::Ident(index) => {
                             let span = index.span();
-                            let index = index.resolve(compiler.source)?;
+                            let index = index.resolve(&*compiler.source)?;
                             let slot = compiler.unit.borrow_mut().new_static_string(index)?;
                             compiler.asm.push(Inst::String { slot }, span);
                         }
@@ -176,7 +177,7 @@ fn compile_assign_binop(
             },
             ast::Expr::Path(ast::Path { first, rest }) if rest.is_empty() => {
                 let span = first.span();
-                let first = first.resolve(compiler.source)?;
+                let first = first.resolve(&*compiler.source)?;
                 let var = compiler.scopes.get_var(first, span)?;
                 break var.offset;
             }
@@ -218,13 +219,13 @@ fn compile_assign_binop(
 
 /// Compile a tuple index set operation with a number field.
 fn compile_tuple_index_set_number(
-    compiler: &mut Compiler<'_, '_>,
+    compiler: &mut Compiler<'_>,
     target: &str,
     field: &ast::LitNumber,
 ) -> CompileResult<bool> {
     let span = field.span();
 
-    let index = match field.resolve(compiler.source)? {
+    let index = match field.resolve(&*compiler.source)? {
         ast::Number::Integer(n) if n >= 0 => n as usize,
         _ => return Ok(false),
     };

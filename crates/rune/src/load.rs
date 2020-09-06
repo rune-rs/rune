@@ -1,8 +1,7 @@
 use crate::compiler;
-use crate::{CompileError, LoadError, LoadErrorKind, Options, Warnings};
-use runestick::{Context, LinkerErrors, Source, Span, Unit};
+use crate::{LoadError, LoadErrorKind, Options, Sources, Warnings};
+use runestick::{Context, LinkerErrors, Source, Unit};
 use std::cell::RefCell;
-use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -10,9 +9,9 @@ use std::rc::Rc;
 ///
 /// The name of the loaded source will be the path as a string.
 ///
-/// If you want to load a script from memory use [load_source].
+/// If you want to load a script from memory use [load_sources].
 ///
-/// [load_source]: crate::load_source
+/// [load_sources]: crate::load_sources
 ///
 /// # Examples
 ///
@@ -32,13 +31,14 @@ use std::rc::Rc;
 ///
 /// let context = Arc::new(rune::default_context()?);
 /// let mut options = rune::Options::default();
+/// let mut sources = rune::Sources::new();
 /// let mut warnings = rune::Warnings::new();
 ///
-/// let unit = match rune::load_path(&*context, &options, &path, &mut warnings) {
+/// let unit = match rune::load_path(&*context, &options, &mut sources, &path, &mut warnings) {
 ///     Ok(unit) => unit,
 ///     Err(error) => {
 ///         let mut writer = StandardStream::stderr(ColorChoice::Always);
-///         error.emit_diagnostics(&mut writer)?;
+///         error.emit_diagnostics(&mut writer, &sources)?;
 ///         return Ok(());
 ///     }
 /// };
@@ -48,7 +48,7 @@ use std::rc::Rc;
 ///
 /// if !warnings.is_empty() {
 ///     let mut writer = StandardStream::stderr(ColorChoice::Always);
-///     rune::emit_warning_diagnostics(&mut writer, &warnings, &*unit)?;
+///     warnings.emit_diagnostics(&mut writer, &sources)?;
 /// }
 ///
 /// # Ok(())
@@ -57,18 +57,18 @@ use std::rc::Rc;
 pub fn load_path(
     context: &Context,
     options: &Options,
+    sources: &mut Sources,
     path: &Path,
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
-    let source = fs::read_to_string(path).map_err(|error| {
+    sources.insert_default(Source::from_path(path).map_err(|error| {
         LoadError::from(LoadErrorKind::ReadFile {
             error,
             path: path.to_owned(),
         })
-    })?;
+    })?);
 
-    let name = path.display().to_string();
-    let unit = load_source(context, options, Source::new(name, source), warnings)?;
+    let unit = load_sources(context, options, sources, warnings)?;
     Ok(unit)
 }
 
@@ -93,19 +93,20 @@ pub fn load_path(
 /// # fn main() -> Result<(), Box<dyn Error>> {
 /// let context = Arc::new(rune::default_context()?);
 /// let mut options = rune::Options::default();
+/// let mut sources = rune::Sources::new();
 /// let mut warnings = rune::Warnings::new();
 ///
-/// let source = Source::new("entry", r#"
+/// sources.insert_default(Source::new("entry", r#"
 /// fn main() {
 ///     println("Hello World");
 /// }
-/// "#);
+/// "#));
 ///
-/// let unit = match rune::load_source(&*context, &options, source, &mut warnings) {
+/// let unit = match rune::load_sources(&*context, &options, &mut sources, &mut warnings) {
 ///     Ok(unit) => unit,
 ///     Err(error) => {
 ///         let mut writer = StandardStream::stderr(ColorChoice::Always);
-///         error.emit_diagnostics(&mut writer)?;
+///         error.emit_diagnostics(&mut writer, &sources)?;
 ///         return Ok(());
 ///     }
 /// };
@@ -115,35 +116,26 @@ pub fn load_path(
 ///
 /// if !warnings.is_empty() {
 ///     let mut writer = StandardStream::stderr(ColorChoice::Always);
-///     rune::emit_warning_diagnostics(&mut writer, &warnings, &*unit)?;
+///     warnings.emit_diagnostics(&mut writer, &sources)?;
 /// }
 ///
 /// # Ok(())
 /// # }
 /// ```
-pub fn load_source(
+pub fn load_sources(
     context: &Context,
     options: &Options,
-    code_source: Source,
+    sources: &mut Sources,
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
     let unit = Rc::new(RefCell::new(context.new_unit()));
-
-    if let Err(error) =
-        compiler::compile_with_options(&*context, &code_source, &options, &unit, warnings)
-    {
-        return Err(LoadError::from(LoadErrorKind::CompileError {
-            error,
-            code_source,
-        }));
-    }
+    compiler::compile_with_options(&*context, sources, &options, &unit, warnings)?;
 
     let unit = match Rc::try_unwrap(unit) {
         Ok(unit) => unit.into_inner(),
         Err(..) => {
-            return Err(LoadError::from(LoadErrorKind::CompileError {
-                error: CompileError::internal("unit is not exlusively held", Span::empty()),
-                code_source,
+            return Err(LoadError::from(LoadErrorKind::Internal {
+                message: "unit is not exlusively held",
             }));
         }
     };
@@ -152,10 +144,7 @@ pub fn load_source(
         let mut errors = LinkerErrors::new();
 
         if !unit.link(&*context, &mut errors) {
-            return Err(LoadError::from(LoadErrorKind::LinkError {
-                errors,
-                code_source,
-            }));
+            return Err(LoadError::from(LoadErrorKind::LinkError { errors }));
         }
     }
 

@@ -6,7 +6,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile a loop.
-impl Compile<(&ast::ExprLoop, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprLoop, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_loop, needs): (&ast::ExprLoop, Needs)) -> CompileResult<()> {
         let span = expr_loop.span();
         log::trace!("ExprLoop => {:?}", self.source.source(span));

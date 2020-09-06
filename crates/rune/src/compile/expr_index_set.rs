@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// An expr index set operation.
-impl Compile<(&ast::ExprIndexSet, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprIndexSet, Needs)> for Compiler<'_> {
     fn compile(
         &mut self,
         (expr_index_set, needs): (&ast::ExprIndexSet, Needs),

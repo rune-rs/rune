@@ -1,0 +1,15 @@
+mod foo {
+    fn get_number() {
+        1
+    }
+}
+
+mod bar {
+    fn get_number() {
+        2
+    }
+}
+
+fn main() {
+    foo::get_number() + bar::get_number()
+}

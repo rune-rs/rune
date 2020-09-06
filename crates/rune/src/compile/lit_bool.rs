@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile a literal boolean such as `true`.
-impl Compile<(&ast::LitBool, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::LitBool, Needs)> for Compiler<'_> {
     fn compile(&mut self, (lit_bool, needs): (&ast::LitBool, Needs)) -> CompileResult<()> {
         let span = lit_bool.span();
         log::trace!("LitBool => {:?}", self.source.source(span));

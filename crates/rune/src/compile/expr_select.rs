@@ -6,7 +6,7 @@ use crate::CompileError;
 use runestick::Inst;
 
 /// Compile a select expression.
-impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_select, needs): (&ast::ExprSelect, Needs)) -> CompileResult<()> {
         let span = expr_select.span();
         log::trace!("ExprSelect => {:?}", self.source.source(span));

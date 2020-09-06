@@ -9,7 +9,7 @@ use crate::{
 use runestick::{Hash, Inst, Item, Meta, Span};
 
 /// Compile a literal object.
-impl Compile<(&ast::LitObject, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
     fn compile(&mut self, (lit_object, needs): (&ast::LitObject, Needs)) -> CompileResult<()> {
         let span = lit_object.span();
         log::trace!("LitObject => {:?}", self.source.source(span));
@@ -25,9 +25,9 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_, '_> {
 
         for assign in &lit_object.assignments {
             let span = assign.span();
-            let key = assign.key.resolve(self.source)?;
-            keys.push(key.to_string());
-            check_keys.push((key.to_string(), assign.key.span()));
+            let key = assign.key.resolve(&*self.source)?.to_string();
+            keys.push(key.clone());
+            check_keys.push((key.clone(), assign.key.span()));
 
             if let Some(existing) = keys_dup.insert(key, span) {
                 return Err(CompileError::DuplicateObjectKey {
@@ -50,7 +50,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_, '_> {
                     self.asm.push(Inst::Pop, span);
                 }
             } else {
-                let key = assign.key.resolve(self.source)?;
+                let key = assign.key.resolve(&*self.source)?;
                 let var = self.scopes.get_var(&*key, span)?;
 
                 if needs.value() {

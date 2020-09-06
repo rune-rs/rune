@@ -88,18 +88,30 @@ pub(crate) enum Build {
     AsyncBlock(AsyncBlock),
 }
 
-pub(crate) struct Query<'a> {
-    pub(crate) source: &'a Source,
-    pub(crate) queue: VecDeque<(Item, Build)>,
-    indexed: HashMap<Item, Indexed>,
+/// An entry in the build queue.
+pub(crate) struct BuildEntry {
+    pub(crate) item: Item,
+    pub(crate) build: Build,
+    pub(crate) source: Arc<Source>,
+    pub(crate) source_id: usize,
+}
+
+pub(crate) struct IndexedEntry {
+    pub(crate) indexed: Indexed,
+    pub(crate) source: Arc<Source>,
+    pub(crate) source_id: usize,
+}
+
+pub(crate) struct Query {
+    pub(crate) queue: VecDeque<BuildEntry>,
+    indexed: HashMap<Item, IndexedEntry>,
     pub(crate) unit: Rc<RefCell<Unit>>,
 }
 
-impl<'a> Query<'a> {
+impl Query {
     /// Construct a new compilation context.
-    pub fn new(source: &'a Source, unit: Rc<RefCell<Unit>>) -> Self {
+    pub fn new(unit: Rc<RefCell<Unit>>) -> Self {
         Self {
-            source,
             queue: VecDeque::new(),
             indexed: HashMap::new(),
             unit,
@@ -107,17 +119,45 @@ impl<'a> Query<'a> {
     }
 
     /// Add a new enum item.
-    pub fn index_enum(&mut self, item: Item, span: Span) -> Result<(), CompileError> {
+    pub fn index_enum(
+        &mut self,
+        item: Item,
+        source: Arc<Source>,
+        source_id: usize,
+        span: Span,
+    ) -> Result<(), CompileError> {
         log::trace!("new enum: {}", item);
-        self.index(item, Indexed::Enum, span)?;
+        self.index(
+            item,
+            IndexedEntry {
+                indexed: Indexed::Enum,
+                source,
+                source_id,
+            },
+            span,
+        )?;
         Ok(())
     }
 
     /// Add a new struct item that can be queried.
-    pub fn index_struct(&mut self, item: Item, ast: ast::DeclStruct) -> Result<(), CompileError> {
+    pub fn index_struct(
+        &mut self,
+        item: Item,
+        ast: ast::DeclStruct,
+        source: Arc<Source>,
+        source_id: usize,
+    ) -> Result<(), CompileError> {
         log::trace!("new struct: {}", item);
         let span = ast.span();
-        self.index(item, Indexed::Struct(Struct::new(ast)), span)?;
+        self.index(
+            item,
+            IndexedEntry {
+                indexed: Indexed::Struct(Struct::new(ast)),
+                source,
+                source_id,
+            },
+            span,
+        )?;
         Ok(())
     }
 
@@ -127,10 +167,20 @@ impl<'a> Query<'a> {
         item: Item,
         enum_item: Item,
         ast: ast::DeclStructBody,
+        source: Arc<Source>,
+        source_id: usize,
         span: Span,
     ) -> Result<(), CompileError> {
         log::trace!("new variant: {}", item);
-        self.index(item, Indexed::Variant(Variant::new(enum_item, ast)), span)?;
+        self.index(
+            item,
+            IndexedEntry {
+                indexed: Indexed::Variant(Variant::new(enum_item, ast)),
+                source,
+                source_id,
+            },
+            span,
+        )?;
         Ok(())
     }
 
@@ -141,17 +191,23 @@ impl<'a> Query<'a> {
         ast: ast::ExprClosure,
         captures: Arc<Vec<MetaClosureCapture>>,
         call: Call,
+        source: Arc<Source>,
+        source_id: usize,
     ) -> Result<(), CompileError> {
         let span = ast.span();
         log::trace!("new closure: {}", item);
 
         self.index(
             item,
-            Indexed::Closure(Closure {
-                ast,
-                captures,
-                call,
-            }),
+            IndexedEntry {
+                indexed: Indexed::Closure(Closure {
+                    ast,
+                    captures,
+                    call,
+                }),
+                source,
+                source_id,
+            },
             span,
         )?;
 
@@ -165,17 +221,23 @@ impl<'a> Query<'a> {
         ast: ast::ExprBlock,
         captures: Arc<Vec<MetaClosureCapture>>,
         call: Call,
+        source: Arc<Source>,
+        source_id: usize,
     ) -> Result<(), CompileError> {
         let span = ast.span();
         log::trace!("new closure: {}", item);
 
         self.index(
             item,
-            Indexed::AsyncBlock(AsyncBlock {
-                ast,
-                captures,
-                call,
-            }),
+            IndexedEntry {
+                indexed: Indexed::AsyncBlock(AsyncBlock {
+                    ast,
+                    captures,
+                    call,
+                }),
+                source,
+                source_id,
+            },
             span,
         )?;
 
@@ -183,10 +245,17 @@ impl<'a> Query<'a> {
     }
 
     /// Index the given element.
-    pub fn index(&mut self, item: Item, indexed: Indexed, span: Span) -> Result<(), CompileError> {
+    pub fn index(
+        &mut self,
+        item: Item,
+        entry: IndexedEntry,
+        span: Span,
+    ) -> Result<(), CompileError> {
         log::trace!("indexed: {}", item);
 
-        if let Some(..) = self.indexed.insert(item.clone(), indexed) {
+        self.unit.borrow_mut().insert_name(&item);
+
+        if let Some(..) = self.indexed.insert(item.clone(), entry) {
             return Err(CompileError::ItemConflict {
                 existing: item,
                 span,
@@ -205,12 +274,16 @@ impl<'a> Query<'a> {
         }
 
         // See if there's an index entry we can construct.
-        let entry = match self.indexed.remove(&item) {
+        let IndexedEntry {
+            indexed,
+            source,
+            source_id,
+        } = match self.indexed.remove(&item) {
             Some(entry) => entry,
             None => return Ok(None),
         };
 
-        let meta = match entry {
+        let meta = match indexed {
             Indexed::Enum => Meta::MetaEnum {
                 value_type: Type::Hash(Hash::type_hash(&item)),
                 item: item.clone(),
@@ -218,11 +291,16 @@ impl<'a> Query<'a> {
             Indexed::Variant(variant) => {
                 // Assert that everything is built for the enum.
                 self.query_meta(&variant.enum_item, span)?;
-                self.ast_into_item_decl(&item, variant.ast, Some(variant.enum_item))?
+                self.ast_into_item_decl(&item, variant.ast, Some(variant.enum_item), source)?
             }
-            Indexed::Struct(st) => self.ast_into_item_decl(&item, st.ast.body, None)?,
+            Indexed::Struct(st) => self.ast_into_item_decl(&item, st.ast.body, None, source)?,
             Indexed::Function(f) => {
-                self.queue.push_back((item.clone(), Build::Function(f)));
+                self.queue.push_back(BuildEntry {
+                    item: item.clone(),
+                    build: Build::Function(f),
+                    source,
+                    source_id,
+                });
 
                 Meta::MetaFunction {
                     value_type: Type::Hash(Hash::type_hash(&item)),
@@ -231,7 +309,12 @@ impl<'a> Query<'a> {
             }
             Indexed::Closure(c) => {
                 let captures = c.captures.clone();
-                self.queue.push_back((item.clone(), Build::Closure(c)));
+                self.queue.push_back(BuildEntry {
+                    item: item.clone(),
+                    build: Build::Closure(c),
+                    source,
+                    source_id,
+                });
 
                 Meta::MetaClosure {
                     value_type: Type::Hash(Hash::type_hash(&item)),
@@ -241,8 +324,12 @@ impl<'a> Query<'a> {
             }
             Indexed::AsyncBlock(async_block) => {
                 let captures = async_block.captures.clone();
-                self.queue
-                    .push_back((item.clone(), Build::AsyncBlock(async_block)));
+                self.queue.push_back(BuildEntry {
+                    item: item.clone(),
+                    build: Build::AsyncBlock(async_block),
+                    source,
+                    source_id,
+                });
 
                 Meta::MetaAsyncBlock {
                     value_type: Type::Hash(Hash::type_hash(&item)),
@@ -266,6 +353,7 @@ impl<'a> Query<'a> {
         item: &Item,
         body: ast::DeclStructBody,
         enum_item: Option<Item>,
+        source: Arc<Source>,
     ) -> Result<Meta, CompileError> {
         let value_type = Type::Hash(Hash::type_hash(item));
 
@@ -306,7 +394,7 @@ impl<'a> Query<'a> {
                 let mut fields = HashSet::new();
 
                 for (ident, _) in &st.fields {
-                    let ident = ident.resolve(self.source)?;
+                    let ident = ident.resolve(&*source)?;
                     fields.insert(ident.to_owned());
                 }
 

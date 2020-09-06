@@ -21,7 +21,7 @@ impl DeclMod {
         if let Some(body) = &self.body {
             self.mod_.span().join(body.span())
         } else {
-            self.mod_.span()
+            self.mod_.span().join(self.name.span())
         }
     }
 

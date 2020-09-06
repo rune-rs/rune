@@ -146,12 +146,13 @@ async fn main() -> Result<()> {
 
     let context = Arc::new(rune::default_context()?);
     let mut warnings = rune::Warnings::new();
+    let mut sources = rune::Sources::new();
 
-    let unit = match rune::load_path(&*context, &options, &path, &mut warnings) {
+    let unit = match rune::load_path(&*context, &options, &mut sources, &path, &mut warnings) {
         Ok(unit) => Arc::new(unit),
         Err(error) => {
             let mut writer = StandardStream::stderr(ColorChoice::Always);
-            error.emit_diagnostics(&mut writer)?;
+            error.emit_diagnostics(&mut writer, &sources)?;
             return Ok(());
         }
     };
@@ -160,7 +161,7 @@ async fn main() -> Result<()> {
 
     if !warnings.is_empty() {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
-        rune::emit_warning_diagnostics(&mut writer, &warnings, &*unit)?;
+        warnings.emit_diagnostics(&mut writer, &sources)?;
     }
 
     if dump_functions {
@@ -345,7 +346,7 @@ async fn main() -> Result<()> {
 
     if let Some(error) = errored {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
-        error.emit_diagnostics(&mut writer)?;
+        error.emit_diagnostics(&mut writer, &sources)?;
     }
 
     Ok(())

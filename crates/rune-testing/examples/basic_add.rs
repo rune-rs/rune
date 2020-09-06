@@ -1,21 +1,24 @@
-use rune::{Options, Warnings};
+use rune::{Options, Sources, Warnings};
 use runestick::{Context, FromValue, Source, Vm};
 use std::sync::Arc;
 
 fn main() -> runestick::Result<()> {
     let context = Context::with_default_modules()?;
+    let mut sources = Sources::new();
 
-    let unit = rune::load_source(
+    sources.insert_default(Source::new(
+        "test",
+        r#"
+         fn main(number) {
+             number + 10
+         }
+         "#,
+    ));
+
+    let unit = rune::load_sources(
         &context,
         &Options::default(),
-        Source::new(
-            "test",
-            r#"
-             fn main(number) {
-                 number + 10
-             }
-             "#,
-        ),
+        &mut sources,
         &mut Warnings::disabled(),
     )?;
 

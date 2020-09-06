@@ -7,7 +7,7 @@ use runestick::Inst;
 /// Compile a break expression.
 ///
 /// NB: loops are expected to produce a value at the end of their expression.
-impl Compile<&ast::ExprBreak> for Compiler<'_, '_> {
+impl Compile<&ast::ExprBreak> for Compiler<'_> {
     fn compile(&mut self, expr_break: &ast::ExprBreak) -> CompileResult<()> {
         let span = expr_break.span();
         log::trace!("ExprBreak => {:?}", self.source.source(span));
@@ -26,7 +26,8 @@ impl Compile<&ast::ExprBreak> for Compiler<'_, '_> {
                     (current_loop, current_loop.drop.into_iter().collect(), true)
                 }
                 ast::ExprBreakValue::Label(label) => {
-                    let (last_loop, to_drop) = self.loops.walk_until_label(self.source, *label)?;
+                    let (last_loop, to_drop) =
+                        self.loops.walk_until_label(&*self.source, *label)?;
                     (last_loop, to_drop, false)
                 }
             }

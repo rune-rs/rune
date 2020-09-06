@@ -6,7 +6,7 @@ They have almost identical `next` and `resume` functions, but each must be used
 with `.await`, and we are now allowed to use asynchronous functions inside of
 the generator.
 
-```rust,noplayground
+```rune
 {{#include ../../scripts/book/streams/basic_stream.rn}}
 ```
 

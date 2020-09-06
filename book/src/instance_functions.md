@@ -8,7 +8,7 @@ These are a bit special in Rune. Since Rune is a dynamic programming language we
 can't tell at compile time which instance any specific `value` can be. So
 instance functions must be looked up at runtime.
 
-```rust,noplayground
+```rune
 {{#include ../../scripts/book/instance_functions/missing_instance_fn.rn}}
 ```
 
@@ -30,7 +30,7 @@ based on its item. So the hash for the item `Foo::new` will always be the same.
 
 In Rust, we can calculate this hash using `Item` and `Hash::function` method:
 
-```rust,noplayground
+```rune
 {{#include ../../crates/rune-testing/examples/function_hash.rs}}
 ```
 
@@ -49,7 +49,7 @@ Native instance functions are added to a runtime environment using the
 identified as the first argument of the instance function, and must be a type
 registered in the module using [`Module::ty`].
 
-```rust,noplayground
+```rune
 {{#include ../../crates/rune-testing/examples/custom_instance_fn.rs}}
 ```
 

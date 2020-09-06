@@ -5,7 +5,7 @@ use crate::traits::{Compile, Resolve as _};
 use runestick::Inst;
 
 /// Compile a literal template string.
-impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {
     fn compile(&mut self, (lit_template, needs): (&ast::LitTemplate, Needs)) -> CompileResult<()> {
         let span = lit_template.span();
         log::trace!("LitTemplate => {:?}", self.source.source(span));
@@ -16,7 +16,7 @@ impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_, '_> {
             return Ok(());
         }
 
-        let template = lit_template.resolve(self.source)?;
+        let template = lit_template.resolve(&*self.source)?;
 
         if !template.has_expansions {
             self.warnings

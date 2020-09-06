@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile a literal vector.
-impl Compile<(&ast::LitVec, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::LitVec, Needs)> for Compiler<'_> {
     fn compile(&mut self, (lit_vec, needs): (&ast::LitVec, Needs)) -> CompileResult<()> {
         let span = lit_vec.span();
         log::trace!("LitVec => {:?}", self.source.source(span));

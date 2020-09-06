@@ -4,7 +4,7 @@ use crate::error::CompileResult;
 use crate::traits::Compile;
 use runestick::{Assembly, Inst};
 
-impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_match, needs): (&ast::ExprMatch, Needs)) -> CompileResult<()> {
         let span = expr_match.span();
         log::trace!("ExprMatch => {:?}", self.source.source(span));

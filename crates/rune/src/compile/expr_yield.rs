@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile a `yield` expression.
-impl Compile<(&ast::ExprYield, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprYield, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_yield, needs): (&ast::ExprYield, Needs)) -> CompileResult<()> {
         let span = expr_yield.span();
         log::trace!("ExprYield => {:?}", self.source.source(span));

@@ -6,7 +6,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile a while loop.
-impl Compile<(&ast::ExprWhile, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprWhile, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_while, needs): (&ast::ExprWhile, Needs)) -> CompileResult<()> {
         let span = expr_while.span();
         log::trace!("ExprWhile => {:?}", self.source.source(span));

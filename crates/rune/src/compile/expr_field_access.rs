@@ -7,7 +7,7 @@ use runestick::{Inst, Span};
 use std::convert::TryFrom as _;
 
 /// Compile an expr field access, like `<value>.<field>`.
-impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
     fn compile(
         &mut self,
         (expr_field_access, needs): (&ast::ExprFieldAccess, Needs),
@@ -36,7 +36,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_, '_> {
         loop {
             match &expr_field_access.expr_field {
                 ast::ExprField::LitNumber(n) => {
-                    let index = match n.resolve(self.source)? {
+                    let index = match n.resolve(&*self.source)? {
                         ast::Number::Integer(n) if n >= 0 => match usize::try_from(n) {
                             Ok(n) => n,
                             Err(..) => break,
@@ -54,7 +54,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_, '_> {
                     return Ok(());
                 }
                 ast::ExprField::Ident(ident) => {
-                    let field = ident.resolve(self.source)?;
+                    let field = ident.resolve(&*self.source)?;
                     let slot = self.unit.borrow_mut().new_static_string(field)?;
 
                     self.asm.push(Inst::ObjectSlotIndexGet { slot }, span);
@@ -74,7 +74,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_, '_> {
 }
 
 fn try_immediate_field_access_optimization(
-    this: &mut Compiler<'_, '_>,
+    this: &mut Compiler<'_>,
     span: Span,
     path: &ast::Path,
     n: &ast::LitNumber,
@@ -85,9 +85,9 @@ fn try_immediate_field_access_optimization(
         None => return Ok(false),
     };
 
-    let ident = ident.resolve(this.source)?;
+    let ident = ident.resolve(&*this.source)?;
 
-    let index = match n.resolve(this.source)? {
+    let index = match n.resolve(&*this.source)? {
         ast::Number::Integer(n) => n,
         _ => return Ok(false),
     };

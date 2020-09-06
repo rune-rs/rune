@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile a return.
-impl Compile<(&ast::ExprReturn, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprReturn, Needs)> for Compiler<'_> {
     fn compile(&mut self, (return_expr, _needs): (&ast::ExprReturn, Needs)) -> CompileResult<()> {
         let span = return_expr.span();
         log::trace!("ExprReturn => {:?}", self.source.source(span));
