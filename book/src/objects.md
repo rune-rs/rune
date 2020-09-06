@@ -21,7 +21,7 @@ These are useful because they allow their data to be specified dynamically,
 which is exactly the same use case as storing unknown JSON.
 
 One of the biggest motivations for *Rune* to have anonymous objects is so that
-we can natively data with unknown structure.
+we can natively handle data with unknown structure.
 
 ```rust,noplaypen
 {{#include ../../scripts/book/objects/json.rn}}

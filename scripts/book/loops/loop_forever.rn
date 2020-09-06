@@ -2,7 +2,7 @@ use time::Duration;
 
 async fn main() {
     loop {
-        println("loop forever");
+        println("Hello forever!");
         time::delay_for(Duration::from_secs(1)).await;
     }
 }

@@ -43,14 +43,14 @@ Hello World
 > Note: Something which might trip up Rust users is that the `println` is not a
 > macro-like function as `println!`.
 
-At the end of the script you see this rather odd looking line:
+At the end of the script's output, you see this rather odd looking line:
 
 ```text
-== () (412.2µs)
+== () (1.0864ms)
 ```
 
 This simply means that the script evaluated to a unit, or a `()`.
-And that the execution took `412` microseconds.
+And that the execution took `1.0864` milliseconds.
 
 > Cool Hint:
 > Any function that doesn't have a return value returns a unit.
