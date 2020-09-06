@@ -6,7 +6,7 @@ things are stored. *The stack* and *the heap*. It has no registers.
 Instructions in the virtual machine operate off the stack. Let's take a look at
 the add operation with `--trace` and `--dump-stack`.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/the_stack/add.rn}}
 ```
 

@@ -18,7 +18,7 @@ The primitives available in Rune are:
 You can see that these bytes are `Copy` when assigning them to a different
 variable, because a separate copy of the variable will be used.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/primitives/copy.rn}}
 ```
 
@@ -33,7 +33,7 @@ Other types like *strings* are stored by reference on the stack. Assigning them
 to a different variable will only *copy their reference*, but they still point
 to the same underlying data.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/primitives/primitives.rn}}
 ```
 

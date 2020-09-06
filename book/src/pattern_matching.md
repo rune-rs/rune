@@ -8,7 +8,7 @@ access to what you need.
 
 Below are some examples of its common uses to match on branch conditions:
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/pattern_matching/big_match.rn}}
 ```
 
@@ -51,7 +51,7 @@ or a binding.
 The ignore directive looks like an underscore `_`, which tells rune to *ignore*
 the value, allowing it to have any value.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/pattern_matching/ignore.rn}}
 ```
 
@@ -64,7 +64,7 @@ Second item in vector is 2.
 In contrast to ignoring, we cal also *bind* the value to a variable that is then
 in scope of the match arm.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/pattern_matching/bind.rn}}
 ```
 
@@ -84,7 +84,7 @@ Finally we can also add the sequence `..` to ask Rune to *ignore* any additional
 values in a collection that might be present when matching a vector or an
 object.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/pattern_matching/fast_cars.rn}}
 ```
 

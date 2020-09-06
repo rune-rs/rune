@@ -9,7 +9,7 @@ state is stored in the generator function.
 With this, we can create a fairly efficient generator to build fibonacci
 numbers.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/generators/fib_generator.rn}}
 ```
 
@@ -40,7 +40,7 @@ things easier to do.
 The first thing to know is that `yield` itself can actually *produce* a value,
 allowing the calling procedure to send values to the generator.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/generators/send_values.rn}}
 ```
 
@@ -58,7 +58,7 @@ resume once.
 At that point it runs the block prior to the first yield, we can see this by
 instrumenting our code a little.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/generators/bootup.rn}}
 ```
 
@@ -81,7 +81,7 @@ This adds a bit of complexity, since we need to pull out `GeneratorState`.
 This enum has two variants: `Yielded` and `Complete`, and represents all the
 possible states a generator can suspend itself into.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/generators/states.rn}}
 ```
 
@@ -102,7 +102,7 @@ This corresponds to the *return value* of the generator.
 Trying to resume the generator after this will cause the virtual machine to
 error.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/generators/error.rn}}
 ```
 

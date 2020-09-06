@@ -11,7 +11,7 @@ the result of those tasks.
 
 A typical example would be if we want to perform multiple HTTP requests at once:
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/async/async_http.rn}}
 ```
 
@@ -33,7 +33,7 @@ It enables us to wait on a set of futures at the same time.
 A simple example of this is if we were to implement a simple request with a
 timeout:
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/async/async_http_timeout.rn}}
 ```
 
@@ -60,7 +60,7 @@ produce a `Future`.
 In order to get the result of this `Future` it must be `.await`ed. And `.await`
 is only permitted inside of `async` functions and closures.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/async/async_http_concurrent.rn}}
 ```
 
@@ -76,7 +76,7 @@ Request timed out!
 Closures can be prefixed with the `async` keyword, meaning calling them will
 produce a future.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/async/async_closure.rn}}
 ```
 
@@ -91,7 +91,7 @@ Status: 200 OK
 Blocks can be marked with `async` to produce on-the-fly futures. These blocks
 can capture variables the same way as closures do, but take no arguments.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/async/async_blocks.rn}}
 ```
 

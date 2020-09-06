@@ -3,7 +3,7 @@
 Objects are anonymous maps, which support defining and using arbitrary string
 keys.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/objects/objects.rn}}
 ```
 
@@ -23,7 +23,7 @@ which is exactly the same use case as storing unknown JSON.
 One of the biggest motivations for *Rune* to have anonymous objects is so that
 we can natively handle data with unknown structure.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/objects/json.rn}}
 ```
 
@@ -44,7 +44,7 @@ Objects are represented externally as the [`Object`] type alias. The keys are
 always strings, but its value must be specified as the sole type parameter.
 Note that the dynamic [`Value`] can be used if the type is unknown.
 
-```rust,noplaypen
+```rune
 {{#include ../../crates/rune-testing/examples/object.rs}}
 ```
 

@@ -5,7 +5,7 @@ looking strings like `` `Hello {name}` ``. These are called *template strings*,
 and allow use to conveniently build strings using variables from the
 environment.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/template_strings/basic_template.rn}}
 ```
 
@@ -25,8 +25,9 @@ The `STRING_DISPLAY` protocol is a function that can be implemented by any
 
 It expects a function with the signature `fn(&self, buf: &mut String) -> fmt::Result`.
 
-```rust
+```rust,noplaypen
 use std::fmt::Write as _;
+use std::fmt;
 
 #[derive(Debug)]
 pub struct StatusCode {
@@ -49,7 +50,7 @@ pub fn module() -> Result<runestick::Module, runestick::ContextError> {
 This is what allows status codes to be formatted into template strings, any
 types which do not implement this protocol will fail to run.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/template_strings/not_a_template.rn}}
 ```
 

@@ -4,7 +4,7 @@ Tuples in Rune are fixed-size sequences of values. Similarly to a vector tuples
 can contains any sequence of values. But there's no way to change the size of a
 tuple.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/tuples/tuple_masquerade.rn}}
 ```
 
@@ -17,7 +17,7 @@ $> cargo run -- scripts/book/tuples/tuple_masquerade.rn
 
 The following is a simple example of a function returning a tuple:
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/tuples/basic_tuples.rn}}
 ```
 
@@ -29,7 +29,7 @@ $> cargo run -- scripts/book/tuples/basic_tuples.rn
 
 Tuples can also be pattern matched:
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/tuples/tuple_patterns.rn}}
 ```
 
@@ -44,7 +44,7 @@ $> cargo run -- scripts/book/tuples/tuple_patterns.rn
 
 Tuples are represented externally as [primitive tuple types].
 
-```rust,noplaypen
+```rune
 {{#include ../../crates/rune-testing/examples/tuple.rs}}
 ```
 

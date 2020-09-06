@@ -7,7 +7,7 @@ Structs can also, like most types, have an `impl` block associated with them
 which creates instance functions that you can call on an instance of that
 struct.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/structs/user_database.rn}}
 ```
 
@@ -23,7 +23,7 @@ Structs can also be pattern matched, like most types.
 But since the fields of a struct are known at compile time, the compiler can
 ensure that you're only using fields which are defined.
 
-```rust,noplaypen
+```rune
 {{#include ../../scripts/book/structs/struct_matching.rn}}
 ```
 
