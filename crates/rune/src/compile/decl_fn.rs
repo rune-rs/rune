@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use crate::{traits::Resolve as _, CompileError};
 use runestick::Inst;
 
-impl Compile<(ast::DeclFn, bool)> for Compiler<'_, '_> {
+impl Compile<(ast::DeclFn, bool)> for Compiler<'_> {
     fn compile(&mut self, (fn_decl, instance_fn): (ast::DeclFn, bool)) -> CompileResult<()> {
         let span = fn_decl.span();
         log::trace!("DeclFn => {:?}", self.source.source(span));
@@ -27,7 +27,7 @@ impl Compile<(ast::DeclFn, bool)> for Compiler<'_, '_> {
                 }
                 ast::FnArg::Ident(ident) => {
                     let span = ident.span();
-                    let name = ident.resolve(self.source)?;
+                    let name = ident.resolve(&*self.source)?;
                     self.scopes.last_mut(span)?.new_var(name, span)?;
                 }
                 ast::FnArg::Ignore(ignore) => {

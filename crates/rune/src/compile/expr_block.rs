@@ -9,7 +9,7 @@ struct CallAsync(());
 struct BlockBody(());
 
 /// Compile the async block.
-impl Compile<(ast::ExprBlock, &[MetaClosureCapture])> for Compiler<'_, '_> {
+impl Compile<(ast::ExprBlock, &[MetaClosureCapture])> for Compiler<'_> {
     fn compile(
         &mut self,
         (expr_block, captures): (ast::ExprBlock, &[MetaClosureCapture]),
@@ -35,7 +35,7 @@ impl Compile<(ast::ExprBlock, &[MetaClosureCapture])> for Compiler<'_, '_> {
 ///
 /// Blocks are special in that they do not produce a value unless there is
 /// an item in them which does.
-impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_block, needs): (&ast::ExprBlock, Needs)) -> CompileResult<()> {
         if let Some(..) = expr_block.async_ {
             self.compile((CallAsync(()), expr_block))?;
@@ -48,7 +48,7 @@ impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_, '_> {
 }
 
 /// Call an async block.
-impl Compile<(CallAsync, &ast::ExprBlock)> for Compiler<'_, '_> {
+impl Compile<(CallAsync, &ast::ExprBlock)> for Compiler<'_> {
     fn compile(&mut self, (_, expr_block): (CallAsync, &ast::ExprBlock)) -> CompileResult<()> {
         let span = expr_block.span();
 
@@ -90,7 +90,7 @@ impl Compile<(CallAsync, &ast::ExprBlock)> for Compiler<'_, '_> {
 }
 
 /// Call a block.
-impl Compile<(BlockBody, &ast::ExprBlock, Needs)> for Compiler<'_, '_> {
+impl Compile<(BlockBody, &ast::ExprBlock, Needs)> for Compiler<'_> {
     fn compile(
         &mut self,
         (_, expr_block, needs): (BlockBody, &ast::ExprBlock, Needs),

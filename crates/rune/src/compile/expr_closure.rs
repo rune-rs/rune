@@ -6,7 +6,7 @@ use crate::{traits::Resolve as _, CompileError};
 use runestick::{Hash, Inst, Meta, MetaClosureCapture};
 
 /// Compile the body of a closure function.
-impl Compile<(ast::ExprClosure, &[MetaClosureCapture])> for Compiler<'_, '_> {
+impl Compile<(ast::ExprClosure, &[MetaClosureCapture])> for Compiler<'_> {
     fn compile(
         &mut self,
         (expr_closure, captures): (ast::ExprClosure, &[MetaClosureCapture]),
@@ -25,7 +25,7 @@ impl Compile<(ast::ExprClosure, &[MetaClosureCapture])> for Compiler<'_, '_> {
                         return Err(CompileError::UnsupportedSelf { span: s.span() })
                     }
                     ast::FnArg::Ident(ident) => {
-                        let ident = ident.resolve(self.source)?;
+                        let ident = ident.resolve(&*self.source)?;
                         scope.new_var(ident, span)?;
                     }
                     ast::FnArg::Ignore(..) => {
@@ -60,7 +60,7 @@ impl Compile<(ast::ExprClosure, &[MetaClosureCapture])> for Compiler<'_, '_> {
 }
 
 /// Compile a closure expression.
-impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_closure, needs): (&ast::ExprClosure, Needs)) -> CompileResult<()> {
         let span = expr_closure.span();
         log::trace!("ExprClosure => {:?}", self.source.source(span));

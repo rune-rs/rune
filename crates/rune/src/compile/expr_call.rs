@@ -6,7 +6,7 @@ use crate::CompileError;
 use runestick::{Hash, Inst, Meta};
 
 /// Compile a call expression.
-impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_call, needs): (&ast::ExprCall, Needs)) -> CompileResult<()> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span));
@@ -35,7 +35,6 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
                         self.source.source(span)
                     );
 
-                    let ident = ident.resolve(self.source)?;
                     self.compile((&**expr, Needs::Value))?;
 
                     for (expr, _) in expr_call.args.items.iter() {
@@ -43,6 +42,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_, '_> {
                         self.scopes.decl_anon(span)?;
                     }
 
+                    let ident = ident.resolve(&*self.source)?;
                     let hash = Hash::of(ident);
                     self.asm.push(Inst::CallInstance { hash, args }, span);
                 }

@@ -39,6 +39,7 @@
 pub use futures_executor::block_on;
 pub use rune::CompileError::*;
 pub use rune::ParseError::*;
+use rune::Sources;
 pub use rune::WarningKind::*;
 use rune::Warnings;
 pub use runestick::VmErrorKind::*;
@@ -58,12 +59,13 @@ pub type Error = Box<dyn std::error::Error + 'static + Send + Sync>;
 pub fn compile_source(
     context: &runestick::Context,
     source: &str,
-) -> Result<(Unit, Warnings), rune::CompileError> {
-    let source = Source::new("main", source.to_owned());
-    let unit = Rc::new(RefCell::new(Unit::with_default_prelude()));
+) -> Result<(Unit, Warnings), rune::LoadError> {
     let mut warnings = Warnings::new();
+    let mut sources = Sources::new();
+    sources.insert(Source::new("main", source.to_owned()));
+    let unit = Rc::new(RefCell::new(Unit::with_default_prelude()));
 
-    rune::compile(context, &source, &unit, &mut warnings)?;
+    rune::compile(context, &mut sources, &unit, &mut warnings)?;
 
     let unit = Rc::try_unwrap(unit).unwrap().into_inner();
     Ok((unit, warnings))
@@ -140,10 +142,10 @@ macro_rules! assert_parse_error {
         let context = runestick::Context::with_default_modules().unwrap();
         let err = $crate::compile_source(&context, &$source).unwrap_err();
 
-        match err {
-            rune::CompileError::ParseError { error: $pat } => ($cond),
-            _ => {
-                panic!("expected error `{}` but was `{:?}`", stringify!($pat), err);
+        match err.into_kind() {
+            rune::LoadErrorKind::ParseError { error: $pat, .. } => ($cond),
+            kind => {
+                panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
             }
         }
     }};
@@ -233,10 +235,10 @@ macro_rules! assert_compile_error {
         let context = runestick::Context::with_default_modules().unwrap();
         let err = $crate::compile_source(&context, $source).unwrap_err();
 
-        match err {
-            $pat => ($cond),
-            _ => {
-                panic!("expected error `{}` but was `{:?}`", stringify!($pat), err);
+        match err.into_kind() {
+            rune::LoadErrorKind::CompileError { error: $pat, .. } => ($cond),
+            kind => {
+                panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
             }
         }
     }};

@@ -5,7 +5,7 @@ use crate::traits::{Compile, Resolve as _};
 use runestick::Inst;
 
 /// Compile a literal number.
-impl Compile<(&ast::LitNumber, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::LitNumber, Needs)> for Compiler<'_> {
     fn compile(&mut self, (lit_number, needs): (&ast::LitNumber, Needs)) -> CompileResult<()> {
         let span = lit_number.span();
         log::trace!("LitNumber => {:?}", self.source.source(span));
@@ -16,7 +16,7 @@ impl Compile<(&ast::LitNumber, Needs)> for Compiler<'_, '_> {
             return Ok(());
         }
 
-        let lit_number = lit_number.resolve(self.source)?;
+        let lit_number = lit_number.resolve(&*self.source)?;
 
         match lit_number {
             ast::Number::Float(number) => {

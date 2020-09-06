@@ -96,7 +96,12 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn Error>> {
-//!     let source = Source::new(
+//!     let context = Arc::new(rune::default_context()?);
+//!     let options = rune::Options::default();
+//!     let mut warnings = rune::Warnings::new();
+//!     let mut sources = rune::Sources::new();
+//!
+//!     sources.insert(Source::new(
 //!         "script",
 //!         r#"
 //!         fn calculate(a, b) {
@@ -104,24 +109,20 @@
 //!             a + b
 //!         }
 //!         "#,
-//!     );
+//!     ));
 //!
-//!     let context = Arc::new(rune::default_context()?);
-//!     let options = rune::Options::default();
-//!     let mut warnings = rune::Warnings::new();
-//!
-//!     let unit = match rune::load_source(&*context, &options, source, &mut warnings) {
+//!     let unit = match rune::load_sources(&*context, &options, &mut sources, &mut warnings) {
 //!         Ok(unit) => unit,
 //!         Err(error) => {
 //!             let mut writer = StandardStream::stderr(ColorChoice::Always);
-//!             error.emit_diagnostics(&mut writer)?;
+//!             error.emit_diagnostics(&mut writer, &sources)?;
 //!             return Ok(());
 //!         }
 //!     };
 //!
 //!     if !warnings.is_empty() {
 //!         let mut writer = StandardStream::stderr(ColorChoice::Always);
-//!         rune::emit_warning_diagnostics(&mut writer, &warnings, &unit)?;
+//!         warnings.emit_diagnostics(&mut writer, &sources)?;
 //!     }
 //!
 //!     let vm = Vm::new(context.clone(), Arc::new(unit));
@@ -173,6 +174,7 @@ mod options;
 mod parser;
 mod query;
 mod scopes;
+mod sources;
 mod traits;
 mod warning;
 
@@ -184,15 +186,16 @@ mod collections {
 
 pub use crate::error::{CompileError, ParseError};
 pub use crate::lexer::Lexer;
-pub use crate::load::{load_path, load_source};
+pub use crate::load::{load_path, load_sources};
 pub use crate::load_error::{LoadError, LoadErrorKind};
 pub use crate::options::Options;
 pub use crate::parser::Parser;
+pub use crate::sources::Sources;
 pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
 
 #[cfg(feature = "diagnostics")]
-pub use diagnostics::{emit_warning_diagnostics, termcolor, DiagnosticsError, EmitDiagnostics};
+pub use diagnostics::{termcolor, DiagnosticsError, EmitDiagnostics};
 
 /// Construct a a default context runestick context.
 ///

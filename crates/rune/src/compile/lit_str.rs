@@ -5,7 +5,7 @@ use crate::traits::{Compile, Resolve as _};
 use runestick::Inst;
 
 /// Compile a literal string `"Hello World"`.
-impl Compile<(&ast::LitStr, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::LitStr, Needs)> for Compiler<'_> {
     fn compile(&mut self, (lit_str, needs): (&ast::LitStr, Needs)) -> CompileResult<()> {
         let span = lit_str.span();
         log::trace!("LitStr => {:?}", self.source.source(span));
@@ -16,7 +16,7 @@ impl Compile<(&ast::LitStr, Needs)> for Compiler<'_, '_> {
             return Ok(());
         }
 
-        let string = lit_str.resolve(self.source)?;
+        let string = lit_str.resolve(&*self.source)?;
         let slot = self.unit.borrow_mut().new_static_string(&*string)?;
         self.asm.push(Inst::String { slot }, span);
         Ok(())

@@ -239,7 +239,7 @@ pub struct ImportEntry {
     /// The item being imported.
     pub item: Item,
     /// The span of the import.
-    pub span: Option<Span>,
+    pub span: Option<(Span, usize)>,
 }
 
 impl ImportEntry {
@@ -294,7 +294,7 @@ pub struct Unit {
     /// The current label count.
     label_count: usize,
     /// A collection of required function hashes.
-    required_functions: HashMap<Hash, Vec<Span>>,
+    required_functions: HashMap<Hash, Vec<(Span, usize)>>,
     /// All available names in the context.
     names: Names,
     /// Debug info if available for unit.
@@ -620,7 +620,13 @@ impl Unit {
     }
 
     /// Declare a new import.
-    pub fn new_import<I>(&mut self, item: Item, path: I, span: Span) -> Result<(), UnitError>
+    pub fn new_import<I>(
+        &mut self,
+        item: Item,
+        path: I,
+        span: Span,
+        source_id: usize,
+    ) -> Result<(), UnitError>
     where
         I: Copy + IntoIterator,
         I::Item: Into<Component>,
@@ -630,7 +636,7 @@ impl Unit {
         if let Some(last) = path.last() {
             let entry = ImportEntry {
                 item: path.clone(),
-                span: Some(span),
+                span: Some((span, source_id)),
             };
 
             self.imports
@@ -775,8 +781,8 @@ impl Unit {
     }
 
     /// Construct a new empty assembly associated with the current unit.
-    pub fn new_assembly(&self) -> Assembly {
-        Assembly::new(self.label_count)
+    pub fn new_assembly(&self, source_id: usize) -> Assembly {
+        Assembly::new(source_id, self.label_count)
     }
 
     /// Declare a new function at the current instruction pointer.
@@ -965,7 +971,7 @@ pub enum LinkerError {
         /// Hash of the function.
         hash: Hash,
         /// Spans where the function is used.
-        spans: Vec<Span>,
+        spans: Vec<(Span, usize)>,
     },
 }
 

@@ -31,6 +31,8 @@ pub(crate) enum AssemblyInst {
 /// Helper structure to build instructions and maintain certain invariants.
 #[derive(Debug, Clone, Default)]
 pub struct Assembly {
+    /// The source id of the assembly.
+    pub(crate) source_id: usize,
     /// Label to offset.
     pub(crate) labels: HashMap<Label, usize>,
     /// Registered label by offset.
@@ -42,13 +44,14 @@ pub struct Assembly {
     /// The number of labels.
     pub(crate) label_count: usize,
     /// The collection of functions required by this assembly.
-    pub(crate) required_functions: HashMap<Hash, Vec<Span>>,
+    pub(crate) required_functions: HashMap<Hash, Vec<(Span, usize)>>,
 }
 
 impl Assembly {
     /// Construct a new assembly.
-    pub(crate) fn new(label_count: usize) -> Self {
+    pub(crate) fn new(source_id: usize, label_count: usize) -> Self {
         Self {
+            source_id,
             labels: Default::default(),
             labels_rev: Default::default(),
             instructions: Default::default(),
@@ -119,7 +122,10 @@ impl Assembly {
     /// Push a raw instruction.
     pub fn push(&mut self, raw: Inst, span: Span) {
         if let Inst::Call { hash, .. } = raw {
-            self.required_functions.entry(hash).or_default().push(span);
+            self.required_functions
+                .entry(hash)
+                .or_default()
+                .push((span, self.source_id));
         }
 
         self.instructions.push((AssemblyInst::Raw { raw }, span));

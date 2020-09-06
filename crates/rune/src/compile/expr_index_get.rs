@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile an expression.
-impl Compile<(&ast::ExprIndexGet, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprIndexGet, Needs)> for Compiler<'_> {
     fn compile(
         &mut self,
         (expr_index_get, needs): (&ast::ExprIndexGet, Needs),

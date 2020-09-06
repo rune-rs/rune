@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile an `.await` expression.
-impl Compile<(&ast::ExprAwait, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprAwait, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_await, needs): (&ast::ExprAwait, Needs)) -> CompileResult<()> {
         let span = expr_await.span();
         log::trace!("ExprAwait => {:?}", self.source.source(span));

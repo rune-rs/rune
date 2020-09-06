@@ -6,7 +6,7 @@ use crate::CompileError;
 use runestick::Inst;
 
 /// Compile a unary expression.
-impl Compile<(&ast::ExprUnary, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprUnary, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_unary, needs): (&ast::ExprUnary, Needs)) -> CompileResult<()> {
         let span = expr_unary.span();
         log::trace!("ExprUnary => {:?}", self.source.source(span));

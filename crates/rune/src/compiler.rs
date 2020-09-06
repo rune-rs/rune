@@ -9,13 +9,16 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::error::CompileResult;
-use crate::index::{Index, Indexer};
+use crate::index::{Import, Index, Indexer};
 use crate::items::Items;
+use crate::load_error::{LoadError, LoadErrorKind};
 use crate::loops::Loops;
 use crate::options::Options;
-use crate::query::{Build, Query};
+use crate::query::{Build, BuildEntry, Query};
 use crate::scopes::{Scope, ScopeGuard, Scopes};
+use crate::sources::Sources;
 use crate::warning::Warnings;
+use std::sync::Arc;
 
 /// A needs hint for an expression.
 /// This is used to contextually determine what an expression is expected to
@@ -37,101 +40,209 @@ impl Needs {
 /// Compile the given source with default options.
 pub fn compile(
     context: &Context,
-    source: &Source,
+    sources: &mut Sources,
     unit: &Rc<RefCell<runestick::Unit>>,
     warnings: &mut Warnings,
-) -> CompileResult<()> {
-    compile_with_options(context, source, &Default::default(), unit, warnings)?;
+) -> Result<(), LoadError> {
+    compile_with_options(context, sources, &Default::default(), unit, warnings)?;
     Ok(())
 }
 
 /// Encode the given object into a collection of asm.
 pub fn compile_with_options(
     context: &Context,
-    source: &Source,
+    sources: &mut Sources,
     options: &Options,
     unit: &Rc<RefCell<runestick::Unit>>,
     warnings: &mut Warnings,
-) -> CompileResult<()> {
-    let source_id = unit
-        .borrow_mut()
-        .debug_info_mut()
-        .insert_source(source.clone());
+) -> Result<(), LoadError> {
+    let mut imports = Vec::new();
+    let mut query = Query::new(unit.clone());
 
-    let mut query = Query::new(source, unit.clone());
-    let mut indexer = Indexer::new(source_id, source, &mut query, warnings);
-    let file = crate::parse_all::<ast::DeclFile>(source.as_str())?;
-    indexer.index(&file)?;
-
-    process_imports(&indexer, context, &mut *unit.borrow_mut())?;
-
-    while let Some((item, build)) = query.queue.pop_front() {
-        let mut asm = unit.borrow().new_assembly();
-
-        let mut compiler = Compiler {
-            source_id,
-            context,
-            query: &mut query,
-            asm: &mut asm,
-            items: Items::new(item.as_vec()),
-            unit: unit.clone(),
-            scopes: Scopes::new(),
-            contexts: vec![],
-            source,
-            loops: Loops::new(),
-            options,
-            warnings,
+    while let Some(source_id) = sources.next_source() {
+        let source = match sources.get(source_id).cloned() {
+            Some(source) => source,
+            None => return Err(LoadError::internal("missing queued source by id")),
         };
 
-        match build {
-            Build::Function(f) => {
-                let span = f.ast.span();
-                let count = f.ast.args.items.len();
-                compiler.contexts.push(span);
-                compiler.compile((f.ast, false))?;
-                unit.borrow_mut()
-                    .new_function(source_id, item, count, asm, f.call)?;
+        let file = match crate::parse_all::<ast::DeclFile>(source.as_str()) {
+            Ok(file) => file,
+            Err(error) => {
+                return Err(LoadError::from(LoadErrorKind::ParseError {
+                    source_id,
+                    error,
+                }))
             }
-            Build::InstanceFunction(f) => {
-                let span = f.ast.span();
-                let count = f.ast.args.items.len();
-                compiler.contexts.push(span);
+        };
 
-                let name = f.ast.name.resolve(&source)?;
+        let mut indexer = Indexer::new(source_id, source, &mut query, warnings, &mut imports);
 
-                let meta = compiler
-                    .lookup_meta(&f.impl_item, f.instance_span)?
-                    .ok_or_else(|| CompileError::MissingType {
-                        span: f.instance_span,
-                        item: f.impl_item.clone(),
+        if let Err(error) = indexer.index(&file) {
+            return Err(LoadError::from(LoadErrorKind::CompileError {
+                source_id,
+                error,
+            }));
+        }
+    }
+
+    process_imports(imports, context, &mut *unit.borrow_mut())?;
+
+    while let Some(entry) = query.queue.pop_front() {
+        let source_id = entry.source_id;
+
+        if let Err(error) = compile_entry(context, options, unit, warnings, &mut query, entry) {
+            return Err(LoadError::from(LoadErrorKind::CompileError {
+                source_id,
+                error,
+            }));
+        }
+    }
+
+    Ok(())
+}
+
+fn compile_entry(
+    context: &Context,
+    options: &Options,
+    unit: &Rc<RefCell<Unit>>,
+    warnings: &mut Warnings,
+    query: &mut Query,
+    entry: BuildEntry,
+) -> Result<(), CompileError> {
+    let BuildEntry {
+        item,
+        build,
+        source,
+        source_id,
+    } = entry;
+
+    let mut asm = unit.borrow().new_assembly(source_id);
+
+    let mut compiler = Compiler {
+        source_id,
+        source,
+        context,
+        query,
+        asm: &mut asm,
+        items: Items::new(item.as_vec()),
+        unit: unit.clone(),
+        scopes: Scopes::new(),
+        contexts: vec![],
+        loops: Loops::new(),
+        options,
+        warnings,
+    };
+
+    match build {
+        Build::Function(f) => {
+            let span = f.ast.span();
+            let count = f.ast.args.items.len();
+            compiler.contexts.push(span);
+            compiler.compile((f.ast, false))?;
+            unit.borrow_mut()
+                .new_function(source_id, item, count, asm, f.call)?;
+        }
+        Build::InstanceFunction(f) => {
+            let span = f.ast.span();
+            let count = f.ast.args.items.len();
+            compiler.contexts.push(span);
+
+            let source = compiler.source.clone();
+            let name = f.ast.name.resolve(&*source)?;
+
+            let meta = compiler
+                .lookup_meta(&f.impl_item, f.instance_span)?
+                .ok_or_else(|| CompileError::MissingType {
+                    span: f.instance_span,
+                    item: f.impl_item.clone(),
+                })?;
+
+            let value_type =
+                meta.value_type()
+                    .ok_or_else(|| CompileError::UnsupportedInstanceFunction {
+                        meta: meta.clone(),
+                        span,
                     })?;
 
-                let value_type =
-                    meta.value_type()
-                        .ok_or_else(|| CompileError::UnsupportedInstanceFunction {
-                            meta: meta.clone(),
-                            span,
-                        })?;
+            compiler.compile((f.ast, true))?;
+            unit.borrow_mut()
+                .new_instance_function(source_id, item, value_type, name, count, asm, f.call)?;
+        }
+        Build::Closure(c) => {
+            let span = c.ast.span();
+            let count = c.ast.args.len();
+            compiler.contexts.push(span);
+            compiler.compile((c.ast, &c.captures[..]))?;
+            unit.borrow_mut()
+                .new_function(source_id, item, count, asm, c.call)?;
+        }
+        Build::AsyncBlock(async_block) => {
+            let span = async_block.ast.span();
+            let args = async_block.captures.len();
+            compiler.contexts.push(span);
+            compiler.compile((async_block.ast, &async_block.captures[..]))?;
+            unit.borrow_mut()
+                .new_function(source_id, item, args, asm, async_block.call)?;
+        }
+    }
 
-                compiler.compile((f.ast, true))?;
-                unit.borrow_mut()
-                    .new_instance_function(source_id, item, value_type, name, count, asm, f.call)?;
+    Ok(())
+}
+
+fn process_import(import: Import, context: &Context, unit: &mut Unit) -> Result<(), CompileError> {
+    let Import {
+        item,
+        ast: decl_use,
+        source,
+        source_id,
+    } = import;
+
+    let span = decl_use.span();
+
+    let mut name = Item::empty();
+    let first = decl_use.first.resolve(&*source)?;
+    name.push(first);
+
+    let mut it = decl_use.rest.iter();
+    let last = it.next_back();
+
+    for (_, c) in it {
+        match c {
+            ast::DeclUseComponent::Wildcard(t) => {
+                return Err(CompileError::UnsupportedWildcard { span: t.span() });
             }
-            Build::Closure(c) => {
-                let span = c.ast.span();
-                let count = c.ast.args.len();
-                compiler.contexts.push(span);
-                compiler.compile((c.ast, &c.captures[..]))?;
-                unit.borrow_mut()
-                    .new_function(source_id, item, count, asm, c.call)?;
+            ast::DeclUseComponent::Ident(ident) => {
+                name.push(ident.resolve(&*source)?);
             }
-            Build::AsyncBlock(async_block) => {
-                let span = async_block.ast.span();
-                let args = async_block.captures.len();
-                compiler.contexts.push(span);
-                compiler.compile((async_block.ast, &async_block.captures[..]))?;
-                unit.borrow_mut()
-                    .new_function(source_id, item, args, asm, async_block.call)?;
+        }
+    }
+
+    if let Some((_, c)) = last {
+        match c {
+            ast::DeclUseComponent::Wildcard(..) => {
+                let mut new_names = Vec::new();
+
+                if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
+                    return Err(CompileError::MissingModule { span, item: name });
+                }
+
+                let iter = context
+                    .iter_components(&name)
+                    .chain(unit.iter_components(&name));
+
+                for c in iter {
+                    let mut name = name.clone();
+                    name.push(c);
+                    new_names.push(name);
+                }
+
+                for name in new_names {
+                    unit.new_import(item.clone(), &name, span, source_id)?;
+                }
+            }
+            ast::DeclUseComponent::Ident(ident) => {
+                name.push(ident.resolve(&*source)?);
+                unit.new_import(item.clone(), &name, span, source_id)?;
             }
         }
     }
@@ -140,59 +251,18 @@ pub fn compile_with_options(
 }
 
 fn process_imports(
-    indexer: &Indexer<'_, '_>,
+    imports: Vec<Import>,
     context: &Context,
     unit: &mut Unit,
-) -> Result<(), CompileError> {
-    for (item, decl_use) in &indexer.imports {
-        let span = decl_use.span();
+) -> Result<(), LoadError> {
+    for import in imports {
+        let source_id = import.source_id;
 
-        let mut name = Item::empty();
-        let first = decl_use.first.resolve(indexer.source)?;
-        name.push(first);
-
-        let mut it = decl_use.rest.iter();
-        let last = it.next_back();
-
-        for (_, c) in it {
-            match c {
-                ast::DeclUseComponent::Wildcard(t) => {
-                    return Err(CompileError::UnsupportedWildcard { span: t.span() });
-                }
-                ast::DeclUseComponent::Ident(ident) => {
-                    name.push(ident.resolve(indexer.source)?);
-                }
-            }
-        }
-
-        if let Some((_, c)) = last {
-            match c {
-                ast::DeclUseComponent::Wildcard(..) => {
-                    let mut new_names = Vec::new();
-
-                    if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
-                        return Err(CompileError::MissingModule { span, item: name });
-                    }
-
-                    let iter = context
-                        .iter_components(&name)
-                        .chain(unit.iter_components(&name));
-
-                    for c in iter {
-                        let mut name = name.clone();
-                        name.push(c);
-                        new_names.push(name);
-                    }
-
-                    for name in new_names {
-                        unit.new_import(item.clone(), &name, span)?;
-                    }
-                }
-                ast::DeclUseComponent::Ident(ident) => {
-                    name.push(ident.resolve(indexer.source)?);
-                    unit.new_import(item.clone(), &name, span)?;
-                }
-            }
+        if let Err(error) = process_import(import, context, unit) {
+            return Err(LoadError::from(LoadErrorKind::CompileError {
+                error,
+                source_id,
+            }));
         }
     }
 
@@ -201,27 +271,36 @@ fn process_imports(
             continue;
         }
 
-        if let Some(span) = entry.span {
-            return Err(CompileError::MissingModule {
-                span,
-                item: entry.item.clone(),
-            });
+        if let Some((span, source_id)) = entry.span {
+            return Err(LoadError::from(LoadErrorKind::CompileError {
+                error: CompileError::MissingModule {
+                    span,
+                    item: entry.item.clone(),
+                },
+                source_id,
+            }));
         } else {
-            return Err(CompileError::MissingPreludeModule {
-                item: entry.item.clone(),
-            });
+            return Err(LoadError::from(LoadErrorKind::CompileError {
+                error: CompileError::MissingPreludeModule {
+                    item: entry.item.clone(),
+                },
+                source_id: 0,
+            }));
         }
     }
 
     Ok(())
 }
 
-pub(crate) struct Compiler<'a, 'source> {
+pub(crate) struct Compiler<'a> {
+    /// The source id of the source.
     pub(crate) source_id: usize,
+    /// The source we are compiling for.
+    pub(crate) source: Arc<Source>,
     /// The context we are compiling for.
     context: &'a Context,
     /// Query system to compile required items.
-    pub(crate) query: &'a mut Query<'source>,
+    pub(crate) query: &'a mut Query,
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// Item builder.
@@ -232,8 +311,6 @@ pub(crate) struct Compiler<'a, 'source> {
     pub(crate) scopes: Scopes,
     /// Context for which to emit warnings.
     pub(crate) contexts: Vec<Span>,
-    /// The source we are compiling for.
-    pub(crate) source: &'source Source,
     /// The nesting of loop we are currently in.
     pub(crate) loops: Loops,
     /// Enabled optimizations.
@@ -242,7 +319,7 @@ pub(crate) struct Compiler<'a, 'source> {
     pub(crate) warnings: &'a mut Warnings,
 }
 
-impl<'a, 'source> Compiler<'a, 'source> {
+impl<'a> Compiler<'a> {
     /// Access the meta for the given language item.
     pub fn lookup_meta(&mut self, name: &Item, span: Span) -> CompileResult<Option<Meta>> {
         log::trace!("lookup meta: {}", name);
@@ -400,7 +477,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
     /// Convert a path to an item.
     pub(crate) fn convert_path_to_item(&self, path: &ast::Path) -> CompileResult<Item> {
-        let local = Component::from(path.first.resolve(self.source)?);
+        let local = Component::from(path.first.resolve(&*self.source)?);
 
         let imported = match self.lookup_import_by_name(&local) {
             Some(path) => path,
@@ -410,7 +487,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
         let mut rest = Vec::new();
 
         for (_, part) in &path.rest {
-            rest.push(Component::String(part.resolve(self.source)?.to_owned()));
+            rest.push(Component::String(part.resolve(&*self.source)?.to_owned()));
         }
 
         let it = imported.into_iter().chain(rest.into_iter());
@@ -611,11 +688,12 @@ impl<'a, 'source> Compiler<'a, 'source> {
         for (item, _) in &pat_object.fields {
             let span = item.span();
 
-            let key = item.key.resolve(self.source)?;
+            let source = self.source.clone();
+            let key = item.key.resolve(&*source)?;
             string_slots.push(self.unit.borrow_mut().new_static_string(&*key)?);
             keys.push(key.to_string());
 
-            if let Some(existing) = keys_dup.insert(key, span) {
+            if let Some(existing) = keys_dup.insert(key.to_string(), span) {
                 return Err(CompileError::DuplicateObjectKey {
                     span,
                     existing,
@@ -666,7 +744,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
 
                 for (field, _) in &pat_object.fields {
                     let span = field.key.span();
-                    let key = field.key.resolve(self.source)?;
+                    let key = field.key.resolve(&*self.source)?;
 
                     if !fields.contains(&*key) {
                         return Err(CompileError::LitObjectNotField {
@@ -717,7 +795,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             };
 
             load(&mut self.asm);
-            let name = ident.resolve(self.source)?;
+            let name = ident.resolve(&*self.source)?;
             scope.decl_var(name, span);
         }
 
@@ -811,19 +889,19 @@ impl<'a, 'source> Compiler<'a, 'source> {
                 self.asm.push(Inst::IsUnit, unit.span());
             }
             ast::Pat::PatByte(lit_byte) => {
-                let byte = lit_byte.resolve(self.source)?;
+                let byte = lit_byte.resolve(&*self.source)?;
                 load(&mut self.asm);
                 self.asm.push(Inst::EqByte { byte }, lit_byte.span());
             }
             ast::Pat::PatChar(lit_char) => {
-                let character = lit_char.resolve(self.source)?;
+                let character = lit_char.resolve(&*self.source)?;
                 load(&mut self.asm);
                 self.asm
                     .push(Inst::EqCharacter { character }, lit_char.span());
             }
             ast::Pat::PatNumber(number_literal) => {
                 let span = number_literal.span();
-                let number = number_literal.resolve(self.source)?;
+                let number = number_literal.resolve(&*self.source)?;
 
                 let integer = match number {
                     ast::Number::Integer(integer) => integer,
@@ -837,7 +915,7 @@ impl<'a, 'source> Compiler<'a, 'source> {
             }
             ast::Pat::PatString(pat_string) => {
                 let span = pat_string.span();
-                let string = pat_string.resolve(self.source)?;
+                let string = pat_string.resolve(&*self.source)?;
                 let slot = self.unit.borrow_mut().new_static_string(&*string)?;
                 load(&mut self.asm);
                 self.asm.push(Inst::EqStaticString { slot }, span);

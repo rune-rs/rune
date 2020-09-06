@@ -5,7 +5,7 @@ use crate::traits::Compile;
 use runestick::Inst;
 
 /// Compile an expression.
-impl Compile<(&ast::Expr, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr, needs): (&ast::Expr, Needs)) -> CompileResult<()> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span));

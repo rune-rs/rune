@@ -6,7 +6,7 @@ use crate::traits::{Compile, Resolve as _};
 use runestick::Inst;
 
 /// Compile a for loop.
-impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_for, needs): (&ast::ExprFor, Needs)) -> CompileResult<()> {
         let span = expr_for.span();
         log::trace!("ExprFor => {:?}", self.source.source(span));
@@ -46,7 +46,7 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_, '_> {
         // Declare named loop variable.
         let binding_offset = {
             self.asm.push(Inst::Unit, expr_for.iter.span());
-            let name = expr_for.var.resolve(self.source)?;
+            let name = expr_for.var.resolve(&*self.source)?;
             self.scopes
                 .last_mut(span)?
                 .decl_var(name, expr_for.var.span())

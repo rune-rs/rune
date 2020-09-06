@@ -4,7 +4,7 @@ use crate::error::CompileResult;
 use crate::{traits::Compile, CompileError};
 
 /// Compile `self`.
-impl Compile<(&ast::Path, Needs)> for Compiler<'_, '_> {
+impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
     fn compile(&mut self, (path, needs): (&ast::Path, Needs)) -> CompileResult<()> {
         let span = path.span();
         log::trace!("Path => {:?}", self.source.source(span));
