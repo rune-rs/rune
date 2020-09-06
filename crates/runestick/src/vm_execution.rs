@@ -31,7 +31,9 @@ impl VmExecution {
         }
     }
 
-    /// Run the given task to completion asynchronously.
+    /// Complete the current execution without support for async instructions.
+    ///
+    /// This will error if the execution is suspended through yielding.
     pub async fn async_complete(&mut self) -> Result<Value, VmError> {
         match self.async_resume().await? {
             GeneratorState::Complete(value) => Ok(value),
@@ -41,9 +43,10 @@ impl VmExecution {
         }
     }
 
-    /// Run the given task to completion without support for async functions.
+    /// Complete the current execution without support for async instructions.
     ///
-    /// If any async instructions are encountered, this will error.
+    /// If any async instructions are encountered, this will error. This will
+    /// also error if the execution is suspended through yielding.
     pub fn complete(&mut self) -> Result<Value, VmError> {
         match self.resume()? {
             GeneratorState::Complete(value) => Ok(value),
@@ -53,7 +56,7 @@ impl VmExecution {
         }
     }
 
-    /// Continue executing the current execution.
+    /// Resume the current execution with support for async instructions.
     pub async fn async_resume(&mut self) -> Result<GeneratorState, VmError> {
         loop {
             let len = self.vms.len();
@@ -88,7 +91,9 @@ impl VmExecution {
         }
     }
 
-    /// Continue executing the current execution.
+    /// Resume the current execution without support for async instructions.
+    ///
+    /// If any async instructions are encountered, this will error.
     pub fn resume(&mut self) -> Result<GeneratorState, VmError> {
         loop {
             let len = self.vms.len();
@@ -119,8 +124,41 @@ impl VmExecution {
         }
     }
 
-    /// Run the execution for one step.
-    pub async fn step(&mut self) -> Result<Option<Value>, VmError> {
+    /// Step the single execution for one step without support for async
+    /// instructions.
+    ///
+    /// If any async instructions are encountered, this will error.
+    pub fn step(&mut self) -> Result<Option<Value>, VmError> {
+        let len = self.vms.len();
+        let vm = self.vm_mut()?;
+
+        match Self::run_for(vm, Some(1))? {
+            VmHalt::Exited => (),
+            VmHalt::VmCall(vm_call) => {
+                vm_call.into_execution(self)?;
+                return Ok(None);
+            }
+            VmHalt::Limited => return Ok(None),
+            halt => {
+                return Err(VmError::from(VmErrorKind::Halted {
+                    halt: halt.into_info(),
+                }))
+            }
+        }
+
+        if len == 1 {
+            let value = vm.stack_mut().pop()?;
+            debug_assert!(vm.stack().is_empty(), "final vm stack not clean");
+            return Ok(Some(value));
+        }
+
+        self.pop_vm()?;
+        Ok(None)
+    }
+
+    /// Step the single execution for one step with support for async
+    /// instructions.
+    pub async fn async_step(&mut self) -> Result<Option<Value>, VmError> {
         let len = self.vms.len();
         let vm = self.vm_mut()?;
 

@@ -408,7 +408,7 @@ async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value
             writeln!(out,)?;
         }
 
-        let result = match execution.step().await {
+        let result = match execution.async_step().await {
             Ok(result) => result,
             Err(e) => return Err(TraceError::VmError(e)),
         };
