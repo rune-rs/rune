@@ -132,7 +132,7 @@ fn compile_entry(
 
     let mut compiler = Compiler {
         source_id,
-        source,
+        source: source.clone(),
         context,
         query,
         asm: &mut asm,
@@ -147,14 +147,19 @@ fn compile_entry(
 
     match build {
         Build::Function(f) => {
+            let args = format_fn_args(&*source, f.ast.args.items.iter().map(|(a, _)| a))?;
+
             let span = f.ast.span();
             let count = f.ast.args.items.len();
             compiler.contexts.push(span);
             compiler.compile((f.ast, false))?;
+
             unit.borrow_mut()
-                .new_function(source_id, item, count, asm, f.call)?;
+                .new_function(source_id, item, count, asm, f.call, args)?;
         }
         Build::InstanceFunction(f) => {
+            let args = format_fn_args(&*source, f.ast.args.items.iter().map(|(a, _)| a))?;
+
             let span = f.ast.span();
             let count = f.ast.args.items.len();
             compiler.contexts.push(span);
@@ -177,28 +182,63 @@ fn compile_entry(
                     })?;
 
             compiler.compile((f.ast, true))?;
-            unit.borrow_mut()
-                .new_instance_function(source_id, item, value_type, name, count, asm, f.call)?;
+
+            unit.borrow_mut().new_instance_function(
+                source_id, item, value_type, name, count, asm, f.call, args,
+            )?;
         }
         Build::Closure(c) => {
+            let args = format_fn_args(&*source, c.ast.args.as_slice().iter().map(|(a, _)| a))?;
+
             let span = c.ast.span();
             let count = c.ast.args.len();
             compiler.contexts.push(span);
             compiler.compile((c.ast, &c.captures[..]))?;
+
             unit.borrow_mut()
-                .new_function(source_id, item, count, asm, c.call)?;
+                .new_function(source_id, item, count, asm, c.call, args)?;
         }
         Build::AsyncBlock(async_block) => {
             let span = async_block.ast.span();
             let args = async_block.captures.len();
             compiler.contexts.push(span);
             compiler.compile((async_block.ast, &async_block.captures[..]))?;
-            unit.borrow_mut()
-                .new_function(source_id, item, args, asm, async_block.call)?;
+
+            unit.borrow_mut().new_function(
+                source_id,
+                item,
+                args,
+                asm,
+                async_block.call,
+                Vec::new(),
+            )?;
         }
     }
 
     Ok(())
+}
+
+fn format_fn_args<'a, I>(source: &Source, arguments: I) -> Result<Vec<String>, CompileError>
+where
+    I: IntoIterator<Item = &'a ast::FnArg>,
+{
+    let mut args = Vec::new();
+
+    for arg in arguments {
+        match arg {
+            ast::FnArg::Self_(..) => {
+                args.push(String::from("self"));
+            }
+            ast::FnArg::Ignore(..) => {
+                args.push(String::from("_"));
+            }
+            ast::FnArg::Ident(ident) => {
+                args.push(ident.resolve(source)?.to_string());
+            }
+        }
+    }
+
+    Ok(args)
 }
 
 fn process_import(

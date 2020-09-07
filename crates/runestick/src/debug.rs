@@ -41,38 +41,72 @@ pub struct DebugInst {
     pub label: Option<Label>,
 }
 
+/// Debug information on function arguments.
+#[derive(Debug)]
+pub enum DebugArgs {
+    /// A tuple, with the given number of arguments.
+    TupleArgs(usize),
+    /// A collection of named arguments.
+    Named(Vec<String>),
+}
+
 /// A description of a function signature.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct DebugSignature {
     /// The path of the function.
     pub path: Item,
     /// The number of arguments expected in the function.
-    pub args: usize,
+    pub args: DebugArgs,
 }
 
 impl DebugSignature {
     /// Construct a new function signature.
-    pub fn new(path: Item, args: usize) -> Self {
-        Self { path, args }
+    pub fn new(path: Item, args: Vec<String>) -> Self {
+        Self {
+            path,
+            args: DebugArgs::Named(args),
+        }
     }
 }
 
 impl fmt::Display for DebugSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}(", self.path)?;
+        match &self.args {
+            DebugArgs::TupleArgs(args) if *args > 0 => {
+                write!(fmt, "{}(", self.path)?;
 
-        let mut it = 0..self.args;
-        let last = it.next_back();
+                let mut it = 0..*args;
+                let last = it.next_back();
 
-        for _ in it {
-            write!(fmt, "arg, ")?;
+                for arg in it {
+                    write!(fmt, "{}, ", arg)?;
+                }
+
+                if let Some(arg) = last {
+                    write!(fmt, "{}", arg)?;
+                }
+
+                write!(fmt, ")")?;
+            }
+            DebugArgs::Named(args) => {
+                write!(fmt, "{}(", self.path)?;
+
+                let mut it = args.iter();
+                let last = it.next_back();
+
+                for arg in it {
+                    write!(fmt, "{}, ", arg)?;
+                }
+
+                if let Some(arg) = last {
+                    write!(fmt, "{}", arg)?;
+                }
+
+                write!(fmt, ")")?;
+            }
+            _ => (),
         }
 
-        if last.is_some() {
-            write!(fmt, "arg")?;
-        }
-
-        write!(fmt, ")")?;
         Ok(())
     }
 }
