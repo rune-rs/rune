@@ -2,20 +2,17 @@ use crate::assembly::Assembly;
 use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileError;
-use crate::parser::Parser;
-use crate::token_stream::TokenStream;
-use crate::traits::{Compile as _, Parse, Resolve as _};
-use crate::unit_builder::{ImportKey, UnitBuilder};
+use crate::traits::{Compile as _, Resolve as _};
+use crate::unit_builder::UnitBuilder;
 use crate::{MacroContext, SourceId};
-use runestick::{
-    CompileMeta, Component, Context, Hash, Inst, Item, Label, Source, Span, TypeCheck,
-};
+use runestick::{CompileMeta, Context, Inst, Item, Label, Source, Span, TypeCheck};
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 use crate::error::CompileResult;
-use crate::error::ParseError;
-use crate::index::{Import, Index, Indexer};
+use crate::index::{Index, Indexer, Macro, MacroKind};
+use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::load_error::{LoadError, LoadErrorKind};
 use crate::loops::Loops;
@@ -62,9 +59,16 @@ pub fn compile_with_options(
     unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
 ) -> Result<(), LoadError> {
-    let mut imports = Vec::new();
+    // Imports to process.
+    let mut imports = VecDeque::new();
+    // Macros to expand.
+    let mut macros = VecDeque::new();
+    // Query system to populate.
     let mut query = Query::new(unit.clone());
+    // Files loaded while loading modules.
     let mut loaded = HashMap::<Item, (SourceId, Span)>::new();
+    // Expanded expressions.
+    let mut expanded_expr = HashMap::new();
 
     while let Some((item, source_id)) = sources.next_source() {
         let source = match sources.get(source_id).cloned() {
@@ -82,16 +86,19 @@ pub fn compile_with_options(
             }
         };
 
-        let mut indexer = Indexer::new(
-            item,
-            &mut loaded,
+        let mut indexer = Indexer {
+            loaded: &mut loaded,
+            query: &mut query,
+            imports: &mut imports,
+            macros: &mut macros,
             sources,
             source_id,
             source,
-            &mut query,
             warnings,
-            &mut imports,
-        );
+            items: Items::new(item.into_vec()),
+            scopes: IndexScopes::new(),
+            impl_items: Vec::new(),
+        };
 
         if let Err(error) = indexer.index(&file) {
             return Err(LoadError::from(LoadErrorKind::CompileError {
@@ -101,20 +108,99 @@ pub fn compile_with_options(
         }
     }
 
-    process_imports(imports, context, &mut *unit.borrow_mut())?;
+    loop {
+        while let Some(import) = imports.pop_front() {
+            let source_id = import.source_id;
+
+            if let Err(error) = import.process(context, &mut *unit.borrow_mut()) {
+                return Err(LoadError::from(LoadErrorKind::CompileError {
+                    error,
+                    source_id,
+                }));
+            }
+        }
+
+        if let Some(m) = macros.pop_front() {
+            let Macro {
+                items,
+                ast,
+                source,
+                source_id,
+                scopes,
+                impl_items,
+                kind,
+            } = m;
+
+            let item = items.item();
+
+            let mut macro_context = MacroContext::new(source.clone());
+
+            let mut compiler = crate::macros::MacroCompiler {
+                item: item.clone(),
+                macro_context: &mut macro_context,
+                options,
+                context,
+                unit: unit.clone(),
+                source: source.clone(),
+            };
+
+            // index the newly added macros.
+            let mut indexer = Indexer {
+                loaded: &mut loaded,
+                query: &mut query,
+                imports: &mut imports,
+                macros: &mut macros,
+                sources,
+                source_id,
+                source,
+                warnings,
+                items,
+                scopes,
+                impl_items,
+            };
+
+            match kind {
+                MacroKind::Expr => {
+                    let expr = match compiler.eval_macro::<ast::Expr>(ast) {
+                        Ok(expr) => expr,
+                        Err(error) => {
+                            return Err(LoadError::from(LoadErrorKind::CompileError {
+                                source_id,
+                                error,
+                            }));
+                        }
+                    };
+
+                    if let Err(error) = indexer.index(&expr) {
+                        return Err(LoadError::from(LoadErrorKind::CompileError {
+                            source_id,
+                            error,
+                        }));
+                    }
+
+                    expanded_expr.insert(item, expr);
+                }
+            }
+
+            continue;
+        }
+
+        break;
+    }
+
+    verify_imports(context, &mut *unit.borrow_mut())?;
 
     while let Some(entry) = query.queue.pop_front() {
-        let mut macro_context = MacroContext::new(entry.source.clone());
         let source_id = entry.source_id;
 
         if let Err(error) = compile_entry(
             context,
-            &mut macro_context,
             options,
             unit,
             warnings,
             &mut query,
             entry,
+            &expanded_expr,
         ) {
             return Err(LoadError::from(LoadErrorKind::CompileError {
                 source_id,
@@ -128,12 +214,12 @@ pub fn compile_with_options(
 
 fn compile_entry(
     context: &Context,
-    macro_context: &mut MacroContext,
     options: &Options,
     unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
     query: &mut Query,
     entry: BuildEntry,
+    expanded_exprs: &HashMap<Item, ast::Expr>,
 ) -> Result<(), CompileError> {
     let BuildEntry {
         item,
@@ -148,7 +234,6 @@ fn compile_entry(
         source_id,
         source: source.clone(),
         context,
-        macro_context,
         query,
         asm: &mut asm,
         items: Items::new(item.as_vec()),
@@ -158,6 +243,7 @@ fn compile_entry(
         loops: Loops::new(),
         options,
         warnings,
+        expanded_exprs,
     };
 
     match build {
@@ -256,87 +342,7 @@ where
     Ok(args)
 }
 
-fn process_import(
-    import: Import,
-    context: &Context,
-    unit: &mut UnitBuilder,
-) -> Result<(), CompileError> {
-    let Import {
-        item,
-        ast: decl_use,
-        source,
-        source_id,
-    } = import;
-
-    let span = decl_use.span();
-
-    let mut name = Item::empty();
-    let first = decl_use.first.resolve(&*source)?;
-    name.push(first);
-
-    let mut it = decl_use.rest.iter();
-    let last = it.next_back();
-
-    for (_, c) in it {
-        match c {
-            ast::DeclUseComponent::Wildcard(t) => {
-                return Err(CompileError::UnsupportedWildcard { span: t.span() });
-            }
-            ast::DeclUseComponent::Ident(ident) => {
-                name.push(ident.resolve(&*source)?);
-            }
-        }
-    }
-
-    if let Some((_, c)) = last {
-        match c {
-            ast::DeclUseComponent::Wildcard(..) => {
-                let mut new_names = Vec::new();
-
-                if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
-                    return Err(CompileError::MissingModule { span, item: name });
-                }
-
-                let iter = context
-                    .iter_components(&name)
-                    .chain(unit.iter_components(&name));
-
-                for c in iter {
-                    let mut name = name.clone();
-                    name.push(c);
-                    new_names.push(name);
-                }
-
-                for name in new_names {
-                    unit.new_import(item.clone(), &name, span, source_id)?;
-                }
-            }
-            ast::DeclUseComponent::Ident(ident) => {
-                name.push(ident.resolve(&*source)?);
-                unit.new_import(item.clone(), &name, span, source_id)?;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn process_imports(
-    imports: Vec<Import>,
-    context: &Context,
-    unit: &mut UnitBuilder,
-) -> Result<(), LoadError> {
-    for import in imports {
-        let source_id = import.source_id;
-
-        if let Err(error) = process_import(import, context, unit) {
-            return Err(LoadError::from(LoadErrorKind::CompileError {
-                error,
-                source_id,
-            }));
-        }
-    }
-
+fn verify_imports(context: &Context, unit: &mut UnitBuilder) -> Result<(), LoadError> {
     for (_, entry) in unit.iter_imports() {
         if context.contains_prefix(&entry.item) || unit.contains_prefix(&entry.item) {
             continue;
@@ -370,8 +376,8 @@ pub(crate) struct Compiler<'a> {
     pub(crate) source: Arc<Source>,
     /// The context we are compiling for.
     context: &'a Context,
-    /// Macro context, used for allocating space for identifiers and such.
-    macro_context: &'a mut MacroContext,
+    /// Expressions expanded in a macro.
+    pub(crate) expanded_exprs: &'a HashMap<Item, ast::Expr>,
     /// Query system to compile required items.
     pub(crate) query: &'a mut Query,
     /// The assembly we are generating.
@@ -419,64 +425,6 @@ impl<'a> Compiler<'a> {
         }
 
         Ok(None)
-    }
-
-    /// Compile the given macro into the given output type.
-    pub(crate) fn compile_macro<T>(
-        &mut self,
-        expr_call_macro: &ast::ExprCallMacro,
-    ) -> CompileResult<T>
-    where
-        T: Parse,
-    {
-        let span = expr_call_macro.span();
-
-        if !self.options.macros {
-            return Err(CompileError::experimental(
-                "macros must be enabled with `-O macros=true`",
-                span,
-            ));
-        }
-
-        let item = self.convert_path_to_item(&expr_call_macro.path)?;
-        let hash = Hash::type_hash(&item);
-
-        let handler = match self.context.lookup_macro(hash) {
-            Some(handler) => handler,
-            None => {
-                return Err(CompileError::MissingMacro { span, item });
-            }
-        };
-
-        let input_stream = &expr_call_macro.stream;
-
-        let output = match handler(self.macro_context, input_stream) {
-            Ok(output) => output,
-            Err(error) => {
-                return match error.downcast::<ParseError>() {
-                    Ok(error) => Err(CompileError::ParseError { error }),
-                    Err(error) => Err(CompileError::CallMacroError { span, error }),
-                };
-            }
-        };
-
-        let token_stream = match output.downcast::<TokenStream>() {
-            Ok(token_stream) => *token_stream,
-            Err(..) => {
-                return Err(CompileError::CallMacroError {
-                    span,
-                    error: runestick::Error::msg(format!(
-                        "failed to downcast macro result, expected `{}`",
-                        std::any::type_name::<TokenStream>()
-                    )),
-                });
-            }
-        };
-
-        let mut parser = Parser::from_token_stream(&token_stream);
-        let output = parser.parse::<T>()?;
-        parser.parse_eof()?;
-        Ok(output)
     }
 
     /// Pop locals by simply popping them.
@@ -585,44 +533,10 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    /// Lookup the given local name.
-    fn lookup_import_by_name(&self, local: &Component) -> Option<Item> {
-        let unit = self.unit.borrow();
-
-        let mut base = self.items.item();
-
-        loop {
-            let key = ImportKey::new(base.clone(), local.clone());
-
-            if let Some(entry) = unit.lookup_import(&key) {
-                return Some(entry.item.clone());
-            }
-
-            if base.pop().is_none() {
-                break;
-            }
-        }
-
-        None
-    }
-
     /// Convert a path to an item.
     pub(crate) fn convert_path_to_item(&self, path: &ast::Path) -> CompileResult<Item> {
-        let local = Component::from(path.first.resolve(&*self.source)?);
-
-        let imported = match self.lookup_import_by_name(&local) {
-            Some(path) => path,
-            None => Item::of(&[local]),
-        };
-
-        let mut rest = Vec::new();
-
-        for (_, part) in &path.rest {
-            rest.push(Component::String(part.resolve(&*self.source)?.to_owned()));
-        }
-
-        let it = imported.into_iter().chain(rest.into_iter());
-        Ok(Item::of(it))
+        let base = self.items.item();
+        self.unit.borrow().convert_path(&base, path, &*self.source)
     }
 
     pub(crate) fn compile_condition(

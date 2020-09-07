@@ -2,6 +2,7 @@ use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
+use crate::{IntoTokens, MacroContext, TokenStream};
 use runestick::Span;
 
 /// An enum declaration.
@@ -71,5 +72,21 @@ impl Parse for DeclEnum {
             variants,
             close,
         })
+    }
+}
+
+impl IntoTokens for &DeclEnum {
+    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.enum_.into_tokens(context, stream);
+        self.name.into_tokens(context, stream);
+        self.open.into_tokens(context, stream);
+
+        for (variant, body, comma) in &self.variants {
+            variant.into_tokens(context, stream);
+            body.into_tokens(context, stream);
+            comma.into_tokens(context, stream);
+        }
+
+        self.close.into_tokens(context, stream);
     }
 }

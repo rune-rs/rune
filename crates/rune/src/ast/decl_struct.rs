@@ -1,8 +1,5 @@
 use crate::ast;
-use crate::ast::{Delimiter, Kind};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{IntoTokens, MacroContext, Parse, ParseError, Parser, TokenStream};
 use runestick::Span;
 
 /// A struct declaration.
@@ -82,10 +79,24 @@ impl Parse for DeclStructBody {
         let token = parser.token_peek()?;
 
         Ok(match token.map(|t| t.kind) {
-            Some(Kind::Open(Delimiter::Parenthesis)) => Self::TupleBody(parser.parse()?),
-            Some(Kind::Open(Delimiter::Brace)) => Self::StructBody(parser.parse()?),
+            Some(ast::Kind::Open(ast::Delimiter::Parenthesis)) => Self::TupleBody(parser.parse()?),
+            Some(ast::Kind::Open(ast::Delimiter::Brace)) => Self::StructBody(parser.parse()?),
             _ => Self::EmptyBody(parser.parse()?),
         })
+    }
+}
+
+impl IntoTokens for &DeclStructBody {
+    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
+        match self {
+            DeclStructBody::EmptyBody(..) => (),
+            DeclStructBody::TupleBody(body) => {
+                body.into_tokens(context, stream);
+            }
+            DeclStructBody::StructBody(body) => {
+                body.into_tokens(context, stream);
+            }
+        }
     }
 }
 
@@ -169,6 +180,19 @@ impl Parse for TupleBody {
     }
 }
 
+impl IntoTokens for &TupleBody {
+    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.open.into_tokens(context, stream);
+
+        for (field, comma) in &self.fields {
+            field.into_tokens(context, stream);
+            comma.into_tokens(context, stream);
+        }
+
+        self.close.into_tokens(context, stream);
+    }
+}
+
 /// A variant declaration.
 #[derive(Debug, Clone)]
 pub struct StructBody {
@@ -227,5 +251,18 @@ impl Parse for StructBody {
             fields,
             close,
         })
+    }
+}
+
+impl IntoTokens for &StructBody {
+    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.open.into_tokens(context, stream);
+
+        for (field, comma) in &self.fields {
+            field.into_tokens(context, stream);
+            comma.into_tokens(context, stream);
+        }
+
+        self.close.into_tokens(context, stream);
     }
 }

@@ -4,11 +4,14 @@
 //! metadata like function locations.
 
 use crate::assembly::{Assembly, AssemblyInst};
+use crate::ast;
 use crate::collections::HashMap;
+use crate::error::CompileResult;
+use crate::Resolve as _;
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Label, Names,
-    Span, StaticString, Type, Unit, UnitFn, UnitTypeInfo,
+    Source, Span, StaticString, Type, Unit, UnitFn, UnitTypeInfo,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -470,6 +473,48 @@ impl UnitBuilder {
         self.static_object_keys.push(current);
         self.static_object_keys_rev.insert(hash, new_slot);
         Ok(new_slot)
+    }
+
+    fn lookup_import_by_name(&self, base: &Item, local: &Component) -> Option<Item> {
+        let mut base = base.clone();
+
+        loop {
+            let key = ImportKey::new(base.clone(), local.clone());
+
+            if let Some(entry) = self.lookup_import(&key) {
+                return Some(entry.item.clone());
+            }
+
+            if base.pop().is_none() {
+                break;
+            }
+        }
+
+        None
+    }
+
+    /// Perform a path lookup on the current state of the unit.
+    pub(crate) fn convert_path(
+        &self,
+        base: &Item,
+        path: &ast::Path,
+        source: &Source,
+    ) -> CompileResult<Item> {
+        let local = Component::from(path.first.resolve(source)?);
+
+        let imported = match self.lookup_import_by_name(base, &local) {
+            Some(path) => path,
+            None => Item::of(&[local]),
+        };
+
+        let mut rest = Vec::new();
+
+        for (_, part) in &path.rest {
+            rest.push(Component::String(part.resolve(source)?.to_owned()));
+        }
+
+        let it = imported.into_iter().chain(rest.into_iter());
+        Ok(Item::of(it))
     }
 
     /// Look up an use by name.

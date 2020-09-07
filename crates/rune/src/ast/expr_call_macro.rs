@@ -70,13 +70,11 @@ impl ExprCallMacro {
             stream.push(token);
         }
 
-        let default_span = bang.span().join(close.span);
-
         Ok(Self {
             bang,
             path,
             open,
-            stream: TokenStream::new(stream, default_span, end),
+            stream: TokenStream::new(stream, end),
             close,
         })
     }

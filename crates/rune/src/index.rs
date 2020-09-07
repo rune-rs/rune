@@ -1,15 +1,31 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::error::CompileError;
+use crate::error::{CompileError, CompileResult};
 use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::query::{Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query};
 use crate::sources::Sources;
 use crate::traits::Resolve as _;
 use crate::warning::Warnings;
-use crate::SourceId;
-use runestick::{Call, CompileMeta, Hash, Item, Source, Span, Type};
+use crate::{SourceId, UnitBuilder};
+use runestick::{Call, CompileMeta, Context, Hash, Item, Source, Span, Type};
+use std::collections::VecDeque;
 use std::sync::Arc;
+
+pub(crate) struct Macro {
+    pub(crate) items: Items,
+    pub(crate) ast: ast::ExprCallMacro,
+    pub(crate) source: Arc<Source>,
+    pub(crate) source_id: usize,
+    pub(crate) scopes: IndexScopes,
+    pub(crate) impl_items: Vec<Item>,
+    pub(crate) kind: MacroKind,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum MacroKind {
+    Expr,
+}
 
 /// Import to process.
 pub(crate) struct Import {
@@ -19,47 +35,94 @@ pub(crate) struct Import {
     pub(crate) source_id: usize,
 }
 
+impl Import {
+    /// Process the import, populating the unit.
+    pub(crate) fn process(
+        self,
+        context: &Context,
+        unit: &mut UnitBuilder,
+    ) -> Result<(), CompileError> {
+        let Self {
+            item,
+            ast: decl_use,
+            source,
+            source_id,
+        } = self;
+
+        let span = decl_use.span();
+
+        let mut name = Item::empty();
+        let first = decl_use.first.resolve(&*source)?;
+        name.push(first);
+
+        let mut it = decl_use.rest.iter();
+        let last = it.next_back();
+
+        for (_, c) in it {
+            match c {
+                ast::DeclUseComponent::Wildcard(t) => {
+                    return Err(CompileError::UnsupportedWildcard { span: t.span() });
+                }
+                ast::DeclUseComponent::Ident(ident) => {
+                    name.push(ident.resolve(&*source)?);
+                }
+            }
+        }
+
+        if let Some((_, c)) = last {
+            match c {
+                ast::DeclUseComponent::Wildcard(..) => {
+                    let mut new_names = Vec::new();
+
+                    if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
+                        return Err(CompileError::MissingModule { span, item: name });
+                    }
+
+                    let iter = context
+                        .iter_components(&name)
+                        .chain(unit.iter_components(&name));
+
+                    for c in iter {
+                        let mut name = name.clone();
+                        name.push(c);
+                        new_names.push(name);
+                    }
+
+                    for name in new_names {
+                        unit.new_import(item.clone(), &name, span, source_id)?;
+                    }
+                }
+                ast::DeclUseComponent::Ident(ident) => {
+                    name.push(ident.resolve(&*source)?);
+                    unit.new_import(item.clone(), &name, span, source_id)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
 pub(crate) struct Indexer<'a> {
-    loaded: &'a mut HashMap<Item, (SourceId, Span)>,
-    sources: &'a mut Sources,
+    pub(crate) loaded: &'a mut HashMap<Item, (SourceId, Span)>,
+    pub(crate) query: &'a mut Query,
+    /// Imports to process.
+    pub(crate) imports: &'a mut VecDeque<Import>,
+    /// Macros to queue up for building.
+    pub(crate) macros: &'a mut VecDeque<Macro>,
+    /// Source builders.
+    pub(crate) sources: &'a mut Sources,
+    /// Native context.
     pub(crate) source_id: SourceId,
     pub(crate) source: Arc<Source>,
-    pub(crate) query: &'a mut Query,
     pub(crate) warnings: &'a mut Warnings,
-    /// Imports to process.
-    imports: &'a mut Vec<Import>,
     pub(crate) items: Items,
     pub(crate) scopes: IndexScopes,
     /// Set if we are inside of an impl block.
-    impl_items: Vec<Item>,
+    pub(crate) impl_items: Vec<Item>,
 }
 
 impl<'a> Indexer<'a> {
-    /// Construct a new indexer.
-    pub(crate) fn new(
-        item: Item,
-        loaded: &'a mut HashMap<Item, (SourceId, Span)>,
-        sources: &'a mut Sources,
-        source_id: SourceId,
-        source: Arc<Source>,
-        query: &'a mut Query,
-        warnings: &'a mut Warnings,
-        imports: &'a mut Vec<Import>,
-    ) -> Self {
-        Self {
-            loaded,
-            sources,
-            source_id,
-            source,
-            query,
-            warnings,
-            imports,
-            items: Items::new(item.into_vec()),
-            scopes: IndexScopes::new(),
-            impl_items: Vec::new(),
-        }
-    }
-
     /// Construct the calling convention based on the parameters.
     fn call(generator: bool, is_async: bool) -> Call {
         if is_async {
@@ -76,7 +139,7 @@ impl<'a> Indexer<'a> {
     }
 
     /// Handle a filesystem module.
-    pub(crate) fn handle_file_mod(&mut self, decl_mod: &ast::DeclMod) -> Result<(), CompileError> {
+    pub(crate) fn handle_file_mod(&mut self, decl_mod: &ast::DeclMod) -> CompileResult<()> {
         let span = decl_mod.span();
         let name = decl_mod.name.resolve(&*self.source)?;
         let _guard = self.items.push_name(name);
@@ -147,11 +210,11 @@ impl<'a> Indexer<'a> {
 
 pub(crate) trait Index<T> {
     /// Walk the current type with the given item.
-    fn index(&mut self, item: &T) -> Result<(), CompileError>;
+    fn index(&mut self, item: &T) -> CompileResult<()>;
 }
 
 impl Index<ast::DeclFile> for Indexer<'_> {
-    fn index(&mut self, decl_file: &ast::DeclFile) -> Result<(), CompileError> {
+    fn index(&mut self, decl_file: &ast::DeclFile) -> CompileResult<()> {
         for (decl, semi_colon) in &decl_file.decls {
             if let Some(semi_colon) = semi_colon {
                 if !decl.needs_semi_colon() {
@@ -168,7 +231,7 @@ impl Index<ast::DeclFile> for Indexer<'_> {
 }
 
 impl Index<ast::DeclFn> for Indexer<'_> {
-    fn index(&mut self, decl_fn: &ast::DeclFn) -> Result<(), CompileError> {
+    fn index(&mut self, decl_fn: &ast::DeclFn) -> CompileResult<()> {
         let span = decl_fn.span();
         let is_toplevel = self.items.is_empty();
         let _guard = self.items.push_name(decl_fn.name.resolve(&*self.source)?);
@@ -488,7 +551,19 @@ impl Index<ast::Expr> for Indexer<'_> {
             ast::Expr::LitVec(..) => (),
             // NB: macros have nothing to index, they don't export language
             // items.
-            ast::Expr::ExprCallMacro(..) => (),
+            ast::Expr::ExprCallMacro(expr_call_macro) => {
+                let _guard = self.items.push_macro();
+
+                self.macros.push_back(Macro {
+                    items: self.items.snapshot(),
+                    ast: expr_call_macro.clone(),
+                    source: self.source.clone(),
+                    source_id: self.source_id,
+                    scopes: self.scopes.snapshot(),
+                    impl_items: self.impl_items.clone(),
+                    kind: MacroKind::Expr,
+                });
+            }
         }
 
         Ok(())
@@ -558,7 +633,7 @@ impl Index<ast::Decl> for Indexer<'_> {
     fn index(&mut self, decl: &ast::Decl) -> Result<(), CompileError> {
         match decl {
             ast::Decl::DeclUse(import) => {
-                self.imports.push(Import {
+                self.imports.push_back(Import {
                     item: self.items.item(),
                     ast: import.clone(),
                     source: self.source.clone(),

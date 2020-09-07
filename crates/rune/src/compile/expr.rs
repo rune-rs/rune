@@ -2,6 +2,7 @@ use crate::ast;
 use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::traits::Compile;
+use crate::CompileError;
 use runestick::Inst;
 
 /// Compile an expression.
@@ -114,8 +115,16 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
                 self.compile((lit_template, needs))?;
             }
             ast::Expr::ExprCallMacro(expr_call_macro) => {
-                let expr: ast::Expr = self.compile_macro(expr_call_macro)?;
-                self.compile((&expr, needs))?;
+                let _guard = self.items.push_macro();
+                let item = self.items.item();
+
+                if let Some(expr) = self.expanded_exprs.get(&item) {
+                    self.compile((expr, needs))?;
+                } else {
+                    let span = expr_call_macro.span();
+
+                    return Err(CompileError::internal("macro has not been expanded", span));
+                }
             }
             // NB: declarations are not used in this compilation stage.
             // They have been separately indexed and will be built when queried
