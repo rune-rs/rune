@@ -17,6 +17,13 @@ pub struct ExprElseIf {
     pub block: Box<ExprBlock>,
 }
 
+into_tokens!(ExprElseIf {
+    else_,
+    if_,
+    condition,
+    block
+});
+
 impl ExprElseIf {
     /// Access the span for the expression.
     pub fn span(&self) -> Span {

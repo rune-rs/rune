@@ -10,6 +10,8 @@ pub struct ExprCall {
     pub args: ast::Parenthesized<ast::Expr, ast::Comma>,
 }
 
+into_tokens!(ExprCall { expr, args });
+
 impl ExprCall {
     /// Access the span of expression.
     pub fn span(&self) -> Span {

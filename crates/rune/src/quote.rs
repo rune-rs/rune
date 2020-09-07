@@ -13,18 +13,18 @@ macro_rules! quote {
     }};
 
     (@wrap $ctx:expr, $stream:expr, $variant:ident => $($tt:tt)*) => {{
-        $crate::IntoTokens::into_tokens($crate::ast::Kind::Open($crate::ast::Delimiter::$variant), $ctx, $stream);
+        $crate::IntoTokens::into_tokens(&$crate::ast::Kind::Open($crate::ast::Delimiter::$variant), $ctx, $stream);
         $crate::quote!(@push $ctx, $stream => $($tt)*);
-        $crate::IntoTokens::into_tokens($crate::ast::Kind::Close($crate::ast::Delimiter::$variant), $ctx, $stream);
+        $crate::IntoTokens::into_tokens(&$crate::ast::Kind::Close($crate::ast::Delimiter::$variant), $ctx, $stream);
     }};
 
     (@token $ctx:expr, $stream:expr, $variant:ident => $($tt:tt)*) => {{
-        $crate::IntoTokens::into_tokens($crate::ast::Kind::$variant, $ctx, $stream);
+        $crate::IntoTokens::into_tokens(&$crate::ast::Kind::$variant, $ctx, $stream);
         $crate::quote!(@push $ctx, $stream => $($tt)*);
     }};
 
     (@push $ctx:expr, $stream:expr => #$var:ident $($tt:tt)*) => {{
-        $crate::IntoTokens::into_tokens($var, $ctx, $stream);
+        $crate::IntoTokens::into_tokens(&$var, $ctx, $stream);
         $crate::quote!(@push $ctx, $stream => $($tt)*);
     }};
 
@@ -32,7 +32,7 @@ macro_rules! quote {
         let mut it = std::iter::IntoIterator($var).peekable();
 
         while let Some(v) = it.next() {
-            $crate::IntoTokens::into_tokens(v, $ctx, $stream);
+            $crate::IntoTokens::into_tokens(&v, $ctx, $stream);
 
             if it.peek().is_some() {
                 $crate::quote!(@push $ctx, $stream => $repeat);
@@ -44,15 +44,9 @@ macro_rules! quote {
 
     (@push $ctx:expr, $stream:expr => #($var:ident)* $($tt:tt)*) => {{
         for v in $var {
-            $crate::IntoTokens::into_tokens(v, $ctx, $stream);
+            $crate::IntoTokens::into_tokens(&v, $ctx, $stream);
         }
 
-        $crate::quote!(@push $ctx, $stream => $($tt)*);
-    }};
-
-    (@push $ctx:expr, $stream:expr => $ident:ident $($tt:tt)*) => {{
-        let ident = $ctx.ident(stringify!($ident));
-        $stream.push($stream);
         $crate::quote!(@push $ctx, $stream => $($tt)*);
     }};
 
@@ -192,16 +186,31 @@ macro_rules! quote {
         $crate::quote!(@token $ctx, $stream, Mod => $($tt)*);
     }};
 
-    (@push $ctx:expr, $stream:expr => { $($tt:tt)* }) => {{
+    (@push $ctx:expr, $stream:expr => { $($tt:tt)* } $($rest:tt)*) => {{
         $crate::quote!(@wrap $ctx, $stream, Brace => $($tt)*);
+        $crate::quote!(@push $ctx, $stream => $($rest)*);
     }};
 
-    (@push $ctx:expr, $stream:expr => [ $($tt:tt)* ]) => {{
+    (@push $ctx:expr, $stream:expr => [ $($tt:tt)* ] $($rest:tt)*) => {{
         $crate::quote!(@wrap $ctx, $stream, Bracket => $($tt)*);
+        $crate::quote!(@push $ctx, $stream => $($rest)*);
     }};
 
-    (@push $ctx:expr, $stream:expr => ( $($tt:tt)* )) => {{
+    (@push $ctx:expr, $stream:expr => ( $($tt:tt)* ) $($rest:tt)*) => {{
         $crate::quote!(@wrap $ctx, $stream, Parenthesis => $($tt)*);
+        $crate::quote!(@push $ctx, $stream => $($rest)*);
+    }};
+
+    (@push $ctx:expr, $stream:expr => ( $($tt:tt)* ) $($rest:tt)*) => {{
+        $crate::quote!(@wrap $ctx, $stream, Parenthesis => $($tt)*);
+        $crate::quote!(@push $ctx, $stream => $($rest)*);
+    }};
+
+    (@push $ctx:expr, $stream:expr => $ident:ident $($tt:tt)*) => {{
+        let id = $ctx.storage().insert_ident(stringify!($ident));
+        let kind = $crate::ast::Kind::Ident($crate::ast::IdentKind::Synthetic(id));
+        $crate::IntoTokens::into_tokens(&kind, $ctx, $stream);
+        $crate::quote!(@push $ctx, $stream => $($tt)*);
     }};
 
     (@push $ctx:expr, $stream:expr =>) => {};

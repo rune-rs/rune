@@ -19,6 +19,14 @@ pub struct ExprIf {
     pub expr_else: Option<ExprElse>,
 }
 
+into_tokens!(ExprIf {
+    if_,
+    condition,
+    block,
+    expr_else_ifs,
+    expr_else
+});
+
 impl ExprIf {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

@@ -2,6 +2,7 @@ use crate::ast;
 use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::traits::Compile;
+use crate::worker::Expanded;
 use crate::CompileError;
 use runestick::Inst;
 
@@ -56,6 +57,9 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
             }
             ast::Expr::ExprBlock(expr_block) => {
                 self.compile((expr_block, needs))?;
+            }
+            ast::Expr::ExprAsync(expr_async) => {
+                self.compile((expr_async, needs))?;
             }
             ast::Expr::ExprReturn(expr_return) => {
                 self.compile((expr_return, needs))?;
@@ -114,11 +118,11 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
             ast::Expr::LitTemplate(lit_template) => {
                 self.compile((lit_template, needs))?;
             }
-            ast::Expr::ExprCallMacro(expr_call_macro) => {
+            ast::Expr::MacroCall(expr_call_macro) => {
                 let _guard = self.items.push_macro();
                 let item = self.items.item();
 
-                if let Some(expr) = self.expanded_exprs.get(&item) {
+                if let Some(Expanded::Expr(expr)) = self.expanded.get(&item) {
                     self.compile((expr, needs))?;
                 } else {
                     let span = expr_call_macro.span();
@@ -129,7 +133,7 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
             // NB: declarations are not used in this compilation stage.
             // They have been separately indexed and will be built when queried
             // for.
-            ast::Expr::Decl(decl) => {
+            ast::Expr::Item(decl) => {
                 let span = decl.span();
 
                 if needs.value() {

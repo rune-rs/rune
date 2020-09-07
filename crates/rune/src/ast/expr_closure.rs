@@ -1,50 +1,6 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{IntoTokens, Parse, ParseError, Parser};
 use runestick::Span;
-
-#[derive(Debug, Clone)]
-pub enum ExprClosureArgs {
-    Empty {
-        /// The `||` token.
-        token: ast::Or,
-    },
-    List {
-        /// The opening pipe for the argument group.
-        open: ast::Pipe,
-        /// The arguments of the function.
-        args: Vec<(ast::FnArg, Option<ast::Comma>)>,
-        /// The closening pipe for the argument group.
-        close: ast::Pipe,
-    },
-}
-
-impl ExprClosureArgs {
-    /// Access the span for the closure arguments.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Empty { token } => token.span(),
-            Self::List { open, close, .. } => open.span().join(close.span()),
-        }
-    }
-
-    /// The number of arguments the closure takes.
-    pub fn len(&self) -> usize {
-        match self {
-            Self::Empty { .. } => 0,
-            Self::List { args, .. } => args.len(),
-        }
-    }
-
-    /// Iterate over all arguments.
-    pub fn as_slice(&self) -> &[(ast::FnArg, Option<ast::Comma>)] {
-        match self {
-            Self::Empty { .. } => &[],
-            Self::List { args, .. } => &args[..],
-        }
-    }
-}
 
 /// A closure.
 #[derive(Debug, Clone)]
@@ -56,6 +12,8 @@ pub struct ExprClosure {
     /// The body of the closure.
     pub body: Box<ast::Expr>,
 }
+
+into_tokens!(ExprClosure { async_, args, body });
 
 impl ExprClosure {
     /// Get the identifying span for this closure.
@@ -120,5 +78,60 @@ impl Parse for ExprClosure {
             args,
             body: Box::new(parser.parse()?),
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ExprClosureArgs {
+    Empty {
+        /// The `||` token.
+        token: ast::Or,
+    },
+    List {
+        /// The opening pipe for the argument group.
+        open: ast::Pipe,
+        /// The arguments of the function.
+        args: Vec<(ast::FnArg, Option<ast::Comma>)>,
+        /// The closening pipe for the argument group.
+        close: ast::Pipe,
+    },
+}
+
+impl ExprClosureArgs {
+    /// Access the span for the closure arguments.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Empty { token } => token.span(),
+            Self::List { open, close, .. } => open.span().join(close.span()),
+        }
+    }
+
+    /// The number of arguments the closure takes.
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Empty { .. } => 0,
+            Self::List { args, .. } => args.len(),
+        }
+    }
+
+    /// Iterate over all arguments.
+    pub fn as_slice(&self) -> &[(ast::FnArg, Option<ast::Comma>)] {
+        match self {
+            Self::Empty { .. } => &[],
+            Self::List { args, .. } => &args[..],
+        }
+    }
+}
+
+impl IntoTokens for ExprClosureArgs {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        match self {
+            ExprClosureArgs::Empty { token } => token.into_tokens(context, stream),
+            ExprClosureArgs::List { open, args, close } => {
+                open.into_tokens(context, stream);
+                args.into_tokens(context, stream);
+                close.into_tokens(context, stream);
+            }
+        }
     }
 }

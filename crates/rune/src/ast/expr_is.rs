@@ -15,6 +15,8 @@ pub struct ExprIs {
     pub rhs: Box<ast::Expr>,
 }
 
+into_tokens!(ExprIs { lhs, is, rhs });
+
 impl ExprIs {
     /// If the expression is empty.
     pub fn produces_nothing(&self) -> bool {

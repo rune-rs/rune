@@ -2,6 +2,7 @@ use crate::ast::Token;
 use crate::error::CompileResult;
 use crate::error::ParseError;
 use crate::parser::Parser;
+use crate::Storage;
 use runestick::Source;
 
 /// The parse trait, implemented by items that can be parsed.
@@ -96,7 +97,7 @@ pub trait Resolve<'a> {
     type Output: 'a;
 
     /// Resolve the value from parsed AST.
-    fn resolve(&self, source: &'a Source) -> Result<Self::Output, ParseError>;
+    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ParseError>;
 }
 
 pub(crate) trait Compile<T> {

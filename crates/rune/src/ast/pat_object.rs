@@ -1,8 +1,7 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{Parse, ParseError, Parser};
 use runestick::Span;
+
 /// An object pattern.
 #[derive(Debug, Clone)]
 pub struct PatObject {
@@ -17,6 +16,14 @@ pub struct PatObject {
     /// The close brace.
     pub close: ast::CloseBrace,
 }
+
+into_tokens!(PatObject {
+    ident,
+    open,
+    fields,
+    open_pattern,
+    close
+});
 
 impl PatObject {
     /// Get the span of the pattern.
@@ -84,6 +91,8 @@ pub struct PatObjectItem {
     /// The binding used for the pattern object.
     pub binding: Option<(ast::Colon, ast::Pat)>,
 }
+
+into_tokens!(PatObjectItem { key, binding });
 
 impl PatObjectItem {
     /// The span of the expression.

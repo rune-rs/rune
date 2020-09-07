@@ -15,6 +15,8 @@ pub struct ExprLoop {
     pub body: Box<ExprBlock>,
 }
 
+into_tokens!(ExprLoop { label, loop_, body });
+
 impl ExprLoop {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

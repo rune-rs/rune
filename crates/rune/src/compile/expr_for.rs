@@ -46,10 +46,10 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
         // Declare named loop variable.
         let binding_offset = {
             self.asm.push(Inst::Unit, expr_for.iter.span());
-            let name = expr_for.var.resolve(&*self.source)?;
+            let name = expr_for.var.resolve(&self.storage, &*self.source)?;
             self.scopes
                 .last_mut(span)?
-                .decl_var(name, expr_for.var.span())
+                .decl_var(name.as_ref(), expr_for.var.span())
         };
 
         // Declare storage for memoized `next` instance fn.

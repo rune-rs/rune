@@ -1,26 +1,17 @@
 //! AST for the Rune language.
 
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Peek, Resolve};
+use crate::{Parse, ParseError, Parser, Peek, Resolve, Storage};
 use runestick::{Source, Span};
 
+mod block;
 mod condition;
-mod decl;
-mod decl_enum;
-mod decl_file;
-mod decl_fn;
-mod decl_impl;
-mod decl_mod;
-mod decl_struct;
-mod decl_use;
 mod expr;
+mod expr_async;
 mod expr_await;
 mod expr_binary;
 mod expr_block;
 mod expr_break;
 mod expr_call;
-mod expr_call_macro;
 mod expr_closure;
 mod expr_else;
 mod expr_else_if;
@@ -41,7 +32,16 @@ mod expr_try;
 mod expr_unary;
 mod expr_while;
 mod expr_yield;
+mod file;
 mod fn_arg;
+mod ident;
+mod item;
+mod item_enum;
+mod item_fn;
+mod item_impl;
+mod item_mod;
+mod item_struct;
+mod item_use;
 mod lit_bool;
 mod lit_byte;
 mod lit_byte_str;
@@ -53,6 +53,7 @@ mod lit_template;
 mod lit_tuple;
 mod lit_unit;
 mod lit_vec;
+mod macro_call;
 mod parenthesized;
 mod pat;
 mod pat_object;
@@ -60,25 +61,19 @@ mod pat_path;
 mod pat_tuple;
 mod pat_vec;
 mod path;
+mod stmt;
 mod token;
 pub(super) mod utils;
 
+pub use self::block::Block;
 pub use self::condition::Condition;
-pub use self::decl::Decl;
-pub use self::decl_enum::DeclEnum;
-pub use self::decl_file::DeclFile;
-pub use self::decl_fn::DeclFn;
-pub use self::decl_impl::DeclImpl;
-pub use self::decl_mod::{DeclMod, DeclModBody};
-pub use self::decl_struct::{DeclStruct, DeclStructBody, EmptyBody, StructBody, TupleBody};
-pub use self::decl_use::{DeclUse, DeclUseComponent};
 pub use self::expr::Expr;
+pub use self::expr_async::ExprAsync;
 pub use self::expr_await::ExprAwait;
 pub use self::expr_binary::{BinOp, ExprBinary};
 pub use self::expr_block::ExprBlock;
 pub use self::expr_break::{ExprBreak, ExprBreakValue};
 pub use self::expr_call::ExprCall;
-pub use self::expr_call_macro::ExprCallMacro;
 pub use self::expr_closure::ExprClosure;
 pub use self::expr_else::ExprElse;
 pub use self::expr_else_if::ExprElseIf;
@@ -99,7 +94,16 @@ pub use self::expr_try::ExprTry;
 pub use self::expr_unary::{ExprUnary, UnaryOp};
 pub use self::expr_while::ExprWhile;
 pub use self::expr_yield::ExprYield;
+pub use self::file::File;
 pub use self::fn_arg::FnArg;
+pub use self::ident::Ident;
+pub use self::item::Item;
+pub use self::item_enum::ItemEnum;
+pub use self::item_fn::ItemFn;
+pub use self::item_impl::ItemImpl;
+pub use self::item_mod::{ItemMod, ItemModBody};
+pub use self::item_struct::{EmptyBody, ItemStruct, ItemStructBody, StructBody, TupleBody};
+pub use self::item_use::{ItemUse, ItemUseComponent};
 pub use self::lit_bool::LitBool;
 pub use self::lit_byte::LitByte;
 pub use self::lit_byte_str::LitByteStr;
@@ -111,6 +115,7 @@ pub use self::lit_template::{LitTemplate, Template, TemplateComponent};
 pub use self::lit_tuple::LitTuple;
 pub use self::lit_unit::LitUnit;
 pub use self::lit_vec::LitVec;
+pub use self::macro_call::MacroCall;
 pub use self::parenthesized::Parenthesized;
 pub use self::pat::Pat;
 pub use self::pat_object::{PatObject, PatObjectItem};
@@ -118,7 +123,8 @@ pub use self::pat_path::PatPath;
 pub use self::pat_tuple::PatTuple;
 pub use self::pat_vec::PatVec;
 pub use self::path::Path;
-pub use self::token::{Delimiter, Kind, NumberKind, Token};
+pub use self::stmt::Stmt;
+pub use self::token::{Delimiter, IdentKind, Kind, NumberKind, Token};
 
 macro_rules! decl_tokens {
     ($(($parser:ident, $doc:expr, $($kind:tt)*),)*) => {
@@ -164,7 +170,7 @@ macro_rules! decl_tokens {
             }
 
             impl crate::IntoTokens for $parser {
-                fn into_tokens(self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+                fn into_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
                     stream.push(self.token);
                 }
             }
@@ -189,7 +195,6 @@ decl_tokens! {
     (Match, "The `match` keyword.", Kind::Match),
     (Else, "The `else` keyword.", Kind::Else),
     (Let, "The `let` keyword.", Kind::Let),
-    (Ident, "An identifier, like `foo` or `Hello`.", Kind::Ident),
     (Label, "A label, like `'foo`", Kind::Label),
     (Underscore, "The underscore `_`.", Kind::Underscore),
     (Comma, "A comma `,`.", Kind::Comma),
@@ -223,22 +228,10 @@ decl_tokens! {
     (Bang, "The `!` operator.", Kind::Bang),
 }
 
-impl<'a> Resolve<'a> for Ident {
-    type Output = &'a str;
-
-    fn resolve(&self, source: &'a Source) -> Result<&'a str, ParseError> {
-        let span = self.token.span;
-
-        source
-            .source(span)
-            .ok_or_else(|| ParseError::BadSlice { span })
-    }
-}
-
 impl<'a> Resolve<'a> for Label {
     type Output = &'a str;
 
-    fn resolve(&self, source: &'a Source) -> Result<&'a str, ParseError> {
+    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<&'a str, ParseError> {
         let span = self.token.span;
 
         source

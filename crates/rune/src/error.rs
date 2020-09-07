@@ -30,7 +30,7 @@ pub enum ParseError {
         span: Span,
     },
     /// Error raised when we expect and end-of-file but it didn't happen.
-    #[error("expected end of file, but encountered `{actual}`")]
+    #[error("expected end of input, but encountered `{actual}`")]
     ExpectedEof {
         /// Span that caused the error.
         span: Span,
@@ -39,7 +39,7 @@ pub enum ParseError {
     },
     /// Error raised when we expect a declaration.
     #[error("expected declaration `fn`, `mod`, `struct`, `enum`, or `use`. got `{actual}`.")]
-    ExpectedDecl {
+    ExpectedItem {
         /// Span that caused the error.
         span: Span,
         /// Kind of the token encountered instead of a declaration.
@@ -47,7 +47,7 @@ pub enum ParseError {
     },
     /// Expected use import but found something else.
     #[error("expected import component but found `{actual}`")]
-    ExpectedDeclUseImportComponent {
+    ExpectedItemUseImportComponent {
         /// The span of the component.
         span: Span,
         /// The actual token kind.
@@ -237,6 +237,14 @@ pub enum ParseError {
         /// The slice we tried to read.
         span: Span,
     },
+    /// Attempt to read a slice which doesn't exist.
+    #[error("tried to get bad synthetic identifier `{id}`")]
+    BadIdentId {
+        /// The slice we tried to read.
+        span: Span,
+        /// The identifier that was bad.
+        id: usize,
+    },
     /// Encountered a bad string escape sequence.
     #[error("bad escape sequence")]
     BadEscapeSequence {
@@ -357,7 +365,7 @@ impl ParseError {
         match *self {
             Self::UnexpectedEof { span, .. } => span,
             Self::ExpectedEof { span, .. } => span,
-            Self::ExpectedDecl { span, .. } => span,
+            Self::ExpectedItem { span, .. } => span,
             Self::ExpectedStringEscape { span, .. } => span,
             Self::UnterminatedStrLit { span, .. } => span,
             Self::UnterminatedCharLit { span, .. } => span,
@@ -383,6 +391,7 @@ impl ParseError {
             Self::ExpectedUnaryOperator { span, .. } => span,
             Self::PrecedenceGroupRequired { span, .. } => span,
             Self::BadSlice { span, .. } => span,
+            Self::BadIdentId { span, .. } => span,
             Self::BadEscapeSequence { span, .. } => span,
             Self::BadNumberLiteral { span, .. } => span,
             Self::BadNumberOutOfBounds { span, .. } => span,
@@ -397,7 +406,7 @@ impl ParseError {
             Self::UnexpectedCloseBrace { span, .. } => span,
             Self::UnsupportedFieldAccess { span, .. } => span,
             Self::ExpectedFunctionArgument { span, .. } => span,
-            Self::ExpectedDeclUseImportComponent { span, .. } => span,
+            Self::ExpectedItemUseImportComponent { span, .. } => span,
             Self::UnsupportedAsyncExpr { span, .. } => span,
             Self::ExpectedMacroDelimiter { span, .. } => span,
             Self::ExpectedMacroCloseDelimiter { span, .. } => span,

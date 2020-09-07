@@ -87,15 +87,15 @@ impl IntoIterator for TokenStream {
 /// Trait for things that can be turned into tokens.
 pub trait IntoTokens {
     /// Turn the current item into tokens.
-    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream);
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream);
 }
 
-impl<T> IntoTokens for &T
+impl<T> IntoTokens for Box<T>
 where
-    T: Copy + IntoTokens,
+    T: IntoTokens,
 {
-    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
-        IntoTokens::into_tokens(*self, context, stream);
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        (**self).into_tokens(context, stream);
     }
 }
 
@@ -103,9 +103,50 @@ impl<T> IntoTokens for Option<T>
 where
     T: IntoTokens,
 {
-    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         if let Some(this) = self {
-            crate::IntoTokens::into_tokens(this, context, stream);
+            this.into_tokens(context, stream);
         }
+    }
+}
+
+impl<T> IntoTokens for Vec<T>
+where
+    T: IntoTokens,
+{
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        for item in self {
+            item.into_tokens(context, stream);
+        }
+    }
+}
+
+impl<A, B> IntoTokens for (A, B)
+where
+    A: IntoTokens,
+    B: IntoTokens,
+{
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.0.into_tokens(context, stream);
+        self.1.into_tokens(context, stream);
+    }
+}
+
+impl<A, B, C> IntoTokens for (A, B, C)
+where
+    A: IntoTokens,
+    B: IntoTokens,
+    C: IntoTokens,
+{
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.0.into_tokens(context, stream);
+        self.1.into_tokens(context, stream);
+        self.2.into_tokens(context, stream);
+    }
+}
+
+impl IntoTokens for TokenStream {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.stream.into_tokens(context, stream);
     }
 }

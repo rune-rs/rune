@@ -22,6 +22,15 @@ pub struct ExprFor {
     pub body: Box<ExprBlock>,
 }
 
+into_tokens!(ExprFor {
+    label,
+    for_,
+    var,
+    in_,
+    iter,
+    body
+});
+
 impl ExprFor {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

@@ -1,71 +1,7 @@
 use crate::ast;
 use crate::ast::utils;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{IntoTokens, Parse, ParseError, Parser};
 use runestick::Span;
-
-/// A single selection branch.
-#[derive(Debug, Clone)]
-pub struct ExprSelectBranch {
-    /// The identifier to bind the result to.
-    pub pat: ast::Pat,
-    /// `=`.
-    pub eq: ast::Eq,
-    /// The expression that should evaluate to a future.
-    pub expr: Box<ast::Expr>,
-    /// `=>`.
-    pub rocket: ast::Rocket,
-    /// The body of the expression.
-    pub body: Box<ast::Expr>,
-}
-
-impl ExprSelectBranch {
-    /// The span of the expression.
-    pub fn span(&self) -> Span {
-        self.pat.span().join(self.body.span())
-    }
-}
-
-impl Parse for ExprSelectBranch {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            pat: parser.parse()?,
-            eq: parser.parse()?,
-            expr: Box::new(parser.parse()?),
-            rocket: parser.parse()?,
-            body: Box::new(parser.parse()?),
-        })
-    }
-}
-
-/// A single selection branch.
-#[derive(Debug, Clone)]
-pub struct ExprDefaultBranch {
-    /// The `default` keyword.
-    pub default: ast::Default,
-    /// `=>`.
-    pub rocket: ast::Rocket,
-    /// The body of the expression.
-    pub body: Box<ast::Expr>,
-}
-
-impl ExprDefaultBranch {
-    /// The span of the expression.
-    pub fn span(&self) -> Span {
-        self.default.span().join(self.body.span())
-    }
-}
-
-impl Parse for ExprDefaultBranch {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            default: parser.parse()?,
-            rocket: parser.parse()?,
-            body: Box::new(parser.parse()?),
-        })
-    }
-}
 
 /// A select expression that selects over a collection of futures.
 #[derive(Debug, Clone)]
@@ -138,5 +74,95 @@ impl Parse for ExprSelect {
             default_branch,
             close,
         })
+    }
+}
+
+impl IntoTokens for ExprSelect {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.select.into_tokens(context, stream);
+        self.open.into_tokens(context, stream);
+        self.branches.into_tokens(context, stream);
+        self.default_branch.into_tokens(context, stream);
+        self.close.into_tokens(context, stream);
+    }
+}
+
+/// A single selection branch.
+#[derive(Debug, Clone)]
+pub struct ExprSelectBranch {
+    /// The identifier to bind the result to.
+    pub pat: ast::Pat,
+    /// `=`.
+    pub eq: ast::Eq,
+    /// The expression that should evaluate to a future.
+    pub expr: Box<ast::Expr>,
+    /// `=>`.
+    pub rocket: ast::Rocket,
+    /// The body of the expression.
+    pub body: Box<ast::Expr>,
+}
+
+impl ExprSelectBranch {
+    /// The span of the expression.
+    pub fn span(&self) -> Span {
+        self.pat.span().join(self.body.span())
+    }
+}
+
+impl Parse for ExprSelectBranch {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(Self {
+            pat: parser.parse()?,
+            eq: parser.parse()?,
+            expr: Box::new(parser.parse()?),
+            rocket: parser.parse()?,
+            body: Box::new(parser.parse()?),
+        })
+    }
+}
+
+impl IntoTokens for ExprSelectBranch {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.pat.into_tokens(context, stream);
+        self.eq.into_tokens(context, stream);
+        self.expr.into_tokens(context, stream);
+        self.rocket.into_tokens(context, stream);
+        self.body.into_tokens(context, stream);
+    }
+}
+
+/// A single selection branch.
+#[derive(Debug, Clone)]
+pub struct ExprDefaultBranch {
+    /// The `default` keyword.
+    pub default: ast::Default,
+    /// `=>`.
+    pub rocket: ast::Rocket,
+    /// The body of the expression.
+    pub body: Box<ast::Expr>,
+}
+
+impl ExprDefaultBranch {
+    /// The span of the expression.
+    pub fn span(&self) -> Span {
+        self.default.span().join(self.body.span())
+    }
+}
+
+impl Parse for ExprDefaultBranch {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(Self {
+            default: parser.parse()?,
+            rocket: parser.parse()?,
+            body: Box::new(parser.parse()?),
+        })
+    }
+}
+
+impl IntoTokens for ExprDefaultBranch {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.default.into_tokens(context, stream);
+        self.rocket.into_tokens(context, stream);
+        self.body.into_tokens(context, stream);
     }
 }

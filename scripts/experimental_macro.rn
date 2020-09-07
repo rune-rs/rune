@@ -1,4 +1,9 @@
 use std::experiments::test_add;
+use std::experiments::make_function;
+
+make_function!(test => {
+    42
+});
 
 fn main() {
     let a = 1;
@@ -7,7 +12,6 @@ fn main() {
         please a
     };
 
-    let result = result();
+    let result = result() + test();
     println(`{result}`); // => 2
 }
-

@@ -2432,7 +2432,7 @@ impl Vm {
 
     /// Check that arguments matches expected or raise the appropriate error.
     fn check_args(args: usize, expected: usize) -> Result<(), VmError> {
-        if args != args {
+        if args != expected {
             return Err(VmError::from(VmErrorKind::BadArgumentCount {
                 actual: args,
                 expected,

@@ -148,23 +148,26 @@ fn compile_assign_binop(
                     let span = first.span();
                     compiler.compile((rhs, Needs::Value))?;
                     let source = compiler.source.clone();
-                    let target = first.resolve(&*source)?;
+                    let target = first.resolve(compiler.storage, &*source)?;
 
                     match expr_field {
                         ast::ExprField::Ident(index) => {
                             let span = index.span();
-                            let index = index.resolve(&*compiler.source)?;
-                            let index = compiler.unit.borrow_mut().new_static_string(index)?;
+                            let index = index.resolve(compiler.storage, &*compiler.source)?;
+                            let index = compiler
+                                .unit
+                                .borrow_mut()
+                                .new_static_string(index.as_ref())?;
                             compiler.asm.push(Inst::String { slot: index }, span);
                         }
                         ast::ExprField::LitNumber(n) => {
-                            if compile_tuple_index_set_number(compiler, target, n)? {
+                            if compile_tuple_index_set_number(compiler, target.as_ref(), n)? {
                                 return Ok(());
                             }
                         }
                     }
 
-                    let var = compiler.scopes.get_var(target, span)?;
+                    let var = compiler.scopes.get_var(target.as_ref(), span)?;
                     var.copy(&mut compiler.asm, span, format!("var `{}`", target));
 
                     compiler.asm.push(Inst::IndexSet, span);
@@ -177,8 +180,11 @@ fn compile_assign_binop(
                     match expr_field {
                         ast::ExprField::Ident(index) => {
                             let span = index.span();
-                            let index = index.resolve(&*compiler.source)?;
-                            let slot = compiler.unit.borrow_mut().new_static_string(index)?;
+                            let index = index.resolve(compiler.storage, &*compiler.source)?;
+                            let slot = compiler
+                                .unit
+                                .borrow_mut()
+                                .new_static_string(index.as_ref())?;
                             compiler.asm.push(Inst::String { slot }, span);
                         }
                         ast::ExprField::LitNumber(n) => {
@@ -198,8 +204,8 @@ fn compile_assign_binop(
             },
             ast::Expr::Path(ast::Path { first, rest }) if rest.is_empty() => {
                 let span = first.span();
-                let first = first.resolve(&*compiler.source)?;
-                let var = compiler.scopes.get_var(first, span)?;
+                let first = first.resolve(compiler.storage, &*compiler.source)?;
+                let var = compiler.scopes.get_var(first.as_ref(), span)?;
                 break var.offset;
             }
             _ => (),
@@ -264,7 +270,7 @@ fn compile_tuple_index_set_number(
 ) -> CompileResult<bool> {
     let span = field.span();
 
-    let index = match field.resolve(&*compiler.source)? {
+    let index = match field.resolve(compiler.storage, &*compiler.source)? {
         ast::Number::Integer(n) if n >= 0 => n as usize,
         _ => return Ok(false),
     };

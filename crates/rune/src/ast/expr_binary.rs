@@ -8,11 +8,17 @@ use std::fmt;
 pub struct ExprBinary {
     /// The left-hand side of a binary operation.
     pub lhs: Box<ast::Expr>,
-    /// The operation to apply.
-    pub op: BinOp,
+    /// Token associated with operator.
+    pub t1: ast::Token,
+    /// Token associated with optional second part of operator.
+    pub t2: Option<ast::Token>,
     /// The right-hand side of a binary operation.
     pub rhs: Box<ast::Expr>,
+    /// The operation to apply.
+    pub op: BinOp,
 }
+
+into_tokens!(ExprBinary { lhs, t1, t2, rhs });
 
 impl ExprBinary {
     /// If the expression is empty.
@@ -133,7 +139,9 @@ impl BinOp {
     }
 
     /// Convert from a token.
-    pub(super) fn from_token((t1, t2): (ast::Token, Option<ast::Token>)) -> Option<(BinOp, Span)> {
+    pub(super) fn from_token(
+        (t1, t2): (ast::Token, Option<ast::Token>),
+    ) -> Option<(BinOp, ast::Token, Option<ast::Token>)> {
         let op = match t1.kind {
             ast::Kind::Plus => Self::Add,
             ast::Kind::Dash => Self::Sub,
@@ -149,7 +157,7 @@ impl BinOp {
             ast::Kind::Is => {
                 if let Some(t2) = t2 {
                     if let ast::Kind::Not = t2.kind {
-                        return Some((Self::IsNot, t1.span.join(t2.span)));
+                        return Some((Self::IsNot, t1, Some(t2)));
                     }
                 }
 
@@ -176,7 +184,7 @@ impl BinOp {
             _ => return None,
         };
 
-        Some((op, t1.span))
+        Some((op, t1, None))
     }
 
     /// Get how many tokens to advance for this operator.

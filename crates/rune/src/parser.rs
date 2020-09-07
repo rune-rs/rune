@@ -14,7 +14,7 @@ use std::fmt;
 /// use rune::{ast, Parser};
 ///
 /// let mut parser = Parser::new("fn foo() {}");
-/// parser.parse::<ast::DeclFn>().unwrap();
+/// parser.parse::<ast::ItemFn>().unwrap();
 /// ```
 #[derive(Debug)]
 pub struct Parser<'a> {

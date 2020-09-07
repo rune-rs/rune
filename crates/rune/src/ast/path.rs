@@ -2,8 +2,9 @@ use crate::ast;
 use crate::ast::{Kind, Token};
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::traits::{Parse, Peek, Resolve};
+use crate::{IntoTokens, Parse, Peek, Resolve, Storage};
 use runestick::{Source, Span};
+use std::borrow::Cow;
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone)]
@@ -75,7 +76,7 @@ impl Peek for Path {
             None => return false,
         };
 
-        matches!(t1.kind, Kind::Ident)
+        matches!(t1.kind, Kind::Ident(..))
     }
 }
 
@@ -87,17 +88,32 @@ impl Parse for Path {
 }
 
 impl<'a> Resolve<'a> for Path {
-    type Output = Vec<&'a str>;
+    type Output = Vec<Cow<'a, str>>;
 
-    fn resolve(&self, source: &'a Source) -> Result<Vec<&'a str>, ParseError> {
+    fn resolve(
+        &self,
+        storage: &Storage,
+        source: &'a Source,
+    ) -> Result<Vec<Cow<'a, str>>, ParseError> {
         let mut output = Vec::new();
 
-        output.push(self.first.resolve(source)?);
+        output.push(self.first.resolve(storage, source)?);
 
         for (_, ident) in &self.rest {
-            output.push(ident.resolve(source)?);
+            output.push(ident.resolve(storage, source)?);
         }
 
         Ok(output)
+    }
+}
+
+impl IntoTokens for Path {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.first.into_tokens(context, stream);
+
+        for (sep, rest) in &self.rest {
+            sep.into_tokens(context, stream);
+            rest.into_tokens(context, stream);
+        }
     }
 }

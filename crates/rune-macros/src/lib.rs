@@ -48,13 +48,27 @@ fn test_add(ctx: &mut MacroContext, stream: &TokenStream) -> runestick::Result<T
     let var = parser.parse::<ast::Ident>()?;
     parser.parse_eof()?;
 
-    let ident = ident.resolve(ctx.source())?;
+    let ident = ident.resolve(ctx.storage(), ctx.source())?;
 
     if ident != "please" {
         return Err(runestick::Error::msg("you didn't ask nicely..."));
     }
 
-    Ok(rune::quote!(ctx => || #var + #var))
+    Ok(rune::quote!(ctx => || { #var + #var }))
+}
+
+/// Implementation for the `make_function!` macro.
+fn make_function(ctx: &mut MacroContext, stream: &TokenStream) -> runestick::Result<TokenStream> {
+    use rune::ast;
+
+    let mut parser = rune::Parser::from_token_stream(stream);
+
+    let ident = parser.parse::<ast::Ident>()?;
+    let _ = parser.parse::<ast::Rocket>()?;
+    let output = parser.parse::<ast::ExprBlock>()?;
+    parser.parse_eof()?;
+
+    Ok(rune::quote!(ctx => fn #ident() { #output }))
 }
 
 /// Construct the `http` module.
@@ -62,5 +76,6 @@ pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["std", "experiments"]);
     module.macro_(&["passthrough"], passthrough_impl)?;
     module.macro_(&["test_add"], test_add)?;
+    module.macro_(&["make_function"], make_function)?;
     Ok(module)
 }
