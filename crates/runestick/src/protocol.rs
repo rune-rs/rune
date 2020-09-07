@@ -11,11 +11,11 @@ pub struct Protocol {
 }
 
 impl IntoInstFnHash for Protocol {
-    fn to_hash(self) -> Hash {
+    fn into_inst_fn_hash(self) -> Hash {
         self.hash
     }
 
-    fn to_name(self) -> String {
+    fn into_name(self) -> String {
         String::from(self.name)
     }
 }

@@ -34,7 +34,7 @@ pub enum ContextError {
     #[error("function `{signature}` ({hash}) already exists")]
     ConflictingFunction {
         /// The signature of the conflicting function.
-        signature: FnSignature,
+        signature: ContextSignature,
         /// The hash of the conflicting function.
         hash: Hash,
     },
@@ -127,8 +127,8 @@ impl fmt::Display for ContextTypeInfo {
 
 /// A description of a function signature.
 #[derive(Debug, Clone)]
-pub enum FnSignature {
-    Free {
+pub enum ContextSignature {
+    Function {
         /// Path to the function.
         path: Item,
         /// Arguments.
@@ -146,32 +146,10 @@ pub enum FnSignature {
     },
 }
 
-impl FnSignature {
-    /// Construct a new global function signature.
-    pub fn new_free(path: Item, args: Option<usize>) -> Self {
-        Self::Free { path, args }
-    }
-
-    /// Construct a new function signature.
-    pub fn new_inst(
-        path: Item,
-        name: String,
-        args: Option<usize>,
-        self_type_info: TypeInfo,
-    ) -> Self {
-        Self::Instance {
-            path,
-            name,
-            args,
-            self_type_info,
-        }
-    }
-}
-
-impl fmt::Display for FnSignature {
+impl fmt::Display for ContextSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Free { path, args } => {
+            Self::Function { path, args } => {
                 write!(fmt, "{}(", path)?;
 
                 if let Some(args) = args {
@@ -227,10 +205,10 @@ pub struct Context {
     with_prelude: bool,
     /// Item metadata in the context.
     meta: HashMap<Item, Meta>,
-    /// Free functions.
+    /// Registered native function handlers.
     functions: HashMap<Hash, Arc<Handler>>,
     /// Information on functions.
-    functions_info: HashMap<Hash, FnSignature>,
+    functions_info: HashMap<Hash, ContextSignature>,
     /// Registered types.
     types: HashMap<Hash, ContextTypeInfo>,
     /// Reverse lookup for types.
@@ -325,7 +303,7 @@ impl Context {
     }
 
     /// Iterate over all available functions
-    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &FnSignature)> {
+    pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &ContextSignature)> {
         let mut it = self.functions_info.iter();
 
         std::iter::from_fn(move || {
@@ -454,7 +432,11 @@ impl Context {
         self.names.insert(&name);
 
         let hash = Hash::type_hash(&name);
-        let signature = FnSignature::new_free(name.clone(), f.args);
+
+        let signature = ContextSignature::Function {
+            path: name.clone(),
+            args: f.args,
+        };
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
@@ -498,12 +480,12 @@ impl Context {
 
         let hash = hash_fn(value_type, hash);
 
-        let signature = FnSignature::new_inst(
-            info.name.clone(),
-            assoc.name.clone(),
-            assoc.args,
-            info.type_info,
-        );
+        let signature = ContextSignature::Instance {
+            path: info.name.clone(),
+            name: assoc.name.clone(),
+            args: assoc.args,
+            self_type_info: info.type_info,
+        };
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
@@ -604,7 +586,11 @@ impl Context {
             };
 
             self.install_meta(item.clone(), meta)?;
-            let signature = FnSignature::new_free(item, Some(variant.args));
+
+            let signature = ContextSignature::Function {
+                path: item,
+                args: Some(variant.args),
+            };
 
             if let Some(old) = self.functions_info.insert(hash, signature) {
                 return Err(ContextError::ConflictingFunction {
@@ -653,7 +639,11 @@ impl Context {
 
         let constructor: Arc<Handler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
-        let signature = FnSignature::new_free(item, Some(args));
+
+        let signature = ContextSignature::Function {
+            path: item,
+            args: Some(args),
+        };
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
             return Err(ContextError::ConflictingFunction {
@@ -675,24 +665,5 @@ impl Context {
 impl fmt::Debug for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Context")
-    }
-}
-
-/// Trait used to determine what can be used as an instance function name.
-pub trait IntoInstFnHash: Copy {
-    /// Generate a locally unique hash to check for conflicts.
-    fn to_hash(self) -> Hash;
-
-    /// Get a human readable name for the function.
-    fn to_name(self) -> String;
-}
-
-impl<'a> IntoInstFnHash for &'a str {
-    fn to_hash(self) -> Hash {
-        Hash::of(self)
-    }
-
-    fn to_name(self) -> String {
-        self.to_owned()
     }
 }
