@@ -77,6 +77,7 @@ mod tuple;
 mod type_;
 mod type_info;
 mod unit;
+mod unit_builder;
 mod vec_tuple;
 mod vm_call;
 mod vm_error;
@@ -135,8 +136,9 @@ pub use crate::protocol::{
 pub use crate::reflection::{FromValue, ToValue, UnsafeFromValue, ValueType};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
-pub use crate::unit::{
-    ImportEntry, ImportKey, LinkerError, LinkerErrors, Unit, UnitError, UnitFnKind,
+pub use crate::unit::{Unit, UnitFn};
+pub use crate::unit_builder::{
+    ImportEntry, ImportKey, LinkerError, LinkerErrors, UnitBuilder, UnitBuilderError,
 };
 pub use crate::value::{
     Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple,

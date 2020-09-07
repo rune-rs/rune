@@ -63,7 +63,7 @@ impl Compile<(CallAsync, &ast::ExprBlock)> for Compiler<'_> {
         };
 
         let captures = match &meta {
-            Meta::MetaAsyncBlock { captures, .. } => captures,
+            Meta::AsyncBlock { captures, .. } => captures,
             _ => {
                 return Err(CompileError::UnsupportedAsyncBlock { span, meta });
             }

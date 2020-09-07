@@ -79,7 +79,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                 };
 
                 match meta {
-                    Meta::MetaStruct { object, .. } => {
+                    Meta::Struct { object, .. } => {
                         check_object_fields(
                             object.fields.as_ref(),
                             check_keys,
@@ -90,7 +90,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         let hash = Hash::type_hash(&object.item);
                         self.asm.push(Inst::TypedObject { hash, slot }, span);
                     }
-                    Meta::MetaVariantStruct {
+                    Meta::VariantStruct {
                         enum_item, object, ..
                     } => {
                         check_object_fields(

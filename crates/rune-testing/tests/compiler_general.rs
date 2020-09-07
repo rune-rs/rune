@@ -4,7 +4,7 @@ use rune_testing::*;
 fn test_use_variant_as_type() {
     assert_compile_error! {
         r#"fn main() { Err(0) is Err }"#,
-        UnsupportedType { span, meta: Meta::MetaVariantTuple { .. } } => {
+        UnsupportedType { span, meta: Meta::VariantTuple { .. } } => {
             assert_eq!(span, Span::new(22, 25));
         }
     };

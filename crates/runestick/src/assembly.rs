@@ -1,7 +1,7 @@
 //! Helpers for building assembly.
 
 use crate::collections::HashMap;
-use crate::{Hash, Inst, Span, UnitError};
+use crate::{Hash, Inst, Span, UnitBuilderError};
 use std::fmt;
 
 /// A label that can be jumped to.
@@ -73,11 +73,11 @@ impl Assembly {
     }
 
     /// Apply the label at the current instruction offset.
-    pub fn label(&mut self, label: Label) -> Result<Label, UnitError> {
+    pub fn label(&mut self, label: Label) -> Result<Label, UnitBuilderError> {
         let offset = self.instructions.len();
 
         if self.labels.insert(label, offset).is_some() {
-            return Err(UnitError::DuplicateLabel { label });
+            return Err(UnitBuilderError::DuplicateLabel { label });
         }
 
         self.labels_rev.insert(offset, label);

@@ -225,7 +225,7 @@ impl Index<ast::DeclFn> for Indexer<'_> {
                 source_id: self.source_id,
             });
 
-            let meta = Meta::MetaFunction {
+            let meta = Meta::Function {
                 value_type: Type::Hash(Hash::type_hash(&item)),
                 item: item.clone(),
             };
@@ -240,13 +240,10 @@ impl Index<ast::DeclFn> for Indexer<'_> {
                 source_id: self.source_id,
             });
 
-            self.query
-                .unit
-                .borrow_mut()
-                .insert_meta(Meta::MetaFunction {
-                    value_type: Type::Hash(Hash::type_hash(&item)),
-                    item,
-                })?;
+            self.query.unit.borrow_mut().insert_meta(Meta::Function {
+                value_type: Type::Hash(Hash::type_hash(&item)),
+                item,
+            })?;
         } else {
             // NB: non toplevel functions can be indexed for later construction.
             self.query.index(

@@ -2,7 +2,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::module::{ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
 use crate::{
     Component, Hash, Item, Meta, MetaStruct, MetaTuple, Module, Names, Stack, StaticType, Type,
-    TypeCheck, TypeInfo, Unit, ValueType, VmError,
+    TypeCheck, TypeInfo, UnitBuilder, ValueType, VmError,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -287,11 +287,11 @@ impl Context {
     /// Otherwise an empty unit will be constructed.
     ///
     /// [with_default_modules]: Self::with_default_modules
-    pub fn new_unit(&self) -> Unit {
+    pub fn new_unit(&self) -> UnitBuilder {
         if self.with_prelude {
-            Unit::with_default_prelude()
+            UnitBuilder::with_default_prelude()
         } else {
-            Unit::default()
+            UnitBuilder::default()
         }
     }
 
@@ -409,7 +409,7 @@ impl Context {
 
         self.install_meta(
             name.clone(),
-            Meta::MetaStruct {
+            Meta::Struct {
                 value_type,
                 object: MetaStruct {
                     item: name.clone(),
@@ -467,7 +467,7 @@ impl Context {
 
         self.meta.insert(
             name.clone(),
-            Meta::MetaFunction {
+            Meta::Function {
                 value_type: Type::Hash(hash),
                 item: name.clone(),
             },
@@ -561,7 +561,7 @@ impl Context {
 
         self.install_meta(
             enum_item.clone(),
-            Meta::MetaEnum {
+            Meta::Enum {
                 value_type: Type::StaticType(internal_enum.static_type),
                 item: enum_item.clone(),
             },
@@ -597,7 +597,7 @@ impl Context {
                 hash,
             };
 
-            let meta = Meta::MetaVariantTuple {
+            let meta = Meta::VariantTuple {
                 value_type: variant.value_type,
                 enum_item: enum_item.clone(),
                 tuple,
@@ -641,12 +641,12 @@ impl Context {
         };
 
         let meta = match enum_item {
-            Some(enum_item) => Meta::MetaVariantTuple {
+            Some(enum_item) => Meta::VariantTuple {
                 value_type,
                 enum_item,
                 tuple,
             },
-            None => Meta::MetaTuple { value_type, tuple },
+            None => Meta::Tuple { value_type, tuple },
         };
 
         self.install_meta(item.clone(), meta)?;

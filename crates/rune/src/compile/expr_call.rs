@@ -96,7 +96,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         };
 
         let item = match &meta {
-            Meta::MetaTuple { tuple, .. } | Meta::MetaVariantTuple { tuple, .. } => {
+            Meta::Tuple { tuple, .. } | Meta::VariantTuple { tuple, .. } => {
                 if tuple.args != expr_call.args.items.len() {
                     return Err(CompileError::UnsupportedArgumentCount {
                         span,
@@ -118,7 +118,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
 
                 tuple.item.clone()
             }
-            Meta::MetaFunction { item, .. } => item.clone(),
+            Meta::Function { item, .. } => item.clone(),
             _ => {
                 return Err(CompileError::MissingFunction { span, item });
             }

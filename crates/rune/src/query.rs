@@ -5,7 +5,8 @@ use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use crate::traits::Resolve as _;
 use runestick::{
-    Call, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Source, Span, Type, Unit,
+    Call, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Source, Span, Type,
+    UnitBuilder,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -105,12 +106,12 @@ pub(crate) struct IndexedEntry {
 pub(crate) struct Query {
     pub(crate) queue: VecDeque<BuildEntry>,
     indexed: HashMap<Item, IndexedEntry>,
-    pub(crate) unit: Rc<RefCell<Unit>>,
+    pub(crate) unit: Rc<RefCell<UnitBuilder>>,
 }
 
 impl Query {
     /// Construct a new compilation context.
-    pub fn new(unit: Rc<RefCell<Unit>>) -> Self {
+    pub fn new(unit: Rc<RefCell<UnitBuilder>>) -> Self {
         Self {
             queue: VecDeque::new(),
             indexed: HashMap::new(),
@@ -284,7 +285,7 @@ impl Query {
         };
 
         let meta = match indexed {
-            Indexed::Enum => Meta::MetaEnum {
+            Indexed::Enum => Meta::Enum {
                 value_type: Type::Hash(Hash::type_hash(&item)),
                 item: item.clone(),
             },
@@ -302,7 +303,7 @@ impl Query {
                     source_id,
                 });
 
-                Meta::MetaFunction {
+                Meta::Function {
                     value_type: Type::Hash(Hash::type_hash(&item)),
                     item: item.clone(),
                 }
@@ -316,7 +317,7 @@ impl Query {
                     source_id,
                 });
 
-                Meta::MetaClosure {
+                Meta::Closure {
                     value_type: Type::Hash(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
@@ -331,7 +332,7 @@ impl Query {
                     source_id,
                 });
 
-                Meta::MetaAsyncBlock {
+                Meta::AsyncBlock {
                     value_type: Type::Hash(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
@@ -366,12 +367,12 @@ impl Query {
                 };
 
                 match enum_item {
-                    Some(enum_item) => Meta::MetaVariantTuple {
+                    Some(enum_item) => Meta::VariantTuple {
                         value_type,
                         enum_item,
                         tuple,
                     },
-                    None => Meta::MetaTuple { value_type, tuple },
+                    None => Meta::Tuple { value_type, tuple },
                 }
             }
             ast::DeclStructBody::TupleBody(tuple) => {
@@ -382,12 +383,12 @@ impl Query {
                 };
 
                 match enum_item {
-                    Some(enum_item) => Meta::MetaVariantTuple {
+                    Some(enum_item) => Meta::VariantTuple {
                         value_type,
                         enum_item,
                         tuple,
                     },
-                    None => Meta::MetaTuple { value_type, tuple },
+                    None => Meta::Tuple { value_type, tuple },
                 }
             }
             ast::DeclStructBody::StructBody(st) => {
@@ -404,12 +405,12 @@ impl Query {
                 };
 
                 match enum_item {
-                    Some(enum_item) => Meta::MetaVariantStruct {
+                    Some(enum_item) => Meta::VariantStruct {
                         value_type,
                         enum_item,
                         object,
                     },
-                    None => Meta::MetaStruct { value_type, object },
+                    None => Meta::Struct { value_type, object },
                 }
             }
         })

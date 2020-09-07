@@ -43,11 +43,11 @@ use anyhow::{bail, Result};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::EmitDiagnostics as _;
 use std::env;
-use std::fmt::Write as _;
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use runestick::{Item, UnitFnKind, Value, VmExecution};
+use runestick::{Item, Value, VmExecution};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -196,14 +196,14 @@ async fn main() -> Result<()> {
                 .debug_info()
                 .and_then(|debug| debug.instruction_at(n));
 
-            if let Some((hash, function)) = vm.unit().function_at(n) {
+            if let Some((hash, signature)) = vm.unit().debug_info().and_then(|d| d.function_at(n)) {
                 if first_function {
                     first_function = false;
                 } else {
                     println!();
                 }
 
-                println!("fn {} ({}):", function.signature, hash);
+                println!("fn {} ({}):", signature, hash);
             }
 
             if let Some(inst) = debug_inst {
@@ -223,38 +223,13 @@ async fn main() -> Result<()> {
             println!();
         }
 
-        println!("# imports:");
-
-        for (key, entry) in vm.unit().iter_imports() {
-            let mut line = String::new();
-
-            write!(line, "{}", entry.item)?;
-
-            if Some(&key.component) != entry.item.last() {
-                write!(line, " as {}", key.component)?;
-            }
-
-            if !key.item.is_empty() {
-                write!(line, " (in {})", key.item)?;
-            }
-
-            println!("{}", line);
-        }
-
         println!("# functions:");
 
-        for (hash, f) in vm.unit().iter_functions() {
-            match &f.kind {
-                UnitFnKind::Offset { offset, call } => {
-                    println!("{} = {} (at: {}) ({})", hash, f.signature, offset, call);
-                }
-                UnitFnKind::Tuple { .. } => {
-                    println!("{} = {} (tuple)", hash, f.signature);
-                }
-                UnitFnKind::TupleVariant { .. } => {
-                    println!("{} = {} (tuple)", hash, f.signature);
-                }
-            }
+        for (hash, kind) in vm.unit().iter_functions() {
+            let signature =
+                FormatDebug(vm.unit().debug_info().and_then(|d| d.functions.get(&hash)));
+
+            println!("{} = {} {}", hash, signature, kind);
         }
 
         println!("# strings:");
@@ -379,8 +354,10 @@ async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value
             let vm = execution.vm().map_err(TraceError::VmError)?;
             let mut out = out.lock();
 
-            if let Some((hash, function)) = vm.unit().function_at(vm.ip()) {
-                writeln!(out, "fn {} ({}):", function.signature, hash)?;
+            if let Some((hash, signature)) =
+                vm.unit().debug_info().and_then(|d| d.function_at(vm.ip()))
+            {
+                writeln!(out, "fn {} ({}):", signature, hash)?;
             }
 
             let debug_inst = vm
@@ -445,6 +422,22 @@ async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value
 
         if let Some(result) = result {
             break Ok(result);
+        }
+    }
+}
+
+/// Optionally format the given item indicating if debug information is
+/// available.
+struct FormatDebug<D>(Option<D>);
+
+impl<D> fmt::Display for FormatDebug<D>
+where
+    D: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            Some(debug) => debug.fmt(f),
+            None => write!(f, "*no debug info*"),
         }
     }
 }
