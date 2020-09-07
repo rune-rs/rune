@@ -171,11 +171,13 @@ mod lexer;
 mod load;
 mod load_error;
 mod loops;
+mod macro_context;
 mod options;
 mod parser;
 mod query;
 mod scopes;
 mod sources;
+mod token_stream;
 mod traits;
 mod unit_builder;
 mod warning;
@@ -194,9 +196,12 @@ pub use crate::error::{CompileError, ParseError};
 pub use crate::lexer::Lexer;
 pub use crate::load::{load_path, load_sources};
 pub use crate::load_error::{LoadError, LoadErrorKind};
+pub use crate::macro_context::MacroContext;
 pub use crate::options::Options;
 pub use crate::parser::Parser;
 pub use crate::sources::Sources;
+pub use crate::token_stream::{IntoTokens, TokenStream, TokenStreamIter};
+pub use crate::traits::{Parse, Resolve};
 pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
 pub use unit_builder::{ImportEntry, ImportKey, UnitBuilder};
@@ -236,13 +241,6 @@ where
 {
     let mut parser = Parser::new(source);
     let ast = parser.parse::<T>()?;
-
-    if let Some(token) = parser.lexer.next()? {
-        return Err(ParseError::ExpectedEof {
-            actual: token.kind,
-            span: token.span,
-        });
-    }
-
+    parser.parse_eof()?;
     Ok(ast)
 }

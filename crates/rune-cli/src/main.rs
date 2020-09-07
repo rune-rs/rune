@@ -143,7 +143,9 @@ async fn main() -> Result<()> {
         }
     };
 
-    let context = Arc::new(rune::default_context()?);
+    let mut context = rune::default_context()?;
+    let context = Arc::new(context);
+
     let mut warnings = rune::Warnings::new();
     let mut sources = rune::Sources::new();
 

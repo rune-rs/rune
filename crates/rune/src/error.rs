@@ -331,6 +331,24 @@ pub enum ParseError {
         /// Where the expression is.
         span: Span,
     },
+    /// Expected a macro delimiter.
+    #[error("expected delimiter, `(`, `[`, or `{{`, but got `{actual}`")]
+    ExpectedMacroDelimiter {
+        /// Span of token we saw instead.
+        span: Span,
+        /// What we actually saw.
+        actual: Kind,
+    },
+    /// Expected a macro close delimiter.
+    #[error("expected close delimiter `{expected}`, but got `{actual}`")]
+    ExpectedMacroCloseDelimiter {
+        /// Span of token we saw instead.
+        span: Span,
+        /// The delimiter we expected.
+        expected: Kind,
+        /// The delimiter we saw.
+        actual: Kind,
+    },
 }
 
 impl ParseError {
@@ -381,6 +399,8 @@ impl ParseError {
             Self::ExpectedFunctionArgument { span, .. } => span,
             Self::ExpectedDeclUseImportComponent { span, .. } => span,
             Self::UnsupportedAsyncExpr { span, .. } => span,
+            Self::ExpectedMacroDelimiter { span, .. } => span,
+            Self::ExpectedMacroCloseDelimiter { span, .. } => span,
         }
     }
 }
@@ -394,6 +414,14 @@ pub enum CompileError {
         /// The message of the variant.
         msg: &'static str,
         /// Where the invariant was broken.
+        span: Span,
+    },
+    /// Trying to use an experimental feature which was not enabled.
+    #[error("experimental feature: {msg}")]
+    Experimental {
+        /// The message of the variant.
+        msg: &'static str,
+        /// Where the experimental feature was used.
         span: Span,
     },
     /// Cannot find a file corresponding to a module.
@@ -456,6 +484,22 @@ pub enum CompileError {
         name: String,
         /// The span where the variable was already present.
         existing_span: Span,
+    },
+    /// Error missing a macro.
+    #[error("missing macro `{item}`")]
+    MissingMacro {
+        /// The span where the macro was missing.
+        span: Span,
+        /// Name of the missing macro.
+        item: Item,
+    },
+    /// Error while calling macro.
+    #[error("error while calling macro: {error}")]
+    CallMacroError {
+        /// The span where the macro was called.
+        span: Span,
+        /// Source error.
+        error: runestick::Error,
     },
     /// Error for missing local variables.
     #[error("missing variable `{name}`")]
@@ -743,6 +787,14 @@ impl CompileError {
     pub fn internal(msg: &'static str, span: Span) -> Self {
         Self::Internal { msg, span }
     }
+
+    /// Construct an experimental error.
+    ///
+    /// This should be used when an experimental feature is used which hasn't
+    /// been enabled.
+    pub fn experimental(msg: &'static str, span: Span) -> Self {
+        Self::Experimental { msg, span }
+    }
 }
 
 impl CompileError {
@@ -751,12 +803,15 @@ impl CompileError {
         match *self {
             Self::UnitBuilderError { .. } => Span::default(),
             Self::Internal { span, .. } => span,
+            Self::Experimental { span, .. } => span,
             Self::ModNotFound { span, .. } => span,
             Self::ModFileError { span, .. } => span,
             Self::ModAlreadyLoaded { span, .. } => span,
             Self::ParseError { error, .. } => error.span(),
             Self::ItemConflict { span, .. } => span,
             Self::VariableConflict { span, .. } => span,
+            Self::MissingMacro { span, .. } => span,
+            Self::CallMacroError { span, .. } => span,
             Self::MissingLocal { span, .. } => span,
             Self::MissingType { span, .. } => span,
             Self::MissingModule { span, .. } => span,

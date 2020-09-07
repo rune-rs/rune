@@ -77,6 +77,11 @@ pub enum CompileMeta {
         /// Sequence of captured variables.
         captures: Arc<Vec<CompileMetaCapture>>,
     },
+    /// A macro.
+    Macro {
+        /// The item of the macro.
+        item: Item,
+    },
 }
 
 impl CompileMeta {
@@ -91,6 +96,7 @@ impl CompileMeta {
             CompileMeta::Function { item, .. } => item,
             CompileMeta::Closure { item, .. } => item,
             CompileMeta::AsyncBlock { item, .. } => item,
+            CompileMeta::Macro { item, .. } => item,
         }
     }
 
@@ -105,6 +111,7 @@ impl CompileMeta {
             Self::Function { value_type, .. } => Some(*value_type),
             Self::Closure { value_type, .. } => Some(*value_type),
             Self::AsyncBlock { value_type, .. } => Some(*value_type),
+            Self::Macro { .. } => None,
         }
     }
 }
@@ -135,6 +142,9 @@ impl fmt::Display for CompileMeta {
             }
             Self::AsyncBlock { item, .. } => {
                 write!(fmt, "async block {}", item)?;
+            }
+            Self::Macro { item, .. } => {
+                write!(fmt, "macro {}", item)?;
             }
         }
 

@@ -55,6 +55,8 @@ pub enum Expr {
     ExprMatch(ast::ExprMatch),
     /// A function call,
     ExprCall(ast::ExprCall),
+    /// A macro call,
+    ExprCallMacro(ast::ExprCallMacro),
     /// A field access on an expression.
     ExprFieldAccess(ast::ExprFieldAccess),
     /// A grouped expression.
@@ -148,6 +150,7 @@ impl Expr {
             Self::ExprIf(expr) => expr.span(),
             Self::ExprMatch(expr) => expr.span(),
             Self::ExprCall(expr) => expr.span(),
+            Self::ExprCallMacro(expr) => expr.span(),
             Self::ExprFieldAccess(expr) => expr.span(),
             Self::ExprGroup(expr) => expr.span(),
             Self::ExprUnary(expr) => expr.span(),
@@ -225,6 +228,12 @@ impl Expr {
 
             return Ok(Self::LitObject(ast::LitObject::parse_with_ident(
                 parser, ident,
+            )?));
+        }
+
+        if parser.peek::<ast::Bang>()? {
+            return Ok(Self::ExprCallMacro(ast::ExprCallMacro::parse_with_path(
+                parser, path,
             )?));
         }
 

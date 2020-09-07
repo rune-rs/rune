@@ -12,7 +12,7 @@ use std::any::type_name;
 use std::future;
 use std::sync::Arc;
 
-use crate::context::{ContextError, Handler};
+use crate::context::{ContextError, Handler, Macro};
 use crate::{GeneratorState, Item, StaticType, TypeCheck, Value};
 
 /// Specialized information on `Option` types.
@@ -124,6 +124,10 @@ pub(crate) struct ModuleFn {
     pub(crate) args: Option<usize>,
 }
 
+pub(crate) struct ModuleMacro {
+    pub(crate) handler: Arc<Macro>,
+}
+
 /// A collection of functions that can be looked up by type.
 #[derive(Default)]
 pub struct Module {
@@ -131,6 +135,8 @@ pub struct Module {
     pub(crate) path: Item,
     /// Free functions.
     pub(crate) functions: HashMap<Item, ModuleFn>,
+    /// Macro handlers.
+    pub(crate) macros: HashMap<Item, ModuleMacro>,
     /// Instance functions.
     pub(crate) associated_functions: HashMap<ModuleAssocKey, ModuleAssociatedFn>,
     /// Registered types.
@@ -151,6 +157,7 @@ impl Module {
         Self {
             path: Item::of(path),
             functions: Default::default(),
+            macros: Default::default(),
             associated_functions: Default::default(),
             types: Default::default(),
             unit_type: None,
@@ -382,6 +389,51 @@ impl Module {
             },
         );
 
+        Ok(())
+    }
+
+    /// Register a native macro handler.
+    pub fn macro_<N, M, A, B, O>(&mut self, name: N, f: M) -> Result<(), ContextError>
+    where
+        M: 'static + Send + Sync + Copy + Fn(&mut A, &B) -> Result<O, crate::Error>,
+        A: std::any::Any,
+        B: std::any::Any,
+        O: std::any::Any,
+        N: IntoIterator,
+        N::Item: Into<Component>,
+    {
+        let name = Item::of(name);
+
+        if self.macros.contains_key(&name) {
+            return Err(ContextError::ConflictingFunctionName { name });
+        }
+
+        let handler: Arc<Macro> = Arc::new(move |a, b| {
+            let a = match a.downcast_mut::<A>() {
+                Some(a) => a,
+                None => {
+                    return Err(crate::Error::msg(format!(
+                        "expected argument #0 `{}`",
+                        std::any::type_name::<A>()
+                    )));
+                }
+            };
+
+            let b = match b.downcast_ref::<B>() {
+                Some(b) => b,
+                None => {
+                    return Err(crate::Error::msg(format!(
+                        "expected argument #1 `{}`",
+                        std::any::type_name::<B>()
+                    )));
+                }
+            };
+
+            let output = f(a, b)?;
+            Ok(Box::new(output))
+        });
+
+        self.macros.insert(name, ModuleMacro { handler });
         Ok(())
     }
 

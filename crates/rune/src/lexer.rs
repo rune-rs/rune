@@ -85,6 +85,7 @@ impl<'a> Lexer<'a> {
 
         let kind = match ident {
             "self" => ast::Kind::Self_,
+            "macro" => ast::Kind::Macro,
             "fn" => ast::Kind::Fn,
             "enum" => ast::Kind::Enum,
             "struct" => ast::Kind::Struct,

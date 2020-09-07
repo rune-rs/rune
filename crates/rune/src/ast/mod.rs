@@ -20,6 +20,7 @@ mod expr_binary;
 mod expr_block;
 mod expr_break;
 mod expr_call;
+mod expr_call_macro;
 mod expr_closure;
 mod expr_else;
 mod expr_else_if;
@@ -77,6 +78,7 @@ pub use self::expr_binary::{BinOp, ExprBinary};
 pub use self::expr_block::ExprBlock;
 pub use self::expr_break::{ExprBreak, ExprBreakValue};
 pub use self::expr_call::ExprCall;
+pub use self::expr_call_macro::ExprCallMacro;
 pub use self::expr_closure::ExprClosure;
 pub use self::expr_else::ExprElse;
 pub use self::expr_else_if::ExprElseIf;
@@ -160,6 +162,12 @@ macro_rules! decl_tokens {
                     }
                 }
             }
+
+            impl crate::IntoTokens for $parser {
+                fn into_tokens(&self, stream: &mut crate::TokenStream) {
+                    stream.push(self.token);
+                }
+            }
         )*
     }
 }
@@ -212,6 +220,7 @@ decl_tokens! {
     (Impl, "The `impl` keyword", Kind::Impl),
     (Mul, "Multiply `*` operator.", Kind::Star),
     (Mod, "The `mod` keyword.", Kind::Mod),
+    (Bang, "The `!` operator.", Kind::Bang),
 }
 
 impl<'a> Resolve<'a> for Ident {

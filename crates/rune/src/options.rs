@@ -8,6 +8,8 @@ pub struct Options {
     pub(crate) memoize_instance_fn: bool,
     /// Include debug information when compiling.
     pub(crate) debug_info: bool,
+    /// Support (experimental) macros.
+    pub(crate) macros: bool,
 }
 
 impl Options {
@@ -24,6 +26,9 @@ impl Options {
             }
             Some("debug-info") => {
                 self.debug_info = it.next() != Some("false");
+            }
+            Some("macros") => {
+                self.macros = it.next() != Some("false");
             }
             _ => {
                 return Err(ConfigurationError::UnsupportedOptimizationOption {
@@ -42,6 +47,7 @@ impl Default for Options {
             link_checks: true,
             memoize_instance_fn: true,
             debug_info: true,
+            macros: false,
         }
     }
 }

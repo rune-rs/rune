@@ -474,6 +474,8 @@ impl Index<ast::Expr> for Indexer<'_> {
             ast::Expr::LitTemplate(lit_template) => {
                 self.index(lit_template)?;
             }
+            // NB: literals have nothing to index, they don't export language
+            // items.
             ast::Expr::LitUnit(..) => (),
             ast::Expr::LitBool(..) => (),
             ast::Expr::LitByte(..) => (),
@@ -484,6 +486,9 @@ impl Index<ast::Expr> for Indexer<'_> {
             ast::Expr::LitByteStr(..) => (),
             ast::Expr::LitTuple(..) => (),
             ast::Expr::LitVec(..) => (),
+            // NB: macros have nothing to index, they don't export language
+            // items.
+            ast::Expr::ExprCallMacro(..) => (),
         }
 
         Ok(())

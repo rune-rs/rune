@@ -1,9 +1,12 @@
 use crate::collections::{HashMap, HashSet};
-use crate::module::{ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
+use crate::module::{
+    ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
+};
 use crate::{
     CompileMeta, CompileMetaStruct, CompileMetaTuple, Component, Hash, Item, Module, Names, Stack,
     StaticType, Type, TypeCheck, TypeInfo, ValueType, VmError,
 };
+use std::any;
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
@@ -102,6 +105,10 @@ pub enum ContextError {
 
 /// A function handler.
 pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Sync;
+
+/// A (type erased) macro handler.
+pub(crate) type Macro =
+    dyn Fn(&mut dyn any::Any, &dyn any::Any) -> Result<Box<dyn any::Any>, crate::Error> + Sync;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
@@ -207,6 +214,8 @@ pub struct Context {
     meta: HashMap<Item, CompileMeta>,
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<Handler>>,
+    /// Registered native macro handlers.
+    macros: HashMap<Hash, Arc<Macro>>,
     /// Information on functions.
     functions_info: HashMap<Hash, ContextSignature>,
     /// Registered types.
@@ -293,6 +302,11 @@ impl Context {
         self.functions.get(&hash)
     }
 
+    /// Lookup the given macro handler.
+    pub fn lookup_macro(&self, hash: Hash) -> Option<&Arc<Macro>> {
+        self.macros.get(&hash)
+    }
+
     /// Access the meta for the given language item.
     pub fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
         self.meta.get(name).cloned()
@@ -326,6 +340,10 @@ impl Context {
 
         for (name, f) in &module.functions {
             self.install_function(&module, name, f)?;
+        }
+
+        for (name, m) in &module.macros {
+            self.install_macro(&module, name, m)?;
         }
 
         if let Some(unit_type) = &module.unit_type {
@@ -450,6 +468,27 @@ impl Context {
                 item: name.clone(),
             },
         );
+
+        Ok(())
+    }
+
+    /// Install a function and check for duplicates.
+    fn install_macro(
+        &mut self,
+        module: &Module,
+        name: &Item,
+        m: &ModuleMacro,
+    ) -> Result<(), ContextError> {
+        let name = module.path.join(name);
+
+        self.names.insert(&name);
+
+        let hash = Hash::type_hash(&name);
+
+        self.macros.insert(hash, m.handler.clone());
+
+        self.meta
+            .insert(name.clone(), CompileMeta::Macro { item: name.clone() });
 
         Ok(())
     }

@@ -639,6 +639,7 @@ impl UnitBuilder {
             CompileMeta::Function { item, .. } => item.clone(),
             CompileMeta::Closure { item, .. } => item.clone(),
             CompileMeta::AsyncBlock { item, .. } => item.clone(),
+            CompileMeta::Macro { item, .. } => item.clone(),
         };
 
         if let Some(existing) = self.meta.insert(item, meta.clone()) {

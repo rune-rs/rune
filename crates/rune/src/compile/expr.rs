@@ -113,6 +113,10 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
             ast::Expr::LitTemplate(lit_template) => {
                 self.compile((lit_template, needs))?;
             }
+            ast::Expr::ExprCallMacro(expr_call_macro) => {
+                let expr: ast::Expr = self.compile_macro(expr_call_macro)?;
+                self.compile((&expr, needs))?;
+            }
             // NB: declarations are not used in this compilation stage.
             // They have been separately indexed and will be built when queried
             // for.

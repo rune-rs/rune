@@ -2,14 +2,19 @@ use crate::assembly::Assembly;
 use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileError;
-use crate::traits::{Compile as _, Resolve as _};
+use crate::parser::Parser;
+use crate::token_stream::TokenStream;
+use crate::traits::{Compile as _, Parse, Resolve as _};
 use crate::unit_builder::{ImportKey, UnitBuilder};
-use crate::SourceId;
-use runestick::{CompileMeta, Component, Context, Inst, Item, Label, Source, Span, TypeCheck};
+use crate::{MacroContext, SourceId};
+use runestick::{
+    CompileMeta, Component, Context, Hash, Inst, Item, Label, Source, Span, TypeCheck,
+};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::error::CompileResult;
+use crate::error::ParseError;
 use crate::index::{Import, Index, Indexer};
 use crate::items::Items;
 use crate::load_error::{LoadError, LoadErrorKind};
@@ -99,9 +104,18 @@ pub fn compile_with_options(
     process_imports(imports, context, &mut *unit.borrow_mut())?;
 
     while let Some(entry) = query.queue.pop_front() {
+        let mut macro_context = MacroContext::new(entry.source.clone());
         let source_id = entry.source_id;
 
-        if let Err(error) = compile_entry(context, options, unit, warnings, &mut query, entry) {
+        if let Err(error) = compile_entry(
+            context,
+            &mut macro_context,
+            options,
+            unit,
+            warnings,
+            &mut query,
+            entry,
+        ) {
             return Err(LoadError::from(LoadErrorKind::CompileError {
                 source_id,
                 error,
@@ -114,6 +128,7 @@ pub fn compile_with_options(
 
 fn compile_entry(
     context: &Context,
+    macro_context: &mut MacroContext,
     options: &Options,
     unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
@@ -133,6 +148,7 @@ fn compile_entry(
         source_id,
         source: source.clone(),
         context,
+        macro_context,
         query,
         asm: &mut asm,
         items: Items::new(item.as_vec()),
@@ -354,6 +370,8 @@ pub(crate) struct Compiler<'a> {
     pub(crate) source: Arc<Source>,
     /// The context we are compiling for.
     context: &'a Context,
+    /// Macro context, used for allocating space for identifiers and such.
+    macro_context: &'a mut MacroContext,
     /// Query system to compile required items.
     pub(crate) query: &'a mut Query,
     /// The assembly we are generating.
@@ -401,6 +419,64 @@ impl<'a> Compiler<'a> {
         }
 
         Ok(None)
+    }
+
+    /// Compile the given macro into the given output type.
+    pub(crate) fn compile_macro<T>(
+        &mut self,
+        expr_call_macro: &ast::ExprCallMacro,
+    ) -> CompileResult<T>
+    where
+        T: Parse,
+    {
+        let span = expr_call_macro.span();
+
+        if !self.options.macros {
+            return Err(CompileError::experimental(
+                "macros must be enabled with `-O macros=true`",
+                span,
+            ));
+        }
+
+        let item = self.convert_path_to_item(&expr_call_macro.path)?;
+        let hash = Hash::type_hash(&item);
+
+        let handler = match self.context.lookup_macro(hash) {
+            Some(handler) => handler,
+            None => {
+                return Err(CompileError::MissingMacro { span, item });
+            }
+        };
+
+        let input_stream = &expr_call_macro.stream;
+
+        let output = match handler(self.macro_context, input_stream) {
+            Ok(output) => output,
+            Err(error) => {
+                return match error.downcast::<ParseError>() {
+                    Ok(error) => Err(CompileError::ParseError { error }),
+                    Err(error) => Err(CompileError::CallMacroError { span, error }),
+                };
+            }
+        };
+
+        let token_stream = match output.downcast::<TokenStream>() {
+            Ok(token_stream) => *token_stream,
+            Err(..) => {
+                return Err(CompileError::CallMacroError {
+                    span,
+                    error: runestick::Error::msg(format!(
+                        "failed to downcast macro result, expected `{}`",
+                        std::any::type_name::<TokenStream>()
+                    )),
+                });
+            }
+        };
+
+        let mut parser = Parser::from_token_stream(&token_stream);
+        let output = parser.parse::<T>()?;
+        parser.parse_eof()?;
+        Ok(output)
     }
 
     /// Pop locals by simply popping them.

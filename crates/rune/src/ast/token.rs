@@ -10,6 +10,12 @@ pub struct Token {
     pub kind: Kind,
 }
 
+impl crate::IntoTokens for Token {
+    fn into_tokens(&self, stream: &mut crate::TokenStream) {
+        stream.push(*self);
+    }
+}
+
 /// The kind of a number literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NumberKind {
@@ -70,6 +76,8 @@ impl Delimiter {
 pub enum Kind {
     /// A `self` token.
     Self_,
+    /// A `macro` token.
+    Macro,
     /// An `fn` token.
     Fn,
     /// An `enum` token.
@@ -242,6 +250,7 @@ impl fmt::Display for Kind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Self_ => write!(f, "self")?,
+            Self::Macro => write!(f, "macro")?,
             Self::Fn => write!(f, "fn")?,
             Self::Enum => write!(f, "enum")?,
             Self::Struct => write!(f, "struct")?,
@@ -320,5 +329,14 @@ impl fmt::Display for Kind {
         }
 
         Ok(())
+    }
+}
+
+impl crate::IntoTokens for Kind {
+    fn into_tokens(&self, stream: &mut crate::TokenStream) {
+        stream.push(Token {
+            kind: *self,
+            span: stream.default_span(),
+        });
     }
 }
