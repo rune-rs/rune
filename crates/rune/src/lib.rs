@@ -157,6 +157,8 @@
 
 #![deny(missing_docs)]
 
+#[macro_use]
+mod util_macros;
 mod assembly;
 pub mod ast;
 mod compile;
@@ -179,10 +181,12 @@ mod query;
 mod quote;
 mod scopes;
 mod sources;
+mod storage;
 mod token_stream;
 mod traits;
 mod unit_builder;
 mod warning;
+mod worker;
 
 /// The identifier of a source file.
 pub type SourceId = usize;
@@ -202,8 +206,9 @@ pub use crate::macro_context::MacroContext;
 pub use crate::options::Options;
 pub use crate::parser::Parser;
 pub use crate::sources::Sources;
+pub use crate::storage::Storage;
 pub use crate::token_stream::{IntoTokens, TokenStream, TokenStreamIter};
-pub use crate::traits::{Parse, Resolve};
+pub use crate::traits::{Parse, Peek, Resolve};
 pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
 pub use unit_builder::{ImportEntry, ImportKey, UnitBuilder};

@@ -10,6 +10,8 @@ pub enum ExprField {
     LitNumber(ast::LitNumber),
 }
 
+into_tokens_enum!(ExprField { Ident, LitNumber });
+
 impl ExprField {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {
@@ -30,6 +32,12 @@ pub struct ExprFieldAccess {
     /// The field being accessed.
     pub expr_field: ExprField,
 }
+
+into_tokens!(ExprFieldAccess {
+    expr,
+    dot,
+    expr_field
+});
 
 impl ExprFieldAccess {
     /// Access the span of the expression.

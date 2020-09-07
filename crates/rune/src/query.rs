@@ -2,9 +2,7 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::error::CompileError;
-use crate::traits::Resolve as _;
-use crate::unit_builder::UnitBuilder;
+use crate::{CompileError, Resolve as _, Storage, UnitBuilder};
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaStruct, CompileMetaTuple, Hash, Item, Source,
     Span, Type,
@@ -24,12 +22,12 @@ pub(crate) enum Indexed {
 }
 
 pub struct Struct {
-    ast: ast::DeclStruct,
+    ast: ast::ItemStruct,
 }
 
 impl Struct {
     /// Construct a new struct entry.
-    pub fn new(ast: ast::DeclStruct) -> Self {
+    pub fn new(ast: ast::ItemStruct) -> Self {
         Self { ast }
     }
 }
@@ -38,25 +36,25 @@ pub struct Variant {
     /// Item of the enum type.
     enum_item: Item,
     /// Ast for declaration.
-    ast: ast::DeclStructBody,
+    ast: ast::ItemStructBody,
 }
 
 impl Variant {
     /// Construct a new variant.
-    pub fn new(enum_item: Item, ast: ast::DeclStructBody) -> Self {
+    pub fn new(enum_item: Item, ast: ast::ItemStructBody) -> Self {
         Self { enum_item, ast }
     }
 }
 
 pub(crate) struct Function {
     /// Ast for declaration.
-    pub(crate) ast: ast::DeclFn,
+    pub(crate) ast: ast::ItemFn,
     pub(crate) call: Call,
 }
 
 pub(crate) struct InstanceFunction {
     /// Ast for the instance function.
-    pub(crate) ast: ast::DeclFn,
+    pub(crate) ast: ast::ItemFn,
     /// The item of the instance function.
     pub(crate) impl_item: Item,
     /// The span of the instance function.
@@ -75,7 +73,7 @@ pub(crate) struct Closure {
 
 pub(crate) struct AsyncBlock {
     /// Ast for block.
-    pub(crate) ast: ast::ExprBlock,
+    pub(crate) ast: ast::Block,
     /// Captures.
     pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
     /// Calling convention used for async block.
@@ -105,18 +103,20 @@ pub(crate) struct IndexedEntry {
 }
 
 pub(crate) struct Query {
-    pub(crate) queue: VecDeque<BuildEntry>,
-    indexed: HashMap<Item, IndexedEntry>,
+    pub(crate) storage: Storage,
     pub(crate) unit: Rc<RefCell<UnitBuilder>>,
+    pub(crate) queue: VecDeque<BuildEntry>,
+    pub(crate) indexed: HashMap<Item, IndexedEntry>,
 }
 
 impl Query {
     /// Construct a new compilation context.
-    pub fn new(unit: Rc<RefCell<UnitBuilder>>) -> Self {
+    pub fn new(storage: Storage, unit: Rc<RefCell<UnitBuilder>>) -> Self {
         Self {
+            storage,
+            unit,
             queue: VecDeque::new(),
             indexed: HashMap::new(),
-            unit,
         }
     }
 
@@ -145,7 +145,7 @@ impl Query {
     pub fn index_struct(
         &mut self,
         item: Item,
-        ast: ast::DeclStruct,
+        ast: ast::ItemStruct,
         source: Arc<Source>,
         source_id: usize,
     ) -> Result<(), CompileError> {
@@ -168,7 +168,7 @@ impl Query {
         &mut self,
         item: Item,
         enum_item: Item,
-        ast: ast::DeclStructBody,
+        ast: ast::ItemStructBody,
         source: Arc<Source>,
         source_id: usize,
         span: Span,
@@ -220,7 +220,7 @@ impl Query {
     pub fn index_async_block(
         &mut self,
         item: Item,
-        ast: ast::ExprBlock,
+        ast: ast::Block,
         captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
         source: Arc<Source>,
@@ -357,14 +357,14 @@ impl Query {
     fn ast_into_item_decl(
         &self,
         item: &Item,
-        body: ast::DeclStructBody,
+        body: ast::ItemStructBody,
         enum_item: Option<Item>,
         source: Arc<Source>,
     ) -> Result<CompileMeta, CompileError> {
         let value_type = Type::Hash(Hash::type_hash(item));
 
         Ok(match body {
-            ast::DeclStructBody::EmptyBody(..) => {
+            ast::ItemStructBody::EmptyBody(..) => {
                 let tuple = CompileMetaTuple {
                     item: item.clone(),
                     args: 0,
@@ -380,7 +380,7 @@ impl Query {
                     None => CompileMeta::Tuple { value_type, tuple },
                 }
             }
-            ast::DeclStructBody::TupleBody(tuple) => {
+            ast::ItemStructBody::TupleBody(tuple) => {
                 let tuple = CompileMetaTuple {
                     item: item.clone(),
                     args: tuple.fields.len(),
@@ -396,12 +396,12 @@ impl Query {
                     None => CompileMeta::Tuple { value_type, tuple },
                 }
             }
-            ast::DeclStructBody::StructBody(st) => {
+            ast::ItemStructBody::StructBody(st) => {
                 let mut fields = HashSet::new();
 
                 for (ident, _) in &st.fields {
-                    let ident = ident.resolve(&*source)?;
-                    fields.insert(ident.to_owned());
+                    let ident = ident.resolve(&self.storage, &*source)?;
+                    fields.insert(ident.to_string());
                 }
 
                 let object = CompileMetaStruct {

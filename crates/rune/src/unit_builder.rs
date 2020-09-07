@@ -7,7 +7,7 @@ use crate::assembly::{Assembly, AssemblyInst};
 use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileResult;
-use crate::Resolve as _;
+use crate::{Resolve as _, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Label, Names,
@@ -498,9 +498,10 @@ impl UnitBuilder {
         &self,
         base: &Item,
         path: &ast::Path,
+        storage: &Storage,
         source: &Source,
     ) -> CompileResult<Item> {
-        let local = Component::from(path.first.resolve(source)?);
+        let local = Component::from(path.first.resolve(storage, source)?.as_ref());
 
         let imported = match self.lookup_import_by_name(base, &local) {
             Some(path) => path,
@@ -510,7 +511,9 @@ impl UnitBuilder {
         let mut rest = Vec::new();
 
         for (_, part) in &path.rest {
-            rest.push(Component::String(part.resolve(source)?.to_owned()));
+            rest.push(Component::String(
+                part.resolve(storage, source)?.to_string(),
+            ));
         }
 
         let it = imported.into_iter().chain(rest.into_iter());

@@ -10,6 +10,8 @@ pub struct ExprTry {
     pub try_: ast::Try,
 }
 
+into_tokens!(ExprTry { expr, try_ });
+
 impl ExprTry {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

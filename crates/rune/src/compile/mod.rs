@@ -1,5 +1,6 @@
-mod decl_fn;
+mod block;
 mod expr;
+mod expr_async;
 mod expr_await;
 mod expr_binary;
 mod expr_block;
@@ -22,6 +23,7 @@ mod expr_try;
 mod expr_unary;
 mod expr_while;
 mod expr_yield;
+mod item_fn;
 mod lit_bool;
 mod lit_byte;
 mod lit_byte_str;

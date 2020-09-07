@@ -16,7 +16,7 @@ impl Compile<(&ast::LitNumber, Needs)> for Compiler<'_> {
             return Ok(());
         }
 
-        let lit_number = lit_number.resolve(&*self.source)?;
+        let lit_number = lit_number.resolve(&self.storage, &*self.source)?;
 
         match lit_number {
             ast::Number::Float(number) => {

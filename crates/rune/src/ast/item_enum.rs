@@ -7,7 +7,7 @@ use runestick::Span;
 
 /// An enum declaration.
 #[derive(Debug, Clone)]
-pub struct DeclEnum {
+pub struct ItemEnum {
     /// The `enum` token.
     pub enum_: ast::Enum,
     /// The name of the enum.
@@ -15,12 +15,12 @@ pub struct DeclEnum {
     /// The open brace of the declaration.
     pub open: ast::OpenBrace,
     /// Variants in the declaration.
-    pub variants: Vec<(ast::Ident, ast::DeclStructBody, Option<ast::Comma>)>,
+    pub variants: Vec<(ast::Ident, ast::ItemStructBody, Option<ast::Comma>)>,
     /// The close brace in the declaration.
     pub close: ast::CloseBrace,
 }
 
-impl DeclEnum {
+impl ItemEnum {
     /// Access the span for the enum declaration.
     pub fn span(&self) -> Span {
         self.enum_.span().join(self.close.span())
@@ -34,9 +34,9 @@ impl DeclEnum {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::DeclEnum>("enum Foo { Bar(a), Baz(b), Empty() }").unwrap();
+/// parse_all::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), Empty() }").unwrap();
 /// ```
-impl Parse for DeclEnum {
+impl Parse for ItemEnum {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let enum_ = parser.parse()?;
         let name = parser.parse()?;
@@ -75,8 +75,8 @@ impl Parse for DeclEnum {
     }
 }
 
-impl IntoTokens for &DeclEnum {
-    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
+impl IntoTokens for ItemEnum {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         self.enum_.into_tokens(context, stream);
         self.name.into_tokens(context, stream);
         self.open.into_tokens(context, stream);

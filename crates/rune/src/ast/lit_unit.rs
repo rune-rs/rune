@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Peek};
+use crate::{Parse, ParseError, Parser, Peek};
 use runestick::Span;
 
 /// The unit literal `()`.
@@ -12,6 +10,8 @@ pub struct LitUnit {
     /// The close parenthesis.
     pub close: ast::CloseParen,
 }
+
+into_tokens!(LitUnit { open, close });
 
 impl LitUnit {
     /// Get the span of this unit literal.

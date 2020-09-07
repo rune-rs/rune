@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Peek};
+use crate::{IntoTokens, Parse, ParseError, Parser, Peek};
 use runestick::Span;
 
 /// Something parenthesized and comma separated `(<T,>*)`.
@@ -56,5 +54,17 @@ where
 
         let close = parser.parse()?;
         Ok(Self { open, items, close })
+    }
+}
+
+impl<T, S> IntoTokens for Parenthesized<T, S>
+where
+    T: IntoTokens,
+    S: IntoTokens,
+{
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.open.into_tokens(context, stream);
+        self.items.into_tokens(context, stream);
+        self.close.into_tokens(context, stream);
     }
 }

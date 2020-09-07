@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{IntoTokens, Parse, ParseError, Parser};
 use runestick::Span;
 
 /// A return statement `break [expr]`.
@@ -30,5 +28,12 @@ impl Parse for ExprYield {
             yield_: parser.parse()?,
             expr: parser.parse()?,
         })
+    }
+}
+
+impl IntoTokens for ExprYield {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.yield_.into_tokens(context, stream);
+        self.expr.into_tokens(context, stream);
     }
 }

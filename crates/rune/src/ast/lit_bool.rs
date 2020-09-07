@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Peek};
+use crate::{Parse, ParseError, Parser, Peek};
 use runestick::Span;
 
 /// The unit literal `()`.
@@ -12,6 +10,8 @@ pub struct LitBool {
     /// The token of the literal.
     pub token: ast::Token,
 }
+
+into_tokens!(LitBool { token });
 
 impl LitBool {
     /// Get the span of this unit literal.

@@ -13,6 +13,8 @@ pub enum Condition {
     ExprLet(Box<ast::ExprLet>),
 }
 
+into_tokens_enum!(Condition { Expr, ExprLet });
+
 impl Condition {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

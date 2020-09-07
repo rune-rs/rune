@@ -8,6 +8,8 @@ pub struct PatPath {
     pub path: ast::Path,
 }
 
+into_tokens!(PatPath { path });
+
 impl PatPath {
     /// Get the span of the pattern.
     pub fn span(&self) -> Span {

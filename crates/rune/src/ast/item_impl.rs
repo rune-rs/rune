@@ -1,12 +1,10 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{IntoTokens, Parse, ParseError, Parser};
 use runestick::Span;
 
 /// An impl declaration.
 #[derive(Debug, Clone)]
-pub struct DeclImpl {
+pub struct ItemImpl {
     /// The `impl` keyword.
     pub impl_: ast::Impl,
     /// Path of the implementation.
@@ -14,12 +12,12 @@ pub struct DeclImpl {
     /// The open brace.
     pub open: ast::OpenBrace,
     /// The collection of functions.
-    pub functions: Vec<ast::DeclFn>,
+    pub functions: Vec<ast::ItemFn>,
     /// The close brace.
     pub close: ast::CloseBrace,
 }
 
-impl DeclImpl {
+impl ItemImpl {
     /// The span of the declaration.
     pub fn span(&self) -> Span {
         self.impl_.span().join(self.close.span())
@@ -33,10 +31,10 @@ impl DeclImpl {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::DeclImpl>("impl Foo {}").unwrap();
-/// parse_all::<ast::DeclImpl>("impl Foo { fn test(self) { } }").unwrap();
+/// parse_all::<ast::ItemImpl>("impl Foo {}").unwrap();
+/// parse_all::<ast::ItemImpl>("impl Foo { fn test(self) { } }").unwrap();
 /// ```
-impl Parse for DeclImpl {
+impl Parse for ItemImpl {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(Self {
             impl_: parser.parse()?,
@@ -45,5 +43,15 @@ impl Parse for DeclImpl {
             functions: parser.parse()?,
             close: parser.parse()?,
         })
+    }
+}
+
+impl IntoTokens for ItemImpl {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.impl_.into_tokens(context, stream);
+        self.path.into_tokens(context, stream);
+        self.open.into_tokens(context, stream);
+        self.functions.into_tokens(context, stream);
+        self.close.into_tokens(context, stream);
     }
 }

@@ -12,8 +12,8 @@ pub struct Token {
 }
 
 impl crate::IntoTokens for Token {
-    fn into_tokens(self, _: &mut MacroContext, stream: &mut crate::TokenStream) {
-        stream.push(self);
+    fn into_tokens(&self, _: &mut MacroContext, stream: &mut crate::TokenStream) {
+        stream.push(*self);
     }
 }
 
@@ -39,6 +39,15 @@ impl fmt::Display for NumberKind {
             Self::Binary => write!(fmt, "binary"),
         }
     }
+}
+
+/// The kind of the identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IdentKind {
+    /// The identifier is from the source.
+    Source,
+    /// The identifier is synthetic (generated in a macro).
+    Synthetic(usize),
 }
 
 /// A delimiter, `{`, `{`, or `[`.
@@ -130,7 +139,7 @@ pub enum Kind {
     /// The `mod` keyword.
     Mod,
     /// An identifier.
-    Ident,
+    Ident(IdentKind),
     /// A label, like `'loop`.
     Label,
     /// A number literal, like `42` or `3.14` or `0xff`.
@@ -277,7 +286,7 @@ impl fmt::Display for Kind {
             Self::Default => write!(f, "default")?,
             Self::Impl => write!(f, "impl")?,
             Self::Mod => write!(f, "mod")?,
-            Self::Ident => write!(f, "ident")?,
+            Self::Ident(..) => write!(f, "ident")?,
             Self::Label => write!(f, "label")?,
             Self::LitNumber { .. } => write!(f, "number")?,
             Self::LitStr { .. } => write!(f, "string")?,
@@ -334,9 +343,9 @@ impl fmt::Display for Kind {
 }
 
 impl crate::IntoTokens for Kind {
-    fn into_tokens(self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
         stream.push(Token {
-            kind: self,
+            kind: *self,
             span: context.default_span(),
         });
     }

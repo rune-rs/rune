@@ -1,8 +1,5 @@
 use crate::ast;
-use crate::ast::{Delimiter, Kind, Token};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Peek};
+use crate::{Parse, ParseError, Parser, Peek};
 use runestick::Span;
 use std::ops;
 
@@ -38,7 +35,7 @@ pub enum Expr {
     /// An path expression.
     Path(ast::Path),
     /// A declaration.
-    Decl(ast::Decl),
+    Item(ast::Item),
     /// A while loop.
     ExprWhile(ast::ExprWhile),
     /// An unconditional loop.
@@ -56,7 +53,7 @@ pub enum Expr {
     /// A function call,
     ExprCall(ast::ExprCall),
     /// A macro call,
-    ExprCallMacro(ast::ExprCallMacro),
+    MacroCall(ast::MacroCall),
     /// A field access on an expression.
     ExprFieldAccess(ast::ExprFieldAccess),
     /// A grouped expression.
@@ -73,6 +70,8 @@ pub enum Expr {
     ExprYield(ast::ExprYield),
     /// A block as an expression.
     ExprBlock(ast::ExprBlock),
+    /// An async block as an expression.
+    ExprAsync(ast::ExprAsync),
     /// A return statement.
     ExprReturn(ast::ExprReturn),
     /// An await expression.
@@ -107,6 +106,48 @@ pub enum Expr {
     LitTuple(ast::LitTuple),
 }
 
+into_tokens_enum! {
+    Expr {
+        Self_,
+        Path,
+        Item,
+        ExprWhile,
+        ExprLoop,
+        ExprFor,
+        ExprLet,
+        ExprIndexSet,
+        ExprIf,
+        ExprMatch,
+        ExprCall,
+        MacroCall,
+        ExprFieldAccess,
+        ExprGroup,
+        ExprBinary,
+        ExprUnary,
+        ExprIndexGet,
+        ExprBreak,
+        ExprYield,
+        ExprBlock,
+        ExprAsync,
+        ExprReturn,
+        ExprAwait,
+        ExprTry,
+        ExprSelect,
+        ExprClosure,
+        LitUnit,
+        LitBool,
+        LitChar,
+        LitByte,
+        LitNumber,
+        LitStr,
+        LitByteStr,
+        LitTemplate,
+        LitVec,
+        LitObject,
+        LitTuple
+    }
+}
+
 impl Expr {
     /// Test if the expression implicitly evaluates to nothing.
     pub fn produces_nothing(&self) -> bool {
@@ -121,6 +162,7 @@ impl Expr {
             Self::ExprBreak(..) => true,
             Self::ExprBinary(expr_binary) => expr_binary.produces_nothing(),
             Self::ExprBlock(expr_block) => expr_block.produces_nothing(),
+            Self::ExprAsync(..) => false,
             Self::ExprReturn(..) => true,
             _ => false,
         }
@@ -141,7 +183,7 @@ impl Expr {
         match self {
             Self::Self_(s) => s.span(),
             Self::Path(path) => path.span(),
-            Self::Decl(decl) => decl.span(),
+            Self::Item(decl) => decl.span(),
             Self::ExprWhile(expr) => expr.span(),
             Self::ExprLoop(expr) => expr.span(),
             Self::ExprFor(expr) => expr.span(),
@@ -150,7 +192,7 @@ impl Expr {
             Self::ExprIf(expr) => expr.span(),
             Self::ExprMatch(expr) => expr.span(),
             Self::ExprCall(expr) => expr.span(),
-            Self::ExprCallMacro(expr) => expr.span(),
+            Self::MacroCall(expr) => expr.span(),
             Self::ExprFieldAccess(expr) => expr.span(),
             Self::ExprGroup(expr) => expr.span(),
             Self::ExprUnary(expr) => expr.span(),
@@ -159,6 +201,7 @@ impl Expr {
             Self::ExprBreak(b) => b.span(),
             Self::ExprYield(b) => b.span(),
             Self::ExprBlock(b) => b.span(),
+            Self::ExprAsync(b) => b.span(),
             Self::ExprReturn(ret) => ret.span(),
             Self::ExprAwait(ret) => ret.span(),
             Self::ExprTry(ret) => ret.span(),
@@ -232,7 +275,7 @@ impl Expr {
         }
 
         if parser.peek::<ast::Bang>()? {
-            return Ok(Self::ExprCallMacro(ast::ExprCallMacro::parse_with_path(
+            return Ok(Self::MacroCall(ast::MacroCall::parse_with_path(
                 parser, path,
             )?));
         }
@@ -280,19 +323,16 @@ impl Expr {
                         args: expr_closure.args,
                         body: expr_closure.body,
                     }),
-                    Self::ExprBlock(expr_block) => Self::ExprBlock(ast::ExprBlock {
-                        async_: Some(async_),
-                        open: expr_block.open,
-                        exprs: expr_block.exprs,
-                        trailing_expr: expr_block.trailing_expr,
-                        close: expr_block.close,
+                    Self::ExprBlock(expr_block) => Self::ExprAsync(ast::ExprAsync {
+                        async_,
+                        block: expr_block.block,
                     }),
                     _ => return Err(ParseError::UnsupportedAsyncExpr { span: expr.span() }),
                 }
             }
             ast::Kind::Self_ => Self::Self_(parser.parse()?),
             ast::Kind::Select => Self::ExprSelect(parser.parse()?),
-            ast::Kind::PipePipe | Kind::Pipe => Self::ExprClosure(parser.parse()?),
+            ast::Kind::PipePipe | ast::Kind::Pipe => Self::ExprClosure(parser.parse()?),
             ast::Kind::Label => {
                 let label = Some((parser.parse::<ast::Label>()?, parser.parse::<ast::Colon>()?));
                 let token = parser.token_peek_eof()?;
@@ -314,7 +354,7 @@ impl Expr {
                 });
             }
             ast::Kind::Hash => Self::LitObject(parser.parse()?),
-            ast::Kind::Bang | Kind::Amp | Kind::Star => Self::ExprUnary(parser.parse()?),
+            ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => Self::ExprUnary(parser.parse()?),
             ast::Kind::While => Self::ExprWhile(parser.parse()?),
             ast::Kind::Loop => Self::ExprLoop(parser.parse()?),
             ast::Kind::For => Self::ExprFor(parser.parse()?),
@@ -327,11 +367,11 @@ impl Expr {
             ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
             ast::Kind::LitByteStr { .. } => Self::LitByteStr(parser.parse()?),
             ast::Kind::LitTemplate { .. } => Self::LitTemplate(parser.parse()?),
-            ast::Kind::Open(Delimiter::Parenthesis) => Self::parse_open_paren(parser)?,
-            ast::Kind::Open(Delimiter::Bracket) => Self::LitVec(parser.parse()?),
-            ast::Kind::Open(Delimiter::Brace) => Self::ExprBlock(parser.parse()?),
-            ast::Kind::True | Kind::False => Self::LitBool(parser.parse()?),
-            ast::Kind::Ident => Self::parse_ident_start(parser, eager_brace)?,
+            ast::Kind::Open(ast::Delimiter::Parenthesis) => Self::parse_open_paren(parser)?,
+            ast::Kind::Open(ast::Delimiter::Bracket) => Self::LitVec(parser.parse()?),
+            ast::Kind::Open(ast::Delimiter::Brace) => Self::ExprBlock(parser.parse()?),
+            ast::Kind::True | ast::Kind::False => Self::LitBool(parser.parse()?),
+            ast::Kind::Ident(..) => Self::parse_ident_start(parser, eager_brace)?,
             ast::Kind::Break => Self::ExprBreak(parser.parse()?),
             ast::Kind::Yield => Self::ExprYield(parser.parse()?),
             ast::Kind::Return => Self::ExprReturn(parser.parse()?),
@@ -356,7 +396,7 @@ impl Expr {
             let is_chainable = expr.is_chainable();
 
             match token.kind {
-                ast::Kind::Open(Delimiter::Bracket) if is_chainable => {
+                ast::Kind::Open(ast::Delimiter::Bracket) if is_chainable => {
                     let index_get = ast::ExprIndexGet {
                         target: Box::new(expr),
                         open: parser.parse()?,
@@ -378,7 +418,7 @@ impl Expr {
                     expr = Self::ExprIndexGet(index_get);
                 }
                 // Chained function call.
-                ast::Kind::Open(Delimiter::Parenthesis) if is_chainable => {
+                ast::Kind::Open(ast::Delimiter::Parenthesis) if is_chainable => {
                     let args = parser.parse::<ast::Parenthesized<ast::Expr, ast::Comma>>()?;
 
                     expr = Expr::ExprCall(ast::ExprCall {
@@ -397,7 +437,7 @@ impl Expr {
                     let token = parser.token_peek()?;
 
                     if let Some(token) = token {
-                        if let Kind::Await = token.kind {
+                        if let ast::Kind::Await = token.kind {
                             expr = Expr::ExprAwait(ast::ExprAwait {
                                 expr: Box::new(expr),
                                 dot,
@@ -459,8 +499,8 @@ impl Expr {
         loop {
             let lookahead = lookahead_tok.and_then(ast::BinOp::from_token);
 
-            let (op, token) = match lookahead {
-                Some((op, token)) if op.precedence() >= min_precedence => (op, token),
+            let (op, t1, t2) = match lookahead {
+                Some((op, t1, t2)) if op.precedence() >= min_precedence => (op, t1, t2),
                 _ => break,
             };
 
@@ -473,9 +513,9 @@ impl Expr {
             lookahead_tok = parser.token_peek_pair()?;
 
             loop {
-                let (lh, _) = match lookahead_tok.and_then(ast::BinOp::from_token) {
-                    Some((lh, _)) if lh.precedence() > op.precedence() => (lh, token),
-                    Some((lh, _)) if lh.precedence() == op.precedence() && !op.is_assoc() => {
+                let lh = match lookahead_tok.and_then(ast::BinOp::from_token) {
+                    Some((lh, _, _)) if lh.precedence() > op.precedence() => lh,
+                    Some((lh, _, _)) if lh.precedence() == op.precedence() && !op.is_assoc() => {
                         return Err(ParseError::PrecedenceGroupRequired {
                             span: lhs.span().join(rhs.span()),
                         });
@@ -489,8 +529,10 @@ impl Expr {
 
             lhs = Expr::ExprBinary(ast::ExprBinary {
                 lhs: Box::new(lhs),
-                op,
+                t1,
+                t2,
                 rhs: Box::new(rhs),
+                op,
             });
         }
 
@@ -541,7 +583,7 @@ impl Parse for Expr {
 }
 
 impl Peek for Expr {
-    fn peek(t1: Option<Token>, t2: Option<Token>) -> bool {
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         let t1 = match t1 {
             Some(t1) => t1,
             None => return false,
@@ -551,7 +593,7 @@ impl Peek for Expr {
             ast::Kind::Async => true,
             ast::Kind::Self_ => true,
             ast::Kind::Select => true,
-            ast::Kind::Label => matches!(t2.map(|t| t.kind), Some(Kind::Colon)),
+            ast::Kind::Label => matches!(t2.map(|t| t.kind), Some(ast::Kind::Colon)),
             ast::Kind::Hash => true,
             ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => true,
             ast::Kind::While => true,
@@ -565,11 +607,11 @@ impl Peek for Expr {
             ast::Kind::LitStr { .. } => true,
             ast::Kind::LitByteStr { .. } => true,
             ast::Kind::LitTemplate { .. } => true,
-            ast::Kind::Open(Delimiter::Parenthesis) => true,
-            ast::Kind::Open(Delimiter::Bracket) => true,
-            ast::Kind::Open(Delimiter::Brace) => true,
-            ast::Kind::True | Kind::False => true,
-            ast::Kind::Ident => true,
+            ast::Kind::Open(ast::Delimiter::Parenthesis) => true,
+            ast::Kind::Open(ast::Delimiter::Bracket) => true,
+            ast::Kind::Open(ast::Delimiter::Brace) => true,
+            ast::Kind::True | ast::Kind::False => true,
+            ast::Kind::Ident(..) => true,
             ast::Kind::Break => true,
             ast::Kind::Return => true,
             _ => false,

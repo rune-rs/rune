@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{IntoTokens, Parse, ParseError, Parser};
 use runestick::Span;
 
 /// An expression to construct a literal tuple.
@@ -116,5 +114,13 @@ impl Parse for LitTuple {
             close,
             is_const,
         })
+    }
+}
+
+impl IntoTokens for LitTuple {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.open.into_tokens(context, stream);
+        self.items.into_tokens(context, stream);
+        self.close.into_tokens(context, stream);
     }
 }

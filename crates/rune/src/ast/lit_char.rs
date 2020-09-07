@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Resolve};
+use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
 use runestick::{Source, Span};
 
 /// A character literal.
@@ -50,7 +48,7 @@ impl Parse for LitChar {
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
-    fn resolve(&self, source: &'a Source) -> Result<char, ParseError> {
+    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<char, ParseError> {
         let span = self.token.span;
         let string = source
             .source(span.narrow(1))
@@ -82,5 +80,11 @@ impl<'a> Resolve<'a> for LitChar {
         }
 
         Ok(c)
+    }
+}
+
+impl IntoTokens for LitChar {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.token.into_tokens(context, stream);
     }
 }

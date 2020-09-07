@@ -17,6 +17,13 @@ pub struct ExprWhile {
     pub body: Box<ast::ExprBlock>,
 }
 
+into_tokens!(ExprWhile {
+    label,
+    while_,
+    condition,
+    body
+});
+
 impl ExprWhile {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

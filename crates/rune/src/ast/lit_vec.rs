@@ -1,21 +1,21 @@
-use crate::ast::{CloseBracket, Comma, Expr, OpenBracket};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::ast;
+use crate::{Parse, ParseError, Parser};
 use runestick::Span;
 
 /// A number literal.
 #[derive(Debug, Clone)]
 pub struct LitVec {
     /// The open bracket.
-    pub open: OpenBracket,
+    pub open: ast::OpenBracket,
     /// Items in the array.
-    pub items: Vec<Expr>,
+    pub items: Vec<ast::Expr>,
     /// The close bracket.
-    pub close: CloseBracket,
+    pub close: ast::CloseBracket,
     /// If the entire array is constant.
     is_const: bool,
 }
+
+into_tokens!(LitVec { open, items, close });
 
 impl LitVec {
     /// Access the span of the expression.
@@ -47,8 +47,8 @@ impl Parse for LitVec {
         let mut items = Vec::new();
         let mut is_const = true;
 
-        while !parser.peek::<CloseBracket>()? {
-            let expr = parser.parse::<Expr>()?;
+        while !parser.peek::<ast::CloseBracket>()? {
+            let expr = parser.parse::<ast::Expr>()?;
 
             if !expr.is_const() {
                 is_const = false;
@@ -56,8 +56,8 @@ impl Parse for LitVec {
 
             items.push(expr);
 
-            if parser.peek::<Comma>()? {
-                parser.parse::<Comma>()?;
+            if parser.peek::<ast::Comma>()? {
+                parser.parse::<ast::Comma>()?;
             } else {
                 break;
             }

@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{IntoTokens, Parse, ParseError, Parser};
 use runestick::Span;
 
 /// A single argument in a closure.
@@ -33,8 +31,18 @@ impl Parse for FnArg {
         Ok(match token.kind {
             ast::Kind::Self_ => Self::Self_(parser.parse()?),
             ast::Kind::Underscore => Self::Ignore(parser.parse()?),
-            ast::Kind::Ident => Self::Ident(parser.parse()?),
+            ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
             _ => return Err(ParseError::ExpectedFunctionArgument { span: token.span }),
         })
+    }
+}
+
+impl IntoTokens for FnArg {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        match self {
+            Self::Self_(s) => s.into_tokens(context, stream),
+            Self::Ignore(ignore) => ignore.into_tokens(context, stream),
+            Self::Ident(ident) => ident.into_tokens(context, stream),
+        }
     }
 }
