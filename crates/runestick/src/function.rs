@@ -26,48 +26,75 @@ impl Function {
                 (handler.handler)(&mut stack, A::count())?;
                 stack.pop()?
             }
-            Inner::FnOffset(offset) => {
-                Self::check_args(A::count(), offset.args)?;
-
-                let mut vm = Vm::new(offset.context.clone(), offset.unit.clone());
-                vm.set_ip(offset.offset);
-                args.into_stack(vm.stack_mut())?;
-
-                match offset.call {
-                    Call::Stream => Value::from(Stream::new(vm)),
-                    Call::Generator => Value::from(Generator::new(vm)),
-                    Call::Immediate => vm.complete()?,
-                    Call::Async => Value::from(Future::new(vm.async_complete())),
-                }
-            }
-            Inner::FnClosureOffset(closure) => {
-                Self::check_args(A::count(), closure.args)?;
-
-                let mut vm = Vm::new(closure.context.clone(), closure.unit.clone());
-                vm.set_ip(closure.offset);
-                args.into_stack(vm.stack_mut())?;
-                vm.stack_mut().push(closure.environment.clone());
-
-                match closure.call {
-                    Call::Stream => Value::from(Stream::new(vm)),
-                    Call::Generator => Value::from(Generator::new(vm)),
-                    Call::Immediate => vm.complete()?,
-                    Call::Async => Value::from(Future::new(vm.async_complete())),
-                }
-            }
+            Inner::FnOffset(fn_offset) => fn_offset.call(args, ())?,
+            Inner::FnClosureOffset(closure) => closure
+                .fn_offset
+                .call(args, (closure.environment.clone(),))?,
             Inner::FnTuple(tuple) => {
                 Self::check_args(A::count(), tuple.args)?;
-
                 Value::typed_tuple(tuple.hash, args.into_vec()?)
             }
             Inner::FnVariantTuple(tuple) => {
                 Self::check_args(A::count(), tuple.args)?;
-
                 Value::variant_tuple(tuple.enum_hash, tuple.hash, args.into_vec()?)
             }
         };
 
         Ok(T::from_value(value)?)
+    }
+
+    /// Call with the given virtual machine. This allows for certain
+    /// optimizations, like avoiding the allocation of a new vm state in case
+    /// the call is internal.
+    ///
+    /// A stop reason will be returned in case the function call results in
+    /// a need to suspend the execution.
+    pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
+        let reason = match &self.inner {
+            Inner::FnHandler(handler) => {
+                (handler.handler)(vm.stack_mut(), args)?;
+                None
+            }
+            Inner::FnOffset(fn_offset) => {
+                if let Some(vm_call) = fn_offset.call_with_vm(vm, args, ())? {
+                    return Ok(Some(VmHalt::VmCall(vm_call)));
+                }
+
+                None
+            }
+            Inner::FnClosureOffset(closure) => {
+                if let Some(vm_call) =
+                    closure
+                        .fn_offset
+                        .call_with_vm(vm, args, (closure.environment.clone(),))?
+                {
+                    return Ok(Some(VmHalt::VmCall(vm_call)));
+                }
+
+                None
+            }
+            Inner::FnTuple(tuple) => {
+                Self::check_args(args, tuple.args)?;
+
+                let value = Value::typed_tuple(tuple.hash, vm.stack_mut().pop_sequence(args)?);
+                vm.stack_mut().push(value);
+                None
+            }
+            Inner::FnVariantTuple(tuple) => {
+                Self::check_args(args, tuple.args)?;
+
+                let value = Value::variant_tuple(
+                    tuple.enum_hash,
+                    tuple.hash,
+                    vm.stack_mut().pop_sequence(args)?,
+                );
+
+                vm.stack_mut().push(value);
+                None
+            }
+        };
+
+        Ok(reason)
     }
 
     /// Create a function pointer from a handler.
@@ -100,19 +127,21 @@ impl Function {
     pub(crate) fn from_closure(
         context: Arc<Context>,
         unit: Arc<Unit>,
-        environment: Shared<Tuple>,
         offset: usize,
         call: Call,
         args: usize,
+        environment: Shared<Tuple>,
     ) -> Self {
         Self {
             inner: Inner::FnClosureOffset(FnClosureOffset {
-                context,
-                unit,
+                fn_offset: FnOffset {
+                    context,
+                    unit,
+                    offset,
+                    call,
+                    args,
+                },
                 environment,
-                offset,
-                call,
-                args,
             }),
         }
     }
@@ -133,81 +162,6 @@ impl Function {
                 args,
             }),
         }
-    }
-
-    /// Call with the given virtual machine. This allows for certain
-    /// optimizations, like avoiding the allocation of a new vm state in case
-    /// the call is internal.
-    ///
-    /// A stop reason will be returned in case the function call results in
-    /// a need to suspend the execution.
-    pub(crate) fn call_with_vm(&self, vm: &mut Vm, args: usize) -> Result<Option<VmHalt>, VmError> {
-        let reason = match &self.inner {
-            Inner::FnHandler(handler) => {
-                (handler.handler)(vm.stack_mut(), args)?;
-                None
-            }
-            Inner::FnOffset(offset) => {
-                Self::check_args(args, offset.args)?;
-
-                // Fast past, just allocate a call frame and keep running.
-                if let Call::Immediate = offset.call {
-                    if vm.is_same(&offset.context, &offset.unit) {
-                        vm.push_call_frame(offset.offset, args)?;
-                        return Ok(None);
-                    }
-                }
-
-                let new_stack = vm.stack_mut().drain_stack_top(args)?.collect::<Stack>();
-                let mut vm =
-                    Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
-                vm.set_ip(offset.offset);
-                Some(VmHalt::VmCall(VmCall::new(offset.call, vm)))
-            }
-            Inner::FnClosureOffset(offset) => {
-                Self::check_args(args, offset.args)?;
-
-                // Fast past, just allocate a call frame, push the environment
-                // onto the stack and keep running.
-                if let Call::Immediate = offset.call {
-                    if vm.is_same(&offset.context, &offset.unit) {
-                        vm.push_call_frame(offset.offset, args)?;
-                        vm.stack_mut()
-                            .push(Value::Tuple(offset.environment.clone()));
-                        return Ok(None);
-                    }
-                }
-
-                let mut new_stack = Stack::new();
-                new_stack.extend(vm.stack_mut().drain_stack_top(args)?);
-                new_stack.push(Value::Tuple(offset.environment.clone()));
-                let mut vm =
-                    Vm::new_with_stack(offset.context.clone(), offset.unit.clone(), new_stack);
-                vm.set_ip(offset.offset);
-                Some(VmHalt::VmCall(VmCall::new(offset.call, vm)))
-            }
-            Inner::FnTuple(tuple) => {
-                Self::check_args(args, tuple.args)?;
-
-                let value = Value::typed_tuple(tuple.hash, vm.stack_mut().pop_sequence(args)?);
-                vm.stack_mut().push(value);
-                None
-            }
-            Inner::FnVariantTuple(tuple) => {
-                Self::check_args(args, tuple.args)?;
-
-                let value = Value::variant_tuple(
-                    tuple.enum_hash,
-                    tuple.hash,
-                    vm.stack_mut().pop_sequence(args)?,
-                );
-
-                vm.stack_mut().push(value);
-                None
-            }
-        };
-
-        Ok(reason)
     }
 
     #[inline]
@@ -236,7 +190,7 @@ impl fmt::Debug for Function {
                 write!(
                     f,
                     "closure (at: 0x{:x}, env:{:?})",
-                    closure.offset, closure.environment
+                    closure.fn_offset.offset, closure.environment
                 )?;
             }
             Inner::FnTuple(tuple) => {
@@ -257,10 +211,22 @@ impl fmt::Debug for Function {
 
 #[derive(Debug)]
 enum Inner {
+    /// A native function handler.
+    /// This is wrapped as an `Arc<dyn Handler>`.
     FnHandler(FnHandler),
+    /// The offset to a free function.
+    ///
+    /// This also captures the context and unit it belongs to allow for external
+    /// calls.
     FnOffset(FnOffset),
+    /// A closure with a captured environment.
+    ///
+    /// This also captures the context and unit it belongs to allow for external
+    /// calls.
     FnClosureOffset(FnClosureOffset),
+    /// Constructor for a tuple.
     FnTuple(FnTuple),
+    /// Constructor for a tuple variant.
     FnVariantTuple(FnVariantTuple),
 }
 
@@ -287,6 +253,56 @@ struct FnOffset {
     args: usize,
 }
 
+impl FnOffset {
+    /// Perform a call into the specified offset and return the produced value.
+    fn call<A, E>(&self, args: A, extra: E) -> Result<Value, VmError>
+    where
+        A: Args,
+        E: Args,
+    {
+        Function::check_args(A::count(), self.args)?;
+
+        let mut vm = Vm::new(self.context.clone(), self.unit.clone());
+
+        vm.set_ip(self.offset);
+        args.into_stack(vm.stack_mut())?;
+        extra.into_stack(vm.stack_mut())?;
+
+        Ok(match self.call {
+            Call::Stream => Value::from(Stream::new(vm)),
+            Call::Generator => Value::from(Generator::new(vm)),
+            Call::Immediate => vm.complete()?,
+            Call::Async => Value::from(Future::new(vm.async_complete())),
+        })
+    }
+
+    /// Perform a potentially optimized call into the specified vm.
+    ///
+    /// This will cause a halt in case the vm being called into isn't the same
+    /// as the context and unit of the function.
+    fn call_with_vm<E>(&self, vm: &mut Vm, args: usize, extra: E) -> Result<Option<VmCall>, VmError>
+    where
+        E: Args,
+    {
+        Function::check_args(args, self.args)?;
+
+        // Fast past, just allocate a call frame and keep running.
+        if let Call::Immediate = self.call {
+            if vm.is_same(&self.context, &self.unit) {
+                vm.push_call_frame(self.offset, args)?;
+                extra.into_stack(vm.stack_mut())?;
+                return Ok(None);
+            }
+        }
+
+        let mut new_stack = vm.stack_mut().drain_stack_top(args)?.collect::<Stack>();
+        extra.into_stack(&mut new_stack)?;
+        let mut vm = Vm::new_with_stack(self.context.clone(), self.unit.clone(), new_stack);
+        vm.set_ip(self.offset);
+        Ok(Some(VmCall::new(self.call, vm)))
+    }
+}
+
 impl fmt::Debug for FnOffset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FnOffset")
@@ -299,31 +315,12 @@ impl fmt::Debug for FnOffset {
     }
 }
 
+#[derive(Debug)]
 struct FnClosureOffset {
-    context: Arc<Context>,
-    /// The unit where the function resides.
-    unit: Arc<Unit>,
+    /// Function offset.
+    fn_offset: FnOffset,
     /// Captured environment.
     environment: Shared<Tuple>,
-    /// The offset of the function.
-    offset: usize,
-    /// The calling convention.
-    call: Call,
-    /// The number of arguments the function takes.
-    args: usize,
-}
-
-impl fmt::Debug for FnClosureOffset {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FnOffset")
-            .field("context", &(&self.context as *const _))
-            .field("unit", &(&self.unit as *const _))
-            .field("environment", &self.environment)
-            .field("offset", &self.offset)
-            .field("call", &self.call)
-            .field("args", &self.args)
-            .finish()
-    }
 }
 
 #[derive(Debug)]

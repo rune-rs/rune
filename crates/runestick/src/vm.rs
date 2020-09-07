@@ -1784,11 +1784,12 @@ impl Vm {
         let function = Function::from_closure(
             self.context.clone(),
             self.unit.clone(),
-            environment,
             offset,
             call,
             args,
+            environment,
         );
+
         self.stack.push(Value::Function(Shared::new(function)));
         Ok(())
     }
