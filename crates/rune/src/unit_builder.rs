@@ -3,13 +3,12 @@
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
-use crate::assembly::{Assembly, AssemblyInst, Label};
+use crate::assembly::{Assembly, AssemblyInst};
 use crate::collections::HashMap;
-use crate::debug::{DebugArgs, DebugSignature};
-use crate::unit::{UnitFn, UnitTypeInfo};
-use crate::{
-    Call, CompileMeta, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Names, Span,
-    StaticString, Type, Unit,
+use runestick::debug::{DebugArgs, DebugSignature};
+use runestick::{
+    Call, CompileMeta, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Label, Names,
+    Span, StaticString, Type, Unit, UnitFn, UnitTypeInfo,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -230,23 +229,6 @@ impl UnitBuilder {
         Self::default()
     }
 
-    /// Convert into a runtime unit, shedding our build metadata in the process.
-    pub fn into_unit(mut self) -> Unit {
-        if let Some(debug) = &mut self.debug {
-            debug.functions_rev = self.functions_rev;
-        }
-
-        Unit {
-            instructions: self.instructions,
-            functions: self.functions,
-            types: self.types,
-            static_strings: self.static_strings,
-            static_bytes: self.static_bytes,
-            static_object_keys: self.static_object_keys,
-            debug: self.debug,
-        }
-    }
-
     /// Construct a new unit with the default prelude.
     pub fn with_default_prelude() -> Self {
         let mut this = Self::new();
@@ -343,30 +325,42 @@ impl UnitBuilder {
         this
     }
 
+    /// Convert into a runtime unit, shedding our build metadata in the process.
+    pub fn into_unit(mut self) -> Unit {
+        if let Some(debug) = &mut self.debug {
+            debug.functions_rev = self.functions_rev;
+        }
+
+        Unit::new(
+            self.instructions,
+            self.functions,
+            self.types,
+            self.static_strings,
+            self.static_bytes,
+            self.static_object_keys,
+            self.debug,
+        )
+    }
+
     /// Insert and access debug information.
-    pub fn debug_info_mut(&mut self) -> &mut DebugInfo {
+    pub(crate) fn debug_info_mut(&mut self) -> &mut DebugInfo {
         self.debug.get_or_insert_with(Default::default)
     }
 
-    /// Check if unit contains the given name.
-    pub fn contains_name(&self, item: &Item) -> bool {
-        self.names.contains(item)
-    }
-
     /// Check if unit contains the given name by prefix.
-    pub fn contains_prefix(&self, item: &Item) -> bool {
+    pub(crate) fn contains_prefix(&self, item: &Item) -> bool {
         self.names.contains_prefix(item)
     }
 
     /// Iterate over registered imports.
-    pub fn iter_imports<'a>(
+    pub(crate) fn iter_imports<'a>(
         &'a self,
     ) -> impl Iterator<Item = (&'a ImportKey, &'a ImportEntry)> + '_ {
         self.imports.iter()
     }
 
     /// Iterate over known child components of the given name.
-    pub fn iter_components<I>(&self, iter: I) -> impl Iterator<Item = &'_ Component>
+    pub(crate) fn iter_components<I>(&self, iter: I) -> impl Iterator<Item = &'_ Component>
     where
         I: IntoIterator,
         I::Item: Into<Component>,
@@ -375,20 +369,15 @@ impl UnitBuilder {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
+    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
         self.meta.get(name).cloned()
-    }
-
-    /// Access the type for the given language item.
-    pub fn lookup_type(&self, hash: Hash) -> Option<&UnitTypeInfo> {
-        self.types.get(&hash)
     }
 
     /// Insert a static string and return its associated slot that can later be
     /// looked up through [lookup_string][Self::lookup_string].
     ///
     /// Only uses up space if the static string is unique.
-    pub fn new_static_string(&mut self, current: &str) -> Result<usize, UnitBuilderError> {
+    pub(crate) fn new_static_string(&mut self, current: &str) -> Result<usize, UnitBuilderError> {
         let current = StaticString::new(current);
         let hash = current.hash();
 
@@ -421,7 +410,7 @@ impl UnitBuilder {
     /// later be looked up through [lookup_bytes][Self::lookup_bytes].
     ///
     /// Only uses up space if the static byte string is unique.
-    pub fn new_static_bytes(&mut self, current: &[u8]) -> Result<usize, UnitBuilderError> {
+    pub(crate) fn new_static_bytes(&mut self, current: &[u8]) -> Result<usize, UnitBuilderError> {
         let hash = Hash::of(&current);
 
         if let Some(existing_slot) = self.static_bytes_rev.get(&hash).copied() {
@@ -451,7 +440,7 @@ impl UnitBuilder {
 
     /// Insert a new collection of static object keys, or return one already
     /// existing.
-    pub fn new_static_object_keys(
+    pub(crate) fn new_static_object_keys(
         &mut self,
         current: &[String],
     ) -> Result<usize, UnitBuilderError> {
@@ -484,12 +473,12 @@ impl UnitBuilder {
     }
 
     /// Look up an use by name.
-    pub fn lookup_import(&self, key: &ImportKey) -> Option<&ImportEntry> {
+    pub(crate) fn lookup_import(&self, key: &ImportKey) -> Option<&ImportEntry> {
         self.imports.get(&key)
     }
 
     /// Declare a new import.
-    pub fn new_import<I>(
+    pub(crate) fn new_import<I>(
         &mut self,
         item: Item,
         path: I,
@@ -516,12 +505,12 @@ impl UnitBuilder {
     }
 
     /// Insert the given name into the unit.
-    pub fn insert_name(&mut self, item: &Item) {
+    pub(crate) fn insert_name(&mut self, item: &Item) {
         self.names.insert(item);
     }
 
     /// Declare a new struct.
-    pub fn insert_meta(&mut self, meta: CompileMeta) -> Result<(), UnitBuilderError> {
+    pub(crate) fn insert_meta(&mut self, meta: CompileMeta) -> Result<(), UnitBuilderError> {
         let item = match &meta {
             CompileMeta::Tuple { tuple, .. } => {
                 let info = UnitFn::Tuple {
@@ -663,12 +652,12 @@ impl UnitBuilder {
     }
 
     /// Construct a new empty assembly associated with the current unit.
-    pub fn new_assembly(&self, source_id: usize) -> Assembly {
+    pub(crate) fn new_assembly(&self, source_id: usize) -> Assembly {
         Assembly::new(source_id, self.label_count)
     }
 
     /// Declare a new function at the current instruction pointer.
-    pub fn new_function(
+    pub(crate) fn new_function(
         &mut self,
         source_id: usize,
         path: Item,
@@ -696,7 +685,7 @@ impl UnitBuilder {
     }
 
     /// Declare a new instance function at the current instruction pointer.
-    pub fn new_instance_function(
+    pub(crate) fn new_instance_function(
         &mut self,
         source_id: usize,
         path: Item,
@@ -773,11 +762,6 @@ impl UnitBuilder {
                     self.instructions
                         .push(Inst::JumpIfBranch { branch, offset });
                 }
-                AssemblyInst::PopAndJumpIf { count, label } => {
-                    comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(pos, label, &assembly.labels)?;
-                    self.instructions.push(Inst::PopAndJumpIf { count, offset });
-                }
                 AssemblyInst::PopAndJumpIfNot { count, label } => {
                     comment = Some(format!("label:{}", label));
                     let offset = translate_offset(pos, label, &assembly.labels)?;
@@ -836,7 +820,7 @@ impl UnitBuilder {
     /// functions are provided.
     ///
     /// This can prevent a number of runtime errors, like missing functions.
-    pub fn link(&self, context: &Context, errors: &mut LinkerErrors) -> bool {
+    pub(crate) fn link(&self, context: &Context, errors: &mut LinkerErrors) -> bool {
         for (hash, spans) in &self.required_functions {
             if self.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
                 errors.errors.push(LinkerError::MissingFunction {

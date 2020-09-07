@@ -1,12 +1,11 @@
+use crate::assembly::Assembly;
 use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileError;
 use crate::traits::{Compile as _, Resolve as _};
+use crate::unit_builder::{ImportKey, UnitBuilder};
 use crate::SourceId;
-use runestick::{
-    Assembly, CompileMeta, Component, Context, ImportKey, Inst, Item, Label, Source, Span,
-    TypeCheck, UnitBuilder,
-};
+use runestick::{CompileMeta, Component, Context, Inst, Item, Label, Source, Span, TypeCheck};
 use std::cell::RefCell;
 use std::rc::Rc;
 

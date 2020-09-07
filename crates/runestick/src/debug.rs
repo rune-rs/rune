@@ -1,6 +1,7 @@
-use crate::assembly::Label;
+//! Debug information for units.
+
 use crate::collections::HashMap;
-use crate::{Hash, Item, Span};
+use crate::{Hash, Item, Label, Span};
 use std::fmt;
 
 /// Debug information about a unit.

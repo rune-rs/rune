@@ -1,7 +1,8 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
+use crate::unit_builder::LinkerError;
 use crate::{CompileError, LoadError, LoadErrorKind, Sources, WarningKind, Warnings};
-use runestick::{LinkerError, VmError};
+use runestick::VmError;
 use std::error::Error as _;
 use std::fmt;
 use std::io;

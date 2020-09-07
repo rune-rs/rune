@@ -1,6 +1,8 @@
 use crate::compiler;
+use crate::unit_builder::LinkerErrors;
+use crate::unit_builder::UnitBuilder;
 use crate::{LoadError, LoadErrorKind, Options, Sources, Warnings};
-use runestick::{Context, LinkerErrors, Source, Unit};
+use runestick::{Context, Source, Unit};
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
@@ -128,7 +130,13 @@ pub fn load_sources(
     sources: &mut Sources,
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
-    let unit = Rc::new(RefCell::new(context.new_unit()));
+    let unit = if context.has_default_modules() {
+        UnitBuilder::with_default_prelude()
+    } else {
+        UnitBuilder::default()
+    };
+
+    let unit = Rc::new(RefCell::new(unit));
     compiler::compile_with_options(&*context, sources, &options, &unit, warnings)?;
 
     let unit = match Rc::try_unwrap(unit) {

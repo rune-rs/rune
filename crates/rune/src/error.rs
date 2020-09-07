@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::ast::Kind;
+use crate::unit_builder::UnitBuilderError;
 use crate::SourceId;
 use runestick::{CompileMeta, Item, Span};
 use std::io;
@@ -429,7 +430,7 @@ pub enum CompileError {
     UnitBuilderError {
         /// Source error.
         #[from]
-        error: runestick::UnitBuilderError,
+        error: UnitBuilderError,
     },
     /// Error for resolving values from source files.
     #[error("{error}")]

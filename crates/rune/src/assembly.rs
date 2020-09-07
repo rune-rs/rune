@@ -1,29 +1,15 @@
 //! Helpers for building assembly.
 
 use crate::collections::HashMap;
-use crate::{Hash, Inst, Span, UnitBuilderError};
-use std::fmt;
-
-/// A label that can be jumped to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Label {
-    name: &'static str,
-    ident: usize,
-}
-
-impl fmt::Display for Label {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}_{}", self.name, self.ident)
-    }
-}
+use crate::unit_builder::UnitBuilderError;
+use runestick::{Hash, Inst, Label, Span};
 
 #[derive(Debug, Clone)]
-pub(crate) enum AssemblyInst {
+pub enum AssemblyInst {
     Jump { label: Label },
     JumpIf { label: Label },
     JumpIfNot { label: Label },
     JumpIfBranch { branch: i64, label: Label },
-    PopAndJumpIf { count: usize, label: Label },
     PopAndJumpIfNot { count: usize, label: Label },
     Raw { raw: Inst },
 }
@@ -62,18 +48,14 @@ impl Assembly {
     }
 
     /// Construct and return a new label.
-    pub fn new_label(&mut self, name: &'static str) -> Label {
-        let label = Label {
-            name,
-            ident: self.label_count,
-        };
-
+    pub(crate) fn new_label(&mut self, name: &'static str) -> Label {
+        let label = Label::new(name, self.label_count);
         self.label_count += 1;
         label
     }
 
     /// Apply the label at the current instruction offset.
-    pub fn label(&mut self, label: Label) -> Result<Label, UnitBuilderError> {
+    pub(crate) fn label(&mut self, label: Label) -> Result<Label, UnitBuilderError> {
         let offset = self.instructions.len();
 
         if self.labels.insert(label, offset).is_some() {
@@ -85,42 +67,36 @@ impl Assembly {
     }
 
     /// Add a jump to the given label.
-    pub fn jump(&mut self, label: Label, span: Span) {
+    pub(crate) fn jump(&mut self, label: Label, span: Span) {
         self.instructions.push((AssemblyInst::Jump { label }, span));
     }
 
     /// Add a conditional jump to the given label.
-    pub fn jump_if(&mut self, label: Label, span: Span) {
+    pub(crate) fn jump_if(&mut self, label: Label, span: Span) {
         self.instructions
             .push((AssemblyInst::JumpIf { label }, span));
     }
 
     /// Add a conditional jump to the given label.
-    pub fn jump_if_not(&mut self, label: Label, span: Span) {
+    pub(crate) fn jump_if_not(&mut self, label: Label, span: Span) {
         self.instructions
             .push((AssemblyInst::JumpIfNot { label }, span));
     }
 
     /// Add a conditional jump-if-branch instruction.
-    pub fn jump_if_branch(&mut self, branch: i64, label: Label, span: Span) {
+    pub(crate) fn jump_if_branch(&mut self, branch: i64, label: Label, span: Span) {
         self.instructions
             .push((AssemblyInst::JumpIfBranch { branch, label }, span));
     }
 
-    /// Add a pop-and-jump-if instruction to a label.
-    pub fn pop_and_jump_if(&mut self, count: usize, label: Label, span: Span) {
-        self.instructions
-            .push((AssemblyInst::PopAndJumpIf { count, label }, span));
-    }
-
     /// Add a pop-and-jump-if-not instruction to a label.
-    pub fn pop_and_jump_if_not(&mut self, count: usize, label: Label, span: Span) {
+    pub(crate) fn pop_and_jump_if_not(&mut self, count: usize, label: Label, span: Span) {
         self.instructions
             .push((AssemblyInst::PopAndJumpIfNot { count, label }, span));
     }
 
     /// Push a raw instruction.
-    pub fn push(&mut self, raw: Inst, span: Span) {
+    pub(crate) fn push(&mut self, raw: Inst, span: Span) {
         if let Inst::Call { hash, .. } = raw {
             self.required_functions
                 .entry(hash)
@@ -132,7 +108,7 @@ impl Assembly {
     }
 
     /// Push a raw instruction.
-    pub fn push_with_comment<C>(&mut self, raw: Inst, span: Span, comment: C)
+    pub(crate) fn push_with_comment<C>(&mut self, raw: Inst, span: Span, comment: C)
     where
         C: AsRef<str>,
     {

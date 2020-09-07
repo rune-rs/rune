@@ -157,6 +157,7 @@
 
 #![deny(missing_docs)]
 
+mod assembly;
 pub mod ast;
 mod compile;
 mod compiler;
@@ -176,6 +177,7 @@ mod query;
 mod scopes;
 mod sources;
 mod traits;
+mod unit_builder;
 mod warning;
 
 /// The identifier of a source file.
@@ -187,6 +189,7 @@ mod collections {
     pub use hashbrown::{hash_set, HashSet};
 }
 
+pub use crate::assembly::Assembly;
 pub use crate::error::{CompileError, ParseError};
 pub use crate::lexer::Lexer;
 pub use crate::load::{load_path, load_sources};
@@ -196,6 +199,7 @@ pub use crate::parser::Parser;
 pub use crate::sources::Sources;
 pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
+pub use unit_builder::{ImportEntry, ImportKey, UnitBuilder};
 
 #[cfg(feature = "diagnostics")]
 pub use diagnostics::{termcolor, DiagnosticsError, EmitDiagnostics};

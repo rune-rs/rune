@@ -43,7 +43,6 @@ use anyhow::{bail, Result};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::EmitDiagnostics as _;
 use std::env;
-use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -191,10 +190,7 @@ async fn main() -> Result<()> {
             let out = std::io::stdout();
             let mut out = out.lock();
 
-            let debug_inst = vm
-                .unit()
-                .debug_info()
-                .and_then(|debug| debug.instruction_at(n));
+            let debug = vm.unit().debug_info().and_then(|d| d.instruction_at(n));
 
             if let Some((hash, signature)) = vm.unit().debug_info().and_then(|d| d.function_at(n)) {
                 if first_function {
@@ -206,18 +202,14 @@ async fn main() -> Result<()> {
                 println!("fn {} ({}):", signature, hash);
             }
 
-            if let Some(inst) = debug_inst {
-                if let Some(label) = inst.label {
-                    println!("{}:", label);
-                }
+            if let Some(label) = debug.and_then(|d| d.label.as_ref()) {
+                println!("{}:", label);
             }
 
             write!(out, "  {:04} = {}", n, inst)?;
 
-            if let Some(inst) = debug_inst {
-                if let Some(comment) = &inst.comment {
-                    write!(out, " // {}", comment)?;
-                }
+            if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
+                write!(out, " // {}", comment)?;
             }
 
             println!();
@@ -226,10 +218,11 @@ async fn main() -> Result<()> {
         println!("# functions:");
 
         for (hash, kind) in vm.unit().iter_functions() {
-            let signature =
-                FormatDebug(vm.unit().debug_info().and_then(|d| d.functions.get(&hash)));
-
-            println!("{} = {} {}", hash, signature, kind);
+            if let Some(signature) = vm.unit().debug_info().and_then(|d| d.functions.get(&hash)) {
+                println!("{} = {}", hash, signature);
+            } else {
+                println!("{} = {}", hash, kind);
+            }
         }
 
         println!("# strings:");
@@ -422,22 +415,6 @@ async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value
 
         if let Some(result) = result {
             break Ok(result);
-        }
-    }
-}
-
-/// Optionally format the given item indicating if debug information is
-/// available.
-struct FormatDebug<D>(Option<D>);
-
-impl<D> fmt::Display for FormatDebug<D>
-where
-    D: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            Some(debug) => debug.fmt(f),
-            None => write!(f, "*no debug info*"),
         }
     }
 }

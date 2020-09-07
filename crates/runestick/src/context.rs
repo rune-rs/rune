@@ -2,7 +2,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::module::{ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
 use crate::{
     CompileMeta, CompileMetaStruct, CompileMetaTuple, Component, Hash, Item, Module, Names, Stack,
-    StaticType, Type, TypeCheck, TypeInfo, UnitBuilder, ValueType, VmError,
+    StaticType, Type, TypeCheck, TypeInfo, ValueType, VmError,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -202,7 +202,7 @@ impl fmt::Display for ContextSignature {
 #[derive(Default)]
 pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
-    with_prelude: bool,
+    has_default_modules: bool,
     /// Item metadata in the context.
     meta: HashMap<Item, CompileMeta>,
     /// Registered native function handlers.
@@ -252,25 +252,16 @@ impl Context {
         this.install(&crate::modules::stream::module()?)?;
         this.install(&crate::modules::io::module()?)?;
         this.install(&crate::modules::fmt::module()?)?;
-        this.with_prelude = true;
+        this.has_default_modules = true;
         Ok(this)
     }
 
-    /// Construct a new unit based on this context.
+    /// Test if the context has the default modules installed.
     ///
-    /// What this does is primarily determined by how the context was
-    /// constructed. If it was constructed through [with_default_modules], then
-    /// this will construct a unit with a default prelude.
-    ///
-    /// Otherwise an empty unit will be constructed.
-    ///
-    /// [with_default_modules]: Self::with_default_modules
-    pub fn new_unit(&self) -> UnitBuilder {
-        if self.with_prelude {
-            UnitBuilder::with_default_prelude()
-        } else {
-            UnitBuilder::default()
-        }
+    /// This determines among other things whether a prelude should be used or
+    /// not.
+    pub fn has_default_modules(&self) -> bool {
+        self.has_default_modules
     }
 
     /// Iterate over known child components of the given name.
@@ -295,6 +286,11 @@ impl Context {
     /// Check if unit contains the given name by prefix.
     pub fn contains_prefix(&self, item: &Item) -> bool {
         self.names.contains_prefix(item)
+    }
+
+    /// Lookup the given native function handler in the context.
+    pub fn lookup(&self, hash: Hash) -> Option<&Arc<Handler>> {
+        self.functions.get(&hash)
     }
 
     /// Access the meta for the given language item.
@@ -654,11 +650,6 @@ impl Context {
 
         self.functions.insert(hash, constructor);
         Ok(())
-    }
-
-    /// Lookup the given function.
-    pub(crate) fn lookup(&self, hash: Hash) -> Option<&Arc<Handler>> {
-        self.functions.get(&hash)
     }
 }
 

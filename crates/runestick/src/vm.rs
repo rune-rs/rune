@@ -135,12 +135,12 @@ impl Vm {
     /// use std::sync::Arc;
     ///
     /// fn main() -> runestick::Result<()> {
-    ///     let context = Context::with_default_modules()?;
-    ///     let unit = Unit::new();
+    ///     let context = Arc::new(Context::with_default_modules()?);
+    ///     let unit = Arc::new(Unit::default());
     ///     // NB: normally the unit would be created by compiling some source,
     ///     // and since this one is empty it won't do anything.
     ///
-    ///     let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));
+    ///     let vm = runestick::Vm::new(context, unit);
     ///
     ///     let output = vm.call(&["main"], (33i64,))?.complete()?;
     ///     let output = i64::from_value(output)?;
@@ -284,17 +284,6 @@ impl Vm {
     /// Pop a number of values from the stack.
     fn op_popn(&mut self, n: usize) -> Result<(), VmError> {
         self.stack.popn(n)?;
-        Ok(())
-    }
-
-    /// pop-and-jump-if instruction.
-    fn op_pop_and_jump_if(&mut self, count: usize, offset: isize) -> Result<(), VmError> {
-        if !self.stack.pop()?.into_bool()? {
-            return Ok(());
-        }
-
-        self.stack.popn(count)?;
-        self.modify_ip(offset)?;
         Ok(())
     }
 
@@ -2013,9 +2002,6 @@ impl Vm {
                 }
                 Inst::PopN { count } => {
                     self.op_popn(count)?;
-                }
-                Inst::PopAndJumpIf { count, offset } => {
-                    self.op_pop_and_jump_if(count, offset)?;
                 }
                 Inst::PopAndJumpIfNot { count, offset } => {
                     self.op_pop_and_jump_if_not(count, offset)?;

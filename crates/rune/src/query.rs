@@ -4,9 +4,10 @@ use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use crate::traits::Resolve as _;
+use crate::unit_builder::UnitBuilder;
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaStruct, CompileMetaTuple, Hash, Item, Source,
-    Span, Type, UnitBuilder,
+    Span, Type,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;

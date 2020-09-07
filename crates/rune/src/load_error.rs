@@ -1,5 +1,5 @@
+use crate::unit_builder::LinkerErrors;
 use crate::{CompileError, ParseError};
-use runestick::LinkerErrors;
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;

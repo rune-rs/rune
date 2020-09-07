@@ -12,30 +12,46 @@ use std::sync::Arc;
 #[derive(Debug, Default)]
 pub struct Unit {
     /// The instructions contained in the source file.
-    pub(crate) instructions: Vec<Inst>,
+    instructions: Vec<Inst>,
     /// Where functions are located in the collection of instructions.
-    pub(crate) functions: HashMap<Hash, UnitFn>,
+    functions: HashMap<Hash, UnitFn>,
     /// Declared types.
-    pub(crate) types: HashMap<Hash, UnitTypeInfo>,
+    types: HashMap<Hash, UnitTypeInfo>,
     /// A static string.
-    pub(crate) static_strings: Vec<Arc<StaticString>>,
+    static_strings: Vec<Arc<StaticString>>,
     /// A static byte string.
-    pub(crate) static_bytes: Vec<Vec<u8>>,
+    static_bytes: Vec<Vec<u8>>,
     /// Slots used for object keys.
     ///
     /// This is used when an object is used in a pattern match, to avoid having
     /// to send the collection of keys to the virtual machine.
     ///
     /// All keys are sorted with the default string sort.
-    pub(crate) static_object_keys: Vec<Box<[String]>>,
+    static_object_keys: Vec<Box<[String]>>,
     /// Debug info if available for unit.
-    pub(crate) debug: Option<Box<DebugInfo>>,
+    debug: Option<Box<DebugInfo>>,
 }
 
 impl Unit {
-    /// Construct a new unit.
-    pub fn new() -> Self {
-        Self::default()
+    /// Construct a new unit with the given content.
+    pub fn new(
+        instructions: Vec<Inst>,
+        functions: HashMap<Hash, UnitFn>,
+        types: HashMap<Hash, UnitTypeInfo>,
+        static_strings: Vec<Arc<StaticString>>,
+        static_bytes: Vec<Vec<u8>>,
+        static_object_keys: Vec<Box<[String]>>,
+        debug: Option<Box<DebugInfo>>,
+    ) -> Self {
+        Self {
+            instructions,
+            functions,
+            types,
+            static_strings,
+            static_bytes,
+            static_object_keys,
+            debug,
+        }
     }
 
     /// Access the type for the given language item.
@@ -164,7 +180,7 @@ impl fmt::Display for UnitFn {
     }
 }
 
-/// Information on a type.
+/// Type information on a unit.
 #[derive(Debug)]
 pub struct UnitTypeInfo {
     /// A type declared in a unit.

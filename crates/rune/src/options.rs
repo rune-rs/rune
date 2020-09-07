@@ -6,6 +6,8 @@ pub struct Options {
     pub(crate) link_checks: bool,
     /// Memoize the instance function in a loop.
     pub(crate) memoize_instance_fn: bool,
+    /// Include debug information when compiling.
+    pub(crate) debug_info: bool,
 }
 
 impl Options {
@@ -19,6 +21,9 @@ impl Options {
             }
             Some("memoize-instance-fn") => {
                 self.memoize_instance_fn = it.next() != Some("false");
+            }
+            Some("debug-info") => {
+                self.debug_info = it.next() != Some("false");
             }
             _ => {
                 return Err(ConfigurationError::UnsupportedOptimizationOption {
@@ -36,6 +41,7 @@ impl Default for Options {
         Self {
             link_checks: true,
             memoize_instance_fn: true,
+            debug_info: true,
         }
     }
 }
