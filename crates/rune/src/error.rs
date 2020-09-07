@@ -426,10 +426,10 @@ pub enum CompileError {
     },
     /// Unit error from runestick encoding.
     #[error("unit construction error: {error}")]
-    UnitError {
+    UnitBuilderError {
         /// Source error.
         #[from]
-        error: runestick::UnitError,
+        error: runestick::UnitBuilderError,
     },
     /// Error for resolving values from source files.
     #[error("{error}")]
@@ -748,7 +748,7 @@ impl CompileError {
     /// Get the span for the error.
     pub fn span(&self) -> Span {
         match *self {
-            Self::UnitError { .. } => Span::default(),
+            Self::UnitBuilderError { .. } => Span::default(),
             Self::Internal { span, .. } => span,
             Self::ModNotFound { span, .. } => span,
             Self::ModFileError { span, .. } => span,

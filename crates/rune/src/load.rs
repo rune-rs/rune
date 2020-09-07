@@ -148,5 +148,5 @@ pub fn load_sources(
         }
     }
 
-    Ok(unit)
+    Ok(unit.into_unit())
 }

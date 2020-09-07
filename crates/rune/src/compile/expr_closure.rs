@@ -83,7 +83,7 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
                 })?;
 
         let captures = match meta {
-            Meta::MetaClosure { captures, .. } => captures,
+            Meta::Closure { captures, .. } => captures,
             meta => {
                 return Err(CompileError::UnsupportedMetaClosure { meta, span });
             }

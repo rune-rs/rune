@@ -4,7 +4,8 @@ use crate::error::CompileError;
 use crate::traits::{Compile as _, Resolve as _};
 use crate::SourceId;
 use runestick::{
-    Assembly, Component, Context, ImportKey, Inst, Item, Label, Meta, Source, Span, TypeCheck, Unit,
+    Assembly, Component, Context, ImportKey, Inst, Item, Label, Meta, Source, Span, TypeCheck,
+    UnitBuilder,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -42,7 +43,7 @@ impl Needs {
 pub fn compile(
     context: &Context,
     sources: &mut Sources,
-    unit: &Rc<RefCell<runestick::Unit>>,
+    unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
 ) -> Result<(), LoadError> {
     compile_with_options(context, sources, &Default::default(), unit, warnings)?;
@@ -54,7 +55,7 @@ pub fn compile_with_options(
     context: &Context,
     sources: &mut Sources,
     options: &Options,
-    unit: &Rc<RefCell<runestick::Unit>>,
+    unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
 ) -> Result<(), LoadError> {
     let mut imports = Vec::new();
@@ -115,7 +116,7 @@ pub fn compile_with_options(
 fn compile_entry(
     context: &Context,
     options: &Options,
-    unit: &Rc<RefCell<Unit>>,
+    unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
     query: &mut Query,
     entry: BuildEntry,
@@ -200,7 +201,11 @@ fn compile_entry(
     Ok(())
 }
 
-fn process_import(import: Import, context: &Context, unit: &mut Unit) -> Result<(), CompileError> {
+fn process_import(
+    import: Import,
+    context: &Context,
+    unit: &mut UnitBuilder,
+) -> Result<(), CompileError> {
     let Import {
         item,
         ast: decl_use,
@@ -264,7 +269,7 @@ fn process_import(import: Import, context: &Context, unit: &mut Unit) -> Result<
 fn process_imports(
     imports: Vec<Import>,
     context: &Context,
-    unit: &mut Unit,
+    unit: &mut UnitBuilder,
 ) -> Result<(), LoadError> {
     for import in imports {
         let source_id = import.source_id;
@@ -317,7 +322,7 @@ pub(crate) struct Compiler<'a> {
     /// Item builder.
     pub(crate) items: Items,
     /// The compilation unit we are compiling for.
-    pub(crate) unit: Rc<RefCell<runestick::Unit>>,
+    pub(crate) unit: Rc<RefCell<UnitBuilder>>,
     /// Scopes defined in the compiler.
     pub(crate) scopes: Scopes,
     /// Context for which to emit warnings.
@@ -397,7 +402,7 @@ impl<'a> Compiler<'a> {
 
         while let Needs::Value = needs {
             match meta {
-                Meta::MetaTuple { tuple, .. } if tuple.args == 0 => {
+                Meta::Tuple { tuple, .. } if tuple.args == 0 => {
                     self.asm.push_with_comment(
                         Inst::Call {
                             hash: tuple.hash,
@@ -407,7 +412,7 @@ impl<'a> Compiler<'a> {
                         format!("tuple `{}`", tuple.item),
                     );
                 }
-                Meta::MetaVariantTuple {
+                Meta::VariantTuple {
                     enum_item, tuple, ..
                 } if tuple.args == 0 => {
                     self.asm.push_with_comment(
@@ -419,14 +424,14 @@ impl<'a> Compiler<'a> {
                         format!("tuple variant `{}::{}`", enum_item, tuple.item),
                     );
                 }
-                Meta::MetaTuple { tuple, .. } => {
+                Meta::Tuple { tuple, .. } => {
                     self.asm.push_with_comment(
                         Inst::Fn { hash: tuple.hash },
                         span,
                         format!("tuple `{}`", tuple.item),
                     );
                 }
-                Meta::MetaVariantTuple {
+                Meta::VariantTuple {
                     enum_item, tuple, ..
                 } => {
                     self.asm.push_with_comment(
@@ -435,7 +440,7 @@ impl<'a> Compiler<'a> {
                         format!("tuple variant `{}::{}`", enum_item, tuple.item),
                     );
                 }
-                Meta::MetaFunction {
+                Meta::Function {
                     value_type, item, ..
                 } => {
                     let hash = value_type.as_type_hash();
@@ -611,13 +616,13 @@ impl<'a> Compiler<'a> {
             let (tuple, meta, type_check) =
                 if let Some(meta) = self.lookup_meta(&item, path.span())? {
                     match &meta {
-                        Meta::MetaTuple {
+                        Meta::Tuple {
                             tuple, value_type, ..
                         } => {
                             let type_check = TypeCheck::Type(value_type.as_type_hash());
                             (tuple.clone(), meta, type_check)
                         }
-                        Meta::MetaVariantTuple {
+                        Meta::VariantTuple {
                             tuple, value_type, ..
                         } => {
                             let type_check = TypeCheck::Variant(value_type.as_type_hash());
@@ -728,13 +733,13 @@ impl<'a> Compiler<'a> {
                 };
 
                 let (object, type_check) = match &meta {
-                    Meta::MetaStruct {
+                    Meta::Struct {
                         object, value_type, ..
                     } => {
                         let type_check = TypeCheck::Type(value_type.as_type_hash());
                         (object, type_check)
                     }
-                    Meta::MetaVariantStruct {
+                    Meta::VariantStruct {
                         object, value_type, ..
                     } => {
                         let type_check = TypeCheck::Variant(value_type.as_type_hash());
@@ -825,10 +830,10 @@ impl<'a> Compiler<'a> {
         load: &dyn Fn(&mut Assembly),
     ) -> CompileResult<bool> {
         let (tuple, type_check) = match meta {
-            Meta::MetaTuple {
+            Meta::Tuple {
                 tuple, value_type, ..
             } if tuple.args == 0 => (tuple, TypeCheck::Type(value_type.as_type_hash())),
-            Meta::MetaVariantTuple {
+            Meta::VariantTuple {
                 tuple, value_type, ..
             } if tuple.args == 0 => (tuple, TypeCheck::Variant(value_type.as_type_hash())),
             _ => return Ok(false),

@@ -44,7 +44,7 @@ pub use rune::WarningKind::*;
 use rune::Warnings;
 pub use runestick::VmErrorKind::*;
 use runestick::{Component, Item, Source, Unit};
-pub use runestick::{Function, Meta, Span, Value};
+pub use runestick::{Function, Meta, Span, UnitBuilder, Value};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -63,12 +63,12 @@ pub fn compile_source(
     let mut warnings = Warnings::new();
     let mut sources = Sources::new();
     sources.insert_default(Source::new("main", source.to_owned()));
-    let unit = Rc::new(RefCell::new(Unit::with_default_prelude()));
+    let unit = Rc::new(RefCell::new(UnitBuilder::with_default_prelude()));
 
     rune::compile(context, &mut sources, &unit, &mut warnings)?;
 
     let unit = Rc::try_unwrap(unit).unwrap().into_inner();
-    Ok((unit, warnings))
+    Ok((unit.into_unit(), warnings))
 }
 
 /// Call the specified function in the given script.

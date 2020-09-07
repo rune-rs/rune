@@ -1,5 +1,5 @@
 use crate::future::SelectFuture;
-use crate::unit::UnitFnKind;
+use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, Bytes, Call, Context, FromValue, Function, Future, Generator, Hash, Inst,
     Integer, IntoHash, Object, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject,
@@ -156,22 +156,22 @@ impl Vm {
     {
         let hash = name.into_hash();
 
-        let function = self
+        let info = self
             .unit
             .lookup(hash)
             .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
 
-        if function.signature.args != A::count() {
-            return Err(VmError::from(VmErrorKind::BadArgumentCount {
-                actual: A::count(),
-                expected: function.signature.args,
-            }));
-        }
-
-        let offset = match function.kind {
+        let offset = match info {
             // NB: we ignore the calling convention.
             // everything is just async when called externally.
-            UnitFnKind::Offset { offset, .. } => offset,
+            UnitFn::Offset {
+                offset,
+                args: expected,
+                ..
+            } => {
+                Self::check_args(A::count(), expected)?;
+                offset
+            }
             _ => {
                 return Err(VmError::from(VmErrorKind::MissingFunction { hash }));
             }
@@ -235,24 +235,17 @@ impl Vm {
         let count = A::count() + 1;
         let hash = Hash::instance_function(target.value_type()?, hash.into_hash());
 
-        if let Some(info) = self.unit.lookup(hash) {
-            if info.signature.args != count {
-                return Err(VmError::from(VmErrorKind::BadArgumentCount {
-                    actual: count,
-                    expected: info.signature.args,
-                }));
-            }
-
-            if let UnitFnKind::Offset { offset, call } = &info.kind {
-                let offset = *offset;
-                let call = *call;
-
-                self.stack.push(target.clone());
-                args.into_stack(&mut self.stack)?;
-
-                self.call_offset_fn(offset, call, count)?;
-                return Ok(true);
-            }
+        if let Some(UnitFn::Offset {
+            offset,
+            call,
+            args: expected,
+        }) = self.unit.lookup(hash)
+        {
+            Self::check_args(count, expected)?;
+            self.stack.push(target.clone());
+            args.into_stack(&mut self.stack)?;
+            self.call_offset_fn(offset, call, count)?;
+            return Ok(true);
         }
 
         let handler = match self.context.lookup(hash) {
@@ -1733,23 +1726,21 @@ impl Vm {
 
     fn op_fn(&mut self, hash: Hash) -> Result<(), VmError> {
         let function = match self.unit.lookup(hash) {
-            Some(info) => {
-                let args = info.signature.args;
-
-                match &info.kind {
-                    UnitFnKind::Offset { offset, call } => Function::from_offset(
-                        self.context.clone(),
-                        self.unit.clone(),
-                        *offset,
-                        *call,
-                        args,
-                    ),
-                    UnitFnKind::Tuple { hash } => Function::from_tuple(*hash, args),
-                    UnitFnKind::TupleVariant { enum_hash, hash } => {
-                        Function::from_variant_tuple(*enum_hash, *hash, args)
-                    }
-                }
-            }
+            Some(info) => match info {
+                UnitFn::Offset { offset, call, args } => Function::from_offset(
+                    self.context.clone(),
+                    self.unit.clone(),
+                    offset,
+                    call,
+                    args,
+                ),
+                UnitFn::Tuple { hash, args } => Function::from_tuple(hash, args),
+                UnitFn::TupleVariant {
+                    enum_hash,
+                    hash,
+                    args,
+                } => Function::from_variant_tuple(enum_hash, hash, args),
+            },
             None => {
                 let handler = self
                     .context
@@ -1771,10 +1762,8 @@ impl Vm {
             .lookup(hash)
             .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
 
-        let args = info.signature.args;
-
-        let (offset, call) = match &info.kind {
-            UnitFnKind::Offset { offset, call } => (*offset, *call),
+        let (offset, call, args) = match info {
+            UnitFn::Offset { offset, call, args } => (offset, call, args),
             _ => return Err(VmError::from(VmErrorKind::MissingFunction { hash })),
         };
 
@@ -1797,30 +1786,35 @@ impl Vm {
     /// Implementation of a function call.
     fn op_call(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
         match self.unit.lookup(hash) {
-            Some(info) => {
-                if info.signature.args != args {
-                    return Err(VmError::from(VmErrorKind::BadArgumentCount {
-                        actual: args,
-                        expected: info.signature.args,
-                    }));
+            Some(info) => match info {
+                UnitFn::Offset {
+                    offset,
+                    call,
+                    args: expected,
+                } => {
+                    Self::check_args(args, expected)?;
+                    self.call_offset_fn(offset, call, args)?;
                 }
-
-                match info.kind {
-                    UnitFnKind::Offset { offset, call } => {
-                        self.call_offset_fn(offset, call, args)?;
-                    }
-                    UnitFnKind::Tuple { hash } => {
-                        let tuple = self.stack.pop_sequence(info.signature.args)?;
-                        let value = Value::typed_tuple(hash, tuple);
-                        self.stack.push(value);
-                    }
-                    UnitFnKind::TupleVariant { enum_hash, hash } => {
-                        let tuple = self.stack.pop_sequence(info.signature.args)?;
-                        let value = Value::variant_tuple(enum_hash, hash, tuple);
-                        self.stack.push(value);
-                    }
+                UnitFn::Tuple {
+                    hash,
+                    args: expected,
+                } => {
+                    Self::check_args(args, expected)?;
+                    let tuple = self.stack.pop_sequence(args)?;
+                    let value = Value::typed_tuple(hash, tuple);
+                    self.stack.push(value);
                 }
-            }
+                UnitFn::TupleVariant {
+                    enum_hash,
+                    hash,
+                    args: expected,
+                } => {
+                    Self::check_args(args, expected)?;
+                    let tuple = self.stack.pop_sequence(args)?;
+                    let value = Value::variant_tuple(enum_hash, hash, tuple);
+                    self.stack.push(value);
+                }
+            },
             None => {
                 let handler = self
                     .context
@@ -1846,26 +1840,22 @@ impl Vm {
         let hash = Hash::instance_function(value_type, hash);
 
         match self.unit.lookup(hash) {
-            Some(info) => {
-                if info.signature.args != args {
-                    return Err(VmError::from(VmErrorKind::BadArgumentCount {
-                        actual: args,
-                        expected: info.signature.args,
+            Some(info) => match info {
+                UnitFn::Offset {
+                    offset,
+                    call,
+                    args: expected,
+                } => {
+                    Self::check_args(args, expected)?;
+                    self.call_offset_fn(offset, call, args)?;
+                }
+                _ => {
+                    return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
+                        instance: instance.type_info()?,
+                        hash,
                     }));
                 }
-
-                match info.kind {
-                    UnitFnKind::Offset { offset, call } => {
-                        self.call_offset_fn(offset, call, args)?;
-                    }
-                    _ => {
-                        return Err(VmError::from(VmErrorKind::MissingInstanceFunction {
-                            instance: instance.type_info()?,
-                            hash,
-                        }));
-                    }
-                }
-            }
+            },
             None => {
                 let handler = match self.context.lookup(hash) {
                     Some(handler) => handler,
@@ -2448,6 +2438,18 @@ impl Vm {
                 op,
                 lhs: lhs.type_info()?,
                 rhs: rhs.type_info()?,
+            }));
+        }
+
+        Ok(())
+    }
+
+    /// Check that arguments matches expected or raise the appropriate error.
+    fn check_args(args: usize, expected: usize) -> Result<(), VmError> {
+        if args != args {
+            return Err(VmError::from(VmErrorKind::BadArgumentCount {
+                actual: args,
+                expected,
             }));
         }
 

@@ -10,18 +10,18 @@ pub struct MetaClosureCapture {
     pub ident: String,
 }
 
-/// Metadata about an item in the context.
+/// Compile-time metadata about a unit.
 #[derive(Debug, Clone)]
 pub enum Meta {
     /// Metadata about a tuple.
-    MetaTuple {
+    Tuple {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The underlying tuple.
         tuple: MetaTuple,
     },
     /// Metadata about a tuple variant.
-    MetaVariantTuple {
+    VariantTuple {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The item of the enum.
@@ -30,14 +30,14 @@ pub enum Meta {
         tuple: MetaTuple,
     },
     /// Metadata about an object.
-    MetaStruct {
+    Struct {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The underlying object.
         object: MetaStruct,
     },
     /// Metadata about a variant object.
-    MetaVariantStruct {
+    VariantStruct {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The item of the enum.
@@ -46,21 +46,21 @@ pub enum Meta {
         object: MetaStruct,
     },
     /// An enum item.
-    MetaEnum {
+    Enum {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The item of the enum.
         item: Item,
     },
     /// A function declaration.
-    MetaFunction {
+    Function {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The item of the function declaration.
         item: Item,
     },
     /// A closure.
-    MetaClosure {
+    Closure {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The item of the closure.
@@ -69,7 +69,7 @@ pub enum Meta {
         captures: Arc<Vec<MetaClosureCapture>>,
     },
     /// An async block.
-    MetaAsyncBlock {
+    AsyncBlock {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The item of the closure.
@@ -83,28 +83,28 @@ impl Meta {
     /// Get the item of the meta.
     pub fn item(&self) -> &Item {
         match self {
-            Meta::MetaTuple { tuple, .. } => &tuple.item,
-            Meta::MetaVariantTuple { tuple, .. } => &tuple.item,
-            Meta::MetaStruct { object, .. } => &object.item,
-            Meta::MetaVariantStruct { object, .. } => &object.item,
-            Meta::MetaEnum { item, .. } => item,
-            Meta::MetaFunction { item, .. } => item,
-            Meta::MetaClosure { item, .. } => item,
-            Meta::MetaAsyncBlock { item, .. } => item,
+            Meta::Tuple { tuple, .. } => &tuple.item,
+            Meta::VariantTuple { tuple, .. } => &tuple.item,
+            Meta::Struct { object, .. } => &object.item,
+            Meta::VariantStruct { object, .. } => &object.item,
+            Meta::Enum { item, .. } => item,
+            Meta::Function { item, .. } => item,
+            Meta::Closure { item, .. } => item,
+            Meta::AsyncBlock { item, .. } => item,
         }
     }
 
     /// Get the value type of the meta item.
     pub fn value_type(&self) -> Option<Type> {
         match self {
-            Self::MetaTuple { value_type, .. } => Some(*value_type),
-            Self::MetaVariantTuple { .. } => None,
-            Self::MetaStruct { value_type, .. } => Some(*value_type),
-            Self::MetaVariantStruct { .. } => None,
-            Self::MetaEnum { value_type, .. } => Some(*value_type),
-            Self::MetaFunction { value_type, .. } => Some(*value_type),
-            Self::MetaClosure { value_type, .. } => Some(*value_type),
-            Self::MetaAsyncBlock { value_type, .. } => Some(*value_type),
+            Self::Tuple { value_type, .. } => Some(*value_type),
+            Self::VariantTuple { .. } => None,
+            Self::Struct { value_type, .. } => Some(*value_type),
+            Self::VariantStruct { .. } => None,
+            Self::Enum { value_type, .. } => Some(*value_type),
+            Self::Function { value_type, .. } => Some(*value_type),
+            Self::Closure { value_type, .. } => Some(*value_type),
+            Self::AsyncBlock { value_type, .. } => Some(*value_type),
         }
     }
 }
@@ -112,28 +112,28 @@ impl Meta {
 impl fmt::Display for Meta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MetaTuple { tuple, .. } => {
+            Self::Tuple { tuple, .. } => {
                 write!(fmt, "struct {}", tuple.item)?;
             }
-            Self::MetaVariantTuple { tuple, .. } => {
+            Self::VariantTuple { tuple, .. } => {
                 write!(fmt, "variant {}", tuple.item)?;
             }
-            Self::MetaStruct { object, .. } => {
+            Self::Struct { object, .. } => {
                 write!(fmt, "struct {}", object.item)?;
             }
-            Self::MetaVariantStruct { object, .. } => {
+            Self::VariantStruct { object, .. } => {
                 write!(fmt, "variant {}", object.item)?;
             }
-            Self::MetaEnum { item, .. } => {
+            Self::Enum { item, .. } => {
                 write!(fmt, "enum {}", item)?;
             }
-            Self::MetaFunction { item, .. } => {
+            Self::Function { item, .. } => {
                 write!(fmt, "fn {}", item)?;
             }
-            Self::MetaClosure { item, .. } => {
+            Self::Closure { item, .. } => {
                 write!(fmt, "closure {}", item)?;
             }
-            Self::MetaAsyncBlock { item, .. } => {
+            Self::AsyncBlock { item, .. } => {
                 write!(fmt, "async block {}", item)?;
             }
         }
