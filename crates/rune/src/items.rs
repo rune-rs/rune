@@ -14,19 +14,16 @@ impl Drop for Guard {
     }
 }
 
+#[derive(Clone)]
 struct Node {
-    blocks: usize,
-    closures: usize,
-    async_blocks: usize,
+    children: usize,
     component: Component,
 }
 
 impl From<Component> for Node {
     fn from(component: Component) -> Self {
         Self {
-            blocks: 0,
-            closures: 0,
-            async_blocks: 0,
+            children: 0,
             component,
         }
     }
@@ -43,9 +40,7 @@ impl Items {
         let path = base
             .into_iter()
             .map(|component| Node {
-                blocks: 0,
-                closures: 0,
-                async_blocks: 0,
+                children: 0,
                 component,
             })
             .collect();
@@ -55,42 +50,25 @@ impl Items {
         }
     }
 
+    /// Take a snapshot of the existing items.
+    pub fn snapshot(&self) -> Self {
+        Self {
+            path: Rc::new(RefCell::new(self.path.borrow().clone())),
+        }
+    }
+
     /// Check if the current path is empty.
     pub fn is_empty(&self) -> bool {
         self.path.borrow().is_empty()
     }
 
-    /// Get the next block index.
-    fn next_block(&mut self) -> usize {
+    /// Get the next child id.
+    fn next_child(&mut self) -> usize {
         let mut path = self.path.borrow_mut();
 
         if let Some(node) = path.last_mut() {
-            let new = node.blocks + 1;
-            mem::replace(&mut node.blocks, new)
-        } else {
-            0
-        }
-    }
-
-    /// Get the next closure index.
-    fn next_closure(&mut self) -> usize {
-        let mut path = self.path.borrow_mut();
-
-        if let Some(node) = path.last_mut() {
-            let new = node.closures + 1;
-            mem::replace(&mut node.closures, new)
-        } else {
-            0
-        }
-    }
-
-    /// Get the next async block index.
-    fn next_async_block(&mut self) -> usize {
-        let mut path = self.path.borrow_mut();
-
-        if let Some(node) = path.last_mut() {
-            let new = node.async_blocks + 1;
-            mem::replace(&mut node.async_blocks, new)
+            let new = node.children + 1;
+            mem::replace(&mut node.children, new)
         } else {
             0
         }
@@ -98,7 +76,8 @@ impl Items {
 
     /// Push a component and return a guard to it.
     pub fn push_block(&mut self) -> Guard {
-        let index = self.next_block();
+        let index = self.next_child();
+
         self.path
             .borrow_mut()
             .push(Node::from(Component::Block(index)));
@@ -110,7 +89,8 @@ impl Items {
 
     /// Push a closure component and return guard associated with it.
     pub fn push_closure(&mut self) -> Guard {
-        let index = self.next_closure();
+        let index = self.next_child();
+
         self.path
             .borrow_mut()
             .push(Node::from(Component::Closure(index)));
@@ -122,7 +102,7 @@ impl Items {
 
     /// Push a component and return a guard to it.
     pub fn push_async_block(&mut self) -> Guard {
-        let index = self.next_async_block();
+        let index = self.next_child();
 
         self.path
             .borrow_mut()
@@ -138,6 +118,19 @@ impl Items {
         self.path
             .borrow_mut()
             .push(Node::from(Component::String(name.to_owned())));
+
+        Guard {
+            path: self.path.clone(),
+        }
+    }
+
+    /// Push a component and return a guard to it.
+    pub fn push_macro(&mut self) -> Guard {
+        let index = self.next_child();
+
+        self.path
+            .borrow_mut()
+            .push(Node::from(Component::Macro(index)));
 
         Guard {
             path: self.path.clone(),

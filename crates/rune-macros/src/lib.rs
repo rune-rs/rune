@@ -38,7 +38,7 @@ fn passthrough_impl(_: &mut MacroContext, stream: &TokenStream) -> runestick::Re
 }
 
 /// Implementation for the `test_add!` macro.
-fn test_add(context: &mut MacroContext, stream: &TokenStream) -> runestick::Result<TokenStream> {
+fn test_add(ctx: &mut MacroContext, stream: &TokenStream) -> runestick::Result<TokenStream> {
     use rune::ast;
     use rune::Resolve as _;
 
@@ -48,19 +48,13 @@ fn test_add(context: &mut MacroContext, stream: &TokenStream) -> runestick::Resu
     let var = parser.parse::<ast::Ident>()?;
     parser.parse_eof()?;
 
-    let ident = ident.resolve(context.source())?;
+    let ident = ident.resolve(ctx.source())?;
 
     if ident != "please" {
         return Err(runestick::Error::msg("you didn't ask nicely..."));
     }
 
-    let mut output = TokenStream::default();
-
-    output.extend(var);
-    output.extend(ast::Kind::Plus);
-    output.extend(var);
-
-    Ok(output)
+    Ok(rune::quote!(ctx => || #var + #var))
 }
 
 /// Construct the `http` module.

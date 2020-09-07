@@ -146,6 +146,8 @@ pub enum Component {
     Closure(usize),
     /// An async block, like `async {  }`.
     AsyncBlock(usize),
+    /// An expanded macro.
+    Macro(usize),
 }
 
 impl fmt::Display for Component {
@@ -155,6 +157,7 @@ impl fmt::Display for Component {
             Self::Block(n) => write!(fmt, "$block{}", n),
             Self::Closure(n) => write!(fmt, "$closure{}", n),
             Self::AsyncBlock(n) => write!(fmt, "$async{}", n),
+            Self::Macro(n) => write!(fmt, "$macro{}", n),
         }
     }
 }

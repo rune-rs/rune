@@ -61,7 +61,7 @@ impl Drop for IndexScopeGuard {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct IndexScope {
     locals: HashMap<String, Span>,
 }
@@ -75,7 +75,7 @@ impl IndexScope {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IndexClosure {
     is_async: bool,
     /// Variables which could not be found in the immediate scope, and
@@ -116,7 +116,7 @@ pub(crate) struct Closure {
     pub(crate) has_await: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IndexFunction {
     is_async: bool,
     scope: IndexScope,
@@ -136,7 +136,7 @@ impl IndexFunction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum IndexScopeLevel {
     /// A regular index scope.
     IndexScope(IndexScope),
@@ -160,6 +160,13 @@ impl IndexScopes {
             levels: Rc::new(RefCell::new(vec![IndexScopeLevel::IndexScope(
                 IndexScope::new(),
             )])),
+        }
+    }
+
+    /// Take a snapshot of the current scopes.
+    pub fn snapshot(&self) -> Self {
+        Self {
+            levels: Rc::new(RefCell::new(self.levels.borrow().clone())),
         }
     }
 
