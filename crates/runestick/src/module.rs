@@ -12,7 +12,7 @@ use std::any::type_name;
 use std::future;
 use std::sync::Arc;
 
-use crate::context::{ContextError, Handler, IntoInstFnHash};
+use crate::context::{ContextError, Handler};
 use crate::{GeneratorState, Item, StaticType, TypeCheck, Value};
 
 /// Specialized information on `Option` types.
@@ -516,11 +516,11 @@ impl Module {
 
         let key = ModuleAssocKey {
             value_type,
-            hash: name.to_hash(),
+            hash: name.into_inst_fn_hash(),
             kind,
         };
 
-        let name = name.to_name();
+        let name = name.into_name();
 
         if self.associated_functions.contains_key(&key) {
             return Err(ContextError::ConflictingInstanceFunction { type_info, name });
@@ -578,11 +578,11 @@ impl Module {
 
         let key = ModuleAssocKey {
             value_type,
-            hash: name.to_hash(),
+            hash: name.into_inst_fn_hash(),
             kind: ModuleAssociatedKind::Instance,
         };
 
-        let name = name.to_name();
+        let name = name.into_name();
 
         if self.associated_functions.contains_key(&key) {
             return Err(ContextError::ConflictingInstanceFunction { type_info, name });
@@ -636,6 +636,25 @@ where
         }
 
         Ok(())
+    }
+}
+
+/// Trait used to determine what can be used as an instance function name.
+pub trait IntoInstFnHash: Copy {
+    /// Generate a locally unique hash to check for conflicts.
+    fn into_inst_fn_hash(self) -> Hash;
+
+    /// Get a human readable name for the function.
+    fn into_name(self) -> String;
+}
+
+impl<'a> IntoInstFnHash for &'a str {
+    fn into_inst_fn_hash(self) -> Hash {
+        Hash::of(self)
+    }
+
+    fn into_name(self) -> String {
+        self.to_owned()
     }
 }
 
