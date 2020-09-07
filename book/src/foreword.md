@@ -22,7 +22,7 @@ So here's why I'm making a new programming language.
 
 I've spent a lot of effort working on [OxidizeBot], a Twitch bot that streamers
 can use to add commands and other interactive things in their chat. I built it
-for myself while streaming. When adding features I always spend way to much time
+for myself while streaming. When adding features I always spend way too much time
 tinkering with it. Making it as generic as possible so it can solve more than
 just one problem. When it's a personal project, I don't care about being
 efficient. I care much more about doing things the right way.
