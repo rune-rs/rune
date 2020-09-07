@@ -21,6 +21,7 @@ codespan-reporting = "0.9.5"
 anyhow = "1.0.32"
 
 rune = {version = "0.6.16", path = "../rune", features = ["modules"]}
+rune-macros = {version = "0.6.16", path = "../rune-macros"}
 runestick = {version = "0.6.16", path = "../runestick"}
 
 [[bin]]

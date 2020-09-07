@@ -2,6 +2,7 @@
 members = [
     "crates/runestick",
     "crates/rune-modules",
+    "crates/rune-macros",
     "crates/rune-testing",
     "crates/rune",
     "crates/rune-cli",

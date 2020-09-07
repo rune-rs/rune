@@ -144,6 +144,7 @@ async fn main() -> Result<()> {
     };
 
     let mut context = rune::default_context()?;
+    context.install(&rune_macros::module()?)?;
     let context = Arc::new(context);
 
     let mut warnings = rune::Warnings::new();

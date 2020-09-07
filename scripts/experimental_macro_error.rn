@@ -1,0 +1,11 @@
+use std::experiments::test_add;
+
+fn main() {
+    let a = 1;
+
+    // This will error inside of the macro.
+    let result = test_add! {
+        doit a
+    };
+}
+

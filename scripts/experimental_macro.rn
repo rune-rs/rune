@@ -1,0 +1,12 @@
+use std::experiments::test_add;
+
+fn main() {
+    let a = 1;
+
+    let result = test_add! {
+        please a
+    };
+
+    println(`{result}`); // => 2
+}
+
