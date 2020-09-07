@@ -5,7 +5,7 @@
 
 use crate::assembly::{Assembly, AssemblyInst, Label};
 use crate::collections::HashMap;
-use crate::debug::DebugSignature;
+use crate::debug::{DebugArgs, DebugSignature};
 use crate::unit::{UnitFn, UnitTypeInfo};
 use crate::{
     Call, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Meta, Names, Span,
@@ -531,7 +531,7 @@ impl UnitBuilder {
 
                 let signature = DebugSignature {
                     path: tuple.item.clone(),
-                    args: tuple.args,
+                    args: DebugArgs::TupleArgs(tuple.args),
                 };
 
                 if self.functions.insert(tuple.hash, info).is_some() {
@@ -570,7 +570,7 @@ impl UnitBuilder {
 
                 let signature = DebugSignature {
                     path: tuple.item.clone(),
-                    args: tuple.args,
+                    args: DebugArgs::TupleArgs(tuple.args),
                 };
 
                 if self.functions.insert(tuple.hash, info).is_some() {
@@ -675,17 +675,18 @@ impl UnitBuilder {
         args: usize,
         assembly: Assembly,
         call: Call,
+        debug_args: Vec<String>,
     ) -> Result<(), UnitBuilderError> {
         let offset = self.instructions.len();
         let hash = Hash::type_hash(&path);
 
         self.functions_rev.insert(offset, hash);
         let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(path, args);
+        let signature = DebugSignature::new(path, debug_args);
 
         if self.functions.insert(hash, info).is_some() {
             return Err(UnitBuilderError::FunctionConflict {
-                existing: signature.clone(),
+                existing: signature,
             });
         }
 
@@ -704,6 +705,7 @@ impl UnitBuilder {
         args: usize,
         assembly: Assembly,
         call: Call,
+        debug_args: Vec<String>,
     ) -> Result<(), UnitBuilderError> {
         log::trace!("instance fn: {}", path);
 
@@ -713,17 +715,17 @@ impl UnitBuilder {
         let hash = Hash::type_hash(&path);
 
         let info = UnitFn::Offset { offset, call, args };
-        let signature = DebugSignature::new(path, args);
+        let signature = DebugSignature::new(path, debug_args);
 
         if self.functions.insert(instance_fn, info.clone()).is_some() {
             return Err(UnitBuilderError::FunctionConflict {
-                existing: signature.clone(),
+                existing: signature,
             });
         }
 
         if self.functions.insert(hash, info).is_some() {
             return Err(UnitBuilderError::FunctionConflict {
-                existing: signature.clone(),
+                existing: signature,
             });
         }
 
