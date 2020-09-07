@@ -8,7 +8,7 @@ use crate::collections::HashMap;
 use crate::debug::{DebugArgs, DebugSignature};
 use crate::unit::{UnitFn, UnitTypeInfo};
 use crate::{
-    Call, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Meta, Names, Span,
+    Call, CompileMeta, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Names, Span,
     StaticString, Type, Unit,
 };
 use std::sync::Arc;
@@ -39,9 +39,9 @@ pub enum UnitBuilderError {
     #[error("trying to insert `{current}` but conflicting meta `{existing}` already exists")]
     MetaConflict {
         /// The meta we tried to insert.
-        current: Meta,
+        current: CompileMeta,
         /// The existing item.
-        existing: Meta,
+        existing: CompileMeta,
     },
     /// A static string was missing for the given hash and slot.
     #[error("missing static string for hash `{hash}` and slot `{slot}`")]
@@ -190,7 +190,7 @@ pub struct UnitBuilder {
     /// required units are present.
     imports: HashMap<ImportKey, ImportEntry>,
     /// Item metadata in the context.
-    meta: HashMap<Item, Meta>,
+    meta: HashMap<Item, CompileMeta>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFn>,
     /// Declared types.
@@ -375,7 +375,7 @@ impl UnitBuilder {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&self, name: &Item) -> Option<Meta> {
+    pub fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
         self.meta.get(name).cloned()
     }
 
@@ -521,9 +521,9 @@ impl UnitBuilder {
     }
 
     /// Declare a new struct.
-    pub fn insert_meta(&mut self, meta: Meta) -> Result<(), UnitBuilderError> {
+    pub fn insert_meta(&mut self, meta: CompileMeta) -> Result<(), UnitBuilderError> {
         let item = match &meta {
-            Meta::Tuple { tuple, .. } => {
+            CompileMeta::Tuple { tuple, .. } => {
                 let info = UnitFn::Tuple {
                     hash: tuple.hash,
                     args: tuple.args,
@@ -557,7 +557,7 @@ impl UnitBuilder {
 
                 tuple.item.clone()
             }
-            Meta::VariantTuple {
+            CompileMeta::TupleVariant {
                 enum_item, tuple, ..
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
@@ -596,7 +596,7 @@ impl UnitBuilder {
 
                 tuple.item.clone()
             }
-            Meta::Struct { object, .. } => {
+            CompileMeta::Struct { object, .. } => {
                 let hash = Hash::type_hash(&object.item);
 
                 let info = UnitTypeInfo {
@@ -612,7 +612,7 @@ impl UnitBuilder {
 
                 object.item.clone()
             }
-            Meta::VariantStruct {
+            CompileMeta::StructVariant {
                 enum_item, object, ..
             } => {
                 let hash = Hash::type_hash(&object.item);
@@ -631,7 +631,7 @@ impl UnitBuilder {
 
                 object.item.clone()
             }
-            Meta::Enum { item, .. } => {
+            CompileMeta::Enum { item, .. } => {
                 let hash = Hash::type_hash(item);
 
                 let info = UnitTypeInfo {
@@ -647,9 +647,9 @@ impl UnitBuilder {
 
                 item.clone()
             }
-            Meta::Function { item, .. } => item.clone(),
-            Meta::Closure { item, .. } => item.clone(),
-            Meta::AsyncBlock { item, .. } => item.clone(),
+            CompileMeta::Function { item, .. } => item.clone(),
+            CompileMeta::Closure { item, .. } => item.clone(),
+            CompileMeta::AsyncBlock { item, .. } => item.clone(),
         };
 
         if let Some(existing) = self.meta.insert(item, meta.clone()) {

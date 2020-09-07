@@ -3,16 +3,16 @@ use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::traits::Compile;
 use crate::CompileError;
-use runestick::{Hash, Inst, Meta, MetaClosureCapture};
+use runestick::{CompileMeta, CompileMetaCapture, Hash, Inst};
 
 struct CallAsync(());
 struct BlockBody(());
 
 /// Compile the async block.
-impl Compile<(ast::ExprBlock, &[MetaClosureCapture])> for Compiler<'_> {
+impl Compile<(ast::ExprBlock, &[CompileMetaCapture])> for Compiler<'_> {
     fn compile(
         &mut self,
-        (expr_block, captures): (ast::ExprBlock, &[MetaClosureCapture]),
+        (expr_block, captures): (ast::ExprBlock, &[CompileMetaCapture]),
     ) -> CompileResult<()> {
         let span = expr_block.span();
         log::trace!("ExprBlock (procedure) => {:?}", self.source.source(span));
@@ -63,7 +63,7 @@ impl Compile<(CallAsync, &ast::ExprBlock)> for Compiler<'_> {
         };
 
         let captures = match &meta {
-            Meta::AsyncBlock { captures, .. } => captures,
+            CompileMeta::AsyncBlock { captures, .. } => captures,
             _ => {
                 return Err(CompileError::UnsupportedAsyncBlock { span, meta });
             }

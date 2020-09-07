@@ -1,8 +1,8 @@
 use crate::collections::{HashMap, HashSet};
 use crate::module::{ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleType, ModuleUnitType};
 use crate::{
-    Component, Hash, Item, Meta, MetaStruct, MetaTuple, Module, Names, Stack, StaticType, Type,
-    TypeCheck, TypeInfo, UnitBuilder, ValueType, VmError,
+    CompileMeta, CompileMetaStruct, CompileMetaTuple, Component, Hash, Item, Module, Names, Stack,
+    StaticType, Type, TypeCheck, TypeInfo, UnitBuilder, ValueType, VmError,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -26,9 +26,9 @@ pub enum ContextError {
         /// The item that conflicted
         item: Item,
         /// The current meta we tried to insert.
-        current: Box<Meta>,
+        current: Box<CompileMeta>,
         /// The existing meta item.
-        existing: Box<Meta>,
+        existing: Box<CompileMeta>,
     },
     /// Error raised when attempting to register a conflicting function.
     #[error("function `{signature}` ({hash}) already exists")]
@@ -204,7 +204,7 @@ pub struct Context {
     /// Whether or not to include the prelude when constructing a new unit.
     with_prelude: bool,
     /// Item metadata in the context.
-    meta: HashMap<Item, Meta>,
+    meta: HashMap<Item, CompileMeta>,
     /// Registered native function handlers.
     functions: HashMap<Hash, Arc<Handler>>,
     /// Information on functions.
@@ -298,7 +298,7 @@ impl Context {
     }
 
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&self, name: &Item) -> Option<Meta> {
+    pub fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
         self.meta.get(name).cloned()
     }
 
@@ -353,7 +353,7 @@ impl Context {
     }
 
     /// Install the given meta.
-    fn install_meta(&mut self, item: Item, meta: Meta) -> Result<(), ContextError> {
+    fn install_meta(&mut self, item: Item, meta: CompileMeta) -> Result<(), ContextError> {
         if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
             return Err(ContextError::ConflictingMeta {
                 item,
@@ -387,9 +387,9 @@ impl Context {
 
         self.install_meta(
             name.clone(),
-            Meta::Struct {
+            CompileMeta::Struct {
                 value_type,
-                object: MetaStruct {
+                object: CompileMetaStruct {
                     item: name.clone(),
                     fields: None,
                 },
@@ -449,7 +449,7 @@ impl Context {
 
         self.meta.insert(
             name.clone(),
-            Meta::Function {
+            CompileMeta::Function {
                 value_type: Type::Hash(hash),
                 item: name.clone(),
             },
@@ -543,7 +543,7 @@ impl Context {
 
         self.install_meta(
             enum_item.clone(),
-            Meta::Enum {
+            CompileMeta::Enum {
                 value_type: Type::StaticType(internal_enum.static_type),
                 item: enum_item.clone(),
             },
@@ -573,13 +573,13 @@ impl Context {
                 },
             )?;
 
-            let tuple = MetaTuple {
+            let tuple = CompileMetaTuple {
                 item: item.clone(),
                 args: variant.args,
                 hash,
             };
 
-            let meta = Meta::VariantTuple {
+            let meta = CompileMeta::TupleVariant {
                 value_type: variant.value_type,
                 enum_item: enum_item.clone(),
                 tuple,
@@ -620,19 +620,19 @@ impl Context {
         let value_type = <C::Return as ValueType>::value_type();
         let hash = Hash::type_hash(&item);
 
-        let tuple = MetaTuple {
+        let tuple = CompileMetaTuple {
             item: item.clone(),
             args,
             hash,
         };
 
         let meta = match enum_item {
-            Some(enum_item) => Meta::VariantTuple {
+            Some(enum_item) => CompileMeta::TupleVariant {
                 value_type,
                 enum_item,
                 tuple,
             },
-            None => Meta::Tuple { value_type, tuple },
+            None => CompileMeta::Tuple { value_type, tuple },
         };
 
         self.install_meta(item.clone(), meta)?;

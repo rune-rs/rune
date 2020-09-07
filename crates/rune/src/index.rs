@@ -8,7 +8,7 @@ use crate::sources::Sources;
 use crate::traits::Resolve as _;
 use crate::warning::Warnings;
 use crate::SourceId;
-use runestick::{Call, Hash, Item, Meta, Source, Span, Type};
+use runestick::{Call, CompileMeta, Hash, Item, Source, Span, Type};
 use std::sync::Arc;
 
 /// Import to process.
@@ -225,7 +225,7 @@ impl Index<ast::DeclFn> for Indexer<'_> {
                 source_id: self.source_id,
             });
 
-            let meta = Meta::Function {
+            let meta = CompileMeta::Function {
                 value_type: Type::Hash(Hash::type_hash(&item)),
                 item: item.clone(),
             };
@@ -240,10 +240,13 @@ impl Index<ast::DeclFn> for Indexer<'_> {
                 source_id: self.source_id,
             });
 
-            self.query.unit.borrow_mut().insert_meta(Meta::Function {
-                value_type: Type::Hash(Hash::type_hash(&item)),
-                item,
-            })?;
+            self.query
+                .unit
+                .borrow_mut()
+                .insert_meta(CompileMeta::Function {
+                    value_type: Type::Hash(Hash::type_hash(&item)),
+                    item,
+                })?;
         } else {
             // NB: non toplevel functions can be indexed for later construction.
             self.query.index(

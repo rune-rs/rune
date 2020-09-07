@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::ast::Kind;
 use crate::SourceId;
-use runestick::{Item, Meta, Span};
+use runestick::{CompileMeta, Item, Span};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -498,7 +498,7 @@ pub enum CompileError {
         /// The span where we tried to use an async block.
         span: Span,
         /// The meta we tried to use as an async block.
-        meta: Meta,
+        meta: CompileMeta,
     },
     /// Tried to declare an instance function on a type for which it is not
     /// supported.
@@ -507,7 +507,7 @@ pub enum CompileError {
         /// The span where we tried to declare an instance function.
         span: Span,
         /// The meta we tried to declare an instance function for.
-        meta: Meta,
+        meta: CompileMeta,
     },
     /// Tried to treat something as a value which is not supported.
     #[error("`{meta}` cannot be used as a value")]
@@ -515,7 +515,7 @@ pub enum CompileError {
         /// The span of the error.
         span: Span,
         /// The meta we tried to treat as a value.
-        meta: Meta,
+        meta: CompileMeta,
     },
     /// Tried to treat something as a type which is not supported.
     #[error("`{meta}` cannot be used as a type")]
@@ -523,7 +523,7 @@ pub enum CompileError {
         /// The span of the error.
         span: Span,
         /// The meta we tried to treat as a type.
-        meta: Meta,
+        meta: CompileMeta,
     },
     /// `self` occured in an unsupported position.
     #[error("`self` not supported here")]
@@ -620,7 +620,7 @@ pub enum CompileError {
         /// The span which the error occured.
         span: Span,
         /// The meta item we tried to use as a pattern.
-        meta: Meta,
+        meta: CompileMeta,
         /// The expected number of arguments.
         expected: usize,
         /// The actual number of arguments.
@@ -630,7 +630,7 @@ pub enum CompileError {
     #[error("`{meta}` is not supported in a pattern like this")]
     UnsupportedMetaPattern {
         /// The meta item we tried to use as a pattern.
-        meta: Meta,
+        meta: CompileMeta,
         /// The span which the error occured.
         span: Span,
     },
@@ -638,7 +638,7 @@ pub enum CompileError {
     #[error("`{meta}` is not supported as a closure")]
     UnsupportedMetaClosure {
         /// The meta item we tried to use as a pattern.
-        meta: Meta,
+        meta: CompileMeta,
         /// The span which the error occured.
         span: Span,
     },

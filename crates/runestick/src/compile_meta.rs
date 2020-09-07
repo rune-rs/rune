@@ -5,45 +5,45 @@ use std::sync::Arc;
 
 /// Metadata about a closure.
 #[derive(Debug, Clone)]
-pub struct MetaClosureCapture {
+pub struct CompileMetaCapture {
     /// Identity of the captured variable.
     pub ident: String,
 }
 
 /// Compile-time metadata about a unit.
 #[derive(Debug, Clone)]
-pub enum Meta {
+pub enum CompileMeta {
     /// Metadata about a tuple.
     Tuple {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The underlying tuple.
-        tuple: MetaTuple,
+        tuple: CompileMetaTuple,
     },
     /// Metadata about a tuple variant.
-    VariantTuple {
+    TupleVariant {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying tuple.
-        tuple: MetaTuple,
+        tuple: CompileMetaTuple,
     },
     /// Metadata about an object.
     Struct {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The underlying object.
-        object: MetaStruct,
+        object: CompileMetaStruct,
     },
     /// Metadata about a variant object.
-    VariantStruct {
+    StructVariant {
         /// The value type associated with this meta item.
         value_type: Type,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying object.
-        object: MetaStruct,
+        object: CompileMetaStruct,
     },
     /// An enum item.
     Enum {
@@ -66,7 +66,7 @@ pub enum Meta {
         /// The item of the closure.
         item: Item,
         /// Sequence of captured variables.
-        captures: Arc<Vec<MetaClosureCapture>>,
+        captures: Arc<Vec<CompileMetaCapture>>,
     },
     /// An async block.
     AsyncBlock {
@@ -75,22 +75,22 @@ pub enum Meta {
         /// The item of the closure.
         item: Item,
         /// Sequence of captured variables.
-        captures: Arc<Vec<MetaClosureCapture>>,
+        captures: Arc<Vec<CompileMetaCapture>>,
     },
 }
 
-impl Meta {
+impl CompileMeta {
     /// Get the item of the meta.
     pub fn item(&self) -> &Item {
         match self {
-            Meta::Tuple { tuple, .. } => &tuple.item,
-            Meta::VariantTuple { tuple, .. } => &tuple.item,
-            Meta::Struct { object, .. } => &object.item,
-            Meta::VariantStruct { object, .. } => &object.item,
-            Meta::Enum { item, .. } => item,
-            Meta::Function { item, .. } => item,
-            Meta::Closure { item, .. } => item,
-            Meta::AsyncBlock { item, .. } => item,
+            CompileMeta::Tuple { tuple, .. } => &tuple.item,
+            CompileMeta::TupleVariant { tuple, .. } => &tuple.item,
+            CompileMeta::Struct { object, .. } => &object.item,
+            CompileMeta::StructVariant { object, .. } => &object.item,
+            CompileMeta::Enum { item, .. } => item,
+            CompileMeta::Function { item, .. } => item,
+            CompileMeta::Closure { item, .. } => item,
+            CompileMeta::AsyncBlock { item, .. } => item,
         }
     }
 
@@ -98,9 +98,9 @@ impl Meta {
     pub fn value_type(&self) -> Option<Type> {
         match self {
             Self::Tuple { value_type, .. } => Some(*value_type),
-            Self::VariantTuple { .. } => None,
+            Self::TupleVariant { .. } => None,
             Self::Struct { value_type, .. } => Some(*value_type),
-            Self::VariantStruct { .. } => None,
+            Self::StructVariant { .. } => None,
             Self::Enum { value_type, .. } => Some(*value_type),
             Self::Function { value_type, .. } => Some(*value_type),
             Self::Closure { value_type, .. } => Some(*value_type),
@@ -109,19 +109,19 @@ impl Meta {
     }
 }
 
-impl fmt::Display for Meta {
+impl fmt::Display for CompileMeta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Tuple { tuple, .. } => {
                 write!(fmt, "struct {}", tuple.item)?;
             }
-            Self::VariantTuple { tuple, .. } => {
+            Self::TupleVariant { tuple, .. } => {
                 write!(fmt, "variant {}", tuple.item)?;
             }
             Self::Struct { object, .. } => {
                 write!(fmt, "struct {}", object.item)?;
             }
-            Self::VariantStruct { object, .. } => {
+            Self::StructVariant { object, .. } => {
                 write!(fmt, "variant {}", object.item)?;
             }
             Self::Enum { item, .. } => {
@@ -144,14 +144,7 @@ impl fmt::Display for Meta {
 
 /// The metadata about a type.
 #[derive(Debug, Clone)]
-pub struct MetaExternal {
-    /// The path to the type.
-    pub item: Item,
-}
-
-/// The metadata about a type.
-#[derive(Debug, Clone)]
-pub struct MetaStruct {
+pub struct CompileMetaStruct {
     /// The path to the object.
     pub item: Item,
     /// Fields associated with the type.
@@ -160,7 +153,7 @@ pub struct MetaStruct {
 
 /// The metadata about a variant.
 #[derive(Debug, Clone)]
-pub struct MetaTuple {
+pub struct CompileMetaTuple {
     /// The path to the tuple.
     pub item: Item,
     /// The number of arguments the variant takes.

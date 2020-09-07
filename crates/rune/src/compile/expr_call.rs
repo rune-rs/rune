@@ -3,7 +3,7 @@ use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::traits::{Compile, Resolve as _};
 use crate::CompileError;
-use runestick::{Hash, Inst, Meta};
+use runestick::{CompileMeta, Hash, Inst};
 
 /// Compile a call expression.
 impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
@@ -96,7 +96,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         };
 
         let item = match &meta {
-            Meta::Tuple { tuple, .. } | Meta::VariantTuple { tuple, .. } => {
+            CompileMeta::Tuple { tuple, .. } | CompileMeta::TupleVariant { tuple, .. } => {
                 if tuple.args != expr_call.args.items.len() {
                     return Err(CompileError::UnsupportedArgumentCount {
                         span,
@@ -118,7 +118,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
 
                 tuple.item.clone()
             }
-            Meta::Function { item, .. } => item.clone(),
+            CompileMeta::Function { item, .. } => item.clone(),
             _ => {
                 return Err(CompileError::MissingFunction { span, item });
             }

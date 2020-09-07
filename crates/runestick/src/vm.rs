@@ -922,7 +922,7 @@ impl Vm {
                 let typed_tuple = typed_tuple.borrow_ref()?;
                 typed_tuple.tuple.get(index).cloned()
             }
-            Value::VariantTuple(variant_tuple) => {
+            Value::TupleVariant(variant_tuple) => {
                 let variant_tuple = variant_tuple.borrow_ref()?;
                 variant_tuple.tuple.get(index).cloned()
             }
@@ -1003,7 +1003,7 @@ impl Vm {
 
                 Ok(false)
             }
-            Value::VariantTuple(variant_tuple) => {
+            Value::TupleVariant(variant_tuple) => {
                 let mut variant_tuple = variant_tuple.borrow_mut()?;
 
                 if let Some(target) = variant_tuple.tuple.get_mut(index) {
@@ -1622,7 +1622,7 @@ impl Vm {
 
                 Some(f(&*typed_tuple.tuple))
             }
-            (TypeCheck::Variant(hash), Value::VariantTuple(variant_tuple)) => {
+            (TypeCheck::Variant(hash), Value::TupleVariant(variant_tuple)) => {
                 let variant_tuple = variant_tuple.borrow_ref()?;
 
                 if variant_tuple.hash != hash {

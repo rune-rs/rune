@@ -6,7 +6,7 @@ use crate::{
     traits::{Compile, Resolve as _},
     CompileError,
 };
-use runestick::{Hash, Inst, Item, Meta, Span};
+use runestick::{CompileMeta, Hash, Inst, Item, Span};
 
 /// Compile a literal object.
 impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
@@ -79,7 +79,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                 };
 
                 match meta {
-                    Meta::Struct { object, .. } => {
+                    CompileMeta::Struct { object, .. } => {
                         check_object_fields(
                             object.fields.as_ref(),
                             check_keys,
@@ -90,7 +90,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         let hash = Hash::type_hash(&object.item);
                         self.asm.push(Inst::TypedObject { hash, slot }, span);
                     }
-                    Meta::VariantStruct {
+                    CompileMeta::StructVariant {
                         enum_item, object, ..
                     } => {
                         check_object_fields(

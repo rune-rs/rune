@@ -49,6 +49,7 @@ mod assembly;
 mod awaited;
 mod bytes;
 mod call;
+mod compile_meta;
 mod debug;
 mod function;
 mod future;
@@ -57,7 +58,6 @@ mod generator_state;
 mod hash;
 mod inst;
 mod item;
-mod meta;
 pub mod module;
 pub mod modules;
 mod names;
@@ -94,9 +94,11 @@ pub type Error = anyhow::Error;
 
 pub use self::args::Args;
 pub use self::assembly::{Assembly, Label};
+pub use self::compile_meta::{
+    CompileMeta, CompileMetaCapture, CompileMetaStruct, CompileMetaTuple,
+};
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
-pub use self::meta::{Meta, MetaClosureCapture, MetaStruct, MetaTuple};
 pub use self::module::{IntoInstFnHash, Module};
 pub use self::select::Select;
 pub use self::source::Source;
@@ -141,7 +143,7 @@ pub use crate::unit_builder::{
     ImportEntry, ImportKey, LinkerError, LinkerErrors, UnitBuilder, UnitBuilderError,
 };
 pub use crate::value::{
-    Integer, Object, TypedObject, TypedTuple, Value, VariantObject, VariantTuple,
+    Integer, Object, TupleVariant, TypedObject, TypedTuple, Value, VariantObject,
 };
 pub use crate::vec_tuple::VecTuple;
 pub use crate::vm::{CallFrame, Vm};

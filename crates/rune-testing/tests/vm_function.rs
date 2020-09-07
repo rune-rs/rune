@@ -36,7 +36,7 @@ fn test_function() {
 
     assert!(function.call::<_, Value>(()).is_err());
     let value: Value = function.call((1i64,)).unwrap();
-    assert!(matches!(value, Value::VariantTuple(..)));
+    assert!(matches!(value, Value::TupleVariant(..)));
 
     // ptr to dynamic function.
     let function = rune! {

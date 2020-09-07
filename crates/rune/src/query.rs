@@ -5,8 +5,8 @@ use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
 use crate::traits::Resolve as _;
 use runestick::{
-    Call, Hash, Item, Meta, MetaClosureCapture, MetaStruct, MetaTuple, Source, Span, Type,
-    UnitBuilder,
+    Call, CompileMeta, CompileMetaCapture, CompileMetaStruct, CompileMetaTuple, Hash, Item, Source,
+    Span, Type, UnitBuilder,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -67,7 +67,7 @@ pub(crate) struct Closure {
     /// Ast for closure.
     pub(crate) ast: ast::ExprClosure,
     /// Captures.
-    pub(crate) captures: Arc<Vec<MetaClosureCapture>>,
+    pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
     /// Calling convention used for closure.
     pub(crate) call: Call,
 }
@@ -76,7 +76,7 @@ pub(crate) struct AsyncBlock {
     /// Ast for block.
     pub(crate) ast: ast::ExprBlock,
     /// Captures.
-    pub(crate) captures: Arc<Vec<MetaClosureCapture>>,
+    pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
     /// Calling convention used for async block.
     pub(crate) call: Call,
 }
@@ -190,7 +190,7 @@ impl Query {
         &mut self,
         item: Item,
         ast: ast::ExprClosure,
-        captures: Arc<Vec<MetaClosureCapture>>,
+        captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
         source: Arc<Source>,
         source_id: usize,
@@ -220,7 +220,7 @@ impl Query {
         &mut self,
         item: Item,
         ast: ast::ExprBlock,
-        captures: Arc<Vec<MetaClosureCapture>>,
+        captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
         source: Arc<Source>,
         source_id: usize,
@@ -267,7 +267,11 @@ impl Query {
     }
 
     /// Query for the given meta item.
-    pub fn query_meta(&mut self, item: &Item, span: Span) -> Result<Option<Meta>, CompileError> {
+    pub fn query_meta(
+        &mut self,
+        item: &Item,
+        span: Span,
+    ) -> Result<Option<CompileMeta>, CompileError> {
         let item = Item::of(item);
 
         if let Some(meta) = self.unit.borrow().lookup_meta(&item) {
@@ -285,7 +289,7 @@ impl Query {
         };
 
         let meta = match indexed {
-            Indexed::Enum => Meta::Enum {
+            Indexed::Enum => CompileMeta::Enum {
                 value_type: Type::Hash(Hash::type_hash(&item)),
                 item: item.clone(),
             },
@@ -303,7 +307,7 @@ impl Query {
                     source_id,
                 });
 
-                Meta::Function {
+                CompileMeta::Function {
                     value_type: Type::Hash(Hash::type_hash(&item)),
                     item: item.clone(),
                 }
@@ -317,7 +321,7 @@ impl Query {
                     source_id,
                 });
 
-                Meta::Closure {
+                CompileMeta::Closure {
                     value_type: Type::Hash(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
@@ -332,7 +336,7 @@ impl Query {
                     source_id,
                 });
 
-                Meta::AsyncBlock {
+                CompileMeta::AsyncBlock {
                     value_type: Type::Hash(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
@@ -355,40 +359,40 @@ impl Query {
         body: ast::DeclStructBody,
         enum_item: Option<Item>,
         source: Arc<Source>,
-    ) -> Result<Meta, CompileError> {
+    ) -> Result<CompileMeta, CompileError> {
         let value_type = Type::Hash(Hash::type_hash(item));
 
         Ok(match body {
             ast::DeclStructBody::EmptyBody(..) => {
-                let tuple = MetaTuple {
+                let tuple = CompileMetaTuple {
                     item: item.clone(),
                     args: 0,
                     hash: Hash::type_hash(item),
                 };
 
                 match enum_item {
-                    Some(enum_item) => Meta::VariantTuple {
+                    Some(enum_item) => CompileMeta::TupleVariant {
                         value_type,
                         enum_item,
                         tuple,
                     },
-                    None => Meta::Tuple { value_type, tuple },
+                    None => CompileMeta::Tuple { value_type, tuple },
                 }
             }
             ast::DeclStructBody::TupleBody(tuple) => {
-                let tuple = MetaTuple {
+                let tuple = CompileMetaTuple {
                     item: item.clone(),
                     args: tuple.fields.len(),
                     hash: Hash::type_hash(item),
                 };
 
                 match enum_item {
-                    Some(enum_item) => Meta::VariantTuple {
+                    Some(enum_item) => CompileMeta::TupleVariant {
                         value_type,
                         enum_item,
                         tuple,
                     },
-                    None => Meta::Tuple { value_type, tuple },
+                    None => CompileMeta::Tuple { value_type, tuple },
                 }
             }
             ast::DeclStructBody::StructBody(st) => {
@@ -399,18 +403,18 @@ impl Query {
                     fields.insert(ident.to_owned());
                 }
 
-                let object = MetaStruct {
+                let object = CompileMetaStruct {
                     item: item.clone(),
                     fields: Some(fields),
                 };
 
                 match enum_item {
-                    Some(enum_item) => Meta::VariantStruct {
+                    Some(enum_item) => CompileMeta::StructVariant {
                         value_type,
                         enum_item,
                         object,
                     },
-                    None => Meta::Struct { value_type, object },
+                    None => CompileMeta::Struct { value_type, object },
                 }
             }
         })

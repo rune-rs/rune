@@ -27,7 +27,7 @@ impl TypedTuple {
 
 /// A tuple with a well-defined type as a variant of an enum.
 #[derive(Debug)]
-pub struct VariantTuple {
+pub struct TupleVariant {
     /// The type hash of the enum.
     pub(crate) enum_hash: Hash,
     /// The variant type hash of the tuple.
@@ -36,7 +36,7 @@ pub struct VariantTuple {
     pub(crate) tuple: Box<[Value]>,
 }
 
-impl VariantTuple {
+impl TupleVariant {
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Hash(self.enum_hash)
@@ -128,7 +128,7 @@ pub enum Value {
     /// A tuple with a well-defined type.
     TypedTuple(Shared<TypedTuple>),
     /// A tuple variant with a well-defined type.
-    VariantTuple(Shared<VariantTuple>),
+    TupleVariant(Shared<TupleVariant>),
     /// An object with a well-defined type.
     TypedObject(Shared<TypedObject>),
     /// An object variant with a well-defined type.
@@ -160,7 +160,7 @@ impl Value {
 
     /// Construct a typed tuple.
     pub fn variant_tuple(enum_hash: Hash, hash: Hash, vec: Vec<Value>) -> Self {
-        Self::VariantTuple(Shared::new(VariantTuple {
+        Self::TupleVariant(Shared::new(TupleVariant {
             enum_hash,
             hash,
             tuple: vec.into_boxed_slice(),
@@ -417,7 +417,7 @@ impl Value {
                 Type::Hash(object.enum_hash)
             }
             Self::TypedTuple(tuple) => Type::Hash(tuple.borrow_ref()?.hash),
-            Self::VariantTuple(tuple) => {
+            Self::TupleVariant(tuple) => {
                 let tuple = tuple.borrow_ref()?;
                 Type::Hash(tuple.enum_hash)
             }
@@ -451,7 +451,7 @@ impl Value {
             Self::TypedObject(object) => object.borrow_ref()?.type_info(),
             Self::VariantObject(object) => object.borrow_ref()?.type_info(),
             Self::TypedTuple(tuple) => tuple.borrow_ref()?.type_info(),
-            Self::VariantTuple(tuple) => tuple.borrow_ref()?.type_info(),
+            Self::TupleVariant(tuple) => tuple.borrow_ref()?.type_info(),
             Self::Any(any) => TypeInfo::Any(any.borrow_ref()?.type_name()),
         })
     }
@@ -590,7 +590,7 @@ impl fmt::Debug for Value {
             Value::TypedTuple(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::VariantTuple(value) => {
+            Value::TupleVariant(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::TypedObject(value) => {
@@ -658,7 +658,7 @@ impl_from_shared!(Shared<GeneratorState>, GeneratorState);
 impl_from!(Shared<Option<Value>>, Option);
 impl_from!(Shared<Result<Value, Value>>, Result);
 impl_from_shared!(Shared<TypedTuple>, TypedTuple);
-impl_from_shared!(Shared<VariantTuple>, VariantTuple);
+impl_from_shared!(Shared<TupleVariant>, TupleVariant);
 impl_from_shared!(Shared<TypedObject>, TypedObject);
 impl_from_shared!(Shared<VariantObject>, VariantObject);
 impl_from_shared!(Shared<Function>, Function);

@@ -75,7 +75,7 @@ impl ser::Serialize for Value {
                 <Option<Value>>::serialize(&*option, serializer)
             }
             Value::TypedTuple(..) => Err(ser::Error::custom("cannot serialize tuple types")),
-            Value::VariantTuple(..) => Err(ser::Error::custom("cannot serialize variant tuples")),
+            Value::TupleVariant(..) => Err(ser::Error::custom("cannot serialize variant tuples")),
             Value::TypedObject(..) => Err(ser::Error::custom("cannot serialize object types")),
             Value::VariantObject(..) => Err(ser::Error::custom("cannot serialize variant objects")),
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),

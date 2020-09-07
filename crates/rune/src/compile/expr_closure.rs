@@ -3,13 +3,13 @@ use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::traits::Compile;
 use crate::{traits::Resolve as _, CompileError};
-use runestick::{Hash, Inst, Meta, MetaClosureCapture};
+use runestick::{CompileMeta, CompileMetaCapture, Hash, Inst};
 
 /// Compile the body of a closure function.
-impl Compile<(ast::ExprClosure, &[MetaClosureCapture])> for Compiler<'_> {
+impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
     fn compile(
         &mut self,
-        (expr_closure, captures): (ast::ExprClosure, &[MetaClosureCapture]),
+        (expr_closure, captures): (ast::ExprClosure, &[CompileMetaCapture]),
     ) -> CompileResult<()> {
         let span = expr_closure.span();
         log::trace!("ExprClosure => {:?}", self.source.source(span));
@@ -83,7 +83,7 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
                 })?;
 
         let captures = match meta {
-            Meta::Closure { captures, .. } => captures,
+            CompileMeta::Closure { captures, .. } => captures,
             meta => {
                 return Err(CompileError::UnsupportedMetaClosure { meta, span });
             }

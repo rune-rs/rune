@@ -2,7 +2,7 @@
 
 use crate::collections::{HashMap, HashSet};
 use crate::error::CompileError;
-use runestick::{MetaClosureCapture, Span};
+use runestick::{CompileMetaCapture, Span};
 use std::rc::Rc;
 use std::{cell::RefCell, mem::ManuallyDrop};
 
@@ -80,7 +80,7 @@ pub struct IndexClosure {
     is_async: bool,
     /// Variables which could not be found in the immediate scope, and
     /// marked as needed to be captured from the outer scope.
-    captures: Vec<MetaClosureCapture>,
+    captures: Vec<CompileMetaCapture>,
     existing: HashSet<String>,
     scope: IndexScope,
     generator: bool,
@@ -109,7 +109,7 @@ pub(crate) struct Function {
 }
 
 pub(crate) struct Closure {
-    pub(crate) captures: Vec<MetaClosureCapture>,
+    pub(crate) captures: Vec<CompileMetaCapture>,
     pub(crate) generator: bool,
     pub(crate) is_async: bool,
     #[allow(dead_code)]
@@ -221,7 +221,7 @@ impl IndexScopes {
         // mark all traversed closures to capture the given variable.
         if found {
             for closure in closures {
-                closure.captures.push(MetaClosureCapture {
+                closure.captures.push(CompileMetaCapture {
                     ident: var.to_owned(),
                 });
 

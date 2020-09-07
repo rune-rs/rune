@@ -44,7 +44,7 @@ fn drop_impl(value: Value) -> Result<(), VmError> {
         Value::TypedTuple(tuple) => {
             tuple.take()?;
         }
-        Value::VariantTuple(tuple) => {
+        Value::TupleVariant(tuple) => {
             tuple.take()?;
         }
         Value::Object(object) => {
@@ -105,7 +105,7 @@ fn is_readable(value: Value) -> bool {
         Value::Vec(vec) => vec.is_readable(),
         Value::Tuple(tuple) => tuple.is_readable(),
         Value::TypedTuple(tuple) => tuple.is_readable(),
-        Value::VariantTuple(tuple) => tuple.is_readable(),
+        Value::TupleVariant(tuple) => tuple.is_readable(),
         Value::Object(object) => object.is_readable(),
         Value::TypedObject(object) => object.is_readable(),
         Value::VariantObject(object) => object.is_readable(),
@@ -121,7 +121,7 @@ fn is_writable(value: Value) -> bool {
         Value::Vec(vec) => vec.is_writable(),
         Value::Tuple(tuple) => tuple.is_writable(),
         Value::TypedTuple(tuple) => tuple.is_writable(),
-        Value::VariantTuple(tuple) => tuple.is_writable(),
+        Value::TupleVariant(tuple) => tuple.is_writable(),
         Value::Object(object) => object.is_writable(),
         Value::TypedObject(object) => object.is_writable(),
         Value::VariantObject(object) => object.is_writable(),

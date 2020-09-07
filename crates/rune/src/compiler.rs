@@ -4,8 +4,8 @@ use crate::error::CompileError;
 use crate::traits::{Compile as _, Resolve as _};
 use crate::SourceId;
 use runestick::{
-    Assembly, Component, Context, ImportKey, Inst, Item, Label, Meta, Source, Span, TypeCheck,
-    UnitBuilder,
+    Assembly, CompileMeta, Component, Context, ImportKey, Inst, Item, Label, Source, Span,
+    TypeCheck, UnitBuilder,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -377,7 +377,7 @@ pub(crate) struct Compiler<'a> {
 
 impl<'a> Compiler<'a> {
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&mut self, name: &Item, span: Span) -> CompileResult<Option<Meta>> {
+    pub fn lookup_meta(&mut self, name: &Item, span: Span) -> CompileResult<Option<CompileMeta>> {
         log::trace!("lookup meta: {}", name);
 
         if let Some(meta) = self.context.lookup_meta(name) {
@@ -434,15 +434,15 @@ impl<'a> Compiler<'a> {
     /// Compile an item.
     pub(crate) fn compile_meta(
         &mut self,
-        meta: &Meta,
+        meta: &CompileMeta,
         span: Span,
         needs: Needs,
     ) -> CompileResult<()> {
-        log::trace!("Meta => {:?} {:?}", meta, needs);
+        log::trace!("CompileMeta => {:?} {:?}", meta, needs);
 
         while let Needs::Value = needs {
             match meta {
-                Meta::Tuple { tuple, .. } if tuple.args == 0 => {
+                CompileMeta::Tuple { tuple, .. } if tuple.args == 0 => {
                     self.asm.push_with_comment(
                         Inst::Call {
                             hash: tuple.hash,
@@ -452,7 +452,7 @@ impl<'a> Compiler<'a> {
                         format!("tuple `{}`", tuple.item),
                     );
                 }
-                Meta::VariantTuple {
+                CompileMeta::TupleVariant {
                     enum_item, tuple, ..
                 } if tuple.args == 0 => {
                     self.asm.push_with_comment(
@@ -464,14 +464,14 @@ impl<'a> Compiler<'a> {
                         format!("tuple variant `{}::{}`", enum_item, tuple.item),
                     );
                 }
-                Meta::Tuple { tuple, .. } => {
+                CompileMeta::Tuple { tuple, .. } => {
                     self.asm.push_with_comment(
                         Inst::Fn { hash: tuple.hash },
                         span,
                         format!("tuple `{}`", tuple.item),
                     );
                 }
-                Meta::VariantTuple {
+                CompileMeta::TupleVariant {
                     enum_item, tuple, ..
                 } => {
                     self.asm.push_with_comment(
@@ -480,7 +480,7 @@ impl<'a> Compiler<'a> {
                         format!("tuple variant `{}::{}`", enum_item, tuple.item),
                     );
                 }
-                Meta::Function {
+                CompileMeta::Function {
                     value_type, item, ..
                 } => {
                     let hash = value_type.as_type_hash();
@@ -656,13 +656,13 @@ impl<'a> Compiler<'a> {
             let (tuple, meta, type_check) =
                 if let Some(meta) = self.lookup_meta(&item, path.span())? {
                     match &meta {
-                        Meta::Tuple {
+                        CompileMeta::Tuple {
                             tuple, value_type, ..
                         } => {
                             let type_check = TypeCheck::Type(value_type.as_type_hash());
                             (tuple.clone(), meta, type_check)
                         }
-                        Meta::VariantTuple {
+                        CompileMeta::TupleVariant {
                             tuple, value_type, ..
                         } => {
                             let type_check = TypeCheck::Variant(value_type.as_type_hash());
@@ -773,13 +773,13 @@ impl<'a> Compiler<'a> {
                 };
 
                 let (object, type_check) = match &meta {
-                    Meta::Struct {
+                    CompileMeta::Struct {
                         object, value_type, ..
                     } => {
                         let type_check = TypeCheck::Type(value_type.as_type_hash());
                         (object, type_check)
                     }
-                    Meta::VariantStruct {
+                    CompileMeta::StructVariant {
                         object, value_type, ..
                     } => {
                         let type_check = TypeCheck::Variant(value_type.as_type_hash());
@@ -865,15 +865,15 @@ impl<'a> Compiler<'a> {
         &mut self,
         scope: &mut Scope,
         span: Span,
-        meta: &Meta,
+        meta: &CompileMeta,
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> CompileResult<bool> {
         let (tuple, type_check) = match meta {
-            Meta::Tuple {
+            CompileMeta::Tuple {
                 tuple, value_type, ..
             } if tuple.args == 0 => (tuple, TypeCheck::Type(value_type.as_type_hash())),
-            Meta::VariantTuple {
+            CompileMeta::TupleVariant {
                 tuple, value_type, ..
             } if tuple.args == 0 => (tuple, TypeCheck::Variant(value_type.as_type_hash())),
             _ => return Ok(false),
