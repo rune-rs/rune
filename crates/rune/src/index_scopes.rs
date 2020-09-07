@@ -149,6 +149,7 @@ enum IndexScopeLevel {
 }
 
 /// An indexing scope.
+#[derive(Debug)]
 pub struct IndexScopes {
     levels: Rc<RefCell<Vec<IndexScopeLevel>>>,
 }

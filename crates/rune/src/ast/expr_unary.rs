@@ -1,8 +1,6 @@
 use crate::ast;
 use crate::ast::expr::{EagerBrace, ExprChain};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{Parse, ParseError, Parser};
 use runestick::Span;
 use std::fmt;
 
@@ -16,6 +14,8 @@ pub struct ExprUnary {
     /// The expression of the operation.
     pub expr: Box<ast::Expr>,
 }
+
+into_tokens!(ExprUnary { token, expr });
 
 impl ExprUnary {
     /// Access the span of the expression.

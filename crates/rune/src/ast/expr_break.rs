@@ -5,6 +5,37 @@ use crate::parser::Parser;
 use crate::traits::{Parse, Peek};
 use runestick::Span;
 
+/// A return statement `break [expr]`.
+#[derive(Debug, Clone)]
+pub struct ExprBreak {
+    /// The return token.
+    pub break_: ast::Break,
+    /// An optional expression to break with.
+    pub expr: Option<ExprBreakValue>,
+}
+
+into_tokens!(ExprBreak { break_, expr });
+
+impl ExprBreak {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        if let Some(expr) = &self.expr {
+            self.break_.span().join(expr.span())
+        } else {
+            self.break_.span()
+        }
+    }
+}
+
+impl Parse for ExprBreak {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(Self {
+            break_: parser.parse()?,
+            expr: parser.parse()?,
+        })
+    }
+}
+
 /// Things that we can break on.
 #[derive(Debug, Clone)]
 pub enum ExprBreakValue {
@@ -13,6 +44,8 @@ pub enum ExprBreakValue {
     /// Break and jump to the given label.
     Label(ast::Label),
 }
+
+into_tokens_enum!(ExprBreakValue { Expr, Label });
 
 impl ExprBreakValue {
     /// Access the span of the expression.
@@ -41,34 +74,5 @@ impl Peek for ExprBreakValue {
             Some(Kind::Label) => true,
             _ => ast::Expr::peek(t1, t2),
         }
-    }
-}
-
-/// A return statement `break [expr]`.
-#[derive(Debug, Clone)]
-pub struct ExprBreak {
-    /// The return token.
-    pub break_: ast::Break,
-    /// An optional expression to break with.
-    pub expr: Option<ExprBreakValue>,
-}
-
-impl ExprBreak {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        if let Some(expr) = &self.expr {
-            self.break_.span().join(expr.span())
-        } else {
-            self.break_.span()
-        }
-    }
-}
-
-impl Parse for ExprBreak {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            break_: parser.parse()?,
-            expr: parser.parse()?,
-        })
     }
 }

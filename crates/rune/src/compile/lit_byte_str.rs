@@ -16,7 +16,7 @@ impl Compile<(&ast::LitByteStr, Needs)> for Compiler<'_> {
             return Ok(());
         }
 
-        let bytes = lit_byte_str.resolve(&*self.source)?;
+        let bytes = lit_byte_str.resolve(&self.storage, &*self.source)?;
         let slot = self.unit.borrow_mut().new_static_bytes(&*bytes)?;
         self.asm.push(Inst::Bytes { slot }, span);
         Ok(())

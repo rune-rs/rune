@@ -27,7 +27,8 @@ impl Compile<&ast::ExprBreak> for Compiler<'_> {
                 }
                 ast::ExprBreakValue::Label(label) => {
                     let (last_loop, to_drop) =
-                        self.loops.walk_until_label(&*self.source, *label)?;
+                        self.loops
+                            .walk_until_label(self.storage, &*self.source, *label)?;
                     (last_loop, to_drop, false)
                 }
             }

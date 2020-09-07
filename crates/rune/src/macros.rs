@@ -2,7 +2,8 @@
 
 use crate::error::CompileResult;
 use crate::{
-    ast, CompileError, MacroContext, Options, Parse, ParseError, Parser, TokenStream, UnitBuilder,
+    ast, CompileError, MacroContext, Options, Parse, ParseError, Parser, Storage, TokenStream,
+    UnitBuilder,
 };
 use runestick::{Context, Hash, Item, Source, Span};
 use std::cell::RefCell;
@@ -10,6 +11,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
+    pub(crate) storage: Storage,
     pub(crate) item: Item,
     pub(crate) macro_context: &'a mut MacroContext,
     pub(crate) options: &'a Options,
@@ -20,7 +22,7 @@ pub(crate) struct MacroCompiler<'a> {
 
 impl MacroCompiler<'_> {
     /// Compile the given macro into the given output type.
-    pub(crate) fn eval_macro<T>(&mut self, expr_call_macro: ast::ExprCallMacro) -> CompileResult<T>
+    pub(crate) fn eval_macro<T>(&mut self, expr_call_macro: ast::MacroCall) -> CompileResult<T>
     where
         T: Parse,
     {
@@ -33,10 +35,12 @@ impl MacroCompiler<'_> {
             ));
         }
 
-        let item =
-            self.unit
-                .borrow()
-                .convert_path(&self.item, &expr_call_macro.path, &*self.source)?;
+        let item = self.unit.borrow().convert_path(
+            &self.item,
+            &expr_call_macro.path,
+            &self.storage,
+            &*self.source,
+        )?;
         let hash = Hash::type_hash(&item);
 
         let handler = match self.context.lookup_macro(hash) {

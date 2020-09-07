@@ -5,11 +5,10 @@ use crate::traits::Compile;
 use crate::{traits::Resolve as _, CompileError};
 use runestick::Inst;
 
-impl Compile<(ast::DeclFn, bool)> for Compiler<'_> {
-    fn compile(&mut self, (fn_decl, instance_fn): (ast::DeclFn, bool)) -> CompileResult<()> {
+impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
+    fn compile(&mut self, (fn_decl, instance_fn): (ast::ItemFn, bool)) -> CompileResult<()> {
         let span = fn_decl.span();
-        log::trace!("DeclFn => {:?}", self.source.source(span));
-        let _guard = self.items.push_block();
+        log::trace!("ItemFn => {:?}", self.source.source(span));
 
         let mut first = true;
 
@@ -27,8 +26,8 @@ impl Compile<(ast::DeclFn, bool)> for Compiler<'_> {
                 }
                 ast::FnArg::Ident(ident) => {
                     let span = ident.span();
-                    let name = ident.resolve(&*self.source)?;
-                    self.scopes.last_mut(span)?.new_var(name, span)?;
+                    let name = ident.resolve(&self.storage, &*self.source)?;
+                    self.scopes.last_mut(span)?.new_var(name.as_ref(), span)?;
                 }
                 ast::FnArg::Ignore(ignore) => {
                     let span = ignore.span();
@@ -39,22 +38,22 @@ impl Compile<(ast::DeclFn, bool)> for Compiler<'_> {
             first = false;
         }
 
-        if fn_decl.body.exprs.is_empty() && fn_decl.body.trailing_expr.is_none() {
+        if fn_decl.body.statements.is_empty() {
+            let total_var_count = self.scopes.last(span)?.total_var_count;
+            self.locals_pop(total_var_count, span);
             self.asm.push(Inst::ReturnUnit, span);
             return Ok(());
         }
 
-        for (expr, _) in &fn_decl.body.exprs {
-            self.compile((expr, Needs::None))?;
-        }
-
-        if let Some(expr) = &fn_decl.body.trailing_expr {
-            self.compile((&**expr, Needs::Value))?;
+        if !fn_decl.body.produces_nothing() {
+            self.compile((&fn_decl.body, Needs::Value))?;
 
             let total_var_count = self.scopes.last(span)?.total_var_count;
             self.locals_clean(total_var_count, span);
             self.asm.push(Inst::Return, span);
         } else {
+            self.compile((&fn_decl.body, Needs::None))?;
+
             let total_var_count = self.scopes.last(span)?.total_var_count;
             self.locals_pop(total_var_count, span);
             self.asm.push(Inst::ReturnUnit, span);

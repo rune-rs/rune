@@ -15,6 +15,8 @@ pub struct ExprAwait {
     pub await_: Await,
 }
 
+into_tokens!(ExprAwait { expr, dot, await_ });
+
 impl ExprAwait {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

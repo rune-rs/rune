@@ -17,6 +17,13 @@ pub struct ExprLet {
     pub expr: Box<Expr>,
 }
 
+into_tokens!(ExprLet {
+    let_,
+    pat,
+    eq,
+    expr
+});
+
 impl ExprLet {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

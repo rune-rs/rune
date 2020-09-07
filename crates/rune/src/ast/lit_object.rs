@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Resolve};
+use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -32,6 +30,15 @@ impl Parse for LitObjectIdent {
             ast::Kind::Hash => Self::Anonymous(parser.parse()?),
             _ => Self::Named(parser.parse()?),
         })
+    }
+}
+
+impl IntoTokens for LitObjectIdent {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        match self {
+            LitObjectIdent::Anonymous(hash) => hash.into_tokens(context, stream),
+            LitObjectIdent::Named(path) => path.into_tokens(context, stream),
+        }
     }
 }
 
@@ -90,6 +97,13 @@ impl Parse for LitObjectFieldAssign {
     }
 }
 
+impl IntoTokens for LitObjectFieldAssign {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.key.into_tokens(context, stream);
+        self.assign.into_tokens(context, stream);
+    }
+}
+
 /// Possible literal object keys.
 #[derive(Debug, Clone)]
 pub enum LitObjectKey {
@@ -125,7 +139,7 @@ impl Parse for LitObjectKey {
 
         Ok(match token.kind {
             ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
-            ast::Kind::Ident => Self::Ident(parser.parse()?),
+            ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
             _ => {
                 return Err(ParseError::ExpectedLitObjectKey {
                     actual: token.kind,
@@ -139,11 +153,20 @@ impl Parse for LitObjectKey {
 impl<'a> Resolve<'a> for LitObjectKey {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, source: &'a Source) -> Result<Self::Output, ParseError> {
+    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ParseError> {
         Ok(match self {
-            Self::LitStr(lit_str) => lit_str.resolve(source)?,
-            Self::Ident(ident) => Cow::Borrowed(ident.resolve(source)?),
+            Self::LitStr(lit_str) => lit_str.resolve(storage, source)?,
+            Self::Ident(ident) => ident.resolve(storage, source)?,
         })
+    }
+}
+
+impl IntoTokens for LitObjectKey {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        match self {
+            LitObjectKey::LitStr(s) => s.into_tokens(context, stream),
+            LitObjectKey::Ident(ident) => ident.into_tokens(context, stream),
+        }
     }
 }
 
@@ -228,5 +251,18 @@ impl Parse for LitObject {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let ident = parser.parse()?;
         Self::parse_with_ident(parser, ident)
+    }
+}
+
+impl IntoTokens for LitObject {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.ident.into_tokens(context, stream);
+        self.open.into_tokens(context, stream);
+
+        for assign in &self.assignments {
+            assign.into_tokens(context, stream);
+        }
+
+        self.close.into_tokens(context, stream);
     }
 }

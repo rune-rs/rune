@@ -18,6 +18,15 @@ pub struct ExprIndexSet {
     pub value: Box<Expr>,
 }
 
+into_tokens!(ExprIndexSet {
+    target,
+    open,
+    index,
+    close,
+    eq,
+    value
+});
+
 impl ExprIndexSet {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

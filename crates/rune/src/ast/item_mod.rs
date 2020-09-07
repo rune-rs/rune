@@ -1,21 +1,19 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Peek};
+use crate::{IntoTokens, Parse, ParseError, Parser, Peek};
 use runestick::Span;
 
 /// A module declaration.
 #[derive(Debug, Clone)]
-pub struct DeclMod {
+pub struct ItemMod {
     /// The `mod` keyword.
     pub mod_: ast::Mod,
     /// The name of the mod.
     pub name: ast::Ident,
     /// The optional body of the module declaration.
-    pub body: Option<DeclModBody>,
+    pub body: Option<ItemModBody>,
 }
 
-impl DeclMod {
+impl ItemMod {
     /// The span of the declaration.
     pub fn span(&self) -> Span {
         if let Some(body) = &self.body {
@@ -31,7 +29,7 @@ impl DeclMod {
     }
 }
 
-impl Parse for DeclMod {
+impl Parse for ItemMod {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(Self {
             mod_: parser.parse()?,
@@ -41,25 +39,33 @@ impl Parse for DeclMod {
     }
 }
 
+impl IntoTokens for ItemMod {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.mod_.into_tokens(context, stream);
+        self.name.into_tokens(context, stream);
+        self.body.into_tokens(context, stream);
+    }
+}
+
 /// A module declaration.
 #[derive(Debug, Clone)]
-pub struct DeclModBody {
+pub struct ItemModBody {
     /// The open brace.
     pub open: ast::OpenBrace,
     /// A nested "file" declaration.
-    pub file: Box<ast::DeclFile>,
+    pub file: Box<ast::File>,
     /// The close brace.
     pub close: ast::CloseBrace,
 }
 
-impl DeclModBody {
+impl ItemModBody {
     /// The span of the body.
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
     }
 }
 
-impl Parse for DeclModBody {
+impl Parse for ItemModBody {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(Self {
             open: parser.parse()?,
@@ -69,8 +75,16 @@ impl Parse for DeclModBody {
     }
 }
 
-impl Peek for DeclModBody {
+impl Peek for ItemModBody {
     fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         ast::OpenBrace::peek(t1, t2)
+    }
+}
+
+impl IntoTokens for ItemModBody {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.open.into_tokens(context, stream);
+        self.file.into_tokens(context, stream);
+        self.close.into_tokens(context, stream);
     }
 }

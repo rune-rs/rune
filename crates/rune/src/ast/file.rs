@@ -1,13 +1,11 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{IntoTokens, Parse, ParseError, Parser};
 
 /// A parsed file.
 #[derive(Debug, Clone)]
-pub struct DeclFile {
+pub struct File {
     /// All the declarations in a file.
-    pub decls: Vec<(ast::Decl, Option<ast::SemiColon>)>,
+    pub decls: Vec<(ast::Item, Option<ast::SemiColon>)>,
 }
 
 /// Parse a file.
@@ -17,7 +15,7 @@ pub struct DeclFile {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::DeclFile>(r#"
+/// parse_all::<ast::File>(r#"
 /// use foo;
 ///
 /// fn foo() {
@@ -37,7 +35,7 @@ pub struct DeclFile {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::DeclFile>(r#"
+/// parse_all::<ast::File>(r#"
 /// use http;
 ///
 /// fn main() {
@@ -49,12 +47,12 @@ pub struct DeclFile {
 /// ```
 // TODO: this is a false positive: https://github.com/rust-lang/rust-clippy/issues/5879
 #[allow(clippy::needless_doctest_main)]
-impl Parse for DeclFile {
+impl Parse for File {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let mut decls = Vec::new();
 
-        while parser.peek::<ast::Decl>()? {
-            let decl: ast::Decl = parser.parse()?;
+        while parser.peek::<ast::Item>()? {
+            let decl: ast::Item = parser.parse()?;
 
             let semi_colon = if decl.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {
                 Some(parser.parse::<ast::SemiColon>()?)
@@ -66,5 +64,11 @@ impl Parse for DeclFile {
         }
 
         Ok(Self { decls })
+    }
+}
+
+impl IntoTokens for File {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.decls.into_tokens(context, stream);
     }
 }

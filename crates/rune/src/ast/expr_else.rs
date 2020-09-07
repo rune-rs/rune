@@ -13,6 +13,8 @@ pub struct ExprElse {
     pub block: Box<ExprBlock>,
 }
 
+into_tokens!(ExprElse { else_, block });
+
 impl ExprElse {
     /// Access the span for the expression.
     pub fn span(&self) -> Span {

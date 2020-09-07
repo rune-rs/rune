@@ -16,7 +16,7 @@ impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {
             return Ok(());
         }
 
-        let template = lit_template.resolve(&*self.source)?;
+        let template = lit_template.resolve(&self.storage, &*self.source)?;
 
         if !template.has_expansions {
             self.warnings

@@ -1,26 +1,22 @@
-use crate::assembly::Assembly;
 use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileError;
-use crate::traits::{Compile as _, Resolve as _};
-use crate::unit_builder::UnitBuilder;
-use crate::{MacroContext, SourceId};
+use crate::error::CompileResult;
+use crate::index_scopes::IndexScopes;
+use crate::items::Items;
+use crate::loops::Loops;
+use crate::query::{Build, BuildEntry, Query};
+use crate::scopes::{Scope, ScopeGuard, Scopes};
+use crate::traits::Compile as _;
+use crate::worker::{Expanded, IndexAst, Task, Worker};
+use crate::{
+    Assembly, LoadError, LoadErrorKind, Options, Resolve as _, Sources, Storage, UnitBuilder,
+    Warnings,
+};
 use runestick::{CompileMeta, Context, Inst, Item, Label, Source, Span, TypeCheck};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
-
-use crate::error::CompileResult;
-use crate::index::{Index, Indexer, Macro, MacroKind};
-use crate::index_scopes::IndexScopes;
-use crate::items::Items;
-use crate::load_error::{LoadError, LoadErrorKind};
-use crate::loops::Loops;
-use crate::options::Options;
-use crate::query::{Build, BuildEntry, Query};
-use crate::scopes::{Scope, ScopeGuard, Scopes};
-use crate::sources::Sources;
-use crate::warning::Warnings;
 use std::sync::Arc;
 
 /// A needs hint for an expression.
@@ -59,16 +55,9 @@ pub fn compile_with_options(
     unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
 ) -> Result<(), LoadError> {
-    // Imports to process.
-    let mut imports = VecDeque::new();
-    // Macros to expand.
-    let mut macros = VecDeque::new();
-    // Query system to populate.
-    let mut query = Query::new(unit.clone());
-    // Files loaded while loading modules.
-    let mut loaded = HashMap::<Item, (SourceId, Span)>::new();
-    // Expanded expressions.
-    let mut expanded_expr = HashMap::new();
+    // Global storage.
+    let storage = Storage::new();
+    let mut queue = VecDeque::new();
 
     while let Some((item, source_id)) = sources.next_source() {
         let source = match sources.get(source_id).cloned() {
@@ -76,7 +65,7 @@ pub fn compile_with_options(
             None => return Err(LoadError::internal("missing queued source by id")),
         };
 
-        let file = match crate::parse_all::<ast::DeclFile>(source.as_str()) {
+        let file = match crate::parse_all::<ast::File>(source.as_str()) {
             Ok(file) => file,
             Err(error) => {
                 return Err(LoadError::from(LoadErrorKind::ParseError {
@@ -86,121 +75,45 @@ pub fn compile_with_options(
             }
         };
 
-        let mut indexer = Indexer {
-            loaded: &mut loaded,
-            query: &mut query,
-            imports: &mut imports,
-            macros: &mut macros,
-            sources,
+        let items = Items::new(item.clone().into_vec());
+
+        queue.push_back(Task::Index {
+            item,
+            items,
             source_id,
             source,
-            warnings,
-            items: Items::new(item.into_vec()),
             scopes: IndexScopes::new(),
-            impl_items: Vec::new(),
-        };
-
-        if let Err(error) = indexer.index(&file) {
-            return Err(LoadError::from(LoadErrorKind::CompileError {
-                source_id,
-                error,
-            }));
-        }
+            impl_items: Default::default(),
+            ast: IndexAst::File(file),
+        });
     }
 
-    loop {
-        while let Some(import) = imports.pop_front() {
-            let source_id = import.source_id;
+    // The worker queue.
+    let mut worker = Worker::new(
+        queue,
+        context,
+        sources,
+        options,
+        unit.clone(),
+        warnings,
+        storage.clone(),
+    );
 
-            if let Err(error) = import.process(context, &mut *unit.borrow_mut()) {
-                return Err(LoadError::from(LoadErrorKind::CompileError {
-                    error,
-                    source_id,
-                }));
-            }
-        }
-
-        if let Some(m) = macros.pop_front() {
-            let Macro {
-                items,
-                ast,
-                source,
-                source_id,
-                scopes,
-                impl_items,
-                kind,
-            } = m;
-
-            let item = items.item();
-
-            let mut macro_context = MacroContext::new(source.clone());
-
-            let mut compiler = crate::macros::MacroCompiler {
-                item: item.clone(),
-                macro_context: &mut macro_context,
-                options,
-                context,
-                unit: unit.clone(),
-                source: source.clone(),
-            };
-
-            // index the newly added macros.
-            let mut indexer = Indexer {
-                loaded: &mut loaded,
-                query: &mut query,
-                imports: &mut imports,
-                macros: &mut macros,
-                sources,
-                source_id,
-                source,
-                warnings,
-                items,
-                scopes,
-                impl_items,
-            };
-
-            match kind {
-                MacroKind::Expr => {
-                    let expr = match compiler.eval_macro::<ast::Expr>(ast) {
-                        Ok(expr) => expr,
-                        Err(error) => {
-                            return Err(LoadError::from(LoadErrorKind::CompileError {
-                                source_id,
-                                error,
-                            }));
-                        }
-                    };
-
-                    if let Err(error) = indexer.index(&expr) {
-                        return Err(LoadError::from(LoadErrorKind::CompileError {
-                            source_id,
-                            error,
-                        }));
-                    }
-
-                    expanded_expr.insert(item, expr);
-                }
-            }
-
-            continue;
-        }
-
-        break;
-    }
-
+    worker.run()?;
     verify_imports(context, &mut *unit.borrow_mut())?;
 
-    while let Some(entry) = query.queue.pop_front() {
+    while let Some(entry) = worker.query.queue.pop_front() {
         let source_id = entry.source_id;
 
         if let Err(error) = compile_entry(
             context,
             options,
+            &storage,
             unit,
-            warnings,
-            &mut query,
+            worker.warnings,
+            &mut worker.query,
             entry,
-            &expanded_expr,
+            &worker.expanded,
         ) {
             return Err(LoadError::from(LoadErrorKind::CompileError {
                 source_id,
@@ -215,11 +128,12 @@ pub fn compile_with_options(
 fn compile_entry(
     context: &Context,
     options: &Options,
+    storage: &Storage,
     unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
     query: &mut Query,
     entry: BuildEntry,
-    expanded_exprs: &HashMap<Item, ast::Expr>,
+    expanded: &HashMap<Item, Expanded>,
 ) -> Result<(), CompileError> {
     let BuildEntry {
         item,
@@ -231,6 +145,7 @@ fn compile_entry(
     let mut asm = unit.borrow().new_assembly(source_id);
 
     let mut compiler = Compiler {
+        storage,
         source_id,
         source: source.clone(),
         context,
@@ -243,12 +158,12 @@ fn compile_entry(
         loops: Loops::new(),
         options,
         warnings,
-        expanded_exprs,
+        expanded,
     };
 
     match build {
         Build::Function(f) => {
-            let args = format_fn_args(&*source, f.ast.args.items.iter().map(|(a, _)| a))?;
+            let args = format_fn_args(storage, &*source, f.ast.args.items.iter().map(|(a, _)| a))?;
 
             let span = f.ast.span();
             let count = f.ast.args.items.len();
@@ -259,14 +174,14 @@ fn compile_entry(
                 .new_function(source_id, item, count, asm, f.call, args)?;
         }
         Build::InstanceFunction(f) => {
-            let args = format_fn_args(&*source, f.ast.args.items.iter().map(|(a, _)| a))?;
+            let args = format_fn_args(storage, &*source, f.ast.args.items.iter().map(|(a, _)| a))?;
 
             let span = f.ast.span();
             let count = f.ast.args.items.len();
             compiler.contexts.push(span);
 
             let source = compiler.source.clone();
-            let name = f.ast.name.resolve(&*source)?;
+            let name = f.ast.name.resolve(storage, &*source)?;
 
             let meta = compiler
                 .lookup_meta(&f.impl_item, f.instance_span)?
@@ -285,11 +200,22 @@ fn compile_entry(
             compiler.compile((f.ast, true))?;
 
             unit.borrow_mut().new_instance_function(
-                source_id, item, value_type, name, count, asm, f.call, args,
+                source_id,
+                item,
+                value_type,
+                name.as_ref(),
+                count,
+                asm,
+                f.call,
+                args,
             )?;
         }
         Build::Closure(c) => {
-            let args = format_fn_args(&*source, c.ast.args.as_slice().iter().map(|(a, _)| a))?;
+            let args = format_fn_args(
+                storage,
+                &*source,
+                c.ast.args.as_slice().iter().map(|(a, _)| a),
+            )?;
 
             let span = c.ast.span();
             let count = c.ast.args.len();
@@ -303,7 +229,7 @@ fn compile_entry(
             let span = async_block.ast.span();
             let args = async_block.captures.len();
             compiler.contexts.push(span);
-            compiler.compile((async_block.ast, &async_block.captures[..]))?;
+            compiler.compile((&async_block.ast, &async_block.captures[..]))?;
 
             unit.borrow_mut().new_function(
                 source_id,
@@ -319,7 +245,11 @@ fn compile_entry(
     Ok(())
 }
 
-fn format_fn_args<'a, I>(source: &Source, arguments: I) -> Result<Vec<String>, CompileError>
+fn format_fn_args<'a, I>(
+    storage: &Storage,
+    source: &Source,
+    arguments: I,
+) -> Result<Vec<String>, CompileError>
 where
     I: IntoIterator<Item = &'a ast::FnArg>,
 {
@@ -334,7 +264,7 @@ where
                 args.push(String::from("_"));
             }
             ast::FnArg::Ident(ident) => {
-                args.push(ident.resolve(source)?.to_string());
+                args.push(ident.resolve(storage, source)?.to_string());
             }
         }
     }
@@ -374,10 +304,12 @@ pub(crate) struct Compiler<'a> {
     pub(crate) source_id: usize,
     /// The source we are compiling for.
     pub(crate) source: Arc<Source>,
+    /// The current macro context.
+    pub(crate) storage: &'a Storage,
     /// The context we are compiling for.
     context: &'a Context,
-    /// Expressions expanded in a macro.
-    pub(crate) expanded_exprs: &'a HashMap<Item, ast::Expr>,
+    /// Items expanded by macros.
+    pub(crate) expanded: &'a HashMap<Item, Expanded>,
     /// Query system to compile required items.
     pub(crate) query: &'a mut Query,
     /// The assembly we are generating.
@@ -536,7 +468,9 @@ impl<'a> Compiler<'a> {
     /// Convert a path to an item.
     pub(crate) fn convert_path_to_item(&self, path: &ast::Path) -> CompileResult<Item> {
         let base = self.items.item();
-        self.unit.borrow().convert_path(&base, path, &*self.source)
+        self.unit
+            .borrow()
+            .convert_path(&base, path, &self.storage, &*self.source)
     }
 
     pub(crate) fn compile_condition(
@@ -734,7 +668,7 @@ impl<'a> Compiler<'a> {
             let span = item.span();
 
             let source = self.source.clone();
-            let key = item.key.resolve(&*source)?;
+            let key = item.key.resolve(&self.storage, &*source)?;
             string_slots.push(self.unit.borrow_mut().new_static_string(&*key)?);
             keys.push(key.to_string());
 
@@ -789,7 +723,7 @@ impl<'a> Compiler<'a> {
 
                 for (field, _) in &pat_object.fields {
                     let span = field.key.span();
-                    let key = field.key.resolve(&*self.source)?;
+                    let key = field.key.resolve(&self.storage, &*self.source)?;
 
                     if !fields.contains(&*key) {
                         return Err(CompileError::LitObjectNotField {
@@ -840,8 +774,8 @@ impl<'a> Compiler<'a> {
             };
 
             load(&mut self.asm);
-            let name = ident.resolve(&*self.source)?;
-            scope.decl_var(name, span);
+            let name = ident.resolve(&self.storage, &*self.source)?;
+            scope.decl_var(name.as_ref(), span);
         }
 
         Ok(())
@@ -934,19 +868,19 @@ impl<'a> Compiler<'a> {
                 self.asm.push(Inst::IsUnit, unit.span());
             }
             ast::Pat::PatByte(lit_byte) => {
-                let byte = lit_byte.resolve(&*self.source)?;
+                let byte = lit_byte.resolve(&self.storage, &*self.source)?;
                 load(&mut self.asm);
                 self.asm.push(Inst::EqByte { byte }, lit_byte.span());
             }
             ast::Pat::PatChar(lit_char) => {
-                let character = lit_char.resolve(&*self.source)?;
+                let character = lit_char.resolve(&self.storage, &*self.source)?;
                 load(&mut self.asm);
                 self.asm
                     .push(Inst::EqCharacter { character }, lit_char.span());
             }
             ast::Pat::PatNumber(number_literal) => {
                 let span = number_literal.span();
-                let number = number_literal.resolve(&*self.source)?;
+                let number = number_literal.resolve(&self.storage, &*self.source)?;
 
                 let integer = match number {
                     ast::Number::Integer(integer) => integer,
@@ -960,7 +894,7 @@ impl<'a> Compiler<'a> {
             }
             ast::Pat::PatString(pat_string) => {
                 let span = pat_string.span();
-                let string = pat_string.resolve(&*self.source)?;
+                let string = pat_string.resolve(&self.storage, &*self.source)?;
                 let slot = self.unit.borrow_mut().new_static_string(&*string)?;
                 load(&mut self.asm);
                 self.asm.push(Inst::EqStaticString { slot }, span);

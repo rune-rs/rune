@@ -4,30 +4,30 @@ use runestick::Span;
 
 /// A struct declaration.
 #[derive(Debug, Clone)]
-pub struct DeclStruct {
+pub struct ItemStruct {
     /// The `struct` keyword.
     pub struct_: ast::Struct,
     /// The identifier of the struct declaration.
     pub ident: ast::Ident,
     /// The body of the struct.
-    pub body: DeclStructBody,
+    pub body: ItemStructBody,
 }
 
-impl DeclStruct {
+impl ItemStruct {
     /// Get the span for the declaration.
     pub fn span(&self) -> Span {
         let start = self.struct_.span();
 
         match &self.body {
-            DeclStructBody::EmptyBody(..) => start,
-            DeclStructBody::TupleBody(body) => start.join(body.span()),
-            DeclStructBody::StructBody(body) => start.join(body.span()),
+            ItemStructBody::EmptyBody(..) => start,
+            ItemStructBody::TupleBody(body) => start.join(body.span()),
+            ItemStructBody::StructBody(body) => start.join(body.span()),
         }
     }
 
     /// Indicates if the declaration needs a semi-colon or not.
     pub fn needs_semi_colon(&self) -> bool {
-        matches!(&self.body, DeclStructBody::EmptyBody(..))
+        matches!(&self.body, ItemStructBody::EmptyBody(..))
     }
 }
 
@@ -38,11 +38,11 @@ impl DeclStruct {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::DeclStruct>("struct Foo").unwrap();
-/// parse_all::<ast::DeclStruct>("struct Foo ( a, b, c )").unwrap();
-/// parse_all::<ast::DeclStruct>("struct Foo { a, b, c }").unwrap();
+/// parse_all::<ast::ItemStruct>("struct Foo").unwrap();
+/// parse_all::<ast::ItemStruct>("struct Foo ( a, b, c )").unwrap();
+/// parse_all::<ast::ItemStruct>("struct Foo { a, b, c }").unwrap();
 /// ```
-impl Parse for DeclStruct {
+impl Parse for ItemStruct {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         Ok(Self {
             struct_: parser.parse()?,
@@ -52,9 +52,17 @@ impl Parse for DeclStruct {
     }
 }
 
+impl IntoTokens for ItemStruct {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.struct_.into_tokens(context, stream);
+        self.ident.into_tokens(context, stream);
+        self.body.into_tokens(context, stream);
+    }
+}
+
 /// A struct declaration.
 #[derive(Debug, Clone)]
-pub enum DeclStructBody {
+pub enum ItemStructBody {
     /// An empty struct declaration.
     EmptyBody(EmptyBody),
     /// A tuple struct body.
@@ -70,11 +78,11 @@ pub enum DeclStructBody {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::DeclStructBody>("").unwrap();
-/// parse_all::<ast::DeclStructBody>("( a, b, c )").unwrap();
-/// parse_all::<ast::DeclStructBody>("{ a, b, c }").unwrap();
+/// parse_all::<ast::ItemStructBody>("").unwrap();
+/// parse_all::<ast::ItemStructBody>("( a, b, c )").unwrap();
+/// parse_all::<ast::ItemStructBody>("{ a, b, c }").unwrap();
 /// ```
-impl Parse for DeclStructBody {
+impl Parse for ItemStructBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let token = parser.token_peek()?;
 
@@ -86,14 +94,14 @@ impl Parse for DeclStructBody {
     }
 }
 
-impl IntoTokens for &DeclStructBody {
-    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
+impl IntoTokens for ItemStructBody {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         match self {
-            DeclStructBody::EmptyBody(..) => (),
-            DeclStructBody::TupleBody(body) => {
+            ItemStructBody::EmptyBody(..) => (),
+            ItemStructBody::TupleBody(body) => {
                 body.into_tokens(context, stream);
             }
-            DeclStructBody::StructBody(body) => {
+            ItemStructBody::StructBody(body) => {
                 body.into_tokens(context, stream);
             }
         }
@@ -180,8 +188,8 @@ impl Parse for TupleBody {
     }
 }
 
-impl IntoTokens for &TupleBody {
-    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
+impl IntoTokens for TupleBody {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         self.open.into_tokens(context, stream);
 
         for (field, comma) in &self.fields {
@@ -254,8 +262,8 @@ impl Parse for StructBody {
     }
 }
 
-impl IntoTokens for &StructBody {
-    fn into_tokens(self, context: &mut MacroContext, stream: &mut TokenStream) {
+impl IntoTokens for StructBody {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         self.open.into_tokens(context, stream);
 
         for (field, comma) in &self.fields {

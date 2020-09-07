@@ -1,4 +1,4 @@
-use crate::ast::{CloseParen, Expr, OpenParen};
+use crate::ast;
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::Parse;
@@ -8,12 +8,14 @@ use runestick::Span;
 #[derive(Debug, Clone)]
 pub struct ExprGroup {
     /// The open parenthesis.
-    pub open: OpenParen,
+    pub open: ast::OpenParen,
     /// The grouped expression.
-    pub expr: Box<Expr>,
+    pub expr: Box<ast::Expr>,
     /// The close parenthesis.
-    pub close: CloseParen,
+    pub close: ast::CloseParen,
 }
+
+into_tokens!(ExprGroup { open, expr, close });
 
 impl ExprGroup {
     /// Access the span of the expression.

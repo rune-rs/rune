@@ -14,7 +14,7 @@ impl Drop for Guard {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Node {
     children: usize,
     component: Component,
@@ -30,6 +30,7 @@ impl From<Component> for Node {
 }
 
 /// Manage item paths.
+#[derive(Debug)]
 pub(super) struct Items {
     path: Rc<RefCell<Vec<Node>>>,
 }
@@ -141,5 +142,11 @@ impl Items {
     pub fn item(&self) -> Item {
         let path = self.path.borrow();
         Item::of(path.iter().map(|n| &n.component))
+    }
+
+    /// Pop the last component.
+    pub fn pop(&self) -> Option<Component> {
+        let mut path = self.path.borrow_mut();
+        Some(path.pop()?.component)
     }
 }

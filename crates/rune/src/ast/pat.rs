@@ -1,8 +1,5 @@
 use crate::ast;
-use crate::ast::{Delimiter, Kind, Token};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Peek};
+use crate::{Parse, ParseError, Parser, Peek};
 use runestick::Span;
 
 /// A pattern match.
@@ -30,6 +27,19 @@ pub enum Pat {
     PatObject(ast::PatObject),
 }
 
+into_tokens_enum!(Pat {
+    PatIgnore,
+    PatPath,
+    PatUnit,
+    PatByte,
+    PatChar,
+    PatNumber,
+    PatString,
+    PatVec,
+    PatTuple,
+    PatObject
+});
+
 impl Pat {
     /// Get the span of the pattern.
     pub fn span(&self) -> Span {
@@ -54,19 +64,19 @@ impl Pat {
         if let Some(token) = parser.token_peek()? {
             match token.kind {
                 ast::Kind::ColonColon
-                | Kind::Open(Delimiter::Parenthesis)
-                | Kind::Open(Delimiter::Brace) => {
+                | ast::Kind::Open(ast::Delimiter::Parenthesis)
+                | ast::Kind::Open(ast::Delimiter::Brace) => {
                     let path = ast::Path::parse_with_first(parser, first)?;
 
                     if let Some(t) = parser.token_peek()? {
                         match t.kind {
-                            ast::Kind::Open(Delimiter::Parenthesis) => {
+                            ast::Kind::Open(ast::Delimiter::Parenthesis) => {
                                 return Ok(Self::PatTuple(ast::PatTuple::parse_with_path(
                                     parser,
                                     Some(path),
                                 )?));
                             }
-                            ast::Kind::Open(Delimiter::Brace) => {
+                            ast::Kind::Open(ast::Delimiter::Brace) => {
                                 let ident = ast::LitObjectIdent::Named(path);
 
                                 return Ok(Self::PatObject(ast::PatObject::parse_with_ident(
@@ -112,21 +122,21 @@ impl Parse for Pat {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            ast::Kind::Open(Delimiter::Parenthesis) => {
+            ast::Kind::Open(ast::Delimiter::Parenthesis) => {
                 if parser.peek::<ast::LitUnit>()? {
                     Self::PatUnit(parser.parse()?)
                 } else {
                     Self::PatTuple(parser.parse()?)
                 }
             }
-            ast::Kind::Open(Delimiter::Bracket) => Self::PatVec(parser.parse()?),
+            ast::Kind::Open(ast::Delimiter::Bracket) => Self::PatVec(parser.parse()?),
             ast::Kind::Hash => Self::PatObject(parser.parse()?),
             ast::Kind::LitByte { .. } => Self::PatByte(parser.parse()?),
             ast::Kind::LitChar { .. } => Self::PatChar(parser.parse()?),
             ast::Kind::LitNumber { .. } => Self::PatNumber(parser.parse()?),
             ast::Kind::LitStr { .. } => Self::PatString(parser.parse()?),
             ast::Kind::Underscore => Self::PatIgnore(parser.parse()?),
-            ast::Kind::Ident => Self::parse_ident(parser)?,
+            ast::Kind::Ident(..) => Self::parse_ident(parser)?,
             _ => {
                 return Err(ParseError::ExpectedPatError {
                     span: token.span,
@@ -138,22 +148,22 @@ impl Parse for Pat {
 }
 
 impl Peek for Pat {
-    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
+    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
         let t1 = match t1 {
             Some(t1) => t1,
             None => return false,
         };
 
         match t1.kind {
-            ast::Kind::Open(Delimiter::Parenthesis) => true,
-            ast::Kind::Open(Delimiter::Bracket) => true,
+            ast::Kind::Open(ast::Delimiter::Parenthesis) => true,
+            ast::Kind::Open(ast::Delimiter::Bracket) => true,
             ast::Kind::Hash => true,
             ast::Kind::LitByte { .. } => true,
             ast::Kind::LitChar { .. } => true,
             ast::Kind::LitNumber { .. } => true,
             ast::Kind::LitStr { .. } => true,
             ast::Kind::Underscore => true,
-            ast::Kind::Ident => true,
+            ast::Kind::Ident(..) => true,
             _ => false,
         }
     }

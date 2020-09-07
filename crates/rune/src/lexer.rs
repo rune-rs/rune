@@ -17,21 +17,21 @@ impl<'a> Lexer<'a> {
     ///
     /// ```rust
     /// use rune::Lexer;
-    /// use rune::ast::{Kind, Token};
+    /// use rune::ast;
     /// use runestick::Span;
     ///
     /// assert_eq! {
     ///     Lexer::new("fn").next().unwrap().unwrap(),
-    ///     Token {
-    ///         kind: Kind::Fn,
+    ///     ast::Token {
+    ///         kind: ast::Kind::Fn,
     ///         span: Span { start: 0, end: 2 },
     ///     }
     /// };
     ///
     /// assert_eq! {
     ///     Lexer::new("name").next().unwrap().unwrap(),
-    ///     Token {
-    ///         kind: Kind::Ident,
+    ///     ast::Token {
+    ///         kind: ast::Kind::Ident(ast::IdentKind::Source),
     ///         span: Span { start: 0, end: 4 },
     ///     }
     /// };
@@ -83,6 +83,11 @@ impl<'a> Lexer<'a> {
 
         let ident = &self.source[start..self.cursor];
 
+        let span = Span {
+            start,
+            end: self.cursor,
+        };
+
         let kind = match ident {
             "self" => ast::Kind::Self_,
             "macro" => ast::Kind::Macro,
@@ -111,16 +116,10 @@ impl<'a> Lexer<'a> {
             "default" => ast::Kind::Default,
             "impl" => ast::Kind::Impl,
             "mod" => ast::Kind::Mod,
-            _ => ast::Kind::Ident,
+            _ => ast::Kind::Ident(ast::IdentKind::Source),
         };
 
-        Ok(Some(ast::Token {
-            kind,
-            span: Span {
-                start,
-                end: self.cursor,
-            },
-        }))
+        Ok(Some(ast::Token { kind, span }))
     }
 
     /// Consume a number literal.
@@ -791,7 +790,7 @@ mod tests {
             "a.checked_div(10)",
             ast::Token {
                 span: Span::new(0, 1),
-                kind: ast::Kind::Ident,
+                kind: ast::Kind::Ident(ast::IdentKind::Source),
             },
             ast::Token {
                 span: Span::new(1, 2),
@@ -799,7 +798,7 @@ mod tests {
             },
             ast::Token {
                 span: Span::new(2, 13),
-                kind: ast::Kind::Ident,
+                kind: ast::Kind::Ident(ast::IdentKind::Source),
             },
             ast::Token {
                 span: Span::new(13, 14),

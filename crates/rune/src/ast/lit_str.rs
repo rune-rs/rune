@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Resolve};
+use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -47,8 +45,9 @@ impl LitStr {
 impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
+    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
         let span = self.token.span.narrow(1);
+
         let string = source
             .source(span)
             .ok_or_else(|| ParseError::BadSlice { span })?;
@@ -82,5 +81,11 @@ impl Parse for LitStr {
                 span: token.span,
             }),
         }
+    }
+}
+
+impl IntoTokens for LitStr {
+    fn into_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        stream.push(self.token);
     }
 }

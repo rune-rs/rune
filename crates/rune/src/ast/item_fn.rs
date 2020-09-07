@@ -2,12 +2,12 @@ use crate::ast;
 use crate::ast::{Kind, Token};
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::traits::{Parse, Peek};
+use crate::{IntoTokens, Parse, Peek};
 use runestick::Span;
 
 /// A function.
 #[derive(Debug, Clone)]
-pub struct DeclFn {
+pub struct ItemFn {
     /// The optional `async` keyword.
     pub async_: Option<ast::Async>,
     /// The `fn` token.
@@ -17,10 +17,10 @@ pub struct DeclFn {
     /// The arguments of the function.
     pub args: ast::Parenthesized<ast::FnArg, ast::Comma>,
     /// The body of the function.
-    pub body: ast::ExprBlock,
+    pub body: ast::Block,
 }
 
-impl DeclFn {
+impl ItemFn {
     /// Get the identifying span for this function.
     pub fn item_span(&self) -> Span {
         if let Some(async_) = &self.async_ {
@@ -45,7 +45,7 @@ impl DeclFn {
     }
 }
 
-impl Peek for DeclFn {
+impl Peek for ItemFn {
     fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
         let t = match t1 {
             Some(t) => t,
@@ -63,16 +63,16 @@ impl Peek for DeclFn {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::DeclFn>("async fn hello() {}").unwrap();
-/// assert!(parse_all::<ast::DeclFn>("fn async hello() {}").is_err());
+/// parse_all::<ast::ItemFn>("async fn hello() {}").unwrap();
+/// assert!(parse_all::<ast::ItemFn>("fn async hello() {}").is_err());
 ///
-/// let item = parse_all::<ast::DeclFn>("fn hello() {}").unwrap();
+/// let item = parse_all::<ast::ItemFn>("fn hello() {}").unwrap();
 /// assert_eq!(item.args.items.len(), 0);
 ///
-/// let item = parse_all::<ast::DeclFn>("fn hello(foo, bar) {}").unwrap();
+/// let item = parse_all::<ast::ItemFn>("fn hello(foo, bar) {}").unwrap();
 /// assert_eq!(item.args.items.len(), 2);
 /// ```
-impl Parse for DeclFn {
+impl Parse for ItemFn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         Ok(Self {
             async_: parser.parse()?,
@@ -81,5 +81,15 @@ impl Parse for DeclFn {
             args: parser.parse()?,
             body: parser.parse()?,
         })
+    }
+}
+
+impl IntoTokens for ItemFn {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.async_.into_tokens(context, stream);
+        self.fn_.into_tokens(context, stream);
+        self.name.into_tokens(context, stream);
+        self.args.into_tokens(context, stream);
+        self.body.into_tokens(context, stream);
     }
 }

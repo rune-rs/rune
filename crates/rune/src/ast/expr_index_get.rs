@@ -14,6 +14,13 @@ pub struct ExprIndexGet {
     pub close: CloseBracket,
 }
 
+into_tokens!(ExprIndexGet {
+    target,
+    open,
+    index,
+    close
+});
+
 impl ExprIndexGet {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

@@ -13,6 +13,8 @@ pub struct ExprReturn {
     pub expr: Option<Box<ast::Expr>>,
 }
 
+into_tokens!(ExprReturn { return_, expr });
+
 impl ExprReturn {
     /// Access the span of the expression.
     pub fn span(&self) -> Span {

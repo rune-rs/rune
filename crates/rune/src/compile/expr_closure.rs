@@ -25,8 +25,8 @@ impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
                         return Err(CompileError::UnsupportedSelf { span: s.span() })
                     }
                     ast::FnArg::Ident(ident) => {
-                        let ident = ident.resolve(&*self.source)?;
-                        scope.new_var(ident, span)?;
+                        let ident = ident.resolve(&self.storage, &*self.source)?;
+                        scope.new_var(ident.as_ref(), span)?;
                     }
                     ast::FnArg::Ignore(..) => {
                         // Ignore incoming variable.

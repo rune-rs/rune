@@ -42,7 +42,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                         self.scopes.decl_anon(span)?;
                     }
 
-                    let ident = ident.resolve(&*self.source)?;
+                    let ident = ident.resolve(&self.storage, &*self.source)?;
                     let hash = Hash::of(ident);
                     self.asm.push(Inst::CallInstance { hash, args }, span);
                 }

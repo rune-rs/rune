@@ -5,59 +5,6 @@ use crate::parser::Parser;
 use crate::traits::Parse;
 use runestick::Span;
 
-/// A match branch.
-#[derive(Debug, Clone)]
-pub struct ExprMatchBranch {
-    /// The pattern to match.
-    pub pat: Pat,
-    /// The branch condition.
-    pub condition: Option<(If, Box<Expr>)>,
-    /// The rocket token.
-    pub rocket: Rocket,
-    /// The body of the match.
-    pub body: Box<Expr>,
-}
-
-impl ExprMatchBranch {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.pat.span().join(self.body.span())
-    }
-
-    /// Test if the branch produces nothing.
-    pub fn produces_nothing(&self) -> bool {
-        self.body.produces_nothing()
-    }
-}
-
-/// Parse a match statement.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// parse_all::<ast::ExprMatchBranch>("1 => { foo }").unwrap();
-/// ```
-impl Parse for ExprMatchBranch {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let pat = parser.parse()?;
-
-        let condition = if parser.peek::<If>()? {
-            Some((parser.parse()?, Box::new(parser.parse()?)))
-        } else {
-            None
-        };
-
-        Ok(Self {
-            pat,
-            condition,
-            rocket: parser.parse()?,
-            body: Box::new(parser.parse()?),
-        })
-    }
-}
-
 /// A match expression.
 #[derive(Debug, Clone)]
 pub struct ExprMatch {
@@ -72,6 +19,14 @@ pub struct ExprMatch {
     /// The close brace of the match.
     pub close: CloseBrace,
 }
+
+into_tokens!(ExprMatch {
+    match_,
+    expr,
+    open,
+    branches,
+    close
+});
 
 impl ExprMatch {
     /// Access the span of the expression.
@@ -123,6 +78,66 @@ impl Parse for ExprMatch {
             open,
             branches,
             close,
+        })
+    }
+}
+
+/// A match branch.
+#[derive(Debug, Clone)]
+pub struct ExprMatchBranch {
+    /// The pattern to match.
+    pub pat: Pat,
+    /// The branch condition.
+    pub condition: Option<(If, Box<Expr>)>,
+    /// The rocket token.
+    pub rocket: Rocket,
+    /// The body of the match.
+    pub body: Box<Expr>,
+}
+
+into_tokens!(ExprMatchBranch {
+    pat,
+    condition,
+    rocket,
+    body
+});
+
+impl ExprMatchBranch {
+    /// Access the span of the expression.
+    pub fn span(&self) -> Span {
+        self.pat.span().join(self.body.span())
+    }
+
+    /// Test if the branch produces nothing.
+    pub fn produces_nothing(&self) -> bool {
+        self.body.produces_nothing()
+    }
+}
+
+/// Parse a match statement.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::ExprMatchBranch>("1 => { foo }").unwrap();
+/// ```
+impl Parse for ExprMatchBranch {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let pat = parser.parse()?;
+
+        let condition = if parser.peek::<If>()? {
+            Some((parser.parse()?, Box::new(parser.parse()?)))
+        } else {
+            None
+        };
+
+        Ok(Self {
+            pat,
+            condition,
+            rocket: parser.parse()?,
+            body: Box::new(parser.parse()?),
         })
     }
 }
