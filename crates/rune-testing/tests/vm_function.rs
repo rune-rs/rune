@@ -49,4 +49,22 @@ fn test_function() {
     assert!(function.call::<_, Value>(()).is_err());
     let value: Value = function.call((1i64,)).unwrap();
     assert!(matches!(value, Value::TypedTuple(..)));
+
+    // non-capturing closure == free function
+    let function = rune! {
+        Function => r#"
+        fn main() { |a, b| a + b }
+        "#
+    };
+
+    assert!(function.call::<_, Value>((1i64,)).is_err());
+    let value: Value = function.call((1i64, 2i64)).unwrap();
+    assert!(matches!(value, Value::Integer(3)));
+
+    // closure with captures
+    let function: Function = run(&["main"], (1i64, 2i64), r#"fn main(a, b) { || a + b }"#).unwrap();
+
+    assert!(function.call::<_, Value>((1i64,)).is_err());
+    let value: Value = function.call(()).unwrap();
+    assert!(matches!(value, Value::Integer(3)));
 }
