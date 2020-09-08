@@ -30,3 +30,4 @@
   - [Safety](./safety.md)
   - [The stack](./the_stack.md)
   - [Call frames](./call_frames.md)
+  - [Compiler guide](./compiler_guide.md)
