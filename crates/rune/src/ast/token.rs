@@ -17,9 +17,30 @@ impl crate::IntoTokens for Token {
     }
 }
 
+/// A resolved number literal.
+#[derive(Debug, Clone, Copy)]
+pub enum Number {
+    /// A float literal number.
+    Float(f64),
+    /// An integer literal number.
+    Integer(i64),
+}
+
+impl From<f64> for Number {
+    fn from(value: f64) -> Self {
+        Self::Float(value)
+    }
+}
+
+impl From<i64> for Number {
+    fn from(value: i64) -> Self {
+        Self::Integer(value)
+    }
+}
+
 /// The kind of a number literal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum NumberKind {
+pub enum NumberBase {
     /// A decimal number literal, like `3.14`.
     Decimal,
     /// A hex literal, like `0xffff`.
@@ -30,7 +51,7 @@ pub enum NumberKind {
     Binary,
 }
 
-impl fmt::Display for NumberKind {
+impl fmt::Display for NumberBase {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::Decimal => write!(fmt, "decimal"),
@@ -43,11 +64,77 @@ impl fmt::Display for NumberKind {
 
 /// The kind of the identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum IdentKind {
-    /// The identifier is from the source.
-    Source,
+pub enum StringSource {
+    /// The identifier is from the source text.
+    Text,
     /// The identifier is synthetic (generated in a macro).
     Synthetic(usize),
+}
+
+/// The source of the literal string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LitStrSource {
+    /// The literal string source is from the source text.
+    Text(LitStrSourceText),
+    /// The string source is synthetic (generated in a macro).
+    Synthetic(usize),
+}
+
+/// Configuration for a literal string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LitStrSourceText {
+    /// Indicates if the string is escaped or not.
+    pub escaped: bool,
+}
+
+/// The source of the literal byte string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LitByteStrSource {
+    /// The literal source is from the source text.
+    Text(LitByteStrSourceText),
+    /// The source is synthetic (generated in a macro).
+    Synthetic(usize),
+}
+
+/// Configuration for a literal byte string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LitByteStrSourceText {
+    /// Indicates if the byte string is escaped or not.
+    pub escaped: bool,
+}
+
+/// The source of a number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NumberSource {
+    /// The number is from the source text (and need to be parsed while it's
+    /// being resolved).
+    Text(NumberSourceText),
+    /// The number is synthetic, and stored in the specified slot.
+    Synthetic(usize),
+}
+
+/// The source of an item that implements Copy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CopySource<T>
+where
+    T: Copy,
+{
+    /// The item is from the source text (and need to be parsed while it's being
+    /// resolved).
+    Text,
+    /// The char is inlined in the ast.
+    Inline(T),
+}
+
+/// Configuration of a text number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NumberSourceText {
+    /// Indicates if it's a decimal number.
+    pub is_fractional: bool,
+    /// Indicates if the number is negative.
+    pub is_negative: bool,
+    /// The number literal kind.
+    pub base: NumberBase,
 }
 
 /// A delimiter, `{`, `{`, or `[`.
@@ -138,44 +225,8 @@ pub enum Kind {
     Impl,
     /// The `mod` keyword.
     Mod,
-    /// An identifier.
-    Ident(IdentKind),
-    /// A label, like `'loop`.
-    Label,
-    /// A number literal, like `42` or `3.14` or `0xff`.
-    LitNumber {
-        /// Indicates if it's a decimal number.
-        is_fractional: bool,
-        /// Indicates if the number is negative.
-        is_negative: bool,
-        /// The number literal kind.
-        number: NumberKind,
-    },
-    /// A characer literal.
-    LitChar,
-    /// A byte literal.
-    LitByte,
-    /// A string literal, including escape sequences. Like `"hello\nworld"`.
-    LitStr {
-        /// If the string literal contains escapes.
-        escaped: bool,
-    },
-    /// A byte string literal, including escape sequences. Like `b"hello\nworld"`.
-    LitByteStr {
-        /// If the string literal contains escapes.
-        escaped: bool,
-    },
-    /// A template literal, including escape sequences. Like ``hello {name}``.
-    LitTemplate {
-        /// If the template contains escapes.
-        escaped: bool,
-    },
-    /// An open delimiter: `(`, `{`, or `[`.
-    Open(Delimiter),
-    /// A close delimiter: `)`, `}`, or `]`.
-    Close(Delimiter),
     /// `#`.
-    Hash,
+    Pound,
     /// `.`.
     Dot,
     /// `::`.
@@ -254,6 +305,26 @@ pub enum Kind {
     LtLtEq,
     /// `>>=`.
     GtGtEq,
+    /// An identifier.
+    Ident(StringSource),
+    /// A label, like `'loop`.
+    Label(StringSource),
+    /// A number literal, like `42` or `3.14` or `0xff`.
+    LitNumber(NumberSource),
+    /// A characer literal.
+    LitChar(CopySource<char>),
+    /// A byte literal.
+    LitByte(CopySource<u8>),
+    /// A string literal, including escape sequences. Like `"hello\nworld"`.
+    LitStr(LitStrSource),
+    /// A byte string literal, including escape sequences. Like `b"hello\nworld"`.
+    LitByteStr(LitByteStrSource),
+    /// A template literal, including escape sequences. Like ``hello {name}``.
+    LitTemplate(LitStrSource),
+    /// An open delimiter: `(`, `{`, or `[`.
+    Open(Delimiter),
+    /// A close delimiter: `)`, `}`, or `]`.
+    Close(Delimiter),
 }
 
 impl fmt::Display for Kind {
@@ -286,20 +357,10 @@ impl fmt::Display for Kind {
             Self::Default => write!(f, "default")?,
             Self::Impl => write!(f, "impl")?,
             Self::Mod => write!(f, "mod")?,
-            Self::Ident(..) => write!(f, "ident")?,
-            Self::Label => write!(f, "label")?,
-            Self::LitNumber { .. } => write!(f, "number")?,
-            Self::LitStr { .. } => write!(f, "string")?,
-            Self::LitByteStr { .. } => write!(f, "byte string")?,
-            Self::LitTemplate { .. } => write!(f, "template")?,
-            Self::LitChar { .. } => write!(f, "char")?,
-            Self::LitByte { .. } => write!(f, "byte")?,
-            Self::Open(delimiter) => write!(f, "{}", delimiter.open())?,
-            Self::Close(delimiter) => write!(f, "{}", delimiter.close())?,
             Self::Underscore => write!(f, "_")?,
             Self::Comma => write!(f, ",")?,
             Self::Colon => write!(f, ":")?,
-            Self::Hash => write!(f, "#")?,
+            Self::Pound => write!(f, "#")?,
             Self::Dot => write!(f, ".")?,
             Self::ColonColon => write!(f, "::")?,
             Self::SemiColon => write!(f, ";")?,
@@ -336,6 +397,16 @@ impl fmt::Display for Kind {
             Self::PipePipe => write!(f, "||")?,
             Self::Pipe => write!(f, "|")?,
             Self::Perc => write!(f, "%")?,
+            Self::Open(delimiter) => write!(f, "{}", delimiter.open())?,
+            Self::Close(delimiter) => write!(f, "{}", delimiter.close())?,
+            Self::Ident(..) => write!(f, "ident")?,
+            Self::Label(..) => write!(f, "label")?,
+            Self::LitNumber { .. } => write!(f, "number")?,
+            Self::LitStr { .. } => write!(f, "string")?,
+            Self::LitByteStr { .. } => write!(f, "byte string")?,
+            Self::LitTemplate { .. } => write!(f, "template")?,
+            Self::LitChar { .. } => write!(f, "char")?,
+            Self::LitByte { .. } => write!(f, "byte")?,
         }
 
         Ok(())

@@ -62,6 +62,7 @@ async fn main() -> Result<()> {
     let mut dump_functions = false;
     let mut dump_types = false;
     let mut help = false;
+    let mut experimental = false;
 
     let mut options = rune::Options::default();
 
@@ -88,6 +89,9 @@ async fn main() -> Result<()> {
             }
             "--dump-types" => {
                 dump_types = true;
+            }
+            "--experimental" => {
+                experimental = true;
             }
             "-O" => {
                 let opt = match args.next() {
@@ -126,6 +130,7 @@ async fn main() -> Result<()> {
         println!("  --dump-functions  - Dump available functions.");
         println!("  --dump-types      - Dump available types.");
         println!("  --no-linking      - Disable link time checks.");
+        println!("  --experimental    - Enabled experimental features.");
         println!();
         println!("Compiler options:");
         println!("  -O <option>       - Update the given compiler option.");
@@ -133,6 +138,7 @@ async fn main() -> Result<()> {
         println!("Available <option> arguments:");
         println!("  memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.");
         println!("  link-checks[=<true/false>] - Perform linker checks which makes sure that called functions exist.");
+        println!("  macros[=<true/false>] - Enable macros (experimental).");
         return Ok(());
     }
 
@@ -144,7 +150,11 @@ async fn main() -> Result<()> {
     };
 
     let mut context = rune::default_context()?;
-    context.install(&rune_macros::module()?)?;
+
+    if experimental {
+        context.install(&rune_macros::module()?)?;
+    }
+
     let context = Arc::new(context);
 
     let mut warnings = rune::Warnings::new();

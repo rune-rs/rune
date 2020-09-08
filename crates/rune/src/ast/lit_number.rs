@@ -2,23 +2,11 @@ use crate::ast;
 use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
 use runestick::{Source, Span};
 
-/// A resolved number literal.
-pub enum Number {
-    /// A float literal number.
-    Float(f64),
-    /// An integer literal number.
-    Integer(i64),
-}
-
 /// A number literal.
 #[derive(Debug, Clone)]
 pub struct LitNumber {
-    /// If the number is negative.
-    is_negative: bool,
-    /// Indicates if the number is fractional.
-    is_fractional: bool,
-    /// The kind of the number literal.
-    number: ast::NumberKind,
+    /// The source of the number.
+    source: ast::NumberSource,
     /// The token corresponding to the literal.
     token: ast::Token,
 }
@@ -47,17 +35,7 @@ impl Parse for LitNumber {
         let token = parser.token_next()?;
 
         Ok(match token.kind {
-            ast::Kind::LitNumber {
-                is_negative,
-                is_fractional,
-                number,
-                ..
-            } => LitNumber {
-                is_negative,
-                is_fractional,
-                number,
-                token,
-            },
+            ast::Kind::LitNumber(source) => LitNumber { source, token },
             _ => {
                 return Err(ParseError::ExpectedNumber {
                     actual: token.kind,
@@ -69,40 +47,54 @@ impl Parse for LitNumber {
 }
 
 impl<'a> Resolve<'a> for LitNumber {
-    type Output = Number;
+    type Output = ast::Number;
 
-    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<Number, ParseError> {
+    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<ast::Number, ParseError> {
         use num::{Num as _, ToPrimitive as _};
         use std::ops::Neg as _;
         use std::str::FromStr as _;
 
         let span = self.token.span;
 
+        let text = match self.source {
+            ast::NumberSource::Synthetic(id) => match storage.get_number(id) {
+                Some(number) => return Ok(number),
+                None => {
+                    return Err(ParseError::BadSyntheticId {
+                        kind: "number",
+                        id,
+                        span,
+                    });
+                }
+            },
+            ast::NumberSource::Text(text) => text,
+        };
+
         let string = source
             .source(span)
             .ok_or_else(|| ParseError::BadSlice { span })?;
 
-        let string = if self.is_negative {
+        let string = if text.is_negative {
             &string[1..]
         } else {
             string
         };
 
-        if self.is_fractional {
+        if text.is_fractional {
             let number = f64::from_str(string).map_err(err_span(span))?;
-            return Ok(Number::Float(number));
+            return Ok(ast::Number::Float(number));
         }
 
-        let (s, radix) = match self.number {
-            ast::NumberKind::Binary => (2, 2),
-            ast::NumberKind::Octal => (2, 8),
-            ast::NumberKind::Hex => (2, 16),
-            ast::NumberKind::Decimal => (0, 10),
+        let (s, radix) = match text.base {
+            ast::NumberBase::Binary => (2, 2),
+            ast::NumberBase::Octal => (2, 8),
+            ast::NumberBase::Hex => (2, 16),
+            ast::NumberBase::Decimal => (0, 10),
         };
 
         let number = num::BigUint::from_str_radix(&string[s..], radix).map_err(err_span(span))?;
 
-        let number = if self.is_negative {
+        let number = if text.is_negative {
             num::BigInt::from(number).neg().to_i64()
         } else {
             number.to_i64()
@@ -113,7 +105,7 @@ impl<'a> Resolve<'a> for LitNumber {
             None => return Err(ParseError::BadNumberOutOfBounds { span }),
         };
 
-        return Ok(Number::Integer(number));
+        return Ok(ast::Number::Integer(number));
 
         fn err_span<E>(span: Span) -> impl Fn(E) -> ParseError {
             move |_| ParseError::BadNumberLiteral { span }

@@ -25,6 +25,7 @@
 - [Closures](./closures.md)
 - [Asynchronous programming](./async.md)
   - [Streams](./streams.md)
+- [Macros](./macros.md)
 - [Advanced](./advanced.md)
   - [Safety](./safety.md)
   - [The stack](./the_stack.md)

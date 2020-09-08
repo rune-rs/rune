@@ -27,7 +27,7 @@ impl Parse for LitObjectIdent {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            ast::Kind::Hash => Self::Anonymous(parser.parse()?),
+            ast::Kind::Pound => Self::Anonymous(parser.parse()?),
             _ => Self::Named(parser.parse()?),
         })
     }

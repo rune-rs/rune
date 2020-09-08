@@ -2,13 +2,7 @@
 ///
 /// This has the ability to encode references.
 pub trait Args {
-    /// Encode arguments into a stack.
-    ///
-    /// # Safety
-    ///
-    /// This has the ability to encode references into the stack.
-    /// The caller must ensure that the stack is cleared with
-    /// [clear][Stack::clear] before the references are no longer valid.
+    /// Encode arguments onto a stack.
     fn into_stack(self, stack: &mut crate::Stack) -> Result<(), crate::VmError>;
 
     /// Convert arguments into a vector.

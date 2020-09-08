@@ -1,7 +1,7 @@
 //! AST for the Rune language.
 
-use crate::{Parse, ParseError, Parser, Peek, Resolve, Storage};
-use runestick::{Source, Span};
+use crate::{Parse, ParseError, Parser, Peek};
+use runestick::Span;
 
 mod block;
 mod condition;
@@ -42,6 +42,7 @@ mod item_impl;
 mod item_mod;
 mod item_struct;
 mod item_use;
+mod label;
 mod lit_bool;
 mod lit_byte;
 mod lit_byte_str;
@@ -104,11 +105,12 @@ pub use self::item_impl::ItemImpl;
 pub use self::item_mod::{ItemMod, ItemModBody};
 pub use self::item_struct::{EmptyBody, ItemStruct, ItemStructBody, StructBody, TupleBody};
 pub use self::item_use::{ItemUse, ItemUseComponent};
+pub use self::label::Label;
 pub use self::lit_bool::LitBool;
 pub use self::lit_byte::LitByte;
 pub use self::lit_byte_str::LitByteStr;
 pub use self::lit_char::LitChar;
-pub use self::lit_number::{LitNumber, Number};
+pub use self::lit_number::LitNumber;
 pub use self::lit_object::{LitObject, LitObjectFieldAssign, LitObjectIdent, LitObjectKey};
 pub use self::lit_str::LitStr;
 pub use self::lit_template::{LitTemplate, Template, TemplateComponent};
@@ -124,7 +126,10 @@ pub use self::pat_tuple::PatTuple;
 pub use self::pat_vec::PatVec;
 pub use self::path::Path;
 pub use self::stmt::Stmt;
-pub use self::token::{Delimiter, IdentKind, Kind, NumberKind, Token};
+pub use self::token::{
+    CopySource, Delimiter, Kind, LitByteStrSource, LitByteStrSourceText, LitStrSource,
+    LitStrSourceText, Number, NumberBase, NumberSource, NumberSourceText, StringSource, Token,
+};
 
 macro_rules! decl_tokens {
     ($(($parser:ident, $doc:expr, $($kind:tt)*),)*) => {
@@ -195,7 +200,6 @@ decl_tokens! {
     (Match, "The `match` keyword.", Kind::Match),
     (Else, "The `else` keyword.", Kind::Else),
     (Let, "The `let` keyword.", Kind::Let),
-    (Label, "A label, like `'foo`", Kind::Label),
     (Underscore, "The underscore `_`.", Kind::Underscore),
     (Comma, "A comma `,`.", Kind::Comma),
     (Colon, "A colon `:`.", Kind::Colon),
@@ -212,7 +216,7 @@ decl_tokens! {
     (Yield, "The `yield` keyword.", Kind::Yield),
     (Return, "The `return` keyword.", Kind::Return),
     (Rocket, "The rocket `=>`.", Kind::Rocket),
-    (Hash, "The hash `#`.", Kind::Hash),
+    (Hash, "The hash `#`.", Kind::Pound),
     (DotDot, "Two dots `..`.", Kind::DotDot),
     (Await, "The `await` keyword.", Kind::Await),
     (Async, "The `async` keyword.", Kind::Async),
@@ -226,18 +230,6 @@ decl_tokens! {
     (Mul, "Multiply `*` operator.", Kind::Star),
     (Mod, "The `mod` keyword.", Kind::Mod),
     (Bang, "The `!` operator.", Kind::Bang),
-}
-
-impl<'a> Resolve<'a> for Label {
-    type Output = &'a str;
-
-    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<&'a str, ParseError> {
-        let span = self.token.span;
-
-        source
-            .source(span.trim_start(1))
-            .ok_or_else(|| ParseError::BadSlice { span })
-    }
 }
 
 #[cfg(test)]

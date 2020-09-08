@@ -30,38 +30,19 @@
 //!
 //! Native macros for Rune.
 
-use rune::{MacroContext, TokenStream};
+use rune::ast;
+use rune::{MacroContext, Parser, TokenStream};
+
+mod stringy_math_macro;
 
 /// Implementation for the `passthrough!` macro.
 fn passthrough_impl(_: &mut MacroContext, stream: &TokenStream) -> runestick::Result<TokenStream> {
     Ok(stream.clone())
 }
 
-/// Implementation for the `test_add!` macro.
-fn test_add(ctx: &mut MacroContext, stream: &TokenStream) -> runestick::Result<TokenStream> {
-    use rune::ast;
-    use rune::Resolve as _;
-
-    let mut parser = rune::Parser::from_token_stream(stream);
-
-    let ident = parser.parse::<ast::Ident>()?;
-    let var = parser.parse::<ast::Ident>()?;
-    parser.parse_eof()?;
-
-    let ident = ident.resolve(ctx.storage(), ctx.source())?;
-
-    if ident != "please" {
-        return Err(runestick::Error::msg("you didn't ask nicely..."));
-    }
-
-    Ok(rune::quote!(ctx => || { #var + #var }))
-}
-
 /// Implementation for the `make_function!` macro.
 fn make_function(ctx: &mut MacroContext, stream: &TokenStream) -> runestick::Result<TokenStream> {
-    use rune::ast;
-
-    let mut parser = rune::Parser::from_token_stream(stream);
+    let mut parser = Parser::from_token_stream(stream);
 
     let ident = parser.parse::<ast::Ident>()?;
     let _ = parser.parse::<ast::Rocket>()?;
@@ -71,11 +52,12 @@ fn make_function(ctx: &mut MacroContext, stream: &TokenStream) -> runestick::Res
     Ok(rune::quote!(ctx => fn #ident() { #output }))
 }
 
-/// Construct the `http` module.
+/// Construct the `std::experimental` module, which contains experimental
+/// macros.
 pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["std", "experiments"]);
     module.macro_(&["passthrough"], passthrough_impl)?;
-    module.macro_(&["test_add"], test_add)?;
+    module.macro_(&["stringy_math"], stringy_math_macro::stringy_math)?;
     module.macro_(&["make_function"], make_function)?;
     Ok(module)
 }
