@@ -1,5 +1,6 @@
 //! A simple label used to jump to a code location.
 
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// A label that can be jumped to.
@@ -14,9 +15,32 @@ impl Label {
     pub fn new(name: &'static str, id: usize) -> Self {
         Self { name, id }
     }
+
+    /// Convert into owned label.
+    pub fn into_owned(self) -> DebugLabel {
+        DebugLabel {
+            name: self.name.to_owned(),
+            id: self.id,
+        }
+    }
 }
 
 impl fmt::Display for Label {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}_{}", self.name, self.id)
+    }
+}
+
+/// A label that can be jumped to.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DebugLabel {
+    /// The name of the label.
+    name: String,
+    /// The id of the label.
+    id: usize,
+}
+
+impl fmt::Display for DebugLabel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}_{}", self.name, self.id)
     }

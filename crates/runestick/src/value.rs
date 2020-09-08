@@ -391,37 +391,37 @@ impl Value {
     /// Get the type information for the current value.
     pub fn value_type(&self) -> Result<Type, VmError> {
         Ok(match self {
-            Self::Unit => Type::StaticType(crate::UNIT_TYPE),
-            Self::Bool(..) => Type::StaticType(crate::BOOL_TYPE),
-            Self::Byte(..) => Type::StaticType(crate::BYTE_TYPE),
-            Self::Char(..) => Type::StaticType(crate::CHAR_TYPE),
-            Self::Integer(..) => Type::StaticType(crate::INTEGER_TYPE),
-            Self::Float(..) => Type::StaticType(crate::FLOAT_TYPE),
-            Self::StaticString(..) => Type::StaticType(crate::STRING_TYPE),
-            Self::String(..) => Type::StaticType(crate::STRING_TYPE),
-            Self::Bytes(..) => Type::StaticType(crate::BYTES_TYPE),
-            Self::Vec(..) => Type::StaticType(crate::VEC_TYPE),
-            Self::Tuple(..) => Type::StaticType(crate::TUPLE_TYPE),
-            Self::Object(..) => Type::StaticType(crate::OBJECT_TYPE),
-            Self::Future(..) => Type::StaticType(crate::FUTURE_TYPE),
-            Self::Stream(..) => Type::StaticType(crate::STREAM_TYPE),
-            Self::Generator(..) => Type::StaticType(crate::GENERATOR_TYPE),
-            Self::GeneratorState(..) => Type::StaticType(crate::GENERATOR_STATE_TYPE),
-            Self::Result(..) => Type::StaticType(crate::RESULT_TYPE),
-            Self::Option(..) => Type::StaticType(crate::OPTION_TYPE),
-            Self::Function(..) => Type::StaticType(crate::FUNCTION_TYPE),
-            Self::Type(hash) => Type::Hash(*hash),
-            Self::TypedObject(object) => Type::Hash(object.borrow_ref()?.hash),
+            Self::Unit => Type::from(crate::UNIT_TYPE),
+            Self::Bool(..) => Type::from(crate::BOOL_TYPE),
+            Self::Byte(..) => Type::from(crate::BYTE_TYPE),
+            Self::Char(..) => Type::from(crate::CHAR_TYPE),
+            Self::Integer(..) => Type::from(crate::INTEGER_TYPE),
+            Self::Float(..) => Type::from(crate::FLOAT_TYPE),
+            Self::StaticString(..) => Type::from(crate::STRING_TYPE),
+            Self::String(..) => Type::from(crate::STRING_TYPE),
+            Self::Bytes(..) => Type::from(crate::BYTES_TYPE),
+            Self::Vec(..) => Type::from(crate::VEC_TYPE),
+            Self::Tuple(..) => Type::from(crate::TUPLE_TYPE),
+            Self::Object(..) => Type::from(crate::OBJECT_TYPE),
+            Self::Future(..) => Type::from(crate::FUTURE_TYPE),
+            Self::Stream(..) => Type::from(crate::STREAM_TYPE),
+            Self::Generator(..) => Type::from(crate::GENERATOR_TYPE),
+            Self::GeneratorState(..) => Type::from(crate::GENERATOR_STATE_TYPE),
+            Self::Result(..) => Type::from(crate::RESULT_TYPE),
+            Self::Option(..) => Type::from(crate::OPTION_TYPE),
+            Self::Function(..) => Type::from(crate::FUNCTION_TYPE),
+            Self::Type(hash) => Type::from(*hash),
+            Self::TypedObject(object) => Type::from(object.borrow_ref()?.hash),
             Self::VariantObject(object) => {
                 let object = object.borrow_ref()?;
-                Type::Hash(object.enum_hash)
+                Type::from(object.enum_hash)
             }
-            Self::TypedTuple(tuple) => Type::Hash(tuple.borrow_ref()?.hash),
+            Self::TypedTuple(tuple) => Type::from(tuple.borrow_ref()?.hash),
             Self::TupleVariant(tuple) => {
                 let tuple = tuple.borrow_ref()?;
-                Type::Hash(tuple.enum_hash)
+                Type::from(tuple.enum_hash)
             }
-            Self::Any(any) => Type::Hash(any.borrow_ref()?.type_hash()),
+            Self::Any(any) => Type::from(any.borrow_ref()?.type_hash()),
         })
     }
 

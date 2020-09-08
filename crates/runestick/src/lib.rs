@@ -97,7 +97,7 @@ pub use self::compile_meta::{
 };
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
-pub use self::label::Label;
+pub use self::label::{DebugLabel, Label};
 pub use self::module::{IntoInstFnHash, Module};
 pub use self::select::Select;
 pub use self::source::Source;

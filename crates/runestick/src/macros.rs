@@ -11,7 +11,7 @@ macro_rules! impl_external {
     ($external:ty) => {
         impl $crate::ValueType for $external {
             fn value_type() -> $crate::Type {
-                $crate::Type::Hash($crate::Hash::from_type_id(
+                $crate::Type::from($crate::Hash::from_type_id(
                     std::any::TypeId::of::<$external>(),
                 ))
             }
@@ -74,7 +74,7 @@ macro_rules! impl_static_type {
     (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {
         impl<$($p,)*> $crate::ValueType for $ty {
             fn value_type() -> $crate::Type {
-                $crate::Type::StaticType($static_type)
+                $crate::Type::from($static_type)
             }
 
             fn type_info() -> $crate::TypeInfo {
@@ -86,7 +86,7 @@ macro_rules! impl_static_type {
     ($ty:ty => $static_type:expr) => {
         impl $crate::ValueType for $ty {
             fn value_type() -> $crate::Type {
-                $crate::Type::StaticType($static_type)
+                $crate::Type::from($static_type)
             }
 
             fn type_info() -> $crate::TypeInfo {

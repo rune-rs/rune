@@ -1,7 +1,10 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// A span corresponding to a range in the source file being parsed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct Span {
     /// The start of the span in bytes.
     pub start: usize,

@@ -439,7 +439,7 @@ impl<'a> Compiler<'a> {
                 CompileMeta::Function {
                     value_type, item, ..
                 } => {
-                    let hash = value_type.as_type_hash();
+                    let hash = **value_type;
                     self.asm
                         .push_with_comment(Inst::Fn { hash }, span, format!("fn `{}`", item));
                 }
@@ -461,7 +461,7 @@ impl<'a> Compiler<'a> {
                 meta: meta.clone(),
             })?;
 
-        let hash = value_type.as_type_hash();
+        let hash = *value_type;
         self.asm.push(Inst::Type { hash }, span);
         Ok(())
     }
@@ -583,13 +583,13 @@ impl<'a> Compiler<'a> {
                         CompileMeta::Tuple {
                             tuple, value_type, ..
                         } => {
-                            let type_check = TypeCheck::Type(value_type.as_type_hash());
+                            let type_check = TypeCheck::Type(**value_type);
                             (tuple.clone(), meta, type_check)
                         }
                         CompileMeta::TupleVariant {
                             tuple, value_type, ..
                         } => {
-                            let type_check = TypeCheck::Variant(value_type.as_type_hash());
+                            let type_check = TypeCheck::Variant(**value_type);
                             (tuple.clone(), meta, type_check)
                         }
                         _ => return Err(CompileError::UnsupportedMetaPattern { meta, span }),
@@ -700,13 +700,13 @@ impl<'a> Compiler<'a> {
                     CompileMeta::Struct {
                         object, value_type, ..
                     } => {
-                        let type_check = TypeCheck::Type(value_type.as_type_hash());
+                        let type_check = TypeCheck::Type(**value_type);
                         (object, type_check)
                     }
                     CompileMeta::StructVariant {
                         object, value_type, ..
                     } => {
-                        let type_check = TypeCheck::Variant(value_type.as_type_hash());
+                        let type_check = TypeCheck::Variant(**value_type);
                         (object, type_check)
                     }
                     _ => {
@@ -796,10 +796,10 @@ impl<'a> Compiler<'a> {
         let (tuple, type_check) = match meta {
             CompileMeta::Tuple {
                 tuple, value_type, ..
-            } if tuple.args == 0 => (tuple, TypeCheck::Type(value_type.as_type_hash())),
+            } if tuple.args == 0 => (tuple, TypeCheck::Type(**value_type)),
             CompileMeta::TupleVariant {
                 tuple, value_type, ..
-            } if tuple.args == 0 => (tuple, TypeCheck::Variant(value_type.as_type_hash())),
+            } if tuple.args == 0 => (tuple, TypeCheck::Variant(**value_type)),
             _ => return Ok(false),
         };
 

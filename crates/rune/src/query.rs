@@ -291,7 +291,7 @@ impl Query {
 
         let meta = match indexed {
             Indexed::Enum => CompileMeta::Enum {
-                value_type: Type::Hash(Hash::type_hash(&item)),
+                value_type: Type::from(Hash::type_hash(&item)),
                 item: item.clone(),
             },
             Indexed::Variant(variant) => {
@@ -309,7 +309,7 @@ impl Query {
                 });
 
                 CompileMeta::Function {
-                    value_type: Type::Hash(Hash::type_hash(&item)),
+                    value_type: Type::from(Hash::type_hash(&item)),
                     item: item.clone(),
                 }
             }
@@ -323,7 +323,7 @@ impl Query {
                 });
 
                 CompileMeta::Closure {
-                    value_type: Type::Hash(Hash::type_hash(&item)),
+                    value_type: Type::from(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
                 }
@@ -338,7 +338,7 @@ impl Query {
                 });
 
                 CompileMeta::AsyncBlock {
-                    value_type: Type::Hash(Hash::type_hash(&item)),
+                    value_type: Type::from(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
                 }
@@ -361,7 +361,7 @@ impl Query {
         enum_item: Option<Item>,
         source: Arc<Source>,
     ) -> Result<CompileMeta, CompileError> {
-        let value_type = Type::Hash(Hash::type_hash(item));
+        let value_type = Type::from(Hash::type_hash(item));
 
         Ok(match body {
             ast::ItemStructBody::EmptyBody(..) => {

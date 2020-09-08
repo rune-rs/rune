@@ -1,9 +1,10 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// How the function is called.
 ///
 /// Async functions create a sub-context and immediately return futures.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Call {
     /// Function is `async` and returns a future that must be await:ed to make
     /// progress.

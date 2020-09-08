@@ -579,7 +579,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash: tuple.hash,
-                    value_type: Type::Hash(tuple.hash),
+                    value_type: Type::from(tuple.hash),
                 };
 
                 if self.types.insert(tuple.hash, info).is_some() {
@@ -618,7 +618,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash: tuple.hash,
-                    value_type: Type::Hash(enum_hash),
+                    value_type: Type::from(enum_hash),
                 };
 
                 if self.types.insert(tuple.hash, info).is_some() {
@@ -638,7 +638,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: Type::Hash(hash),
+                    value_type: Type::from(hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -657,7 +657,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: Type::Hash(enum_hash),
+                    value_type: Type::from(enum_hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -673,7 +673,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: Type::Hash(hash),
+                    value_type: Type::from(hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -838,7 +838,7 @@ impl UnitBuilder {
                 source_id,
                 span,
                 comment,
-                label,
+                label: label.map(Label::into_owned),
             });
         }
 

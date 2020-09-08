@@ -1,4 +1,5 @@
 use crate::{Component, Item, Type};
+use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
 use std::hash;
@@ -13,7 +14,7 @@ const GETTER: usize = 3;
 const OBJECT_KEYS: usize = 4;
 
 /// The hash of a primitive thing.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Hash(u64);
 

@@ -1,11 +1,12 @@
 //! Debug information for units.
 
 use crate::collections::HashMap;
-use crate::{Hash, Item, Label, Span};
+use crate::{DebugLabel, Hash, Item, Span};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Debug information about a unit.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct DebugInfo {
     /// Debug information on each instruction.
     pub instructions: Vec<DebugInst>,
@@ -30,7 +31,7 @@ impl DebugInfo {
 }
 
 /// Debug information for every instruction.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DebugInst {
     /// The file by id the instruction belongs to.
     pub source_id: usize,
@@ -39,11 +40,11 @@ pub struct DebugInst {
     /// The comment for the line.
     pub comment: Option<String>,
     /// Label associated with the location.
-    pub label: Option<Label>,
+    pub label: Option<DebugLabel>,
 }
 
 /// Debug information on function arguments.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum DebugArgs {
     /// A tuple, with the given number of arguments.
     TupleArgs(usize),
@@ -52,7 +53,7 @@ pub enum DebugArgs {
 }
 
 /// A description of a function signature.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DebugSignature {
     /// The path of the function.
     pub path: Item,

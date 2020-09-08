@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::convert;
 use std::fmt;
 
@@ -5,7 +6,7 @@ use std::fmt;
 ///
 /// This is made up of a collection of strings, like `["foo", "bar"]`.
 /// This is indicated in rune as `foo::bar`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Item {
     path: Vec<Component>,
 }
@@ -146,7 +147,7 @@ impl<'a> IntoIterator for &'a Item {
 }
 
 /// The component of an item.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Component {
     /// A regular string component.
     String(String),

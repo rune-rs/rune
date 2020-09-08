@@ -1,9 +1,10 @@
 use crate::Hash;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops;
 
 /// Struct representing a static string.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct StaticString {
     inner: String,
     hash: Hash,

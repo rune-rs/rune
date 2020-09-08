@@ -1378,7 +1378,7 @@ impl Vm {
             }
         };
 
-        Ok(a.value_type()? == hash)
+        Ok(*a.value_type()? == hash)
     }
 
     #[inline]

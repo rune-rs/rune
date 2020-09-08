@@ -440,7 +440,7 @@ async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value
                 .and_then(|debug| debug.instruction_at(vm.ip()));
 
             if let Some(inst) = debug_inst {
-                if let Some(label) = inst.label {
+                if let Some(label) = &inst.label {
                     writeln!(out, "{}:", label)?;
                 }
             }

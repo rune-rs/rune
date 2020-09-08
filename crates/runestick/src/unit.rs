@@ -5,11 +5,12 @@
 
 use crate::collections::HashMap;
 use crate::{Call, DebugInfo, Hash, Inst, StaticString, Type, VmError, VmErrorKind};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 
 /// Instructions from a single source file.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Unit {
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
@@ -129,7 +130,7 @@ impl Unit {
 }
 
 /// The kind and necessary information on registered functions.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum UnitFn {
     /// Offset to call a "real" function.
     Offset {
@@ -181,7 +182,7 @@ impl fmt::Display for UnitFn {
 }
 
 /// Type information on a unit.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UnitTypeInfo {
     /// A type declared in a unit.
     pub hash: Hash,

@@ -196,7 +196,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             });
 
             let meta = CompileMeta::Function {
-                value_type: Type::Hash(Hash::type_hash(&item)),
+                value_type: Type::from(Hash::type_hash(&item)),
                 item: item.clone(),
             };
 
@@ -214,7 +214,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 .unit
                 .borrow_mut()
                 .insert_meta(CompileMeta::Function {
-                    value_type: Type::Hash(Hash::type_hash(&item)),
+                    value_type: Type::from(Hash::type_hash(&item)),
                     item,
                 })?;
         } else {

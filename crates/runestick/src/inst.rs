@@ -1,10 +1,11 @@
 use crate::Hash;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Pre-canned panic reasons.
 ///
 /// To formulate a custom reason, use [crate::Panic::custom].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum PanicReason {
     /// Not implemented.
     NotImplemented,
@@ -40,7 +41,7 @@ impl fmt::Display for PanicReason {
 }
 
 /// An encoded type check.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum TypeCheck {
     /// Matches a unit type.
     Unit,
@@ -79,7 +80,7 @@ impl fmt::Display for TypeCheck {
 }
 
 /// An operation in the stack-based virtual machine.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Inst {
     /// Not operator. Takes a boolean from the top of the stack  and inverts its
     /// logical value.

@@ -94,13 +94,6 @@ pub enum ContextError {
         /// The instance type.
         instance_type: TypeInfo,
     },
-    /// Error raised when attempting to register a type that doesn't have a type
-    /// hash into a context.
-    #[error("type `{value_type}` cannot be defined dynamically")]
-    UnsupportedValueType {
-        /// The type we tried to register.
-        value_type: Type,
-    },
 }
 
 /// A function handler.
@@ -392,7 +385,7 @@ impl Context {
         self.install_type_info(
             hash,
             ContextTypeInfo {
-                type_check: TypeCheck::Type(value_type.as_type_hash()),
+                type_check: TypeCheck::Type(*value_type),
                 name: name.clone(),
                 value_type,
                 type_info: ty.type_info,
@@ -464,7 +457,7 @@ impl Context {
         self.meta.insert(
             name.clone(),
             CompileMeta::Function {
-                value_type: Type::Hash(hash),
+                value_type: Type::from(hash),
                 item: name.clone(),
             },
         );
@@ -553,7 +546,7 @@ impl Context {
             ContextTypeInfo {
                 type_check: TypeCheck::Unit,
                 name: item.clone(),
-                value_type: Type::StaticType(crate::UNIT_TYPE),
+                value_type: Type::from(crate::UNIT_TYPE),
                 type_info: TypeInfo::StaticType(crate::UNIT_TYPE),
             },
         )?;
@@ -579,7 +572,7 @@ impl Context {
         self.install_meta(
             enum_item.clone(),
             CompileMeta::Enum {
-                value_type: Type::StaticType(internal_enum.static_type),
+                value_type: Type::from(internal_enum.static_type),
                 item: enum_item.clone(),
             },
         )?;
@@ -589,7 +582,7 @@ impl Context {
             ContextTypeInfo {
                 type_check: TypeCheck::Type(internal_enum.static_type.hash),
                 name: enum_item.clone(),
-                value_type: Type::StaticType(internal_enum.static_type),
+                value_type: Type::from(internal_enum.static_type),
                 type_info: TypeInfo::StaticType(internal_enum.static_type),
             },
         )?;
@@ -603,7 +596,7 @@ impl Context {
                 ContextTypeInfo {
                     type_check: variant.type_check,
                     name: item.clone(),
-                    value_type: Type::Hash(hash),
+                    value_type: Type::from(hash),
                     type_info: TypeInfo::StaticType(internal_enum.static_type),
                 },
             )?;
