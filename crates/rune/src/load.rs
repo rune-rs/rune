@@ -137,7 +137,7 @@ pub fn load_sources(
     };
 
     let unit = Rc::new(RefCell::new(unit));
-    compiler::compile_with_options(&*context, sources, &options, &unit, warnings)?;
+    compiler::compile_with_options(&*context, sources, &unit, warnings, &options)?;
 
     let unit = match Rc::try_unwrap(unit) {
         Ok(unit) => unit.into_inner(),

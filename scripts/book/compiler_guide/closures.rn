@@ -1,0 +1,4 @@
+fn main() {
+    let callable = || 42;
+    callable();
+}

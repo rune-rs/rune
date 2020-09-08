@@ -1,4 +1,4 @@
-use crate::{Component, Type};
+use crate::{Component, Item, Type};
 use std::any;
 use std::fmt;
 use std::hash;
@@ -124,23 +124,34 @@ impl fmt::Debug for Hash {
 }
 
 /// Helper conversion into a function hash.
-pub trait IntoHash {
+pub trait IntoHash: Copy {
     /// Generate a function hash.
     fn into_hash(self) -> Hash;
+
+    /// Optionally convert into an item, if appropriate.
+    fn into_item(self) -> Item;
 }
 
 impl IntoHash for Hash {
     fn into_hash(self) -> Hash {
         self
     }
+
+    fn into_item(self) -> Item {
+        Item::empty()
+    }
 }
 
 impl<I> IntoHash for I
 where
-    I: IntoIterator,
+    I: Copy + IntoIterator,
     I::Item: Into<Component>,
 {
     fn into_hash(self) -> Hash {
         Hash::path_hash(TYPE, self)
+    }
+
+    fn into_item(self) -> Item {
+        Item::of(self)
     }
 }

@@ -90,14 +90,14 @@ impl Unit {
         self.instructions.iter().copied()
     }
 
-    /// Iterate over known functions.
+    /// Iterate over dynamic functions.
     pub fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFn)> + '_ {
-        let mut it = self.functions.iter();
+        self.functions.iter().map(|(h, f)| (*h, f))
+    }
 
-        std::iter::from_fn(move || {
-            let (k, v) = it.next()?;
-            Some((*k, v))
-        })
+    /// Iterate over dynamic types.
+    pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &UnitTypeInfo)> + '_ {
+        self.types.iter().map(|(h, v)| (*h, v))
     }
 
     /// Lookup the static string by slot, if it exists.

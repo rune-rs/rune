@@ -164,7 +164,7 @@ pub mod ast;
 mod compile;
 mod compiler;
 #[cfg(feature = "diagnostics")]
-mod diagnostics;
+pub mod diagnostics;
 mod error;
 mod index;
 mod index_scopes;

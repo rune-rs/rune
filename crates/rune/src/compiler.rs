@@ -43,7 +43,7 @@ pub fn compile(
     unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
 ) -> Result<(), LoadError> {
-    compile_with_options(context, sources, &Default::default(), unit, warnings)?;
+    compile_with_options(context, sources, unit, warnings, &Default::default())?;
     Ok(())
 }
 
@@ -51,12 +51,13 @@ pub fn compile(
 pub fn compile_with_options(
     context: &Context,
     sources: &mut Sources,
-    options: &Options,
     unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
+    options: &Options,
 ) -> Result<(), LoadError> {
     // Global storage.
     let storage = Storage::new();
+    // Worker queue.
     let mut queue = VecDeque::new();
 
     while let Some((item, source_id)) = sources.next_source() {

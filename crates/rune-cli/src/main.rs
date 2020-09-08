@@ -58,9 +58,13 @@ async fn main() -> Result<()> {
     let mut path = None;
     let mut trace = false;
     let mut dump_unit = false;
+    let mut dump_instructions = false;
     let mut dump_stack = false;
     let mut dump_functions = false;
     let mut dump_types = false;
+    let mut dump_native_functions = false;
+    let mut dump_native_types = false;
+    let mut with_source = false;
     let mut help = false;
     let mut experimental = false;
 
@@ -77,18 +81,36 @@ async fn main() -> Result<()> {
                 dump_stack = true;
                 dump_functions = true;
                 dump_types = true;
+                dump_native_functions = true;
+                dump_native_types = true;
             }
             "--dump-unit" => {
                 dump_unit = true;
+                dump_instructions = true;
             }
             "--dump-stack" => {
                 dump_stack = true;
             }
+            "--dump-instructions" => {
+                dump_unit = true;
+                dump_instructions = true;
+            }
             "--dump-functions" => {
+                dump_unit = true;
                 dump_functions = true;
             }
             "--dump-types" => {
+                dump_unit = true;
                 dump_types = true;
+            }
+            "--dump-native-functions" => {
+                dump_native_functions = true;
+            }
+            "--dump-native-types" => {
+                dump_native_types = true;
+            }
+            "--with-source" => {
+                with_source = true;
             }
             "--experimental" => {
                 experimental = true;
@@ -122,23 +144,29 @@ async fn main() -> Result<()> {
     if help {
         println!("Usage: {}", USAGE);
         println!();
-        println!("  --help, -h         - Show this help.");
-        println!("  --trace           - Provide detailed tracing for each instruction executed.");
-        println!("  --dump            - Dump all forms of diagnostic.");
-        println!("  --dump-unit       - Dump diagnostics on the unit generated from the file.");
-        println!("  --dump-stack      - Dump the state of the stack after completion. If compiled with `--trace` will dump it after each instruction.");
-        println!("  --dump-functions  - Dump available functions.");
-        println!("  --dump-types      - Dump available types.");
-        println!("  --no-linking      - Disable link time checks.");
-        println!("  --experimental    - Enabled experimental features.");
+        println!("  --help, -h               - Show this help.");
+        println!(
+            "  --trace                  - Provide detailed tracing for each instruction executed."
+        );
+        println!("  --dump                   - Dump everything.");
+        println!("  --dump-unit              - Dump default information about unit.");
+        println!("  --dump-instructions      - Dump unit instructions.");
+        println!("  --dump-stack             - Dump the state of the stack after completion. If compiled with `--trace` will dump it after each instruction.");
+        println!("  --dump-functions         - Dump dynamic functions.");
+        println!("  --dump-types             - Dump dynamic types.");
+        println!("  --dump-native-functions  - Dump native functions.");
+        println!("  --dump-native-types      - Dump native types.");
+        println!("  --with-source            - Include source code references where appropriate (only available if -O debug-info=true).");
+        println!("  --experimental           - Enabled experimental features.");
         println!();
         println!("Compiler options:");
         println!("  -O <option>       - Update the given compiler option.");
         println!();
         println!("Available <option> arguments:");
         println!("  memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.");
-        println!("  link-checks[=<true/false>] - Perform linker checks which makes sure that called functions exist.");
-        println!("  macros[=<true/false>] - Enable macros (experimental).");
+        println!("  link-checks[=<true/false>]         - Perform linker checks which makes sure that called functions exist.");
+        println!("  debug-info[=<true/false>]          - Enable or disable debug info.");
+        println!("  macros[=<true/false>]              - Enable or disable macros (experimental).");
         return Ok(());
     }
 
@@ -176,7 +204,7 @@ async fn main() -> Result<()> {
         warnings.emit_diagnostics(&mut writer, &sources)?;
     }
 
-    if dump_functions {
+    if dump_native_functions {
         println!("# functions");
 
         for (i, (hash, f)) in context.iter_functions().enumerate() {
@@ -184,7 +212,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    if dump_types {
+    if dump_native_types {
         println!("# types");
 
         for (i, (hash, ty)) in context.iter_types().enumerate() {
@@ -195,65 +223,104 @@ async fn main() -> Result<()> {
     if dump_unit {
         use std::io::Write as _;
 
-        println!("# instructions:");
+        let unit = vm.unit();
 
-        let mut first_function = true;
+        if dump_instructions {
+            println!("# instructions");
 
-        for (n, inst) in vm.unit().iter_instructions().enumerate() {
-            let out = std::io::stdout();
-            let mut out = out.lock();
+            let mut first_function = true;
 
-            let debug = vm.unit().debug_info().and_then(|d| d.instruction_at(n));
+            for (n, inst) in unit.iter_instructions().enumerate() {
+                let out = std::io::stdout();
+                let mut out = out.lock();
 
-            if let Some((hash, signature)) = vm.unit().debug_info().and_then(|d| d.function_at(n)) {
-                if first_function {
-                    first_function = false;
-                } else {
-                    println!();
+                let debug = unit.debug_info().and_then(|d| d.instruction_at(n));
+
+                if let Some((hash, signature)) = unit.debug_info().and_then(|d| d.function_at(n)) {
+                    if first_function {
+                        first_function = false;
+                    } else {
+                        println!();
+                    }
+
+                    println!("fn {} ({}):", signature, hash);
                 }
 
-                println!("fn {} ({}):", signature, hash);
+                if with_source {
+                    if let Some((source, span)) =
+                        debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
+                    {
+                        if let Some((count, line)) =
+                            rune::diagnostics::line_for(source.as_str(), span)
+                        {
+                            writeln!(
+                                out,
+                                "  {}:{: <3} - {}",
+                                source.name(),
+                                count + 1,
+                                line.trim_end()
+                            )?;
+                        }
+                    }
+                }
+
+                if let Some(label) = debug.and_then(|d| d.label.as_ref()) {
+                    println!("{}:", label);
+                }
+
+                write!(out, "  {:04} = {}", n, inst)?;
+
+                if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
+                    write!(out, " // {}", comment)?;
+                }
+
+                println!();
             }
-
-            if let Some(label) = debug.and_then(|d| d.label.as_ref()) {
-                println!("{}:", label);
-            }
-
-            write!(out, "  {:04} = {}", n, inst)?;
-
-            if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
-                write!(out, " // {}", comment)?;
-            }
-
-            println!();
         }
 
-        println!("# functions:");
+        let mut functions = unit.iter_functions().peekable();
+        let mut types = unit.iter_types().peekable();
+        let mut strings = unit.iter_static_strings().peekable();
+        let mut keys = unit.iter_static_object_keys().peekable();
 
-        for (hash, kind) in vm.unit().iter_functions() {
-            if let Some(signature) = vm.unit().debug_info().and_then(|d| d.functions.get(&hash)) {
-                println!("{} = {}", hash, signature);
-            } else {
-                println!("{} = {}", hash, kind);
+        if dump_functions && functions.peek().is_some() {
+            println!("# dynamic functions");
+
+            for (hash, kind) in functions {
+                if let Some(signature) = unit.debug_info().and_then(|d| d.functions.get(&hash)) {
+                    println!("{} = {}", hash, signature);
+                } else {
+                    println!("{} = {}", hash, kind);
+                }
             }
         }
 
-        println!("# strings:");
+        if dump_types && types.peek().is_some() {
+            println!("# dynamic types");
 
-        for string in vm.unit().iter_static_strings() {
-            println!("{} = {:?}", string.hash(), string);
+            for (hash, ty) in types {
+                println!("{} = {}", hash, ty.value_type);
+            }
         }
 
-        println!("# object keys:");
+        if strings.peek().is_some() {
+            println!("# strings");
 
-        for (hash, keys) in vm.unit().iter_static_object_keys() {
-            println!("{} = {:?}", hash, keys);
+            for string in strings {
+                println!("{} = {:?}", string.hash(), string);
+            }
         }
 
-        println!("---");
+        if keys.peek().is_some() {
+            println!("# object keys");
+
+            for (hash, keys) in keys {
+                println!("{} = {:?}", hash, keys);
+            }
+        }
     }
 
-    let mut execution: runestick::VmExecution = vm.call(Item::of(&["main"]), ())?;
+    let mut execution: runestick::VmExecution = vm.call(&Item::of(&["main"]), ())?;
     let last = std::time::Instant::now();
 
     let result = if trace {
@@ -300,6 +367,7 @@ async fn main() -> Result<()> {
             let values = stack
                 .get(frame.stack_bottom()..stack_top)
                 .expect("bad stack slice");
+
             println!("  frame #{} (+{})", count, frame.stack_bottom());
 
             if values.is_empty() {

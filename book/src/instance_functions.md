@@ -28,7 +28,7 @@ What you're seeing above are type and function hashes. These uniquely identify
 the item in the virtual machine and is the result of a deterministic computation
 based on its item. So the hash for the item `Foo::new` will always be the same.
 
-In Rust, we can calculate this hash using `Item` and `Hash::function` method:
+In Rust, we can calculate this hash using the `Hash::type_hash` method:
 
 ```rune
 {{#include ../../crates/rune-testing/examples/function_hash.rs}}
@@ -36,6 +36,7 @@ In Rust, we can calculate this hash using `Item` and `Hash::function` method:
 
 ```text
 $> cargo run --example function_hash
+0xb5dc92ab43cb37d9
 0xb5dc92ab43cb37d9
 ```
 

@@ -2,7 +2,7 @@
 
 use crate::unit_builder::LinkerError;
 use crate::{CompileError, LoadError, LoadErrorKind, ParseError, Sources, WarningKind, Warnings};
-use runestick::VmError;
+use runestick::{Span, VmError};
 use std::error::Error as _;
 use std::fmt;
 use std::fmt::Write as _;
@@ -248,7 +248,10 @@ impl EmitDiagnostics for LoadError {
                             }
 
                             let diagnostic = Diagnostic::error()
-                                .with_message(format!("missing function with hash `{}`", hash))
+                                .with_message(format!(
+                                    "linker error: missing function with hash `{}`",
+                                    hash
+                                ))
                                 .with_labels(labels);
 
                             term::emit(out, &config, &files, &diagnostic)?;
@@ -361,4 +364,25 @@ impl EmitDiagnostics for LoadError {
         term::emit(out, &config, &files, &diagnostic)?;
         Ok(())
     }
+}
+
+/// Get the line number and source line for the given source and span.
+pub fn line_for<'a>(source: &'a str, span: Span) -> Option<(usize, &'a str)> {
+    let mut it = codespan_reporting::files::line_starts(source)
+        .enumerate()
+        .peekable();
+
+    while let Some((line, start)) = it.next() {
+        if let Some((_, end)) = it.peek().copied() {
+            if span.start > start && span.start <= end {
+                return Some((line, &source[start..end]));
+            }
+        } else {
+            if span.start < source.len() {
+                return Some((line, &source[start..]));
+            }
+        }
+    }
+
+    None
 }

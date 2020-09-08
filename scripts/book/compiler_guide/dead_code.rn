@@ -1,0 +1,11 @@
+fn main() {
+    return foo();
+
+    fn foo() {
+        2
+    }
+
+    fn bar() {
+        3
+    }
+}

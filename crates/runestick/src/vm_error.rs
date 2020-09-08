@@ -1,7 +1,7 @@
 use crate::panic::BoxedPanic;
 use crate::{
-    AccessError, Hash, Integer, Panic, Protocol, StackError, TypeInfo, Unit, Value, ValueType,
-    VmHaltInfo,
+    AccessError, Hash, Integer, Item, Panic, Protocol, StackError, TypeInfo, Unit, Value,
+    ValueType, VmHaltInfo,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -164,6 +164,14 @@ pub enum VmErrorKind {
     /// The virtual machine encountered a divide-by-zero.
     #[error("division by zero")]
     DivideByZero,
+    /// Failure to lookup function.
+    #[error("missing entry `{item}` with hash `{hash}`")]
+    MissingEntry {
+        /// The name of the entrypoint.
+        item: Item,
+        /// Hash of function to look up.
+        hash: Hash,
+    },
     /// Failure to lookup function.
     #[error("missing function with hash `{hash}`")]
     MissingFunction {

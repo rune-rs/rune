@@ -125,7 +125,7 @@ impl Vm {
     /// ```rust
     /// use runestick::{Hash, Item};
     ///
-    /// let name = Hash::type_hash(Item::of(&["main"]));
+    /// let name = Hash::type_hash(&["main"]);
     /// ```
     ///
     /// # Examples
@@ -156,10 +156,12 @@ impl Vm {
     {
         let hash = name.into_hash();
 
-        let info = self
-            .unit
-            .lookup(hash)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
+        let info = self.unit.lookup(hash).ok_or_else(|| {
+            VmError::from(VmErrorKind::MissingEntry {
+                hash,
+                item: name.into_item(),
+            })
+        })?;
 
         let offset = match info {
             // NB: we ignore the calling convention.
