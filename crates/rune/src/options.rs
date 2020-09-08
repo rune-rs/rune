@@ -10,6 +10,8 @@ pub struct Options {
     pub(crate) debug_info: bool,
     /// Support (experimental) macros.
     pub(crate) macros: bool,
+    /// Support (experimental) bytecode caching.
+    pub bytecode: bool,
 }
 
 impl Options {
@@ -34,6 +36,9 @@ impl Options {
             }
             Some("macros") => {
                 self.macros = it.next() != Some("false");
+            }
+            Some("bytecode") => {
+                self.bytecode = it.next() != Some("false");
             }
             _ => {
                 return Err(ConfigurationError::UnsupportedOptimizationOption {
@@ -61,6 +66,11 @@ impl Options {
     pub fn macros(&mut self, enabled: bool) {
         self.macros = enabled;
     }
+
+    /// Set if bytecode caching is enabled or not. Defaults to `false`.
+    pub fn bytecode(&mut self, enabled: bool) {
+        self.bytecode = enabled;
+    }
 }
 
 impl Default for Options {
@@ -70,6 +80,7 @@ impl Default for Options {
             memoize_instance_fn: true,
             debug_info: true,
             macros: false,
+            bytecode: false,
         }
     }
 }

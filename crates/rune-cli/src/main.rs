@@ -43,10 +43,12 @@ use anyhow::{bail, Result};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::EmitDiagnostics as _;
 use std::env;
-use std::path::PathBuf;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use runestick::{Item, Value, VmExecution};
+use runestick::{Item, Unit, Value, VmExecution};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -167,6 +169,7 @@ async fn main() -> Result<()> {
         println!("  link-checks[=<true/false>]         - Perform linker checks which makes sure that called functions exist.");
         println!("  debug-info[=<true/false>]          - Enable or disable debug info.");
         println!("  macros[=<true/false>]              - Enable or disable macros (experimental).");
+        println!("  bytecode[=<true/false>]            - Enable or disable bytecode caching (experimental).");
         return Ok(());
     }
 
@@ -177,6 +180,7 @@ async fn main() -> Result<()> {
         }
     };
 
+    let bytecode_path = path.with_extension("rnc");
     let mut context = rune::default_context()?;
 
     if experimental {
@@ -184,25 +188,52 @@ async fn main() -> Result<()> {
     }
 
     let context = Arc::new(context);
-
-    let mut warnings = rune::Warnings::new();
     let mut sources = rune::Sources::new();
+    let mut warnings = rune::Warnings::new();
 
-    let unit = match rune::load_path(&*context, &options, &mut sources, &path, &mut warnings) {
-        Ok(unit) => Arc::new(unit),
-        Err(error) => {
-            let mut writer = StandardStream::stderr(ColorChoice::Always);
-            error.emit_diagnostics(&mut writer, &sources)?;
-            return Ok(());
+    let unit = loop {
+        if options.bytecode && should_cache_be_used(&path, &bytecode_path)? {
+            log::trace!("using cache: {}", bytecode_path.display());
+            let f = fs::File::open(&bytecode_path)?;
+
+            match bincode::deserialize_from::<_, Unit>(f) {
+                Ok(unit) => break Arc::new(unit),
+                Err(error) => {
+                    log::error!(
+                        "failed to deserialize: {}: {}",
+                        bytecode_path.display(),
+                        error
+                    );
+                }
+            }
         }
-    };
 
-    let vm = runestick::Vm::new(context.clone(), unit.clone());
+        log::trace!("building file: {}", path.display());
+
+        let unit = match rune::load_path(&*context, &options, &mut sources, &path, &mut warnings) {
+            Ok(unit) => unit,
+            Err(error) => {
+                let mut writer = StandardStream::stderr(ColorChoice::Always);
+                error.emit_diagnostics(&mut writer, &sources)?;
+                return Ok(());
+            }
+        };
+
+        if options.bytecode {
+            log::trace!("serializing cache: {}", bytecode_path.display());
+            let f = fs::File::create(&bytecode_path)?;
+            bincode::serialize_into(f, &unit)?;
+        }
+
+        break Arc::new(unit);
+    };
 
     if !warnings.is_empty() {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
         warnings.emit_diagnostics(&mut writer, &sources)?;
     }
+
+    let vm = runestick::Vm::new(context.clone(), unit.clone());
 
     if dump_native_functions {
         println!("# functions");
@@ -320,8 +351,9 @@ async fn main() -> Result<()> {
         }
     }
 
-    let mut execution: runestick::VmExecution = vm.call(&Item::of(&["main"]), ())?;
     let last = std::time::Instant::now();
+
+    let mut execution: runestick::VmExecution = vm.call(&Item::of(&["main"]), ())?;
 
     let result = if trace {
         match do_trace(&mut execution, dump_stack).await {
@@ -498,4 +530,17 @@ async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value
             break Ok(result);
         }
     }
+}
+
+/// Test if path `a` is newer than path `b`.
+fn should_cache_be_used(source: &Path, cached: &Path) -> io::Result<bool> {
+    let source = fs::metadata(source)?;
+
+    let cached = match fs::metadata(cached) {
+        Ok(cached) => cached,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+
+    Ok(source.modified()? < cached.modified()?)
 }
