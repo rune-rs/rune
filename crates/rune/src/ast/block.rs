@@ -87,19 +87,39 @@ impl Parse for Block {
         let mut statements = Vec::new();
 
         let open = parser.parse()?;
+        let mut must_be_last = None;
 
         while !parser.peek::<ast::CloseBrace>()? {
             if ast::Item::peek_as_stmt(parser)? {
                 let decl: ast::Item = parser.parse()?;
+
+                if let Some(span) = must_be_last {
+                    return Err(ParseError::ExpectedBlockSemiColon {
+                        span,
+                        followed_span: decl.span(),
+                    });
+                }
+
                 statements.push(ast::Stmt::Item(decl));
                 continue;
             }
 
             let expr: ast::Expr = parser.parse()?;
 
+            if let Some(span) = must_be_last {
+                return Err(ParseError::ExpectedBlockSemiColon {
+                    span,
+                    followed_span: expr.span(),
+                });
+            }
+
             if parser.peek::<ast::SemiColon>()? {
                 statements.push(ast::Stmt::Semi(expr, parser.parse()?));
             } else {
+                if expr.needs_semi() {
+                    must_be_last = Some(expr.span());
+                }
+
                 statements.push(ast::Stmt::Expr(expr));
             }
         }

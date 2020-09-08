@@ -357,6 +357,14 @@ pub enum ParseError {
         /// The delimiter we saw.
         actual: Kind,
     },
+    /// Expected a block semicolon which is needed for the kind of expression.
+    #[error("expected expression to be terminated by a semicolon `;`")]
+    ExpectedBlockSemiColon {
+        /// Span where we expected the semicolon.
+        span: Span,
+        /// The following expression.
+        followed_span: Span,
+    },
 }
 
 impl ParseError {
@@ -410,6 +418,7 @@ impl ParseError {
             Self::UnsupportedAsyncExpr { span, .. } => span,
             Self::ExpectedMacroDelimiter { span, .. } => span,
             Self::ExpectedMacroCloseDelimiter { span, .. } => span,
+            Self::ExpectedBlockSemiColon { span, .. } => span,
         }
     }
 }
