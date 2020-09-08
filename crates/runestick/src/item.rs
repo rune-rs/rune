@@ -99,19 +99,31 @@ impl Item {
     }
 }
 
+/// Format implementation for item.
+///
+/// An empty item is formatted as `{empty}`.
+///
+/// # Examples
+///
+/// ```rust
+/// use runestick::{Item, Component::*};
+///
+/// assert_eq!("{empty}", Item::empty().to_string());
+/// assert_eq!("hello::$block0", Item::of(&[String("hello".into()), Block(0)]).to_string());
+/// ```
 impl fmt::Display for Item {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut it = self.path.iter().peekable();
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.path.iter();
 
-        while let Some(part) = it.next() {
-            write!(fmt, "{}", part)?;
-
-            if it.peek().is_some() {
-                write!(fmt, "::")?;
+        if let Some(last) = it.next_back() {
+            for p in it {
+                write!(f, "{}::", p)?;
             }
-        }
 
-        Ok(())
+            write!(f, "{}", last)
+        } else {
+            write!(f, "{{empty}}")
+        }
     }
 }
 
