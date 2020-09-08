@@ -130,7 +130,7 @@ impl Parse for Pat {
                 }
             }
             ast::Kind::Open(ast::Delimiter::Bracket) => Self::PatVec(parser.parse()?),
-            ast::Kind::Hash => Self::PatObject(parser.parse()?),
+            ast::Kind::Pound => Self::PatObject(parser.parse()?),
             ast::Kind::LitByte { .. } => Self::PatByte(parser.parse()?),
             ast::Kind::LitChar { .. } => Self::PatChar(parser.parse()?),
             ast::Kind::LitNumber { .. } => Self::PatNumber(parser.parse()?),
@@ -157,7 +157,7 @@ impl Peek for Pat {
         match t1.kind {
             ast::Kind::Open(ast::Delimiter::Parenthesis) => true,
             ast::Kind::Open(ast::Delimiter::Bracket) => true,
-            ast::Kind::Hash => true,
+            ast::Kind::Pound => true,
             ast::Kind::LitByte { .. } => true,
             ast::Kind::LitChar { .. } => true,
             ast::Kind::LitNumber { .. } => true,

@@ -31,7 +31,7 @@ impl<'a> Lexer<'a> {
     /// assert_eq! {
     ///     Lexer::new("name").next().unwrap().unwrap(),
     ///     ast::Token {
-    ///         kind: ast::Kind::Ident(ast::IdentKind::Source),
+    ///         kind: ast::Kind::Ident(ast::StringSource::Text),
     ///         span: Span { start: 0, end: 4 },
     ///     }
     /// };
@@ -116,7 +116,7 @@ impl<'a> Lexer<'a> {
             "default" => ast::Kind::Default,
             "impl" => ast::Kind::Impl,
             "mod" => ast::Kind::Mod,
-            _ => ast::Kind::Ident(ast::IdentKind::Source),
+            _ => ast::Kind::Ident(ast::StringSource::Text),
         };
 
         Ok(Some(ast::Token { kind, span }))
@@ -135,15 +135,15 @@ impl<'a> Lexer<'a> {
     {
         let mut is_fractional = false;
 
-        let number = if let ('0', Some((_, m))) = (c, it.clone().next()) {
+        let base = if let ('0', Some((_, m))) = (c, it.clone().next()) {
             // This loop is useful.
             #[allow(clippy::never_loop)]
             loop {
                 let number = match m {
-                    'x' => ast::NumberKind::Hex,
-                    'b' => ast::NumberKind::Binary,
-                    'o' => ast::NumberKind::Octal,
-                    _ => break ast::NumberKind::Decimal,
+                    'x' => ast::NumberBase::Hex,
+                    'b' => ast::NumberBase::Binary,
+                    'o' => ast::NumberBase::Octal,
+                    _ => break ast::NumberBase::Decimal,
                 };
 
                 // consume character.
@@ -151,7 +151,7 @@ impl<'a> Lexer<'a> {
                 break number;
             }
         } else {
-            ast::NumberKind::Decimal
+            ast::NumberBase::Decimal
         };
 
         self.cursor = loop {
@@ -175,11 +175,11 @@ impl<'a> Lexer<'a> {
         };
 
         Ok(Some(ast::Token {
-            kind: ast::Kind::LitNumber {
+            kind: ast::Kind::LitNumber(ast::NumberSource::Text(ast::NumberSourceText {
                 is_fractional,
                 is_negative,
-                number,
-            },
+                base,
+            })),
             span: Span {
                 start,
                 end: self.cursor,
@@ -254,7 +254,7 @@ impl<'a> Lexer<'a> {
 
         if is_label {
             Ok(Some(ast::Token {
-                kind: ast::Kind::Label,
+                kind: ast::Kind::Label(ast::StringSource::Text),
                 span: Span {
                     start,
                     end: self.cursor,
@@ -262,7 +262,7 @@ impl<'a> Lexer<'a> {
             }))
         } else {
             Ok(Some(ast::Token {
-                kind: ast::Kind::LitChar,
+                kind: ast::Kind::LitChar(ast::CopySource::Text),
                 span: Span {
                     start,
                     end: self.cursor,
@@ -317,7 +317,7 @@ impl<'a> Lexer<'a> {
         };
 
         Ok(Some(ast::Token {
-            kind: ast::Kind::LitByte,
+            kind: ast::Kind::LitByte(ast::CopySource::Text),
             span: Span {
                 start,
                 end: self.cursor,
@@ -368,7 +368,7 @@ impl<'a> Lexer<'a> {
         };
 
         Ok(Some(ast::Token {
-            kind: ast::Kind::LitStr { escaped },
+            kind: ast::Kind::LitStr(ast::LitStrSource::Text(ast::LitStrSourceText { escaped })),
             span: Span {
                 start,
                 end: self.cursor,
@@ -419,7 +419,9 @@ impl<'a> Lexer<'a> {
         };
 
         Ok(Some(ast::Token {
-            kind: ast::Kind::LitByteStr { escaped },
+            kind: ast::Kind::LitByteStr(ast::LitByteStrSource::Text(ast::LitByteStrSourceText {
+                escaped,
+            })),
             span: Span {
                 start,
                 end: self.cursor,
@@ -475,7 +477,9 @@ impl<'a> Lexer<'a> {
         };
 
         Ok(Some(ast::Token {
-            kind: ast::Kind::LitTemplate { escaped },
+            kind: ast::Kind::LitTemplate(ast::LitStrSource::Text(ast::LitStrSourceText {
+                escaped,
+            })),
             span: Span {
                 start,
                 end: self.cursor,
@@ -633,7 +637,7 @@ impl<'a> Lexer<'a> {
                     '_' => ast::Kind::Underscore,
                     ',' => ast::Kind::Comma,
                     ':' => ast::Kind::Colon,
-                    '#' => ast::Kind::Hash,
+                    '#' => ast::Kind::Pound,
                     '.' => ast::Kind::Dot,
                     ';' => ast::Kind::SemiColon,
                     '=' => ast::Kind::Eq,
@@ -711,7 +715,7 @@ mod tests {
             "'a'",
             ast::Token {
                 span: Span::new(0, 3),
-                kind: ast::Kind::LitChar,
+                kind: ast::Kind::LitChar(ast::CopySource::Text),
             }
         };
 
@@ -719,7 +723,7 @@ mod tests {
             "'\\u{abcd}'",
             ast::Token {
                 span: Span::new(0, 10),
-                kind: ast::Kind::LitChar,
+                kind: ast::Kind::LitChar(ast::CopySource::Text),
             }
         };
     }
@@ -730,17 +734,15 @@ mod tests {
             "'asdf 'a' \"foo bar\"",
             ast::Token {
                 span: Span::new(0, 5),
-                kind: ast::Kind::Label,
+                kind: ast::Kind::Label(ast::StringSource::Text),
             },
             ast::Token {
                 span: Span::new(6, 9),
-                kind: ast::Kind::LitChar,
+                kind: ast::Kind::LitChar(ast::CopySource::Text),
             },
             ast::Token {
                 span: Span::new(10, 19),
-                kind: ast::Kind::LitStr {
-                    escaped: false,
-                },
+                kind: ast::Kind::LitStr(ast::LitStrSource::Text(ast::LitStrSourceText { escaped: false })),
             }
         };
     }
@@ -790,7 +792,7 @@ mod tests {
             "a.checked_div(10)",
             ast::Token {
                 span: Span::new(0, 1),
-                kind: ast::Kind::Ident(ast::IdentKind::Source),
+                kind: ast::Kind::Ident(ast::StringSource::Text),
             },
             ast::Token {
                 span: Span::new(1, 2),
@@ -798,7 +800,7 @@ mod tests {
             },
             ast::Token {
                 span: Span::new(2, 13),
-                kind: ast::Kind::Ident(ast::IdentKind::Source),
+                kind: ast::Kind::Ident(ast::StringSource::Text),
             },
             ast::Token {
                 span: Span::new(13, 14),
@@ -806,11 +808,11 @@ mod tests {
             },
             ast::Token {
                 span: Span::new(14, 16),
-                kind: ast::Kind::LitNumber {
+                kind: ast::Kind::LitNumber(ast::NumberSource::Text(ast::NumberSourceText {
                     is_fractional: false,
                     is_negative: false,
-                    number: ast::NumberKind::Decimal,
-                },
+                    base: ast::NumberBase::Decimal,
+                })),
             },
             ast::Token {
                 span: Span::new(16, 17),
@@ -825,7 +827,7 @@ mod tests {
             "`foo {bar} \\` baz`",
             ast::Token {
                 span: Span::new(0, 18),
-                kind: ast::Kind::LitTemplate { escaped: true },
+                kind: ast::Kind::LitTemplate(ast::LitStrSource::Text(ast::LitStrSourceText { escaped: true })),
             },
         };
     }
@@ -836,9 +838,9 @@ mod tests {
             r#"b"hello world""#,
             ast::Token {
                 span: Span::new(0, 14),
-                kind: ast::Kind::LitByteStr {
+                kind: ast::Kind::LitByteStr(ast::LitByteStrSource::Text(ast::LitByteStrSourceText {
                     escaped: false,
-                },
+                })),
             },
         };
 
@@ -846,7 +848,7 @@ mod tests {
             "b'\\\\''",
             ast::Token {
                 span: Span::new(0, 6),
-                kind: ast::Kind::LitByte,
+                kind: ast::Kind::LitByte(ast::CopySource::Text),
             },
         };
 
@@ -854,15 +856,15 @@ mod tests {
             "'label 'a' b'a'",
             ast::Token {
                 span: Span::new(0, 6),
-                kind: ast::Kind::Label,
+                kind: ast::Kind::Label(ast::StringSource::Text),
             },
             ast::Token {
                 span: Span::new(7, 10),
-                kind: ast::Kind::LitChar,
+                kind: ast::Kind::LitChar(ast::CopySource::Text),
             },
             ast::Token {
                 span: Span::new(11, 15),
-                kind: ast::Kind::LitByte,
+                kind: ast::Kind::LitByte(ast::CopySource::Text),
             },
         };
 
@@ -870,7 +872,7 @@ mod tests {
             "b'a'",
             ast::Token {
                 span: Span::new(0, 4),
-                kind: ast::Kind::LitByte,
+                kind: ast::Kind::LitByte(ast::CopySource::Text),
             },
         };
 
@@ -878,7 +880,7 @@ mod tests {
             "b'\\n'",
             ast::Token {
                 span: Span::new(0, 5),
-                kind: ast::Kind::LitByte,
+                kind: ast::Kind::LitByte(ast::CopySource::Text),
             },
         };
     }

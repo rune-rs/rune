@@ -115,6 +115,12 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Test if the parser is at end-of-file, after which there is no more input
+    /// to parse.
+    pub fn is_eof(&self) -> Result<bool, ParseError> {
+        Ok(self.p1?.is_none())
+    }
+
     /// Assert that the parser has reached its end-of-file.
     pub fn parse_eof(&mut self) -> Result<(), ParseError> {
         if let Some(token) = self.source.next()? {

@@ -1,14 +1,15 @@
 use crate::ast;
 use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
 use runestick::{Source, Span};
+use std::borrow::Cow;
 
 /// A string literal.
 #[derive(Debug, Clone)]
 pub struct LitTemplate {
     /// The token corresponding to the literal.
     token: ast::Token,
-    /// If the string literal is escaped.
-    escaped: bool,
+    /// The source string of the literal template.
+    source: ast::LitStrSource,
 }
 
 impl LitTemplate {
@@ -38,13 +39,33 @@ pub struct Template {
 impl<'a> Resolve<'a> for LitTemplate {
     type Output = Template;
 
-    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<Self::Output, ParseError> {
-        let span = self.span().narrow(1);
-        let string = source
-            .source(span)
-            .ok_or_else(|| ParseError::BadSlice { span })?;
+    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ParseError> {
+        let span = self.token.span;
 
-        let mut it = string
+        let (span, text) = match self.source {
+            ast::LitStrSource::Text(..) => {
+                let span = span.narrow(1);
+
+                let string = source
+                    .source(span)
+                    .ok_or_else(|| ParseError::BadSlice { span })?;
+
+                (span, Cow::Borrowed(string))
+            }
+            ast::LitStrSource::Synthetic(id) => {
+                let string = storage
+                    .get_string(id)
+                    .ok_or_else(|| ParseError::BadSyntheticId {
+                        kind: "template string",
+                        id,
+                        span,
+                    })?;
+
+                (Span::new(0, string.len()), Cow::Owned(string))
+            }
+        };
+
+        let mut it = text
             .char_indices()
             .map(|(n, c)| (span.start + n, c))
             .peekable();
@@ -115,7 +136,7 @@ impl Parse for LitTemplate {
         let token = parser.token_next()?;
 
         match token.kind {
-            ast::Kind::LitTemplate { escaped } => Ok(LitTemplate { token, escaped }),
+            ast::Kind::LitTemplate(source) => Ok(LitTemplate { token, source }),
             _ => Err(ParseError::ExpectedString {
                 actual: token.kind,
                 span: token.span,

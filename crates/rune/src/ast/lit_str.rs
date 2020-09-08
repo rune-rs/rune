@@ -8,8 +8,8 @@ use std::borrow::Cow;
 pub struct LitStr {
     /// The token corresponding to the literal.
     token: ast::Token,
-    /// If the string literal is escaped.
-    escaped: bool,
+    /// The source of the literal string.
+    source: ast::LitStrSource,
 }
 
 impl LitStr {
@@ -45,14 +45,31 @@ impl LitStr {
 impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, _: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
-        let span = self.token.span.narrow(1);
+    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
+        let span = self.token.span;
+
+        let text = match self.source {
+            ast::LitStrSource::Text(text) => text,
+            ast::LitStrSource::Synthetic(id) => {
+                let bytes = storage
+                    .get_string(id)
+                    .ok_or_else(|| ParseError::BadSyntheticId {
+                        kind: "string",
+                        id,
+                        span,
+                    })?;
+
+                return Ok(Cow::Owned(bytes));
+            }
+        };
+
+        let span = span.narrow(1);
 
         let string = source
             .source(span)
             .ok_or_else(|| ParseError::BadSlice { span })?;
 
-        Ok(if self.escaped {
+        Ok(if text.escaped {
             Cow::Owned(self.parse_escaped(span, string)?)
         } else {
             Cow::Borrowed(string)
@@ -75,7 +92,7 @@ impl Parse for LitStr {
         let token = parser.token_next()?;
 
         match token.kind {
-            ast::Kind::LitStr { escaped } => Ok(LitStr { token, escaped }),
+            ast::Kind::LitStr(source) => Ok(Self { token, source }),
             _ => Err(ParseError::ExpectedString {
                 actual: token.kind,
                 span: token.span,

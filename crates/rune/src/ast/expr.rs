@@ -348,7 +348,7 @@ impl Expr {
             ast::Kind::Self_ => Self::Self_(parser.parse()?),
             ast::Kind::Select => Self::ExprSelect(parser.parse()?),
             ast::Kind::PipePipe | ast::Kind::Pipe => Self::ExprClosure(parser.parse()?),
-            ast::Kind::Label => {
+            ast::Kind::Label(..) => {
                 let label = Some((parser.parse::<ast::Label>()?, parser.parse::<ast::Colon>()?));
                 let token = parser.token_peek_eof()?;
 
@@ -368,7 +368,7 @@ impl Expr {
                     }
                 });
             }
-            ast::Kind::Hash => Self::LitObject(parser.parse()?),
+            ast::Kind::Pound => Self::LitObject(parser.parse()?),
             ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => Self::ExprUnary(parser.parse()?),
             ast::Kind::While => Self::ExprWhile(parser.parse()?),
             ast::Kind::Loop => Self::ExprLoop(parser.parse()?),
@@ -608,8 +608,8 @@ impl Peek for Expr {
             ast::Kind::Async => true,
             ast::Kind::Self_ => true,
             ast::Kind::Select => true,
-            ast::Kind::Label => matches!(t2.map(|t| t.kind), Some(ast::Kind::Colon)),
-            ast::Kind::Hash => true,
+            ast::Kind::Label(..) => matches!(t2.map(|t| t.kind), Some(ast::Kind::Colon)),
+            ast::Kind::Pound => true,
             ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => true,
             ast::Kind::While => true,
             ast::Kind::Loop => true,

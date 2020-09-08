@@ -7,6 +7,8 @@ use runestick::{Source, Span};
 pub struct LitChar {
     /// The token corresponding to the literal.
     pub token: ast::Token,
+    /// The source of the literal character.
+    pub source: ast::CopySource<char>,
 }
 
 impl LitChar {
@@ -34,7 +36,7 @@ impl Parse for LitChar {
         let token = parser.token_next()?;
 
         Ok(match token.kind {
-            ast::Kind::LitChar => LitChar { token },
+            ast::Kind::LitChar(source) => LitChar { token, source },
             _ => {
                 return Err(ParseError::ExpectedChar {
                     actual: token.kind,
@@ -49,6 +51,11 @@ impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
     fn resolve(&self, _: &Storage, source: &'a Source) -> Result<char, ParseError> {
+        match self.source {
+            ast::CopySource::Inline(c) => return Ok(c),
+            ast::CopySource::Text => (),
+        }
+
         let span = self.token.span;
         let string = source
             .source(span.narrow(1))

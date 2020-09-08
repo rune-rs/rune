@@ -1,5 +1,4 @@
 use crate::ast;
-use crate::ast::{Kind, Token};
 use crate::error::ParseError;
 use crate::parser::Parser;
 use crate::traits::{Parse, Peek};
@@ -62,16 +61,16 @@ impl Parse for ExprBreakValue {
         let token = parser.token_peek_eof()?;
 
         Ok(match token.kind {
-            ast::Kind::Label => Self::Label(parser.parse()?),
+            ast::Kind::Label(..) => Self::Label(parser.parse()?),
             _ => Self::Expr(Box::new(parser.parse()?)),
         })
     }
 }
 
 impl Peek for ExprBreakValue {
-    fn peek(t1: Option<Token>, t2: Option<Token>) -> bool {
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         match t1.map(|t| t.kind) {
-            Some(Kind::Label) => true,
+            Some(ast::Kind::Label(..)) => true,
             _ => ast::Expr::peek(t1, t2),
         }
     }

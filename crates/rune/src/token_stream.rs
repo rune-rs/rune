@@ -4,7 +4,7 @@ use runestick::Span;
 use std::slice;
 
 /// A token stream.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TokenStream {
     stream: Vec<Token>,
     end: Span,
@@ -148,5 +148,17 @@ where
 impl IntoTokens for TokenStream {
     fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         self.stream.into_tokens(context, stream);
+    }
+}
+
+impl PartialEq<Vec<Token>> for TokenStream {
+    fn eq(&self, other: &Vec<Token>) -> bool {
+        self.stream == *other
+    }
+}
+
+impl PartialEq<TokenStream> for Vec<Token> {
+    fn eq(&self, other: &TokenStream) -> bool {
+        *self == other.stream
     }
 }

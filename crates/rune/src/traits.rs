@@ -2,7 +2,7 @@ use crate::ast::Token;
 use crate::error::CompileResult;
 use crate::error::ParseError;
 use crate::parser::Parser;
-use crate::Storage;
+use crate::{MacroContext, Storage};
 use runestick::Source;
 
 /// The parse trait, implemented by items that can be parsed.
@@ -98,6 +98,11 @@ pub trait Resolve<'a> {
 
     /// Resolve the value from parsed AST.
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ParseError>;
+
+    /// Resolve the token from a macro context.
+    fn macro_resolve(&self, ctx: &'a MacroContext) -> Result<Self::Output, ParseError> {
+        self.resolve(ctx.storage(), ctx.source())
+    }
 }
 
 pub(crate) trait Compile<T> {

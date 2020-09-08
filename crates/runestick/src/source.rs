@@ -4,7 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 /// A single source file.
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Source {
     /// The name of the source.
     name: String,

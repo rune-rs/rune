@@ -7,6 +7,8 @@ use runestick::{Source, Span};
 pub struct LitByte {
     /// The token corresponding to the literal.
     pub token: ast::Token,
+    /// The source of the byte.
+    pub source: ast::CopySource<u8>,
 }
 
 impl LitByte {
@@ -34,7 +36,7 @@ impl Parse for LitByte {
         let token = parser.token_next()?;
 
         Ok(match token.kind {
-            ast::Kind::LitByte => LitByte { token },
+            ast::Kind::LitByte(source) => LitByte { token, source },
             _ => {
                 return Err(ParseError::ExpectedByte {
                     actual: token.kind,
@@ -49,6 +51,11 @@ impl<'a> Resolve<'a> for LitByte {
     type Output = u8;
 
     fn resolve(&self, _: &Storage, source: &'a Source) -> Result<u8, ParseError> {
+        match self.source {
+            ast::CopySource::Inline(b) => return Ok(b),
+            ast::CopySource::Text => (),
+        }
+
         let span = self.token.span;
 
         let string = source
