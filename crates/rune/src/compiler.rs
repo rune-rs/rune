@@ -106,16 +106,16 @@ pub fn compile_with_options(
     while let Some(entry) = worker.query.queue.pop_front() {
         let source_id = entry.source_id;
 
-        if let Err(error) = compile_entry(
+        if let Err(error) = compile_entry(CompileEnitryArgs {
             context,
             options,
-            &storage,
+            storage: &storage,
             unit,
-            worker.warnings,
-            &mut worker.query,
+            warnings: worker.warnings,
+            query: &mut worker.query,
             entry,
-            &worker.expanded,
-        ) {
+            expanded: &worker.expanded,
+        }) {
             return Err(LoadError::from(LoadErrorKind::CompileError {
                 source_id,
                 error,
@@ -126,16 +126,28 @@ pub fn compile_with_options(
     Ok(())
 }
 
-fn compile_entry(
-    context: &Context,
-    options: &Options,
-    storage: &Storage,
-    unit: &Rc<RefCell<UnitBuilder>>,
-    warnings: &mut Warnings,
-    query: &mut Query,
+struct CompileEnitryArgs<'a> {
+    context: &'a Context,
+    options: &'a Options,
+    storage: &'a Storage,
+    unit: &'a Rc<RefCell<UnitBuilder>>,
+    warnings: &'a mut Warnings,
+    query: &'a mut Query,
     entry: BuildEntry,
-    expanded: &HashMap<Item, Expanded>,
-) -> Result<(), CompileError> {
+    expanded: &'a HashMap<Item, Expanded>,
+}
+
+fn compile_entry(args: CompileEnitryArgs) -> Result<(), CompileError> {
+    let CompileEnitryArgs {
+        context,
+        options,
+        storage,
+        unit,
+        warnings,
+        query,
+        entry,
+        expanded,
+    } = args;
     let BuildEntry {
         item,
         build,
@@ -396,7 +408,7 @@ impl<'a> Compiler<'a> {
     ) -> CompileResult<()> {
         log::trace!("CompileMeta => {:?} {:?}", meta, needs);
 
-        while let Needs::Value = needs {
+        if let Needs::Value = needs {
             match meta {
                 CompileMeta::Tuple { tuple, .. } if tuple.args == 0 => {
                     self.asm.push_with_comment(

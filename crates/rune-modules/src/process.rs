@@ -113,7 +113,7 @@ struct Child {
 
 impl Child {
     /// Convert the child into a future, use for `.await`.
-    async fn into_future(&mut self) -> Result<io::Result<ExitStatus>, VmError> {
+    async fn into_future(mut self) -> Result<io::Result<ExitStatus>, VmError> {
         let result = match &mut self.inner {
             Some(inner) => match inner.await {
                 Ok(status) => Ok(ExitStatus { status }),

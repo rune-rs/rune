@@ -11,6 +11,19 @@ pub struct Generator {
     first: bool,
 }
 
+impl Iterator for Generator {
+    type Item = Result<Value, VmError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.resume(Value::Unit)
+            .map(|state| match state {
+                GeneratorState::Yielded(value) => Some(value),
+                GeneratorState::Complete(_) => None,
+            })
+            .transpose()
+    }
+}
+
 impl Generator {
     /// Construct a generator from a virtual machine.
     pub(crate) fn new(vm: Vm) -> Self {
@@ -18,14 +31,6 @@ impl Generator {
             execution: Some(VmExecution::new(vm)),
             first: true,
         }
-    }
-
-    /// Get the next value produced by this stream.
-    pub fn next(&mut self) -> Result<Option<Value>, VmError> {
-        Ok(match self.resume(Value::Unit)? {
-            GeneratorState::Yielded(value) => Some(value),
-            GeneratorState::Complete(_) => None,
-        })
     }
 
     /// Get the next value produced by this stream.

@@ -2281,7 +2281,7 @@ impl Vm {
                 self.stack.push(float_op(lhs, rhs));
                 return Ok(());
             }
-            (lhs, rhs) => (lhs.clone(), rhs),
+            (lhs, rhs) => (lhs, rhs),
         };
 
         if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
@@ -2314,7 +2314,7 @@ impl Vm {
                 self.stack.push(integer_op(lhs, rhs));
                 return Ok(());
             }
-            (lhs, rhs) => (lhs.clone(), rhs),
+            (lhs, rhs) => (lhs, rhs),
         };
 
         if !self.call_instance_fn(&lhs, hash, (&rhs,))? {
@@ -2382,7 +2382,7 @@ impl Vm {
                 self.stack.push(integer_op(lhs, rhs).ok_or_else(error)?);
                 return Ok(());
             }
-            (lhs, rhs) => (lhs.clone(), rhs),
+            (lhs, rhs) => (lhs, rhs),
         };
 
         if !self.call_instance_fn(&lhs, hash, (&rhs,))? {

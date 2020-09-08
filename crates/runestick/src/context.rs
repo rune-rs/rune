@@ -267,7 +267,7 @@ impl Context {
     }
 
     /// Iterate over known child components of the given name.
-    pub fn iter_components<'a, I>(&'a self, iter: I) -> impl Iterator<Item = &'a Component>
+    pub fn iter_components<I>(&self, iter: I) -> impl Iterator<Item = &Component>
     where
         I: IntoIterator,
         I::Item: Into<Component>,
@@ -397,7 +397,7 @@ impl Context {
             CompileMeta::Struct {
                 value_type,
                 object: CompileMetaStruct {
-                    item: name.clone(),
+                    item: name,
                     fields: None,
                 },
             },
@@ -458,7 +458,7 @@ impl Context {
             name.clone(),
             CompileMeta::Function {
                 value_type: Type::from(hash),
-                item: name.clone(),
+                item: name,
             },
         );
 
@@ -481,7 +481,7 @@ impl Context {
         self.macros.insert(hash, m.handler.clone());
 
         self.meta
-            .insert(name.clone(), CompileMeta::Macro { item: name.clone() });
+            .insert(name.clone(), CompileMeta::Macro { item: name });
 
         Ok(())
     }
@@ -545,7 +545,7 @@ impl Context {
             hash,
             ContextTypeInfo {
                 type_check: TypeCheck::Unit,
-                name: item.clone(),
+                name: item,
                 value_type: Type::from(crate::UNIT_TYPE),
                 type_info: TypeInfo::StaticType(crate::UNIT_TYPE),
             },

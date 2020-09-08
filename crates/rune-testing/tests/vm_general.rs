@@ -1,3 +1,5 @@
+#![allow(clippy::unit_cmp)]
+
 use rune_testing::*;
 
 #[test]

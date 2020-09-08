@@ -191,41 +191,46 @@ async fn main() -> Result<()> {
     let mut sources = rune::Sources::new();
     let mut warnings = rune::Warnings::new();
 
-    let unit = loop {
-        if options.bytecode && should_cache_be_used(&path, &bytecode_path)? {
-            log::trace!("using cache: {}", bytecode_path.display());
-            let f = fs::File::open(&bytecode_path)?;
-
-            match bincode::deserialize_from::<_, Unit>(f) {
-                Ok(unit) => break Arc::new(unit),
-                Err(error) => {
-                    log::error!(
-                        "failed to deserialize: {}: {}",
-                        bytecode_path.display(),
-                        error
-                    );
-                }
+    let use_cache = options.bytecode && should_cache_be_used(&path, &bytecode_path)?;
+    let maybe_unit = if use_cache {
+        let f = fs::File::open(&bytecode_path)?;
+        match bincode::deserialize_from::<_, Unit>(f) {
+            Ok(unit) => {
+                log::trace!("using cache: {}", bytecode_path.display());
+                Some(Arc::new(unit))
+            }
+            Err(e) => {
+                log::error!("failed to deserialize: {}: {}", bytecode_path.display(), e);
+                None
             }
         }
+    } else {
+        None
+    };
 
-        log::trace!("building file: {}", path.display());
+    let unit = match maybe_unit {
+        Some(unit) => unit,
+        None => {
+            log::trace!("building file: {}", path.display());
 
-        let unit = match rune::load_path(&*context, &options, &mut sources, &path, &mut warnings) {
-            Ok(unit) => unit,
-            Err(error) => {
-                let mut writer = StandardStream::stderr(ColorChoice::Always);
-                error.emit_diagnostics(&mut writer, &sources)?;
-                return Ok(());
+            let unit =
+                match rune::load_path(&*context, &options, &mut sources, &path, &mut warnings) {
+                    Ok(unit) => unit,
+                    Err(error) => {
+                        let mut writer = StandardStream::stderr(ColorChoice::Always);
+                        error.emit_diagnostics(&mut writer, &sources)?;
+                        return Ok(());
+                    }
+                };
+
+            if options.bytecode {
+                log::trace!("serializing cache: {}", bytecode_path.display());
+                let f = fs::File::create(&bytecode_path)?;
+                bincode::serialize_into(f, &unit)?;
             }
-        };
 
-        if options.bytecode {
-            log::trace!("serializing cache: {}", bytecode_path.display());
-            let f = fs::File::create(&bytecode_path)?;
-            bincode::serialize_into(f, &unit)?;
+            Arc::new(unit)
         }
-
-        break Arc::new(unit);
     };
 
     if !warnings.is_empty() {

@@ -755,7 +755,7 @@ impl UnitBuilder {
         let info = UnitFn::Offset { offset, call, args };
         let signature = DebugSignature::new(path, debug_args);
 
-        if self.functions.insert(instance_fn, info.clone()).is_some() {
+        if self.functions.insert(instance_fn, info).is_some() {
             return Err(UnitBuilderError::FunctionConflict {
                 existing: signature,
             });

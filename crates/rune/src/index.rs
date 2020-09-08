@@ -81,10 +81,7 @@ impl<'a> Indexer<'a> {
         let path = match found {
             Some(path) => path,
             None => {
-                return Err(CompileError::ModNotFound {
-                    path: base.to_owned(),
-                    span,
-                });
+                return Err(CompileError::ModNotFound { path: base, span });
             }
         };
 
@@ -92,7 +89,7 @@ impl<'a> Indexer<'a> {
 
         if let Some(existing) = self.loaded.insert(item.clone(), (self.source_id, span)) {
             return Err(CompileError::ModAlreadyLoaded {
-                item: item.clone(),
+                item,
                 span,
                 existing,
             });
@@ -197,7 +194,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
             let meta = CompileMeta::Function {
                 value_type: Type::from(Hash::type_hash(&item)),
-                item: item.clone(),
+                item,
             };
 
             self.query.unit.borrow_mut().insert_meta(meta)?;

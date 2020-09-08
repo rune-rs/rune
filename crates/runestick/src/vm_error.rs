@@ -420,7 +420,7 @@ pub enum VmErrorKind {
 
 impl VmErrorKind {
     /// Unpack an unwound error, if it is present.
-    pub fn into_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize)>) {
+    pub fn as_unwound_ref(&self) -> (&Self, Option<(Arc<Unit>, usize)>) {
         match self {
             VmErrorKind::Unwound { kind, unit, ip } => (&*kind, Some((unit.clone(), *ip))),
             kind => (kind, None),

@@ -584,7 +584,7 @@ impl<'a> Lexer<'a> {
                         ('<', '<') => {
                             it.next();
 
-                            break if matches!(it.next().clone(), Some((_, '='))) {
+                            break if matches!(it.next(), Some((_, '='))) {
                                 it.next();
                                 ast::Kind::LtLtEq
                             } else {
@@ -594,7 +594,7 @@ impl<'a> Lexer<'a> {
                         ('>', '>') => {
                             it.next();
 
-                            break if matches!(it.next().clone(), Some((_, '='))) {
+                            break if matches!(it.next(), Some((_, '='))) {
                                 it.next();
                                 ast::Kind::GtGtEq
                             } else {

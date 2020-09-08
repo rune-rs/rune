@@ -309,7 +309,7 @@ impl Import {
                 }
                 ast::ItemUseComponent::Ident(ident) => {
                     name.push(ident.resolve(storage, &*source)?.as_ref());
-                    unit.new_import(item.clone(), &name, span, source_id)?;
+                    unit.new_import(item, &name, span, source_id)?;
                 }
             }
         }
