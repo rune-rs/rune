@@ -485,7 +485,7 @@ mod tests {
         );
         assert_eq!(
             vec![token(LitNumber(NumberSource::Synthetic(1)))],
-            quote!(ctx => f64::consts::PI)
+            quote!(ctx => 42.0)
         );
         assert_eq!(
             vec![token(LitChar(CopySource::Inline('a')))],
