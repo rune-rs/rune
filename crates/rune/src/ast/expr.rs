@@ -149,6 +149,21 @@ into_tokens_enum! {
 }
 
 impl Expr {
+    /// Indicates if an expression needs a semicolon or must be last in a block.
+    pub fn needs_semi(&self) -> bool {
+        match self {
+            Expr::ExprWhile(_) => false,
+            Expr::ExprLoop(_) => false,
+            Expr::ExprFor(_) => false,
+            Expr::ExprIf(_) => false,
+            Expr::ExprMatch(_) => false,
+            Expr::ExprBlock(_) => false,
+            Expr::ExprAsync(_) => false,
+            Expr::ExprSelect(_) => false,
+            _ => true,
+        }
+    }
+
     /// Test if the expression implicitly evaluates to nothing.
     pub fn produces_nothing(&self) -> bool {
         match self {

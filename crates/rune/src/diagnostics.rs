@@ -1,10 +1,11 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
 use crate::unit_builder::LinkerError;
-use crate::{CompileError, LoadError, LoadErrorKind, Sources, WarningKind, Warnings};
+use crate::{CompileError, LoadError, LoadErrorKind, ParseError, Sources, WarningKind, Warnings};
 use runestick::VmError;
 use std::error::Error as _;
 use std::fmt;
+use std::fmt::Write as _;
 use std::io;
 use thiserror::Error;
 
@@ -44,8 +45,6 @@ impl EmitDiagnostics for Warnings {
     where
         O: WriteColor,
     {
-        use std::fmt::Write as _;
-
         let config = codespan_reporting::term::Config::default();
         let mut files = SimpleFiles::new();
 
@@ -76,7 +75,7 @@ impl EmitDiagnostics for Warnings {
 
                     if let Some(binding) = binding {
                         let mut note = String::new();
-                        writeln!(note, "Consider rewriting to:")?;
+                        writeln!(note, "Hint: Rewrite to:")?;
                         writeln!(note, "if {} {{", binding)?;
                         writeln!(note, "    // ..")?;
                         writeln!(note, "}}")?;
@@ -110,7 +109,7 @@ impl EmitDiagnostics for Warnings {
 
                     if let Some(variant) = variant {
                         let mut note = String::new();
-                        writeln!(note, "Consider rewriting to `{}`", variant)?;
+                        writeln!(note, "Hint: Rewrite to `{}`", variant)?;
                         notes.push(note);
                     }
 
@@ -224,6 +223,7 @@ impl EmitDiagnostics for LoadError {
         }
 
         let mut labels = Vec::new();
+        let mut notes = Vec::new();
 
         let (span, source_id) = match self.kind() {
             LoadErrorKind::Internal { message } => {
@@ -258,7 +258,31 @@ impl EmitDiagnostics for LoadError {
 
                 return Ok(());
             }
-            LoadErrorKind::ParseError { source_id, error } => (error.span(), *source_id),
+            LoadErrorKind::ParseError { source_id, error } => {
+                match error {
+                    ParseError::ExpectedBlockSemiColon {
+                        span,
+                        followed_span,
+                        ..
+                    } => {
+                        labels.push(
+                            Label::secondary(*source_id, followed_span.start..followed_span.end)
+                                .with_message("because this immediately follows"),
+                        );
+
+                        let binding = sources.source_at(*source_id).and_then(|s| s.source(*span));
+
+                        if let Some(binding) = binding {
+                            let mut note = String::new();
+                            writeln!(note, "Hint: Rewrite to `{};`", binding)?;
+                            notes.push(note);
+                        }
+                    }
+                    _ => (),
+                }
+
+                (error.span(), *source_id)
+            }
             LoadErrorKind::CompileError { source_id, error } => {
                 let source_id = *source_id;
 
@@ -331,7 +355,8 @@ impl EmitDiagnostics for LoadError {
 
         let diagnostic = Diagnostic::error()
             .with_message(self.to_string())
-            .with_labels(labels);
+            .with_labels(labels)
+            .with_notes(notes);
 
         term::emit(out, &config, &files, &diagnostic)?;
         Ok(())
