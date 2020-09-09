@@ -89,7 +89,7 @@ When I started working on Rune I had the following *rough* goals in mind:
 Rune is now in a state where I want people to poke at it. Not *too* hard mind
 you. It's still early days. The compiler is very much in flux and a
 miscompilation will definitely cause the wrong closure to be called. You know,
-the one that *doesn't* doesn't perform your security checks 😅.
+the one that *doesn't* perform your security checks 😅.
 
 But the more poking and prodding people do, the more issues will be found. Every
 solved issue brings Rune one step close to being production ready. Every set of
