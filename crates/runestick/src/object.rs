@@ -6,7 +6,6 @@ use std::borrow;
 use std::cmp;
 use std::fmt;
 use std::hash;
-use std::ops;
 
 /// An owning iterator over the entries of a `Object`.
 ///
@@ -63,6 +62,34 @@ impl Object {
         Q: hash::Hash + cmp::Eq,
     {
         self.inner.get(k)
+    }
+
+    /// Returns a mutable reference to the value corresponding to the key.
+    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
+    where
+        String: borrow::Borrow<Q>,
+        Q: hash::Hash + cmp::Eq,
+    {
+        self.inner.get_mut(k)
+    }
+
+    /// Returns `true` if the map contains a value for the specified key.
+    pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
+    where
+        String: borrow::Borrow<Q>,
+        Q: hash::Hash + cmp::Eq,
+    {
+        self.inner.contains_key(k)
+    }
+
+    /// Removes a key from the object, returning the value at the key if the key
+    /// was previously in the object.
+    pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<Value>
+    where
+        String: borrow::Borrow<Q>,
+        Q: hash::Hash + cmp::Eq,
+    {
+        self.inner.remove(k)
     }
 
     /// Inserts a key-value pair into the object.
@@ -135,20 +162,6 @@ impl IntoIterator for Object {
 impl fmt::Debug for Object {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.inner.iter()).finish()
-    }
-}
-
-impl ops::Deref for Object {
-    type Target = HashMap<String, Value>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl ops::DerefMut for Object {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
     }
 }
 
