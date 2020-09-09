@@ -260,4 +260,9 @@ impl Scopes {
     pub(crate) fn decl_anon(&mut self, span: Span) -> CompileResult<usize> {
         Ok(self.last_mut(span)?.decl_anon(span))
     }
+
+    /// Declare an anonymous variable.
+    pub(crate) fn undecl_anon(&mut self, n: usize, span: Span) -> CompileResult<()> {
+        self.last_mut(span)?.undecl_anon(n, span)
+    }
 }

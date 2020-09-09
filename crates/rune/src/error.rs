@@ -646,13 +646,11 @@ pub enum CompileError {
         /// The thing being assigned to.
         span: Span,
     },
-    /// Unsupported assignment operator.
-    #[error("unsupported operator `{op}` in assignment")]
-    UnsupportedAssignBinOp {
-        /// The assign expression.
+    /// When we encounter an expression that cannot be assigned to.
+    #[error("unsupported binary expression")]
+    UnsupportedBinaryExpr {
+        /// The location of the expression.
         span: Span,
-        /// The unsupported operator.
-        op: ast::BinOp,
     },
     /// When we encounter an expression that doesn't have a stack location and
     /// can't be referenced.
@@ -797,6 +795,14 @@ pub enum CompileError {
         /// The span where the error happened.
         span: Span,
     },
+    /// Trying to use a number as a tuple index for which it is not suported.
+    #[error("unsupported tuple index `{number}`")]
+    UnsupportedTupleIndex {
+        /// The number that was an unsupported tuple index.
+        number: ast::Number,
+        /// Location of the unsupported tuple index.
+        span: Span,
+    },
 }
 
 impl CompileError {
@@ -848,7 +854,7 @@ impl CompileError {
             Self::UnsupportedBinaryOp { span, .. } => span,
             Self::UnsupportedLitObject { span, .. } => span,
             Self::UnsupportedAssignExpr { span, .. } => span,
-            Self::UnsupportedAssignBinOp { span, .. } => span,
+            Self::UnsupportedBinaryExpr { span, .. } => span,
             Self::UnsupportedSelectPattern { span, .. } => span,
             Self::UnsupportedFieldAccess { span, .. } => span,
             Self::UnsupportedArgumentCount { span, .. } => span,
@@ -869,6 +875,7 @@ impl CompileError {
             Self::MissingPreludeModule { .. } => Span::empty(),
             Self::UnsupportedAsyncExpr { span, .. } => span,
             Self::UnsupportedFileMod { span, .. } => span,
+            Self::UnsupportedTupleIndex { span, .. } => span,
         }
     }
 }
