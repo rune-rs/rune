@@ -20,6 +20,22 @@ where
     }
 }
 
+impl FromValue for OwnedMut<Object<Value>> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        let object = value.into_object()?;
+        let object = object.owned_mut()?;
+        Ok(object)
+    }
+}
+
+impl FromValue for OwnedRef<Object<Value>> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        let object = value.into_object()?;
+        let object = object.owned_ref()?;
+        Ok(object)
+    }
+}
+
 impl UnsafeFromValue for &Object<Value> {
     type Output = *const Object<Value>;
     type Guard = RawOwnedRef;

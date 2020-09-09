@@ -31,7 +31,7 @@
 //! }
 //! ```
 
-use runestick::{Bytes, Shared, Value, VmError};
+use runestick::{Any, Bytes, Shared, Value, VmError};
 use std::fmt;
 use std::io;
 use tokio::process;
@@ -59,6 +59,7 @@ pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     Ok(module)
 }
 
+#[derive(Any)]
 struct Command {
     inner: process::Command,
 }
@@ -103,6 +104,7 @@ impl Command {
     }
 }
 
+#[derive(Any)]
 struct Child {
     // we use an option to avoid a panic if we try to complete the child process
     // multiple times.
@@ -151,6 +153,7 @@ impl Child {
     }
 }
 
+#[derive(Any)]
 struct Output {
     status: std::process::ExitStatus,
     stdout: Shared<Bytes>,
@@ -176,6 +179,7 @@ impl Output {
     }
 }
 
+#[derive(Any)]
 struct ExitStatus {
     status: std::process::ExitStatus,
 }
@@ -190,8 +194,3 @@ impl ExitStatus {
         self.status.code()
     }
 }
-
-runestick::impl_external!(Command);
-runestick::impl_external!(Child);
-runestick::impl_external!(ExitStatus);
-runestick::impl_external!(Output);

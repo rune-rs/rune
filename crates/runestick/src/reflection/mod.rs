@@ -1,4 +1,4 @@
-use crate::{Type, TypeInfo, Value, VmError};
+use crate::{Any, OwnedMut, OwnedRef, Shared, Type, TypeInfo, Value, VmError};
 
 mod bytes;
 mod hash_map;
@@ -57,6 +57,30 @@ pub trait ToValue: Sized {
 pub trait FromValue: 'static + Sized {
     /// Try to convert to the given type, from the given value.
     fn from_value(value: Value) -> Result<Self, VmError>;
+}
+
+/// Helper trait to convert from the internal any type.
+pub trait FromAny: 'static + Sized {
+    /// Try to convert from the internal any type.
+    fn from_any(any: Shared<Any>) -> Result<Self, VmError>;
+}
+
+impl<T> FromAny for OwnedRef<T>
+where
+    T: std::any::Any,
+{
+    fn from_any(any: Shared<Any>) -> Result<Self, VmError> {
+        Ok(any.downcast_owned_ref()?)
+    }
+}
+
+impl<T> FromAny for OwnedMut<T>
+where
+    T: std::any::Any,
+{
+    fn from_any(any: Shared<Any>) -> Result<Self, VmError> {
+        Ok(any.downcast_owned_mut()?)
+    }
 }
 
 /// A potentially unsafe conversion for value conversion.

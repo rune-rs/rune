@@ -1131,7 +1131,7 @@ impl Vm {
             Value::TypedObject(typed_object) => {
                 let typed_object = typed_object.borrow_ref()?;
 
-                match typed_object.object.get(&***index).cloned() {
+                match typed_object.get(&***index).cloned() {
                     Some(value) => Some(value),
                     None => {
                         return Err(VmError::from(VmErrorKind::ObjectIndexMissing {
@@ -1235,7 +1235,7 @@ impl Vm {
             object.insert(key.clone(), value);
         }
 
-        self.stack.push(TypedObject { hash, object });
+        self.stack.push(TypedObject::new(hash, object));
         Ok(())
     }
 
@@ -1652,7 +1652,7 @@ impl Vm {
             (TypeCheck::Type(hash), Value::TypedObject(typed_object)) => {
                 let typed_object = typed_object.borrow_ref()?;
 
-                if typed_object.hash == hash {
+                if typed_object.type_hash() == hash {
                     return Ok(Some(f(&typed_object.object, keys)));
                 }
             }

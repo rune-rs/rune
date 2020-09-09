@@ -335,13 +335,29 @@ pub enum VmErrorKind {
         /// Index that we tried to access.
         index: Integer,
     },
-    /// Missing a struct field.
+    /// When we try to access a field that is missing.
     #[error("missing field `{field}` on `{target}`")]
     MissingField {
         /// Type where field did not exist.
         target: TypeInfo,
         /// Field that was missing.
         field: String,
+    },
+    /// When we try to access a field that is missing.
+    #[error("missing dynamic field for struct field `{target}::{name}`")]
+    MissingDynamicStructField {
+        /// The target type where the field was missing.
+        target: &'static str,
+        /// The name of the missing field.
+        name: &'static str,
+    },
+    /// When we try to access a tuple index that is missing.
+    #[error("missing dynamic index #{index} in tuple struct `{target}`")]
+    MissingDynamicStructTupleIndex {
+        /// The target type where the field was missing.
+        target: &'static str,
+        /// The tuple index that is missing.
+        index: usize,
     },
     /// Error raised when we try to unwrap something that is not an option or
     /// result.

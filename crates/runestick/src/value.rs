@@ -23,6 +23,11 @@ impl TypedTuple {
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Hash(self.hash)
     }
+
+    /// Get the value at the given index in the tuple.
+    pub fn get(&self, index: usize) -> Option<&Value> {
+        self.tuple.get(index)
+    }
 }
 
 /// A tuple with a well-defined type as a variant of an enum.
@@ -47,15 +52,35 @@ impl TupleVariant {
 #[derive(Debug)]
 pub struct TypedObject {
     /// The type hash of the object.
-    pub hash: Hash,
+    hash: Hash,
     /// Content of the object.
-    pub object: Object<Value>,
+    pub(crate) object: Object<Value>,
 }
 
 impl TypedObject {
+    /// Construct a new typed object with the given type hash.
+    pub fn new(hash: Hash, object: Object<Value>) -> Self {
+        Self { hash, object }
+    }
+
     /// Get type info for the typed object.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Hash(self.hash)
+    }
+
+    /// Get the type hash of the object.
+    #[inline]
+    pub fn type_hash(&self) -> Hash {
+        self.hash
+    }
+
+    /// Get the given key in the object.
+    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>
+    where
+        String: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + std::cmp::Eq,
+    {
+        self.object.get(k)
     }
 }
 

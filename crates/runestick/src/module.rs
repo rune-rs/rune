@@ -174,6 +174,9 @@ impl Module {
     /// # Examples
     ///
     /// ```rust
+    /// use runestick::Any;
+    ///
+    /// #[derive(Any)]
     /// struct MyBytes {
     ///     queue: Vec<String>,
     /// }
@@ -183,8 +186,6 @@ impl Module {
     ///         self.queue.len()
     ///     }
     /// }
-    ///
-    /// runestick::impl_external!(MyBytes);
     ///
     /// # fn main() -> runestick::Result<()> {
     /// // Register `len` without registering a type.
@@ -505,6 +506,9 @@ impl Module {
     /// # Examples
     ///
     /// ```rust
+    /// use runestick::Any;
+    ///
+    /// #[derive(Any)]
     /// struct MyBytes {
     ///     queue: Vec<String>,
     /// }
@@ -520,8 +524,6 @@ impl Module {
     ///         self.queue.len()
     ///     }
     /// }
-    ///
-    /// runestick::impl_external!(MyBytes);
     ///
     /// # fn main() -> runestick::Result<()> {
     /// let mut module = runestick::Module::default();
@@ -598,10 +600,9 @@ impl Module {
     /// ```rust
     /// use std::sync::atomic::AtomicU32;
     /// use std::sync::Arc;
+    /// use runestick::Any;
     ///
-    /// runestick::impl_external!(MyType);
-    ///
-    /// #[derive(Clone, Debug)]
+    /// #[derive(Clone, Debug, Any)]
     /// struct MyType {
     ///     value: Arc<AtomicU32>,
     /// }

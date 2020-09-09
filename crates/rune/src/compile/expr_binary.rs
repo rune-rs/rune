@@ -199,7 +199,10 @@ fn compile_assign_binop(
             }
             // Note: we would like to support assign operators for tuples and
             // objects as well, but these would require a different addressing
-            // mode for the operations.
+            // mode for the operations which would require adding instructions
+            // or more capabilities to existing ones.
+
+            // See
             _ => None,
         };
 

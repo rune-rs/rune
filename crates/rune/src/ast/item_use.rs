@@ -17,16 +17,21 @@ pub struct ItemUse {
     pub first: ast::Ident,
     /// The rest of the import.
     pub rest: Vec<(ast::Scope, ItemUseComponent)>,
+    /// Use items are always terminated by a semi-colon.
+    pub semi: ast::SemiColon,
 }
+
+into_tokens!(ItemUse {
+    use_,
+    first,
+    rest,
+    semi
+});
 
 impl ItemUse {
     /// Get the span for the declaration.
     pub fn span(&self) -> Span {
-        if let Some((_, last)) = self.rest.last() {
-            self.use_.span().join(last.span())
-        } else {
-            self.use_.span().join(self.first.span())
-        }
+        self.use_.span().join(self.semi.span())
     }
 }
 
@@ -47,15 +52,8 @@ impl Parse for ItemUse {
             use_: parser.parse()?,
             first: parser.parse()?,
             rest: parser.parse()?,
+            semi: parser.parse()?,
         })
-    }
-}
-
-impl IntoTokens for ItemUse {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.use_.into_tokens(context, stream);
-        self.first.into_tokens(context, stream);
-        self.rest.into_tokens(context, stream);
     }
 }
 

@@ -1,5 +1,19 @@
 //! Trait implementation for decoding tuples.
 
+use crate::{FromValue, OwnedMut, OwnedRef, Tuple, Value, VmError};
+
+impl FromValue for OwnedMut<Tuple> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.into_tuple()?.owned_mut()?)
+    }
+}
+
+impl FromValue for OwnedRef<Tuple> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.into_tuple()?.owned_ref()?)
+    }
+}
+
 macro_rules! impl_from_value_tuple {
     () => {};
 

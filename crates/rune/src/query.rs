@@ -2,6 +2,7 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
+use crate::error::CompileResult;
 use crate::{CompileError, Resolve as _, Storage, UnitBuilder};
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaStruct, CompileMetaTuple, Hash, Item, Source,
@@ -36,12 +37,12 @@ pub struct Variant {
     /// Item of the enum type.
     enum_item: Item,
     /// Ast for declaration.
-    ast: ast::ItemStructBody,
+    ast: ast::ItemEnumVariant,
 }
 
 impl Variant {
     /// Construct a new variant.
-    pub fn new(enum_item: Item, ast: ast::ItemStructBody) -> Self {
+    pub fn new(enum_item: Item, ast: ast::ItemEnumVariant) -> Self {
         Self { enum_item, ast }
     }
 }
@@ -168,7 +169,7 @@ impl Query {
         &mut self,
         item: Item,
         enum_item: Item,
-        ast: ast::ItemStructBody,
+        ast: ast::ItemEnumVariant,
         source: Arc<Source>,
         source_id: usize,
         span: Span,
@@ -297,9 +298,11 @@ impl Query {
             Indexed::Variant(variant) => {
                 // Assert that everything is built for the enum.
                 self.query_meta(&variant.enum_item, span)?;
-                self.ast_into_item_decl(&item, variant.ast, Some(variant.enum_item), source)?
+                self.variant_into_item_decl(&item, variant.ast, Some(variant.enum_item), &*source)?
             }
-            Indexed::Struct(st) => self.ast_into_item_decl(&item, st.ast.body, None, source)?,
+            Indexed::Struct(st) => {
+                self.struct_into_item_decl(&item, st.ast.body, None, &*source)?
+            }
             Indexed::Function(f) => {
                 self.queue.push_back(BuildEntry {
                     item: item.clone(),
@@ -353,70 +356,115 @@ impl Query {
         }
     }
 
+    /// Construct metadata for an empty body.
+    fn empty_body_meta(&self, item: &Item, enum_item: Option<Item>) -> CompileMeta {
+        let value_type = Type::from(Hash::type_hash(item));
+
+        let tuple = CompileMetaTuple {
+            item: item.clone(),
+            args: 0,
+            hash: Hash::type_hash(item),
+        };
+
+        match enum_item {
+            Some(enum_item) => CompileMeta::TupleVariant {
+                value_type,
+                enum_item,
+                tuple,
+            },
+            None => CompileMeta::Tuple { value_type, tuple },
+        }
+    }
+
+    /// Construct metadata for an empty body.
+    fn tuple_body_meta(
+        &self,
+        item: &Item,
+        enum_item: Option<Item>,
+        tuple: ast::TupleBody,
+    ) -> CompileMeta {
+        let value_type = Type::from(Hash::type_hash(item));
+
+        let tuple = CompileMetaTuple {
+            item: item.clone(),
+            args: tuple.fields.len(),
+            hash: Hash::type_hash(item),
+        };
+
+        match enum_item {
+            Some(enum_item) => CompileMeta::TupleVariant {
+                value_type,
+                enum_item,
+                tuple,
+            },
+            None => CompileMeta::Tuple { value_type, tuple },
+        }
+    }
+
+    /// Construct metadata for a struct body.
+    fn struct_body_meta(
+        &self,
+        item: &Item,
+        enum_item: Option<Item>,
+        source: &Source,
+        st: ast::StructBody,
+    ) -> CompileResult<CompileMeta> {
+        let value_type = Type::from(Hash::type_hash(item));
+
+        let mut fields = HashSet::new();
+
+        for (ident, _) in &st.fields {
+            let ident = ident.resolve(&self.storage, &*source)?;
+            fields.insert(ident.to_string());
+        }
+
+        let object = CompileMetaStruct {
+            item: item.clone(),
+            fields: Some(fields),
+        };
+
+        Ok(match enum_item {
+            Some(enum_item) => CompileMeta::StructVariant {
+                value_type,
+                enum_item,
+                object,
+            },
+            None => CompileMeta::Struct { value_type, object },
+        })
+    }
+
     /// Convert an ast declaration into a struct.
-    fn ast_into_item_decl(
+    fn variant_into_item_decl(
+        &self,
+        item: &Item,
+        body: ast::ItemEnumVariant,
+        enum_item: Option<Item>,
+        source: &Source,
+    ) -> Result<CompileMeta, CompileError> {
+        Ok(match body {
+            ast::ItemEnumVariant::EmptyBody => self.empty_body_meta(item, enum_item),
+            ast::ItemEnumVariant::TupleBody(tuple) => self.tuple_body_meta(item, enum_item, tuple),
+            ast::ItemEnumVariant::StructBody(st) => {
+                self.struct_body_meta(item, enum_item, source, st)?
+            }
+        })
+    }
+
+    /// Convert an ast declaration into a struct.
+    fn struct_into_item_decl(
         &self,
         item: &Item,
         body: ast::ItemStructBody,
         enum_item: Option<Item>,
-        source: Arc<Source>,
+        source: &Source,
     ) -> Result<CompileMeta, CompileError> {
-        let value_type = Type::from(Hash::type_hash(item));
-
         Ok(match body {
-            ast::ItemStructBody::EmptyBody(..) => {
-                let tuple = CompileMetaTuple {
-                    item: item.clone(),
-                    args: 0,
-                    hash: Hash::type_hash(item),
-                };
-
-                match enum_item {
-                    Some(enum_item) => CompileMeta::TupleVariant {
-                        value_type,
-                        enum_item,
-                        tuple,
-                    },
-                    None => CompileMeta::Tuple { value_type, tuple },
-                }
-            }
-            ast::ItemStructBody::TupleBody(tuple) => {
-                let tuple = CompileMetaTuple {
-                    item: item.clone(),
-                    args: tuple.fields.len(),
-                    hash: Hash::type_hash(item),
-                };
-
-                match enum_item {
-                    Some(enum_item) => CompileMeta::TupleVariant {
-                        value_type,
-                        enum_item,
-                        tuple,
-                    },
-                    None => CompileMeta::Tuple { value_type, tuple },
-                }
+            ast::ItemStructBody::EmptyBody(_) => self.empty_body_meta(item, enum_item),
+            ast::ItemStructBody::TupleBody(tuple, _) => {
+                self.tuple_body_meta(item, enum_item, tuple)
             }
             ast::ItemStructBody::StructBody(st) => {
-                let mut fields = HashSet::new();
-
-                for (ident, _) in &st.fields {
-                    let ident = ident.resolve(&self.storage, &*source)?;
-                    fields.insert(ident.to_string());
-                }
-
-                let object = CompileMetaStruct {
-                    item: item.clone(),
-                    fields: Some(fields),
-                };
-
-                match enum_item {
-                    Some(enum_item) => CompileMeta::StructVariant {
-                        value_type,
-                        enum_item,
-                        object,
-                    },
-                    None => CompileMeta::Struct { value_type, object },
-                }
+                self.struct_body_meta(item, enum_item, source, st)?
             }
         })
     }

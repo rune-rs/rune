@@ -5,7 +5,7 @@ use crate::{IntoTokens, Parse, ParseError, Parser};
 #[derive(Debug, Clone)]
 pub struct File {
     /// All the declarations in a file.
-    pub decls: Vec<(ast::Item, Option<ast::SemiColon>)>,
+    pub items: Vec<(ast::Item, Option<ast::SemiColon>)>,
 }
 
 /// Parse a file.
@@ -49,26 +49,26 @@ pub struct File {
 #[allow(clippy::needless_doctest_main)]
 impl Parse for File {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let mut decls = Vec::new();
+        let mut items = Vec::new();
 
         while parser.peek::<ast::Item>()? {
-            let decl: ast::Item = parser.parse()?;
+            let item: ast::Item = parser.parse()?;
 
-            let semi_colon = if decl.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {
+            let semi_colon = if item.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {
                 Some(parser.parse::<ast::SemiColon>()?)
             } else {
                 None
             };
 
-            decls.push((decl, semi_colon));
+            items.push((item, semi_colon));
         }
 
-        Ok(Self { decls })
+        Ok(Self { items })
     }
 }
 
 impl IntoTokens for File {
     fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.decls.into_tokens(context, stream);
+        self.items.into_tokens(context, stream);
     }
 }

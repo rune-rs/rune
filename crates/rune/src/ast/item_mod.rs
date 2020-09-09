@@ -10,22 +10,13 @@ pub struct ItemMod {
     /// The name of the mod.
     pub name: ast::Ident,
     /// The optional body of the module declaration.
-    pub body: Option<ItemModBody>,
+    pub body: ItemModBody,
 }
 
 impl ItemMod {
     /// The span of the declaration.
     pub fn span(&self) -> Span {
-        if let Some(body) = &self.body {
-            self.mod_.span().join(body.span())
-        } else {
-            self.mod_.span().join(self.name.span())
-        }
-    }
-
-    /// If the declaration needs a semi-colon or not.
-    pub fn needs_semi_colon(&self) -> bool {
-        self.body.is_none()
+        self.mod_.span().join(self.body.span())
     }
 }
 
@@ -47,9 +38,48 @@ impl IntoTokens for ItemMod {
     }
 }
 
+/// An item body.
+#[derive(Debug, Clone)]
+pub enum ItemModBody {
+    /// An empty body terminated by a semicolon.
+    EmptyBody(ast::SemiColon),
+    /// An inline body.
+    InlineBody(ItemInlineBody),
+}
+
+impl ItemModBody {
+    /// Get the span of the mod body.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::EmptyBody(semi) => semi.span(),
+            Self::InlineBody(body) => body.span(),
+        }
+    }
+}
+
+impl Parse for ItemModBody {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let t = parser.token_peek_eof()?;
+
+        Ok(match t.kind {
+            ast::Kind::Open(ast::Delimiter::Brace) => Self::InlineBody(parser.parse()?),
+            _ => Self::EmptyBody(parser.parse()?),
+        })
+    }
+}
+
+impl IntoTokens for ItemModBody {
+    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        match self {
+            Self::EmptyBody(semi) => semi.into_tokens(context, stream),
+            Self::InlineBody(body) => body.into_tokens(context, stream),
+        }
+    }
+}
+
 /// A module declaration.
 #[derive(Debug, Clone)]
-pub struct ItemModBody {
+pub struct ItemInlineBody {
     /// The open brace.
     pub open: ast::OpenBrace,
     /// A nested "file" declaration.
@@ -58,14 +88,14 @@ pub struct ItemModBody {
     pub close: ast::CloseBrace,
 }
 
-impl ItemModBody {
+impl ItemInlineBody {
     /// The span of the body.
     pub fn span(&self) -> Span {
         self.open.span().join(self.close.span())
     }
 }
 
-impl Parse for ItemModBody {
+impl Parse for ItemInlineBody {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         Ok(Self {
             open: parser.parse()?,
@@ -75,13 +105,13 @@ impl Parse for ItemModBody {
     }
 }
 
-impl Peek for ItemModBody {
+impl Peek for ItemInlineBody {
     fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         ast::OpenBrace::peek(t1, t2)
     }
 }
 
-impl IntoTokens for ItemModBody {
+impl IntoTokens for ItemInlineBody {
     fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
         self.open.into_tokens(context, stream);
         self.file.into_tokens(context, stream);
