@@ -35,6 +35,9 @@ pub enum Expr {
     /// An path expression.
     Path(ast::Path),
     /// A declaration.
+    // large size difference between variants
+    // we should box this variant.
+    // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
     Item(ast::Item),
     /// A while loop.
     ExprWhile(ast::ExprWhile),

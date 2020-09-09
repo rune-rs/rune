@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 /// A collection of source files, and a queue of things to compile.
+#[derive(Debug, Default)]
 pub struct Sources {
     sources: Vec<Arc<Source>>,
     queue: VecDeque<(Item, usize)>,

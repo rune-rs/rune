@@ -184,7 +184,7 @@ macro_rules! assert_vm_error {
             }
         };
 
-        let (kind, _) = e.kind().into_unwound_ref();
+        let (kind, _) = e.kind().as_unwound_ref();
 
         match kind {
             $pat => $cond,

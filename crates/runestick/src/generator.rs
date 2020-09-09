@@ -21,6 +21,7 @@ impl Generator {
     }
 
     /// Get the next value produced by this stream.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Result<Option<Value>, VmError> {
         Ok(match self.resume(Value::Unit)? {
             GeneratorState::Yielded(value) => Some(value),

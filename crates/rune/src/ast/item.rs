@@ -10,6 +10,9 @@ pub enum Item {
     /// A use declaration.
     ItemUse(ast::ItemUse),
     /// A function declaration.
+    // large size difference between variants
+    // we should box this variant.
+    // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
     ItemFn(ast::ItemFn),
     /// An enum declaration.
     ItemEnum(ast::ItemEnum),

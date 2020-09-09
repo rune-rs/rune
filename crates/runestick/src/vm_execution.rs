@@ -15,9 +15,7 @@ impl VmExecution {
     pub fn vm(&self) -> Result<&Vm, VmError> {
         match self.vms.last() {
             Some(vm) => Ok(vm),
-            None => {
-                return Err(VmError::from(VmErrorKind::NoRunningVm));
-            }
+            None => Err(VmError::from(VmErrorKind::NoRunningVm)),
         }
     }
 
@@ -25,9 +23,7 @@ impl VmExecution {
     pub fn vm_mut(&mut self) -> Result<&mut Vm, VmError> {
         match self.vms.last_mut() {
             Some(vm) => Ok(vm),
-            None => {
-                return Err(VmError::from(VmErrorKind::NoRunningVm));
-            }
+            None => Err(VmError::from(VmErrorKind::NoRunningVm)),
         }
     }
 

@@ -42,6 +42,7 @@ impl Any {
 
     /// Construct a new any with the specified raw components.
     ///
+    /// ### Safety
     /// The caller must ensure that the vtable matches up with the data pointer
     /// provided. This is primarily public for use in a C ffi.
     pub unsafe fn new_raw(vtable: &'static AnyVtable, data: *const ()) -> Self {

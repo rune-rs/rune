@@ -14,7 +14,7 @@ impl VmCall {
     }
 
     /// Encode the push itno an execution.
-    pub(crate) fn into_execution<'vm>(self, execution: &mut VmExecution) -> Result<(), VmError> {
+    pub(crate) fn into_execution(self, execution: &mut VmExecution) -> Result<(), VmError> {
         let value = match self.call {
             Call::Async => Value::from(Future::new(self.vm.async_complete())),
             Call::Stream => Value::from(Stream::new(self.vm)),

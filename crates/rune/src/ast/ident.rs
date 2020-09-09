@@ -66,7 +66,7 @@ impl<'a> Resolve<'a> for Ident {
                         span,
                     })?;
 
-                Ok(Cow::Owned(ident.to_owned()))
+                Ok(Cow::Owned(ident))
             }
         }
     }

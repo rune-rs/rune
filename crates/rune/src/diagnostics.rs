@@ -262,6 +262,8 @@ impl EmitDiagnostics for LoadError {
                 return Ok(());
             }
             LoadErrorKind::ParseError { source_id, error } => {
+                // we allow here single match, since it is hard to use `if let` with pattern destruction.
+                #[allow(clippy::single_match)]
                 match error {
                     ParseError::ExpectedBlockSemiColon {
                         span,
@@ -367,7 +369,7 @@ impl EmitDiagnostics for LoadError {
 }
 
 /// Get the line number and source line for the given source and span.
-pub fn line_for<'a>(source: &'a str, span: Span) -> Option<(usize, &'a str)> {
+pub fn line_for(source: &str, span: Span) -> Option<(usize, &str)> {
     let mut it = codespan_reporting::files::line_starts(source)
         .enumerate()
         .peekable();
@@ -377,10 +379,8 @@ pub fn line_for<'a>(source: &'a str, span: Span) -> Option<(usize, &'a str)> {
             if span.start > start && span.start <= end {
                 return Some((line, &source[start..end]));
             }
-        } else {
-            if span.start < source.len() {
-                return Some((line, &source[start..]));
-            }
+        } else if span.start < source.len() {
+            return Some((line, &source[start..]));
         }
     }
 
