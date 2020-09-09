@@ -11,10 +11,9 @@ jobs:
         with:
           toolchain: stable
           override: true
+      - run: echo "::set-env name=RUSTC_VERSION::{{ rustc --version }}"
       - name: Cache Cargo
         uses: actions/cache@v2
-        env:
-          RUSTC_VERSION: ${{ rustc --version }}
         with:
           path: |
             ~/.cargo/registry
