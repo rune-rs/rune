@@ -124,7 +124,7 @@ pub static OBJECT_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x65f4e1cf10b1f34c),
 };
 
-impl_static_type!(impl<T> crate::Object<T> => OBJECT_TYPE);
+impl_static_type!(crate::Object => OBJECT_TYPE);
 
 /// The specialized type information for a future type.
 pub static FUTURE_TYPE: &StaticType = &StaticType {

@@ -2,7 +2,6 @@ use crate::{Any, OwnedMut, OwnedRef, Shared, Type, TypeInfo, Value, VmError};
 
 mod bytes;
 mod hash_map;
-mod object;
 mod option;
 mod primitive;
 mod result;

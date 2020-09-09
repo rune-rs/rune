@@ -1,7 +1,4 @@
-use crate::bytes::Bytes;
-use crate::collections::HashMap;
-use crate::shared::Shared;
-use crate::value::Value;
+use crate::{Bytes, Object, Shared, Value};
 use serde::{de, ser};
 use std::fmt;
 
@@ -256,7 +253,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         V: de::MapAccess<'de>,
     {
-        let mut object = HashMap::<String, Value>::new();
+        let mut object = Object::new();
 
         while let Some((key, value)) = visitor.next_entry()? {
             object.insert(key, value);

@@ -7,13 +7,13 @@ use std::iter::Rev;
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "object"]);
 
-    module.ty(&["Object"]).build::<Object<Value>>()?;
+    module.ty(&["Object"]).build::<Object>()?;
     module.ty(&["Iter"]).build::<Iter>()?;
     module.ty(&["Rev"]).build::<Rev<Iter>>()?;
 
-    module.inst_fn("len", Object::<Value>::len)?;
-    module.inst_fn("insert", Object::<Value>::insert)?;
-    module.inst_fn("clear", Object::<Value>::clear)?;
+    module.inst_fn("len", Object::len)?;
+    module.inst_fn("insert", Object::insert)?;
+    module.inst_fn("clear", Object::clear)?;
     module.inst_fn("contains_key", contains_key)?;
     module.inst_fn("get", get)?;
 
@@ -50,7 +50,7 @@ impl DoubleEndedIterator for Iter {
     }
 }
 
-fn object_iter(object: &Object<Value>) -> Iter {
+fn object_iter(object: &Object) -> Iter {
     Iter {
         iter: object
             .iter()
@@ -60,11 +60,11 @@ fn object_iter(object: &Object<Value>) -> Iter {
     }
 }
 
-fn contains_key(object: &Object<Value>, key: &str) -> bool {
+fn contains_key(object: &Object, key: &str) -> bool {
     object.contains_key(key)
 }
 
-fn get(object: &Object<Value>, key: &str) -> Option<Value> {
+fn get(object: &Object, key: &str) -> Option<Value> {
     object.get(key).cloned()
 }
 

@@ -25,7 +25,7 @@ macro_rules! impl_map {
             T: $crate::ToValue,
         {
             fn to_value(self) -> Result<$crate::Value, $crate::VmError> {
-                let mut output = crate::collections::HashMap::with_capacity(self.len());
+                let mut output = crate::Object::with_capacity(self.len());
 
                 for (key, value) in self {
                     output.insert(key, value.to_value()?);

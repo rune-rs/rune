@@ -14,12 +14,14 @@ pub(crate) struct FieldAttrs {
 
 pub(crate) struct Context {
     pub(crate) errors: Vec<syn::Error>,
+    pub(crate) any: TokenStream,
     pub(crate) value: TokenStream,
     pub(crate) vm_error: TokenStream,
     pub(crate) vm_error_kind: TokenStream,
     pub(crate) object: TokenStream,
     pub(crate) tuple: TokenStream,
     pub(crate) from_value: TokenStream,
+    pub(crate) to_value: TokenStream,
     pub(crate) from_any: TokenStream,
 }
 
@@ -28,12 +30,14 @@ impl Context {
     pub fn new() -> Self {
         Self {
             errors: Vec::new(),
+            any: quote!(runestick::Any),
             value: quote!(runestick::Value),
             vm_error: quote!(runestick::VmError),
             vm_error_kind: quote!(runestick::VmErrorKind),
-            object: quote!(runestick::Object<runestick::Value>),
+            object: quote!(runestick::Object),
             tuple: quote!(runestick::Tuple),
             from_value: quote!(runestick::FromValue),
+            to_value: quote!(runestick::ToValue),
             from_any: quote!(runestick::FromAny),
         }
     }

@@ -61,6 +61,7 @@ mod label;
 pub mod module;
 pub mod modules;
 mod names;
+mod object;
 mod panic;
 mod protocol;
 mod reflection;
@@ -128,6 +129,7 @@ pub use crate::hash::{Hash, IntoHash};
 pub use crate::inst::{Inst, PanicReason, TypeCheck};
 pub use crate::item::{Component, Item};
 pub use crate::names::Names;
+pub use crate::object::Object;
 pub use crate::panic::Panic;
 pub use crate::protocol::{
     Protocol, ADD, ADD_ASSIGN, BIT_AND, BIT_AND_ASSIGN, BIT_OR, BIT_OR_ASSIGN, BIT_XOR,
@@ -138,9 +140,7 @@ pub use crate::reflection::{FromAny, FromValue, ToValue, UnsafeFromValue, ValueT
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};
-pub use crate::value::{
-    Integer, Object, TupleVariant, TypedObject, TypedTuple, Value, VariantObject,
-};
+pub use crate::value::{Integer, TupleVariant, TypedObject, TypedTuple, Value, VariantObject};
 pub use crate::vec_tuple::VecTuple;
 pub use crate::vm::{CallFrame, Vm};
 pub use crate::vm_call::VmCall;
@@ -151,6 +151,6 @@ pub(crate) use runestick_macros::__internal_impl_external;
 pub use runestick_macros::{Any, FromValue};
 
 mod collections {
-    pub use hashbrown::HashMap;
-    pub use hashbrown::HashSet;
+    pub use hashbrown::{hash_map, HashMap};
+    pub use hashbrown::{hash_set, HashSet};
 }

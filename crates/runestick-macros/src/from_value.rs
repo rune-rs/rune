@@ -3,7 +3,11 @@ use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
-impl Context {
+struct Expander {
+    ctx: Context,
+}
+
+impl Expander {
     /// Expand on a struct.
     fn expand_struct(
         &mut self,
@@ -13,9 +17,9 @@ impl Context {
         let inner = self.expand_fields(&st.fields)?;
 
         let ident = &input.ident;
-        let value = &self.value;
-        let vm_error = &self.vm_error;
-        let from_value = &self.from_value;
+        let value = &self.ctx.value;
+        let vm_error = &self.ctx.vm_error;
+        let from_value = &self.ctx.from_value;
 
         Some(quote! {
             impl #from_value for #ident {
@@ -32,7 +36,7 @@ impl Context {
             syn::Fields::Unnamed(named) => self.expand_unnamed(named),
             syn::Fields::Named(named) => self.expand_named(named),
             syn::Fields::Unit => {
-                self.errors.push(syn::Error::new_spanned(
+                self.ctx.errors.push(syn::Error::new_spanned(
                     fields,
                     "unit structs are not supported",
                 ));
@@ -46,7 +50,7 @@ impl Context {
         match &field.ident {
             Some(ident) => Some(ident),
             None => {
-                self.errors.push(syn::Error::new_spanned(
+                self.ctx.errors.push(syn::Error::new_spanned(
                     field,
                     "unnamed fields are not supported",
                 ));
@@ -60,12 +64,12 @@ impl Context {
         let mut from_values = Vec::new();
 
         for (index, field) in unnamed.unnamed.iter().enumerate() {
-            let attrs = self.parse_field_attrs(&field.attrs)?;
+            let attrs = self.ctx.parse_field_attrs(&field.attrs)?;
 
-            let from_value = &self.from_value;
-            let from_any = &self.from_any;
-            let vm_error = &self.vm_error;
-            let vm_error_kind = &self.vm_error_kind;
+            let from_value = &self.ctx.from_value;
+            let from_any = &self.ctx.from_any;
+            let vm_error = &self.ctx.vm_error;
+            let vm_error_kind = &self.ctx.vm_error_kind;
 
             if attrs.any {
                 let from_any = quote_spanned! {
@@ -105,9 +109,9 @@ impl Context {
             }
         }
 
-        let tuple = &self.tuple;
-        let value = &self.value;
-        let vm_error = &self.vm_error;
+        let tuple = &self.ctx.tuple;
+        let value = &self.ctx.value;
+        let vm_error = &self.ctx.vm_error;
 
         Some(quote_spanned! {
             unnamed.span() =>
@@ -133,14 +137,14 @@ impl Context {
 
         for field in &named.named {
             let ident = self.field_ident(&field)?;
-            let attrs = self.parse_field_attrs(&field.attrs)?;
+            let attrs = self.ctx.parse_field_attrs(&field.attrs)?;
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 
-            let from_value = &self.from_value;
-            let from_any = &self.from_any;
-            let vm_error = &self.vm_error;
-            let vm_error_kind = &self.vm_error_kind;
+            let from_value = &self.ctx.from_value;
+            let from_any = &self.ctx.from_any;
+            let vm_error = &self.ctx.vm_error;
+            let vm_error_kind = &self.ctx.vm_error_kind;
 
             if attrs.any {
                 let from_any = quote_spanned! {
@@ -180,9 +184,9 @@ impl Context {
             }
         }
 
-        let object = &self.object;
-        let value = &self.value;
-        let vm_error = &self.vm_error;
+        let object = &self.ctx.object;
+        let value = &self.ctx.value;
+        let vm_error = &self.ctx.vm_error;
 
         Some(quote_spanned! {
             named.span() =>
@@ -210,27 +214,29 @@ impl Context {
 }
 
 pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
-    let mut ctx = Context::new();
+    let mut expander = Expander {
+        ctx: Context::new(),
+    };
 
     match &input.data {
         syn::Data::Struct(st) => {
-            if let Some(expanded) = ctx.expand_struct(input, st) {
+            if let Some(expanded) = expander.expand_struct(input, st) {
                 return Ok(expanded);
             }
         }
         syn::Data::Enum(en) => {
-            ctx.errors.push(syn::Error::new_spanned(
+            expander.ctx.errors.push(syn::Error::new_spanned(
                 en.enum_token,
                 "not supported on enums",
             ));
         }
         syn::Data::Union(un) => {
-            ctx.errors.push(syn::Error::new_spanned(
+            expander.ctx.errors.push(syn::Error::new_spanned(
                 un.union_token,
                 "not supported on unions",
             ));
         }
     }
 
-    Err(ctx.errors)
+    Err(expander.ctx.errors)
 }

@@ -1635,7 +1635,7 @@ impl Vm {
         f: F,
     ) -> Result<Option<O>, VmError>
     where
-        F: FnOnce(&Object<Value>, &[String]) -> O,
+        F: FnOnce(&Object, &[String]) -> O,
     {
         let value = self.stack.pop()?;
 

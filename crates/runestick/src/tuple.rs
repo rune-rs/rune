@@ -2,7 +2,7 @@ use crate::Value;
 use std::fmt;
 use std::ops;
 
-/// Struct representing an anonymous tuple.
+/// Struct representing a dynamic anonymous object.
 #[derive(Clone)]
 #[repr(transparent)]
 pub struct Tuple {

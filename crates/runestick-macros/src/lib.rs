@@ -44,12 +44,22 @@ mod context;
 mod external;
 mod from_value;
 mod internals;
+mod to_value;
 
-/// Conversion
+/// Conversion macro for constructing proxy objects from a dynamic value.
 #[proc_macro_derive(FromValue, attributes(rune))]
 pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     from_value::expand(&input)
+        .unwrap_or_else(to_compile_errors)
+        .into()
+}
+
+/// Conversion macro for constructing proxy objects from a dynamic value.
+#[proc_macro_derive(ToValue, attributes(rune))]
+pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    to_value::expand(&input)
         .unwrap_or_else(to_compile_errors)
         .into()
 }

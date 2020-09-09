@@ -1,13 +1,10 @@
 use crate::{
-    Any, Bytes, Function, Future, Generator, GeneratorState, Hash, OwnedMut, OwnedRef, RawOwnedMut,
-    RawOwnedRef, Shared, StaticString, Stream, Tuple, Type, TypeInfo, VmError,
+    Any, Bytes, Function, Future, Generator, GeneratorState, Hash, Object, OwnedMut, OwnedRef,
+    RawOwnedMut, RawOwnedRef, Shared, StaticString, Stream, Tuple, Type, TypeInfo, VmError,
 };
 use std::any;
 use std::fmt;
 use std::sync::Arc;
-
-/// The type of an object.
-pub type Object<T> = crate::collections::HashMap<String, T>;
 
 /// A tuple with a well-defined type.
 #[derive(Debug)]
@@ -54,12 +51,12 @@ pub struct TypedObject {
     /// The type hash of the object.
     hash: Hash,
     /// Content of the object.
-    pub(crate) object: Object<Value>,
+    pub(crate) object: Object,
 }
 
 impl TypedObject {
     /// Construct a new typed object with the given type hash.
-    pub fn new(hash: Hash, object: Object<Value>) -> Self {
+    pub fn new(hash: Hash, object: Object) -> Self {
         Self { hash, object }
     }
 
@@ -92,7 +89,7 @@ pub struct VariantObject {
     /// The type variant hash.
     pub hash: Hash,
     /// Content of the object.
-    pub object: Object<Value>,
+    pub object: Object,
 }
 
 impl VariantObject {
@@ -137,7 +134,7 @@ pub enum Value {
     /// A tuple.
     Tuple(Shared<Tuple>),
     /// An object.
-    Object(Shared<Object<Value>>),
+    Object(Shared<Object>),
     /// A stored future.
     Future(Shared<Future>),
     /// A Stream.
@@ -340,10 +337,10 @@ impl Value {
 
     /// Try to coerce value into an object.
     #[inline]
-    pub fn into_object(self) -> Result<Shared<Object<Value>>, VmError> {
+    pub fn into_object(self) -> Result<Shared<Object>, VmError> {
         match self {
             Self::Object(object) => Ok(object),
-            actual => Err(VmError::expected::<Object<Value>>(actual.type_info()?)),
+            actual => Err(VmError::expected::<Object>(actual.type_info()?)),
         }
     }
 
@@ -675,7 +672,7 @@ impl_from_shared!(Shared<Bytes>, Bytes);
 impl_from_shared!(Shared<String>, String);
 impl_from!(Shared<Vec<Value>>, Vec);
 impl_from_shared!(Shared<Tuple>, Tuple);
-impl_from!(Shared<Object<Value>>, Object);
+impl_from_shared!(Shared<Object>, Object);
 impl_from_shared!(Shared<Future>, Future);
 impl_from_shared!(Shared<Stream>, Stream);
 impl_from_shared!(Shared<Generator>, Generator);
