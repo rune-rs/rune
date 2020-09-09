@@ -15,7 +15,7 @@ jobs:
             ~/.cargo/git
             ~/.cargo/bin
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ rustc --version }}
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
