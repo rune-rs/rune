@@ -11,7 +11,7 @@ jobs:
         with:
           toolchain: stable
           override: true
-      - run: echo "::set-env name=RUSTC_VERSION::{{ rustc --version }}"
+      - run: echo "::set-env name=RUSTC_VERSION::${{ rustc --version }}"
       - name: Cache Cargo
         uses: actions/cache@v2
         with:
@@ -20,5 +20,5 @@ jobs:
             ~/.cargo/git
             ~/.cargo/bin
             target
-          key: ${{ runner.os }}-cargo-"$RUSTC_VERSION"
+          key: ${{ runner.os }}-cargo-${{ $RUSTC_VERSION }}
       - run: cargo test --all
