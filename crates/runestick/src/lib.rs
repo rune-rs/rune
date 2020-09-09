@@ -83,7 +83,7 @@ mod vm_error;
 mod vm_execution;
 mod vm_halt;
 
-impl_external!(anyhow::Error);
+crate::__internal_impl_external!(anyhow::Error);
 
 /// Exported result type for convenience.
 pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
@@ -134,7 +134,7 @@ pub use crate::protocol::{
     BIT_XOR_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL, MUL_ASSIGN,
     NEXT, REM, REM_ASSIGN, SHL, SHL_ASSIGN, SHR, SHR_ASSIGN, STRING_DISPLAY, SUB, SUB_ASSIGN,
 };
-pub use crate::reflection::{FromValue, ToValue, UnsafeFromValue, ValueType};
+pub use crate::reflection::{FromAny, FromValue, ToValue, UnsafeFromValue, ValueType};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};
@@ -147,6 +147,8 @@ pub use crate::vm_call::VmCall;
 pub use crate::vm_error::{VmError, VmErrorKind};
 pub use crate::vm_execution::VmExecution;
 pub use crate::vm_halt::{VmHalt, VmHaltInfo};
+pub(crate) use runestick_macros::__internal_impl_external;
+pub use runestick_macros::{Any, FromValue};
 
 mod collections {
     pub use hashbrown::HashMap;

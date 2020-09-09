@@ -50,7 +50,7 @@
 //! }
 //! ```
 
-use runestick::Bytes;
+use runestick::{Any, Bytes};
 use std::fmt;
 use std::fmt::Write as _;
 
@@ -81,7 +81,7 @@ pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     Ok(module)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Any)]
 pub struct Error {
     inner: reqwest::Error,
 }
@@ -92,17 +92,17 @@ impl From<reqwest::Error> for Error {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Any)]
 struct Client {
     client: reqwest::Client,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Any)]
 pub struct Response {
     response: reqwest::Response,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Any)]
 pub struct StatusCode {
     inner: reqwest::StatusCode,
 }
@@ -127,7 +127,7 @@ impl Response {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Any)]
 pub struct RequestBuilder {
     request: reqwest::RequestBuilder,
 }
@@ -182,9 +182,3 @@ async fn get(url: &str) -> Result<Response, Error> {
         response: reqwest::get(url).await?,
     })
 }
-
-runestick::impl_external!(Error);
-runestick::impl_external!(Client);
-runestick::impl_external!(Response);
-runestick::impl_external!(RequestBuilder);
-runestick::impl_external!(StatusCode);

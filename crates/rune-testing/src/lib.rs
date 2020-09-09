@@ -43,6 +43,7 @@ use rune::Sources;
 use rune::UnitBuilder;
 pub use rune::WarningKind::*;
 use rune::Warnings;
+pub use runestick::Result;
 pub use runestick::VmErrorKind::*;
 pub use runestick::{CompileMeta, Function, Span, Value};
 use runestick::{Component, Item, Source, Unit};
@@ -50,17 +51,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-/// The result returned from our functions.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// The error returned from our functions.
-pub type Error = Box<dyn std::error::Error + 'static + Send + Sync>;
-
 /// Compile the given source into a unit and collection of warnings.
-pub fn compile_source(
-    context: &runestick::Context,
-    source: &str,
-) -> Result<(Unit, Warnings), rune::LoadError> {
+pub fn compile_source(context: &runestick::Context, source: &str) -> Result<(Unit, Warnings)> {
     let mut warnings = Warnings::new();
     let mut sources = Sources::new();
     sources.insert_default(Source::new("main", source.to_owned()));
@@ -143,6 +135,10 @@ macro_rules! assert_parse_error {
         let context = runestick::Context::with_default_modules().unwrap();
         let err = $crate::compile_source(&context, &$source).unwrap_err();
 
+        let err = err
+            .downcast::<rune::LoadError>()
+            .expect("expected LoadError");
+
         match err.into_kind() {
             rune::LoadErrorKind::ParseError { error: $pat, .. } => ($cond),
             kind => {
@@ -174,16 +170,15 @@ macro_rules! assert_parse_error {
 /// ```
 #[macro_export]
 macro_rules! assert_vm_error {
-    ($source:expr, $pat:pat => $cond:expr) => {{
-        let e = $crate::run::<_, _, ()>(&["main"], (), $source).unwrap_err();
+    // Second variant which allows for specifyinga type.
+    ($source:expr, $pat:pat => $cond:block) => {
+        $crate::assert_vm_error!(() => $source, $pat => $cond)
+    };
 
-        let e = match e.downcast_ref::<runestick::VmError>() {
-            Some(e) => e,
-            None => {
-                panic!("{:?}", e);
-            }
-        };
-
+    // Second variant which allows for specifyinga type.
+    ($ty:ty => $source:expr, $pat:pat => $cond:block) => {{
+        let e = $crate::run::<_, _, $ty>(&["main"], (), $source).unwrap_err();
+        let e = e.downcast::<runestick::VmError>().expect("expected VmError");
         let (kind, _) = e.kind().as_unwound_ref();
 
         match kind {
@@ -235,6 +230,10 @@ macro_rules! assert_compile_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
         let context = runestick::Context::with_default_modules().unwrap();
         let err = $crate::compile_source(&context, $source).unwrap_err();
+
+        let err = err
+            .downcast::<rune::LoadError>()
+            .expect("expected LoadError");
 
         match err.into_kind() {
             rune::LoadErrorKind::CompileError { error: $pat, .. } => ($cond),

@@ -15,6 +15,24 @@ impl FromValue for String {
     }
 }
 
+impl FromValue for OwnedMut<String> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        match value {
+            Value::String(string) => Ok(string.owned_mut()?),
+            actual => Err(VmError::expected::<String>(actual.type_info()?)),
+        }
+    }
+}
+
+impl FromValue for OwnedRef<String> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        match value {
+            Value::String(string) => Ok(string.owned_ref()?),
+            actual => Err(VmError::expected::<String>(actual.type_info()?)),
+        }
+    }
+}
+
 impl ToValue for Box<str> {
     fn to_value(self) -> Result<Value, VmError> {
         Ok(Value::from(Shared::new(self.to_string())))

@@ -7,8 +7,8 @@ use crate::{
 use std::fmt;
 use std::io;
 
-impl_external!(fmt::Error);
-impl_external!(io::Error);
+crate::__internal_impl_external!(fmt::Error);
+crate::__internal_impl_external!(io::Error);
 
 impl<T> ToValue for Result<T, Panic>
 where

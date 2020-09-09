@@ -1,4 +1,4 @@
-use rune_testing::{run, Result};
+use rune_testing::*;
 
 fn main() -> Result<()> {
     let input: Vec<i64> = vec![1, 2, 3, 4];

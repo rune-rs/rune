@@ -3,6 +3,18 @@ use crate::{
     Value, VmError,
 };
 
+impl FromValue for OwnedMut<Vec<Value>> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.into_vec()?.owned_mut()?)
+    }
+}
+
+impl FromValue for OwnedRef<Vec<Value>> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.into_vec()?.owned_ref()?)
+    }
+}
+
 impl<T> FromValue for Vec<T>
 where
     T: FromValue,

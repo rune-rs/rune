@@ -19,15 +19,10 @@ impl ItemStruct {
         let start = self.struct_.span();
 
         match &self.body {
-            ItemStructBody::EmptyBody(..) => start,
-            ItemStructBody::TupleBody(body) => start.join(body.span()),
+            ItemStructBody::EmptyBody(semi) => start.join(semi.span()),
+            ItemStructBody::TupleBody(_, semi) => start.join(semi.span()),
             ItemStructBody::StructBody(body) => start.join(body.span()),
         }
-    }
-
-    /// Indicates if the declaration needs a semi-colon or not.
-    pub fn needs_semi_colon(&self) -> bool {
-        matches!(&self.body, ItemStructBody::EmptyBody(..))
     }
 }
 
@@ -38,8 +33,8 @@ impl ItemStruct {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::ItemStruct>("struct Foo").unwrap();
-/// parse_all::<ast::ItemStruct>("struct Foo ( a, b, c )").unwrap();
+/// parse_all::<ast::ItemStruct>("struct Foo;").unwrap();
+/// parse_all::<ast::ItemStruct>("struct Foo ( a, b, c );").unwrap();
 /// parse_all::<ast::ItemStruct>("struct Foo { a, b, c }").unwrap();
 /// ```
 impl Parse for ItemStruct {
@@ -64,9 +59,9 @@ impl IntoTokens for ItemStruct {
 #[derive(Debug, Clone)]
 pub enum ItemStructBody {
     /// An empty struct declaration.
-    EmptyBody(EmptyBody),
+    EmptyBody(ast::SemiColon),
     /// A tuple struct body.
-    TupleBody(TupleBody),
+    TupleBody(TupleBody, ast::SemiColon),
     /// A regular struct body.
     StructBody(StructBody),
 }
@@ -78,52 +73,41 @@ pub enum ItemStructBody {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::ItemStructBody>("").unwrap();
-/// parse_all::<ast::ItemStructBody>("( a, b, c )").unwrap();
+/// parse_all::<ast::ItemStructBody>(";").unwrap();
+/// parse_all::<ast::ItemStructBody>("( a, b, c );").unwrap();
+/// parse_all::<ast::ItemStructBody>("();").unwrap();
 /// parse_all::<ast::ItemStructBody>("{ a, b, c }").unwrap();
 /// ```
 impl Parse for ItemStructBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_peek()?;
+        let t = parser.token_peek_eof()?;
 
-        Ok(match token.map(|t| t.kind) {
-            Some(ast::Kind::Open(ast::Delimiter::Parenthesis)) => Self::TupleBody(parser.parse()?),
-            Some(ast::Kind::Open(ast::Delimiter::Brace)) => Self::StructBody(parser.parse()?),
+        let body = match t.kind {
+            ast::Kind::Open(ast::Delimiter::Parenthesis) => {
+                Self::TupleBody(parser.parse()?, parser.parse()?)
+            }
+            ast::Kind::Open(ast::Delimiter::Brace) => Self::StructBody(parser.parse()?),
             _ => Self::EmptyBody(parser.parse()?),
-        })
+        };
+
+        Ok(body)
     }
 }
 
 impl IntoTokens for ItemStructBody {
     fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         match self {
-            ItemStructBody::EmptyBody(..) => (),
-            ItemStructBody::TupleBody(body) => {
+            ItemStructBody::EmptyBody(semi) => {
+                semi.into_tokens(context, stream);
+            }
+            ItemStructBody::TupleBody(body, semi) => {
                 body.into_tokens(context, stream);
+                semi.into_tokens(context, stream);
             }
             ItemStructBody::StructBody(body) => {
                 body.into_tokens(context, stream);
             }
         }
-    }
-}
-
-/// A variant declaration that is empty..
-#[derive(Debug, Clone)]
-pub struct EmptyBody {}
-
-/// Parse implementation for an empty struct body.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// parse_all::<ast::EmptyBody>("Foo").unwrap();
-/// ```
-impl Parse for EmptyBody {
-    fn parse(_: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {})
     }
 }
 
@@ -178,12 +162,10 @@ impl Parse for TupleBody {
             }
         }
 
-        let close = parser.parse()?;
-
         Ok(Self {
             open,
             fields,
-            close,
+            close: parser.parse()?,
         })
     }
 }

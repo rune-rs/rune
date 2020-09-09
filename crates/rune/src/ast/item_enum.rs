@@ -15,7 +15,7 @@ pub struct ItemEnum {
     /// The open brace of the declaration.
     pub open: ast::OpenBrace,
     /// Variants in the declaration.
-    pub variants: Vec<(ast::Ident, ast::ItemStructBody, Option<ast::Comma>)>,
+    pub variants: Vec<(ast::Ident, ItemEnumVariant, Option<ast::Comma>)>,
     /// The close brace in the declaration.
     pub close: ast::CloseBrace,
 }
@@ -88,5 +88,52 @@ impl IntoTokens for ItemEnum {
         }
 
         self.close.into_tokens(context, stream);
+    }
+}
+
+/// An item body declaration.
+#[derive(Debug, Clone)]
+pub enum ItemEnumVariant {
+    /// An empty enum body.
+    EmptyBody,
+    /// A tuple struct body.
+    TupleBody(ast::TupleBody),
+    /// A regular struct body.
+    StructBody(ast::StructBody),
+}
+
+/// Parse implementation for a struct body.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::ItemEnumVariant>("( a, b, c );").unwrap();
+/// parse_all::<ast::ItemEnumVariant>("{ a, b, c }").unwrap();
+/// ```
+impl Parse for ItemEnumVariant {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let token = parser.token_peek()?;
+
+        Ok(match token.map(|t| t.kind) {
+            Some(ast::Kind::Open(ast::Delimiter::Parenthesis)) => Self::TupleBody(parser.parse()?),
+            Some(ast::Kind::Open(ast::Delimiter::Brace)) => Self::StructBody(parser.parse()?),
+            _ => Self::EmptyBody,
+        })
+    }
+}
+
+impl IntoTokens for ItemEnumVariant {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        match self {
+            Self::EmptyBody => (),
+            Self::TupleBody(body) => {
+                body.into_tokens(context, stream);
+            }
+            Self::StructBody(body) => {
+                body.into_tokens(context, stream);
+            }
+        }
     }
 }

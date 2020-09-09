@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/runestick",
+    "crates/runestick-macros",
     "crates/rune-modules",
     "crates/rune-macros",
     "crates/rune-testing",

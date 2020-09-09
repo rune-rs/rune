@@ -41,7 +41,7 @@ fn test_function() {
     // ptr to dynamic function.
     let function = rune! {
         Function => r#"
-        struct Custom(a)
+        struct Custom(a);
         fn main() { Custom }
         "#
     };

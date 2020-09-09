@@ -45,9 +45,9 @@ impl<'a> Indexer<'a> {
     }
 
     /// Handle a filesystem module.
-    pub(crate) fn handle_file_mod(&mut self, decl_mod: &ast::ItemMod) -> CompileResult<()> {
-        let span = decl_mod.span();
-        let name = decl_mod.name.resolve(&self.storage, &*self.source)?;
+    pub(crate) fn handle_file_mod(&mut self, item_mod: &ast::ItemMod) -> CompileResult<()> {
+        let span = item_mod.span();
+        let name = item_mod.name.resolve(&self.storage, &*self.source)?;
         let _guard = self.items.push_name(name.as_ref());
 
         let path = match self.source.path() {
@@ -118,7 +118,7 @@ pub(crate) trait Index<T> {
 
 impl Index<ast::File> for Indexer<'_> {
     fn index(&mut self, decl_file: &ast::File) -> CompileResult<()> {
-        for (decl, semi_colon) in &decl_file.decls {
+        for (decl, semi_colon) in &decl_file.items {
             if let Some(semi_colon) = semi_colon {
                 if !decl.needs_semi_colon() {
                     self.warnings
@@ -617,15 +617,16 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 self.impl_items.pop();
             }
-            ast::Item::ItemMod(decl_mod) => {
-                if let Some(body) = &decl_mod.body {
-                    let name = decl_mod.name.resolve(&self.storage, &*self.source)?;
+            ast::Item::ItemMod(item_mod) => match &item_mod.body {
+                ast::ItemModBody::EmptyBody(..) => {
+                    self.handle_file_mod(item_mod)?;
+                }
+                ast::ItemModBody::InlineBody(body) => {
+                    let name = item_mod.name.resolve(&self.storage, &*self.source)?;
                     let _guard = self.items.push_name(name.as_ref());
                     self.index(&*body.file)?;
-                } else {
-                    self.handle_file_mod(decl_mod)?;
                 }
-            }
+            },
             ast::Item::MacroCall(expr_call_macro) => {
                 let _guard = self.items.push_macro();
 

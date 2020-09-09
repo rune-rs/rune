@@ -56,5 +56,5 @@ fn vec_iter(vec: &[Value]) -> Iter {
     }
 }
 
-impl_external!(Iter);
-impl_external!(Rev<Iter>);
+crate::__internal_impl_external!(Iter);
+crate::__internal_impl_external!(Rev<Iter>);

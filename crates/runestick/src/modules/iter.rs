@@ -72,5 +72,5 @@ impl Iterator for Range {
     }
 }
 
-impl_external!(Range);
-impl_external!(Rev);
+crate::__internal_impl_external!(Range);
+crate::__internal_impl_external!(Rev);

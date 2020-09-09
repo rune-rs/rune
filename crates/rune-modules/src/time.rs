@@ -31,7 +31,7 @@
 //! }
 //! ```
 
-use runestick::{ContextError, Module};
+use runestick::{Any, ContextError, Module};
 
 /// Construct the `time` module.
 pub fn module() -> Result<Module, ContextError> {
@@ -41,7 +41,7 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Any)]
 struct Duration {
     inner: tokio::time::Duration,
 }
@@ -59,5 +59,3 @@ impl Duration {
 async fn delay_for(duration: &Duration) {
     tokio::time::delay_for(duration.inner).await;
 }
-
-runestick::impl_external!(Duration);

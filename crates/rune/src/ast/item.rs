@@ -52,15 +52,7 @@ impl Item {
 
     /// Indicates if the declaration needs a semi-colon or not.
     pub fn needs_semi_colon(&self) -> bool {
-        match self {
-            Self::ItemUse(..) => true,
-            Self::ItemFn(..) => false,
-            Self::ItemEnum(..) => false,
-            Self::ItemStruct(decl_struct) => decl_struct.needs_semi_colon(),
-            Self::ItemImpl(..) => false,
-            Self::ItemMod(decl_mod) => decl_mod.needs_semi_colon(),
-            Self::MacroCall(..) => true,
-        }
+        matches!(self, Self::MacroCall(..))
     }
 
     /// Test if declaration is suitable inside of a block.

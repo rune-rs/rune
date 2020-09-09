@@ -14,6 +14,11 @@ impl Tuple {
     pub fn into_inner(self) -> Box<[Value]> {
         self.inner
     }
+
+    /// Get the typle at the given index.
+    pub fn get(&self, index: usize) -> Option<&Value> {
+        self.inner.get(index)
+    }
 }
 
 impl fmt::Debug for Tuple {
