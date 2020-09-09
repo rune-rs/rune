@@ -356,7 +356,7 @@ async fn main() -> Result<()> {
     let mut execution: runestick::VmExecution = vm.call(&Item::of(&["main"]), ())?;
 
     let result = if trace {
-        match do_trace(&mut execution, dump_stack).await {
+        match do_trace(&mut execution, &sources, dump_stack, with_source).await {
             Ok(value) => Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
             Err(TraceError::VmError(vm)) => Err(vm),
@@ -445,7 +445,12 @@ impl From<std::io::Error> for TraceError {
 }
 
 /// Perform a detailed trace of the program.
-async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value, TraceError> {
+async fn do_trace(
+    execution: &mut VmExecution,
+    sources: &rune::Sources,
+    dump_stack: bool,
+    with_source: bool,
+) -> Result<Value, TraceError> {
     use std::io::Write as _;
     let out = std::io::stdout();
 
@@ -466,12 +471,29 @@ async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value
                 writeln!(out, "fn {} ({}):", signature, hash)?;
             }
 
-            let debug_inst = vm
+            let debug = vm
                 .unit()
                 .debug_info()
-                .and_then(|debug| debug.instruction_at(vm.ip()));
+                .and_then(|d| d.instruction_at(vm.ip()));
 
-            if let Some(inst) = debug_inst {
+            if with_source {
+                if let Some((source, span)) =
+                    debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
+                {
+                    if let Some((count, line)) = rune::diagnostics::line_for(source.as_str(), span)
+                    {
+                        writeln!(
+                            out,
+                            "  {}:{: <3} - {}",
+                            source.name(),
+                            count + 1,
+                            line.trim_end()
+                        )?;
+                    }
+                }
+            }
+
+            if let Some(inst) = debug {
                 if let Some(label) = &inst.label {
                     writeln!(out, "{}:", label)?;
                 }
@@ -483,7 +505,7 @@ async fn do_trace(execution: &mut VmExecution, dump_stack: bool) -> Result<Value
                 write!(out, "  {:04} = *out of bounds*", vm.ip())?;
             }
 
-            if let Some(inst) = debug_inst {
+            if let Some(inst) = debug {
                 if let Some(comment) = &inst.comment {
                     write!(out, " // {}", comment)?;
                 }

@@ -106,6 +106,24 @@ pub enum BinOp {
 }
 
 impl BinOp {
+    /// Test if operator is an assign operator.
+    pub fn is_assign(self) -> bool {
+        match self {
+            Self::Assign => true,
+            Self::AddAssign => true,
+            Self::SubAssign => true,
+            Self::MulAssign => true,
+            Self::DivAssign => true,
+            Self::RemAssign => true,
+            Self::BitAndAssign => true,
+            Self::BitXorAssign => true,
+            Self::BitOrAssign => true,
+            Self::ShlAssign => true,
+            Self::ShrAssign => true,
+            _ => false,
+        }
+    }
+
     /// Get the precedence for the current operator.
     pub(super) fn precedence(self) -> usize {
         // NB: Rules from: https://doc.rust-lang.org/reference/expressions.html#expression-precedence

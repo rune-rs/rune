@@ -26,6 +26,18 @@ pub enum Number {
     Integer(i64),
 }
 
+impl Number {
+    /// Try to convert number into a tuple index.
+    pub fn into_tuple_index(self) -> Option<usize> {
+        use std::convert::TryFrom as _;
+
+        match self {
+            Self::Integer(n) if n >= 0 => usize::try_from(n).ok(),
+            _ => None,
+        }
+    }
+}
+
 impl From<f64> for Number {
     fn from(value: f64) -> Self {
         Self::Float(value)
@@ -35,6 +47,15 @@ impl From<f64> for Number {
 impl From<i64> for Number {
     fn from(value: i64) -> Self {
         Self::Integer(value)
+    }
+}
+
+impl fmt::Display for Number {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Float(n) => write!(f, "{}", n),
+            Self::Integer(n) => write!(f, "{}", n),
+        }
     }
 }
 
