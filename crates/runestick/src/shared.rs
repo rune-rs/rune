@@ -688,12 +688,6 @@ impl<T: ?Sized> OwnedRef<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
-    ///
-    /// The returned pointer also must not outlive the VM that produced.
-    /// Nor a call to clear the VM using [clear], since this will free up the
-    /// data being referenced.
-    ///
-    /// [clear]: [crate::Vm::clear]
     pub fn into_raw(this: Self) -> (*const T, RawOwnedRef) {
         let guard = RawOwnedRef {
             _guard: this.guard,
@@ -745,12 +739,6 @@ impl<T: ?Sized> OwnedMut<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
-    ///
-    /// The returned pointer also must not outlive the VM that produced.
-    /// Nor a call to clear the VM using [clear], since this will free up the
-    /// data being referenced.
-    ///
-    /// [clear]: [crate::Vm::clear]
     pub fn into_raw(this: Self) -> (*mut T, RawOwnedMut) {
         let guard = RawOwnedMut {
             _guard: this.guard,

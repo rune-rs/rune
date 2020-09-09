@@ -198,13 +198,6 @@ impl Drop for RawBorrowedRef {
 ///
 /// These guards are necessary, since we need to guarantee certain forms of
 /// access depending on what we do. Releasing the guard releases the access.
-///
-/// These also aid in function call integration, since they can be "arm" the
-/// virtual machine to release shared guards through its unsafe functions.
-///
-/// See [clear] for more information.
-///
-/// [clear]: [crate::Vm::clear]
 pub struct BorrowRef<'a, T: ?Sized + 'a> {
     data: *const T,
     guard: RawBorrowedRef,
@@ -287,11 +280,6 @@ impl Drop for RawTakeGuard {
 ///
 /// These guards are necessary, since we need to guarantee certain forms of
 /// access depending on what we do. Releasing the guard releases the access.
-///
-/// These also aid in function call integration, since they can be "arm" the
-/// virtual machine to release shared guards through its unsafe functions.
-///
-/// See [clear][crate::Vm::clear] for more information.
 pub struct BorrowMut<'a, T: ?Sized> {
     data: *mut T,
     guard: RawBorrowedMut,
