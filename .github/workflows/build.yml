@@ -8,10 +8,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
+        id: rust_toolchain
         with:
           toolchain: stable
           override: true
-      - run: echo "::set-env name=RUSTC_VERSION::${{ rustc --version }}"
       - name: Cache Cargo
         uses: actions/cache@v2
         with:
@@ -20,5 +20,5 @@ jobs:
             ~/.cargo/git
             ~/.cargo/bin
             target
-          key: ${{ runner.os }}-cargo-${{ $RUSTC_VERSION }}
+          key: ${{ runner.os }}-cargo-${{ steps.rust_toolchain.outputs.rustc_hash }}
       - run: cargo test --all
