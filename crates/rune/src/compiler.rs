@@ -106,7 +106,7 @@ pub fn compile_with_options(
     while let Some(entry) = worker.query.queue.pop_front() {
         let source_id = entry.source_id;
 
-        if let Err(error) = compile_entry(CompileEnitryArgs {
+        if let Err(error) = compile_entry(CompileEntryArgs {
             context,
             options,
             storage: &storage,
@@ -126,7 +126,7 @@ pub fn compile_with_options(
     Ok(())
 }
 
-struct CompileEnitryArgs<'a> {
+struct CompileEntryArgs<'a> {
     context: &'a Context,
     options: &'a Options,
     storage: &'a Storage,
@@ -137,8 +137,8 @@ struct CompileEnitryArgs<'a> {
     expanded: &'a HashMap<Item, Expanded>,
 }
 
-fn compile_entry(args: CompileEnitryArgs) -> Result<(), CompileError> {
-    let CompileEnitryArgs {
+fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
+    let CompileEntryArgs {
         context,
         options,
         storage,
