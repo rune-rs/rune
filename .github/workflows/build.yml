@@ -7,17 +7,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
       - name: Cache Cargo
         uses: actions/cache@v2
+        env:
+          RUSTC_VERSION: ${{ rustc --version }}
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
             target
-          key: ${{ runner.os }}-cargo-${{ rustc --version }}
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+          key: ${{ runner.os }}-cargo-"$RUSTC_VERSION"
       - run: cargo test --all
