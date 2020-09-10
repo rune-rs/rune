@@ -88,37 +88,8 @@ impl<'a> Lexer<'a> {
             end: self.cursor,
         };
 
-        let kind = match ident {
-            "self" => ast::Kind::Self_,
-            "macro" => ast::Kind::Macro,
-            "fn" => ast::Kind::Fn,
-            "enum" => ast::Kind::Enum,
-            "struct" => ast::Kind::Struct,
-            "let" => ast::Kind::Let,
-            "if" => ast::Kind::If,
-            "match" => ast::Kind::Match,
-            "else" => ast::Kind::Else,
-            "use" => ast::Kind::Use,
-            "while" => ast::Kind::While,
-            "for" => ast::Kind::For,
-            "loop" => ast::Kind::Loop,
-            "in" => ast::Kind::In,
-            "true" => ast::Kind::True,
-            "false" => ast::Kind::False,
-            "is" => ast::Kind::Is,
-            "not" => ast::Kind::Not,
-            "break" => ast::Kind::Break,
-            "yield" => ast::Kind::Yield,
-            "return" => ast::Kind::Return,
-            "await" => ast::Kind::Await,
-            "async" => ast::Kind::Async,
-            "select" => ast::Kind::Select,
-            "default" => ast::Kind::Default,
-            "impl" => ast::Kind::Impl,
-            "mod" => ast::Kind::Mod,
-            _ => ast::Kind::Ident(ast::StringSource::Text),
-        };
-
+        let kind =
+            ast::Kind::from_keyword(ident).unwrap_or(ast::Kind::Ident(ast::StringSource::Text));
         Ok(Some(ast::Token { kind, span }))
     }
 

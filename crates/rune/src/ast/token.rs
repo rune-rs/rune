@@ -189,245 +189,275 @@ impl Delimiter {
     }
 }
 
-/// The kind of the token.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Kind {
-    /// A `self` token.
-    Self_,
-    /// A `macro` token.
-    Macro,
-    /// An `fn` token.
-    Fn,
-    /// An `enum` token.
-    Enum,
-    /// A `struct` token.
-    Struct,
-    /// An `is` token.
-    Is,
-    /// An `not` token.
-    Not,
-    /// A `let` token.
-    Let,
-    /// An `if` token.
-    If,
-    /// A `match` token.
-    Match,
-    /// An `else` token.
-    Else,
-    /// An `use` token.
-    Use,
-    /// A `while` token.
-    While,
-    /// A `loop` token.
-    Loop,
-    /// A `for` token.
-    For,
-    /// An `in` token.
-    In,
-    /// The `true` literal.
-    True,
-    /// The `false` literal.
-    False,
-    /// A `break` token.
-    Break,
-    /// A `yield` token.
-    Yield,
-    /// A `return` token.
-    Return,
-    /// The `await` keyword.
-    Await,
-    /// The `async` keyword.
-    Async,
-    /// The `select` keyword.
-    Select,
-    /// The `default` keyword.
-    Default,
-    /// The `impl` keyword.
-    Impl,
-    /// The `mod` keyword.
-    Mod,
-    /// `#`.
-    Pound,
-    /// `.`.
-    Dot,
-    /// `::`.
-    ColonColon,
-    /// `_`.
-    Underscore,
-    /// `,`.
-    Comma,
-    /// `:`.
-    Colon,
-    /// `;`.
-    SemiColon,
-    /// `+`.
-    Plus,
-    /// `-`.
-    Dash,
-    /// `/`.
-    Div,
-    /// `*`.
-    Star,
-    /// `&`.
-    Amp,
-    /// `=`.
-    Eq,
-    /// `==`.
-    EqEq,
-    /// `!=`.
-    BangEq,
-    /// `=>`.
-    Rocket,
-    /// `<`.
-    Lt,
-    /// `>`.
-    Gt,
-    /// `<=`.
-    LtEq,
-    /// `>=`.
-    GtEq,
-    /// `!`.
-    Bang,
-    /// `?`.
-    QuestionMark,
-    /// `..`.
-    DotDot,
-    /// `&&`.
-    AmpAmp,
-    /// `||`.
-    PipePipe,
-    /// `|`.
-    Pipe,
-    /// `%`.
-    Perc,
-    /// `<<`.
-    LtLt,
-    /// `>>`.
-    GtGt,
-    /// `^`.
-    Caret,
-    /// `+=`.
-    PlusEq,
-    /// `-=`.
-    DashEq,
-    /// `*=`.
-    StarEq,
-    /// `/=`.
-    SlashEq,
-    /// `%=`.
-    PercEq,
-    /// `&=`.
-    AmpEq,
-    /// `^=`.
-    CaretEq,
-    /// |=`.
-    PipeEq,
-    /// `<<=`.
-    LtLtEq,
-    /// `>>=`.
-    GtGtEq,
-    /// An identifier.
-    Ident(StringSource),
-    /// A label, like `'loop`.
-    Label(StringSource),
-    /// A number literal, like `42` or `3.14` or `0xff`.
-    LitNumber(NumberSource),
-    /// A characer literal.
-    LitChar(CopySource<char>),
-    /// A byte literal.
-    LitByte(CopySource<u8>),
-    /// A string literal, including escape sequences. Like `"hello\nworld"`.
-    LitStr(LitStrSource),
-    /// A byte string literal, including escape sequences. Like `b"hello\nworld"`.
-    LitByteStr(LitByteStrSource),
-    /// A template literal, including escape sequences. Like ``hello {name}``.
-    LitTemplate(LitStrSource),
-    /// An open delimiter: `(`, `{`, or `[`.
-    Open(Delimiter),
-    /// A close delimiter: `)`, `}`, or `]`.
-    Close(Delimiter),
+macro_rules! kinds {
+    ($( $ident:ident $(($ty:ty))?, $doc:literal ),* $(,)?) => {
+        /// The kind of the token.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum Kind {
+            $(#[doc = $doc] $ident $(($ty))?,)*
+        }
+    }
+}
+
+kinds! {
+    Abstract, "The `abstract` keyword.",
+    AlignOf, "The `alignof` keyword.",
+    Amp, "`&`.",
+    AmpAmp, "`&&`.",
+    AmpEq, "`&=`.",
+    As, "The `as` keyword.",
+    Async, "The `async` keyword.",
+    Await, "The `await` keyword.",
+    Bang, "`!`.",
+    BangEq, "`!=`.",
+    Become, "The `become` keyword.",
+    Break, "The `break` keyword.",
+    Caret, "`^`.",
+    CaretEq, "`^=`.",
+    Close(Delimiter), "A close delimiter: `)`, `}`, or `]`.",
+    Colon, "`:`.",
+    ColonColon, "`::`.",
+    Comma, "`,`.",
+    Crate, "The `crate` keyword.",
+    Dash, "`-`.",
+    DashEq, "`-=`.",
+    Default, "The `default` keyword.",
+    Div, "`/`.",
+    Do, "The `do` keyword.",
+    Dot, "`.`.",
+    DotDot, "`..`.",
+    Else, "The `else` keyword.",
+    Enum, "The `enum` keyword.",
+    Eq, "`=`.",
+    EqEq, "`==`.",
+    Extern, "The `extern` keyword.",
+    False, "The `false` keyword.",
+    Final, "The `final` keyword.",
+    Fn, "The `fn` keyword.",
+    For, "The `for` keyword.",
+    Gt, "`>`.",
+    GtEq, "`>=`.",
+    GtGt, "`>>`.",
+    GtGtEq, "`>>=`.",
+    Ident(StringSource), "An identifier.",
+    If, "The `if` keyword.",
+    Impl, "The `impl` keyword.",
+    In, "The `in` keyword.",
+    Is, "The `is` keyword.",
+    Label(StringSource), "A label, like `'loop`.",
+    Let, "The `let` keyword.",
+    LitByte(CopySource<u8>), "A byte literal.",
+    LitByteStr(LitByteStrSource), "A byte string literal, including escape sequences. Like `b\"hello\\nworld\"`.",
+    LitChar(CopySource<char>), "A characer literal.",
+    LitNumber(NumberSource), "A number literal, like `42` or `3.14` or `0xff`.",
+    LitStr(LitStrSource), "A string literal, including escape sequences. Like `\"hello\\nworld\"`.",
+    LitTemplate(LitStrSource), "A template literal, including escape sequences. Like ``hello {name}``.",
+    Loop, "The `loop` keyword.",
+    Lt, "`<`.",
+    LtEq, "`<=`.",
+    LtLt, "`<<`.",
+    LtLtEq, "`<<=`.",
+    Macro, "The `macro` keyword.",
+    Match, "The `match` keyword.",
+    Mod, "The `mod` keyword.",
+    Move, "The `move` keyword.",
+    Not, "The `not` keyword.",
+    OffsetOf, "The `offsetof` keyword.",
+    Open(Delimiter), "An open delimiter: `(`, `{`, or `[`.",
+    Override, "The `override` keyword.",
+    Perc, "`%`.",
+    PercEq, "`%=`.",
+    Pipe, "`|`.",
+    PipeEq, "|=`.",
+    PipePipe, "`||`.",
+    Plus, "`+`.",
+    PlusEq, "`+=`.",
+    Pound, "`#`.",
+    Priv, "The `priv` keyword.",
+    Proc, "The `proc` keyword.",
+    Pure, "The `pure` keyword.",
+    QuestionMark, "`?`.",
+    Ref, "The `ref` keyword.",
+    Return, "The `return` keyword.",
+    Rocket, "`=>`.",
+    Select, "The `select` keyword.",
+    Self_, "The `self` keyword.",
+    SemiColon, "`;`.",
+    SizeOf, "The `sizeof` keyword.",
+    SlashEq, "`/=`.",
+    Star, "`*`.",
+    StarEq, "`*=`.",
+    Static, "The `static` keyword.",
+    Struct, "The `struct` keyword.",
+    Super, "The `super` keyword.",
+    True, "The `true` keyword.",
+    TypeOf, "The `typeof` keyword.",
+    Underscore, "`_`.",
+    Unsafe, "The `unsafe` keyword.",
+    Use, "The `use` keyword.",
+    Virtual, "The `virtual` keyword.",
+    While, "The `while` keyword.",
+    Yield, "The `yield` keyword.",
+}
+
+impl Kind {
+    /// Try to convert an identifier into a keyword.
+    pub fn from_keyword(ident: &str) -> Option<Self> {
+        Some(match ident {
+            "abstract" => Self::Abstract,
+            "alignof" => Self::AlignOf,
+            "as" => Self::As,
+            "async" => Self::Async,
+            "await" => Self::Await,
+            "become" => Self::Become,
+            "break" => Self::Break,
+            "crate" => Self::Crate,
+            "default" => Self::Default,
+            "do" => Self::Do,
+            "else" => Self::Else,
+            "enum" => Self::Enum,
+            "extern" => Self::Extern,
+            "false" => Self::False,
+            "final" => Self::Final,
+            "fn" => Self::Fn,
+            "for" => Self::For,
+            "if" => Self::If,
+            "impl" => Self::Impl,
+            "in" => Self::In,
+            "is" => Self::Is,
+            "let" => Self::Let,
+            "loop" => Self::Loop,
+            "macro" => Self::Macro,
+            "match" => Self::Match,
+            "mod" => Self::Mod,
+            "move" => Self::Move,
+            "not" => Self::Not,
+            "offsetof" => Self::OffsetOf,
+            "override" => Self::Override,
+            "priv" => Self::Priv,
+            "proc" => Self::Proc,
+            "pure" => Self::Pure,
+            "ref" => Self::Ref,
+            "return" => Self::Return,
+            "select" => Self::Select,
+            "self" => Self::Self_,
+            "sizeof" => Self::SizeOf,
+            "static" => Self::Static,
+            "struct" => Self::Struct,
+            "super" => Self::Super,
+            "true" => Self::True,
+            "typeof" => Self::TypeOf,
+            "unsafe" => Self::Unsafe,
+            "use" => Self::Use,
+            "virtual" => Self::Virtual,
+            "while" => Self::While,
+            "yield" => Self::Yield,
+            _ => return None,
+        })
+    }
 }
 
 impl fmt::Display for Kind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Self::Self_ => write!(f, "self")?,
-            Self::Macro => write!(f, "macro")?,
-            Self::Fn => write!(f, "fn")?,
-            Self::Enum => write!(f, "enum")?,
-            Self::Struct => write!(f, "struct")?,
-            Self::Is => write!(f, "is")?,
-            Self::Not => write!(f, "not")?,
-            Self::Let => write!(f, "let")?,
-            Self::If => write!(f, "if")?,
-            Self::Match => write!(f, "match")?,
-            Self::Else => write!(f, "else")?,
-            Self::Use => write!(f, "use")?,
-            Self::While => write!(f, "while")?,
-            Self::Loop => write!(f, "loop")?,
-            Self::For => write!(f, "for")?,
-            Self::In => write!(f, "in")?,
-            Self::True => write!(f, "true")?,
-            Self::False => write!(f, "false")?,
-            Self::Break => write!(f, "break")?,
-            Self::Yield => write!(f, "yield")?,
-            Self::Return => write!(f, "return")?,
-            Self::Await => write!(f, "await")?,
-            Self::Async => write!(f, "async")?,
-            Self::Select => write!(f, "select")?,
-            Self::Default => write!(f, "default")?,
-            Self::Impl => write!(f, "impl")?,
-            Self::Mod => write!(f, "mod")?,
-            Self::Underscore => write!(f, "_")?,
-            Self::Comma => write!(f, ",")?,
-            Self::Colon => write!(f, ":")?,
-            Self::Pound => write!(f, "#")?,
-            Self::Dot => write!(f, ".")?,
-            Self::ColonColon => write!(f, "::")?,
-            Self::SemiColon => write!(f, ";")?,
-            Self::Caret => write!(f, "^")?,
-            Self::Plus => write!(f, "+")?,
-            Self::Dash => write!(f, "-")?,
-            Self::Div => write!(f, "/")?,
-            Self::PlusEq => write!(f, "+=")?,
-            Self::DashEq => write!(f, "-=")?,
-            Self::StarEq => write!(f, "*=")?,
-            Self::SlashEq => write!(f, "/=")?,
-            Self::PercEq => write!(f, "%=")?,
-            Self::AmpEq => write!(f, "&=")?,
-            Self::CaretEq => write!(f, "^=")?,
-            Self::PipeEq => write!(f, "|=")?,
-            Self::LtLt => write!(f, "<<")?,
-            Self::GtGt => write!(f, ">>")?,
-            Self::LtLtEq => write!(f, "<<=")?,
-            Self::GtGtEq => write!(f, ">>=")?,
-            Self::Star => write!(f, "*")?,
+            Self::Abstract => write!(f, "abstract")?,
+            Self::AlignOf => write!(f, "alignof")?,
             Self::Amp => write!(f, "&")?,
+            Self::AmpAmp => write!(f, "&&")?,
+            Self::AmpEq => write!(f, "&=")?,
+            Self::As => write!(f, "as")?,
+            Self::Async => write!(f, "async")?,
+            Self::Await => write!(f, "await")?,
+            Self::Bang => write!(f, "!")?,
+            Self::BangEq => write!(f, "!=")?,
+            Self::Become => write!(f, "become")?,
+            Self::Break => write!(f, "break")?,
+            Self::Caret => write!(f, "^")?,
+            Self::CaretEq => write!(f, "^=")?,
+            Self::Close(delimiter) => write!(f, "{}", delimiter.close())?,
+            Self::Colon => write!(f, ":")?,
+            Self::ColonColon => write!(f, "::")?,
+            Self::Comma => write!(f, ",")?,
+            Self::Crate => write!(f, "crate")?,
+            Self::Dash => write!(f, "-")?,
+            Self::DashEq => write!(f, "-=")?,
+            Self::Default => write!(f, "default")?,
+            Self::Div => write!(f, "/")?,
+            Self::Do => write!(f, "do")?,
+            Self::Dot => write!(f, ".")?,
+            Self::DotDot => write!(f, "..")?,
+            Self::Else => write!(f, "else")?,
+            Self::Enum => write!(f, "enum")?,
             Self::Eq => write!(f, "=")?,
             Self::EqEq => write!(f, "==")?,
-            Self::BangEq => write!(f, "!=")?,
-            Self::Rocket => write!(f, "=>")?,
-            Self::Lt => write!(f, "<")?,
+            Self::Extern => write!(f, "extern")?,
+            Self::False => write!(f, "false")?,
+            Self::Final => write!(f, "final")?,
+            Self::Fn => write!(f, "fn")?,
+            Self::For => write!(f, "for")?,
             Self::Gt => write!(f, ">")?,
-            Self::LtEq => write!(f, "<=")?,
             Self::GtEq => write!(f, ">=")?,
-            Self::Bang => write!(f, "!")?,
-            Self::QuestionMark => write!(f, "?")?,
-            Self::DotDot => write!(f, "..")?,
-            Self::AmpAmp => write!(f, "&&")?,
-            Self::PipePipe => write!(f, "||")?,
-            Self::Pipe => write!(f, "|")?,
-            Self::Perc => write!(f, "%")?,
-            Self::Open(delimiter) => write!(f, "{}", delimiter.open())?,
-            Self::Close(delimiter) => write!(f, "{}", delimiter.close())?,
+            Self::GtGt => write!(f, ">>")?,
+            Self::GtGtEq => write!(f, ">>=")?,
             Self::Ident(..) => write!(f, "ident")?,
+            Self::If => write!(f, "if")?,
+            Self::Impl => write!(f, "impl")?,
+            Self::In => write!(f, "in")?,
+            Self::Is => write!(f, "is")?,
             Self::Label(..) => write!(f, "label")?,
+            Self::Let => write!(f, "let")?,
+            Self::LitByte { .. } => write!(f, "byte")?,
+            Self::LitByteStr { .. } => write!(f, "byte string")?,
+            Self::LitChar { .. } => write!(f, "char")?,
             Self::LitNumber { .. } => write!(f, "number")?,
             Self::LitStr { .. } => write!(f, "string")?,
-            Self::LitByteStr { .. } => write!(f, "byte string")?,
             Self::LitTemplate { .. } => write!(f, "template")?,
-            Self::LitChar { .. } => write!(f, "char")?,
-            Self::LitByte { .. } => write!(f, "byte")?,
+            Self::Loop => write!(f, "loop")?,
+            Self::Lt => write!(f, "<")?,
+            Self::LtEq => write!(f, "<=")?,
+            Self::LtLt => write!(f, "<<")?,
+            Self::LtLtEq => write!(f, "<<=")?,
+            Self::Macro => write!(f, "macro")?,
+            Self::Match => write!(f, "match")?,
+            Self::Mod => write!(f, "mod")?,
+            Self::Move => write!(f, "move")?,
+            Self::Not => write!(f, "not")?,
+            Self::OffsetOf => write!(f, "offsetof")?,
+            Self::Open(delimiter) => write!(f, "{}", delimiter.open())?,
+            Self::Override => write!(f, "override")?,
+            Self::Perc => write!(f, "%")?,
+            Self::PercEq => write!(f, "%=")?,
+            Self::Pipe => write!(f, "|")?,
+            Self::PipeEq => write!(f, "|=")?,
+            Self::PipePipe => write!(f, "||")?,
+            Self::Plus => write!(f, "+")?,
+            Self::PlusEq => write!(f, "+=")?,
+            Self::Pound => write!(f, "#")?,
+            Self::Priv => write!(f, "priv")?,
+            Self::Proc => write!(f, "proc")?,
+            Self::Pure => write!(f, "pure")?,
+            Self::QuestionMark => write!(f, "?")?,
+            Self::Ref => write!(f, "ref")?,
+            Self::Return => write!(f, "return")?,
+            Self::Rocket => write!(f, "=>")?,
+            Self::Select => write!(f, "select")?,
+            Self::Self_ => write!(f, "self")?,
+            Self::SemiColon => write!(f, ";")?,
+            Self::SizeOf => write!(f, "sizeof")?,
+            Self::SlashEq => write!(f, "/=")?,
+            Self::Star => write!(f, "*")?,
+            Self::StarEq => write!(f, "*=")?,
+            Self::Static => write!(f, "static")?,
+            Self::Struct => write!(f, "struct")?,
+            Self::Super => write!(f, "super")?,
+            Self::True => write!(f, "true")?,
+            Self::TypeOf => write!(f, "typeof")?,
+            Self::Underscore => write!(f, "_")?,
+            Self::Unsafe => write!(f, "unsafe")?,
+            Self::Use => write!(f, "use")?,
+            Self::Virtual => write!(f, "virtual")?,
+            Self::While => write!(f, "while")?,
+            Self::Yield => write!(f, "yield")?,
         }
 
         Ok(())
