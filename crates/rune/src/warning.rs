@@ -1,4 +1,5 @@
 use runestick::Span;
+use thiserror::Error;
 
 /// Compilation warning.
 #[derive(Debug, Clone, Copy)]
@@ -9,10 +10,29 @@ pub struct Warning {
     pub kind: WarningKind,
 }
 
+impl Warning {
+    /// Access the kind of the warning.
+    pub fn kind(&self) -> &WarningKind {
+        &self.kind
+    }
+
+    /// Get the span of the warning.
+    pub fn span(&self) -> Span {
+        match &self.kind {
+            WarningKind::NotUsed { span, .. } => *span,
+            WarningKind::LetPatternMightPanic { span, .. } => *span,
+            WarningKind::TemplateWithoutExpansions { span, .. } => *span,
+            WarningKind::RemoveTupleCallParams { span, .. } => *span,
+            WarningKind::UnecessarySemiColon { span, .. } => *span,
+        }
+    }
+}
+
 /// Compilation warning kind.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Error)]
 pub enum WarningKind {
     /// Item identified by the span is not used.
+    #[error("not used")]
     NotUsed {
         /// The span that is not used.
         span: Span,
@@ -21,6 +41,7 @@ pub enum WarningKind {
     },
     /// Warning that an unconditional let pattern will panic if it doesn't
     /// match.
+    #[error("pattern might panic")]
     LetPatternMightPanic {
         /// The span of the pattern.
         span: Span,
@@ -28,6 +49,7 @@ pub enum WarningKind {
         context: Option<Span>,
     },
     /// Encountered a template string without an expansion.
+    #[error("using a template string without expansions, like `Hello World`")]
     TemplateWithoutExpansions {
         /// Span that caused the error.
         span: Span,
@@ -35,6 +57,7 @@ pub enum WarningKind {
         context: Option<Span>,
     },
     /// Suggestion that call parameters could be removed.
+    #[error("call paramters are not needed here")]
     RemoveTupleCallParams {
         /// The span of the call.
         span: Span,
@@ -44,6 +67,7 @@ pub enum WarningKind {
         context: Option<Span>,
     },
     /// An unecessary semi-colon is used.
+    #[error("unnecessary semicolon")]
     UnecessarySemiColon {
         /// Span where the semi-colon is.
         span: Span,

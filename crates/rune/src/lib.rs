@@ -168,6 +168,7 @@ mod util_macros;
 mod assembly;
 pub mod ast;
 mod compile;
+mod compile_visitor;
 mod compiler;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;
@@ -204,9 +205,10 @@ mod collections {
 }
 
 pub use crate::assembly::Assembly;
+pub use crate::compile_visitor::{CompileVisitor, NoopCompileVisitor};
 pub use crate::error::{CompileError, ParseError};
 pub use crate::lexer::Lexer;
-pub use crate::load::{load_path, load_sources};
+pub use crate::load::{load_path, load_sources, load_sources_with_visitor};
 pub use crate::load_error::{LoadError, LoadErrorKind};
 pub use crate::macro_context::MacroContext;
 pub use crate::options::Options;
@@ -217,7 +219,7 @@ pub use crate::token_stream::{IntoTokens, TokenStream, TokenStreamIter};
 pub use crate::traits::{Parse, Peek, Resolve};
 pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
-pub use unit_builder::{ImportEntry, ImportKey, UnitBuilder};
+pub use unit_builder::{ImportEntry, ImportKey, LinkerError, LinkerErrors, UnitBuilder};
 
 #[cfg(feature = "diagnostics")]
 pub use diagnostics::{termcolor, DiagnosticsError, EmitDiagnostics};

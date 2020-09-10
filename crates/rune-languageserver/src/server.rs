@@ -5,6 +5,7 @@ use anyhow::Result;
 use hashbrown::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use tokio::sync::mpsc;
 
 /// A boxed future returned from a handler.
 pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
@@ -24,9 +25,14 @@ pub struct Server {
 
 impl Server {
     /// Construct a new server implementation associated with the given output.
-    pub fn new(output: Output) -> Self {
+    pub fn new(
+        output: Output,
+        rebuild_tx: mpsc::Sender<()>,
+        context: runestick::Context,
+        options: rune::Options,
+    ) -> Self {
         Self {
-            state: State::new(),
+            state: State::new(rebuild_tx, context, options),
             output,
             handlers: HashMap::new(),
         }
@@ -35,6 +41,12 @@ impl Server {
     /// Get a clone of the server output.
     pub fn output(&self) -> Output {
         self.output.clone()
+    }
+
+    /// Rebuild the projects.
+    pub async fn rebuild(&self) -> Result<()> {
+        self.state.rebuild(&self.output).await?;
+        Ok(())
     }
 
     /// Process an incoming message.

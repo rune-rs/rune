@@ -84,14 +84,28 @@ function detectPlatform(): Platform | undefined {
     let out: string | undefined;
 
     if (process.arch === "x64") {
-        if (process.platform === "win32") {
-            out = "windows";
+        switch (process.platform) {
+        case "win32":
+            out = "windows"
+            break;
+        case "linux":
+            out = "linux"
+            break;
+        case "darwin":
+            out = "mac"
+            break;
+        default:
+            break;
         }
     }
 
     switch (out) {
     case "windows":
         return {ext: ".exe"};
+    case "linux":
+        return {ext: ""};
+    case "mac":
+        return {ext: ""};
     default:
         vscode.window.showErrorMessage(
             `Unfortunately we don't support your platform yet.
