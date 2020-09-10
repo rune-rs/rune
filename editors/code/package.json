@@ -1,0 +1,55 @@
+{
+    "name": "rune-vscode",
+    "displayName": "rune-vscode",
+    "description": "Language support for Rune",
+    "preview": true,
+    "private": true,
+    "icon": "icon.png",
+    "version": "0.6.16",
+    "releaseTag": null,
+    "publisher": "udoprog",
+    "repository": {
+        "url": "https://github.com/rune-rs/rune.git",
+        "type": "git"
+    },
+    "homepage": "https://rune-rs.github.io/",
+    "license": "MIT OR Apache-2.0",
+    "keywords": [
+        "rune"
+    ],
+    "categories": [
+        "Programming Languages"
+    ],
+    "engines": {
+        "vscode": "*"
+    },
+    "scripts": {
+        "package": "vsce package -o rune-vscode.vsix"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "vsce": "^1.79.5"
+    },
+    "contributes": {
+        "languages": [
+            {
+                "id": "rune",
+                "aliases": [
+                    "Rune",
+                    "rune"
+                ],
+                "extensions": [
+                    ".rn"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "rune",
+                "scopeName": "source.rune",
+                "path": "./syntaxes/rune.tmGrammar.json"
+            }
+        ]
+    }
+}
