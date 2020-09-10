@@ -3,5 +3,5 @@
 /*.lua
 /*.py
 /scripts/test.rn
-/.vscode
+/.vscode/spellright.dict
 *.rnc

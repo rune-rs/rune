@@ -2,6 +2,17 @@
 members = [
     "crates/runestick",
     "crates/runestick-macros",
+    "crates/rune-languageserver",
+    "crates/rune-modules",
+    "crates/rune-macros",
+    "crates/rune-testing",
+    "crates/rune",
+    "crates/rune-cli",
+]
+
+default-members = [
+    "crates/runestick",
+    "crates/runestick-macros",
     "crates/rune-modules",
     "crates/rune-macros",
     "crates/rune-testing",

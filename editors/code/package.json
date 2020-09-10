@@ -21,13 +21,23 @@
         "Programming Languages"
     ],
     "engines": {
-        "vscode": "*"
+        "vscode": "^1.47.1"
     },
     "scripts": {
-        "package": "vsce package -o rune-vscode.vsix"
+        "vscode:prepublish": "tsc && rollup -c",
+        "package": "vsce package -o rune-vscode.vsix",
+        "build": "tsc",
+        "watch": "tsc --watch"
     },
-    "dependencies": {},
+    "dependencies": {
+        "vscode-languageclient": "7.0.0-next.9"
+    },
     "devDependencies": {
+        "@rollup/plugin-commonjs": "^13.0.2",
+        "@rollup/plugin-node-resolve": "^8.4.0",
+        "@types/vscode": "^1.47.1",
+        "rollup": "^2.26.9",
+        "typescript": "^3.9.7",
         "vsce": "^1.79.5"
     },
     "contributes": {
@@ -51,5 +61,9 @@
                 "path": "./syntaxes/rune.tmGrammar.json"
             }
         ]
-    }
+    },
+    "activationEvents": [
+        "onLanguage:rune"
+    ],
+    "main": "./out/src/main"
 }

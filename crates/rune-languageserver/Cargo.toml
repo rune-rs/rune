@@ -1,0 +1,32 @@
+[package]
+name = "rune-languageserver"
+version = "0.6.16"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+readme = "README.md"
+repository = "https://github.com/rune-rs/rune"
+homepage = "https://github.com/rune-rs/rune"
+documentation = "https://docs.rs/rune-languageserver"
+keywords = ["language", "scripting"]
+categories = []
+description = """
+Language server for Rune.
+"""
+
+[dependencies]
+futures-executor = "0.3.5"
+tokio = {version = "0.2.12", features = ["full"]}
+tokio-util = {version = "0.3.1", features = ["codec"]}
+lsp = {version = "0.80.0", package = "lsp-types"}
+futures-core = "0.3.5"
+anyhow = "1.0.32"
+serde = {version = "1.0.115", features = ["derive"]}
+serde_json = "1.0.57"
+hashbrown = "0.9.0"
+log = "0.4.11"
+log4rs = "1.0.0-alpha-1"
+ropey = "1.2.0"
+
+rune = {version = "0.6.16", path = "../rune"}
+runestick = {version = "0.6.16", path = "../runestick"}

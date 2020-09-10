@@ -36,7 +36,7 @@
 //!
 //! <br>
 //!
-//! A crate use to simplify testing small rune programs.
+//! A crate used to simplify testing of small Rune programs.
 //!
 //! This is a crate used with the [Rune language].
 //!
