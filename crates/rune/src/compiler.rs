@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::collections::HashMap;
+use crate::compile_visitor::NoopCompileVisitor;
 use crate::error::CompileError;
 use crate::error::CompileResult;
 use crate::index_scopes::IndexScopes;
@@ -10,8 +11,8 @@ use crate::scopes::{Scope, ScopeGuard, Scopes};
 use crate::traits::Compile as _;
 use crate::worker::{Expanded, IndexAst, Task, Worker};
 use crate::{
-    Assembly, LoadError, LoadErrorKind, Options, Resolve as _, Sources, Storage, UnitBuilder,
-    Warnings,
+    Assembly, CompileVisitor, LoadError, LoadErrorKind, Options, Resolve as _, Sources, Storage,
+    UnitBuilder, Warnings,
 };
 use runestick::{CompileMeta, Context, Inst, Item, Label, Source, Span, TypeCheck};
 use std::cell::RefCell;
@@ -43,7 +44,15 @@ pub fn compile(
     unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
 ) -> Result<(), LoadError> {
-    compile_with_options(context, sources, unit, warnings, &Default::default())?;
+    let mut visitor = NoopCompileVisitor::new();
+    compile_with_options(
+        context,
+        sources,
+        unit,
+        warnings,
+        &Default::default(),
+        &mut visitor,
+    )?;
     Ok(())
 }
 
@@ -54,6 +63,7 @@ pub fn compile_with_options(
     unit: &Rc<RefCell<UnitBuilder>>,
     warnings: &mut Warnings,
     options: &Options,
+    visitor: &mut dyn CompileVisitor,
 ) -> Result<(), LoadError> {
     // Global storage.
     let storage = Storage::new();
@@ -115,6 +125,7 @@ pub fn compile_with_options(
             query: &mut worker.query,
             entry,
             expanded: &worker.expanded,
+            visitor,
         }) {
             return Err(LoadError::from(LoadErrorKind::CompileError {
                 source_id,
@@ -135,6 +146,7 @@ struct CompileEntryArgs<'a> {
     query: &'a mut Query,
     entry: BuildEntry,
     expanded: &'a HashMap<Item, Expanded>,
+    visitor: &'a mut dyn CompileVisitor,
 }
 
 fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
@@ -147,7 +159,9 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
         query,
         entry,
         expanded,
+        visitor,
     } = args;
+
     let BuildEntry {
         item,
         build,
@@ -172,6 +186,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
         options,
         warnings,
         expanded,
+        visitor,
     };
 
     match build {
@@ -341,6 +356,8 @@ pub(crate) struct Compiler<'a> {
     pub(crate) options: &'a Options,
     /// Compilation warnings.
     pub(crate) warnings: &'a mut Warnings,
+    /// Compiler visitor.
+    pub(crate) visitor: &'a mut dyn CompileVisitor,
 }
 
 impl<'a> Compiler<'a> {
@@ -407,6 +424,7 @@ impl<'a> Compiler<'a> {
         needs: Needs,
     ) -> CompileResult<()> {
         log::trace!("CompileMeta => {:?} {:?}", meta, needs);
+        self.visitor.visit_meta(meta, span);
 
         if let Needs::Value = needs {
             match meta {

@@ -43,6 +43,7 @@
 use anyhow::Result;
 use rune_languageserver::envelope::IncomingMessage;
 use rune_languageserver::{Output, Server, State};
+use tokio::sync::mpsc;
 
 fn setup_logging() -> Result<()> {
     // Set environment variable to get the language server to trace log to the
@@ -59,11 +60,7 @@ fn setup_logging() -> Result<()> {
 
         let config = Config::builder()
             .appender(Appender::builder().build("logfile", Box::new(logfile)))
-            .build(
-                Root::builder()
-                    .appender("logfile")
-                    .build(LevelFilter::Trace),
-            )?;
+            .build(Root::builder().appender("logfile").build(LevelFilter::Info))?;
 
         log4rs::init_config(config)?;
     }
@@ -75,10 +72,21 @@ fn setup_logging() -> Result<()> {
 async fn main() -> Result<()> {
     setup_logging()?;
 
+    let mut context = rune::default_context()?;
+    context.install(&rune_macros::module()?)?;
+
+    let mut options = rune::Options::default();
+    options.macros(true);
+
     let (mut input, output) = rune_languageserver::stdio()?;
-    let mut server = Server::new(output);
+
+    let (rebuild_tx, mut rebuild_rx) = mpsc::channel(1);
+
+    let mut server = Server::new(output.clone(), rebuild_tx, context, options);
 
     server.request_handler::<lsp::request::Initialize, _, _>(initialize);
+
+    server.request_handler::<lsp::request::GotoDefinition, _, _>(goto_definition);
 
     server.notification_handler::<lsp::notification::DidOpenTextDocument, _, _>(
         did_open_text_document,
@@ -96,9 +104,21 @@ async fn main() -> Result<()> {
 
     log::info!("Starting server");
 
-    while let Some(frame) = input.next().await? {
-        let request: IncomingMessage = serde_json::from_slice(frame.content)?;
-        server.process(request).await?;
+    loop {
+        tokio::select! {
+            _ = rebuild_rx.recv() => {
+                server.rebuild().await?;
+            },
+            frame = input.next() => {
+                let frame = match frame? {
+                    Some(frame) => frame,
+                    None => break,
+                };
+
+                let request: IncomingMessage = serde_json::from_slice(frame.content)?;
+                server.process(request).await?;
+            },
+        }
     }
 
     Ok(())
@@ -122,6 +142,8 @@ async fn initialize(
         lsp::TextDocumentSyncKind::Incremental,
     ));
 
+    capabilities.definition_provider = Some(true);
+
     let server_info = lsp::ServerInfo {
         name: String::from("Rune Language Server"),
         version: None,
@@ -139,14 +161,22 @@ async fn initialized(_: State, _: Output, _: lsp::InitializedParams) -> Result<(
     Ok(())
 }
 
+/// Handle initialized notification.
+async fn goto_definition(
+    _: State,
+    _: Output,
+    params: lsp::GotoDefinitionParams,
+) -> Result<Option<lsp::GotoDefinitionResponse>> {
+    log::info!("Go to definition: {:?}", params);
+    Ok(None)
+}
+
 /// Handle open text document.
 async fn did_open_text_document(
     state: State,
     _: Output,
     params: lsp::DidOpenTextDocumentParams,
 ) -> Result<()> {
-    log::info!("did open `{:?}`", params.text_document.uri);
-
     let mut sources = state.sources().await;
 
     if sources
@@ -159,6 +189,7 @@ async fn did_open_text_document(
         );
     }
 
+    state.rebuild_interest().await?;
     Ok(())
 }
 
@@ -168,23 +199,28 @@ async fn did_change_text_document(
     _: Output,
     params: lsp::DidChangeTextDocumentParams,
 ) -> Result<()> {
-    log::info!("did change `{}`", params.text_document.uri);
+    let mut interest = false;
 
-    let mut sources = state.sources().await;
+    {
+        let mut sources = state.sources().await;
 
-    if let Some(source) = sources.get_mut(&params.text_document.uri) {
-        for change in params.content_changes {
-            if let Some(range) = change.range {
-                source.modify_lsp_range(range, &change.text)?;
+        if let Some(source) = sources.get_mut(&params.text_document.uri) {
+            for change in params.content_changes {
+                if let Some(range) = change.range {
+                    source.modify_lsp_range(range, &change.text)?;
+                    interest = true;
+                }
             }
+        } else {
+            log::warn!(
+                "tried to modify `{}`, but it was not open!",
+                params.text_document.uri
+            );
         }
+    }
 
-        log::trace!("result:\n{}", source);
-    } else {
-        log::warn!(
-            "tried to modify `{}`, but it was not open!",
-            params.text_document.uri
-        );
+    if interest {
+        state.rebuild_interest().await?;
     }
 
     Ok(())
@@ -196,8 +232,6 @@ async fn did_close_text_document(
     _: Output,
     params: lsp::DidCloseTextDocumentParams,
 ) -> Result<()> {
-    log::info!("did close `{}`", params.text_document.uri);
-
     let mut sources = state.sources().await;
 
     if sources.remove(&params.text_document.uri).is_none() {
@@ -207,6 +241,7 @@ async fn did_close_text_document(
         );
     }
 
+    state.rebuild_interest().await?;
     Ok(())
 }
 
@@ -214,7 +249,7 @@ async fn did_close_text_document(
 async fn did_save_text_document(
     _: State,
     _: Output,
-    params: lsp::DidSaveTextDocumentParams,
+    _: lsp::DidSaveTextDocumentParams,
 ) -> Result<()> {
     Ok(())
 }

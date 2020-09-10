@@ -1,7 +1,7 @@
-use crate::compiler;
 use crate::unit_builder::LinkerErrors;
 use crate::unit_builder::UnitBuilder;
-use crate::{LoadError, LoadErrorKind, Options, Sources, Warnings};
+use crate::{compiler, CompileVisitor};
+use crate::{LoadError, LoadErrorKind, NoopCompileVisitor, Options, Sources, Warnings};
 use runestick::{Context, Source, Unit};
 use std::cell::RefCell;
 use std::path::Path;
@@ -130,6 +130,18 @@ pub fn load_sources(
     sources: &mut Sources,
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
+    let mut visitor = NoopCompileVisitor::new();
+    load_sources_with_visitor(context, options, sources, warnings, &mut visitor)
+}
+
+/// Load the specified sources with a visitor.
+pub fn load_sources_with_visitor(
+    context: &Context,
+    options: &Options,
+    sources: &mut Sources,
+    warnings: &mut Warnings,
+    visitor: &mut dyn CompileVisitor,
+) -> Result<Unit, LoadError> {
     let unit = if context.has_default_modules() {
         UnitBuilder::with_default_prelude()
     } else {
@@ -137,7 +149,7 @@ pub fn load_sources(
     };
 
     let unit = Rc::new(RefCell::new(unit));
-    compiler::compile_with_options(&*context, sources, &unit, warnings, &options)?;
+    compiler::compile_with_options(&*context, sources, &unit, warnings, &options, visitor)?;
 
     let unit = match Rc::try_unwrap(unit) {
         Ok(unit) => unit.into_inner(),

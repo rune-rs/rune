@@ -4,7 +4,7 @@ import * as path from 'path';
 
 export async function activate(context: vscode.ExtensionContext) {
     await tryActivate(context).catch(err => {
-        void vscode.window.showErrorMessage(`Cannot activate rust-analyzer: ${err.message}`);
+        void vscode.window.showErrorMessage(`Cannot activate rune-languageserver: ${err.message}`);
         throw err;
     });
 }
@@ -84,14 +84,28 @@ function detectPlatform(): Platform | undefined {
     let out: string | undefined;
 
     if (process.arch === "x64") {
-        if (process.platform === "win32") {
-            out = "windows";
+        switch (process.platform) {
+        case "win32":
+            out = "windows"
+            break;
+        case "linux":
+            out = "linux"
+            break;
+        case "darwin":
+            out = "mac"
+            break;
+        default:
+            break;
         }
     }
 
     switch (out) {
     case "windows":
         return {ext: ".exe"};
+    case "linux":
+        return {ext: ""};
+    case "mac":
+        return {ext: ""};
     default:
         vscode.window.showErrorMessage(
             `Unfortunately we don't support your platform yet.
