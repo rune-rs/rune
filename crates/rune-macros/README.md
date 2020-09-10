@@ -1,6 +1,12 @@
 # rune-macros
 
 <div align="center">
+    <img alt="Rune Logo" src="https://raw.githubusercontent.com/rune-rs/rune/master/assets/icon.png" />
+</div>
+
+<br>
+
+<div align="center">
 <a href="https://rune-rs.github.io/rune/">
     <b>Read the Book 📖</b>
 </a>
