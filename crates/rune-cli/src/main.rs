@@ -364,7 +364,7 @@ async fn main() -> Result<()> {
 
     let last = std::time::Instant::now();
 
-    let mut execution: runestick::VmExecution = vm.call(&Item::of(&["main"]), ())?;
+    let mut execution: runestick::VmExecution = vm.execute(&Item::of(&["main"]), ())?;
 
     let result = if trace {
         match do_trace(&mut execution, &sources, dump_stack, with_source).await {

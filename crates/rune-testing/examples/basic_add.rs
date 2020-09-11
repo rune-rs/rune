@@ -23,7 +23,7 @@ fn main() -> runestick::Result<()> {
     )?;
 
     let vm = Vm::new(Arc::new(context), Arc::new(unit));
-    let output = vm.call(&["main"], (33i64,))?.complete()?;
+    let output = vm.execute(&["main"], (33i64,))?.complete()?;
     let output = i64::from_value(output)?;
 
     println!("output: {}", output);

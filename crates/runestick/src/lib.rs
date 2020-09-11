@@ -60,6 +60,7 @@ mod function;
 mod future;
 mod generator;
 mod generator_state;
+mod guarded_args;
 mod hash;
 mod inst;
 mod item;
@@ -104,6 +105,7 @@ pub use self::compile_meta::{
 };
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
+pub use self::guarded_args::GuardedArgs;
 pub use self::label::{DebugLabel, Label};
 pub use self::module::{IntoInstFnHash, Module};
 pub use self::select::Select;
@@ -142,8 +144,10 @@ pub use crate::protocol::{
     BIT_XOR_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL, MUL_ASSIGN,
     NEXT, REM, REM_ASSIGN, SHL, SHL_ASSIGN, SHR, SHR_ASSIGN, STRING_DISPLAY, SUB, SUB_ASSIGN,
 };
-pub use crate::reflection::{FromAny, FromValue, ToValue, UnsafeFromValue, ValueType};
-pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared};
+pub use crate::reflection::{
+    FromAny, FromValue, ToValue, UnsafeFromValue, UnsafeToValue, ValueType,
+};
+pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, SharedPointerGuard};
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};
 pub use crate::value::{Integer, TupleVariant, TypedObject, TypedTuple, Value, VariantObject};

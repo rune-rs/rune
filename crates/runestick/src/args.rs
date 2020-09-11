@@ -1,6 +1,4 @@
-/// Trait for converting arguments into values unsafely.
-///
-/// This has the ability to encode references.
+/// Trait for converting arguments onto the stack.
 pub trait Args {
     /// Encode arguments onto a stack.
     fn into_stack(self, stack: &mut crate::Stack) -> Result<(), crate::VmError>;
@@ -25,7 +23,7 @@ macro_rules! impl_into_args {
     (@impl $count:expr, $({$ty:ident, $value:ident, $ignore_count:expr},)*) => {
         impl<$($ty,)*> Args for ($($ty,)*)
         where
-            $($ty: $crate::ToValue + std::fmt::Debug,)*
+            $($ty: $crate::ToValue,)*
         {
             #[allow(unused)]
             fn into_stack(self, stack: &mut $crate::Stack) -> Result<(), $crate::VmError> {

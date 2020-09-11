@@ -3,6 +3,7 @@
 use crate::Hash;
 use std::any;
 use std::fmt;
+use std::mem::ManuallyDrop;
 
 /// Our own private dynamic Any implementation.
 ///
@@ -33,10 +34,53 @@ impl Any {
             vtable: &AnyVtable {
                 drop: drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
+                as_mut: as_mut_impl::<T>,
+                take: as_mut_impl::<T>,
                 type_name: any::type_name::<T>,
                 type_hash: Hash::from_any::<T>,
             },
             data: data as *mut (),
+        }
+    }
+
+    /// Construct an Any that wraps a pointer.
+    pub fn from_ref<T>(data: &T) -> Self
+    where
+        T: any::Any,
+    {
+        Self {
+            vtable: &AnyVtable {
+                drop: noop_drop_impl::<T>,
+                as_ptr: as_ptr_impl::<T>,
+                // Raw pointers cannot be casted to mutable pointers.
+                as_mut: not_supported::<T, _, _>,
+                // Pointers cannot be "taken", because they're not owned by the
+                // any.
+                take: not_supported::<T, _, _>,
+                type_name: any::type_name::<T>,
+                type_hash: Hash::from_any::<T>,
+            },
+            data: data as *const _ as *const (),
+        }
+    }
+
+    /// Construct an Any that wraps a mutable pointer.
+    pub fn from_mut<T>(data: &mut T) -> Self
+    where
+        T: any::Any,
+    {
+        Self {
+            vtable: &AnyVtable {
+                drop: noop_drop_impl::<T>,
+                as_ptr: as_ptr_impl::<T>,
+                as_mut: as_mut_impl::<T>,
+                // Pointers cannot be "taken", because they're not owned by the
+                // any.
+                take: not_supported::<T, _, _>,
+                type_name: any::type_name::<T>,
+                type_hash: Hash::from_any::<T>,
+            },
+            data: data as *mut _ as *mut () as *const (),
         }
     }
 
@@ -111,20 +155,17 @@ impl Any {
     }
 
     /// Attempt to perform a conversion to a raw pointer.
-    pub fn as_ptr(&self, expected: Hash) -> Option<*const ()> {
+    pub fn raw_as_ptr(&self, expected: Hash) -> Option<*const ()> {
         // Safety: invariants are checked at construction time.
         unsafe { (self.vtable.as_ptr)(self.data, expected) }
     }
 
     /// Attempt to perform a conversion to a raw mutable pointer.
-    pub fn as_mut_ptr(&mut self, expected: Hash) -> Option<*mut ()> {
+    pub fn raw_as_mut(&mut self, expected: Hash) -> Option<*mut ()> {
         // Safety: invariants are checked at construction time.
         // We have mutable access to the inner value because we have mutable
         // access to the `Any`.
-        unsafe {
-            let ptr = (self.vtable.as_ptr)(self.data, expected)?;
-            Some(ptr as *mut ())
-        }
+        unsafe { (self.vtable.as_mut)(self.data, expected) }
     }
 
     /// Attempt to perform a conversion to a raw mutable pointer with the intent
@@ -132,12 +173,13 @@ impl Any {
     ///
     /// If the conversion is not possible, we return a reconstructed `Any` as
     /// the error variant.
-    pub fn take_mut_ptr(self, expected: Hash) -> Result<*mut (), Self> {
-        use std::mem::ManuallyDrop;
+    pub fn raw_take(self, expected: Hash) -> Result<*mut (), Self> {
+        let this = ManuallyDrop::new(self);
 
-        let mut this = ManuallyDrop::new(self);
-
-        match this.as_mut_ptr(expected) {
+        // Safety: invariants are checked at construction time.
+        // We have mutable access to the inner value because we have mutable
+        // access to the `Any`.
+        match unsafe { (this.vtable.take)(this.data, expected) } {
             Some(data) => Ok(data),
             None => Err(ManuallyDrop::into_inner(this)),
         }
@@ -170,6 +212,12 @@ pub type DropFn = unsafe fn(*const ());
 /// The signature of a pointer coercion function.
 pub type AsPtrFn = unsafe fn(*const (), expected: Hash) -> Option<*const ()>;
 
+/// The signature of a pointer coercion function.
+pub type AsMutFn = unsafe fn(*const (), expected: Hash) -> Option<*mut ()>;
+
+/// The signature of a pointer coercion function.
+pub type TakeFn = unsafe fn(*const (), expected: Hash) -> Option<*mut ()>;
+
 /// The signature of a descriptive type name function.
 pub type TypeNameFn = fn() -> &'static str;
 
@@ -185,8 +233,12 @@ pub type TypeHashFn = fn() -> Hash;
 pub struct AnyVtable {
     /// The underlying drop implementation for the stored type.
     drop: DropFn,
-    /// Punt the inner pointere to the type corresponding to the type hash.
+    /// Punt the inner pointer to the type corresponding to the type hash.
     as_ptr: AsPtrFn,
+    /// Punt the inner pointer to the type corresponding to the type hash.
+    as_mut: AsMutFn,
+    /// Punt the inner pointer to the type corresponding to the type hash.
+    take: TakeFn,
     /// Type information for diagnostics.
     type_name: TypeNameFn,
     /// Get the type hash of the stored type.
@@ -206,4 +258,24 @@ where
     } else {
         None
     }
+}
+
+fn noop_drop_impl<T>(_: *const ()) {}
+
+fn as_mut_impl<T>(this: *const (), expected: Hash) -> Option<*mut ()>
+where
+    T: any::Any,
+{
+    if expected == Hash::from_type_id(any::TypeId::of::<T>()) {
+        Some(this as *mut ())
+    } else {
+        None
+    }
+}
+
+fn not_supported<T, P, O>(_: P, _: Hash) -> Option<O>
+where
+    T: any::Any,
+{
+    None
 }

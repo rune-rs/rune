@@ -1,9 +1,9 @@
 use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
-    Args, Awaited, Bytes, Call, Context, FromValue, Function, Future, Generator, Hash, Inst,
-    Integer, IntoHash, Object, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject,
-    Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution, VmHalt,
+    Args, Awaited, Bytes, Call, Context, FromValue, Function, Future, Generator, GuardedArgs, Hash,
+    Inst, Integer, IntoHash, Object, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck,
+    TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution, VmHalt,
 };
 use std::fmt;
 use std::mem;
@@ -142,17 +142,95 @@ impl Vm {
     ///
     ///     let vm = runestick::Vm::new(context, unit);
     ///
-    ///     let output = vm.call(&["main"], (33i64,))?.complete()?;
+    ///     let output = vm.execute(&["main"], (33i64,))?.complete()?;
     ///     let output = i64::from_value(output)?;
     ///
     ///     println!("output: {}", output);
     ///     Ok(())
     /// }
     /// ```
-    pub fn call<A, N>(mut self, name: N, args: A) -> Result<VmExecution, VmError>
+    pub fn execute<A, N>(mut self, name: N, args: A) -> Result<VmExecution, VmError>
     where
         N: IntoHash,
         A: Args,
+    {
+        self.set_entrypoint(name, A::count())?;
+        args.into_stack(&mut self.stack)?;
+        Ok(VmExecution::new(self))
+    }
+
+    /// Call the given function immediately, returning the produced value.
+    ///
+    /// This function permits for using references since it doesn't defer its
+    /// execution.
+    ///
+    /// # Panics
+    ///
+    /// If any of the arguments passed in are references, and that references is
+    /// captured somewhere in the call as [`StrongMut<T>`] or [`StrongRef<T>`]
+    /// this call will panic as we are trying to free the metadata relatedc to
+    /// the reference.
+    ///
+    /// [`StrongMut<T>`]: crate::StrongMut
+    /// [`StrongRef<T>`]: crate::StrongRef
+    pub fn call<A, N>(mut self, name: N, args: A) -> Result<Value, VmError>
+    where
+        N: IntoHash,
+        A: GuardedArgs,
+    {
+        self.set_entrypoint(name, A::count())?;
+
+        // Safety: We hold onto the guard until the vm has completed.
+        let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
+
+        let value = VmExecution::new(self).complete()?;
+
+        // Note: this might panic if something in the vm is holding on to a
+        // reference of the value. We should prevent it from being possible to
+        // take any owned references to values held by this.
+        drop(guard);
+        Ok(value)
+    }
+
+    /// Call the given function immediately asynchronously, returning the
+    /// produced value.
+    ///
+    /// This function permits for using references since it doesn't defer its
+    /// execution.
+    ///
+    /// # Panics
+    ///
+    /// If any of the arguments passed in are references, and that references is
+    /// captured somewhere in the call as [`StrongMut<T>`] or [`StrongRef<T>`]
+    /// this call will panic as we are trying to free the metadata relatedc to
+    /// the reference.
+    ///
+    /// [`StrongMut<T>`]: crate::StrongMut
+    /// [`StrongRef<T>`]: crate::StrongRef
+    pub async fn async_call<A, N>(mut self, name: N, args: A) -> Result<Value, VmError>
+    where
+        N: IntoHash,
+        A: GuardedArgs,
+    {
+        self.set_entrypoint(name, A::count())?;
+
+        // Safety: We hold onto the guard until the vm has completed.
+        let guard = unsafe { args.unsafe_into_stack(&mut self.stack)? };
+
+        let value = VmExecution::new(self).complete()?;
+
+        // Note: this might panic if something in the vm is holding on to a
+        // reference of the value. We should prevent it from being possible to
+        // take any owned references to values held by this.
+        drop(guard);
+        Ok(value)
+    }
+
+    // Update the instruction pointer to match the function matching the given
+    // name and check that the number of argument matches.
+    fn set_entrypoint<N>(&mut self, name: N, count: usize) -> Result<(), VmError>
+    where
+        N: IntoHash,
     {
         let hash = name.into_hash();
 
@@ -171,7 +249,7 @@ impl Vm {
                 args: expected,
                 ..
             } => {
-                Self::check_args(A::count(), expected)?;
+                Self::check_args(count, expected)?;
                 offset
             }
             _ => {
@@ -181,11 +259,7 @@ impl Vm {
 
         self.ip = offset;
         self.stack.clear();
-
-        // Safety: we bind the lifetime of the arguments to the outgoing task,
-        // ensuring that the task won't outlive any references passed in.
-        args.into_stack(&mut self.stack)?;
-        Ok(VmExecution::new(self))
+        Ok(())
     }
 
     fn op_await(&mut self) -> Result<Shared<Future>, VmError> {

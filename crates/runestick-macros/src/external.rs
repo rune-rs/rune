@@ -12,10 +12,12 @@ where
     let raw_owned_mut = &quote!(#module::RawOwnedMut);
     let raw_owned_ref = &quote!(#module::RawOwnedRef);
     let shared = &quote!(#module::Shared);
+    let pointer_guard = &quote!(#module::SharedPointerGuard);
     let to_value = &quote!(#module::ToValue);
     let ty = &quote!(#module::Type);
     let type_info = &quote!(#module::TypeInfo);
     let unsafe_from_value = &quote!(#module::UnsafeFromValue);
+    let unsafe_to_value = &quote!(#module::UnsafeToValue);
     let value = &quote!(#module::Value);
     let value_type = &quote!(#module::ValueType);
     let vm_error = &quote!(#module::VmError);
@@ -74,6 +76,24 @@ where
 
             unsafe fn to_arg(output: Self::Output) -> Self {
                 &mut *output
+            }
+        }
+
+        impl #unsafe_to_value for &#ident {
+            type Guard = #pointer_guard;
+
+            unsafe fn unsafe_to_value(self) -> Result<(#value, Self::Guard), #vm_error> {
+                let (shared, guard) = #shared::from_ref(self);
+                Ok((#value::from(shared), guard))
+            }
+        }
+
+        impl #unsafe_to_value for &mut #ident {
+            type Guard = #pointer_guard;
+
+            unsafe fn unsafe_to_value(self) -> Result<(#value, Self::Guard), #vm_error> {
+                let (shared, guard) = #shared::from_mut(self);
+                Ok((#value::from(shared), guard))
             }
         }
     })

@@ -639,11 +639,29 @@ impl From<()> for Value {
     }
 }
 
+impl crate::ToValue for Value {
+    fn to_value(self) -> Result<Value, VmError> {
+        Ok(self)
+    }
+}
+
+impl crate::ToValue for () {
+    fn to_value(self) -> Result<Value, VmError> {
+        Ok(Value::from(self))
+    }
+}
+
 macro_rules! impl_from {
     ($ty:ty, $variant:ident) => {
         impl From<$ty> for Value {
             fn from(value: $ty) -> Self {
                 Self::$variant(value)
+            }
+        }
+
+        impl $crate::ToValue for $ty {
+            fn to_value(self) -> Result<Value, VmError> {
+                Ok(Value::from(self))
             }
         }
     };
@@ -663,6 +681,12 @@ macro_rules! impl_from_shared {
         impl From<$ty> for Value {
             fn from(value: $ty) -> Self {
                 Self::$variant(Shared::new(value))
+            }
+        }
+
+        impl $crate::ToValue for $ty {
+            fn to_value(self) -> Result<Value, VmError> {
+                Ok(Value::from(self))
             }
         }
     };
