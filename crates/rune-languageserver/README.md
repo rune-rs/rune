@@ -1,4 +1,4 @@
-# rune-testing
+# rune-languageserver
 
 <div align="center">
     <img alt="Rune Logo" src="https://raw.githubusercontent.com/rune-rs/rune/master/assets/icon.png" />
@@ -38,8 +38,6 @@
 
 <br>
 
-A crate used to simplify testing of small Rune programs.
-
-This is a crate used with the [Rune language].
+A language server for the [Rune language].
 
 [Rune Language]: https://github.com/rune-rs/rune
