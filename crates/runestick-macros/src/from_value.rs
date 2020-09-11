@@ -64,49 +64,28 @@ impl Expander {
         let mut from_values = Vec::new();
 
         for (index, field) in unnamed.unnamed.iter().enumerate() {
-            let attrs = self.ctx.parse_field_attrs(&field.attrs)?;
+            let _ = self.ctx.parse_field_attrs(&field.attrs)?;
 
             let from_value = &self.ctx.from_value;
-            let from_any = &self.ctx.from_any;
             let vm_error = &self.ctx.vm_error;
             let vm_error_kind = &self.ctx.vm_error_kind;
 
-            if attrs.any {
-                let from_any = quote_spanned! {
-                    field.span() => #from_any::from_any(any.clone())?
-                };
+            let from_value = quote_spanned! {
+                field.span() => #from_value::from_value(value.clone())?
+            };
 
-                from_values.push(quote_spanned! {
-                    field.span() =>
-                    match tuple.get(#index) {
-                        Some(Value::Any(any)) => #from_any,
-                        Some(actual) => return Err(#vm_error::expected_any(actual.type_info()?)),
-                        None => {
-                            return Err(#vm_error::from(#vm_error_kind::MissingDynamicStructTupleIndex {
-                                target: std::any::type_name::<Self>(),
-                                index: #index,
-                            }));
-                        }
+            from_values.push(quote_spanned! {
+                field.span() =>
+                match tuple.get(#index) {
+                    Some(value) => #from_value,
+                    None => {
+                        return Err(#vm_error::from(#vm_error_kind::MissingDynamicStructTupleIndex {
+                            target: std::any::type_name::<Self>(),
+                            index: #index,
+                        }));
                     }
-                });
-            } else {
-                let from_value = quote_spanned! {
-                    field.span() => #from_value::from_value(value.clone())?
-                };
-
-                from_values.push(quote_spanned! {
-                    field.span() =>
-                    match tuple.get(#index) {
-                        Some(value) => #from_value,
-                        None => {
-                            return Err(#vm_error::from(#vm_error_kind::MissingDynamicStructTupleIndex {
-                                target: std::any::type_name::<Self>(),
-                                index: #index,
-                            }));
-                        }
-                    }
-                });
-            }
+                }
+            });
         }
 
         let tuple = &self.ctx.tuple;
@@ -137,51 +116,30 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.field_ident(&field)?;
-            let attrs = self.ctx.parse_field_attrs(&field.attrs)?;
+            let _ = self.ctx.parse_field_attrs(&field.attrs)?;
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 
             let from_value = &self.ctx.from_value;
-            let from_any = &self.ctx.from_any;
             let vm_error = &self.ctx.vm_error;
             let vm_error_kind = &self.ctx.vm_error_kind;
 
-            if attrs.any {
-                let from_any = quote_spanned! {
-                    field.span() => #from_any::from_any(any.clone())?
-                };
+            let from_value = quote_spanned! {
+                field.span() => #from_value::from_value(value.clone())?
+            };
 
-                from_values.push(quote_spanned! {
-                    field.span() =>
-                    #ident: match object.get(#name) {
-                        Some(Value::Any(any)) => #from_any,
-                        Some(actual) => return Err(#vm_error::expected_any(actual.type_info()?)),
-                        None => {
-                            return Err(#vm_error::from(#vm_error_kind::MissingDynamicStructField {
-                                target: std::any::type_name::<Self>(),
-                                name: #name,
-                            }));
-                        }
+            from_values.push(quote_spanned! {
+                field.span() =>
+                #ident: match object.get(#name) {
+                    Some(value) => #from_value,
+                    None => {
+                        return Err(#vm_error::from(#vm_error_kind::MissingDynamicStructField {
+                            target: std::any::type_name::<Self>(),
+                            name: #name,
+                        }));
                     }
-                });
-            } else {
-                let from_value = quote_spanned! {
-                    field.span() => #from_value::from_value(value.clone())?
-                };
-
-                from_values.push(quote_spanned! {
-                    field.span() =>
-                    #ident: match object.get(#name) {
-                        Some(value) => #from_value,
-                        None => {
-                            return Err(#vm_error::from(#vm_error_kind::MissingDynamicStructField {
-                                target: std::any::type_name::<Self>(),
-                                name: #name,
-                            }));
-                        }
-                    }
-                });
-            }
+                }
+            });
         }
 
         let object = &self.ctx.object;

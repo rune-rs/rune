@@ -1,5 +1,5 @@
 use crate::access::{Access, AccessError, BorrowMut, BorrowRef, RawBorrowedMut, RawBorrowedRef};
-use crate::{Any, Hash};
+use crate::{Any, AnyObj, Hash};
 use std::any;
 use std::cell::{Cell, UnsafeCell};
 use std::fmt;
@@ -336,7 +336,7 @@ impl<T: ?Sized> Shared<T> {
     }
 }
 
-impl Shared<Any> {
+impl Shared<AnyObj> {
     /// Construct a `Shared<Any>` from a pointer, that will be "taken" once the
     /// returned guard is dropped.
     ///
@@ -347,27 +347,29 @@ impl Shared<Any> {
     /// # Examples
     ///
     /// ```rust
-    /// use runestick::Shared;
+    /// use runestick::{Any, Shared};
     ///
-    /// let value = 10u32;
+    /// #[derive(Any)]
+    /// struct Thing(u32);
+    ///
+    /// let value = Thing(10u32);
     ///
     /// unsafe {
     ///     let (shared, guard) = Shared::from_ref(&value);
-    ///     assert!(shared.downcast_borrow_mut::<u32>().is_err());
-    ///     assert_eq!(&10u32, &*shared.downcast_borrow_ref::<u32>().unwrap());
+    ///     assert!(shared.downcast_borrow_mut::<Thing>().is_err());
+    ///     assert_eq!(10u32, shared.downcast_borrow_ref::<Thing>().unwrap().0);
     ///
-    ///     // dropping the guard causes the reference to be freed.
     ///     drop(guard);
     ///
-    ///     assert!(shared.downcast_borrow_mut::<u32>().is_err());
-    ///     assert!(shared.downcast_borrow_ref::<u32>().is_err());
+    ///     assert!(shared.downcast_borrow_mut::<Thing>().is_err());
+    ///     assert!(shared.downcast_borrow_ref::<Thing>().is_err());
     /// }
     /// ```
     pub unsafe fn from_ref<T>(data: &T) -> (Self, SharedPointerGuard)
     where
-        T: any::Any,
+        T: Any,
     {
-        Self::unsafe_from_any_pointer(Any::from_ref(data))
+        Self::unsafe_from_any_pointer(AnyObj::from_ref(data))
     }
 
     /// Construct a `Shared<Any>` from a mutable pointer, that will be "taken"
@@ -380,29 +382,31 @@ impl Shared<Any> {
     /// # Examples
     ///
     /// ```rust
-    /// use runestick::Shared;
+    /// use runestick::{Any, Shared};
     ///
-    /// let mut value = 10u32;
+    /// #[derive(Any)]
+    /// struct Thing(u32);
+    ///
+    /// let mut value = Thing(10u32);
     ///
     /// unsafe {
     ///     let (shared, guard) = Shared::from_mut(&mut value);
-    ///     *shared.downcast_borrow_mut::<u32>().unwrap() = 20;
+    ///     shared.downcast_borrow_mut::<Thing>().unwrap().0 = 20;
     ///
-    ///     assert_eq!(&20u32, &*shared.downcast_borrow_mut::<u32>().unwrap());
-    ///     assert_eq!(&20u32, &*shared.downcast_borrow_ref::<u32>().unwrap());
+    ///     assert_eq!(20u32, shared.downcast_borrow_mut::<Thing>().unwrap().0);
+    ///     assert_eq!(20u32, shared.downcast_borrow_ref::<Thing>().unwrap().0);
     ///
-    ///     // dropping the guard causes the reference to be freed.
     ///     drop(guard);
     ///
-    ///     assert!(shared.downcast_borrow_mut::<u32>().is_err());
-    ///     assert!(shared.downcast_borrow_ref::<u32>().is_err());
+    ///     assert!(shared.downcast_borrow_mut::<Thing>().is_err());
+    ///     assert!(shared.downcast_borrow_ref::<Thing>().is_err());
     /// }
     /// ```
     pub unsafe fn from_mut<T>(data: &mut T) -> (Self, SharedPointerGuard)
     where
-        T: any::Any,
+        T: Any,
     {
-        Self::unsafe_from_any_pointer(Any::from_mut(data))
+        Self::unsafe_from_any_pointer(AnyObj::from_mut(data))
     }
 
     /// Construct a `Shared<Any>` from an Any which is expected to wrap a
@@ -411,7 +415,7 @@ impl Shared<Any> {
     /// # Safety
     ///
     /// The reference must be valid for the duration of the guard.
-    unsafe fn unsafe_from_any_pointer(any: Any) -> (Self, SharedPointerGuard) {
+    unsafe fn unsafe_from_any_pointer(any: AnyObj) -> (Self, SharedPointerGuard) {
         let inner = ptr::NonNull::from(Box::leak(Box::new(SharedBox {
             access: Access::new(),
             count: Cell::new(2),
@@ -430,7 +434,7 @@ impl Shared<Any> {
     /// exist no other references.
     pub fn take_downcast<T>(self) -> Result<T, AccessError>
     where
-        T: any::Any,
+        T: Any,
     {
         // Safety: We know that interior value is alive since this container is
         // alive.
@@ -481,7 +485,7 @@ impl Shared<Any> {
     /// Get a shared value and downcast.
     pub fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, AccessError>
     where
-        T: any::Any,
+        T: Any,
     {
         unsafe {
             let inner = self.inner.as_ref();
@@ -505,7 +509,7 @@ impl Shared<Any> {
     /// Get a shared value and downcast.
     pub fn downcast_owned_ref<T>(self) -> Result<OwnedRef<T>, AccessError>
     where
-        T: any::Any,
+        T: Any,
     {
         unsafe {
             let (data, guard) = {
@@ -540,7 +544,7 @@ impl Shared<Any> {
     /// Get a exclusive value and downcast.
     pub fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AccessError>
     where
-        T: any::Any,
+        T: Any,
     {
         unsafe {
             let inner = self.inner.as_ref();
@@ -564,7 +568,7 @@ impl Shared<Any> {
     /// Get a shared value and downcast.
     pub fn downcast_owned_mut<T>(self) -> Result<OwnedMut<T>, AccessError>
     where
-        T: any::Any,
+        T: Any,
     {
         unsafe {
             let (data, guard) = {
@@ -617,7 +621,7 @@ impl<T: ?Sized> Drop for Shared<T> {
 
 impl<T: ?Sized> fmt::Debug for Shared<T>
 where
-    T: any::Any + fmt::Debug,
+    T: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Safety: by virtue of holding onto a shared we can safely access
@@ -643,7 +647,7 @@ pub struct SharedDebug<'a, T: ?Sized> {
 
 impl<T: ?Sized> fmt::Debug for SharedDebug<'_, T>
 where
-    T: any::Any + fmt::Debug,
+    T: Any + fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Safety: by virtue of holding onto a shared we can safely access
@@ -759,14 +763,14 @@ impl RawDrop {
     /// # Safety
     ///
     /// Should only be constructed over a pointer that is lively owned.
-    fn take_shared_box(inner: ptr::NonNull<SharedBox<Any>>) -> Self {
+    fn take_shared_box(inner: ptr::NonNull<SharedBox<AnyObj>>) -> Self {
         return Self {
             data: inner.as_ptr() as *const (),
             drop_fn: drop_fn_impl,
         };
 
         unsafe fn drop_fn_impl(data: *const ()) {
-            let shared = data as *mut () as *mut SharedBox<Any>;
+            let shared = data as *mut () as *mut SharedBox<AnyObj>;
 
             // Mark the shared box for exclusive access.
             let _ = ManuallyDrop::new(

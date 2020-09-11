@@ -1,8 +1,8 @@
 use crate::{
-    Any, Bytes, Function, Future, Generator, GeneratorState, Hash, Object, OwnedMut, OwnedRef,
-    RawOwnedMut, RawOwnedRef, Shared, StaticString, Stream, Tuple, Type, TypeInfo, VmError,
+    Any, AnyObj, Bytes, Function, Future, Generator, GeneratorState, Hash, Object, OwnedMut,
+    OwnedRef, RawOwnedMut, RawOwnedRef, Shared, StaticString, Stream, Tuple, Type, TypeInfo,
+    VmError,
 };
-use std::any;
 use std::fmt;
 use std::sync::Arc;
 
@@ -158,7 +158,7 @@ pub enum Value {
     /// A stored function pointer.
     Function(Shared<Function>),
     /// An opaque value that can be downcasted.
-    Any(Shared<Any>),
+    Any(Shared<AnyObj>),
 }
 
 impl Value {
@@ -355,7 +355,7 @@ impl Value {
 
     /// Try to coerce value into an opaque value.
     #[inline]
-    pub fn into_any(self) -> Result<Shared<Any>, VmError> {
+    pub fn into_any(self) -> Result<Shared<AnyObj>, VmError> {
         match self {
             Self::Any(any) => Ok(any),
             actual => Err(VmError::expected_any(actual.type_info()?)),
@@ -374,7 +374,7 @@ impl Value {
     #[inline]
     pub unsafe fn unsafe_into_any_ref<T>(self) -> Result<(*const T, RawOwnedRef), VmError>
     where
-        T: any::Any,
+        T: Any,
     {
         match self {
             Self::Any(any) => {
@@ -398,7 +398,7 @@ impl Value {
     #[inline]
     pub unsafe fn unsafe_into_any_mut<T>(self) -> Result<(*mut T, RawOwnedMut), VmError>
     where
-        T: any::Any,
+        T: Any,
     {
         match self {
             Self::Any(any) => {
@@ -708,7 +708,7 @@ impl_from_shared!(Shared<TupleVariant>, TupleVariant);
 impl_from_shared!(Shared<TypedObject>, TypedObject);
 impl_from_shared!(Shared<VariantObject>, VariantObject);
 impl_from_shared!(Shared<Function>, Function);
-impl_from_shared!(Shared<Any>, Any);
+impl_from_shared!(Shared<AnyObj>, Any);
 
 /// A type-erased rust number.
 #[derive(Debug, Clone, Copy)]

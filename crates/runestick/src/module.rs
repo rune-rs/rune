@@ -8,6 +8,7 @@ use crate::{
     Component, Future, Hash, Stack, ToValue, Type, TypeInfo, UnsafeFromValue, ValueType, VmError,
     VmErrorKind,
 };
+use std::any;
 use std::any::type_name;
 use std::future;
 use std::sync::Arc;
@@ -397,9 +398,9 @@ impl Module {
     pub fn macro_<N, M, A, B, O>(&mut self, name: N, f: M) -> Result<(), ContextError>
     where
         M: 'static + Send + Sync + Copy + Fn(&mut A, &B) -> Result<O, crate::Error>,
-        A: std::any::Any,
-        B: std::any::Any,
-        O: std::any::Any,
+        A: any::Any,
+        B: any::Any,
+        O: any::Any,
         N: IntoIterator,
         N::Item: Into<Component>,
     {
