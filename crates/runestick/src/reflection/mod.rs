@@ -1,4 +1,4 @@
-use crate::{Any, AnyObj, OwnedMut, OwnedRef, Type, TypeInfo, Value, VmError};
+use crate::{Any, AnyObj, OwnedMut, OwnedRef, Shared, Type, TypeInfo, Value, VmError};
 
 mod bytes;
 mod hash_map;
@@ -83,6 +83,12 @@ where
 {
     fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(value.into_any()?.downcast_owned_ref()?)
+    }
+}
+
+impl FromValue for Shared<AnyObj> {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.into_any()?)
     }
 }
 

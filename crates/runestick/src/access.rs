@@ -8,7 +8,12 @@ use std::task::{Context, Poll};
 use thiserror::Error;
 
 /// Flag to used to mark access as taken.
-const TAKEN: isize = isize::max_value();
+const FLAG: isize = 1isize;
+/// Sentinel value to indicate that access is taken.
+const TAKEN: isize = (isize::max_value() ^ FLAG) >> 1;
+/// Panic if we reach this number of shared accesses and we try to add one more,
+/// since it's the largest we can support.
+const MAX_USES: isize = -(1 << 62);
 
 /// An error raised while downcasting.
 #[derive(Debug, Error)]
@@ -44,6 +49,15 @@ pub enum AccessError {
     },
 }
 
+/// The kind of access to perform.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum AccessKind {
+    /// Access a reference.
+    Any,
+    /// Access something owned.
+    Owned,
+}
+
 /// Error raised when tried to access for shared access but it was not
 /// accessible.
 #[derive(Debug, Error)]
@@ -72,68 +86,124 @@ pub struct Snapshot(isize);
 
 impl fmt::Display for Snapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            0 => write!(f, "fully accessible"),
-            1 => write!(f, "exclusively accessed"),
-            TAKEN => write!(f, "moved"),
-            n if n < 0 => write!(f, "shared by {}", -n),
-            n => write!(f, "invalidly marked ({})", n),
+        match self.0 >> 1 {
+            0 => write!(f, "fully accessible")?,
+            1 => write!(f, "exclusively accessed")?,
+            TAKEN => write!(f, "moved")?,
+            n if n < 0 => write!(f, "shared by {}", -n)?,
+            n => write!(f, "invalidly marked ({})", n)?,
         }
+
+        if self.0 & FLAG == 1 {
+            write!(f, " (ref)")?;
+        }
+
+        Ok(())
     }
 }
 
+/// Access flags.
+///
+/// These accomplish the following things:
+/// * Indicates if a value is a reference.
+/// * Indicates if a value is exclusively held.
+/// * Indicates if a value is shared, and if so by how many.
+///
+/// It has the following bit-pattern (assume isize is 16 bits for simplicity):
+///
+/// ```text
+/// S0000000_00000000_00000000_0000000F
+/// |                                ||
+/// '-- Sign bit and number base ----'|
+///                   Reference Flag -'
+///
+/// The reference flag is the LSB, and the rest is treated as a signed number
+/// with the following properties:
+/// * If the value is `0`, it is not being accessed.
+/// * If the value is `1`, it is being exclusively accessed.
+/// * If the value is negative `n`, it is being shared accessed by `-n` uses.
+/// * If the value is
+///
+/// This means that the maximum number of accesses for a 64-bit `isize` is
+/// `(1 << 62) - 1` uses.
+///
+/// ```
 #[derive(Clone)]
 pub(crate) struct Access(Cell<isize>);
 
 impl Access {
     /// Construct a new default access.
-    pub(crate) const fn new() -> Self {
-        Self(Cell::new(0))
+    pub(crate) const fn new(is_ref: bool) -> Self {
+        let initial = if is_ref { 1 } else { 0 };
+        Self(Cell::new(initial))
+    }
+
+    /// Test if access is guarding a reference.
+    #[inline]
+    pub(crate) fn is_ref(&self) -> bool {
+        self.0.get() & FLAG != 0
     }
 
     /// Test if we have shared access without modifying the internal count.
     #[inline]
     pub(crate) fn is_shared(&self) -> bool {
-        self.0.get().wrapping_sub(1) < 0
+        self.get().wrapping_sub(1) < 0
     }
 
     /// Test if we have exclusive access without modifying the internal count.
     #[inline]
     pub(crate) fn is_exclusive(&self) -> bool {
-        self.0.get() == 0
+        self.get() == 0
     }
 
     /// Test if the data has been taken.
     #[inline]
     pub(crate) fn is_taken(&self) -> bool {
-        self.0.get() == isize::max_value()
+        self.get() == TAKEN
     }
 
     /// Mark that we want shared access to the given access token.
     #[inline]
-    pub(crate) fn shared(&self) -> Result<RawBorrowedRef, NotAccessibleRef> {
-        let state = self.0.get();
+    pub(crate) fn shared(&self, kind: AccessKind) -> Result<RawBorrowedRef, NotAccessibleRef> {
+        if let AccessKind::Owned = kind {
+            if self.is_ref() {
+                return Err(NotAccessibleRef(Snapshot(self.0.get())));
+            }
+        }
+
+        let state = self.get();
+
+        if state == MAX_USES {
+            std::process::abort();
+        }
+
         let n = state.wrapping_sub(1);
 
         if n >= 0 {
-            return Err(NotAccessibleRef(Snapshot(state)));
+            return Err(NotAccessibleRef(Snapshot(self.0.get())));
         }
 
-        self.0.set(n);
+        self.set(n);
         Ok(RawBorrowedRef { access: self })
     }
 
     /// Mark that we want exclusive access to the given access token.
     #[inline]
-    pub(crate) fn exclusive(&self) -> Result<RawBorrowedMut, NotAccessibleMut> {
-        let state = self.0.get();
+    pub(crate) fn exclusive(&self, kind: AccessKind) -> Result<RawBorrowedMut, NotAccessibleMut> {
+        if let AccessKind::Owned = kind {
+            if self.is_ref() {
+                return Err(NotAccessibleMut(Snapshot(self.0.get())));
+            }
+        }
+
+        let state = self.get();
         let n = state.wrapping_add(1);
 
         if n != 1 {
-            return Err(NotAccessibleMut(Snapshot(state)));
+            return Err(NotAccessibleMut(Snapshot(self.0.get())));
         }
 
-        self.0.set(n);
+        self.set(n);
         Ok(RawBorrowedMut { access: self })
     }
 
@@ -141,45 +211,63 @@ impl Access {
     ///
     /// I.e. whatever guarded data is no longer available.
     #[inline]
-    pub(crate) fn take(&self) -> Result<RawTakeGuard, NotAccessibleTake> {
-        let state = self.0.get();
-
-        if state != 0 {
-            return Err(NotAccessibleTake(Snapshot(state)));
+    pub(crate) fn take(&self, kind: AccessKind) -> Result<RawTakeGuard, NotAccessibleTake> {
+        if let AccessKind::Owned = kind {
+            if self.is_ref() {
+                return Err(NotAccessibleTake(Snapshot(self.0.get())));
+            }
         }
 
-        self.0.set(isize::max_value());
+        let state = self.get();
+
+        if state != 0 {
+            return Err(NotAccessibleTake(Snapshot(self.0.get())));
+        }
+
+        self.set(TAKEN);
         Ok(RawTakeGuard { access: self })
     }
 
     /// Unshare the current access.
     #[inline]
     fn release_shared(&self) {
-        let b = self.0.get().wrapping_add(1);
+        let b = self.get().wrapping_add(1);
         debug_assert!(b <= 0);
-        self.0.set(b);
+        self.set(b);
     }
 
     /// Unshare the current access.
     #[inline]
     fn release_exclusive(&self) {
-        let b = self.0.get().wrapping_sub(1);
+        let b = self.get().wrapping_sub(1);
         debug_assert!(b == 0);
-        self.0.set(b);
+        self.set(b);
     }
 
-    /// Unshare the current access.
+    /// Untake the current access.
     #[inline]
     fn release_take(&self) {
-        let b = self.0.get();
-        debug_assert!(b == isize::max_value());
-        self.0.set(0);
+        let b = self.get();
+        debug_assert!(b == TAKEN);
+        self.set(0);
+    }
+
+    /// Get the current value of the flag.
+    #[inline]
+    fn get(&self) -> isize {
+        self.0.get() >> 1
+    }
+
+    /// Set the current value of the flag.
+    #[inline]
+    fn set(&self, value: isize) {
+        self.0.set(self.0.get() & FLAG | value << 1);
     }
 }
 
 impl fmt::Debug for Access {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Snapshot(self.0.get()))
+        write!(f, "{}", Snapshot(self.get()))
     }
 }
 
@@ -350,5 +438,76 @@ where
         // NB: inner Future is Unpin.
         let this = self.get_mut();
         Pin::new(&mut **this).poll(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Access, AccessKind};
+
+    #[test]
+    fn test_non_ref() {
+        let access = Access::new(false);
+
+        assert!(!access.is_ref());
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
+
+        let guard = access.shared(AccessKind::Any).unwrap();
+
+        assert!(!access.is_ref());
+        assert!(access.is_shared());
+        assert!(!access.is_exclusive());
+
+        drop(guard);
+
+        assert!(!access.is_ref());
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
+
+        let guard = access.exclusive(AccessKind::Any).unwrap();
+
+        assert!(!access.is_ref());
+        assert!(!access.is_shared());
+        assert!(!access.is_exclusive());
+
+        drop(guard);
+
+        assert!(!access.is_ref());
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
+    }
+
+    #[test]
+    fn test_ref() {
+        let access = Access::new(true);
+
+        assert!(access.is_ref());
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
+
+        let guard = access.shared(AccessKind::Any).unwrap();
+
+        assert!(access.is_ref());
+        assert!(access.is_shared());
+        assert!(!access.is_exclusive());
+
+        drop(guard);
+
+        assert!(access.is_ref());
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
+
+        let guard = access.exclusive(AccessKind::Any).unwrap();
+
+        assert!(access.is_ref());
+        assert!(!access.is_shared());
+        assert!(!access.is_exclusive());
+
+        drop(guard);
+
+        assert!(access.is_ref());
+        assert!(access.is_shared());
+        assert!(access.is_exclusive());
     }
 }

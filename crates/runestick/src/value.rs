@@ -1,3 +1,4 @@
+use crate::access::AccessKind;
 use crate::{
     Any, AnyObj, Bytes, Function, Future, Generator, GeneratorState, Hash, Object, OwnedMut,
     OwnedRef, RawOwnedMut, RawOwnedRef, Shared, StaticString, Stream, Tuple, Type, TypeInfo,
@@ -378,7 +379,7 @@ impl Value {
     {
         match self {
             Self::Any(any) => {
-                let any = any.downcast_owned_ref::<T>()?;
+                let any = any.internal_downcast_owned_ref::<T>(AccessKind::Any)?;
                 let (data, guard) = OwnedRef::into_raw(any);
                 Ok((data, guard))
             }
@@ -402,7 +403,7 @@ impl Value {
     {
         match self {
             Self::Any(any) => {
-                let any = any.downcast_owned_mut::<T>()?;
+                let any = any.internal_downcast_owned_mut::<T>(AccessKind::Any)?;
                 let (data, guard) = OwnedMut::into_raw(any);
                 Ok((data, guard))
             }
@@ -630,6 +631,15 @@ impl fmt::Debug for Value {
         }
 
         Ok(())
+    }
+}
+
+impl<T> From<T> for Value
+where
+    T: Any,
+{
+    fn from(any: T) -> Self {
+        Self::Any(Shared::new(AnyObj::new(any)))
     }
 }
 

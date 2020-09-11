@@ -1,4 +1,6 @@
-use crate::access::{Access, AccessError, BorrowMut, BorrowRef, RawBorrowedMut, RawBorrowedRef};
+use crate::access::{
+    Access, AccessError, AccessKind, BorrowMut, BorrowRef, RawBorrowedMut, RawBorrowedRef,
+};
 use crate::{Any, AnyObj, Hash};
 use std::any;
 use std::cell::{Cell, UnsafeCell};
@@ -21,7 +23,7 @@ impl<T> Shared<T> {
     /// Construct a new shared value.
     pub fn new(data: T) -> Self {
         let inner = Box::leak(Box::new(SharedBox {
-            access: Access::new(),
+            access: Access::new(false),
             count: Cell::new(1),
             data: data.into(),
         }));
@@ -137,7 +139,7 @@ impl<T> Shared<T> {
             // NB: don't drop guard to avoid yielding access back.
             // This will prevent the value from being dropped in the shared
             // destructor and future illegal access of any kind.
-            let _ = ManuallyDrop::new(inner.access.take()?);
+            let _ = ManuallyDrop::new(inner.access.take(AccessKind::Any)?);
 
             // Read the pointer out without dropping the inner structure.
             // The data field will be invalid at this point, which should be
@@ -182,12 +184,20 @@ impl<T> Shared<T> {
     /// assert_eq!(b.counter, 2);
     /// ```
     pub fn owned_ref(self) -> Result<OwnedRef<T>, AccessError> {
+        // NB: we default to a "safer" mode with `AccessKind::Owned`, where
+        // references cannot be converted to an `OwnedMut<T>` in order to avoid
+        // a potential soundness panic.
+        self.internal_owned_ref(AccessKind::Owned)
+    }
+
+    /// Internal implementation of owned_ref.
+    pub(crate) fn internal_owned_ref(self, kind: AccessKind) -> Result<OwnedRef<T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
         // alive.
         //
         // Appropriate access is checked when constructing the guards.
         unsafe {
-            let guard = self.inner.as_ref().access.shared()?;
+            let guard = self.inner.as_ref().access.shared(kind)?;
 
             // NB: we need to prevent the Drop impl for Shared from being called,
             // since we are deconstructing its internals.
@@ -232,12 +242,20 @@ impl<T> Shared<T> {
     /// assert_eq!(b.borrow_ref().unwrap().counter, 1);
     /// ```
     pub fn owned_mut(self) -> Result<OwnedMut<T>, AccessError> {
+        // NB: we default to a "safer" mode with `AccessKind::Owned`, where
+        // references cannot be converted to an `OwnedMut<T>` in order to avoid
+        // a potential soundness panic.
+        self.internal_owned_mut(AccessKind::Owned)
+    }
+
+    /// Internal implementation of owned_mut.
+    pub(crate) fn internal_owned_mut(self, kind: AccessKind) -> Result<OwnedMut<T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
         // alive.
         //
         // Appropriate access is checked when constructing the guards.
         unsafe {
-            let guard = self.inner.as_ref().access.exclusive()?;
+            let guard = self.inner.as_ref().access.exclusive(kind)?;
 
             // NB: we need to prevent the Drop impl for Shared from being called,
             // since we are deconstructing its internals.
@@ -291,7 +309,7 @@ impl<T: ?Sized> Shared<T> {
         // Appropriate access is checked when constructing the guards.
         unsafe {
             let inner = self.inner.as_ref();
-            let guard = inner.access.shared()?;
+            let guard = inner.access.shared(AccessKind::Any)?;
             Ok(BorrowRef::from_raw(inner.data.get(), guard))
         }
     }
@@ -330,7 +348,7 @@ impl<T: ?Sized> Shared<T> {
         // Appropriate access is checked when constructing the guards.
         unsafe {
             let inner = self.inner.as_ref();
-            let guard = inner.access.exclusive()?;
+            let guard = inner.access.exclusive(AccessKind::Any)?;
             Ok(BorrowMut::from_raw(inner.data.get(), guard))
         }
     }
@@ -417,7 +435,7 @@ impl Shared<AnyObj> {
     /// The reference must be valid for the duration of the guard.
     unsafe fn unsafe_from_any_pointer(any: AnyObj) -> (Self, SharedPointerGuard) {
         let inner = ptr::NonNull::from(Box::leak(Box::new(SharedBox {
-            access: Access::new(),
+            access: Access::new(true),
             count: Cell::new(2),
             data: any.into(),
         })));
@@ -446,7 +464,7 @@ impl Shared<AnyObj> {
             // NB: don't drop guard to avoid yielding access back.
             // This will prevent the value from being dropped in the shared
             // destructor and future illegal access of any kind.
-            let guard = ManuallyDrop::new(inner.access.take()?);
+            let guard = ManuallyDrop::new(inner.access.take(AccessKind::Any)?);
 
             // Read the pointer out without dropping the inner structure.
             // Note that the data field will after this point be invalid.
@@ -482,14 +500,14 @@ impl Shared<AnyObj> {
         }
     }
 
-    /// Get a shared value and downcast.
+    /// Get an shared, downcasted reference to the contained value.
     pub fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, AccessError>
     where
         T: Any,
     {
         unsafe {
             let inner = self.inner.as_ref();
-            let guard = inner.access.shared()?;
+            let guard = inner.access.shared(AccessKind::Any)?;
             let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
             let data = match (*inner.data.get()).raw_as_ptr(expected) {
@@ -506,15 +524,53 @@ impl Shared<AnyObj> {
         }
     }
 
+    /// Get an exclusive, downcasted reference to the contained value.
+    pub fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AccessError>
+    where
+        T: Any,
+    {
+        unsafe {
+            let inner = self.inner.as_ref();
+            let guard = inner.access.exclusive(AccessKind::Any)?;
+            let expected = Hash::from_type_id(any::TypeId::of::<T>());
+
+            let data = match (*inner.data.get()).raw_as_mut(expected) {
+                Some(data) => data,
+                None => {
+                    return Err(AccessError::UnexpectedType {
+                        expected: any::type_name::<T>(),
+                        actual: (*inner.data.get()).type_name(),
+                    });
+                }
+            };
+
+            Ok(BorrowMut::from_raw(data as *mut T, guard))
+        }
+    }
+
     /// Get a shared value and downcast.
     pub fn downcast_owned_ref<T>(self) -> Result<OwnedRef<T>, AccessError>
+    where
+        T: Any,
+    {
+        // NB: we default to a "safer" mode with `AccessKind::Owned`, where
+        // references cannot be converted to an `OwnedMut<T>` in order to avoid
+        // a potential soundness panic.
+        self.internal_downcast_owned_ref(AccessKind::Owned)
+    }
+
+    /// Internal implementation of `downcast_owned_ref`.
+    pub(crate) fn internal_downcast_owned_ref<T>(
+        self,
+        kind: AccessKind,
+    ) -> Result<OwnedRef<T>, AccessError>
     where
         T: Any,
     {
         unsafe {
             let (data, guard) = {
                 let inner = self.inner.as_ref();
-                let guard = inner.access.shared()?;
+                let guard = inner.access.shared(kind)?;
                 let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
                 match (*inner.data.get()).raw_as_ptr(expected) {
@@ -541,39 +597,29 @@ impl Shared<AnyObj> {
         }
     }
 
-    /// Get a exclusive value and downcast.
-    pub fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AccessError>
+    /// Get an exclusive value and downcast.
+    pub fn downcast_owned_mut<T>(self) -> Result<OwnedMut<T>, AccessError>
     where
         T: Any,
     {
-        unsafe {
-            let inner = self.inner.as_ref();
-            let guard = inner.access.exclusive()?;
-            let expected = Hash::from_type_id(any::TypeId::of::<T>());
-
-            let data = match (*inner.data.get()).raw_as_mut(expected) {
-                Some(data) => data,
-                None => {
-                    return Err(AccessError::UnexpectedType {
-                        expected: any::type_name::<T>(),
-                        actual: (*inner.data.get()).type_name(),
-                    });
-                }
-            };
-
-            Ok(BorrowMut::from_raw(data as *mut T, guard))
-        }
+        // NB: we default to a "safer" mode with `AccessKind::Owned`, where
+        // references cannot be converted to an `OwnedMut<T>` in order to avoid
+        // a potential soundness panic.
+        self.internal_downcast_owned_mut(AccessKind::Owned)
     }
 
-    /// Get a shared value and downcast.
-    pub fn downcast_owned_mut<T>(self) -> Result<OwnedMut<T>, AccessError>
+    /// Internal implementation of `downcast_owned_mut`.
+    pub(crate) fn internal_downcast_owned_mut<T>(
+        self,
+        kind: AccessKind,
+    ) -> Result<OwnedMut<T>, AccessError>
     where
         T: Any,
     {
         unsafe {
             let (data, guard) = {
                 let inner = self.inner.as_ref();
-                let guard = inner.access.exclusive()?;
+                let guard = inner.access.exclusive(kind)?;
                 let expected = Hash::from_type_id(any::TypeId::of::<T>());
 
                 match (*inner.data.get()).raw_as_mut(expected) {
@@ -776,7 +822,7 @@ impl RawDrop {
             let _ = ManuallyDrop::new(
                 (*shared)
                     .access
-                    .take()
+                    .take(AccessKind::Any)
                     .expect("raw pointers must not be shared"),
             );
 
