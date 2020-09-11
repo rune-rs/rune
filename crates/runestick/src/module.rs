@@ -166,6 +166,11 @@ impl Module {
         }
     }
 
+    /// Create an empty module for the root path.
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
     /// Register a type. Registering a type is mandatory in order to register
     /// instance functions using that type.
     ///

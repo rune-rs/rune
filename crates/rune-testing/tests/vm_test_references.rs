@@ -1,5 +1,5 @@
 use rune::{Options, Sources, Warnings};
-use runestick::{Any, Context, Item, Module, Source, Value, Vm};
+use runestick::{Any, AnyObj, Context, Item, Module, Shared, Source, Value, Vm, VmError};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
@@ -15,7 +15,7 @@ impl Foo {
 
 #[test]
 fn vm_test_references() {
-    let mut module = Module::new(Item::empty());
+    let mut module = Module::empty();
     module.ty(&["Foo"]).build::<Foo>().unwrap();
     module
         .inst_fn(runestick::ADD_ASSIGN, Foo::add_assign)
@@ -52,4 +52,45 @@ fn vm_test_references() {
     let output = vm.call(&["main"], (&mut foo,)).unwrap();
     assert_eq!(foo.value, 1);
     assert!(matches!(output, Value::Unit));
+}
+
+#[test]
+fn vm_test_references_error() {
+    fn take_it(this: Shared<AnyObj>) -> Result<(), VmError> {
+        // NB: this will error, since this is a reference.
+        let _ = this.owned_ref()?;
+        Ok(())
+    }
+
+    let mut module = Module::empty();
+    module.function(&["take_it"], take_it).unwrap();
+
+    let mut context = Context::with_default_modules().unwrap();
+    context.install(&module).unwrap();
+
+    let context = Arc::new(context);
+
+    let mut sources = Sources::new();
+
+    sources.insert_default(Source::new(
+        "test",
+        r#"fn main(number) { take_it(number) }"#,
+    ));
+
+    let unit = rune::load_sources(
+        &context,
+        &Options::default(),
+        &mut sources,
+        &mut Warnings::disabled(),
+    )
+    .unwrap();
+
+    let vm = Vm::new(context, Arc::new(unit));
+
+    let mut foo = Foo::default();
+    assert_eq!(foo.value, 0);
+
+    // This should error, because we're trying to acquire an `OwnedRef` out of a
+    // passed in reference.
+    assert!(vm.call(&["main"], (&mut foo,)).is_err());
 }
