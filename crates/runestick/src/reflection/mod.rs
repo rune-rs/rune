@@ -137,18 +137,29 @@ where
     }
 }
 
-impl FromValue for Value {
-    fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value)
+/// Trait for converting types into values.
+pub trait UnsafeToValue: Sized {
+    /// The type used to guard the unsafe value conversion.
+    type Guard: 'static;
+
+    /// Convert into a value.
+    unsafe fn unsafe_to_value(self) -> Result<(Value, Self::Guard), VmError>;
+}
+
+impl<T> UnsafeToValue for T
+where
+    T: ToValue,
+{
+    type Guard = ();
+
+    unsafe fn unsafe_to_value(self) -> Result<(Value, Self::Guard), VmError> {
+        Ok((self.to_value()?, ()))
     }
 }
 
-impl<T> ToValue for T
-where
-    Value: From<T>,
-{
-    fn to_value(self) -> Result<Value, VmError> {
-        Ok(Value::from(self))
+impl FromValue for Value {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value)
     }
 }
 
