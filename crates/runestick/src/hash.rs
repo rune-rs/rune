@@ -1,4 +1,4 @@
-use crate::{Component, Item, Type};
+use crate::{Any, Component, Item, Type};
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
@@ -27,7 +27,7 @@ impl Hash {
     /// Construct a hash from the given type id.
     pub fn from_any<T>() -> Self
     where
-        T: any::Any,
+        T: Any,
     {
         Self::from_type_id(any::TypeId::of::<T>())
     }

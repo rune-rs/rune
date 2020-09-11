@@ -11,7 +11,6 @@ struct MyBytes {
 #[derive(FromValue)]
 struct Proxy {
     field: OwnedMut<String>,
-    #[rune(any)]
     my_bytes: OwnedRef<MyBytes>,
 }
 

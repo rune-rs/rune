@@ -64,25 +64,16 @@ impl Expander {
         let mut to_values = Vec::new();
 
         for (index, field) in unnamed.unnamed.iter().enumerate() {
-            let attrs = self.ctx.parse_field_attrs(&field.attrs)?;
+            let _ = self.ctx.parse_field_attrs(&field.attrs)?;
 
             let index = syn::Index::from(index);
 
-            let any = &self.ctx.any;
-            let value = &self.ctx.value;
             let to_value = &self.ctx.to_value;
 
-            if attrs.any {
-                to_values.push(quote_spanned! {
-                    field.span() =>
-                    tuple.push(#value::from(#any::new(self.#index)));
-                });
-            } else {
-                to_values.push(quote_spanned! {
-                    field.span() =>
-                    tuple.push(#to_value::to_value(self.#index)?);
-                });
-            }
+            to_values.push(quote_spanned! {
+                field.span() =>
+                tuple.push(#to_value::to_value(self.#index)?);
+            });
         }
 
         let cap = unnamed.unnamed.len();
@@ -103,25 +94,16 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.field_ident(&field)?;
-            let attrs = self.ctx.parse_field_attrs(&field.attrs)?;
+            let _ = self.ctx.parse_field_attrs(&field.attrs)?;
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 
-            let any = &self.ctx.any;
-            let value = &self.ctx.value;
             let to_value = &self.ctx.to_value;
 
-            if attrs.any {
-                to_values.push(quote_spanned! {
-                    field.span() =>
-                    object.insert(String::from(#name), #value::from(#any::new(self.#ident)));
-                });
-            } else {
-                to_values.push(quote_spanned! {
-                    field.span() =>
-                    object.insert(String::from(#name), #to_value::to_value(self.#ident)?);
-                });
-            }
+            to_values.push(quote_spanned! {
+                field.span() =>
+                object.insert(String::from(#name), #to_value::to_value(self.#ident)?);
+            });
         }
 
         let value = &self.ctx.value;

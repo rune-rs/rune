@@ -50,6 +50,7 @@ mod vm;
 #[macro_use]
 mod macros;
 mod access;
+mod any_obj;
 mod args;
 mod awaited;
 mod bytes;
@@ -99,6 +100,7 @@ pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
 /// Exported boxed error type for convenience.
 pub type Error = anyhow::Error;
 
+pub use self::any_obj::{AnyObj, AnyObjVtable};
 pub use self::args::Args;
 pub use self::compile_meta::{
     CompileMeta, CompileMetaCapture, CompileMetaStruct, CompileMetaTuple,
@@ -125,7 +127,7 @@ pub use crate::access::{
     AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawBorrowedMut,
     RawBorrowedRef,
 };
-pub use crate::any::{Any, AnyVtable};
+pub use crate::any::Any;
 pub use crate::awaited::Awaited;
 pub use crate::bytes::Bytes;
 pub use crate::call::Call;
@@ -144,9 +146,7 @@ pub use crate::protocol::{
     BIT_XOR_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL, MUL_ASSIGN,
     NEXT, REM, REM_ASSIGN, SHL, SHL_ASSIGN, SHR, SHR_ASSIGN, STRING_DISPLAY, SUB, SUB_ASSIGN,
 };
-pub use crate::reflection::{
-    FromAny, FromValue, ToValue, UnsafeFromValue, UnsafeToValue, ValueType,
-};
+pub use crate::reflection::{FromValue, ToValue, UnsafeFromValue, UnsafeToValue, ValueType};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, SharedPointerGuard};
 pub use crate::stack::{Stack, StackError};
 pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};

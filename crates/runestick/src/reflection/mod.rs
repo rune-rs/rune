@@ -1,4 +1,4 @@
-use crate::{Any, OwnedMut, OwnedRef, Shared, Type, TypeInfo, Value, VmError};
+use crate::{Any, AnyObj, OwnedMut, OwnedRef, Type, TypeInfo, Value, VmError};
 
 mod bytes;
 mod hash_map;
@@ -58,27 +58,40 @@ pub trait FromValue: 'static + Sized {
     fn from_value(value: Value) -> Result<Self, VmError>;
 }
 
-/// Helper trait to convert from the internal any type.
-pub trait FromAny: 'static + Sized {
-    /// Try to convert from the internal any type.
-    fn from_any(any: Shared<Any>) -> Result<Self, VmError>;
-}
-
-impl<T> FromAny for OwnedRef<T>
+impl<T> FromValue for T
 where
-    T: std::any::Any,
+    T: Any,
 {
-    fn from_any(any: Shared<Any>) -> Result<Self, VmError> {
-        Ok(any.downcast_owned_ref()?)
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        let any = value.into_any()?;
+        Ok(any.take_downcast()?)
     }
 }
 
-impl<T> FromAny for OwnedMut<T>
+impl<T> FromValue for OwnedMut<T>
 where
-    T: std::any::Any,
+    T: Any,
 {
-    fn from_any(any: Shared<Any>) -> Result<Self, VmError> {
-        Ok(any.downcast_owned_mut()?)
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.into_any()?.downcast_owned_mut()?)
+    }
+}
+
+impl<T> FromValue for OwnedRef<T>
+where
+    T: Any,
+{
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        Ok(value.into_any()?.downcast_owned_ref()?)
+    }
+}
+
+impl<T> ToValue for T
+where
+    T: Any,
+{
+    fn to_value(self) -> Result<Value, VmError> {
+        Ok(Value::from(AnyObj::new(self)))
     }
 }
 

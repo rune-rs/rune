@@ -35,7 +35,7 @@ where
 
 We could use `TypeId` directly here, but `TypeId`'s cannot be constructed for
 types unknown to Rust, which prevent it from being used through a C ffi. A raw
-[`AnyVtable`] has to be usable outside of Rust.
+[`AnyObjVtable`] has to be usable outside of Rust.
 
 > An interesting detail is that this is actually [a soundness hole in Rust]
 > right now.
@@ -49,7 +49,7 @@ So the current conclusion is:
 * Externally defined types (C ffi) must use properly *random* type hashes.
 * The risk for the current safety issue is deemed to be low.
 
-[`AnyVtable`]: https://github.com/rune-rs/rune/blob/e910fb9/crates/runestick/src/any.rs#L171
+[`AnyObjVtable`]: https://github.com/rune-rs/rune/blob/e910fb9/crates/runestick/src/any.rs#L171
 [a soundness hole in Rust]: https://github.com/rust-lang/rust/issues/10389
 [`Context`]: https://docs.rs/runestick/0.6.16/runestick/struct.Context.html
 
@@ -59,11 +59,11 @@ Rune uses an [internal `Any` type].
 
 Apart from the [hash conflict](#conflicts-in-type-hashes) documented above, the
 implementation should be sound. We have an internal `Any` type instead of
-relying on `Box<dyn Any>` to allow [`AnyVtable`] to be implementable by external
+relying on `Box<dyn Any>` to allow [`AnyObjVtable`] to be implementable by external
 types to support external types through a C ffi.
 
 [internal `Any` type]: https://docs.rs/runestick/0/runestick/struct.Any.html
-[`AnyVtable`]: https://docs.rs/runestick/0/runestick/struct.AnyVtable.html
+[`AnyObjVtable`]: https://docs.rs/runestick/0/runestick/struct.AnyObjVtable.html
 
 ## `Shared<T>` and `UnsafeFromValue`
 

@@ -7,13 +7,11 @@ where
     T: Copy + ToTokens,
 {
     let any = &quote!(#module::Any);
-    let from_value = &quote!(#module::FromValue);
     let hash = &quote!(#module::Hash);
     let raw_owned_mut = &quote!(#module::RawOwnedMut);
     let raw_owned_ref = &quote!(#module::RawOwnedRef);
     let shared = &quote!(#module::Shared);
     let pointer_guard = &quote!(#module::SharedPointerGuard);
-    let to_value = &quote!(#module::ToValue);
     let ty = &quote!(#module::Type);
     let type_info = &quote!(#module::TypeInfo);
     let unsafe_from_value = &quote!(#module::UnsafeFromValue);
@@ -23,6 +21,9 @@ where
     let vm_error = &quote!(#module::VmError);
 
     Ok(quote! {
+        impl #any for #ident {
+        }
+
         impl #value_type for #ident {
             fn value_type() -> #ty {
                 #ty::from(#hash::from_type_id(
@@ -32,20 +33,6 @@ where
 
             fn type_info() -> #type_info {
                 #type_info::Any(std::any::type_name::<#ident>())
-            }
-        }
-
-        impl #from_value for #ident {
-            fn from_value(value: #value) -> Result<Self, #vm_error> {
-                let any = value.into_any()?;
-                let any = any.take_downcast::<#ident>()?;
-                Ok(any)
-            }
-        }
-
-        impl #to_value for #ident {
-            fn to_value(self) -> Result<#value, #vm_error> {
-                Ok(#value::from(#shared::new(#any::new(self))))
             }
         }
 
