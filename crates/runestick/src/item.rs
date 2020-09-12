@@ -1,3 +1,4 @@
+use crate::RawStr;
 use serde::{Deserialize, Serialize};
 use std::convert;
 use std::fmt;
@@ -178,6 +179,18 @@ impl fmt::Display for Component {
 impl convert::AsRef<Component> for Component {
     fn as_ref(&self) -> &Component {
         self
+    }
+}
+
+impl From<RawStr> for Component {
+    fn from(value: RawStr) -> Self {
+        Self::String((&*value).to_owned())
+    }
+}
+
+impl From<&RawStr> for Component {
+    fn from(value: &RawStr) -> Self {
+        Self::String((&**value).to_owned())
     }
 }
 

@@ -58,11 +58,11 @@ use std::fmt::Write as _;
 pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["http"]);
 
-    module.ty(&["Client"]).build::<Client>()?;
-    module.ty(&["Response"]).build::<Response>()?;
-    module.ty(&["RequestBuilder"]).build::<RequestBuilder>()?;
-    module.ty(&["StatusCode"]).build::<StatusCode>()?;
-    module.ty(&["Error"]).build::<Error>()?;
+    module.ty::<Client>()?;
+    module.ty::<Response>()?;
+    module.ty::<RequestBuilder>()?;
+    module.ty::<StatusCode>()?;
+    module.ty::<Error>()?;
 
     module.function(&["Client", "new"], Client::new)?;
     module.async_function(&["get"], get)?;

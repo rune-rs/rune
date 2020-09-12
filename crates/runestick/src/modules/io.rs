@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 /// Construct the `std::io` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "io"]);
-    module.ty(&["Error"]).build::<std::io::Error>()?;
+    module.ty::<std::io::Error>()?;
     module.inst_fn(crate::STRING_DISPLAY, format_io_error)?;
     Ok(module)
 }

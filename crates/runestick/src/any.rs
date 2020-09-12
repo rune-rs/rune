@@ -1,4 +1,4 @@
-use crate::{Hash, RawStr};
+use crate::{Hash, Named};
 
 /// A trait which can be stored inside of an [AnyObj](crate::AnyObj).
 ///
@@ -16,10 +16,7 @@ use crate::{Hash, RawStr};
 ///     name: String,
 /// }
 /// ```
-pub trait Any: std::any::Any {
-    /// The name of the type.
-    const NAME: RawStr;
-
+pub trait Any: Named + std::any::Any {
     /// The type hash of the type.
     ///
     /// TODO: make const field when `TypeId::of` is const.

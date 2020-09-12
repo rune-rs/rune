@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::{FromValue, Mut, RawMut, RawRef, Ref, UnsafeFromValue, Value, VmError};
+use crate::{FromValue, Mut, Named, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmError};
 use std::borrow;
 use std::cmp;
 use std::fmt;
@@ -219,4 +219,8 @@ impl UnsafeFromValue for &mut Object {
     unsafe fn to_arg(output: Self::Output) -> Self {
         &mut *output
     }
+}
+
+impl Named for Object {
+    const NAME: RawStr = RawStr::from_str("Object");
 }

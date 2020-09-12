@@ -6,7 +6,7 @@ use crate::{Bytes, ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "bytes"]);
 
-    module.ty(&["Bytes"]).build::<Bytes>()?;
+    module.ty::<Bytes>()?;
     module.function(&["Bytes", "new"], Bytes::new)?;
     module.function(&["Bytes", "with_capacity"], Bytes::with_capacity)?;
     module.function(&["Bytes", "from_vec"], Bytes::from_vec)?;

@@ -5,8 +5,8 @@ use crate::{ContextError, Module};
 /// Construct the `std::iter` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "iter"]);
-    module.ty(&["Range"]).build::<Range>()?;
-    module.ty(&["Rev"]).build::<Rev>()?;
+    module.ty::<Range>()?;
+    module.ty::<Rev>()?;
     module.function(&["range"], Range::new)?;
     module.inst_fn(crate::INTO_ITER, Range::into_iter)?;
     module.inst_fn(crate::NEXT, Range::next)?;

@@ -16,7 +16,7 @@ impl Foo {
 #[test]
 fn vm_test_references() {
     let mut module = Module::empty();
-    module.ty(&["Foo"]).build::<Foo>().unwrap();
+    module.ty::<Foo>().unwrap();
     module
         .inst_fn(runestick::ADD_ASSIGN, Foo::add_assign)
         .unwrap();

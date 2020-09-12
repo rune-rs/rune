@@ -15,7 +15,7 @@ impl Foo {
 
 fn main() -> runestick::Result<()> {
     let mut module = Module::new(Item::empty());
-    module.ty(&["Foo"]).build::<Foo>()?;
+    module.ty::<Foo>()?;
     module.inst_fn(runestick::ADD_ASSIGN, Foo::add_assign)?;
 
     let mut context = Context::with_default_modules()?;
