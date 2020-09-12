@@ -110,7 +110,7 @@ struct Args {
     /// macros[=<true/false>] - Enable or disable macros (experimental).
     ///
     /// bytecode[=<true/false>] - Enable or disable bytecode caching (experimental).
-    #[structopt(name = "option", short = "O")]
+    #[structopt(name = "option", short = "O", number_of_values = 1)]
     compiler_options: Vec<String>,
 }
 
