@@ -7,9 +7,9 @@ use std::iter::Rev;
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "object"]);
 
-    module.ty(&["Object"]).build::<Object>()?;
-    module.ty(&["Iter"]).build::<Iter>()?;
-    module.ty(&["Rev"]).build::<Rev<Iter>>()?;
+    module.ty::<Object>()?;
+    module.ty::<Iter>()?;
+    module.ty::<Rev<Iter>>()?;
 
     module.inst_fn("len", Object::len)?;
     module.inst_fn("insert", Object::insert)?;
@@ -69,4 +69,4 @@ fn get(object: &Object, key: &str) -> Option<Value> {
 }
 
 crate::__internal_impl_any!(Iter);
-crate::__internal_impl_any!(Rev<Iter>);
+crate::__internal_impl_any!(Rev<Iter>, "Rev");

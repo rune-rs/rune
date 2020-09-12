@@ -19,10 +19,8 @@ crate::__internal_impl_any!(ParseFloatError);
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.ty(&["float"]).build::<f64>()?;
-    module
-        .ty(&["float", "ParseFloatError"])
-        .build::<ParseFloatError>()?;
+    module.ty::<f64>()?;
+    module.ty::<ParseFloatError>()?;
     module.function(&["float", "parse"], parse)?;
     module.inst_fn("to_integer", to_integer)?;
 

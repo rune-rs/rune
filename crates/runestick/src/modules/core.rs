@@ -9,9 +9,9 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
     module.unit(&["unit"])?;
-    module.ty(&["bool"]).build::<bool>()?;
-    module.ty(&["char"]).build::<char>()?;
-    module.ty(&["byte"]).build::<u8>()?;
+    module.ty::<bool>()?;
+    module.ty::<char>()?;
+    module.ty::<u8>()?;
 
     module.function(&["print"], print_impl)?;
     module.function(&["println"], println_impl)?;

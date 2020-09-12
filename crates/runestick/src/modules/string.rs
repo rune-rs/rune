@@ -6,7 +6,7 @@ use crate::{Bytes, ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "string"]);
 
-    module.ty(&["String"]).build::<String>()?;
+    module.ty::<String>()?;
 
     module.function(&["String", "from_str"], <String as From<&str>>::from)?;
     module.function(&["String", "new"], String::new)?;

@@ -3,24 +3,50 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned as _;
 
+/// An internal call to the macro.
+pub struct InternalCall {
+    path: syn::Path,
+    name: Option<(syn::Token![,], syn::LitStr)>,
+}
+
+impl syn::parse::Parse for InternalCall {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let path = input.parse()?;
+
+        let name = if input.peek(syn::Token![,]) {
+            Some((input.parse()?, input.parse()?))
+        } else {
+            None
+        };
+
+        Ok(Self { path, name })
+    }
+}
+
+impl InternalCall {
+    pub fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
+        let name = match self.name {
+            Some((_, name)) => quote!(#name),
+            None => match self.path.segments.last() {
+                Some(last) if last.arguments.is_empty() => quote!(stringify!(#last)),
+                _ => {
+                    return Err(vec![syn::Error::new(
+                        self.path.span(),
+                        "expected last component in path to be without parameters,
+                        give it an explicit name instead with `, \"Type\"`",
+                    )])
+                }
+            },
+        };
+
+        expand_internal(&quote!(crate), &self.path, &name)
+    }
+}
+
 pub(super) fn expand_derive(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
     let name = syn::LitStr::new(&input.ident.to_string(), input.ident.span());
     let name = &quote!(#name);
     expand_internal(&internals::RUNESTICK, &input.ident, &name)
-}
-
-pub(super) fn expand_type_path(ty: &syn::TypePath) -> Result<TokenStream, Vec<syn::Error>> {
-    let name = match ty.path.segments.last() {
-        Some(last) => quote!(stringify!(#last)),
-        None => {
-            return Err(vec![syn::Error::new(
-                ty.span(),
-                "expected segments in path",
-            )])
-        }
-    };
-
-    expand_internal(&quote!(crate), &ty, &name)
 }
 
 pub(super) fn expand_internal<M, T>(
@@ -33,6 +59,7 @@ where
     T: Copy + ToTokens,
 {
     let any = &quote!(#module::Any);
+    let named = &quote!(#module::Named);
     let raw_into_mut = &quote!(#module::RawMut);
     let raw_into_ref = &quote!(#module::RawRef);
     let shared = &quote!(#module::Shared);
@@ -49,13 +76,15 @@ where
 
     Ok(quote! {
         impl #any for #ident {
-            const NAME: #raw_str = #raw_str::from_str(#name);
-
             fn type_hash() -> #hash {
                 // Safety: `Hash` asserts that it is layout compatible with `TypeId`.
                 // TODO: remove this once we can have transmute-like functionality in a const fn.
                 #hash::from_type_id(std::any::TypeId::of::<#ident>())
             }
+        }
+
+        impl #named for #ident {
+            const NAME: #raw_str = #raw_str::from_str(#name);
         }
 
         impl #type_of for #ident {
@@ -64,7 +93,7 @@ where
             }
 
             fn type_info() -> #type_info {
-                #type_info::Any(<Self as #any>::NAME)
+                #type_info::Any(<Self as #named>::NAME)
             }
         }
 

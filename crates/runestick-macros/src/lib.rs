@@ -91,8 +91,9 @@ pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro]
 #[doc(hidden)]
 pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let ty = syn::parse_macro_input!(input as syn::TypePath);
-    any::expand_type_path(&ty)
+    let internal_call = syn::parse_macro_input!(input as any::InternalCall);
+    internal_call
+        .expand()
         .unwrap_or_else(to_compile_errors)
         .into()
 }

@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 /// Construct the `std::fmt` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "fmt"]);
-    module.ty(&["Error"]).build::<std::fmt::Error>()?;
+    module.ty::<std::fmt::Error>()?;
     module.inst_fn(crate::STRING_DISPLAY, format_fmt_error)?;
     Ok(module)
 }

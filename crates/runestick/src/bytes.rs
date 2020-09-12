@@ -2,7 +2,7 @@
 //!
 //! [Value::Bytes]: crate::Value::Bytes.
 
-use crate::{FromValue, Mut, RawMut, RawRef, Ref, UnsafeFromValue, Value, VmError};
+use crate::{FromValue, Mut, Named, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmError};
 
 use std::fmt;
 use std::ops;
@@ -165,4 +165,8 @@ impl<'a> UnsafeFromValue for &'a [u8] {
     unsafe fn to_arg(output: Self::Output) -> Self {
         &*output
     }
+}
+
+impl Named for Bytes {
+    const NAME: RawStr = RawStr::from_str("Bytes");
 }

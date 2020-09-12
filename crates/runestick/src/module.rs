@@ -5,8 +5,8 @@
 
 use crate::collections::HashMap;
 use crate::{
-    Component, Future, Hash, Stack, ToValue, Type, TypeInfo, TypeOf, UnsafeFromValue, VmError,
-    VmErrorKind,
+    Component, Future, Hash, Named, Stack, ToValue, Type, TypeInfo, TypeOf, UnsafeFromValue,
+    VmError, VmErrorKind,
 };
 use std::any;
 use std::any::type_name;
@@ -205,7 +205,7 @@ impl Module {
     /// // Register `len` properly.
     /// let mut module = runestick::Module::default();
     ///
-    /// module.ty(&["MyBytes"]).build::<MyBytes>()?;
+    /// module.ty::<MyBytes>()?;
     /// module.inst_fn("len", MyBytes::len)?;
     ///
     /// let mut context = runestick::Context::new();
@@ -213,15 +213,27 @@ impl Module {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn ty<N>(&mut self, name: N) -> TypeBuilder<'_, N>
+    pub fn ty<T>(&mut self) -> Result<(), ContextError>
     where
-        N: IntoIterator,
-        N::Item: Into<Component>,
+        T: Named + TypeOf,
     {
-        TypeBuilder {
-            name,
-            types: &mut self.types,
+        let name = Item::of(&[T::NAME]);
+        let type_of = T::type_of();
+        let type_info = T::type_info();
+
+        let ty = ModuleType {
+            name: name.clone(),
+            type_info,
+        };
+
+        if let Some(old) = self.types.insert(type_of, ty) {
+            return Err(ContextError::ConflictingType {
+                name,
+                existing: old.type_info,
+            });
         }
+
+        Ok(())
     }
 
     /// Construct type information for the `unit` type.
@@ -534,7 +546,7 @@ impl Module {
     /// # fn main() -> runestick::Result<()> {
     /// let mut module = runestick::Module::default();
     ///
-    /// module.ty(&["MyBytes"]).build::<MyBytes>()?;
+    /// module.ty::<MyBytes>()?;
     /// module.function(&["MyBytes", "new"], MyBytes::new)?;
     /// module.inst_fn("len", MyBytes::len)?;
     ///
@@ -622,7 +634,7 @@ impl Module {
     /// # fn main() -> runestick::Result<()> {
     /// let mut module = runestick::Module::default();
     ///
-    /// module.ty(&["MyType"]).build::<MyType>()?;
+    /// module.ty::<MyType>()?;
     /// module.async_inst_fn("test", MyType::test)?;
     /// # Ok(())
     /// # }
@@ -657,43 +669,6 @@ impl Module {
         };
 
         self.associated_functions.insert(key, instance_function);
-        Ok(())
-    }
-}
-
-/// The builder for a type.
-#[must_use = "must be consumed with build::<T>() to construct a type"]
-pub struct TypeBuilder<'a, N> {
-    name: N,
-    types: &'a mut HashMap<Type, ModuleType>,
-}
-
-impl<N> TypeBuilder<'_, N>
-where
-    N: IntoIterator,
-    N::Item: Into<Component>,
-{
-    /// Construct a new type, specifying which type it is with the parameter.
-    pub fn build<T>(self) -> Result<(), ContextError>
-    where
-        T: TypeOf,
-    {
-        let name = Item::of(self.name);
-        let type_of = T::type_of();
-        let type_info = T::type_info();
-
-        let ty = ModuleType {
-            name: name.clone(),
-            type_info,
-        };
-
-        if let Some(old) = self.types.insert(type_of, ty) {
-            return Err(ContextError::ConflictingType {
-                name,
-                existing: old.type_info,
-            });
-        }
-
         Ok(())
     }
 }

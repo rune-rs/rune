@@ -7,9 +7,9 @@ use std::iter::Rev;
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "vec"]);
 
-    module.ty(&["Vec"]).build::<Vec<Value>>()?;
-    module.ty(&["Iter"]).build::<Iter>()?;
-    module.ty(&["Rev"]).build::<Rev<Iter>>()?;
+    module.ty::<Vec<Value>>()?;
+    module.ty::<Iter>()?;
+    module.ty::<Rev<Iter>>()?;
 
     module.function(&["Vec", "new"], Vec::<Value>::new)?;
     module.inst_fn("iter", vec_iter)?;
@@ -56,5 +56,5 @@ fn vec_iter(vec: &[Value]) -> Iter {
     }
 }
 
-crate::__internal_impl_any!(Iter);
-crate::__internal_impl_any!(Rev<Iter>);
+crate::__internal_impl_any!(Iter, "Iter");
+crate::__internal_impl_any!(Rev<Iter>, "Rev");
