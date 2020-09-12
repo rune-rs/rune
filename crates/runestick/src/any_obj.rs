@@ -1,6 +1,6 @@
 //! Helper types for a holder of data.
 
-use crate::{Any, Hash};
+use crate::{Any, Hash, RawStr};
 use std::any;
 use std::fmt;
 use std::mem::ManuallyDrop;
@@ -17,8 +17,8 @@ pub struct AnyObj {
 }
 
 impl fmt::Debug for AnyObj {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "AnyObj({})", self.type_name())
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.debug(f)
     }
 }
 
@@ -35,8 +35,9 @@ impl AnyObj {
                 kind: AnyObjKind::Owned,
                 drop: drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
-                type_name: any::type_name::<T>,
-                type_hash: Hash::from_any::<T>,
+                debug: debug_impl::<T>,
+                type_name: type_name_impl::<T>,
+                type_hash: type_hash_impl::<T>,
             },
             data: data as *mut (),
         }
@@ -49,11 +50,12 @@ impl AnyObj {
     {
         Self {
             vtable: &AnyObjVtable {
+                kind: AnyObjKind::RefPtr,
                 drop: noop_drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
-                kind: AnyObjKind::RefPtr,
-                type_name: any::type_name::<&T>,
-                type_hash: Hash::from_any::<T>,
+                debug: debug_ref_impl::<T>,
+                type_name: type_name_impl::<T>,
+                type_hash: type_hash_impl::<T>,
             },
             data: data as *const _ as *const (),
         }
@@ -66,11 +68,12 @@ impl AnyObj {
     {
         Self {
             vtable: &AnyObjVtable {
+                kind: AnyObjKind::MutPtr,
                 drop: noop_drop_impl::<T>,
                 as_ptr: as_ptr_impl::<T>,
-                kind: AnyObjKind::MutPtr,
-                type_name: any::type_name::<&mut T>,
-                type_hash: Hash::from_any::<T>,
+                debug: debug_mut_impl::<T>,
+                type_name: type_name_impl::<T>,
+                type_hash: type_hash_impl::<T>,
             },
             data: data as *mut _ as *mut () as *const (),
         }
@@ -216,8 +219,13 @@ impl AnyObj {
         }
     }
 
+    /// Debug format the current any type.
+    pub fn debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (self.vtable.debug)(f)
+    }
+
     /// Access the underlying type name for the data.
-    pub fn type_name(&self) -> &'static str {
+    pub fn type_name(&self) -> RawStr {
         (self.vtable.type_name)()
     }
 
@@ -244,7 +252,10 @@ pub type DropFn = unsafe fn(*const ());
 pub type AsPtrFn = unsafe fn(*const (), expected: Hash) -> Option<*const ()>;
 
 /// The signature of a descriptive type name function.
-pub type TypeNameFn = fn() -> &'static str;
+pub type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
+
+/// Get the type name.
+pub type TypeNameFn = fn() -> RawStr;
 
 /// The signature of a type hash function.
 pub type TypeHashFn = fn() -> Hash;
@@ -273,6 +284,8 @@ pub struct AnyObjVtable {
     /// Punt the inner pointer to the type corresponding to the type hash.
     as_ptr: AsPtrFn,
     /// Type information for diagnostics.
+    debug: DebugFn,
+    /// Type name accessor.
     type_name: TypeNameFn,
     /// Get the type hash of the stored type.
     type_hash: TypeHashFn,
@@ -294,3 +307,38 @@ where
 }
 
 fn noop_drop_impl<T>(_: *const ()) {}
+
+fn debug_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
+where
+    T: Any,
+{
+    write!(f, "{}", T::NAME)
+}
+
+fn debug_ref_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
+where
+    T: Any,
+{
+    write!(f, "&{}", T::NAME)
+}
+
+fn debug_mut_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
+where
+    T: Any,
+{
+    write!(f, "&mut {}", T::NAME)
+}
+
+fn type_name_impl<T>() -> RawStr
+where
+    T: Any,
+{
+    T::NAME
+}
+
+fn type_hash_impl<T>() -> Hash
+where
+    T: Any,
+{
+    T::type_hash()
+}

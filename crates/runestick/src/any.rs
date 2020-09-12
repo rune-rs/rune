@@ -1,3 +1,5 @@
+use crate::{Hash, RawStr};
+
 /// A trait which can be stored inside of an [AnyObj](crate::AnyObj).
 ///
 /// We use our own marker trait that must be explicitly derived to prevent other
@@ -16,7 +18,12 @@
 /// ```
 pub trait Any: std::any::Any {
     /// The name of the type.
-    const NAME: &'static str;
+    const NAME: RawStr;
+
+    /// The type hash of the type.
+    ///
+    /// TODO: make const field when `TypeId::of` is const.
+    fn type_hash() -> Hash;
 }
 
 // Internal any impls for useful types in the std library.

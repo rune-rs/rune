@@ -493,7 +493,7 @@ impl Shared<AnyObj> {
 
                     Err(AccessError::UnexpectedType {
                         actual,
-                        expected: any::type_name::<T>(),
+                        expected: any::type_name::<T>().into(),
                     })
                 }
             }
@@ -514,7 +514,7 @@ impl Shared<AnyObj> {
                 Some(data) => data,
                 None => {
                     return Err(AccessError::UnexpectedType {
-                        expected: any::type_name::<T>(),
+                        expected: any::type_name::<T>().into(),
                         actual: (*inner.data.get()).type_name(),
                     });
                 }
@@ -538,7 +538,7 @@ impl Shared<AnyObj> {
                 Some(data) => data,
                 None => {
                     return Err(AccessError::UnexpectedType {
-                        expected: any::type_name::<T>(),
+                        expected: any::type_name::<T>().into(),
                         actual: (*inner.data.get()).type_name(),
                     });
                 }
@@ -577,7 +577,7 @@ impl Shared<AnyObj> {
                     Some(data) => (data, guard),
                     None => {
                         return Err(AccessError::UnexpectedType {
-                            expected: any::type_name::<T>(),
+                            expected: any::type_name::<T>().into(),
                             actual: (*inner.data.get()).type_name(),
                         });
                     }
@@ -626,7 +626,7 @@ impl Shared<AnyObj> {
                     Some(data) => (data, guard),
                     None => {
                         return Err(AccessError::UnexpectedType {
-                            expected: any::type_name::<T>(),
+                            expected: any::type_name::<T>().into(),
                             actual: (*inner.data.get()).type_name(),
                         });
                     }

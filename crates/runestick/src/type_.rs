@@ -8,6 +8,18 @@ use std::ops;
 #[repr(transparent)]
 pub struct Type(Hash);
 
+impl Type {
+    /// Construct type from a Rust type identifier.
+    pub fn from_type_id(type_id: std::any::TypeId) -> Self {
+        Self(Hash::from_type_id(type_id))
+    }
+
+    /// Construct a type from a type hash.
+    pub const fn from_type_hash(hash: Hash) -> Self {
+        Self(hash)
+    }
+}
+
 impl From<&'static StaticType> for Type {
     fn from(static_type: &'static StaticType) -> Self {
         Self(static_type.hash)
