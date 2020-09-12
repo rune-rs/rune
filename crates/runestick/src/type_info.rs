@@ -1,5 +1,4 @@
-use crate::hash::Hash;
-use crate::StaticType;
+use crate::{Hash, RawStr, StaticType};
 use std::fmt;
 
 /// Type information about a value, that can be printed for human consumption
@@ -11,7 +10,7 @@ pub enum TypeInfo {
     /// The type hash of a value.
     Hash(Hash),
     /// Reference to an external type.
-    Any(&'static str),
+    Any(RawStr),
 }
 
 impl fmt::Display for TypeInfo {

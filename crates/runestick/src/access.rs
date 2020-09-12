@@ -1,3 +1,4 @@
+use crate::RawStr;
 use std::cell::Cell;
 use std::fmt;
 use std::future::Future;
@@ -22,9 +23,9 @@ pub enum AccessError {
     #[error("expected data of type `{expected}`, but found `{actual}`")]
     UnexpectedType {
         /// The type that was expected.
-        expected: &'static str,
+        expected: RawStr,
         /// The type that was found.
-        actual: &'static str,
+        actual: RawStr,
     },
     /// Trying to access an inaccessible reference.
     #[error("{error}")]
