@@ -21,4 +21,7 @@ jobs:
             ~/.cargo/bin
             target
           key: ${{ runner.os }}-cargo-${{ steps.rust_toolchain.outputs.rustc_hash }}
-      - run: cargo test --all
+      - name: Run tests
+        run: cargo test --all
+      - name: Execute example scripts
+        run: cargo run --bin rune --release -- --experimental -O macros=true scripts/*.rn

@@ -3,6 +3,6 @@ fn main() {
     object["bar"] = object["foo"] + 1;
     object = #{"foo": 1};
     let object = #{"bar": 2};
-    let a = object["foo"];
+    let a = object.get("foo");
     object
 }

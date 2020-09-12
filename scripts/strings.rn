@@ -3,7 +3,7 @@ use string;
 fn main() {
     let a = "foo";
 
-    let s = string::with_capacity(42);
+    let s = String::with_capacity(42);
     s.push_str(a);
     s.push('/');
     s.push_str("bar");
