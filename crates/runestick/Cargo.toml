@@ -18,13 +18,14 @@ Runescript, a generic stack-based virtual machine for Rust.
 
 [dependencies]
 log = "0.4.11"
-twox-hash = "1.5.0"
-thiserror = "1.0.20"
-hashbrown = {version = "0.8.1", features = ["serde"]}
+twox-hash = {version = "1.5.0", default-features = false}
+thiserror = {version = "1.0.20", default-features = false}
+hashbrown = {version = "0.8.1", default-features = false, features = ["serde", "ahash"]}
 serde = {version = "1.0.114", features = ["derive", "rc"]}
 itoa = "0.4.6"
 ryu = "1.0"
-futures = "0.3.5"
+futures-core = "0.3.5"
+futures-util = "0.3.5"
 # used to store errors raised in user-defined functions.
 anyhow = "1.0.32"
 pin-project = "0.4.23"

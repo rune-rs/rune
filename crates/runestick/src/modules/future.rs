@@ -16,9 +16,9 @@ where
     I: IntoIterator<Item = &'a Value>,
     F: FnOnce(Vec<Value>) -> Value,
 {
-    use futures::StreamExt as _;
+    use futures_util::stream::StreamExt as _;
 
-    let mut futures = futures::stream::FuturesUnordered::new();
+    let mut futures = futures_util::stream::FuturesUnordered::new();
     let mut results = Vec::with_capacity(len);
 
     for (index, value) in values.into_iter().enumerate() {

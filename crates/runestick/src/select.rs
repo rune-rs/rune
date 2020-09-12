@@ -1,7 +1,7 @@
 use crate::future::SelectFuture;
 use crate::{Future, Mut, Value, VmError};
-use futures::prelude::Stream;
-use futures::stream::FuturesUnordered;
+use futures_core::Stream;
+use futures_util::stream::FuturesUnordered;
 use std::future;
 use std::pin::Pin;
 use std::task::{Context, Poll};

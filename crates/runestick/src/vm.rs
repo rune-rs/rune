@@ -274,7 +274,7 @@ impl Vm {
     }
 
     fn op_select(&mut self, len: usize) -> Result<Option<Select>, VmError> {
-        let futures = futures::stream::FuturesUnordered::new();
+        let futures = futures_util::stream::FuturesUnordered::new();
 
         let arguments = self.stack.drain_stack_top(len)?.collect::<Vec<_>>();
 
