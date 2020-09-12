@@ -24,7 +24,7 @@ process = ["tokio/process"]
 signal = ["tokio/signal"]
 
 [dependencies]
-reqwest = {version = "0.10.7", optional = true}
+reqwest = {version = "0.10.7", optional = true, default-features = false, features = ["rustls-tls", "gzip"]}
 tokio = {version = "0.2.22", optional = true}
 serde_json = {version = "1.0.57", optional = true}
 toml = {version = "0.5.6", optional = true}
