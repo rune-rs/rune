@@ -1,8 +1,11 @@
 import * as vscode from 'vscode';
 import * as lc from 'vscode-languageclient/node';
 import * as path from 'path';
+import { existsSync } from 'fs';
+import { log } from './util'
 
 export async function activate(context: vscode.ExtensionContext) {
+    log.info('activating rune language server...');
     await tryActivate(context).catch(err => {
         void vscode.window.showErrorMessage(`Cannot activate rune-languageserver: ${err.message}`);
         throw err;
@@ -19,6 +22,7 @@ async function tryActivate(_context: vscode.ExtensionContext) {
     let command = findCommand(platform);
 
     if (!command) {
+        log.error('could not find rune language server!');
         return;
     }
 
@@ -51,7 +55,7 @@ async function tryActivate(_context: vscode.ExtensionContext) {
         clientOptions
     );
 
-    console.log(`command: ${command}`);
+    log.info(`command: ${command}`);
     client.start();
 }
 
@@ -62,11 +66,19 @@ async function tryActivate(_context: vscode.ExtensionContext) {
  * @param platform The detected platform.
  */
 function findCommand(platform: Platform): string | undefined {
+    const exe = `rune-languageserver${platform.ext}`;
     if (!!process.env.RUNE_DEBUG_FOLDER) {
-        return path.join(process.env.RUNE_DEBUG_FOLDER, `rune-languageserver${platform.ext}`);
+        const p = path.join(process.env.RUNE_DEBUG_FOLDER, exe);
+        if (existsSync(p)) { return p; }
+        else {
+            log.warn('env var `RUNE_DEBUG_FOLDER` is set but', p, 'does not exist');
+        }
     }
 
-    console.debug("Cannot find a command for the Rune Language Server.");
+    const p = path.join(process.env.HOME || '~', '.cargo', 'bin', exe);
+    if (existsSync(p)) { return p; }
+
+    log.debug("Cannot find a command for the Rune Language Server.");
     return undefined;
 }
 
