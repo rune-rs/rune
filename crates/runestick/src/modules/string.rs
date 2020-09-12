@@ -52,4 +52,4 @@ fn add(a: &str, b: &str) -> String {
     string
 }
 
-crate::__internal_impl_external!(NotCharBoundary);
+crate::__internal_impl_any!(NotCharBoundary);

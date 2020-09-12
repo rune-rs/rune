@@ -218,8 +218,8 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
                     item: f.impl_item.clone(),
                 })?;
 
-            let value_type =
-                meta.value_type()
+            let type_of =
+                meta.type_of()
                     .ok_or_else(|| CompileError::UnsupportedInstanceFunction {
                         meta: meta.clone(),
                         span,
@@ -230,7 +230,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
             unit.borrow_mut().new_instance_function(
                 source_id,
                 item,
-                value_type,
+                type_of,
                 name.as_ref(),
                 count,
                 asm,
@@ -466,10 +466,8 @@ impl<'a> Compiler<'a> {
                         format!("tuple variant `{}::{}`", enum_item, tuple.item),
                     );
                 }
-                CompileMeta::Function {
-                    value_type, item, ..
-                } => {
-                    let hash = **value_type;
+                CompileMeta::Function { type_of, item, .. } => {
+                    let hash = **type_of;
                     self.asm
                         .push_with_comment(Inst::Fn { hash }, span, format!("fn `{}`", item));
                 }
@@ -484,14 +482,14 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        let value_type = meta
-            .value_type()
+        let type_of = meta
+            .type_of()
             .ok_or_else(|| CompileError::UnsupportedType {
                 span,
                 meta: meta.clone(),
             })?;
 
-        let hash = *value_type;
+        let hash = *type_of;
         self.asm.push(Inst::Type { hash }, span);
         Ok(())
     }
@@ -610,16 +608,12 @@ impl<'a> Compiler<'a> {
             let (tuple, meta, type_check) =
                 if let Some(meta) = self.lookup_meta(&item, path.span())? {
                     match &meta {
-                        CompileMeta::Tuple {
-                            tuple, value_type, ..
-                        } => {
-                            let type_check = TypeCheck::Type(**value_type);
+                        CompileMeta::Tuple { tuple, type_of, .. } => {
+                            let type_check = TypeCheck::Type(**type_of);
                             (tuple.clone(), meta, type_check)
                         }
-                        CompileMeta::TupleVariant {
-                            tuple, value_type, ..
-                        } => {
-                            let type_check = TypeCheck::Variant(**value_type);
+                        CompileMeta::TupleVariant { tuple, type_of, .. } => {
+                            let type_check = TypeCheck::Variant(**type_of);
                             (tuple.clone(), meta, type_check)
                         }
                         _ => return Err(CompileError::UnsupportedMetaPattern { meta, span }),
@@ -728,15 +722,15 @@ impl<'a> Compiler<'a> {
 
                 let (object, type_check) = match &meta {
                     CompileMeta::Struct {
-                        object, value_type, ..
+                        object, type_of, ..
                     } => {
-                        let type_check = TypeCheck::Type(**value_type);
+                        let type_check = TypeCheck::Type(**type_of);
                         (object, type_check)
                     }
                     CompileMeta::StructVariant {
-                        object, value_type, ..
+                        object, type_of, ..
                     } => {
-                        let type_check = TypeCheck::Variant(**value_type);
+                        let type_check = TypeCheck::Variant(**type_of);
                         (object, type_check)
                     }
                     _ => {
@@ -824,12 +818,12 @@ impl<'a> Compiler<'a> {
         load: &dyn Fn(&mut Assembly),
     ) -> CompileResult<bool> {
         let (tuple, type_check) = match meta {
-            CompileMeta::Tuple {
-                tuple, value_type, ..
-            } if tuple.args == 0 => (tuple, TypeCheck::Type(**value_type)),
-            CompileMeta::TupleVariant {
-                tuple, value_type, ..
-            } if tuple.args == 0 => (tuple, TypeCheck::Variant(**value_type)),
+            CompileMeta::Tuple { tuple, type_of, .. } if tuple.args == 0 => {
+                (tuple, TypeCheck::Type(**type_of))
+            }
+            CompileMeta::TupleVariant { tuple, type_of, .. } if tuple.args == 0 => {
+                (tuple, TypeCheck::Variant(**type_of))
+            }
             _ => return Ok(false),
         };
 

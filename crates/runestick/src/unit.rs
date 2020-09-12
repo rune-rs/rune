@@ -187,5 +187,5 @@ pub struct UnitTypeInfo {
     /// A type declared in a unit.
     pub hash: Hash,
     /// value type of the given type.
-    pub value_type: Type,
+    pub type_of: Type,
 }

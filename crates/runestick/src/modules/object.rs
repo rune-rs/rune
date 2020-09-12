@@ -68,5 +68,5 @@ fn get(object: &Object, key: &str) -> Option<Value> {
     object.get(key).cloned()
 }
 
-crate::__internal_impl_external!(Iter);
-crate::__internal_impl_external!(Rev<Iter>);
+crate::__internal_impl_any!(Iter);
+crate::__internal_impl_any!(Rev<Iter>);

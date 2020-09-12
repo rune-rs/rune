@@ -292,7 +292,7 @@ impl Query {
 
         let meta = match indexed {
             Indexed::Enum => CompileMeta::Enum {
-                value_type: Type::from(Hash::type_hash(&item)),
+                type_of: Type::from(Hash::type_hash(&item)),
                 item: item.clone(),
             },
             Indexed::Variant(variant) => {
@@ -312,7 +312,7 @@ impl Query {
                 });
 
                 CompileMeta::Function {
-                    value_type: Type::from(Hash::type_hash(&item)),
+                    type_of: Type::from(Hash::type_hash(&item)),
                     item: item.clone(),
                 }
             }
@@ -326,7 +326,7 @@ impl Query {
                 });
 
                 CompileMeta::Closure {
-                    value_type: Type::from(Hash::type_hash(&item)),
+                    type_of: Type::from(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
                 }
@@ -341,7 +341,7 @@ impl Query {
                 });
 
                 CompileMeta::AsyncBlock {
-                    value_type: Type::from(Hash::type_hash(&item)),
+                    type_of: Type::from(Hash::type_hash(&item)),
                     item: item.clone(),
                     captures,
                 }
@@ -358,7 +358,7 @@ impl Query {
 
     /// Construct metadata for an empty body.
     fn empty_body_meta(&self, item: &Item, enum_item: Option<Item>) -> CompileMeta {
-        let value_type = Type::from(Hash::type_hash(item));
+        let type_of = Type::from(Hash::type_hash(item));
 
         let tuple = CompileMetaTuple {
             item: item.clone(),
@@ -368,11 +368,11 @@ impl Query {
 
         match enum_item {
             Some(enum_item) => CompileMeta::TupleVariant {
-                value_type,
+                type_of,
                 enum_item,
                 tuple,
             },
-            None => CompileMeta::Tuple { value_type, tuple },
+            None => CompileMeta::Tuple { type_of, tuple },
         }
     }
 
@@ -383,7 +383,7 @@ impl Query {
         enum_item: Option<Item>,
         tuple: ast::TupleBody,
     ) -> CompileMeta {
-        let value_type = Type::from(Hash::type_hash(item));
+        let type_of = Type::from(Hash::type_hash(item));
 
         let tuple = CompileMetaTuple {
             item: item.clone(),
@@ -393,11 +393,11 @@ impl Query {
 
         match enum_item {
             Some(enum_item) => CompileMeta::TupleVariant {
-                value_type,
+                type_of,
                 enum_item,
                 tuple,
             },
-            None => CompileMeta::Tuple { value_type, tuple },
+            None => CompileMeta::Tuple { type_of, tuple },
         }
     }
 
@@ -409,7 +409,7 @@ impl Query {
         source: &Source,
         st: ast::StructBody,
     ) -> CompileResult<CompileMeta> {
-        let value_type = Type::from(Hash::type_hash(item));
+        let type_of = Type::from(Hash::type_hash(item));
 
         let mut fields = HashSet::new();
 
@@ -425,11 +425,11 @@ impl Query {
 
         Ok(match enum_item {
             Some(enum_item) => CompileMeta::StructVariant {
-                value_type,
+                type_of,
                 enum_item,
                 object,
             },
-            None => CompileMeta::Struct { value_type, object },
+            None => CompileMeta::Struct { type_of, object },
         })
     }
 

@@ -46,8 +46,8 @@ extern crate proc_macro;
 
 use quote::quote;
 
+mod any;
 mod context;
-mod external;
 mod from_value;
 mod internals;
 mod to_value;
@@ -82,7 +82,7 @@ pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro_derive(Any, attributes(rune))]
 pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    external::expand(&internals::RUNESTICK, &input.ident)
+    any::expand_derive(&input)
         .unwrap_or_else(to_compile_errors)
         .into()
 }
@@ -90,9 +90,9 @@ pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// Internal macro to implement external.
 #[proc_macro]
 #[doc(hidden)]
-pub fn __internal_impl_external(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let ty = syn::parse_macro_input!(input as syn::Type);
-    external::expand(&quote!(crate), &ty)
+pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let ty = syn::parse_macro_input!(input as syn::TypePath);
+    any::expand_type_path(&ty)
         .unwrap_or_else(to_compile_errors)
         .into()
 }

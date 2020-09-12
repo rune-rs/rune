@@ -14,4 +14,13 @@
 ///     name: String,
 /// }
 /// ```
-pub trait Any: std::any::Any {}
+pub trait Any: std::any::Any {
+    /// The name of the type.
+    const NAME: &'static str;
+}
+
+// Internal any impls for useful types in the std library.
+
+crate::__internal_impl_any!(std::fmt::Error);
+crate::__internal_impl_any!(std::io::Error);
+crate::__internal_impl_any!(anyhow::Error);

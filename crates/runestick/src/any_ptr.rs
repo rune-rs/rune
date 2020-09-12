@@ -36,7 +36,7 @@ impl AnyObj {
                 as_ptr: as_ptr_impl::<T>,
                 as_mut: as_mut_impl::<T>,
                 take: as_mut_impl::<T>,
-                type_name: any::type_name::<T>,
+                type_name: type_name_impl::<T>,
                 type_hash: Hash::from_any::<T>,
             },
             data: data as *mut (),
@@ -265,6 +265,13 @@ pub struct AnyObjVtable {
     type_name: TypeNameFn,
     /// Get the type hash of the stored type.
     type_hash: TypeHashFn,
+}
+
+fn type_name_impl<T>() -> &'static str
+where
+    T: Any,
+{
+    T::NAME
 }
 
 unsafe fn drop_impl<T>(this: *const ()) {

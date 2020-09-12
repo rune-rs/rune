@@ -412,7 +412,7 @@ impl Value {
     }
 
     /// Get the type information for the current value.
-    pub fn value_type(&self) -> Result<Type, VmError> {
+    pub fn type_of(&self) -> Result<Type, VmError> {
         Ok(match self {
             Self::Unit => Type::from(crate::UNIT_TYPE),
             Self::Bool(..) => Type::from(crate::BOOL_TYPE),
@@ -719,54 +719,6 @@ impl_from_shared!(Shared<TypedObject>, TypedObject);
 impl_from_shared!(Shared<VariantObject>, VariantObject);
 impl_from_shared!(Shared<Function>, Function);
 impl_from_shared!(Shared<AnyObj>, Any);
-
-/// A type-erased rust number.
-#[derive(Debug, Clone, Copy)]
-pub enum Integer {
-    /// `u8`
-    U8(u8),
-    /// `u16`
-    U16(u16),
-    /// `u32`
-    U32(u32),
-    /// `u64`
-    U64(u64),
-    /// `u128`
-    U128(u128),
-    /// `i8`
-    I8(i8),
-    /// `i16`
-    I16(i16),
-    /// `i32`
-    I32(i32),
-    /// `i64`
-    I64(i64),
-    /// `i128`
-    I128(i128),
-    /// `isize`
-    Isize(isize),
-    /// `usize`
-    Usize(usize),
-}
-
-impl fmt::Display for Integer {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::U8(n) => write!(fmt, "{}u8", n),
-            Self::U16(n) => write!(fmt, "{}u16", n),
-            Self::U32(n) => write!(fmt, "{}u32", n),
-            Self::U64(n) => write!(fmt, "{}u64", n),
-            Self::U128(n) => write!(fmt, "{}u128", n),
-            Self::I8(n) => write!(fmt, "{}i8", n),
-            Self::I16(n) => write!(fmt, "{}i16", n),
-            Self::I32(n) => write!(fmt, "{}i32", n),
-            Self::I64(n) => write!(fmt, "{}i64", n),
-            Self::I128(n) => write!(fmt, "{}i128", n),
-            Self::Isize(n) => write!(fmt, "{}isize", n),
-            Self::Usize(n) => write!(fmt, "{}usize", n),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

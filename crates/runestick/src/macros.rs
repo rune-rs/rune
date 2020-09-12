@@ -1,8 +1,8 @@
-/// Build an implementation of `ValueType` basic of a static type.
+/// Build an implementation of `TypeOf` basic of a static type.
 macro_rules! impl_static_type {
     (impl <$($p:ident),*> $ty:ty => $static_type:expr) => {
-        impl<$($p,)*> $crate::ValueType for $ty {
-            fn value_type() -> $crate::Type {
+        impl<$($p,)*> $crate::TypeOf for $ty {
+            fn type_of() -> $crate::Type {
                 $crate::Type::from($static_type)
             }
 
@@ -13,8 +13,8 @@ macro_rules! impl_static_type {
     };
 
     ($ty:ty => $static_type:expr) => {
-        impl $crate::ValueType for $ty {
-            fn value_type() -> $crate::Type {
+        impl $crate::TypeOf for $ty {
+            fn type_of() -> $crate::Type {
                 $crate::Type::from($static_type)
             }
 

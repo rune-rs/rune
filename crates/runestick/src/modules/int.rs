@@ -47,4 +47,4 @@ fn to_float(value: i64) -> f64 {
     value as f64
 }
 
-crate::__internal_impl_external!(ParseIntError);
+crate::__internal_impl_any!(ParseIntError);

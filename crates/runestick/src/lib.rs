@@ -57,6 +57,7 @@ mod bytes;
 mod call;
 mod compile_meta;
 pub mod debug;
+mod from_value;
 mod function;
 mod future;
 mod generator;
@@ -72,7 +73,6 @@ mod names;
 mod object;
 mod panic;
 mod protocol;
-mod reflection;
 mod select;
 mod serde;
 mod shared;
@@ -82,17 +82,17 @@ mod stack;
 mod static_string;
 mod static_type;
 mod stream;
+mod to_value;
 mod tuple;
 mod type_;
 mod type_info;
+mod type_of;
 mod unit;
 mod vec_tuple;
 mod vm_call;
 mod vm_error;
 mod vm_execution;
 mod vm_halt;
-
-crate::__internal_impl_external!(anyhow::Error);
 
 /// Exported result type for convenience.
 pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
@@ -105,6 +105,7 @@ pub use self::args::Args;
 pub use self::compile_meta::{
     CompileMeta, CompileMetaCapture, CompileMetaStruct, CompileMetaTuple,
 };
+pub use self::from_value::{FromValue, UnsafeFromValue};
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
 pub use self::guarded_args::GuardedArgs;
@@ -120,6 +121,7 @@ pub use self::static_type::{
     RESULT_TYPE, STREAM_TYPE, STRING_TYPE, TUPLE_TYPE, UNIT_TYPE, VEC_TYPE,
 };
 pub use self::stream::Stream;
+pub use self::to_value::{ToValue, UnsafeToValue};
 pub use self::tuple::Tuple;
 pub use self::type_::Type;
 pub use self::type_info::TypeInfo;
@@ -146,18 +148,18 @@ pub use crate::protocol::{
     BIT_XOR_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL, MUL_ASSIGN,
     NEXT, REM, REM_ASSIGN, SHL, SHL_ASSIGN, SHR, SHR_ASSIGN, STRING_DISPLAY, SUB, SUB_ASSIGN,
 };
-pub use crate::reflection::{FromValue, ToValue, UnsafeFromValue, UnsafeToValue, ValueType};
 pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, SharedPointerGuard};
 pub use crate::stack::{Stack, StackError};
+pub use crate::type_of::TypeOf;
 pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};
-pub use crate::value::{Integer, TupleVariant, TypedObject, TypedTuple, Value, VariantObject};
+pub use crate::value::{TupleVariant, TypedObject, TypedTuple, Value, VariantObject};
 pub use crate::vec_tuple::VecTuple;
 pub use crate::vm::{CallFrame, Vm};
 pub use crate::vm_call::VmCall;
-pub use crate::vm_error::{VmError, VmErrorKind};
+pub use crate::vm_error::{VmError, VmErrorKind, VmIntegerRepr};
 pub use crate::vm_execution::VmExecution;
 pub use crate::vm_halt::{VmHalt, VmHaltInfo};
-pub(crate) use runestick_macros::__internal_impl_external;
+pub(crate) use runestick_macros::__internal_impl_any;
 pub use runestick_macros::{Any, FromValue};
 
 mod collections {

@@ -41,21 +41,21 @@ impl Hash {
 
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
-    pub fn instance_function<N>(value_type: Type, name: N) -> Self
+    pub fn instance_function<N>(type_of: Type, name: N) -> Self
     where
         N: IntoHash,
     {
         let name = name.into_hash();
-        Self(Hash::of((INSTANCE_FUNCTION, value_type, SEP, name)).0)
+        Self(Hash::of((INSTANCE_FUNCTION, type_of, SEP, name)).0)
     }
 
     /// Construct a hash corresponding to a getter.
-    pub fn getter<N>(value_type: Type, name: N) -> Self
+    pub fn getter<N>(type_of: Type, name: N) -> Self
     where
         N: IntoHash,
     {
         let name = name.into_hash();
-        Self(Hash::of((GETTER, value_type, SEP, name)).0)
+        Self(Hash::of((GETTER, type_of, SEP, name)).0)
     }
 
     /// Construct a simple hash from something that is hashable.

@@ -579,7 +579,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash: tuple.hash,
-                    value_type: Type::from(tuple.hash),
+                    type_of: Type::from(tuple.hash),
                 };
 
                 if self.types.insert(tuple.hash, info).is_some() {
@@ -618,7 +618,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash: tuple.hash,
-                    value_type: Type::from(enum_hash),
+                    type_of: Type::from(enum_hash),
                 };
 
                 if self.types.insert(tuple.hash, info).is_some() {
@@ -638,7 +638,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: Type::from(hash),
+                    type_of: Type::from(hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -657,7 +657,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: Type::from(enum_hash),
+                    type_of: Type::from(enum_hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -673,7 +673,7 @@ impl UnitBuilder {
 
                 let info = UnitTypeInfo {
                     hash,
-                    value_type: Type::from(hash),
+                    type_of: Type::from(hash),
                 };
 
                 if self.types.insert(hash, info).is_some() {
@@ -738,7 +738,7 @@ impl UnitBuilder {
         &mut self,
         source_id: usize,
         path: Item,
-        value_type: Type,
+        type_of: Type,
         name: &str,
         args: usize,
         assembly: Assembly,
@@ -749,7 +749,7 @@ impl UnitBuilder {
 
         let offset = self.instructions.len();
         let instance_fn = Hash::of(name);
-        let instance_fn = Hash::instance_function(value_type, instance_fn);
+        let instance_fn = Hash::instance_function(type_of, instance_fn);
         let hash = Hash::type_hash(&path);
 
         let info = UnitFn::Offset { offset, call, args };

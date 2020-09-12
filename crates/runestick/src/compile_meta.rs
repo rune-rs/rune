@@ -16,14 +16,14 @@ pub enum CompileMeta {
     /// Metadata about a tuple.
     Tuple {
         /// The value type associated with this meta item.
-        value_type: Type,
+        type_of: Type,
         /// The underlying tuple.
         tuple: CompileMetaTuple,
     },
     /// Metadata about a tuple variant.
     TupleVariant {
         /// The value type associated with this meta item.
-        value_type: Type,
+        type_of: Type,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying tuple.
@@ -32,14 +32,14 @@ pub enum CompileMeta {
     /// Metadata about an object.
     Struct {
         /// The value type associated with this meta item.
-        value_type: Type,
+        type_of: Type,
         /// The underlying object.
         object: CompileMetaStruct,
     },
     /// Metadata about a variant object.
     StructVariant {
         /// The value type associated with this meta item.
-        value_type: Type,
+        type_of: Type,
         /// The item of the enum.
         enum_item: Item,
         /// The underlying object.
@@ -48,21 +48,21 @@ pub enum CompileMeta {
     /// An enum item.
     Enum {
         /// The value type associated with this meta item.
-        value_type: Type,
+        type_of: Type,
         /// The item of the enum.
         item: Item,
     },
     /// A function declaration.
     Function {
         /// The value type associated with this meta item.
-        value_type: Type,
+        type_of: Type,
         /// The item of the function declaration.
         item: Item,
     },
     /// A closure.
     Closure {
         /// The value type associated with this meta item.
-        value_type: Type,
+        type_of: Type,
         /// The item of the closure.
         item: Item,
         /// Sequence of captured variables.
@@ -71,7 +71,7 @@ pub enum CompileMeta {
     /// An async block.
     AsyncBlock {
         /// The value type associated with this meta item.
-        value_type: Type,
+        type_of: Type,
         /// The item of the closure.
         item: Item,
         /// Sequence of captured variables.
@@ -101,16 +101,16 @@ impl CompileMeta {
     }
 
     /// Get the value type of the meta item.
-    pub fn value_type(&self) -> Option<Type> {
+    pub fn type_of(&self) -> Option<Type> {
         match self {
-            Self::Tuple { value_type, .. } => Some(*value_type),
+            Self::Tuple { type_of, .. } => Some(*type_of),
             Self::TupleVariant { .. } => None,
-            Self::Struct { value_type, .. } => Some(*value_type),
+            Self::Struct { type_of, .. } => Some(*type_of),
             Self::StructVariant { .. } => None,
-            Self::Enum { value_type, .. } => Some(*value_type),
-            Self::Function { value_type, .. } => Some(*value_type),
-            Self::Closure { value_type, .. } => Some(*value_type),
-            Self::AsyncBlock { value_type, .. } => Some(*value_type),
+            Self::Enum { type_of, .. } => Some(*type_of),
+            Self::Function { type_of, .. } => Some(*type_of),
+            Self::Closure { type_of, .. } => Some(*type_of),
+            Self::AsyncBlock { type_of, .. } => Some(*type_of),
             Self::Macro { .. } => None,
         }
     }

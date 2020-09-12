@@ -341,7 +341,7 @@ async fn main() -> Result<()> {
             println!("# dynamic types");
 
             for (hash, ty) in types {
-                println!("{} = {}", hash, ty.value_type);
+                println!("{} = {}", hash, ty.type_of);
             }
         }
 

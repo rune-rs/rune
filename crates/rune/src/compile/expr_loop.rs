@@ -3,7 +3,6 @@ use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::loops::Loop;
 use crate::traits::Compile;
-use runestick::Inst;
 
 /// Compile a loop.
 impl Compile<(&ast::ExprLoop, Needs)> for Compiler<'_> {

@@ -1,5 +1,5 @@
 use rune::{Options, Sources, Warnings};
-use runestick::{Any, AnyObj, Context, Item, Module, Shared, Source, Value, Vm, VmError};
+use runestick::{Any, AnyObj, Context, Module, Shared, Source, Value, Vm, VmError};
 use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]

@@ -13,7 +13,7 @@ fn to_integer(value: f64) -> i64 {
     value as i64
 }
 
-crate::__internal_impl_external!(ParseFloatError);
+crate::__internal_impl_any!(ParseFloatError);
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
