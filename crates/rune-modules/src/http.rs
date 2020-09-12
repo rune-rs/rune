@@ -50,7 +50,7 @@
 //! }
 //! ```
 
-use runestick::{Any, Bytes};
+use runestick::{Any, Bytes, Value};
 use std::fmt;
 use std::fmt::Write as _;
 
@@ -71,6 +71,7 @@ pub fn module() -> Result<runestick::Module, runestick::ContextError> {
     module.async_inst_fn("post", Client::post)?;
 
     module.async_inst_fn("text", Response::text)?;
+    module.async_inst_fn("json", Response::json)?;
     module.inst_fn("status", Response::status)?;
 
     module.async_inst_fn("send", RequestBuilder::send)?;
@@ -116,6 +117,11 @@ impl StatusCode {
 impl Response {
     async fn text(self) -> Result<String, Error> {
         let text = self.response.text().await?;
+        Ok(text)
+    }
+
+    async fn json(self) -> Result<Value, Error> {
+        let text = self.response.json().await?;
         Ok(text)
     }
 
