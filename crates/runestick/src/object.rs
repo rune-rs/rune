@@ -52,6 +52,11 @@ impl Object {
         self.inner.len()
     }
 
+    /// Returns `true` if the Object contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
     /// Returns a reference to the value corresponding to the key.
     #[inline]
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>

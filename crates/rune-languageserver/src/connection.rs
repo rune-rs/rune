@@ -22,7 +22,7 @@ pub struct Input {
 
 impl Input {
     /// Get the next input frame.
-    pub async fn next<'a>(&'a mut self) -> Result<Option<Frame<'a>>> {
+    pub async fn next(&mut self) -> Result<Option<Frame<'_>>> {
         let headers = match Headers::read(&mut self.buf, &mut self.stdin).await? {
             Some(headers) => headers,
             None => return Ok(None),

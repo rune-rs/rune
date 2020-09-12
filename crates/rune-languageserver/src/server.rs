@@ -56,19 +56,17 @@ impl Server {
         let method = std::mem::take(&mut incoming.method);
 
         // If server is not initialized, reject incoming requests.
-        if !self.state.is_initialized() {
-            if method != lsp::request::Initialize::METHOD {
-                self.output
-                    .error(
-                        incoming.id,
-                        Code::InvalidRequest,
-                        "Server not initialized",
-                        None::<()>,
-                    )
-                    .await?;
+        if !self.state.is_initialized() && method != lsp::request::Initialize::METHOD {
+            self.output
+                .error(
+                    incoming.id,
+                    Code::InvalidRequest,
+                    "Server not initialized",
+                    None::<()>,
+                )
+                .await?;
 
-                return Ok(());
-            }
+            return Ok(());
         }
 
         if let Some(handler) = self.handlers.get(&method.as_str()) {
