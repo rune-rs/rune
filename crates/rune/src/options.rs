@@ -1,6 +1,7 @@
 use crate::error::ConfigurationError;
 
 /// Compiler options.
+#[derive(Debug, Clone, Copy)]
 pub struct Options {
     /// Perform link-time checks.
     pub(crate) link_checks: bool,
@@ -70,6 +71,11 @@ impl Options {
     /// Set if bytecode caching is enabled or not. Defaults to `false`.
     pub fn bytecode(&mut self, enabled: bool) {
         self.bytecode = enabled;
+    }
+
+    /// Memoize the instance function in a loop. Defaults to `false`.
+    pub fn memoize_instance_fn(&mut self, enabled: bool) {
+        self.memoize_instance_fn = enabled;
     }
 }
 

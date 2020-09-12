@@ -131,7 +131,7 @@ impl State {
                 .await?;
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -279,13 +279,8 @@ impl Source {
     }
 
     /// Iterate over the text chunks in the source.
-    pub fn chunks<'a>(&'a self) -> impl Iterator<Item = &'a str> {
+    pub fn chunks(&self) -> impl Iterator<Item = &str> {
         self.content.chunks()
-    }
-
-    /// Access the content of the source as a string.
-    pub fn to_string(&self) -> String {
-        self.content.to_string()
     }
 }
 

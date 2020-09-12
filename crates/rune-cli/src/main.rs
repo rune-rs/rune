@@ -48,144 +48,107 @@
 use anyhow::Result;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::EmitDiagnostics as _;
-use std::env;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use structopt::StructOpt;
 
 use runestick::{Item, Unit, Value, VmExecution};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, StructOpt)]
+#[structopt(name = "rune", about = "The Rune Programming Language")]
 struct Args {
-    path: PathBuf,
+    /// Provide detailed tracing for each instruction executed.
+    #[structopt(short, long)]
     trace: bool,
+    /// Dump everything.
+    #[structopt(short, long)]
     dump: bool,
+    /// Dump default information about unit.
+    #[structopt(long)]
     dump_unit: bool,
+    /// Dump unit instructions.
+    #[structopt(long)]
     dump_instructions: bool,
+    /// Dump the state of the stack after completion.
+    /// If compiled with `--trace` will dump it after each instruction.
+    #[structopt(long)]
     dump_stack: bool,
+    /// Dump dynamic functions.
+    #[structopt(long)]
     dump_functions: bool,
+    /// Dump dynamic types.
+    #[structopt(long)]
     dump_types: bool,
+    /// Dump native functions.
+    #[structopt(long)]
     dump_native_functions: bool,
+    /// Dump native types.
+    #[structopt(long)]
     dump_native_types: bool,
+    /// Include source code references where appropriate (only available if -O debug-info=true).
+    #[structopt(long)]
     with_source: bool,
+    /// Enabled experimental features.
+    #[structopt(long)]
     experimental: bool,
-    help: bool,
+    /// Input Rune Scripts
+    #[structopt(parse(from_os_str))]
     paths: Vec<PathBuf>,
+    ///  Update the given compiler option.
+    /// memoize-instance-fn[=<true/false>]
+    ///     Inline the lookup of an instance function where appropriate.
+    ///
+    /// link-checks[=<true/false>]
+    ///     Perform linker checks which makes sure that called functions exist.
+    ///
+    /// debug-info[=<true/false>]
+    ///     Enable or disable debug info.
+    ///
+    /// macros[=<true/false>]
+    ///     Enable or disable macros (experimental).
+    ///
+    /// bytecode[=<true/false>]
+    ///     Enable or disable bytecode caching (experimental).
+    #[structopt(short = "O")]
+    compiler_options: Vec<String>,
 }
 
 async fn try_main() -> Result<ExitCode> {
     env_logger::init();
-
-    let mut it = env::args();
-    it.next();
-
-    let mut args = Args::default();
-    let mut options = rune::Options::default();
-
-    while let Some(arg) = it.next() {
-        match arg.as_str() {
-            "--" => continue,
-            "--trace" => {
-                args.trace = true;
-            }
-            "--dump" => {
-                args.dump_unit = true;
-                args.dump_stack = true;
-                args.dump_functions = true;
-                args.dump_types = true;
-                args.dump_native_functions = true;
-                args.dump_native_types = true;
-            }
-            "--dump-unit" => {
-                args.dump_unit = true;
-                args.dump_instructions = true;
-            }
-            "--dump-stack" => {
-                args.dump_stack = true;
-            }
-            "--dump-instructions" => {
-                args.dump_unit = true;
-                args.dump_instructions = true;
-            }
-            "--dump-functions" => {
-                args.dump_unit = true;
-                args.dump_functions = true;
-            }
-            "--dump-types" => {
-                args.dump_unit = true;
-                args.dump_types = true;
-            }
-            "--dump-native-functions" => {
-                args.dump_native_functions = true;
-            }
-            "--dump-native-types" => {
-                args.dump_native_types = true;
-            }
-            "--with-source" => {
-                args.with_source = true;
-            }
-            "--experimental" => {
-                args.experimental = true;
-            }
-            "-O" => {
-                let opt = match it.next() {
-                    Some(opt) => opt,
-                    None => {
-                        println!("expected optimization option to `-O`");
-                        return Ok(ExitCode::Failure);
-                    }
-                };
-
-                options.parse_option(&opt)?;
-            }
-            "--help" | "-h" => {
-                args.help = true;
-            }
-            other if !other.starts_with('-') => {
-                args.paths.push(PathBuf::from(other));
-            }
-            other => {
-                println!("Unrecognized option: {}", other);
-                args.help = true;
-            }
+    let args = {
+        let mut args = Args::from_args();
+        if args.dump {
+            args.dump_unit = true;
+            args.dump_stack = true;
+            args.dump_functions = true;
+            args.dump_types = true;
+            args.dump_native_functions = true;
+            args.dump_native_types = true;
         }
+
+        if args.dump_unit {
+            args.dump_unit = true;
+            args.dump_instructions = true;
+        }
+        if args.dump_functions
+            || args.dump_native_functions
+            || args.dump_stack
+            || args.dump_types
+            || args.dump_instructions
+        {
+            args.dump_unit = true;
+        }
+        args
+    };
+
+    let mut options = rune::Options::default();
+    for opt in &args.compiler_options {
+        options.parse_option(opt)?;
     }
-
-    const USAGE: &str = "rune-cli [--trace] <file1> [, <file2> [, ..]] ";
-
-    if args.help {
-        println!("Usage: {}", USAGE);
-        println!();
-        println!("  --help, -h               - Show this help.");
-        println!(
-            "  --trace                  - Provide detailed tracing for each instruction executed."
-        );
-        println!("  --dump                   - Dump everything.");
-        println!("  --dump-unit              - Dump default information about unit.");
-        println!("  --dump-instructions      - Dump unit instructions.");
-        println!("  --dump-stack             - Dump the state of the stack after completion. If compiled with `--trace` will dump it after each instruction.");
-        println!("  --dump-functions         - Dump dynamic functions.");
-        println!("  --dump-types             - Dump dynamic types.");
-        println!("  --dump-native-functions  - Dump native functions.");
-        println!("  --dump-native-types      - Dump native types.");
-        println!("  --with-source            - Include source code references where appropriate (only available if -O debug-info=true).");
-        println!("  --experimental           - Enabled experimental features.");
-        println!();
-        println!("Compiler options:");
-        println!("  -O <option>       - Update the given compiler option.");
-        println!();
-        println!("Available <option> arguments:");
-        println!("  memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.");
-        println!("  link-checks[=<true/false>]         - Perform linker checks which makes sure that called functions exist.");
-        println!("  debug-info[=<true/false>]          - Enable or disable debug info.");
-        println!("  macros[=<true/false>]              - Enable or disable macros (experimental).");
-        println!("  bytecode[=<true/false>]            - Enable or disable bytecode caching (experimental).");
-        return Ok(ExitCode::Success);
-    }
-
     if args.paths.is_empty() {
-        println!("Invalid usage: {}", USAGE);
+        println!("Invalid usage: Missing Input Paths (at least one file required)");
         return Ok(ExitCode::Failure);
     }
 
@@ -195,7 +158,6 @@ async fn try_main() -> Result<ExitCode> {
             other => return Ok(other),
         }
     }
-
     Ok(ExitCode::Success)
 }
 
@@ -527,11 +489,10 @@ async fn do_trace(
                 .and_then(|d| d.instruction_at(vm.ip()));
 
             if with_source {
-                if let Some((source, span)) =
-                    debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
-                {
-                    if let Some((count, line)) = rune::diagnostics::line_for(source.as_str(), span)
-                    {
+                let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
+                if let Some((source, span)) = debug_info {
+                    let diagnostics = rune::diagnostics::line_for(source.as_str(), span);
+                    if let Some((count, line)) = diagnostics {
                         writeln!(
                             out,
                             "  {}:{: <3} - {}",
@@ -543,10 +504,8 @@ async fn do_trace(
                 }
             }
 
-            if let Some(inst) = debug {
-                if let Some(label) = &inst.label {
-                    writeln!(out, "{}:", label)?;
-                }
+            if let Some(label) = debug.and_then(|d| d.label.as_ref()) {
+                writeln!(out, "{}:", label)?;
             }
 
             if let Some(inst) = vm.unit().instruction_at(vm.ip()) {
@@ -555,10 +514,8 @@ async fn do_trace(
                 write!(out, "  {:04} = *out of bounds*", vm.ip())?;
             }
 
-            if let Some(inst) = debug {
-                if let Some(comment) = &inst.comment {
-                    write!(out, " // {}", comment)?;
-                }
+            if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
+                write!(out, " // {}", comment)?;
             }
 
             writeln!(out,)?;
