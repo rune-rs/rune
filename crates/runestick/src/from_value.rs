@@ -1,4 +1,4 @@
-use crate::{Any, AnyObj, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, Value, VmError};
+use crate::{Any, AnyObj, Mut, RawMut, RawRef, Ref, Shared, Value, VmError};
 
 /// Trait for converting from a value.
 pub trait FromValue: 'static + Sized {
@@ -54,21 +54,21 @@ where
     }
 }
 
-impl<T> FromValue for OwnedMut<T>
+impl<T> FromValue for Mut<T>
 where
     T: Any,
 {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_any()?.downcast_owned_mut()?)
+        Ok(value.into_any()?.downcast_into_mut()?)
     }
 }
 
-impl<T> FromValue for OwnedRef<T>
+impl<T> FromValue for Ref<T>
 where
     T: Any,
 {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_any()?.downcast_owned_ref()?)
+        Ok(value.into_any()?.downcast_into_ref()?)
     }
 }
 
@@ -116,10 +116,10 @@ where
 
 impl UnsafeFromValue for &Option<Value> {
     type Output = *const Option<Value>;
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        Ok(OwnedRef::into_raw(value.into_option()?.owned_ref()?))
+        Ok(Ref::into_raw(value.into_option()?.into_ref()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -129,10 +129,10 @@ impl UnsafeFromValue for &Option<Value> {
 
 impl UnsafeFromValue for &mut Option<Value> {
     type Output = *mut Option<Value>;
-    type Guard = RawOwnedMut;
+    type Guard = RawMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
-        Ok(OwnedMut::into_raw(value.into_option()?.owned_mut()?))
+        Ok(Mut::into_raw(value.into_option()?.into_mut()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -152,19 +152,19 @@ impl FromValue for String {
     }
 }
 
-impl FromValue for OwnedMut<String> {
+impl FromValue for Mut<String> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         match value {
-            Value::String(string) => Ok(string.owned_mut()?),
+            Value::String(string) => Ok(string.into_mut()?),
             actual => Err(VmError::expected::<String>(actual.type_info()?)),
         }
     }
 }
 
-impl FromValue for OwnedRef<String> {
+impl FromValue for Ref<String> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         match value {
-            Value::String(string) => Ok(string.owned_ref()?),
+            Value::String(string) => Ok(string.into_ref()?),
             actual => Err(VmError::expected::<String>(actual.type_info()?)),
         }
     }
@@ -180,13 +180,13 @@ impl FromValue for Box<str> {
 
 impl UnsafeFromValue for &str {
     type Output = *const str;
-    type Guard = Option<RawOwnedRef>;
+    type Guard = Option<RawRef>;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
-                let string = string.owned_ref()?;
-                let (s, guard) = OwnedRef::into_raw(string);
+                let string = string.into_ref()?;
+                let (s, guard) = Ref::into_raw(string);
                 ((*s).as_str(), Some(guard))
             }
             Value::StaticString(string) => (string.as_ref().as_str(), None),
@@ -201,13 +201,13 @@ impl UnsafeFromValue for &str {
 
 impl UnsafeFromValue for &mut str {
     type Output = *mut str;
-    type Guard = Option<RawOwnedMut>;
+    type Guard = Option<RawMut>;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
-                let string = string.owned_mut()?;
-                let (s, guard) = OwnedMut::into_raw(string);
+                let string = string.into_mut()?;
+                let (s, guard) = Mut::into_raw(string);
                 ((*s).as_mut_str(), Some(guard))
             }
             actual => {
@@ -223,13 +223,13 @@ impl UnsafeFromValue for &mut str {
 
 impl UnsafeFromValue for &String {
     type Output = *const String;
-    type Guard = Option<RawOwnedRef>;
+    type Guard = Option<RawRef>;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
-                let string = string.owned_ref()?;
-                let (s, guard) = OwnedRef::into_raw(string);
+                let string = string.into_ref()?;
+                let (s, guard) = Ref::into_raw(string);
                 (s, Some(guard))
             }
             Value::StaticString(string) => (&**string, None),
@@ -246,13 +246,13 @@ impl UnsafeFromValue for &String {
 
 impl UnsafeFromValue for &mut String {
     type Output = *mut String;
-    type Guard = RawOwnedMut;
+    type Guard = RawMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         Ok(match value {
             Value::String(string) => {
-                let string = string.owned_mut()?;
-                let (s, guard) = OwnedMut::into_raw(string);
+                let string = string.into_mut()?;
+                let (s, guard) = Mut::into_raw(string);
                 (s, guard)
             }
             actual => {
@@ -283,12 +283,12 @@ where
 
 impl UnsafeFromValue for &Result<Value, Value> {
     type Output = *const Result<Value, Value>;
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let result = value.into_result()?;
-        let result = result.owned_ref()?;
-        Ok(OwnedRef::into_raw(result))
+        let result = result.into_ref()?;
+        Ok(Ref::into_raw(result))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -298,15 +298,15 @@ impl UnsafeFromValue for &Result<Value, Value> {
 
 // Vec impls
 
-impl FromValue for OwnedMut<Vec<Value>> {
+impl FromValue for Mut<Vec<Value>> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_vec()?.owned_mut()?)
+        Ok(value.into_vec()?.into_mut()?)
     }
 }
 
-impl FromValue for OwnedRef<Vec<Value>> {
+impl FromValue for Ref<Vec<Value>> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_vec()?.owned_ref()?)
+        Ok(value.into_vec()?.into_ref()?)
     }
 }
 
@@ -330,11 +330,11 @@ where
 
 impl<'a> UnsafeFromValue for &'a [Value] {
     type Output = *const [Value];
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let vec = value.into_vec()?;
-        let (vec, guard) = OwnedRef::into_raw(vec.owned_ref()?);
+        let (vec, guard) = Ref::into_raw(vec.into_ref()?);
         Ok((&**vec, guard))
     }
 
@@ -345,11 +345,11 @@ impl<'a> UnsafeFromValue for &'a [Value] {
 
 impl<'a> UnsafeFromValue for &'a Vec<Value> {
     type Output = *const Vec<Value>;
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let vec = value.into_vec()?;
-        Ok(OwnedRef::into_raw(vec.owned_ref()?))
+        Ok(Ref::into_raw(vec.into_ref()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -359,11 +359,11 @@ impl<'a> UnsafeFromValue for &'a Vec<Value> {
 
 impl<'a> UnsafeFromValue for &'a mut Vec<Value> {
     type Output = *mut Vec<Value>;
-    type Guard = RawOwnedMut;
+    type Guard = RawMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let vec = value.into_vec()?;
-        Ok(OwnedMut::into_raw(vec.owned_mut()?))
+        Ok(Mut::into_raw(vec.into_mut()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

@@ -2,9 +2,7 @@
 //!
 //! [Value::Bytes]: crate::Value::Bytes.
 
-use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, UnsafeFromValue, Value, VmError,
-};
+use crate::{FromValue, Mut, RawMut, RawRef, Ref, UnsafeFromValue, Value, VmError};
 
 use std::fmt;
 use std::ops;
@@ -125,12 +123,12 @@ impl FromValue for Bytes {
 
 impl<'a> UnsafeFromValue for &'a Bytes {
     type Output = *const Bytes;
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let bytes = value.into_bytes()?;
-        let bytes = bytes.owned_ref()?;
-        Ok(OwnedRef::into_raw(bytes))
+        let bytes = bytes.into_ref()?;
+        Ok(Ref::into_raw(bytes))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -140,12 +138,12 @@ impl<'a> UnsafeFromValue for &'a Bytes {
 
 impl<'a> UnsafeFromValue for &'a mut Bytes {
     type Output = *mut Bytes;
-    type Guard = RawOwnedMut;
+    type Guard = RawMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let bytes = value.into_bytes()?;
-        let bytes = bytes.owned_mut()?;
-        Ok(OwnedMut::into_raw(bytes))
+        let bytes = bytes.into_mut()?;
+        Ok(Mut::into_raw(bytes))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -155,12 +153,12 @@ impl<'a> UnsafeFromValue for &'a mut Bytes {
 
 impl<'a> UnsafeFromValue for &'a [u8] {
     type Output = *const [u8];
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let bytes = value.into_bytes()?;
-        let bytes = bytes.owned_ref()?;
-        let (value, guard) = OwnedRef::into_raw(bytes);
+        let bytes = bytes.into_ref()?;
+        let (value, guard) = Ref::into_raw(bytes);
         Ok(((*value).bytes.as_slice(), guard))
     }
 

@@ -126,8 +126,8 @@ pub use self::tuple::Tuple;
 pub use self::type_::Type;
 pub use self::type_info::TypeInfo;
 pub use crate::access::{
-    AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawBorrowedMut,
-    RawBorrowedRef,
+    AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawExclusiveGuard,
+    RawSharedGuard,
 };
 pub use crate::any::Any;
 pub use crate::awaited::Awaited;
@@ -148,7 +148,7 @@ pub use crate::protocol::{
     BIT_XOR_ASSIGN, DIV, DIV_ASSIGN, INDEX_GET, INDEX_SET, INTO_FUTURE, INTO_ITER, MUL, MUL_ASSIGN,
     NEXT, REM, REM_ASSIGN, SHL, SHL_ASSIGN, SHR, SHR_ASSIGN, STRING_DISPLAY, SUB, SUB_ASSIGN,
 };
-pub use crate::shared::{OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, SharedPointerGuard};
+pub use crate::shared::{Mut, RawMut, RawRef, Ref, Shared, SharedPointerGuard};
 pub use crate::stack::{Stack, StackError};
 pub use crate::type_of::TypeOf;
 pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};

@@ -1,4 +1,4 @@
-use crate::{FromValue, OwnedMut, OwnedRef, Value, VmError};
+use crate::{FromValue, Mut, Ref, Value, VmError};
 use std::fmt;
 use std::ops;
 
@@ -69,15 +69,15 @@ impl From<Box<[Value]>> for Tuple {
     }
 }
 
-impl FromValue for OwnedMut<Tuple> {
+impl FromValue for Mut<Tuple> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_tuple()?.owned_mut()?)
+        Ok(value.into_tuple()?.into_mut()?)
     }
 }
 
-impl FromValue for OwnedRef<Tuple> {
+impl FromValue for Ref<Tuple> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_tuple()?.owned_ref()?)
+        Ok(value.into_tuple()?.into_ref()?)
     }
 }
 

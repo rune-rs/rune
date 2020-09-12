@@ -34,8 +34,8 @@ where
 {
     let any = &quote!(#module::Any);
     let hash = &quote!(#module::Hash);
-    let raw_owned_mut = &quote!(#module::RawOwnedMut);
-    let raw_owned_ref = &quote!(#module::RawOwnedRef);
+    let raw_into_mut = &quote!(#module::RawMut);
+    let raw_into_ref = &quote!(#module::RawRef);
     let shared = &quote!(#module::Shared);
     let pointer_guard = &quote!(#module::SharedPointerGuard);
     let ty = &quote!(#module::Type);
@@ -65,7 +65,7 @@ where
 
         impl<'a> #unsafe_from_value for &'a #ident {
             type Output = *const #ident;
-            type Guard = #raw_owned_ref;
+            type Guard = #raw_into_ref;
 
             unsafe fn unsafe_from_value(
                 value: #value,
@@ -80,7 +80,7 @@ where
 
         impl<'a> #unsafe_from_value for &'a mut #ident {
             type Output = *mut #ident;
-            type Guard = #raw_owned_mut;
+            type Guard = #raw_into_mut;
 
             unsafe fn unsafe_from_value(
                 value: #value,

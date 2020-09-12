@@ -163,8 +163,15 @@ impl Access {
     }
 
     /// Mark that we want shared access to the given access token.
+    ///
+    /// # Safety
+    ///
+    /// The returned guard must not outlive the access token that created it.
     #[inline]
-    pub(crate) fn shared(&self, kind: AccessKind) -> Result<RawBorrowedRef, NotAccessibleRef> {
+    pub(crate) unsafe fn shared(
+        &self,
+        kind: AccessKind,
+    ) -> Result<RawSharedGuard, NotAccessibleRef> {
         if let AccessKind::Owned = kind {
             if self.is_ref() {
                 return Err(NotAccessibleRef(Snapshot(self.0.get())));
@@ -184,12 +191,19 @@ impl Access {
         }
 
         self.set(n);
-        Ok(RawBorrowedRef { access: self })
+        Ok(RawSharedGuard { access: self })
     }
 
     /// Mark that we want exclusive access to the given access token.
+    ///
+    /// # Safety
+    ///
+    /// The returned guard must not outlive the access token that created it.
     #[inline]
-    pub(crate) fn exclusive(&self, kind: AccessKind) -> Result<RawBorrowedMut, NotAccessibleMut> {
+    pub(crate) unsafe fn exclusive(
+        &self,
+        kind: AccessKind,
+    ) -> Result<RawExclusiveGuard, NotAccessibleMut> {
         if let AccessKind::Owned = kind {
             if self.is_ref() {
                 return Err(NotAccessibleMut(Snapshot(self.0.get())));
@@ -204,14 +218,18 @@ impl Access {
         }
 
         self.set(n);
-        Ok(RawBorrowedMut { access: self })
+        Ok(RawExclusiveGuard { access: self })
     }
 
     /// Mark that we want to mark the given access as "taken".
     ///
     /// I.e. whatever guarded data is no longer available.
+    ///
+    /// # Safety
+    ///
+    /// The returned guard must not outlive the access token that created it.
     #[inline]
-    pub(crate) fn take(&self, kind: AccessKind) -> Result<RawTakeGuard, NotAccessibleTake> {
+    pub(crate) unsafe fn take(&self, kind: AccessKind) -> Result<RawTakeGuard, NotAccessibleTake> {
         if let AccessKind::Owned = kind {
             if self.is_ref() {
                 return Err(NotAccessibleTake(Snapshot(self.0.get())));
@@ -271,12 +289,15 @@ impl fmt::Debug for Access {
     }
 }
 
-/// A raw reference guard.
-pub struct RawBorrowedRef {
+/// A shared access guard.
+///
+/// This is created with [Access::shared], and must not outlive the [Access]
+/// instance it was created from.
+pub struct RawSharedGuard {
     access: *const Access,
 }
 
-impl Drop for RawBorrowedRef {
+impl Drop for RawSharedGuard {
     fn drop(&mut self) {
         unsafe { (*self.access).release_shared() };
     }
@@ -288,7 +309,7 @@ impl Drop for RawBorrowedRef {
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowRef<'a, T: ?Sized + 'a> {
     data: *const T,
-    guard: RawBorrowedRef,
+    guard: RawSharedGuard,
     _marker: marker::PhantomData<&'a T>,
 }
 
@@ -299,7 +320,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     ///
     /// The provided components must be valid for the lifetime of the returned
     /// reference, which is unbounded.
-    pub(crate) unsafe fn from_raw(data: *const T, guard: RawBorrowedRef) -> Self {
+    pub(crate) unsafe fn from_raw(data: *const T, guard: RawSharedGuard) -> Self {
         Self {
             data,
             guard,
@@ -340,20 +361,24 @@ where
     }
 }
 
-/// A raw mutable guard.
-pub struct RawBorrowedMut {
+/// An exclusive access guard.
+///
+/// This is created with [Access::exclusive], and must not outlive the [Access]
+/// instance it was created from.
+pub struct RawExclusiveGuard {
     access: *const Access,
 }
 
-impl Drop for RawBorrowedMut {
+impl Drop for RawExclusiveGuard {
     fn drop(&mut self) {
         unsafe { (*self.access).release_exclusive() }
     }
 }
 
-/// A raw take guard.
+/// A taken access guard.
 ///
-/// Dropping this will undo the take operation.
+/// This is created with [Access::take], and must not outlive the [Access]
+/// instance it was created from.
 pub(crate) struct RawTakeGuard {
     access: *const Access,
 }
@@ -370,7 +395,7 @@ impl Drop for RawTakeGuard {
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowMut<'a, T: ?Sized> {
     data: *mut T,
-    guard: RawBorrowedMut,
+    guard: RawExclusiveGuard,
     _marker: marker::PhantomData<&'a mut T>,
 }
 
@@ -381,7 +406,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     ///
     /// The provided components must be valid for the lifetime of the returned
     /// reference, which is unbounded.
-    pub(crate) unsafe fn from_raw(data: *mut T, guard: RawBorrowedMut) -> Self {
+    pub(crate) unsafe fn from_raw(data: *mut T, guard: RawExclusiveGuard) -> Self {
         Self {
             data,
             guard,
@@ -447,67 +472,71 @@ mod tests {
 
     #[test]
     fn test_non_ref() {
-        let access = Access::new(false);
+        unsafe {
+            let access = Access::new(false);
 
-        assert!(!access.is_ref());
-        assert!(access.is_shared());
-        assert!(access.is_exclusive());
+            assert!(!access.is_ref());
+            assert!(access.is_shared());
+            assert!(access.is_exclusive());
 
-        let guard = access.shared(AccessKind::Any).unwrap();
+            let guard = access.shared(AccessKind::Any).unwrap();
 
-        assert!(!access.is_ref());
-        assert!(access.is_shared());
-        assert!(!access.is_exclusive());
+            assert!(!access.is_ref());
+            assert!(access.is_shared());
+            assert!(!access.is_exclusive());
 
-        drop(guard);
+            drop(guard);
 
-        assert!(!access.is_ref());
-        assert!(access.is_shared());
-        assert!(access.is_exclusive());
+            assert!(!access.is_ref());
+            assert!(access.is_shared());
+            assert!(access.is_exclusive());
 
-        let guard = access.exclusive(AccessKind::Any).unwrap();
+            let guard = access.exclusive(AccessKind::Any).unwrap();
 
-        assert!(!access.is_ref());
-        assert!(!access.is_shared());
-        assert!(!access.is_exclusive());
+            assert!(!access.is_ref());
+            assert!(!access.is_shared());
+            assert!(!access.is_exclusive());
 
-        drop(guard);
+            drop(guard);
 
-        assert!(!access.is_ref());
-        assert!(access.is_shared());
-        assert!(access.is_exclusive());
+            assert!(!access.is_ref());
+            assert!(access.is_shared());
+            assert!(access.is_exclusive());
+        }
     }
 
     #[test]
     fn test_ref() {
-        let access = Access::new(true);
+        unsafe {
+            let access = Access::new(true);
 
-        assert!(access.is_ref());
-        assert!(access.is_shared());
-        assert!(access.is_exclusive());
+            assert!(access.is_ref());
+            assert!(access.is_shared());
+            assert!(access.is_exclusive());
 
-        let guard = access.shared(AccessKind::Any).unwrap();
+            let guard = access.shared(AccessKind::Any).unwrap();
 
-        assert!(access.is_ref());
-        assert!(access.is_shared());
-        assert!(!access.is_exclusive());
+            assert!(access.is_ref());
+            assert!(access.is_shared());
+            assert!(!access.is_exclusive());
 
-        drop(guard);
+            drop(guard);
 
-        assert!(access.is_ref());
-        assert!(access.is_shared());
-        assert!(access.is_exclusive());
+            assert!(access.is_ref());
+            assert!(access.is_shared());
+            assert!(access.is_exclusive());
 
-        let guard = access.exclusive(AccessKind::Any).unwrap();
+            let guard = access.exclusive(AccessKind::Any).unwrap();
 
-        assert!(access.is_ref());
-        assert!(!access.is_shared());
-        assert!(!access.is_exclusive());
+            assert!(access.is_ref());
+            assert!(!access.is_shared());
+            assert!(!access.is_exclusive());
 
-        drop(guard);
+            drop(guard);
 
-        assert!(access.is_ref());
-        assert!(access.is_shared());
-        assert!(access.is_exclusive());
+            assert!(access.is_ref());
+            assert!(access.is_shared());
+            assert!(access.is_exclusive());
+        }
     }
 }

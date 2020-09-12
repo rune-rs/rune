@@ -78,5 +78,5 @@ pointer and a raw guard, which is used in many implementations of
 [`UnsafeFromValue`] is a conversion trait which is strictly used internally to
 convert values into references. Its safety is documented in the trait.
 
-["owned borrows"]: https://docs.rs/runestick/0/runestick/struct.Shared.html#method.owned_ref
+["owned borrows"]: https://docs.rs/runestick/0/runestick/struct.Shared.html#method.into_ref
 [`UnsafeFromValue`]: https://docs.rs/runestick/0/runestick/trait.UnsafeFromValue.html

@@ -23,7 +23,7 @@ where
 
     for (index, value) in values.into_iter().enumerate() {
         let future = match value {
-            Value::Future(future) => future.clone().owned_mut()?,
+            Value::Future(future) => future.clone().into_mut()?,
             value => return Err(VmError::bad_argument::<Future>(index, value)?),
         };
 

@@ -280,7 +280,7 @@ impl Vm {
 
         for (branch, value) in arguments.into_iter().enumerate() {
             let future = match self.try_into_future(value)? {
-                Ok(future) => future.owned_mut()?,
+                Ok(future) => future.into_mut()?,
                 Err(value) => {
                     return Err(VmError::from(VmErrorKind::UnsupportedAwait {
                         actual: value.type_info()?,
@@ -1945,7 +1945,7 @@ impl Vm {
         let hash = match function {
             Value::Type(hash) => hash,
             Value::Function(function) => {
-                let function = function.owned_ref()?;
+                let function = function.into_ref()?;
                 return function.call_with_vm(self, args);
             }
             actual => {

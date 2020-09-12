@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use runestick::{Object, OwnedMut, OwnedRef, Shared, Tuple, Value};
+use runestick::{Mut, Object, Ref, Shared, Tuple, Value};
 use runestick_macros::{Any, FromValue, ToValue};
 
 #[derive(Any)]
@@ -8,15 +8,15 @@ struct Custom {}
 
 #[derive(FromValue)]
 struct TestNamed {
-    a: OwnedMut<String>,
-    b: OwnedMut<Tuple>,
-    c: OwnedMut<Object>,
-    d: OwnedRef<Custom>,
-    e: OwnedMut<Custom>,
+    a: Mut<String>,
+    b: Mut<Tuple>,
+    c: Mut<Object>,
+    d: Ref<Custom>,
+    e: Mut<Custom>,
 }
 
 #[derive(FromValue)]
-struct TestUnnamed(OwnedMut<String>, OwnedMut<Custom>);
+struct TestUnnamed(Mut<String>, Mut<Custom>);
 
 #[derive(ToValue)]
 struct Test2 {

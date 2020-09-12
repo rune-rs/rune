@@ -1,7 +1,5 @@
 use crate::collections::HashMap;
-use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, UnsafeFromValue, Value, VmError,
-};
+use crate::{FromValue, Mut, RawMut, RawRef, Ref, UnsafeFromValue, Value, VmError};
 use std::borrow;
 use std::cmp;
 use std::fmt;
@@ -177,30 +175,30 @@ impl FromValue for Object {
     }
 }
 
-impl FromValue for OwnedMut<Object> {
+impl FromValue for Mut<Object> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         let object = value.into_object()?;
-        let object = object.owned_mut()?;
+        let object = object.into_mut()?;
         Ok(object)
     }
 }
 
-impl FromValue for OwnedRef<Object> {
+impl FromValue for Ref<Object> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         let object = value.into_object()?;
-        let object = object.owned_ref()?;
+        let object = object.into_ref()?;
         Ok(object)
     }
 }
 
 impl UnsafeFromValue for &Object {
     type Output = *const Object;
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let object = value.into_object()?;
-        let object = object.owned_ref()?;
-        Ok(OwnedRef::into_raw(object))
+        let object = object.into_ref()?;
+        Ok(Ref::into_raw(object))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {
@@ -210,12 +208,12 @@ impl UnsafeFromValue for &Object {
 
 impl UnsafeFromValue for &mut Object {
     type Output = *mut Object;
-    type Guard = RawOwnedMut;
+    type Guard = RawMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let object = value.into_object()?;
-        let object = object.owned_mut()?;
-        Ok(OwnedMut::into_raw(object))
+        let object = object.into_mut()?;
+        Ok(Mut::into_raw(object))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

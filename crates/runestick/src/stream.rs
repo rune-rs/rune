@@ -1,6 +1,6 @@
 use crate::{
-    FromValue, GeneratorState, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared,
-    UnsafeFromValue, Value, Vm, VmError, VmErrorKind, VmExecution,
+    FromValue, GeneratorState, Mut, RawMut, RawRef, Ref, Shared, UnsafeFromValue, Value, Vm,
+    VmError, VmErrorKind, VmExecution,
 };
 use std::fmt;
 use std::mem;
@@ -74,11 +74,11 @@ impl FromValue for Stream {
 
 impl UnsafeFromValue for &Stream {
     type Output = *const Stream;
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let stream = value.into_stream()?;
-        let (stream, guard) = OwnedRef::into_raw(stream.owned_ref()?);
+        let (stream, guard) = Ref::into_raw(stream.into_ref()?);
         Ok((stream, guard))
     }
 
@@ -89,11 +89,11 @@ impl UnsafeFromValue for &Stream {
 
 impl UnsafeFromValue for &mut Stream {
     type Output = *mut Stream;
-    type Guard = RawOwnedMut;
+    type Guard = RawMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let stream = value.into_stream()?;
-        Ok(OwnedMut::into_raw(stream.owned_mut()?))
+        Ok(Mut::into_raw(stream.into_mut()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

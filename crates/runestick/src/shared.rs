@@ -1,5 +1,5 @@
 use crate::access::{
-    Access, AccessError, AccessKind, BorrowMut, BorrowRef, RawBorrowedMut, RawBorrowedRef,
+    Access, AccessError, AccessKind, BorrowMut, BorrowRef, RawExclusiveGuard, RawSharedGuard,
 };
 use crate::{Any, AnyObj, Hash};
 use std::any;
@@ -174,7 +174,7 @@ impl<T> Shared<T> {
     ///
     /// {
     ///     // Consumes `a`.
-    ///     let mut a = a.owned_ref().unwrap();
+    ///     let mut a = a.into_ref().unwrap();
     ///     assert_eq!(a.counter, 1);
     ///     assert!(b.borrow_mut().is_err());
     /// }
@@ -183,15 +183,15 @@ impl<T> Shared<T> {
     /// b.counter += 1;
     /// assert_eq!(b.counter, 2);
     /// ```
-    pub fn owned_ref(self) -> Result<OwnedRef<T>, AccessError> {
+    pub fn into_ref(self) -> Result<Ref<T>, AccessError> {
         // NB: we default to a "safer" mode with `AccessKind::Owned`, where
-        // references cannot be converted to an `OwnedMut<T>` in order to avoid
+        // references cannot be converted to an `Mut<T>` in order to avoid
         // a potential soundness panic.
-        self.internal_owned_ref(AccessKind::Owned)
+        self.internal_into_ref(AccessKind::Owned)
     }
 
-    /// Internal implementation of owned_ref.
-    pub(crate) fn internal_owned_ref(self, kind: AccessKind) -> Result<OwnedRef<T>, AccessError> {
+    /// Internal implementation of into_ref.
+    pub(crate) fn internal_into_ref(self, kind: AccessKind) -> Result<Ref<T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
         // alive.
         //
@@ -203,7 +203,7 @@ impl<T> Shared<T> {
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
 
-            Ok(OwnedRef {
+            Ok(Ref {
                 data: this.inner.as_ref().data.get(),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
@@ -233,7 +233,7 @@ impl<T> Shared<T> {
     ///
     /// {
     ///     // Consumes `a`.
-    ///     let mut a = a.owned_mut().unwrap();
+    ///     let mut a = a.into_mut().unwrap();
     ///     a.counter += 1;
     ///
     ///     assert!(b.borrow_ref().is_err());
@@ -241,15 +241,15 @@ impl<T> Shared<T> {
     ///
     /// assert_eq!(b.borrow_ref().unwrap().counter, 1);
     /// ```
-    pub fn owned_mut(self) -> Result<OwnedMut<T>, AccessError> {
+    pub fn into_mut(self) -> Result<Mut<T>, AccessError> {
         // NB: we default to a "safer" mode with `AccessKind::Owned`, where
-        // references cannot be converted to an `OwnedMut<T>` in order to avoid
+        // references cannot be converted to an `Mut<T>` in order to avoid
         // a potential soundness panic.
-        self.internal_owned_mut(AccessKind::Owned)
+        self.internal_into_mut(AccessKind::Owned)
     }
 
-    /// Internal implementation of owned_mut.
-    pub(crate) fn internal_owned_mut(self, kind: AccessKind) -> Result<OwnedMut<T>, AccessError> {
+    /// Internal implementation of into_mut.
+    pub(crate) fn internal_into_mut(self, kind: AccessKind) -> Result<Mut<T>, AccessError> {
         // Safety: We know that interior value is alive since this container is
         // alive.
         //
@@ -261,7 +261,7 @@ impl<T> Shared<T> {
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
 
-            Ok(OwnedMut {
+            Ok(Mut {
                 data: this.inner.as_ref().data.get(),
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
@@ -549,21 +549,21 @@ impl Shared<AnyObj> {
     }
 
     /// Get a shared value and downcast.
-    pub fn downcast_owned_ref<T>(self) -> Result<OwnedRef<T>, AccessError>
+    pub fn downcast_into_ref<T>(self) -> Result<Ref<T>, AccessError>
     where
         T: Any,
     {
         // NB: we default to a "safer" mode with `AccessKind::Owned`, where
-        // references cannot be converted to an `OwnedMut<T>` in order to avoid
+        // references cannot be converted to an `Mut<T>` in order to avoid
         // a potential soundness panic.
-        self.internal_downcast_owned_ref(AccessKind::Owned)
+        self.internal_downcast_into_ref(AccessKind::Owned)
     }
 
-    /// Internal implementation of `downcast_owned_ref`.
-    pub(crate) fn internal_downcast_owned_ref<T>(
+    /// Internal implementation of `downcast_into_ref`.
+    pub(crate) fn internal_downcast_into_ref<T>(
         self,
         kind: AccessKind,
-    ) -> Result<OwnedRef<T>, AccessError>
+    ) -> Result<Ref<T>, AccessError>
     where
         T: Any,
     {
@@ -588,7 +588,7 @@ impl Shared<AnyObj> {
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
 
-            Ok(OwnedRef {
+            Ok(Ref {
                 data: data as *const T,
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
@@ -598,21 +598,21 @@ impl Shared<AnyObj> {
     }
 
     /// Get an exclusive value and downcast.
-    pub fn downcast_owned_mut<T>(self) -> Result<OwnedMut<T>, AccessError>
+    pub fn downcast_into_mut<T>(self) -> Result<Mut<T>, AccessError>
     where
         T: Any,
     {
         // NB: we default to a "safer" mode with `AccessKind::Owned`, where
-        // references cannot be converted to an `OwnedMut<T>` in order to avoid
+        // references cannot be converted to an `Mut<T>` in order to avoid
         // a potential soundness panic.
-        self.internal_downcast_owned_mut(AccessKind::Owned)
+        self.internal_downcast_into_mut(AccessKind::Owned)
     }
 
-    /// Internal implementation of `downcast_owned_mut`.
-    pub(crate) fn internal_downcast_owned_mut<T>(
+    /// Internal implementation of `downcast_into_mut`.
+    pub(crate) fn internal_downcast_into_mut<T>(
         self,
         kind: AccessKind,
-    ) -> Result<OwnedMut<T>, AccessError>
+    ) -> Result<Mut<T>, AccessError>
     where
         T: Any,
     {
@@ -637,7 +637,7 @@ impl Shared<AnyObj> {
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
 
-            Ok(OwnedMut {
+            Ok(Mut {
                 data: data as *mut T,
                 guard,
                 inner: RawDrop::decrement_shared_box(this.inner),
@@ -846,14 +846,17 @@ impl Drop for RawDrop {
 }
 
 /// A strong reference to the given type.
-pub struct OwnedRef<T: ?Sized> {
+pub struct Ref<T: ?Sized> {
     data: *const T,
-    guard: RawBorrowedRef,
+    // Safety: it is important that the guard is dropped before `RawDrop`, since
+    // `RawDrop` might deallocate the `Access` instance the guard is referring
+    // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
+    guard: RawSharedGuard,
     inner: RawDrop,
     _marker: marker::PhantomData<T>,
 }
 
-impl<T: ?Sized> OwnedRef<T> {
+impl<T: ?Sized> Ref<T> {
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
@@ -861,8 +864,8 @@ impl<T: ?Sized> OwnedRef<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
-    pub fn into_raw(this: Self) -> (*const T, RawOwnedRef) {
-        let guard = RawOwnedRef {
+    pub fn into_raw(this: Self) -> (*const T, RawRef) {
+        let guard = RawRef {
             _guard: this.guard,
             _inner: this.inner,
         };
@@ -871,7 +874,7 @@ impl<T: ?Sized> OwnedRef<T> {
     }
 }
 
-impl<T: ?Sized> ops::Deref for OwnedRef<T> {
+impl<T: ?Sized> ops::Deref for Ref<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -881,7 +884,7 @@ impl<T: ?Sized> ops::Deref for OwnedRef<T> {
     }
 }
 
-impl<T: ?Sized> fmt::Debug for OwnedRef<T>
+impl<T: ?Sized> fmt::Debug for Ref<T>
 where
     T: fmt::Debug,
 {
@@ -890,21 +893,24 @@ where
     }
 }
 
-/// A raw guard to a [OwnedRef].
-pub struct RawOwnedRef {
-    _guard: RawBorrowedRef,
+/// A raw guard to a [Ref].
+pub struct RawRef {
+    _guard: RawSharedGuard,
     _inner: RawDrop,
 }
 
 /// A strong mutable reference to the given type.
-pub struct OwnedMut<T: ?Sized> {
+pub struct Mut<T: ?Sized> {
     data: *mut T,
-    guard: RawBorrowedMut,
+    // Safety: it is important that the guard is dropped before `RawDrop`, since
+    // `RawDrop` might deallocate the `Access` instance the guard is referring
+    // to. This is guaranteed by: https://github.com/rust-lang/rfcs/pull/1857
+    guard: RawExclusiveGuard,
     inner: RawDrop,
     _marker: marker::PhantomData<T>,
 }
 
-impl<T: ?Sized> OwnedMut<T> {
+impl<T: ?Sized> Mut<T> {
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
@@ -912,8 +918,8 @@ impl<T: ?Sized> OwnedMut<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
-    pub fn into_raw(this: Self) -> (*mut T, RawOwnedMut) {
-        let guard = RawOwnedMut {
+    pub fn into_raw(this: Self) -> (*mut T, RawMut) {
+        let guard = RawMut {
             _guard: this.guard,
             _inner: this.inner,
         };
@@ -922,7 +928,7 @@ impl<T: ?Sized> OwnedMut<T> {
     }
 }
 
-impl<T: ?Sized> ops::Deref for OwnedMut<T> {
+impl<T: ?Sized> ops::Deref for Mut<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -932,7 +938,7 @@ impl<T: ?Sized> ops::Deref for OwnedMut<T> {
     }
 }
 
-impl<T: ?Sized> ops::DerefMut for OwnedMut<T> {
+impl<T: ?Sized> ops::DerefMut for Mut<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // Safety: An owned mut holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned mut.
@@ -940,7 +946,7 @@ impl<T: ?Sized> ops::DerefMut for OwnedMut<T> {
     }
 }
 
-impl<T: ?Sized> fmt::Debug for OwnedMut<T>
+impl<T: ?Sized> fmt::Debug for Mut<T>
 where
     T: fmt::Debug,
 {
@@ -949,7 +955,7 @@ where
     }
 }
 
-impl<F> Future for OwnedMut<F>
+impl<F> Future for Mut<F>
 where
     F: Unpin + Future,
 {
@@ -962,9 +968,9 @@ where
     }
 }
 
-/// A raw guard to a [OwnedRef].
-pub struct RawOwnedMut {
-    _guard: RawBorrowedMut,
+/// A raw guard to a [Ref].
+pub struct RawMut {
+    _guard: RawExclusiveGuard,
     _inner: RawDrop,
 }
 

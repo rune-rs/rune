@@ -1,7 +1,4 @@
-use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, UnsafeFromValue, Value,
-    VmError,
-};
+use crate::{FromValue, Mut, RawMut, RawRef, Ref, Shared, UnsafeFromValue, Value, VmError};
 
 /// The state of a generator.
 #[derive(Debug)]
@@ -39,11 +36,11 @@ impl FromValue for GeneratorState {
 
 impl UnsafeFromValue for &GeneratorState {
     type Output = *const GeneratorState;
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let state = value.into_generator_state()?;
-        let (state, guard) = OwnedRef::into_raw(state.owned_ref()?);
+        let (state, guard) = Ref::into_raw(state.into_ref()?);
         Ok((state, guard))
     }
 
@@ -54,11 +51,11 @@ impl UnsafeFromValue for &GeneratorState {
 
 impl UnsafeFromValue for &mut GeneratorState {
     type Output = *mut GeneratorState;
-    type Guard = RawOwnedMut;
+    type Guard = RawMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let state = value.into_generator_state()?;
-        Ok(OwnedMut::into_raw(state.owned_mut()?))
+        Ok(Mut::into_raw(state.into_mut()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

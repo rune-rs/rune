@@ -1,6 +1,5 @@
 use crate::{
-    FromValue, OwnedMut, OwnedRef, RawOwnedMut, RawOwnedRef, Shared, ToValue, UnsafeFromValue,
-    Value, VmError,
+    FromValue, Mut, RawMut, RawRef, Ref, Shared, ToValue, UnsafeFromValue, Value, VmError,
 };
 use pin_project::pin_project;
 use std::fmt;
@@ -117,11 +116,11 @@ impl FromValue for Future {
 
 impl UnsafeFromValue for &Future {
     type Output = *const Future;
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let future = value.into_future()?;
-        let (future, guard) = OwnedRef::into_raw(future.owned_ref()?);
+        let (future, guard) = Ref::into_raw(future.into_ref()?);
         Ok((future, guard))
     }
 
@@ -132,11 +131,11 @@ impl UnsafeFromValue for &Future {
 
 impl UnsafeFromValue for &mut Future {
     type Output = *mut Future;
-    type Guard = RawOwnedMut;
+    type Guard = RawMut;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let future = value.into_future()?;
-        Ok(OwnedMut::into_raw(future.owned_mut()?))
+        Ok(Mut::into_raw(future.into_mut()?))
     }
 
     unsafe fn to_arg(output: Self::Output) -> Self {

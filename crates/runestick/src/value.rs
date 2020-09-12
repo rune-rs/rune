@@ -1,8 +1,7 @@
 use crate::access::AccessKind;
 use crate::{
-    Any, AnyObj, Bytes, Function, Future, Generator, GeneratorState, Hash, Object, OwnedMut,
-    OwnedRef, RawOwnedMut, RawOwnedRef, Shared, StaticString, Stream, Tuple, Type, TypeInfo,
-    VmError,
+    Any, AnyObj, Bytes, Function, Future, Generator, GeneratorState, Hash, Mut, Object, RawMut,
+    RawRef, Ref, Shared, StaticString, Stream, Tuple, Type, TypeInfo, VmError,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -373,14 +372,14 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_any_ref<T>(self) -> Result<(*const T, RawOwnedRef), VmError>
+    pub unsafe fn unsafe_into_any_ref<T>(self) -> Result<(*const T, RawRef), VmError>
     where
         T: Any,
     {
         match self {
             Self::Any(any) => {
-                let any = any.internal_downcast_owned_ref::<T>(AccessKind::Any)?;
-                let (data, guard) = OwnedRef::into_raw(any);
+                let any = any.internal_downcast_into_ref::<T>(AccessKind::Any)?;
+                let (data, guard) = Ref::into_raw(any);
                 Ok((data, guard))
             }
             actual => Err(VmError::expected_any(actual.type_info()?)),
@@ -397,14 +396,14 @@ impl Value {
     /// outlive the returned guard, not the virtual machine the value belongs
     /// to.
     #[inline]
-    pub unsafe fn unsafe_into_any_mut<T>(self) -> Result<(*mut T, RawOwnedMut), VmError>
+    pub unsafe fn unsafe_into_any_mut<T>(self) -> Result<(*mut T, RawMut), VmError>
     where
         T: Any,
     {
         match self {
             Self::Any(any) => {
-                let any = any.internal_downcast_owned_mut::<T>(AccessKind::Any)?;
-                let (data, guard) = OwnedMut::into_raw(any);
+                let any = any.internal_downcast_into_mut::<T>(AccessKind::Any)?;
+                let (data, guard) = Mut::into_raw(any);
                 Ok((data, guard))
             }
             actual => Err(VmError::expected_any(actual.type_info()?)),

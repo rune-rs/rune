@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use rune_testing::*;
-use runestick::{Any, FromValue, OwnedMut, OwnedRef};
+use runestick::{Any, FromValue, Mut, Ref};
 
 #[derive(Any, Debug, Default)]
 struct MyBytes {
@@ -10,8 +10,8 @@ struct MyBytes {
 
 #[derive(FromValue)]
 struct Proxy {
-    field: OwnedMut<String>,
-    my_bytes: OwnedRef<MyBytes>,
+    field: Mut<String>,
+    my_bytes: Ref<MyBytes>,
 }
 
 fn main() -> runestick::Result<()> {

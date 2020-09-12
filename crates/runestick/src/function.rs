@@ -1,8 +1,8 @@
 use crate::context::Handler;
 use crate::VmErrorKind;
 use crate::{
-    Args, Call, Context, FromValue, Future, Generator, Hash, OwnedRef, RawOwnedRef, Shared, Stack,
-    Stream, Tuple, Unit, UnsafeFromValue, Value, Vm, VmCall, VmError, VmHalt,
+    Args, Call, Context, FromValue, Future, Generator, Hash, RawRef, Ref, Shared, Stack, Stream,
+    Tuple, Unit, UnsafeFromValue, Value, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -353,19 +353,19 @@ impl FromValue for Shared<Function> {
     }
 }
 
-impl FromValue for OwnedRef<Function> {
+impl FromValue for Ref<Function> {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        Ok(value.into_function()?.owned_ref()?)
+        Ok(value.into_function()?.into_ref()?)
     }
 }
 
 impl UnsafeFromValue for &Function {
     type Output = *const Function;
-    type Guard = RawOwnedRef;
+    type Guard = RawRef;
 
     unsafe fn unsafe_from_value(value: Value) -> Result<(Self::Output, Self::Guard), VmError> {
         let function = value.into_function()?;
-        let (function, guard) = OwnedRef::into_raw(function.owned_ref()?);
+        let (function, guard) = Ref::into_raw(function.into_ref()?);
         Ok((function, guard))
     }
 
