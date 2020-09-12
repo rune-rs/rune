@@ -1,11 +1,9 @@
 use http;
 use json;
 
-fn main() {
-    let client = http::Client::new();
-    let response = client.get("http://worldtimeapi.org/api/ip").await?;
-    let text = response.text().await?;
-    let json = json::from_string(text);
+async fn main() {
+    let response = http::get("http://worldtimeapi.org/api/ip").await?;
+    let json = response.json().await?;
 
     let timezone = json["timezone"];
 
@@ -13,15 +11,19 @@ fn main() {
         dbg(timezone);
     }
 
-    let body = json::to_bytes(#{"hello": "world"});
+    let body = json::to_bytes(#{"hello": "world"})?;
 
+    let client = http::Client::new();
     let response = client.post("https://postman-echo.com/post")
+        .await?
         .body_bytes(body)
-        .send();
+        .await?
+        .send()
+        .await?;
 
-    let response = json::from_string(response.text());
+    let response = response.json().await?;
 
-    let content_length = int::parse(response["headers"]["content-length"]);
+    let content_length = int::parse(response["headers"]["content-length"])?;
 
     if content_length is int {
         dbg("it is indeed an integer");
