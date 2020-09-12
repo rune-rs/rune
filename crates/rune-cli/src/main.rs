@@ -57,7 +57,7 @@ use structopt::StructOpt;
 use runestick::{Item, Unit, Value, VmExecution};
 
 #[derive(Default, Debug, Clone, StructOpt)]
-#[structopt(name = "rune", about = "The Rune Programming Language")]
+#[structopt(name = "rune", about = "The Rune Language")]
 struct Args {
     /// Provide detailed tracing for each instruction executed.
     #[structopt(short, long)]
@@ -72,6 +72,7 @@ struct Args {
     #[structopt(long)]
     dump_instructions: bool,
     /// Dump the state of the stack after completion.
+    ///
     /// If compiled with `--trace` will dump it after each instruction.
     #[structopt(long)]
     dump_stack: bool,
@@ -90,28 +91,26 @@ struct Args {
     /// Include source code references where appropriate (only available if -O debug-info=true).
     #[structopt(long)]
     with_source: bool,
-    /// Enabled experimental features.
+    /// Enable experimental features.
+    ///
+    /// This makes the `std::experimental` module available to scripts.
     #[structopt(long)]
     experimental: bool,
     /// Input Rune Scripts
     #[structopt(parse(from_os_str))]
     paths: Vec<PathBuf>,
-    ///  Update the given compiler option.
-    /// memoize-instance-fn[=<true/false>]
-    ///     Inline the lookup of an instance function where appropriate.
+    /// Set the given compiler option (see `--help` for available options).
     ///
-    /// link-checks[=<true/false>]
-    ///     Perform linker checks which makes sure that called functions exist.
+    /// memoize-instance-fn[=<true/false>] - Inline the lookup of an instance function where appropriate.
     ///
-    /// debug-info[=<true/false>]
-    ///     Enable or disable debug info.
+    /// link-checks[=<true/false>] - Perform linker checks which makes sure that called functions exist.
     ///
-    /// macros[=<true/false>]
-    ///     Enable or disable macros (experimental).
+    /// debug-info[=<true/false>] - Enable or disable debug info.
     ///
-    /// bytecode[=<true/false>]
-    ///     Enable or disable bytecode caching (experimental).
-    #[structopt(short = "O")]
+    /// macros[=<true/false>] - Enable or disable macros (experimental).
+    ///
+    /// bytecode[=<true/false>] - Enable or disable bytecode caching (experimental).
+    #[structopt(name = "option", short = "O")]
     compiler_options: Vec<String>,
 }
 
