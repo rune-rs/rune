@@ -45,7 +45,7 @@
 //! [Rune Language]: https://github.com/rune-rs/rune
 //! [runestick]: https://github.com/rune-rs/rune
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::EmitDiagnostics as _;
 use std::env;
@@ -56,100 +56,105 @@ use std::sync::Arc;
 
 use runestick::{Item, Unit, Value, VmExecution};
 
-#[tokio::main]
-async fn main() -> Result<()> {
+#[derive(Default, Debug, Clone)]
+struct Args {
+    path: PathBuf,
+    trace: bool,
+    dump: bool,
+    dump_unit: bool,
+    dump_instructions: bool,
+    dump_stack: bool,
+    dump_functions: bool,
+    dump_types: bool,
+    dump_native_functions: bool,
+    dump_native_types: bool,
+    with_source: bool,
+    experimental: bool,
+    help: bool,
+    paths: Vec<PathBuf>,
+}
+
+async fn try_main() -> Result<ExitCode> {
     env_logger::init();
 
-    let mut args = env::args();
-    args.next();
+    let mut it = env::args();
+    it.next();
 
-    let mut path = None;
-    let mut trace = false;
-    let mut dump_unit = false;
-    let mut dump_instructions = false;
-    let mut dump_stack = false;
-    let mut dump_functions = false;
-    let mut dump_types = false;
-    let mut dump_native_functions = false;
-    let mut dump_native_types = false;
-    let mut with_source = false;
-    let mut help = false;
-    let mut experimental = false;
-
+    let mut args = Args::default();
     let mut options = rune::Options::default();
 
-    while let Some(arg) = args.next() {
+    while let Some(arg) = it.next() {
         match arg.as_str() {
             "--" => continue,
             "--trace" => {
-                trace = true;
+                args.trace = true;
             }
             "--dump" => {
-                dump_unit = true;
-                dump_stack = true;
-                dump_functions = true;
-                dump_types = true;
-                dump_native_functions = true;
-                dump_native_types = true;
+                args.dump_unit = true;
+                args.dump_stack = true;
+                args.dump_functions = true;
+                args.dump_types = true;
+                args.dump_native_functions = true;
+                args.dump_native_types = true;
             }
             "--dump-unit" => {
-                dump_unit = true;
-                dump_instructions = true;
+                args.dump_unit = true;
+                args.dump_instructions = true;
             }
             "--dump-stack" => {
-                dump_stack = true;
+                args.dump_stack = true;
             }
             "--dump-instructions" => {
-                dump_unit = true;
-                dump_instructions = true;
+                args.dump_unit = true;
+                args.dump_instructions = true;
             }
             "--dump-functions" => {
-                dump_unit = true;
-                dump_functions = true;
+                args.dump_unit = true;
+                args.dump_functions = true;
             }
             "--dump-types" => {
-                dump_unit = true;
-                dump_types = true;
+                args.dump_unit = true;
+                args.dump_types = true;
             }
             "--dump-native-functions" => {
-                dump_native_functions = true;
+                args.dump_native_functions = true;
             }
             "--dump-native-types" => {
-                dump_native_types = true;
+                args.dump_native_types = true;
             }
             "--with-source" => {
-                with_source = true;
+                args.with_source = true;
             }
             "--experimental" => {
-                experimental = true;
+                args.experimental = true;
             }
             "-O" => {
-                let opt = match args.next() {
+                let opt = match it.next() {
                     Some(opt) => opt,
                     None => {
                         println!("expected optimization option to `-O`");
-                        return Ok(());
+                        return Ok(ExitCode::Failure);
                     }
                 };
 
                 options.parse_option(&opt)?;
             }
             "--help" | "-h" => {
-                help = true;
+                args.help = true;
             }
             other if !other.starts_with('-') => {
-                path = Some(PathBuf::from(other));
+                args.paths.push(PathBuf::from(other));
             }
             other => {
                 println!("Unrecognized option: {}", other);
-                help = true;
+                args.help = true;
             }
         }
     }
 
-    const USAGE: &str = "rune-cli [--trace] <file>";
+    const USAGE: &str = "rune-cli [--trace] <file1> [, <file2> [, ..]] ";
 
-    if help {
+    if args.help {
         println!("Usage: {}", USAGE);
         println!();
         println!("  --help, -h               - Show this help.");
@@ -176,20 +181,30 @@ async fn main() -> Result<()> {
         println!("  debug-info[=<true/false>]          - Enable or disable debug info.");
         println!("  macros[=<true/false>]              - Enable or disable macros (experimental).");
         println!("  bytecode[=<true/false>]            - Enable or disable bytecode caching (experimental).");
-        return Ok(());
+        return Ok(ExitCode::Success);
     }
 
-    let path = match path {
-        Some(path) => path,
-        None => {
-            bail!("Invalid usage: {}", USAGE);
-        }
-    };
+    if args.paths.is_empty() {
+        println!("Invalid usage: {}", USAGE);
+        return Ok(ExitCode::Failure);
+    }
 
+    for path in &args.paths {
+        match run_path(&args, &options, path).await? {
+            ExitCode::Success => (),
+            other => return Ok(other),
+        }
+    }
+
+    Ok(ExitCode::Success)
+}
+
+/// Run a single path.
+async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<ExitCode> {
     let bytecode_path = path.with_extension("rnc");
     let mut context = rune::default_context()?;
 
-    if experimental {
+    if args.experimental {
         context.install(&rune_macros::module()?)?;
     }
 
@@ -225,7 +240,7 @@ async fn main() -> Result<()> {
                     Err(error) => {
                         let mut writer = StandardStream::stderr(ColorChoice::Always);
                         error.emit_diagnostics(&mut writer, &sources)?;
-                        return Ok(());
+                        return Ok(ExitCode::Failure);
                     }
                 };
 
@@ -246,7 +261,7 @@ async fn main() -> Result<()> {
 
     let vm = runestick::Vm::new(context.clone(), unit.clone());
 
-    if dump_native_functions {
+    if args.dump_native_functions {
         println!("# functions");
 
         for (i, (hash, f)) in context.iter_functions().enumerate() {
@@ -254,7 +269,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    if dump_native_types {
+    if args.dump_native_types {
         println!("# types");
 
         for (i, (hash, ty)) in context.iter_types().enumerate() {
@@ -262,12 +277,12 @@ async fn main() -> Result<()> {
         }
     }
 
-    if dump_unit {
+    if args.dump_unit {
         use std::io::Write as _;
 
         let unit = vm.unit();
 
-        if dump_instructions {
+        if args.dump_instructions {
             println!("# instructions");
 
             let mut first_function = true;
@@ -288,7 +303,7 @@ async fn main() -> Result<()> {
                     println!("fn {} ({}):", signature, hash);
                 }
 
-                if with_source {
+                if args.with_source {
                     if let Some((source, span)) =
                         debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
                     {
@@ -325,7 +340,7 @@ async fn main() -> Result<()> {
         let mut strings = unit.iter_static_strings().peekable();
         let mut keys = unit.iter_static_object_keys().peekable();
 
-        if dump_functions && functions.peek().is_some() {
+        if args.dump_functions && functions.peek().is_some() {
             println!("# dynamic functions");
 
             for (hash, kind) in functions {
@@ -337,7 +352,7 @@ async fn main() -> Result<()> {
             }
         }
 
-        if dump_types && types.peek().is_some() {
+        if args.dump_types && types.peek().is_some() {
             println!("# dynamic types");
 
             for (hash, ty) in types {
@@ -366,8 +381,8 @@ async fn main() -> Result<()> {
 
     let mut execution: runestick::VmExecution = vm.execute(&Item::of(&["main"]), ())?;
 
-    let result = if trace {
-        match do_trace(&mut execution, &sources, dump_stack, with_source).await {
+    let result = if args.trace {
+        match do_trace(&mut execution, &sources, args.dump_stack, args.with_source).await {
             Ok(value) => Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
             Err(TraceError::VmError(vm)) => Err(vm),
@@ -391,7 +406,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    if dump_stack {
+    if args.dump_stack {
         println!("# full stack dump after halting");
 
         let vm = execution.vm()?;
@@ -439,9 +454,33 @@ async fn main() -> Result<()> {
     if let Some(error) = errored {
         let mut writer = StandardStream::stderr(ColorChoice::Always);
         error.emit_diagnostics(&mut writer, &sources)?;
+        Ok(ExitCode::VmError)
+    } else {
+        Ok(ExitCode::Success)
     }
+}
 
-    Ok(())
+// Our own private ExitCode since std::process::ExitCode is nightly only.
+// Note that these numbers are actually meaningful on Windows, but we don't
+// care.
+#[repr(i32)]
+enum ExitCode {
+    Success = 0,
+    Failure = 1,
+    VmError = 2,
+}
+
+#[tokio::main]
+async fn main() {
+    match try_main().await {
+        Ok(exit_code) => {
+            std::process::exit(exit_code as i32);
+        }
+        Err(error) => {
+            eprintln!("Error: {}", error);
+            std::process::exit(-1);
+        }
+    }
 }
 
 enum TraceError {
