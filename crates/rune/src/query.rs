@@ -3,7 +3,7 @@
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::error::CompileResult;
-use crate::{CompileError, Resolve as _, Storage, UnitBuilder};
+use crate::{CompileError, CompileVisitor, Resolve as _, SourceId, Storage, UnitBuilder};
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
     Hash, Item, Source, Span, Type,
@@ -95,6 +95,8 @@ pub(crate) struct BuildEntry {
     pub(crate) build: Build,
     pub(crate) source: Arc<Source>,
     pub(crate) source_id: usize,
+    /// If the queued up entry was unused or not.
+    pub(crate) unused: bool,
 }
 
 pub(crate) struct IndexedEntry {
@@ -274,12 +276,35 @@ impl Query {
         Ok(())
     }
 
-    /// Query for the given meta item.
-    pub fn query_meta(
+    /// Remove and queue up unused entries for building.
+    ///
+    /// Returns boolean indicating if any unused entries were queued up.
+    pub(crate) fn queue_unused_entries(
         &mut self,
-        item: &Item,
-        span: Span,
-    ) -> Result<Option<CompileMeta>, CompileError> {
+        visitor: &mut dyn CompileVisitor,
+    ) -> Result<bool, (SourceId, CompileError)> {
+        let unused = std::mem::take(&mut self.indexed);
+
+        if unused.is_empty() {
+            return Ok(false);
+        }
+
+        for (item, entry) in unused {
+            let span = entry.span;
+            let source_id = entry.source_id;
+
+            let meta = self
+                .build_indexed_entry(item, entry, true)
+                .map_err(|error| (source_id, error))?;
+
+            visitor.visit_meta(&meta, span);
+        }
+
+        Ok(true)
+    }
+
+    /// Query for the given meta item.
+    pub fn query_meta(&mut self, item: &Item) -> Result<Option<CompileMeta>, CompileError> {
         let item = Item::of(item);
 
         if let Some(meta) = self.unit.borrow().lookup_meta(&item) {
@@ -287,15 +312,27 @@ impl Query {
         }
 
         // See if there's an index entry we can construct.
+        let entry = match self.indexed.remove(&item) {
+            Some(entry) => entry,
+            None => return Ok(None),
+        };
+
+        Ok(Some(self.build_indexed_entry(item, entry, false)?))
+    }
+
+    /// Build a single, indexed entry and return its metadata.
+    pub(crate) fn build_indexed_entry(
+        &mut self,
+        item: Item,
+        entry: IndexedEntry,
+        unused: bool,
+    ) -> Result<CompileMeta, CompileError> {
         let IndexedEntry {
             span: entry_span,
             indexed,
             source,
             source_id,
-        } = match self.indexed.remove(&item) {
-            Some(entry) => entry,
-            None => return Ok(None),
-        };
+        } = entry;
 
         let kind = match indexed {
             Indexed::Enum => CompileMetaKind::Enum {
@@ -304,7 +341,7 @@ impl Query {
             },
             Indexed::Variant(variant) => {
                 // Assert that everything is built for the enum.
-                self.query_meta(&variant.enum_item, span)?;
+                self.query_meta(&variant.enum_item)?;
                 self.variant_into_item_decl(&item, variant.ast, Some(variant.enum_item), &*source)?
             }
             Indexed::Struct(st) => {
@@ -316,6 +353,7 @@ impl Query {
                     build: Build::Function(f),
                     source,
                     source_id,
+                    unused,
                 });
 
                 CompileMetaKind::Function {
@@ -330,6 +368,7 @@ impl Query {
                     build: Build::Closure(c),
                     source,
                     source_id,
+                    unused,
                 });
 
                 CompileMetaKind::Closure {
@@ -345,6 +384,7 @@ impl Query {
                     build: Build::AsyncBlock(async_block),
                     source,
                     source_id,
+                    unused,
                 });
 
                 CompileMetaKind::AsyncBlock {
@@ -355,15 +395,13 @@ impl Query {
             }
         };
 
-        self.unit.borrow_mut().insert_meta(CompileMeta {
+        let meta = CompileMeta {
             span: Some(entry_span),
             kind,
-        })?;
+        };
 
-        match self.unit.borrow().lookup_meta(&item) {
-            Some(meta) => Ok(Some(meta)),
-            None => Err(CompileError::MissingType { span, item }),
-        }
+        self.unit.borrow_mut().insert_meta(meta.clone())?;
+        Ok(meta)
     }
 
     /// Construct metadata for an empty body.

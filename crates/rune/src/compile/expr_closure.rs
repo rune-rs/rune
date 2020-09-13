@@ -74,13 +74,13 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
         let item = self.items.item();
         let hash = Hash::type_hash(&item);
 
-        let meta =
-            self.query
-                .query_meta(&item, span)?
-                .ok_or_else(|| CompileError::MissingType {
-                    item: item.clone(),
-                    span,
-                })?;
+        let meta = self
+            .query
+            .query_meta(&item)?
+            .ok_or_else(|| CompileError::MissingType {
+                item: item.clone(),
+                span,
+            })?;
 
         let captures = match &meta.kind {
             CompileMetaKind::Closure { captures, .. } => captures,

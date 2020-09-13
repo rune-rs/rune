@@ -190,6 +190,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 build: Build::InstanceFunction(f),
                 source: self.source.clone(),
                 source_id: self.source_id,
+                unused: false,
             });
 
             let meta = CompileMeta {
@@ -208,6 +209,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 build: Build::Function(fun),
                 source: self.source.clone(),
                 source_id: self.source_id,
+                unused: false,
             });
 
             self.query.unit.borrow_mut().insert_meta(CompileMeta {

@@ -115,24 +115,37 @@ pub fn compile_with_options(
     worker.run()?;
     verify_imports(context, &mut *unit.borrow_mut())?;
 
-    while let Some(entry) = worker.query.queue.pop_front() {
-        let source_id = entry.source_id;
+    loop {
+        while let Some(entry) = worker.query.queue.pop_front() {
+            let source_id = entry.source_id;
 
-        if let Err(error) = compile_entry(CompileEntryArgs {
-            context,
-            options,
-            storage: &storage,
-            unit,
-            warnings: worker.warnings,
-            query: &mut worker.query,
-            entry,
-            expanded: &worker.expanded,
-            visitor,
-        }) {
-            return Err(LoadError::from(LoadErrorKind::CompileError {
-                source_id,
-                error,
-            }));
+            if let Err(error) = compile_entry(CompileEntryArgs {
+                context,
+                options,
+                storage: &storage,
+                unit,
+                warnings: worker.warnings,
+                query: &mut worker.query,
+                entry,
+                expanded: &worker.expanded,
+                visitor,
+            }) {
+                return Err(LoadError::from(LoadErrorKind::CompileError {
+                    source_id,
+                    error,
+                }));
+            }
+        }
+
+        match worker.query.queue_unused_entries(visitor) {
+            Ok(true) => (),
+            Ok(false) => break,
+            Err((source_id, error)) => {
+                return Err(LoadError::from(LoadErrorKind::CompileError {
+                    source_id,
+                    error,
+                }));
+            }
         }
     }
 
@@ -169,6 +182,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
         build,
         source,
         source_id,
+        unused,
     } = entry;
 
     let mut asm = unit.borrow().new_assembly(source_id);
@@ -200,8 +214,12 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
             compiler.contexts.push(span);
             compiler.compile((f.ast, false))?;
 
-            unit.borrow_mut()
-                .new_function(source_id, item, count, asm, f.call, args)?;
+            if unused {
+                compiler.warnings.not_used(source_id, span, None);
+            } else {
+                unit.borrow_mut()
+                    .new_function(source_id, item, count, asm, f.call, args)?;
+            }
         }
         Build::InstanceFunction(f) => {
             let args = format_fn_args(storage, &*source, f.ast.args.items.iter().map(|(a, _)| a))?;
@@ -229,16 +247,20 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
 
             compiler.compile((f.ast, true))?;
 
-            unit.borrow_mut().new_instance_function(
-                source_id,
-                item,
-                type_of,
-                name.as_ref(),
-                count,
-                asm,
-                f.call,
-                args,
-            )?;
+            if unused {
+                compiler.warnings.not_used(source_id, span, None);
+            } else {
+                unit.borrow_mut().new_instance_function(
+                    source_id,
+                    item,
+                    type_of,
+                    name.as_ref(),
+                    count,
+                    asm,
+                    f.call,
+                    args,
+                )?;
+            }
         }
         Build::Closure(c) => {
             let args = format_fn_args(
@@ -252,8 +274,12 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
             compiler.contexts.push(span);
             compiler.compile((c.ast, &c.captures[..]))?;
 
-            unit.borrow_mut()
-                .new_function(source_id, item, count, asm, c.call, args)?;
+            if unused {
+                compiler.warnings.not_used(source_id, span, None);
+            } else {
+                unit.borrow_mut()
+                    .new_function(source_id, item, count, asm, c.call, args)?;
+            }
         }
         Build::AsyncBlock(async_block) => {
             let span = async_block.ast.span();
@@ -261,14 +287,18 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
             compiler.contexts.push(span);
             compiler.compile((&async_block.ast, &async_block.captures[..]))?;
 
-            unit.borrow_mut().new_function(
-                source_id,
-                item,
-                args,
-                asm,
-                async_block.call,
-                Vec::new(),
-            )?;
+            if unused {
+                compiler.warnings.not_used(source_id, span, None);
+            } else {
+                unit.borrow_mut().new_function(
+                    source_id,
+                    item,
+                    args,
+                    asm,
+                    async_block.call,
+                    Vec::new(),
+                )?;
+            }
         }
     }
 
@@ -379,7 +409,7 @@ impl<'a> Compiler<'a> {
             let current = base.join(name);
             log::trace!("lookup meta (query): {}", current);
 
-            if let Some(meta) = self.query.query_meta(&current, span)? {
+            if let Some(meta) = self.query.query_meta(&current)? {
                 log::trace!("found in query: {:?}", meta);
                 self.visitor.visit_meta(&meta, span);
                 return Ok(Some(meta));

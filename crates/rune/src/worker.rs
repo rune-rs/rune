@@ -312,6 +312,8 @@ impl Import {
                     unit.new_import(item, &name, span, source_id)?;
                 }
             }
+        } else {
+            unit.new_import(item, &name, span, source_id)?;
         }
 
         Ok(())
