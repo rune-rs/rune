@@ -556,18 +556,22 @@ impl<'a> Compiler<'a> {
 
                 let false_label = self.asm.new_label("if_condition_false");
 
-                let mut scope = self.scopes.child(span)?;
-                self.compile((&*expr_let.expr, Needs::Value))?;
+                let scope = self.scopes.child(span)?;
+                let expected = self.scopes.push(scope);
 
-                let load = |_: &mut Assembly| {};
+                let load = |this: &mut Self| {
+                    this.compile((&*expr_let.expr, Needs::Value))?;
+                    Ok(())
+                };
 
-                if self.compile_pat(&mut scope, &expr_let.pat, false_label, &load)? {
+                if self.compile_pat(&expr_let.pat, false_label, &load)? {
                     self.asm.jump(then_label, span);
                     self.asm.label(false_label)?;
                 } else {
                     self.asm.jump(then_label, span);
                 };
 
+                let scope = self.scopes.pop(expected, span)?;
                 Ok(scope)
             }
         }
@@ -576,18 +580,17 @@ impl<'a> Compiler<'a> {
     /// Encode a vector pattern match.
     pub(crate) fn compile_pat_vec(
         &mut self,
-        scope: &mut Scope,
         pat_vec: &ast::PatVec,
         false_label: Label,
-        load: &dyn Fn(&mut Assembly),
+        load: &dyn Fn(&mut Self) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_vec.span();
         log::trace!("PatVec => {:?}", self.source.source(span));
 
         // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
         // interact with it multiple times.
-        load(&mut self.asm);
-        let offset = scope.decl_anon(span);
+        load(self)?;
+        let offset = self.scopes.decl_anon(span)?;
 
         // Copy the temporary and check that its length matches the pattern and
         // that it is indeed a vector.
@@ -603,16 +606,17 @@ impl<'a> Compiler<'a> {
         );
 
         self.asm
-            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
 
         for (index, (pat, _)) in pat_vec.items.iter().enumerate() {
             let span = pat.span();
 
-            let load = move |asm: &mut Assembly| {
-                asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+            let load = move |this: &mut Self| {
+                this.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+                Ok(())
             };
 
-            self.compile_pat(scope, &*pat, false_label, &load)?;
+            self.compile_pat(&*pat, false_label, &load)?;
         }
 
         Ok(())
@@ -621,18 +625,17 @@ impl<'a> Compiler<'a> {
     /// Encode a vector pattern match.
     pub(crate) fn compile_pat_tuple(
         &mut self,
-        scope: &mut Scope,
         pat_tuple: &ast::PatTuple,
         false_label: Label,
-        load: &dyn Fn(&mut Assembly),
+        load: &dyn Fn(&mut Self) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span));
 
         // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
         // interact with it multiple times.
-        load(&mut self.asm);
-        let offset = scope.decl_anon(span);
+        load(self)?;
+        let offset = self.scopes.decl_anon(span)?;
 
         let type_check = if let Some(path) = &pat_tuple.path {
             let item = self.convert_path_to_item(path)?;
@@ -684,16 +687,17 @@ impl<'a> Compiler<'a> {
             span,
         );
         self.asm
-            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
 
         for (index, (pat, _)) in pat_tuple.items.iter().enumerate() {
             let span = pat.span();
 
-            let load = move |asm: &mut Assembly| {
-                asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+            let load = move |this: &mut Self| {
+                this.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+                Ok(())
             };
 
-            self.compile_pat(scope, &*pat, false_label, &load)?;
+            self.compile_pat(&*pat, false_label, &load)?;
         }
 
         Ok(())
@@ -702,10 +706,9 @@ impl<'a> Compiler<'a> {
     /// Encode an object pattern match.
     pub(crate) fn compile_pat_object(
         &mut self,
-        scope: &mut Scope,
         pat_object: &ast::PatObject,
         false_label: Label,
-        load: &dyn Fn(&mut Assembly),
+        load: &dyn Fn(&mut Self) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_object.span();
         log::trace!("PatObject => {:?}", self.source.source(span));
@@ -713,8 +716,8 @@ impl<'a> Compiler<'a> {
         // NB: bind the loaded variable (once) to an anonymous var.
         // We reduce the number of copy operations by having specialized
         // operations perform the load from the given offset.
-        load(&mut self.asm);
-        let offset = scope.decl_anon(span);
+        load(self)?;
+        let offset = self.scopes.decl_anon(span)?;
 
         let mut string_slots = Vec::new();
 
@@ -809,18 +812,20 @@ impl<'a> Compiler<'a> {
         );
 
         self.asm
-            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
 
         for ((item, _), slot) in pat_object.fields.iter().zip(string_slots) {
             let span = item.span();
 
-            let load = move |asm: &mut Assembly| {
-                asm.push(Inst::ObjectSlotIndexGetAt { offset, slot }, span);
+            let load = move |this: &mut Self| {
+                this.asm
+                    .push(Inst::ObjectSlotIndexGetAt { offset, slot }, span);
+                Ok(())
             };
 
             if let Some((_, pat)) = &item.binding {
                 // load the given vector index and declare it as a local variable.
-                self.compile_pat(scope, &*pat, false_label, &load)?;
+                self.compile_pat(&*pat, false_label, &load)?;
                 continue;
             }
 
@@ -830,9 +835,9 @@ impl<'a> Compiler<'a> {
                 _ => return Err(CompileError::UnsupportedBinding { span }),
             };
 
-            load(&mut self.asm);
+            load(self)?;
             let name = ident.resolve(&self.storage, &*self.source)?;
-            scope.decl_var(name.as_ref(), span);
+            self.scopes.last_mut(span)?.decl_var(name.as_ref(), span);
         }
 
         Ok(())
@@ -843,11 +848,10 @@ impl<'a> Compiler<'a> {
     /// Returns `true` if the binding was used.
     pub(crate) fn compile_pat_meta_binding(
         &mut self,
-        scope: &mut Scope,
         span: Span,
         meta: &CompileMeta,
         false_label: Label,
-        load: &dyn Fn(&mut Assembly),
+        load: &dyn Fn(&mut Self) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         let (tuple, type_check) = match &meta.kind {
             CompileMetaKind::Tuple { tuple, type_of, .. } if tuple.args == 0 => {
@@ -864,7 +868,7 @@ impl<'a> Compiler<'a> {
             None => type_check,
         };
 
-        load(&mut self.asm);
+        load(self)?;
         self.asm.push(
             Inst::MatchSequence {
                 type_check,
@@ -874,7 +878,7 @@ impl<'a> Compiler<'a> {
             span,
         );
         self.asm
-            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
         Ok(true)
     }
 
@@ -886,10 +890,9 @@ impl<'a> Compiler<'a> {
     /// Returns a boolean indicating if the label was used.
     pub(crate) fn compile_pat(
         &mut self,
-        scope: &mut Scope,
         pat: &ast::Pat,
         false_label: Label,
-        load: &dyn Fn(&mut Assembly),
+        load: &dyn Fn(&mut Self) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         let span = pat.span();
         log::trace!("Pat => {:?}", self.source.source(span));
@@ -901,7 +904,7 @@ impl<'a> Compiler<'a> {
                 let item = self.convert_path_to_item(&path.path)?;
 
                 if let Some(meta) = self.lookup_meta(&item, span)? {
-                    if self.compile_pat_meta_binding(scope, span, &meta, false_label, load)? {
+                    if self.compile_pat_meta_binding(span, &meta, false_label, load)? {
                         return Ok(true);
                     }
                 }
@@ -913,25 +916,25 @@ impl<'a> Compiler<'a> {
                     }
                 };
 
-                load(&mut self.asm);
-                scope.decl_var(&ident, span);
+                load(self)?;
+                self.scopes.last_mut(span)?.decl_var(&ident, span);
                 return Ok(false);
             }
             ast::Pat::PatIgnore(..) => {
                 return Ok(false);
             }
             ast::Pat::PatUnit(unit) => {
-                load(&mut self.asm);
+                load(self)?;
                 self.asm.push(Inst::IsUnit, unit.span());
             }
             ast::Pat::PatByte(lit_byte) => {
                 let byte = lit_byte.resolve(&self.storage, &*self.source)?;
-                load(&mut self.asm);
+                load(self)?;
                 self.asm.push(Inst::EqByte { byte }, lit_byte.span());
             }
             ast::Pat::PatChar(lit_char) => {
                 let character = lit_char.resolve(&self.storage, &*self.source)?;
-                load(&mut self.asm);
+                load(self)?;
                 self.asm
                     .push(Inst::EqCharacter { character }, lit_char.span());
             }
@@ -946,32 +949,32 @@ impl<'a> Compiler<'a> {
                     }
                 };
 
-                load(&mut self.asm);
+                load(self)?;
                 self.asm.push(Inst::EqInteger { integer }, span);
             }
             ast::Pat::PatString(pat_string) => {
                 let span = pat_string.span();
                 let string = pat_string.resolve(&self.storage, &*self.source)?;
                 let slot = self.unit.borrow_mut().new_static_string(&*string)?;
-                load(&mut self.asm);
+                load(self)?;
                 self.asm.push(Inst::EqStaticString { slot }, span);
             }
             ast::Pat::PatVec(pat_vec) => {
-                self.compile_pat_vec(scope, pat_vec, false_label, &load)?;
+                self.compile_pat_vec(pat_vec, false_label, &load)?;
                 return Ok(true);
             }
             ast::Pat::PatTuple(pat_tuple) => {
-                self.compile_pat_tuple(scope, pat_tuple, false_label, &load)?;
+                self.compile_pat_tuple(pat_tuple, false_label, &load)?;
                 return Ok(true);
             }
             ast::Pat::PatObject(object) => {
-                self.compile_pat_object(scope, object, false_label, &load)?;
+                self.compile_pat_object(object, false_label, &load)?;
                 return Ok(true);
             }
         }
 
         self.asm
-            .pop_and_jump_if_not(scope.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
         Ok(true)
     }
 

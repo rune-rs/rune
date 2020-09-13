@@ -1,4 +1,3 @@
-use crate::assembly::Assembly;
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
@@ -26,18 +25,19 @@ impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_> {
             let branch_label = self.asm.new_label("match_branch");
             let match_false = self.asm.new_label("match_false");
 
-            let mut scope = self.scopes.child(span)?;
+            let scope = self.scopes.child(span)?;
+            let parent_guard = self.scopes.push(scope);
 
-            let load = move |asm: &mut Assembly| {
-                asm.push(Inst::Copy { offset }, span);
+            let load = move |this: &mut Compiler| {
+                this.asm.push(Inst::Copy { offset }, span);
+                Ok(())
             };
 
-            self.compile_pat(&mut scope, &branch.pat, match_false, &load)?;
+            self.compile_pat(&branch.pat, match_false, &load)?;
 
             let scope = if let Some((_, condition)) = &branch.condition {
                 let span = condition.span();
 
-                let parent_guard = self.scopes.push(scope);
                 let scope = self.scopes.child(span)?;
                 let guard = self.scopes.push(scope);
 
@@ -51,7 +51,7 @@ impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_> {
                 self.asm.jump(branch_label, span);
                 scope
             } else {
-                scope
+                self.scopes.pop(parent_guard, span)?
             };
 
             self.asm.jump(branch_label, span);
