@@ -11,8 +11,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span));
 
-        let scope = self.scopes.child(span)?;
-        let guard = self.scopes.push(scope);
+        let guard = self.scopes.push_child(span)?;
 
         let args = expr_call.args.items.len();
 

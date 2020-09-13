@@ -14,8 +14,7 @@ impl Compile<(&ast::Block, &[CompileMetaCapture])> for Compiler<'_> {
         let span = block.span();
         log::trace!("ExprBlock (procedure) => {:?}", self.source.source(span));
 
-        let scope = self.scopes.last(span)?.child();
-        let guard = self.scopes.push(scope);
+        let guard = self.scopes.push_child(span)?;
 
         for capture in captures {
             self.scopes.new_var(&capture.ident, span)?;
@@ -36,11 +35,7 @@ impl Compile<(&ast::Block, Needs)> for Compiler<'_> {
         let _guard = self.items.push_block();
 
         self.contexts.push(span);
-
-        let span = block.span();
-
-        let new_scope = self.scopes.child(span)?;
-        let scopes_count = self.scopes.push(new_scope);
+        let scopes_count = self.scopes.push_child(span)?;
 
         let mut last = None::<(&ast::Expr, bool)>;
 

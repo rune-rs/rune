@@ -57,7 +57,7 @@ pub(crate) struct Scope {
 
 impl Scope {
     /// Construct a new locals handlers.
-    pub(crate) fn new() -> Scope {
+    fn new() -> Scope {
         Self {
             locals: HashMap::new(),
             anon: Vec::new(),
@@ -67,7 +67,7 @@ impl Scope {
     }
 
     /// Construct a new child scope.
-    pub(crate) fn child(&self) -> Self {
+    fn child(&self) -> Self {
         Self {
             locals: HashMap::new(),
             anon: Vec::new(),
@@ -77,7 +77,7 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub(crate) fn new_var(&mut self, name: &str, span: Span) -> CompileResult<usize> {
+    fn new_var(&mut self, name: &str, span: Span) -> CompileResult<usize> {
         let offset = self.total_var_count;
 
         let local = Var { offset, span };
@@ -97,7 +97,7 @@ impl Scope {
     }
 
     /// Insert a new local, and return the old one if there's a conflict.
-    pub(crate) fn decl_var(&mut self, name: &str, span: Span) -> usize {
+    fn decl_var(&mut self, name: &str, span: Span) -> usize {
         let offset = self.total_var_count;
 
         log::trace!("decl {} => {}", name, offset);
@@ -112,7 +112,7 @@ impl Scope {
     /// Declare an anonymous variable.
     ///
     /// This is used if cleanup is required in the middle of an expression.
-    pub(crate) fn decl_anon(&mut self, span: Span) -> usize {
+    fn decl_anon(&mut self, span: Span) -> usize {
         let offset = self.total_var_count;
 
         self.anon.push(AnonVar { offset, span });
@@ -212,20 +212,19 @@ impl Scopes {
         self.last_mut(span)?.new_var(name, span)
     }
 
-    /// Get the local with the given name.
-    pub(crate) fn last(&self, span: Span) -> CompileResult<&Scope> {
-        Ok(self
-            .scopes
-            .last()
-            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
+    /// Declare the given variable.
+    pub(crate) fn decl_var(&mut self, name: &str, span: Span) -> CompileResult<usize> {
+        Ok(self.last_mut(span)?.decl_var(name, span))
     }
 
-    /// Get the last locals scope.
-    pub(crate) fn last_mut(&mut self, span: Span) -> CompileResult<&mut Scope> {
-        Ok(self
-            .scopes
-            .last_mut()
-            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
+    /// Declare an anonymous variable.
+    pub(crate) fn decl_anon(&mut self, span: Span) -> CompileResult<usize> {
+        Ok(self.last_mut(span)?.decl_anon(span))
+    }
+
+    /// Declare an anonymous variable.
+    pub(crate) fn undecl_anon(&mut self, n: usize, span: Span) -> CompileResult<()> {
+        self.last_mut(span)?.undecl_anon(n, span)
     }
 
     /// Push a scope and return an index.
@@ -263,18 +262,40 @@ impl Scopes {
         Ok(scope)
     }
 
+    /// Construct a new child scope and return its guard.
+    pub(crate) fn push_child(&mut self, span: Span) -> CompileResult<ScopeGuard> {
+        let scope = self.last(span)?.child();
+        Ok(self.push(scope))
+    }
+
     /// Construct a new child scope.
     pub(crate) fn child(&mut self, span: Span) -> CompileResult<Scope> {
         Ok(self.last(span)?.child())
     }
 
-    /// Declare an anonymous variable.
-    pub(crate) fn decl_anon(&mut self, span: Span) -> CompileResult<usize> {
-        Ok(self.last_mut(span)?.decl_anon(span))
+    /// Get the local var count of the top scope.
+    pub(crate) fn local_var_count(&self, span: Span) -> CompileResult<usize> {
+        Ok(self.last(span)?.local_var_count)
     }
 
-    /// Declare an anonymous variable.
-    pub(crate) fn undecl_anon(&mut self, n: usize, span: Span) -> CompileResult<()> {
-        self.last_mut(span)?.undecl_anon(n, span)
+    /// Get the total var count of the top scope.
+    pub(crate) fn total_var_count(&self, span: Span) -> CompileResult<usize> {
+        Ok(self.last(span)?.total_var_count)
+    }
+
+    /// Get the local with the given name.
+    fn last(&self, span: Span) -> CompileResult<&Scope> {
+        Ok(self
+            .scopes
+            .last()
+            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
+    }
+
+    /// Get the last locals scope.
+    fn last_mut(&mut self, span: Span) -> CompileResult<&mut Scope> {
+        Ok(self
+            .scopes
+            .last_mut()
+            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
     }
 }

@@ -19,7 +19,7 @@ impl Compile<(&ast::ExprWhile, Needs)> for Compiler<'_> {
         let _guard = self.loops.push(Loop {
             label: expr_while.label.map(|(label, _)| label),
             break_label,
-            total_var_count: self.scopes.last(span)?.total_var_count,
+            total_var_count: self.scopes.total_var_count(span)?,
             needs,
             drop: None,
         });

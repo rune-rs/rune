@@ -9,8 +9,7 @@ impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_> {
         let span = expr_match.span();
         log::trace!("ExprMatch => {:?}", self.source.source(span));
 
-        let new_scope = self.scopes.child(span)?;
-        let expected_scopes = self.scopes.push(new_scope);
+        let expected_scopes = self.scopes.push_child(span)?;
 
         self.compile((&*expr_match.expr, Needs::Value))?;
         // Offset of the expression.

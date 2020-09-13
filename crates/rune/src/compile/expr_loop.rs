@@ -16,7 +16,7 @@ impl Compile<(&ast::ExprLoop, Needs)> for Compiler<'_> {
         let _guard = self.loops.push(Loop {
             label: expr_loop.label.map(|(label, _)| label),
             break_label: end_label,
-            total_var_count: self.scopes.last(span)?.total_var_count,
+            total_var_count: self.scopes.total_var_count(span)?,
             needs,
             drop: None,
         });

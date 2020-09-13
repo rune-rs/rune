@@ -22,12 +22,12 @@ impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
                     }
 
                     let span = s.span();
-                    self.scopes.last_mut(span)?.new_var("self", span)?;
+                    self.scopes.new_var("self", span)?;
                 }
                 ast::FnArg::Ident(ident) => {
                     let span = ident.span();
                     let name = ident.resolve(&self.storage, &*self.source)?;
-                    self.scopes.last_mut(span)?.new_var(name.as_ref(), span)?;
+                    self.scopes.new_var(name.as_ref(), span)?;
                 }
                 ast::FnArg::Ignore(ignore) => {
                     let span = ignore.span();
@@ -39,7 +39,7 @@ impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
         }
 
         if fn_decl.body.statements.is_empty() {
-            let total_var_count = self.scopes.last(span)?.total_var_count;
+            let total_var_count = self.scopes.total_var_count(span)?;
             self.locals_pop(total_var_count, span);
             self.asm.push(Inst::ReturnUnit, span);
             return Ok(());
@@ -48,13 +48,13 @@ impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
         if !fn_decl.body.produces_nothing() {
             self.compile((&fn_decl.body, Needs::Value))?;
 
-            let total_var_count = self.scopes.last(span)?.total_var_count;
+            let total_var_count = self.scopes.total_var_count(span)?;
             self.locals_clean(total_var_count, span);
             self.asm.push(Inst::Return, span);
         } else {
             self.compile((&fn_decl.body, Needs::None))?;
 
-            let total_var_count = self.scopes.last(span)?.total_var_count;
+            let total_var_count = self.scopes.total_var_count(span)?;
             self.locals_pop(total_var_count, span);
             self.asm.push(Inst::ReturnUnit, span);
         }
