@@ -10,9 +10,9 @@ impl Compile<(&ast::ExprLet, Needs)> for Compiler<'_> {
         let span = expr_let.span();
         log::trace!("ExprLet => {:?}", self.source.source(span));
 
-        let load = |this: &mut Compiler| {
+        let load = |this: &mut Compiler, needs: Needs| {
             // NB: assignments "move" the value being assigned.
-            this.compile((&*expr_let.expr, Needs::Value))?;
+            this.compile((&*expr_let.expr, needs))?;
             Ok(())
         };
 

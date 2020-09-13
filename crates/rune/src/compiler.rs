@@ -559,8 +559,8 @@ impl<'a> Compiler<'a> {
                 let scope = self.scopes.child(span)?;
                 let expected = self.scopes.push(scope);
 
-                let load = |this: &mut Self| {
-                    this.compile((&*expr_let.expr, Needs::Value))?;
+                let load = |this: &mut Self, needs: Needs| {
+                    this.compile((&*expr_let.expr, needs))?;
                     Ok(())
                 };
 
@@ -582,14 +582,14 @@ impl<'a> Compiler<'a> {
         &mut self,
         pat_vec: &ast::PatVec,
         false_label: Label,
-        load: &dyn Fn(&mut Self) -> CompileResult<()>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_vec.span();
         log::trace!("PatVec => {:?}", self.source.source(span));
 
         // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
         // interact with it multiple times.
-        load(self)?;
+        load(self, Needs::Value)?;
         let offset = self.scopes.decl_anon(span)?;
 
         // Copy the temporary and check that its length matches the pattern and
@@ -611,8 +611,11 @@ impl<'a> Compiler<'a> {
         for (index, (pat, _)) in pat_vec.items.iter().enumerate() {
             let span = pat.span();
 
-            let load = move |this: &mut Self| {
-                this.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+            let load = move |this: &mut Self, needs: Needs| {
+                if needs.value() {
+                    this.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+                }
+
                 Ok(())
             };
 
@@ -627,14 +630,14 @@ impl<'a> Compiler<'a> {
         &mut self,
         pat_tuple: &ast::PatTuple,
         false_label: Label,
-        load: &dyn Fn(&mut Self) -> CompileResult<()>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span));
 
         // Assign the yet-to-be-verified tuple to an anonymous slot, so we can
         // interact with it multiple times.
-        load(self)?;
+        load(self, Needs::Value)?;
         let offset = self.scopes.decl_anon(span)?;
 
         let type_check = if let Some(path) = &pat_tuple.path {
@@ -692,8 +695,11 @@ impl<'a> Compiler<'a> {
         for (index, (pat, _)) in pat_tuple.items.iter().enumerate() {
             let span = pat.span();
 
-            let load = move |this: &mut Self| {
-                this.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+            let load = move |this: &mut Self, needs: Needs| {
+                if needs.value() {
+                    this.asm.push(Inst::TupleIndexGetAt { offset, index }, span);
+                }
+
                 Ok(())
             };
 
@@ -708,7 +714,7 @@ impl<'a> Compiler<'a> {
         &mut self,
         pat_object: &ast::PatObject,
         false_label: Label,
-        load: &dyn Fn(&mut Self) -> CompileResult<()>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<()> {
         let span = pat_object.span();
         log::trace!("PatObject => {:?}", self.source.source(span));
@@ -716,7 +722,7 @@ impl<'a> Compiler<'a> {
         // NB: bind the loaded variable (once) to an anonymous var.
         // We reduce the number of copy operations by having specialized
         // operations perform the load from the given offset.
-        load(self)?;
+        load(self, Needs::Value)?;
         let offset = self.scopes.decl_anon(span)?;
 
         let mut string_slots = Vec::new();
@@ -817,9 +823,12 @@ impl<'a> Compiler<'a> {
         for ((item, _), slot) in pat_object.fields.iter().zip(string_slots) {
             let span = item.span();
 
-            let load = move |this: &mut Self| {
-                this.asm
-                    .push(Inst::ObjectSlotIndexGetAt { offset, slot }, span);
+            let load = move |this: &mut Self, needs: Needs| {
+                if needs.value() {
+                    this.asm
+                        .push(Inst::ObjectSlotIndexGetAt { offset, slot }, span);
+                }
+
                 Ok(())
             };
 
@@ -835,7 +844,7 @@ impl<'a> Compiler<'a> {
                 _ => return Err(CompileError::UnsupportedBinding { span }),
             };
 
-            load(self)?;
+            load(self, Needs::Value)?;
             let name = ident.resolve(&self.storage, &*self.source)?;
             self.scopes.decl_var(name.as_ref(), span)?;
         }
@@ -851,7 +860,7 @@ impl<'a> Compiler<'a> {
         span: Span,
         meta: &CompileMeta,
         false_label: Label,
-        load: &dyn Fn(&mut Self) -> CompileResult<()>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         let (tuple, type_check) = match &meta.kind {
             CompileMetaKind::Tuple { tuple, type_of, .. } if tuple.args == 0 => {
@@ -868,7 +877,7 @@ impl<'a> Compiler<'a> {
             None => type_check,
         };
 
-        load(self)?;
+        load(self, Needs::Value)?;
         self.asm.push(
             Inst::MatchSequence {
                 type_check,
@@ -892,7 +901,7 @@ impl<'a> Compiler<'a> {
         &mut self,
         pat: &ast::Pat,
         false_label: Label,
-        load: &dyn Fn(&mut Self) -> CompileResult<()>,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         let span = pat.span();
         log::trace!("Pat => {:?}", self.source.source(span));
@@ -916,25 +925,28 @@ impl<'a> Compiler<'a> {
                     }
                 };
 
-                load(self)?;
+                load(self, Needs::Value)?;
                 self.scopes.decl_var(&ident, span)?;
                 return Ok(false);
             }
             ast::Pat::PatIgnore(..) => {
+                // ignore binding, but might still have side effects, so must
+                // call the load generator.
+                load(self, Needs::None)?;
                 return Ok(false);
             }
             ast::Pat::PatUnit(unit) => {
-                load(self)?;
+                load(self, Needs::Value)?;
                 self.asm.push(Inst::IsUnit, unit.span());
             }
             ast::Pat::PatByte(lit_byte) => {
                 let byte = lit_byte.resolve(&self.storage, &*self.source)?;
-                load(self)?;
+                load(self, Needs::Value)?;
                 self.asm.push(Inst::EqByte { byte }, lit_byte.span());
             }
             ast::Pat::PatChar(lit_char) => {
                 let character = lit_char.resolve(&self.storage, &*self.source)?;
-                load(self)?;
+                load(self, Needs::Value)?;
                 self.asm
                     .push(Inst::EqCharacter { character }, lit_char.span());
             }
@@ -949,14 +961,14 @@ impl<'a> Compiler<'a> {
                     }
                 };
 
-                load(self)?;
+                load(self, Needs::Value)?;
                 self.asm.push(Inst::EqInteger { integer }, span);
             }
             ast::Pat::PatString(pat_string) => {
                 let span = pat_string.span();
                 let string = pat_string.resolve(&self.storage, &*self.source)?;
                 let slot = self.unit.borrow_mut().new_static_string(&*string)?;
-                load(self)?;
+                load(self, Needs::Value)?;
                 self.asm.push(Inst::EqStaticString { slot }, span);
             }
             ast::Pat::PatVec(pat_vec) => {
