@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::Component;
+use crate::{Component, IntoComponent};
 use std::mem;
 
 #[derive(Default, Debug)]
@@ -38,12 +38,12 @@ impl Names {
     pub fn insert<I>(&mut self, iter: I) -> bool
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         let mut current = &mut self.root;
 
         for c in iter {
-            current = current.children.entry(c.into()).or_default();
+            current = current.children.entry(c.into_component()).or_default();
         }
 
         !mem::replace(&mut current.term, true)
@@ -65,7 +65,7 @@ impl Names {
     pub fn contains<I>(&self, iter: I) -> bool
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         self.find_node(iter).map(|n| n.term).unwrap_or_default()
     }
@@ -74,22 +74,22 @@ impl Names {
     pub fn contains_prefix<I>(&self, iter: I) -> bool
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         self.find_node(iter).is_some()
     }
 
     /// Iterate over all known components immediately under the specified `iter`
     /// path.
-    pub fn iter_components<I>(&self, iter: I) -> impl Iterator<Item = &'_ Component>
+    pub fn iter_components<'a, I: 'a>(&'a self, iter: I) -> impl Iterator<Item = Component> + 'a
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         let mut current = &self.root;
 
         for c in iter {
-            let c = c.into();
+            let c = c.into_component();
 
             current = match current.children.get(&c) {
                 Some(node) => node,
@@ -105,13 +105,13 @@ impl Names {
         where
             I: Iterator<Item = &'a Component>,
         {
-            type Item = &'a Component;
+            type Item = Component;
 
             fn next(&mut self) -> Option<Self::Item> {
                 let mut iter = self.0.take()?;
                 let next = iter.next()?;
                 self.0 = Some(iter);
-                Some(next)
+                Some(next.clone())
             }
         }
     }
@@ -120,12 +120,12 @@ impl Names {
     fn find_node<I>(&self, iter: I) -> Option<&Node>
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         let mut current = &self.root;
 
         for c in iter {
-            let c = c.into();
+            let c = c.into_component();
             current = current.children.get(&c)?;
         }
 

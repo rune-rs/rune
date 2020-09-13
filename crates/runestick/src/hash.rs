@@ -1,4 +1,4 @@
-use crate::{Any, Component, Item, Type};
+use crate::{Any, IntoComponent, Item, Type};
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
@@ -99,13 +99,13 @@ impl Hash {
     fn path_hash<I>(kind: usize, path: I) -> Self
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         let mut hasher = Self::new_hasher();
         kind.hash(&mut hasher);
 
-        for part in path {
-            part.into().hash(&mut hasher);
+        for c in path {
+            c.hash_component(&mut hasher);
         }
 
         Self(hasher.finish())
@@ -139,14 +139,14 @@ impl IntoHash for Hash {
     }
 
     fn into_item(self) -> Item {
-        Item::empty()
+        Item::new()
     }
 }
 
 impl<I> IntoHash for I
 where
     I: Copy + IntoIterator,
-    I::Item: Into<Component>,
+    I::Item: IntoComponent,
 {
     fn into_hash(self) -> Hash {
         Hash::path_hash(TYPE, self)

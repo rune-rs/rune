@@ -10,8 +10,9 @@ use crate::error::CompileResult;
 use crate::{Resolve as _, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
-    Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item,
-    Label, Names, Source, Span, StaticString, Type, Unit, UnitFn, UnitTypeInfo,
+    Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst,
+    IntoComponent, Item, Label, Names, Source, Span, StaticString, Type, Unit, UnitFn,
+    UnitTypeInfo,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -138,22 +139,22 @@ impl ImportKey {
     /// Construct a new import key.
     pub fn new<C>(item: Item, component: C) -> Self
     where
-        C: Into<Component>,
+        C: IntoComponent,
     {
         Self {
             item,
-            component: component.into(),
+            component: component.into_component(),
         }
     }
 
     /// Construct an import key for a single component.
     pub fn component<C>(component: C) -> Self
     where
-        C: Into<Component>,
+        C: IntoComponent,
     {
         Self {
-            item: Item::empty(),
-            component: component.into(),
+            item: Item::new(),
+            component: component.into_component(),
         }
     }
 }
@@ -172,7 +173,7 @@ impl ImportEntry {
     pub fn of<I>(iter: I) -> Self
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         Self {
             item: Item::of(iter),
@@ -363,10 +364,13 @@ impl UnitBuilder {
     }
 
     /// Iterate over known child components of the given name.
-    pub(crate) fn iter_components<I>(&self, iter: I) -> impl Iterator<Item = &'_ Component>
+    pub(crate) fn iter_components<'a, I: 'a>(
+        &'a self,
+        iter: I,
+    ) -> impl Iterator<Item = Component> + 'a
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         self.names.iter_components(iter)
     }
@@ -475,11 +479,11 @@ impl UnitBuilder {
         Ok(new_slot)
     }
 
-    fn lookup_import_by_name(&self, base: &Item, local: &Component) -> Option<Item> {
+    fn lookup_import_by_name(&self, base: &Item, local: &str) -> Option<Item> {
         let mut base = base.clone();
 
         loop {
-            let key = ImportKey::new(base.clone(), local.clone());
+            let key = ImportKey::new(base.clone(), local);
 
             if let Some(entry) = self.lookup_import(&key) {
                 return Some(entry.item.clone());
@@ -501,23 +505,18 @@ impl UnitBuilder {
         storage: &Storage,
         source: &Source,
     ) -> CompileResult<Item> {
-        let local = Component::from(path.first.resolve(storage, source)?.as_ref());
+        let local = path.first.resolve(storage, source)?;
 
-        let imported = match self.lookup_import_by_name(base, &local) {
+        let mut imported = match self.lookup_import_by_name(base, local.as_ref()) {
             Some(path) => path,
-            None => Item::of(&[local]),
+            None => Item::of(&[local.as_ref()]),
         };
 
-        let mut rest = Vec::new();
-
         for (_, part) in &path.rest {
-            rest.push(Component::String(
-                part.resolve(storage, source)?.to_string(),
-            ));
+            imported.push(part.resolve(storage, source)?.as_ref());
         }
 
-        let it = imported.into_iter().chain(rest.into_iter());
-        Ok(Item::of(it))
+        Ok(imported)
     }
 
     /// Look up an use by name.
@@ -535,7 +534,7 @@ impl UnitBuilder {
     ) -> Result<(), UnitBuilderError>
     where
         I: Copy + IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         let path = Item::of(path);
 

@@ -116,9 +116,9 @@ impl Items {
 
     /// Push a component and return a guard to it.
     pub fn push_name(&mut self, name: &str) -> Guard {
-        self.path
-            .borrow_mut()
-            .push(Node::from(Component::String(name.to_owned())));
+        self.path.borrow_mut().push(Node::from(Component::String(
+            name.to_owned().into_boxed_str(),
+        )));
 
         Guard {
             path: self.path.clone(),

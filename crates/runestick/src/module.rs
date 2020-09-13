@@ -5,7 +5,7 @@
 
 use crate::collections::HashMap;
 use crate::{
-    Component, Future, Hash, Named, Stack, ToValue, Type, TypeInfo, TypeOf, UnsafeFromValue,
+    Future, Hash, IntoComponent, Named, Stack, ToValue, Type, TypeInfo, TypeOf, UnsafeFromValue,
     VmError, VmErrorKind,
 };
 use std::any;
@@ -39,7 +39,7 @@ impl ModuleInternalEnum {
     pub fn new<N>(name: &'static str, base_type: N, static_type: &'static StaticType) -> Self
     where
         N: IntoIterator,
-        N::Item: Into<Component>,
+        N::Item: IntoComponent,
     {
         ModuleInternalEnum {
             name,
@@ -153,7 +153,7 @@ impl Module {
     pub fn new<I>(path: I) -> Self
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         Self {
             path: Item::of(path),
@@ -254,7 +254,7 @@ impl Module {
     pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
-        N::Item: Into<Component>,
+        N::Item: IntoComponent,
     {
         if self.unit_type.is_some() {
             return Err(ContextError::UnitAlreadyPresent);
@@ -283,7 +283,7 @@ impl Module {
     pub fn option<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
-        N::Item: Into<Component>,
+        N::Item: IntoComponent,
     {
         let mut enum_ = ModuleInternalEnum::new("Option", name, crate::OPTION_TYPE);
 
@@ -314,7 +314,7 @@ impl Module {
     pub fn result<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
-        N::Item: Into<Component>,
+        N::Item: IntoComponent,
     {
         let mut enum_ = ModuleInternalEnum::new("Result", name, crate::RESULT_TYPE);
 
@@ -346,7 +346,7 @@ impl Module {
     pub fn generator_state<N>(&mut self, name: N) -> Result<(), ContextError>
     where
         N: IntoIterator,
-        N::Item: Into<Component>,
+        N::Item: IntoComponent,
     {
         let mut enum_ =
             ModuleInternalEnum::new("GeneratorState", name, crate::GENERATOR_STATE_TYPE);
@@ -392,7 +392,7 @@ impl Module {
     where
         Func: Function<Args>,
         N: IntoIterator,
-        N::Item: Into<Component>,
+        N::Item: IntoComponent,
     {
         let name = Item::of(name);
 
@@ -419,7 +419,7 @@ impl Module {
         B: any::Any,
         O: any::Any,
         N: IntoIterator,
-        N::Item: Into<Component>,
+        N::Item: IntoComponent,
     {
         let name = Item::of(name);
 
@@ -475,7 +475,7 @@ impl Module {
     where
         Func: AsyncFunction<Args>,
         N: IntoIterator,
-        N::Item: Into<Component>,
+        N::Item: IntoComponent,
     {
         let name = Item::of(name);
 
@@ -500,7 +500,7 @@ impl Module {
     where
         F: 'static + Copy + Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync,
         N: IntoIterator,
-        N::Item: Into<Component>,
+        N::Item: IntoComponent,
     {
         let name = Item::of(name);
 
