@@ -609,7 +609,7 @@ impl Index<ast::Item> for Indexer<'_> {
             ast::Item::ItemImpl(decl_impl) => {
                 let mut guards = Vec::new();
 
-                for ident in decl_impl.path.components() {
+                for ident in decl_impl.path.into_components() {
                     let ident = ident.resolve(&self.storage, &*self.source)?;
                     guards.push(self.items.push_name(ident.as_ref()));
                 }

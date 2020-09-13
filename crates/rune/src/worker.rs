@@ -266,7 +266,7 @@ impl Import {
 
         let span = decl_use.span();
 
-        let mut name = Item::empty();
+        let mut name = Item::new();
         let first = decl_use.first.resolve(storage, &*source)?;
         name.push(first.as_ref());
 

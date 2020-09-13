@@ -14,7 +14,7 @@ impl Foo {
 }
 
 fn main() -> runestick::Result<()> {
-    let mut module = Module::new(Item::empty());
+    let mut module = Module::new(Item::new());
     module.ty::<Foo>()?;
     module.inst_fn(runestick::ADD_ASSIGN, Foo::add_assign)?;
 

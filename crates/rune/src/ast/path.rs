@@ -55,7 +55,7 @@ impl Path {
     }
 
     /// Iterate over all components in path.
-    pub fn components(&self) -> impl Iterator<Item = &'_ ast::Ident> + '_ {
+    pub fn into_components(&self) -> impl Iterator<Item = &'_ ast::Ident> + '_ {
         let mut first = Some(&self.first);
         let mut it = self.rest.iter();
 

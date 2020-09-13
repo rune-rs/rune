@@ -3,8 +3,9 @@ use crate::module::{
     ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
 };
 use crate::{
-    CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, Component, Hash, Item,
-    Module, Names, Stack, StaticType, Type, TypeCheck, TypeInfo, TypeOf, VmError,
+    CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, Component, Hash,
+    IntoComponent, Item, Module, Names, Stack, StaticType, Type, TypeCheck, TypeInfo, TypeOf,
+    VmError,
 };
 use std::any;
 use std::fmt;
@@ -267,10 +268,10 @@ impl Context {
     }
 
     /// Iterate over known child components of the given name.
-    pub fn iter_components<I>(&self, iter: I) -> impl Iterator<Item = &Component>
+    pub fn iter_components<'a, I: 'a>(&'a self, iter: I) -> impl Iterator<Item = Component> + 'a
     where
         I: IntoIterator,
-        I::Item: Into<Component>,
+        I::Item: IntoComponent,
     {
         self.names.iter_components(iter)
     }
@@ -597,7 +598,7 @@ impl Context {
         )?;
 
         for variant in &internal_enum.variants {
-            let item = enum_item.clone().extended(variant.name);
+            let item = enum_item.extended(variant.name);
             let hash = Hash::type_hash(&item);
 
             self.install_type_info(

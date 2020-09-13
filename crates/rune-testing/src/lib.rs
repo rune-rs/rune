@@ -51,8 +51,8 @@ pub use rune::WarningKind::*;
 use rune::Warnings;
 pub use runestick::Result;
 pub use runestick::VmErrorKind::*;
-pub use runestick::{CompileMeta, CompileMetaKind, Function, Span, Value};
-use runestick::{Component, Item, Source, Unit};
+pub use runestick::{CompileMeta, CompileMetaKind, Function, IntoComponent, Span, Value};
+use runestick::{Item, Source, Unit};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -74,7 +74,7 @@ pub fn compile_source(context: &runestick::Context, source: &str) -> Result<(Uni
 pub async fn run_async<N, A, T>(function: N, args: A, source: &str) -> Result<T>
 where
     N: IntoIterator,
-    N::Item: Into<Component>,
+    N::Item: IntoComponent,
     A: runestick::Args,
     T: runestick::FromValue,
 {
@@ -94,7 +94,7 @@ where
 pub fn run<N, A, T>(function: N, args: A, source: &str) -> Result<T>
 where
     N: IntoIterator,
-    N::Item: Into<Component>,
+    N::Item: IntoComponent,
     A: runestick::Args,
     T: runestick::FromValue,
 {
