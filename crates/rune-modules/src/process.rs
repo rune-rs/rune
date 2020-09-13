@@ -169,12 +169,12 @@ impl Output {
     }
 
     /// Grab the stdout of the process.
-    fn stdout(&mut self) -> Shared<Bytes> {
+    fn stdout(&self) -> Shared<Bytes> {
         self.stdout.clone()
     }
 
     /// Grab the stderr of the process.
-    fn stderr(&mut self) -> Shared<Bytes> {
+    fn stderr(&self) -> Shared<Bytes> {
         self.stderr.clone()
     }
 }
