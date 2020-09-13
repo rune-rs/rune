@@ -174,7 +174,6 @@ async fn goto_definition(
         )
         .await;
 
-    // log::info!("Found: {:?}", definition);
     Ok(position.map(lsp::GotoDefinitionResponse::Scalar))
 }
 
