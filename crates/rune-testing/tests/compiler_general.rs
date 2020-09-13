@@ -4,7 +4,7 @@ use rune_testing::*;
 fn test_use_variant_as_type() {
     assert_compile_error! {
         r#"fn main() { Err(0) is Err }"#,
-        UnsupportedType { span, meta: CompileMeta::TupleVariant { .. } } => {
+        UnsupportedType { span, meta: CompileMeta { kind: CompileMetaKind::TupleVariant { .. }, .. } } => {
             assert_eq!(span, Span::new(22, 25));
         }
     };

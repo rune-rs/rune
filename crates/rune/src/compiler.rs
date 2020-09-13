@@ -14,7 +14,9 @@ use crate::{
     Assembly, CompileVisitor, LoadError, LoadErrorKind, Options, Resolve as _, Sources, Storage,
     UnitBuilder, Warnings,
 };
-use runestick::{CompileMeta, Context, Inst, Item, Label, Source, Span, TypeCheck};
+use runestick::{
+    CompileMeta, CompileMetaKind, Context, Inst, Item, Label, Source, Span, TypeCheck,
+};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -367,6 +369,7 @@ impl<'a> Compiler<'a> {
 
         if let Some(meta) = self.context.lookup_meta(name) {
             log::trace!("found in context: {:?}", meta);
+            self.visitor.visit_meta(&meta, span);
             return Ok(Some(meta));
         }
 
@@ -378,6 +381,7 @@ impl<'a> Compiler<'a> {
 
             if let Some(meta) = self.query.query_meta(&current, span)? {
                 log::trace!("found in query: {:?}", meta);
+                self.visitor.visit_meta(&meta, span);
                 return Ok(Some(meta));
             }
 
@@ -424,11 +428,9 @@ impl<'a> Compiler<'a> {
         needs: Needs,
     ) -> CompileResult<()> {
         log::trace!("CompileMeta => {:?} {:?}", meta, needs);
-        self.visitor.visit_meta(meta, span);
-
         if let Needs::Value = needs {
-            match meta {
-                CompileMeta::Tuple { tuple, .. } if tuple.args == 0 => {
+            match &meta.kind {
+                CompileMetaKind::Tuple { tuple, .. } if tuple.args == 0 => {
                     self.asm.push_with_comment(
                         Inst::Call {
                             hash: tuple.hash,
@@ -438,7 +440,7 @@ impl<'a> Compiler<'a> {
                         format!("tuple `{}`", tuple.item),
                     );
                 }
-                CompileMeta::TupleVariant {
+                CompileMetaKind::TupleVariant {
                     enum_item, tuple, ..
                 } if tuple.args == 0 => {
                     self.asm.push_with_comment(
@@ -450,14 +452,14 @@ impl<'a> Compiler<'a> {
                         format!("tuple variant `{}::{}`", enum_item, tuple.item),
                     );
                 }
-                CompileMeta::Tuple { tuple, .. } => {
+                CompileMetaKind::Tuple { tuple, .. } => {
                     self.asm.push_with_comment(
                         Inst::Fn { hash: tuple.hash },
                         span,
                         format!("tuple `{}`", tuple.item),
                     );
                 }
-                CompileMeta::TupleVariant {
+                CompileMetaKind::TupleVariant {
                     enum_item, tuple, ..
                 } => {
                     self.asm.push_with_comment(
@@ -466,12 +468,12 @@ impl<'a> Compiler<'a> {
                         format!("tuple variant `{}::{}`", enum_item, tuple.item),
                     );
                 }
-                CompileMeta::Function { type_of, item, .. } => {
+                CompileMetaKind::Function { type_of, item, .. } => {
                     let hash = **type_of;
                     self.asm
                         .push_with_comment(Inst::Fn { hash }, span, format!("fn `{}`", item));
                 }
-                meta => {
+                _ => {
                     return Err(CompileError::UnsupportedValue {
                         span,
                         meta: meta.clone(),
@@ -607,12 +609,12 @@ impl<'a> Compiler<'a> {
 
             let (tuple, meta, type_check) =
                 if let Some(meta) = self.lookup_meta(&item, path.span())? {
-                    match &meta {
-                        CompileMeta::Tuple { tuple, type_of, .. } => {
+                    match &meta.kind {
+                        CompileMetaKind::Tuple { tuple, type_of, .. } => {
                             let type_check = TypeCheck::Type(**type_of);
                             (tuple.clone(), meta, type_check)
                         }
-                        CompileMeta::TupleVariant { tuple, type_of, .. } => {
+                        CompileMetaKind::TupleVariant { tuple, type_of, .. } => {
                             let type_check = TypeCheck::Variant(**type_of);
                             (tuple.clone(), meta, type_check)
                         }
@@ -720,14 +722,14 @@ impl<'a> Compiler<'a> {
                     }
                 };
 
-                let (object, type_check) = match &meta {
-                    CompileMeta::Struct {
+                let (object, type_check) = match &meta.kind {
+                    CompileMetaKind::Struct {
                         object, type_of, ..
                     } => {
                         let type_check = TypeCheck::Type(**type_of);
                         (object, type_check)
                     }
-                    CompileMeta::StructVariant {
+                    CompileMetaKind::StructVariant {
                         object, type_of, ..
                     } => {
                         let type_check = TypeCheck::Variant(**type_of);
@@ -817,11 +819,11 @@ impl<'a> Compiler<'a> {
         false_label: Label,
         load: &dyn Fn(&mut Assembly),
     ) -> CompileResult<bool> {
-        let (tuple, type_check) = match meta {
-            CompileMeta::Tuple { tuple, type_of, .. } if tuple.args == 0 => {
+        let (tuple, type_check) = match &meta.kind {
+            CompileMetaKind::Tuple { tuple, type_of, .. } if tuple.args == 0 => {
                 (tuple, TypeCheck::Type(**type_of))
             }
-            CompileMeta::TupleVariant { tuple, type_of, .. } if tuple.args == 0 => {
+            CompileMetaKind::TupleVariant { tuple, type_of, .. } if tuple.args == 0 => {
                 (tuple, TypeCheck::Variant(**type_of))
             }
             _ => return Ok(false),

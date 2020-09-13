@@ -3,8 +3,8 @@ use crate::module::{
     ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
 };
 use crate::{
-    CompileMeta, CompileMetaStruct, CompileMetaTuple, Component, Hash, Item, Module, Names, Stack,
-    StaticType, Type, TypeCheck, TypeInfo, TypeOf, VmError,
+    CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, Component, Hash, Item,
+    Module, Names, Stack, StaticType, Type, TypeCheck, TypeInfo, TypeOf, VmError,
 };
 use std::any;
 use std::fmt;
@@ -389,11 +389,14 @@ impl Context {
 
         self.install_meta(
             name.clone(),
-            CompileMeta::Struct {
-                type_of,
-                object: CompileMetaStruct {
-                    item: name,
-                    fields: None,
+            CompileMeta {
+                span: None,
+                kind: CompileMetaKind::Struct {
+                    type_of,
+                    object: CompileMetaStruct {
+                        item: name,
+                        fields: None,
+                    },
                 },
             },
         )?;
@@ -451,9 +454,12 @@ impl Context {
 
         self.meta.insert(
             name.clone(),
-            CompileMeta::Function {
-                type_of: Type::from(hash),
-                item: name,
+            CompileMeta {
+                span: None,
+                kind: CompileMetaKind::Function {
+                    type_of: Type::from(hash),
+                    item: name,
+                },
             },
         );
 
@@ -475,8 +481,13 @@ impl Context {
 
         self.macros.insert(hash, m.handler.clone());
 
-        self.meta
-            .insert(name.clone(), CompileMeta::Macro { item: name });
+        self.meta.insert(
+            name.clone(),
+            CompileMeta {
+                span: None,
+                kind: CompileMetaKind::Macro { item: name },
+            },
+        );
 
         Ok(())
     }
@@ -566,9 +577,12 @@ impl Context {
 
         self.install_meta(
             enum_item.clone(),
-            CompileMeta::Enum {
-                type_of: Type::from(internal_enum.static_type),
-                item: enum_item.clone(),
+            CompileMeta {
+                span: None,
+                kind: CompileMetaKind::Enum {
+                    type_of: Type::from(internal_enum.static_type),
+                    item: enum_item.clone(),
+                },
             },
         )?;
 
@@ -602,10 +616,13 @@ impl Context {
                 hash,
             };
 
-            let meta = CompileMeta::TupleVariant {
-                type_of: variant.type_of,
-                enum_item: enum_item.clone(),
-                tuple,
+            let meta = CompileMeta {
+                span: None,
+                kind: CompileMetaKind::TupleVariant {
+                    type_of: variant.type_of,
+                    enum_item: enum_item.clone(),
+                    tuple,
+                },
             };
 
             self.install_meta(item.clone(), meta)?;
@@ -650,12 +667,18 @@ impl Context {
         };
 
         let meta = match enum_item {
-            Some(enum_item) => CompileMeta::TupleVariant {
-                type_of,
-                enum_item,
-                tuple,
+            Some(enum_item) => CompileMeta {
+                span: None,
+                kind: CompileMetaKind::TupleVariant {
+                    type_of,
+                    enum_item,
+                    tuple,
+                },
             },
-            None => CompileMeta::Tuple { type_of, tuple },
+            None => CompileMeta {
+                span: None,
+                kind: CompileMetaKind::Tuple { type_of, tuple },
+            },
         };
 
         self.install_meta(item.clone(), meta)?;

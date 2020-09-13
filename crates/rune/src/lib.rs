@@ -213,6 +213,7 @@ pub use crate::load_error::{LoadError, LoadErrorKind};
 pub use crate::macro_context::MacroContext;
 pub use crate::options::Options;
 pub use crate::parser::Parser;
+pub use crate::scopes::Var;
 pub use crate::sources::Sources;
 pub use crate::storage::Storage;
 pub use crate::token_stream::{IntoTokens, TokenStream, TokenStreamIter};

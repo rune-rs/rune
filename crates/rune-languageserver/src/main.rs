@@ -163,12 +163,19 @@ async fn initialized(_: State, _: Output, _: lsp::InitializedParams) -> Result<(
 
 /// Handle initialized notification.
 async fn goto_definition(
-    _: State,
+    state: State,
     _: Output,
     params: lsp::GotoDefinitionParams,
 ) -> Result<Option<lsp::GotoDefinitionResponse>> {
-    log::info!("Go to definition: {:?}", params);
-    Ok(None)
+    let position = state
+        .goto_definition(
+            &params.text_document_position_params.text_document.uri,
+            params.text_document_position_params.position,
+        )
+        .await;
+
+    // log::info!("Found: {:?}", definition);
+    Ok(position.map(lsp::GotoDefinitionResponse::Scalar))
 }
 
 /// Handle open text document.
@@ -177,7 +184,7 @@ async fn did_open_text_document(
     _: Output,
     params: lsp::DidOpenTextDocumentParams,
 ) -> Result<()> {
-    let mut sources = state.sources().await;
+    let mut sources = state.sources_mut().await;
 
     if sources
         .insert_text(params.text_document.uri.clone(), params.text_document.text)
@@ -202,7 +209,7 @@ async fn did_change_text_document(
     let mut interest = false;
 
     {
-        let mut sources = state.sources().await;
+        let mut sources = state.sources_mut().await;
 
         if let Some(source) = sources.get_mut(&params.text_document.uri) {
             for change in params.content_changes {
@@ -232,7 +239,7 @@ async fn did_close_text_document(
     _: Output,
     params: lsp::DidCloseTextDocumentParams,
 ) -> Result<()> {
-    let mut sources = state.sources().await;
+    let mut sources = state.sources_mut().await;
 
     if sources.remove(&params.text_document.uri).is_none() {
         log::warn!(

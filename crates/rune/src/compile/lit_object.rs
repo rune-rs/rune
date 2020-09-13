@@ -6,7 +6,7 @@ use crate::{
     traits::{Compile, Resolve as _},
     CompileError,
 };
-use runestick::{CompileMeta, Hash, Inst, Item, Span};
+use runestick::{CompileMetaKind, Hash, Inst, Item, Span};
 
 /// Compile a literal object.
 impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
@@ -54,7 +54,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                 }
             } else {
                 let key = assign.key.resolve(&self.storage, &*self.source)?;
-                let var = self.scopes.get_var(&*key, span)?;
+                let var = self.scopes.get_var(&*key, self.visitor, span)?;
 
                 if needs.value() {
                     var.copy(&mut self.asm, span, format!("name `{}`", key));
@@ -81,8 +81,8 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                     }
                 };
 
-                match meta {
-                    CompileMeta::Struct { object, .. } => {
+                match &meta.kind {
+                    CompileMetaKind::Struct { object, .. } => {
                         check_object_fields(
                             object.fields.as_ref(),
                             check_keys,
@@ -93,7 +93,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         let hash = Hash::type_hash(&object.item);
                         self.asm.push(Inst::TypedObject { hash, slot }, span);
                     }
-                    CompileMeta::StructVariant {
+                    CompileMetaKind::StructVariant {
                         enum_item, object, ..
                     } => {
                         check_object_fields(
@@ -103,7 +103,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                             &object.item,
                         )?;
 
-                        let enum_hash = Hash::type_hash(&enum_item);
+                        let enum_hash = Hash::type_hash(enum_item);
                         let hash = Hash::type_hash(&object.item);
 
                         self.asm.push(
@@ -115,7 +115,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                             span,
                         );
                     }
-                    meta => {
+                    _ => {
                         return Err(CompileError::UnsupportedLitObject {
                             span,
                             item: meta.item().clone(),

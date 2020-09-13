@@ -97,7 +97,10 @@ fn try_immediate_field_access_optimization(
         Err(..) => return Ok(false),
     };
 
-    let var = match this.scopes.try_get_var(ident.as_ref())? {
+    let var = match this
+        .scopes
+        .try_get_var(ident.as_ref(), this.visitor, path.span())?
+    {
         Some(var) => var,
         None => return Ok(false),
     };

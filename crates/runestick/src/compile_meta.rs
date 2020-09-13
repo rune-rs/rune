@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use crate::{Hash, Item, Type};
+use crate::{Hash, Item, Span, Type};
 use std::fmt;
 use std::sync::Arc;
 
@@ -12,7 +12,84 @@ pub struct CompileMetaCapture {
 
 /// Compile-time metadata about a unit.
 #[derive(Debug, Clone)]
-pub enum CompileMeta {
+pub struct CompileMeta {
+    /// The span where the meta is declared.
+    pub span: Option<Span>,
+    /// The kind of the compile meta.
+    pub kind: CompileMetaKind,
+}
+
+impl CompileMeta {
+    /// Get the item of the meta.
+    pub fn item(&self) -> &Item {
+        match &self.kind {
+            CompileMetaKind::Tuple { tuple, .. } => &tuple.item,
+            CompileMetaKind::TupleVariant { tuple, .. } => &tuple.item,
+            CompileMetaKind::Struct { object, .. } => &object.item,
+            CompileMetaKind::StructVariant { object, .. } => &object.item,
+            CompileMetaKind::Enum { item, .. } => item,
+            CompileMetaKind::Function { item, .. } => item,
+            CompileMetaKind::Closure { item, .. } => item,
+            CompileMetaKind::AsyncBlock { item, .. } => item,
+            CompileMetaKind::Macro { item, .. } => item,
+        }
+    }
+
+    /// Get the value type of the meta item.
+    pub fn type_of(&self) -> Option<Type> {
+        match &self.kind {
+            CompileMetaKind::Tuple { type_of, .. } => Some(*type_of),
+            CompileMetaKind::TupleVariant { .. } => None,
+            CompileMetaKind::Struct { type_of, .. } => Some(*type_of),
+            CompileMetaKind::StructVariant { .. } => None,
+            CompileMetaKind::Enum { type_of, .. } => Some(*type_of),
+            CompileMetaKind::Function { type_of, .. } => Some(*type_of),
+            CompileMetaKind::Closure { type_of, .. } => Some(*type_of),
+            CompileMetaKind::AsyncBlock { type_of, .. } => Some(*type_of),
+            CompileMetaKind::Macro { .. } => None,
+        }
+    }
+}
+
+impl fmt::Display for CompileMeta {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            CompileMetaKind::Tuple { tuple, .. } => {
+                write!(fmt, "struct {}", tuple.item)?;
+            }
+            CompileMetaKind::TupleVariant { tuple, .. } => {
+                write!(fmt, "variant {}", tuple.item)?;
+            }
+            CompileMetaKind::Struct { object, .. } => {
+                write!(fmt, "struct {}", object.item)?;
+            }
+            CompileMetaKind::StructVariant { object, .. } => {
+                write!(fmt, "variant {}", object.item)?;
+            }
+            CompileMetaKind::Enum { item, .. } => {
+                write!(fmt, "enum {}", item)?;
+            }
+            CompileMetaKind::Function { item, .. } => {
+                write!(fmt, "fn {}", item)?;
+            }
+            CompileMetaKind::Closure { item, .. } => {
+                write!(fmt, "closure {}", item)?;
+            }
+            CompileMetaKind::AsyncBlock { item, .. } => {
+                write!(fmt, "async block {}", item)?;
+            }
+            CompileMetaKind::Macro { item, .. } => {
+                write!(fmt, "macro {}", item)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Compile-time metadata kind about a unit.
+#[derive(Debug, Clone)]
+pub enum CompileMetaKind {
     /// Metadata about a tuple.
     Tuple {
         /// The value type associated with this meta item.
@@ -70,7 +147,7 @@ pub enum CompileMeta {
     },
     /// An async block.
     AsyncBlock {
-        /// The value type associated with this meta item.
+        /// The span where the async block is declared.
         type_of: Type,
         /// The item of the closure.
         item: Item,
@@ -82,74 +159,6 @@ pub enum CompileMeta {
         /// The item of the macro.
         item: Item,
     },
-}
-
-impl CompileMeta {
-    /// Get the item of the meta.
-    pub fn item(&self) -> &Item {
-        match self {
-            CompileMeta::Tuple { tuple, .. } => &tuple.item,
-            CompileMeta::TupleVariant { tuple, .. } => &tuple.item,
-            CompileMeta::Struct { object, .. } => &object.item,
-            CompileMeta::StructVariant { object, .. } => &object.item,
-            CompileMeta::Enum { item, .. } => item,
-            CompileMeta::Function { item, .. } => item,
-            CompileMeta::Closure { item, .. } => item,
-            CompileMeta::AsyncBlock { item, .. } => item,
-            CompileMeta::Macro { item, .. } => item,
-        }
-    }
-
-    /// Get the value type of the meta item.
-    pub fn type_of(&self) -> Option<Type> {
-        match self {
-            Self::Tuple { type_of, .. } => Some(*type_of),
-            Self::TupleVariant { .. } => None,
-            Self::Struct { type_of, .. } => Some(*type_of),
-            Self::StructVariant { .. } => None,
-            Self::Enum { type_of, .. } => Some(*type_of),
-            Self::Function { type_of, .. } => Some(*type_of),
-            Self::Closure { type_of, .. } => Some(*type_of),
-            Self::AsyncBlock { type_of, .. } => Some(*type_of),
-            Self::Macro { .. } => None,
-        }
-    }
-}
-
-impl fmt::Display for CompileMeta {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Tuple { tuple, .. } => {
-                write!(fmt, "struct {}", tuple.item)?;
-            }
-            Self::TupleVariant { tuple, .. } => {
-                write!(fmt, "variant {}", tuple.item)?;
-            }
-            Self::Struct { object, .. } => {
-                write!(fmt, "struct {}", object.item)?;
-            }
-            Self::StructVariant { object, .. } => {
-                write!(fmt, "variant {}", object.item)?;
-            }
-            Self::Enum { item, .. } => {
-                write!(fmt, "enum {}", item)?;
-            }
-            Self::Function { item, .. } => {
-                write!(fmt, "fn {}", item)?;
-            }
-            Self::Closure { item, .. } => {
-                write!(fmt, "closure {}", item)?;
-            }
-            Self::AsyncBlock { item, .. } => {
-                write!(fmt, "async block {}", item)?;
-            }
-            Self::Macro { item, .. } => {
-                write!(fmt, "macro {}", item)?;
-            }
-        }
-
-        Ok(())
-    }
 }
 
 /// The metadata about a type.

@@ -51,7 +51,7 @@ pub use rune::WarningKind::*;
 use rune::Warnings;
 pub use runestick::Result;
 pub use runestick::VmErrorKind::*;
-pub use runestick::{CompileMeta, Function, Span, Value};
+pub use runestick::{CompileMeta, CompileMetaKind, Function, Span, Value};
 use runestick::{Component, Item, Source, Unit};
 use std::cell::RefCell;
 use std::rc::Rc;

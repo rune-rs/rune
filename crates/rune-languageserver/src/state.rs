@@ -3,13 +3,14 @@ use anyhow::{anyhow, Result};
 use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
-use runestick::Span;
+use rune::{CompileVisitor, Var};
+use runestick::{CompileMeta, CompileMetaKind, Span};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::RwLockWriteGuard;
 use tokio::sync::{mpsc, RwLock};
-use tokio::sync::{Mutex, MutexGuard};
 
 /// Shared server state.
 #[derive(Clone)]
@@ -40,8 +41,8 @@ impl State {
     }
 
     /// Acess sources in the current state.
-    pub async fn sources(&self) -> MutexGuard<'_, Sources> {
-        self.inner.sources.lock().await
+    pub async fn sources_mut(&self) -> RwLockWriteGuard<'_, Sources> {
+        self.inner.sources.write().await
     }
 
     /// Indicate interest in having the project rebuild.
@@ -56,9 +57,31 @@ impl State {
             .map_err(|_| anyhow!("failed to send rebuild interest"))
     }
 
+    /// Find definition at the given uri and LSP position.
+    pub async fn goto_definition(
+        &self,
+        uri: &Url,
+        position: lsp::Position,
+    ) -> Option<lsp::Location> {
+        let sources = self.inner.sources.read().await;
+        let source = sources.get(uri)?;
+        let offset = source.lsp_position_to_offset(position);
+        let span = source.find_definition_at(Span::point(offset))?.span?;
+
+        let start = source.offset_to_lsp_position(span.start);
+        let end = source.offset_to_lsp_position(span.end);
+
+        let range = lsp::Range { start, end };
+
+        Some(lsp::Location {
+            uri: uri.clone(),
+            range,
+        })
+    }
+
     /// Rebuild the current project.
     pub async fn rebuild(&self, output: &Output) -> Result<()> {
-        let mut inner = self.inner.sources.lock().await;
+        let mut inner = self.inner.sources.write().await;
 
         for (url, source) in &mut inner.sources {
             if !std::mem::take(&mut source.dirty) {
@@ -71,11 +94,14 @@ impl State {
             let mut warnings = rune::Warnings::new();
             let mut diagnostics = Vec::new();
 
-            let error = rune::load_sources(
+            let mut visitor = Visitor::default();
+
+            let error = rune::load_sources_with_visitor(
                 &self.inner.context,
                 &self.inner.options,
                 &mut sources,
                 &mut warnings,
+                &mut visitor,
             );
 
             if let Err(error) = error {
@@ -112,8 +138,6 @@ impl State {
                         diagnostics.push(source.display_to_error(Span::empty(), message));
                     }
                 }
-
-                log::error!("build error: {:?}", error);
             }
 
             for warning in &warnings {
@@ -129,6 +153,8 @@ impl State {
             output
                 .notification::<lsp::notification::PublishDiagnostics>(diagnostics)
                 .await?;
+
+            source.index.definitions = visitor.definitions;
         }
 
         Ok(())
@@ -146,11 +172,7 @@ struct Inner {
     /// Indicate if the server is initialized.
     initialized: AtomicBool,
     /// Sources used in the project.
-    sources: Mutex<Sources>,
-    /// Indexes used to answer queries.
-    /// TODO: will be used.
-    #[allow(unused)]
-    indexes: RwLock<Indexes>,
+    sources: RwLock<Sources>,
 }
 
 impl Inner {
@@ -166,7 +188,6 @@ impl Inner {
             rebuild_tx,
             initialized: Default::default(),
             sources: Default::default(),
-            indexes: Default::default(),
         }
     }
 }
@@ -183,9 +204,15 @@ impl Sources {
         let source = Source {
             dirty: true,
             content: Rope::from(text),
+            index: Default::default(),
         };
 
         self.sources.insert(url, source)
+    }
+
+    /// Get the source at the given url.
+    pub fn get(&self, url: &Url) -> Option<&Source> {
+        self.sources.get(url)
     }
 
     /// Get the mutable source at the given url.
@@ -205,9 +232,22 @@ pub struct Source {
     dirty: bool,
     /// The content of the current source.
     content: Rope,
+    /// Indexes used to answer queries.
+    index: Index,
 }
 
 impl Source {
+    /// Find the definition at the given span.
+    pub fn find_definition_at(&self, span: Span) -> Option<&Definition> {
+        let (found_span, definition) = self.index.definitions.range(..=span).rev().next()?;
+
+        if span.start >= found_span.start && span.end <= found_span.end {
+            return Some(definition);
+        }
+
+        None
+    }
+
     /// Modify the given lsp range in the file.
     pub fn modify_lsp_range(&mut self, range: lsp::Range, content: &str) -> Result<()> {
         let start = rope_utf16_position(&self.content, range.start)?;
@@ -278,6 +318,13 @@ impl Source {
         lsp::Position::new(line as u64, col_char as u64)
     }
 
+    /// Offset in the rope to lsp position.
+    fn lsp_position_to_offset(&self, position: lsp::Position) -> usize {
+        let line = self.content.line_to_char(position.line as usize);
+        self.content
+            .utf16_cu_to_char(line + position.character as usize)
+    }
+
     /// Iterate over the text chunks in the source.
     pub fn chunks(&self) -> impl Iterator<Item = &str> {
         self.content.chunks()
@@ -319,23 +366,121 @@ fn rope_utf16_position(rope: &Rope, position: lsp::Position) -> Result<usize> {
     Ok(rope.line_to_char(position.line as usize) + char_offset)
 }
 
-/// All indexes used to answer questions.
-/// TODO: will be used.
-#[allow(unused)]
 #[derive(Default)]
-pub struct Indexes {
-    /// Indexes by url.
-    by_url: HashMap<Url, Index>,
-}
-
-/// TODO: will be used.
-#[allow(unused)]
 pub struct Index {
     /// Spans mapping to their corresponding definitions.
-    goto_definitions: BTreeMap<Span, Definition>,
+    definitions: BTreeMap<Span, Definition>,
 }
 
-/// Definitions that can be jumped to.
-/// TODO: will be used.
-#[allow(unused)]
-pub enum Definition {}
+#[derive(Debug, Clone)]
+pub struct Definition {
+    pub(crate) span: Option<Span>,
+    pub(crate) kind: DefinitionKind,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DefinitionKind {
+    /// A tuple.
+    Tuple,
+    /// A tuple variant.
+    TupleVariant,
+    /// A struct.
+    Struct,
+    /// A struct variant.
+    StructVariant,
+    /// An enum.
+    Enum,
+    /// A function.
+    Function,
+    /// A defined closure.
+    Closure,
+    /// A local variable.
+    Local,
+}
+
+#[derive(Default)]
+struct Visitor {
+    definitions: BTreeMap<Span, Definition>,
+}
+
+impl CompileVisitor for Visitor {
+    fn visit_meta(&mut self, meta: &CompileMeta, span: Span) {
+        match &meta.kind {
+            CompileMetaKind::Tuple { .. } => {
+                self.definitions.insert(
+                    span,
+                    Definition {
+                        span: meta.span,
+                        kind: DefinitionKind::Tuple,
+                    },
+                );
+            }
+            CompileMetaKind::TupleVariant { .. } => {
+                self.definitions.insert(
+                    span,
+                    Definition {
+                        span: meta.span,
+                        kind: DefinitionKind::TupleVariant,
+                    },
+                );
+            }
+            CompileMetaKind::Struct { .. } => {
+                self.definitions.insert(
+                    span,
+                    Definition {
+                        span: meta.span,
+                        kind: DefinitionKind::Struct,
+                    },
+                );
+            }
+            CompileMetaKind::StructVariant { .. } => {
+                self.definitions.insert(
+                    span,
+                    Definition {
+                        span: meta.span,
+                        kind: DefinitionKind::StructVariant,
+                    },
+                );
+            }
+            CompileMetaKind::Enum { .. } => {
+                self.definitions.insert(
+                    span,
+                    Definition {
+                        span: meta.span,
+                        kind: DefinitionKind::Enum,
+                    },
+                );
+            }
+            CompileMetaKind::Function { .. } => {
+                self.definitions.insert(
+                    span,
+                    Definition {
+                        span: meta.span,
+                        kind: DefinitionKind::Function,
+                    },
+                );
+            }
+            CompileMetaKind::Closure { .. } => {
+                self.definitions.insert(
+                    span,
+                    Definition {
+                        span: meta.span,
+                        kind: DefinitionKind::Closure,
+                    },
+                );
+            }
+            CompileMetaKind::AsyncBlock { .. } => {}
+            CompileMetaKind::Macro { .. } => {}
+        }
+    }
+
+    fn visit_variable_use(&mut self, var: &Var, span: Span) {
+        self.definitions.insert(
+            span,
+            Definition {
+                span: Some(var.span()),
+                kind: DefinitionKind::Local,
+            },
+        );
+    }
+}
