@@ -15,8 +15,6 @@ impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
         log::trace!("ExprClosure => {:?}", self.source.source(span));
 
         let count = {
-            let scope = self.scopes.last_mut(span)?;
-
             for (arg, _) in expr_closure.args.as_slice() {
                 let span = arg.span();
 
@@ -26,11 +24,11 @@ impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
                     }
                     ast::FnArg::Ident(ident) => {
                         let ident = ident.resolve(&self.storage, &*self.source)?;
-                        scope.new_var(ident.as_ref(), span)?;
+                        self.scopes.new_var(ident.as_ref(), span)?;
                     }
                     ast::FnArg::Ignore(..) => {
                         // Ignore incoming variable.
-                        let _ = scope.decl_anon(span);
+                        let _ = self.scopes.decl_anon(span)?;
                     }
                 }
             }
@@ -39,11 +37,11 @@ impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
                 self.asm.push(Inst::PushTuple, span);
 
                 for capture in captures {
-                    scope.new_var(&capture.ident, span)?;
+                    self.scopes.new_var(&capture.ident, span)?;
                 }
             }
 
-            scope.total_var_count
+            self.scopes.total_var_count(span)?
         };
 
         self.compile((&*expr_closure.body, Needs::Value))?;

@@ -104,7 +104,7 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
             self.asm.push(Inst::Pop, span);
         }
 
-        self.scopes.last_mut(span)?.undecl_anon(2, span)?;
+        self.scopes.undecl_anon(2, span)?;
         Ok(())
     }
 }

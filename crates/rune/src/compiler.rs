@@ -606,7 +606,7 @@ impl<'a> Compiler<'a> {
         );
 
         self.asm
-            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
 
         for (index, (pat, _)) in pat_vec.items.iter().enumerate() {
             let span = pat.span();
@@ -687,7 +687,7 @@ impl<'a> Compiler<'a> {
             span,
         );
         self.asm
-            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
 
         for (index, (pat, _)) in pat_tuple.items.iter().enumerate() {
             let span = pat.span();
@@ -812,7 +812,7 @@ impl<'a> Compiler<'a> {
         );
 
         self.asm
-            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
 
         for ((item, _), slot) in pat_object.fields.iter().zip(string_slots) {
             let span = item.span();
@@ -837,7 +837,7 @@ impl<'a> Compiler<'a> {
 
             load(self)?;
             let name = ident.resolve(&self.storage, &*self.source)?;
-            self.scopes.last_mut(span)?.decl_var(name.as_ref(), span);
+            self.scopes.decl_var(name.as_ref(), span)?;
         }
 
         Ok(())
@@ -878,7 +878,7 @@ impl<'a> Compiler<'a> {
             span,
         );
         self.asm
-            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
         Ok(true)
     }
 
@@ -917,7 +917,7 @@ impl<'a> Compiler<'a> {
                 };
 
                 load(self)?;
-                self.scopes.last_mut(span)?.decl_var(&ident, span);
+                self.scopes.decl_var(&ident, span)?;
                 return Ok(false);
             }
             ast::Pat::PatIgnore(..) => {
@@ -974,7 +974,7 @@ impl<'a> Compiler<'a> {
         }
 
         self.asm
-            .pop_and_jump_if_not(self.scopes.last(span)?.local_var_count, false_label, span);
+            .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
         Ok(true)
     }
 

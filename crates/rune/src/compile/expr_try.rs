@@ -18,7 +18,7 @@ impl Compile<(&ast::ExprTry, Needs)> for Compiler<'_> {
         self.asm.jump_if(not_error, span);
 
         // Clean up all locals so far and return from the current function.
-        let total_var_count = self.scopes.last(span)?.total_var_count;
+        let total_var_count = self.scopes.total_var_count(span)?;
         self.locals_clean(total_var_count, span);
         self.asm.push(Inst::Return, span);
 

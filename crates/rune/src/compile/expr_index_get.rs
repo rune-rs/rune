@@ -13,8 +13,7 @@ impl Compile<(&ast::ExprIndexGet, Needs)> for Compiler<'_> {
         let span = expr_index_get.span();
         log::trace!("ExprIndexGet => {:?}", self.source.source(span));
 
-        let scope = self.scopes.last(span)?.child();
-        let guard = self.scopes.push(scope);
+        let guard = self.scopes.push_child(span)?;
 
         self.compile((&*expr_index_get.index, Needs::Value))?;
         self.scopes.decl_anon(span)?;

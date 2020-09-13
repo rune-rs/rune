@@ -48,7 +48,7 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
             let span = branch.span();
             self.asm.label(label)?;
 
-            let mut scope = self.scopes.child(span)?;
+            let expected = self.scopes.push_child(span)?;
 
             // NB: loop is actually useful.
             #[allow(clippy::never_loop)]
@@ -58,7 +58,7 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
                         let item = self.convert_path_to_item(&path.path)?;
 
                         if let Some(local) = item.as_local() {
-                            scope.decl_var(local, span);
+                            self.scopes.decl_var(local, span)?;
                             break;
                         }
                     }
@@ -75,7 +75,6 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
             }
 
             // Set up a new scope with the binding.
-            let expected = self.scopes.push(scope);
             self.compile((&*branch.body, needs))?;
             self.clean_last_scope(span, expected, needs)?;
             self.asm.jump(end_label, span);

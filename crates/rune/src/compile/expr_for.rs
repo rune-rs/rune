@@ -15,13 +15,13 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
         let end_label = self.asm.new_label("for_end");
         let break_label = self.asm.new_label("for_break");
 
-        let total_var_count = self.scopes.last(span)?.total_var_count;
+        let total_var_count = self.scopes.total_var_count(span)?;
 
         let (iter_offset, loop_scope_expected) = {
-            let mut loop_scope = self.scopes.child(span)?;
+            let loop_scope_expected = self.scopes.push_child(span)?;
             self.compile((&*expr_for.iter, Needs::Value))?;
 
-            let iter_offset = loop_scope.decl_anon(span);
+            let iter_offset = self.scopes.decl_anon(span)?;
             self.asm.push_with_comment(
                 Inst::CallInstance {
                     hash: *runestick::INTO_ITER,
@@ -31,7 +31,6 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
                 format!("into_iter (offset: {})", iter_offset),
             );
 
-            let loop_scope_expected = self.scopes.push(loop_scope);
             (iter_offset, loop_scope_expected)
         };
 
@@ -47,9 +46,7 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
         let binding_offset = {
             self.asm.push(Inst::Unit, expr_for.iter.span());
             let name = expr_for.var.resolve(&self.storage, &*self.source)?;
-            self.scopes
-                .last_mut(span)?
-                .decl_var(name.as_ref(), expr_for.var.span())
+            self.scopes.decl_var(name.as_ref(), expr_for.var.span())?
         };
 
         // Declare storage for memoized `next` instance fn.

@@ -43,8 +43,7 @@ impl Compile<&ast::ExprBreak> for Compiler<'_> {
 
         let vars = self
             .scopes
-            .last(span)?
-            .total_var_count
+            .total_var_count(span)?
             .checked_sub(last_loop.total_var_count)
             .ok_or_else(|| CompileError::internal("var count should be larger", span))?;
 

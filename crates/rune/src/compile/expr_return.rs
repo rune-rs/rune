@@ -19,7 +19,7 @@ impl Compile<(&ast::ExprReturn, Needs)> for Compiler<'_> {
 
         // NB: we actually want total_var_count here since we need to clean up
         // _every_ variable declared until we reached the current return.
-        let total_var_count = self.scopes.last(span)?.total_var_count;
+        let total_var_count = self.scopes.total_var_count(span)?;
 
         if let Some(expr) = &return_expr.expr {
             self.compile((&**expr, Needs::Value))?;

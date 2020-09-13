@@ -23,8 +23,7 @@ impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {
                 .template_without_expansions(self.source_id, span, self.context());
         }
 
-        let scope = self.scopes.child(span)?;
-        let expected = self.scopes.push(scope);
+        let expected = self.scopes.push_child(span)?;
 
         for c in template.components.iter() {
             match c {
