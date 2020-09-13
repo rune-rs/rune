@@ -6,7 +6,7 @@ use crate::items::Items;
 use crate::query::{Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query};
 use crate::worker::{Import, Macro, MacroKind, Task};
 use crate::{Resolve as _, SourceId, Sources, Storage, Warnings};
-use runestick::{Call, CompileMeta, Hash, Item, Source, Span, Type};
+use runestick::{Call, CompileMeta, CompileMetaKind, Hash, Item, Source, Span, Type};
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -192,9 +192,12 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 source_id: self.source_id,
             });
 
-            let meta = CompileMeta::Function {
-                type_of: Type::from(Hash::type_hash(&item)),
-                item,
+            let meta = CompileMeta {
+                span: Some(span),
+                kind: CompileMetaKind::Function {
+                    type_of: Type::from(Hash::type_hash(&item)),
+                    item,
+                },
             };
 
             self.query.unit.borrow_mut().insert_meta(meta)?;
@@ -207,23 +210,23 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 source_id: self.source_id,
             });
 
-            self.query
-                .unit
-                .borrow_mut()
-                .insert_meta(CompileMeta::Function {
+            self.query.unit.borrow_mut().insert_meta(CompileMeta {
+                span: Some(span),
+                kind: CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&item)),
                     item,
-                })?;
+                },
+            })?;
         } else {
             // NB: non toplevel functions can be indexed for later construction.
             self.query.index(
                 item,
                 IndexedEntry {
-                    indexed: Indexed::Function(fun),
+                    span,
                     source: self.source.clone(),
                     source_id: self.source_id,
+                    indexed: Indexed::Function(fun),
                 },
-                span,
             )?;
         }
 

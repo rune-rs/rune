@@ -105,7 +105,7 @@ pub type Error = anyhow::Error;
 pub use self::any_obj::{AnyObj, AnyObjVtable};
 pub use self::args::Args;
 pub use self::compile_meta::{
-    CompileMeta, CompileMetaCapture, CompileMetaStruct, CompileMetaTuple,
+    CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
 };
 pub use self::from_value::{FromValue, UnsafeFromValue};
 pub use self::generator::Generator;

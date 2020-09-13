@@ -10,8 +10,8 @@ use crate::error::CompileResult;
 use crate::{Resolve as _, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
-    Call, CompileMeta, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item, Label, Names,
-    Source, Span, StaticString, Type, Unit, UnitFn, UnitTypeInfo,
+    Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst, Item,
+    Label, Names, Source, Span, StaticString, Type, Unit, UnitFn, UnitTypeInfo,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -559,8 +559,8 @@ impl UnitBuilder {
 
     /// Declare a new struct.
     pub(crate) fn insert_meta(&mut self, meta: CompileMeta) -> Result<(), UnitBuilderError> {
-        let item = match &meta {
-            CompileMeta::Tuple { tuple, .. } => {
+        let item = match &meta.kind {
+            CompileMetaKind::Tuple { tuple, .. } => {
                 let info = UnitFn::Tuple {
                     hash: tuple.hash,
                     args: tuple.args,
@@ -594,7 +594,7 @@ impl UnitBuilder {
 
                 tuple.item.clone()
             }
-            CompileMeta::TupleVariant {
+            CompileMetaKind::TupleVariant {
                 enum_item, tuple, ..
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
@@ -633,7 +633,7 @@ impl UnitBuilder {
 
                 tuple.item.clone()
             }
-            CompileMeta::Struct { object, .. } => {
+            CompileMetaKind::Struct { object, .. } => {
                 let hash = Hash::type_hash(&object.item);
 
                 let info = UnitTypeInfo {
@@ -649,7 +649,7 @@ impl UnitBuilder {
 
                 object.item.clone()
             }
-            CompileMeta::StructVariant {
+            CompileMetaKind::StructVariant {
                 enum_item, object, ..
             } => {
                 let hash = Hash::type_hash(&object.item);
@@ -668,7 +668,7 @@ impl UnitBuilder {
 
                 object.item.clone()
             }
-            CompileMeta::Enum { item, .. } => {
+            CompileMetaKind::Enum { item, .. } => {
                 let hash = Hash::type_hash(item);
 
                 let info = UnitTypeInfo {
@@ -684,10 +684,10 @@ impl UnitBuilder {
 
                 item.clone()
             }
-            CompileMeta::Function { item, .. } => item.clone(),
-            CompileMeta::Closure { item, .. } => item.clone(),
-            CompileMeta::AsyncBlock { item, .. } => item.clone(),
-            CompileMeta::Macro { item, .. } => item.clone(),
+            CompileMetaKind::Function { item, .. } => item.clone(),
+            CompileMetaKind::Closure { item, .. } => item.clone(),
+            CompileMetaKind::AsyncBlock { item, .. } => item.clone(),
+            CompileMetaKind::Macro { item, .. } => item.clone(),
         };
 
         if let Some(existing) = self.meta.insert(item, meta.clone()) {

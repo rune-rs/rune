@@ -3,7 +3,7 @@ use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::traits::Compile;
 use crate::{traits::Resolve as _, CompileError};
-use runestick::{CompileMeta, CompileMetaCapture, Hash, Inst};
+use runestick::{CompileMetaCapture, CompileMetaKind, Hash, Inst};
 
 /// Compile the body of a closure function.
 impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
@@ -82,10 +82,13 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
                     span,
                 })?;
 
-        let captures = match meta {
-            CompileMeta::Closure { captures, .. } => captures,
-            meta => {
-                return Err(CompileError::UnsupportedMetaClosure { meta, span });
+        let captures = match &meta.kind {
+            CompileMetaKind::Closure { captures, .. } => captures,
+            _ => {
+                return Err(CompileError::UnsupportedMetaClosure {
+                    meta: meta.clone(),
+                    span,
+                });
             }
         };
 
@@ -98,8 +101,8 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
                 .push_with_comment(Inst::Fn { hash }, span, format!("closure `{}`", item));
         } else {
             // Construct a closure environment.
-            for capture in &*captures {
-                let var = self.scopes.get_var(&capture.ident, span)?;
+            for capture in &**captures {
+                let var = self.scopes.get_var(&capture.ident, self.visitor, span)?;
                 var.copy(&mut self.asm, span, format!("capture `{}`", capture.ident));
             }
 

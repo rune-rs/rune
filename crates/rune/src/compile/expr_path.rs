@@ -19,7 +19,7 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
 
         if let Needs::Value = needs {
             if let Some(local) = item.as_local() {
-                if let Some(var) = self.scopes.try_get_var(local)? {
+                if let Some(var) = self.scopes.try_get_var(local, self.visitor, span)? {
                     var.copy(&mut self.asm, span, format!("var `{}`", local));
                     return Ok(());
                 }

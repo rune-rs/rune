@@ -135,7 +135,7 @@ fn compile_assign_binop(
                 compiler.compile((rhs, Needs::Value))?;
 
                 let ident = path.first.resolve(compiler.storage, &*compiler.source)?;
-                let var = compiler.scopes.get_var(&*ident, span)?;
+                let var = compiler.scopes.get_var(&*ident, compiler.visitor, span)?;
                 compiler
                     .asm
                     .push(Inst::Replace { offset: var.offset }, span);
@@ -194,7 +194,7 @@ fn compile_assign_binop(
             // <var> <op> <expr>
             ast::Expr::Path(path) if path.rest.is_empty() => {
                 let ident = path.first.resolve(compiler.storage, &*compiler.source)?;
-                let var = compiler.scopes.get_var(&*ident, span)?;
+                let var = compiler.scopes.get_var(&*ident, compiler.visitor, span)?;
                 Some(var.offset)
             }
             // Note: we would like to support assign operators for tuples and

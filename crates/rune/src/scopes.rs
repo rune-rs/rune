@@ -1,11 +1,12 @@
-use crate::assembly::Assembly;
 use crate::collections::HashMap;
-use crate::error::{CompileError, CompileResult};
+use crate::error::CompileResult;
+use crate::{Assembly, CompileError, CompileVisitor};
 use runestick::{Inst, Span};
 
-/// A locally declared variable.
+/// A locally declared variable, its calculated stack offset and where it was
+/// declared in its source file.
 #[derive(Debug, Clone)]
-pub(crate) struct Var {
+pub struct Var {
     /// Slot offset from the current stack frame.
     pub(crate) offset: usize,
     /// Token assocaited with the variable.
@@ -19,7 +20,7 @@ impl Var {
     }
 
     /// Copy the declared variable.
-    pub fn copy<C>(&self, asm: &mut Assembly, span: Span, comment: C)
+    pub(crate) fn copy<C>(&self, asm: &mut Assembly, span: Span, comment: C)
     where
         C: AsRef<str>,
     {
@@ -141,7 +142,7 @@ impl Scope {
     }
 
     /// Access the variable with the given name.
-    pub(crate) fn get(&self, name: &str) -> Option<&Var> {
+    fn get(&self, name: &str) -> Option<&Var> {
         if let Some(var) = self.locals.get(name) {
             return Some(var);
         }
@@ -171,12 +172,18 @@ impl Scopes {
 
     /// Try to get the local with the given name. Returns `None` if it's
     /// missing.
-    pub(crate) fn try_get_var(&self, name: &str) -> CompileResult<Option<&Var>> {
+    pub(crate) fn try_get_var(
+        &self,
+        name: &str,
+        visitor: &mut dyn CompileVisitor,
+        span: Span,
+    ) -> CompileResult<Option<&Var>> {
         log::trace!("get var: {}", name);
 
         for scope in self.scopes.iter().rev() {
             if let Some(var) = scope.get(name) {
                 log::trace!("found var: {} => {:?}", name, var);
+                visitor.visit_variable_use(var, span);
                 return Ok(Some(var));
             }
         }
@@ -185,8 +192,13 @@ impl Scopes {
     }
 
     /// Get the local with the given name.
-    pub(crate) fn get_var(&self, name: &str, span: Span) -> CompileResult<&Var> {
-        match self.try_get_var(name)? {
+    pub(crate) fn get_var(
+        &self,
+        name: &str,
+        visitor: &mut dyn CompileVisitor,
+        span: Span,
+    ) -> CompileResult<&Var> {
+        match self.try_get_var(name, visitor, span)? {
             Some(var) => Ok(var),
             None => Err(CompileError::MissingLocal {
                 name: name.to_owned(),

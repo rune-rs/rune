@@ -3,7 +3,7 @@ use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
 use crate::traits::{Compile, Resolve as _};
 use crate::CompileError;
-use runestick::{CompileMeta, Hash, Inst};
+use runestick::{CompileMetaKind, Hash, Inst};
 
 /// Compile a call expression.
 impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
@@ -75,7 +75,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         let item = self.convert_path_to_item(path)?;
 
         if let Some(name) = item.as_local() {
-            if let Some(var) = self.scopes.try_get_var(name)? {
+            if let Some(var) = self.scopes.try_get_var(name, self.visitor, path.span())? {
                 var.copy(&mut self.asm, span, format!("var `{}`", name));
                 self.asm.push(Inst::CallFn { args }, span);
 
@@ -95,8 +95,8 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
         };
 
-        let item = match &meta {
-            CompileMeta::Tuple { tuple, .. } | CompileMeta::TupleVariant { tuple, .. } => {
+        let item = match &meta.kind {
+            CompileMetaKind::Tuple { tuple, .. } | CompileMetaKind::TupleVariant { tuple, .. } => {
                 if tuple.args != expr_call.args.items.len() {
                     return Err(CompileError::UnsupportedArgumentCount {
                         span,
@@ -118,7 +118,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
 
                 tuple.item.clone()
             }
-            CompileMeta::Function { item, .. } => item.clone(),
+            CompileMetaKind::Function { item, .. } => item.clone(),
             _ => {
                 return Err(CompileError::MissingFunction { span, item });
             }
