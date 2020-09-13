@@ -1,5 +1,3 @@
-use string;
-
 fn main() {
     let a = "foo";
 

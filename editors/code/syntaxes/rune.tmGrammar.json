@@ -88,6 +88,9 @@
 			"include": "#raw_string_literal"
 		},
 		{
+			"include": "#template"
+		},
+		{
 			"comment": "Floating point literal (fraction)",
 			"name": "constant.numeric.float.rune",
 			"match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9_]+)?(f32|f64)?\\b"
@@ -373,6 +376,17 @@
 			"name": "string.quoted.double.raw.rune",
 			"begin": "b?r(#*)\"",
 			"end": "\"\\1"
+		},
+		"template": {
+			"comment": "Template string",
+			"name": "string.quoted.single.template.rune",
+			"begin": "b?`",
+			"end": "`",
+			"patterns": [
+				{
+					"include": "#escaped_character"
+				}
+			]
 		},
 		"sigils": {
 			"comment": "Sigil",
