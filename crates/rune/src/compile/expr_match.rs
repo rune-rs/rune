@@ -27,8 +27,11 @@ impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_> {
             let scope = self.scopes.child(span)?;
             let parent_guard = self.scopes.push(scope);
 
-            let load = move |this: &mut Compiler| {
-                this.asm.push(Inst::Copy { offset }, span);
+            let load = move |this: &mut Compiler, needs: Needs| {
+                if needs.value() {
+                    this.asm.push(Inst::Copy { offset }, span);
+                }
+
                 Ok(())
             };
 
