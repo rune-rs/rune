@@ -1,4 +1,3 @@
-use crate::assembly::Assembly;
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
 use crate::error::CompileResult;
@@ -11,16 +10,15 @@ impl Compile<(&ast::ExprLet, Needs)> for Compiler<'_> {
         let span = expr_let.span();
         log::trace!("ExprLet => {:?}", self.source.source(span));
 
-        // NB: assignments "move" the value being assigned.
-        self.compile((&*expr_let.expr, Needs::Value))?;
-
-        let mut scope = self.scopes.pop_unchecked(span)?;
-
-        let load = |_: &mut Assembly| {};
+        let load = |this: &mut Compiler| {
+            // NB: assignments "move" the value being assigned.
+            this.compile((&*expr_let.expr, Needs::Value))?;
+            Ok(())
+        };
 
         let false_label = self.asm.new_label("let_panic");
 
-        if self.compile_pat(&mut scope, &expr_let.pat, false_label, &load)? {
+        if self.compile_pat(&expr_let.pat, false_label, &load)? {
             self.warnings
                 .let_pattern_might_panic(self.source_id, span, self.context());
 
@@ -36,8 +34,6 @@ impl Compile<(&ast::ExprLet, Needs)> for Compiler<'_> {
 
             self.asm.label(ok_label)?;
         }
-
-        let _ = self.scopes.push(scope);
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if needs.value() {

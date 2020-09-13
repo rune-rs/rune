@@ -46,7 +46,7 @@ fn from_loop() {
 
 fn returns_unit(n) {
     if n > 0 {
-        100;
+        let _ = 100;
     }
 }
 
