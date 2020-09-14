@@ -25,7 +25,7 @@ fn main() -> runestick::Result<()> {
 
     let mut sources = Sources::new();
 
-    sources.insert_default(Source::new(
+    sources.insert(Source::new(
         "test",
         r#"
         fn main(number) {

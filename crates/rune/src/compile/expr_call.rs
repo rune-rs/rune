@@ -66,7 +66,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             return Ok(());
         };
 
-        for (expr, _) in expr_call.args.items.iter() {
+        for (expr, _) in &expr_call.args.items {
             self.compile((expr, Needs::Value))?;
             self.scopes.decl_anon(span)?;
         }
@@ -74,7 +74,10 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         let item = self.convert_path_to_item(path)?;
 
         if let Some(name) = item.as_local() {
-            if let Some(var) = self.scopes.try_get_var(name, self.visitor, path.span())? {
+            if let Some(var) =
+                self.scopes
+                    .try_get_var(name, self.source.url(), self.visitor, path.span())?
+            {
                 var.copy(&mut self.asm, span, format!("var `{}`", name));
                 self.asm.push(Inst::CallFn { args }, span);
 

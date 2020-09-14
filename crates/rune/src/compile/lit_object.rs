@@ -54,7 +54,9 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                 }
             } else {
                 let key = assign.key.resolve(&self.storage, &*self.source)?;
-                let var = self.scopes.get_var(&*key, self.visitor, span)?;
+                let var = self
+                    .scopes
+                    .get_var(&*key, self.source.url(), self.visitor, span)?;
 
                 if needs.value() {
                     var.copy(&mut self.asm, span, format!("name `{}`", key));

@@ -1,7 +1,7 @@
 use crate::collections::HashMap;
 use crate::error::CompileResult;
 use crate::{Assembly, CompileError, CompileVisitor};
-use runestick::{Inst, Span};
+use runestick::{Inst, Span, Url};
 
 /// A locally declared variable, its calculated stack offset and where it was
 /// declared in its source file.
@@ -175,6 +175,7 @@ impl Scopes {
     pub(crate) fn try_get_var(
         &self,
         name: &str,
+        url: Option<&Url>,
         visitor: &mut dyn CompileVisitor,
         span: Span,
     ) -> CompileResult<Option<&Var>> {
@@ -183,7 +184,11 @@ impl Scopes {
         for scope in self.scopes.iter().rev() {
             if let Some(var) = scope.get(name) {
                 log::trace!("found var: {} => {:?}", name, var);
-                visitor.visit_variable_use(var, span);
+
+                if let Some(url) = url {
+                    visitor.visit_variable_use(url, var, span);
+                }
+
                 return Ok(Some(var));
             }
         }
@@ -195,10 +200,11 @@ impl Scopes {
     pub(crate) fn get_var(
         &self,
         name: &str,
+        url: Option<&Url>,
         visitor: &mut dyn CompileVisitor,
         span: Span,
     ) -> CompileResult<&Var> {
-        match self.try_get_var(name, visitor, span)? {
+        match self.try_get_var(name, url, visitor, span)? {
             Some(var) => Ok(var),
             None => Err(CompileError::MissingLocal {
                 name: name.to_owned(),

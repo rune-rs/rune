@@ -61,7 +61,7 @@ use std::sync::Arc;
 pub fn compile_source(context: &runestick::Context, source: &str) -> Result<(Unit, Warnings)> {
     let mut warnings = Warnings::new();
     let mut sources = Sources::new();
-    sources.insert_default(Source::new("main", source.to_owned()));
+    sources.insert(Source::new("main", source.to_owned()));
     let unit = Rc::new(RefCell::new(UnitBuilder::with_default_prelude()));
 
     rune::compile(context, &mut sources, &unit, &mut warnings)?;

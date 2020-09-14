@@ -28,7 +28,7 @@ fn vm_test_references() {
 
     let mut sources = Sources::new();
 
-    sources.insert_default(Source::new(
+    sources.insert(Source::new(
         "test",
         r#"
         fn main(number) {
@@ -72,7 +72,7 @@ fn vm_test_references_error() {
 
     let mut sources = Sources::new();
 
-    sources.insert_default(Source::new(
+    sources.insert(Source::new(
         "test",
         r#"fn main(number) { take_it(number) }"#,
     ));

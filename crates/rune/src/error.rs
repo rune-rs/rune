@@ -2,7 +2,7 @@ use crate::ast;
 use crate::ast::Kind;
 use crate::unit_builder::UnitBuilderError;
 use crate::SourceId;
-use runestick::{CompileMeta, Item, Span};
+use runestick::{CompileMeta, Item, Span, Url};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -551,6 +551,14 @@ pub enum CompileError {
         /// The span of the missing label.
         span: Span,
     },
+    /// Encountered an unsupported URL when loading a module.
+    #[error("cannot load the url `{url}`")]
+    UnsupportedLoadUrl {
+        /// The span where the unsupported URL was encountered.
+        span: Span,
+        /// The URL that was unsupported.
+        url: Url,
+    },
     /// Unsupported wildcard component in use.
     #[error("wildcard support not supported in this position")]
     UnsupportedWildcard {
@@ -842,6 +850,7 @@ impl CompileError {
             Self::MissingType { span, .. } => span,
             Self::MissingModule { span, .. } => span,
             Self::MissingLabel { span, .. } => span,
+            Self::UnsupportedLoadUrl { span, .. } => span,
             Self::UnsupportedWildcard { span, .. } => span,
             Self::UnsupportedRef { span, .. } => span,
             Self::UnsupportedAwait { span, .. } => span,

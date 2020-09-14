@@ -11,8 +11,8 @@ use crate::items::Items;
 use crate::macros::MacroCompiler;
 use crate::query::Query;
 use crate::{
-    CompileError, LoadError, LoadErrorKind, MacroContext, Options, Parse, Resolve as _, SourceId,
-    Sources, Storage, UnitBuilder, Warnings,
+    CompileError, CompileVisitor, LoadError, LoadErrorKind, MacroContext, Options, Parse,
+    Resolve as _, SourceId, SourceLoader, Sources, Storage, UnitBuilder, Warnings,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -22,6 +22,13 @@ use std::sync::Arc;
 /// A single task that can be fed to the worker.
 #[derive(Debug)]
 pub(crate) enum Task {
+    /// Load a file.
+    LoadFile {
+        /// The item of the file to load.
+        item: Item,
+        /// The source id of the item being loaded.
+        source_id: SourceId,
+    },
     /// An indexing task, which will index the specified item.
     Index {
         /// Item being built.
@@ -58,6 +65,8 @@ pub(crate) struct Worker<'a> {
     pub(crate) sources: &'a mut Sources,
     options: &'a Options,
     pub(crate) warnings: &'a mut Warnings,
+    pub(crate) visitor: &'a mut dyn CompileVisitor,
+    pub(crate) source_loader: &'a mut dyn SourceLoader,
     pub(crate) query: Query,
     pub(crate) loaded: HashMap<Item, (SourceId, Span)>,
     pub(crate) expanded: HashMap<Item, Expanded>,
@@ -72,6 +81,8 @@ impl<'a> Worker<'a> {
         options: &'a Options,
         unit: Rc<RefCell<UnitBuilder>>,
         warnings: &'a mut Warnings,
+        visitor: &'a mut dyn CompileVisitor,
+        source_loader: &'a mut dyn SourceLoader,
         storage: Storage,
     ) -> Self {
         Self {
@@ -80,6 +91,8 @@ impl<'a> Worker<'a> {
             sources,
             options,
             warnings,
+            visitor,
+            source_loader,
             query: Query::new(storage, unit),
             loaded: HashMap::new(),
             expanded: HashMap::new(),
@@ -90,6 +103,34 @@ impl<'a> Worker<'a> {
     pub(crate) fn run(&mut self) -> Result<(), LoadError> {
         while let Some(task) = self.queue.pop_front() {
             match task {
+                Task::LoadFile { item, source_id } => {
+                    let source = match self.sources.get(source_id).cloned() {
+                        Some(source) => source,
+                        None => return Err(LoadError::internal("missing queued source by id")),
+                    };
+
+                    let file = match crate::parse_all::<ast::File>(source.as_str()) {
+                        Ok(file) => file,
+                        Err(error) => {
+                            return Err(LoadError::from(LoadErrorKind::ParseError {
+                                source_id,
+                                error,
+                            }))
+                        }
+                    };
+
+                    let items = Items::new(item.clone().into_vec());
+
+                    self.queue.push_back(Task::Index {
+                        item,
+                        items,
+                        source_id,
+                        source,
+                        scopes: IndexScopes::new(),
+                        impl_items: Default::default(),
+                        ast: IndexAst::File(file),
+                    });
+                }
                 Task::Index {
                     item,
                     items,
@@ -113,6 +154,8 @@ impl<'a> Worker<'a> {
                         items,
                         scopes,
                         impl_items,
+                        visitor: self.visitor,
+                        source_loader: self.source_loader,
                     };
 
                     let result = match ast {

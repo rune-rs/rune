@@ -55,7 +55,7 @@ fn setup_logging() -> Result<()> {
         use log4rs::encode::pattern::PatternEncoder;
 
         let logfile = FileAppender::builder()
-            .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+            .encoder(Box::new(PatternEncoder::default()))
             .build(log_path)?;
 
         let config = Config::builder()
@@ -239,14 +239,7 @@ async fn did_close_text_document(
     params: lsp::DidCloseTextDocumentParams,
 ) -> Result<()> {
     let mut sources = state.sources_mut().await;
-
-    if sources.remove(&params.text_document.uri).is_none() {
-        log::warn!(
-            "tried to close text document `{}`, but it was not open!",
-            params.text_document.uri
-        );
-    }
-
+    sources.remove(&params.text_document.uri);
     state.rebuild_interest().await?;
     Ok(())
 }

@@ -100,7 +100,9 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
         } else {
             // Construct a closure environment.
             for capture in &**captures {
-                let var = self.scopes.get_var(&capture.ident, self.visitor, span)?;
+                let var =
+                    self.scopes
+                        .get_var(&capture.ident, self.source.url(), self.visitor, span)?;
                 var.copy(&mut self.asm, span, format!("capture `{}`", capture.ident));
             }
 
