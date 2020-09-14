@@ -58,7 +58,7 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
                         let item = self.convert_path_to_item(&path.path)?;
 
                         if let Some(local) = item.as_local() {
-                            self.scopes.decl_var(local, span)?;
+                            self.scopes.decl_var(local, path.span())?;
                             break;
                         }
                     }

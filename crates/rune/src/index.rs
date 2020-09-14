@@ -5,7 +5,7 @@ use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::query::{Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query};
 use crate::worker::{Import, Macro, MacroKind, Task};
-use crate::{Resolve as _, SourceId, Sources, Storage, Warnings};
+use crate::{CompileVisitor, Resolve as _, SourceId, SourceLoader, Sources, Storage, Warnings};
 use runestick::{Call, CompileMeta, CompileMetaKind, Hash, Item, Source, Span, Type};
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -26,6 +26,8 @@ pub(crate) struct Indexer<'a> {
     pub(crate) scopes: IndexScopes,
     /// Set if we are inside of an impl block.
     pub(crate) impl_items: Vec<Item>,
+    pub(crate) visitor: &'a mut dyn CompileVisitor,
+    pub(crate) source_loader: &'a mut dyn SourceLoader,
 }
 
 impl<'a> Indexer<'a> {
@@ -50,40 +52,18 @@ impl<'a> Indexer<'a> {
         let name = item_mod.name.resolve(&self.storage, &*self.source)?;
         let _guard = self.items.push_name(name.as_ref());
 
-        let path = match self.source.path() {
-            Some(path) => path,
+        let url = match self.source.url() {
+            Some(url) => url,
             None => {
                 return Err(CompileError::UnsupportedFileMod { span });
             }
         };
 
-        let base = match path.parent() {
-            Some(parent) => parent.join(name.as_ref()),
-            None => {
-                return Err(CompileError::UnsupportedFileMod { span });
-            }
-        };
+        let source = self.source_loader.load(url, name.as_ref(), span)?;
 
-        let candidates = [
-            base.join("mod").with_extension("rn"),
-            base.with_extension("rn"),
-        ];
-
-        let mut found = None;
-
-        for path in &candidates[..] {
-            if path.is_file() {
-                found = Some(path);
-                break;
-            }
+        if let Some(url) = source.url() {
+            self.visitor.visit_mod(url, span);
         }
-
-        let path = match found {
-            Some(path) => path,
-            None => {
-                return Err(CompileError::ModNotFound { path: base, span });
-            }
-        };
 
         let item = self.items.item();
 
@@ -95,18 +75,8 @@ impl<'a> Indexer<'a> {
             });
         }
 
-        let source = match Source::from_path(path) {
-            Ok(source) => source,
-            Err(error) => {
-                return Err(CompileError::ModFileError {
-                    span,
-                    path: path.to_owned(),
-                    error,
-                });
-            }
-        };
-
-        self.sources.insert(item, source);
+        let source_id = self.sources.insert(source);
+        self.queue.push_back(Task::LoadFile { item, source_id });
         Ok(())
     }
 }
@@ -195,6 +165,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
             let meta = CompileMeta {
                 span: Some(span),
+                url: self.source.url().cloned(),
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&item)),
                     item,
@@ -214,6 +185,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
             self.query.unit.borrow_mut().insert_meta(CompileMeta {
                 span: Some(span),
+                url: self.source.url().cloned(),
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&item)),
                     item,

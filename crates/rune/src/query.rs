@@ -292,12 +292,15 @@ impl Query {
         for (item, entry) in unused {
             let span = entry.span;
             let source_id = entry.source_id;
+            let url = entry.source.url().cloned();
 
             let meta = self
                 .build_indexed_entry(item, entry, true)
                 .map_err(|error| (source_id, error))?;
 
-            visitor.visit_meta(&meta, span);
+            if let Some(url) = url {
+                visitor.visit_meta(&url, &meta, span);
+            }
         }
 
         Ok(true)
@@ -333,6 +336,8 @@ impl Query {
             source,
             source_id,
         } = entry;
+
+        let url = source.url().cloned();
 
         let kind = match indexed {
             Indexed::Enum => CompileMetaKind::Enum {
@@ -397,6 +402,7 @@ impl Query {
 
         let meta = CompileMeta {
             span: Some(entry_span),
+            url,
             kind,
         };
 

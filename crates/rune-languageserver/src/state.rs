@@ -66,15 +66,21 @@ impl State {
         let sources = self.inner.sources.read().await;
         let source = sources.get(uri)?;
         let offset = source.lsp_position_to_offset(position);
-        let span = source.find_definition_at(Span::point(offset))?.span?;
+        let definition = source.find_definition_at(Span::point(offset))?;
 
-        let start = source.offset_to_lsp_position(span.start);
-        let end = source.offset_to_lsp_position(span.end);
+        let url = definition.url.as_ref()?;
 
-        let range = lsp::Range { start, end };
+        let range = match definition.span {
+            Some(span) => {
+                let start = source.offset_to_lsp_position(span.start);
+                let end = source.offset_to_lsp_position(span.end);
+                lsp::Range { start, end }
+            }
+            None => lsp::Range::default(),
+        };
 
         Some(lsp::Location {
-            uri: uri.clone(),
+            uri: url.clone(),
             range,
         })
     }
@@ -83,18 +89,30 @@ impl State {
     pub async fn rebuild(&self, output: &Output) -> Result<()> {
         let mut inner = self.inner.sources.write().await;
 
-        for (url, source) in &mut inner.sources {
-            if !std::mem::take(&mut source.dirty) {
-                continue;
-            }
+        let mut by_url = HashMap::<Url, Vec<lsp::Diagnostic>>::new();
+
+        for (url, _) in inner.removed.drain(..) {
+            by_url.insert(url.clone(), Vec::new());
+        }
+
+        let mut definitions = HashMap::new();
+
+        for (url, source) in &inner.sources {
+            log::trace!("build: {}", url);
+
+            by_url.insert(url.clone(), Default::default());
+            definitions.insert(url.clone(), Default::default());
 
             let mut sources = rune::Sources::new();
-            sources.insert_default(runestick::Source::new(url.to_string(), source.to_string()));
+
+            let mut input = runestick::Source::new(url.to_string(), source.to_string());
+            *input.url_mut() = Some(url.clone());
+
+            sources.insert(input);
 
             let mut warnings = rune::Warnings::new();
-            let mut diagnostics = Vec::new();
-
-            let mut visitor = Visitor::default();
+            let mut visitor = Visitor::new(&mut definitions);
+            let mut source_loader = SourceLoader::new(&inner.sources);
 
             let error = rune::load_sources_with_visitor(
                 &self.inner.context,
@@ -102,31 +120,58 @@ impl State {
                 &mut sources,
                 &mut warnings,
                 &mut visitor,
+                &mut source_loader,
             );
 
             if let Err(error) = error {
                 match error.kind() {
                     rune::LoadErrorKind::ReadFile { error, path } => {
-                        diagnostics.push(source.display_to_error(
-                            Span::empty(),
+                        let diagnostics = by_url.entry(url.clone()).or_default();
+
+                        let range = lsp::Range::default();
+
+                        diagnostics.push(display_to_error(
+                            range,
                             format!("failed to read file: {}: {}", path.display(), error),
                         ));
                     }
                     // TODO: match source id with the document that has the error.
-                    rune::LoadErrorKind::ParseError { error, .. } => {
-                        diagnostics.push(source.display_to_error(error.span(), error));
+                    rune::LoadErrorKind::ParseError {
+                        error, source_id, ..
+                    } => {
+                        report(
+                            &sources,
+                            &mut by_url,
+                            error.span(),
+                            *source_id,
+                            error,
+                            display_to_error,
+                        );
                     }
                     // TODO: match the source id with the document that has the error.
-                    rune::LoadErrorKind::CompileError { error, .. } => {
-                        diagnostics.push(source.display_to_error(error.span(), error));
+                    rune::LoadErrorKind::CompileError {
+                        error, source_id, ..
+                    } => {
+                        report(
+                            &sources,
+                            &mut by_url,
+                            error.span(),
+                            *source_id,
+                            error,
+                            display_to_error,
+                        );
                     }
                     rune::LoadErrorKind::LinkError { errors } => {
                         for error in errors {
                             match error {
                                 rune::LinkerError::MissingFunction { hash, spans } => {
                                     for (span, _) in spans {
-                                        diagnostics.push(source.display_to_error(
-                                            *span,
+                                        let diagnostics = by_url.entry(url.clone()).or_default();
+
+                                        let range = source.span_to_lsp_range(*span);
+
+                                        diagnostics.push(display_to_error(
+                                            range,
                                             format!("missing function with hash `{}`", hash),
                                         ));
                                     }
@@ -135,15 +180,33 @@ impl State {
                         }
                     }
                     rune::LoadErrorKind::Internal { message } => {
-                        diagnostics.push(source.display_to_error(Span::empty(), message));
+                        let diagnostics = by_url.entry(url.clone()).or_default();
+
+                        let range = lsp::Range::default();
+                        diagnostics.push(display_to_error(range, message));
                     }
                 }
             }
 
             for warning in &warnings {
-                diagnostics.push(source.display_to_warning(warning.span(), warning.kind()));
+                report(
+                    &sources,
+                    &mut by_url,
+                    warning.span(),
+                    warning.source_id,
+                    warning.kind(),
+                    display_to_warning,
+                );
             }
+        }
 
+        for (url, index) in definitions {
+            if let Some(source) = inner.sources.get_mut(&url) {
+                source.index = index;
+            }
+        }
+
+        for (url, diagnostics) in by_url {
             let diagnostics = lsp::PublishDiagnosticsParams {
                 uri: url.clone(),
                 diagnostics,
@@ -153,8 +216,6 @@ impl State {
             output
                 .notification::<lsp::notification::PublishDiagnostics>(diagnostics)
                 .await?;
-
-            source.index.definitions = visitor.definitions;
         }
 
         Ok(())
@@ -195,14 +256,16 @@ impl Inner {
 /// A collection of open sources.
 #[derive(Default)]
 pub struct Sources {
+    /// Sources that might be modified.
     sources: HashMap<Url, Source>,
+    /// A source that has been removed.
+    removed: Vec<(Url, Source)>,
 }
 
 impl Sources {
     /// Insert the given source at the given url.
     pub fn insert_text(&mut self, url: Url, text: String) -> Option<Source> {
         let source = Source {
-            dirty: true,
             content: Rope::from(text),
             index: Default::default(),
         };
@@ -221,15 +284,15 @@ impl Sources {
     }
 
     /// Remove the given url as a source.
-    pub fn remove(&mut self, url: &Url) -> Option<Source> {
-        self.sources.remove(url)
+    pub fn remove(&mut self, url: &Url) {
+        if let Some(source) = self.sources.remove(url) {
+            self.removed.push((url.clone(), source));
+        }
     }
 }
 
 /// A single open source.
 pub struct Source {
-    /// If the source is dirty and needs to be rebuilt.
-    dirty: bool,
     /// The content of the current source.
     content: Rope,
     /// Indexes used to answer queries.
@@ -240,6 +303,7 @@ impl Source {
     /// Find the definition at the given span.
     pub fn find_definition_at(&self, span: Span) -> Option<&Definition> {
         let (found_span, definition) = self.index.definitions.range(..=span).rev().next()?;
+        log::info!("found {:?} (at {:?})", definition.kind, definition.url);
 
         if span.start >= found_span.start && span.end <= found_span.end {
             return Some(definition);
@@ -258,48 +322,15 @@ impl Source {
             self.content.insert(start, content);
         }
 
-        self.dirty = true;
         Ok(())
     }
 
-    /// Convert the given span and error into an error diagnostic.
-    fn display_to_error<E>(&self, span: Span, error: E) -> lsp::Diagnostic
-    where
-        E: fmt::Display,
-    {
-        self.display_to_diagnostic(span, error, lsp::DiagnosticSeverity::Error)
-    }
-
-    /// Convert the given span and error into a warning diagnostic.
-    fn display_to_warning<E>(&self, span: Span, error: E) -> lsp::Diagnostic
-    where
-        E: fmt::Display,
-    {
-        self.display_to_diagnostic(span, error, lsp::DiagnosticSeverity::Warning)
-    }
-
-    /// Convert a span and something displayeable into diagnostics.
-    fn display_to_diagnostic<E>(
-        &self,
-        span: Span,
-        error: E,
-        severity: lsp::DiagnosticSeverity,
-    ) -> lsp::Diagnostic
-    where
-        E: fmt::Display,
-    {
+    /// Convert a span to an lsp range.
+    fn span_to_lsp_range(&self, span: Span) -> lsp::Range {
         let start = self.offset_to_lsp_position(span.start);
         let end = self.offset_to_lsp_position(span.end);
 
-        lsp::Diagnostic {
-            range: lsp::Range::new(start, end),
-            severity: Some(severity),
-            code: None,
-            source: None,
-            message: error.to_string(),
-            related_information: None,
-            tags: None,
-        }
+        lsp::Range { start, end }
     }
 
     /// Offset in the rope to lsp position.
@@ -314,7 +345,6 @@ impl Source {
 
         let col_char = col_char - line_char;
 
-        // TODO: handle utf-16 conversion.
         lsp::Position::new(line as u64, col_char as u64)
     }
 
@@ -335,6 +365,15 @@ impl fmt::Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.content)
     }
+}
+
+/// Conver the given span into an lsp range.
+fn span_to_lsp_range(source: &runestick::Source, span: Span) -> Option<lsp::Range> {
+    let (line, character) = source.position_to_utf16cu_line_char(span.start)?;
+    let start = lsp::Position::new(line as u64, character as u64);
+    let (line, character) = source.position_to_utf16cu_line_char(span.end)?;
+    let end = lsp::Position::new(line as u64, character as u64);
+    Some(lsp::Range::new(start, end))
 }
 
 /// Translate the given lsp::Position, which is in UTF-16 because Microsoft.
@@ -366,6 +405,73 @@ fn rope_utf16_position(rope: &Rope, position: lsp::Position) -> Result<usize> {
     Ok(rope.line_to_char(position.line as usize) + char_offset)
 }
 
+/// Convert the given span and error into an error diagnostic.
+fn report<E, R>(
+    sources: &rune::Sources,
+    by_url: &mut HashMap<Url, Vec<lsp::Diagnostic>>,
+    span: Span,
+    source_id: usize,
+    error: E,
+    report: R,
+) where
+    E: fmt::Display,
+    R: Fn(lsp::Range, E) -> lsp::Diagnostic,
+{
+    let source = match sources.get(source_id) {
+        Some(source) => &*source,
+        None => return,
+    };
+
+    let url = match source.url() {
+        Some(url) => url,
+        None => return,
+    };
+
+    let range = match span_to_lsp_range(&*source, span) {
+        Some(range) => range,
+        None => return,
+    };
+
+    let diagnostics = by_url.entry(url.clone()).or_default();
+    diagnostics.push(report(range, error));
+}
+
+/// Convert the given span and error into an error diagnostic.
+fn display_to_error<E>(range: lsp::Range, error: E) -> lsp::Diagnostic
+where
+    E: fmt::Display,
+{
+    display_to_diagnostic(range, error, lsp::DiagnosticSeverity::Error)
+}
+
+/// Convert the given span and error into a warning diagnostic.
+fn display_to_warning<E>(range: lsp::Range, error: E) -> lsp::Diagnostic
+where
+    E: fmt::Display,
+{
+    display_to_diagnostic(range, error, lsp::DiagnosticSeverity::Warning)
+}
+
+/// Convert a span and something displayeable into diagnostics.
+fn display_to_diagnostic<E>(
+    range: lsp::Range,
+    error: E,
+    severity: lsp::DiagnosticSeverity,
+) -> lsp::Diagnostic
+where
+    E: fmt::Display,
+{
+    lsp::Diagnostic {
+        range,
+        severity: Some(severity),
+        code: None,
+        source: None,
+        message: error.to_string(),
+        related_information: None,
+        tags: None,
+    }
+}
+
 #[derive(Default)]
 pub struct Index {
     /// Spans mapping to their corresponding definitions.
@@ -375,6 +481,7 @@ pub struct Index {
 #[derive(Debug, Clone)]
 pub struct Definition {
     pub(crate) span: Option<Span>,
+    pub(crate) url: Option<Url>,
     pub(crate) kind: DefinitionKind,
 }
 
@@ -396,91 +503,134 @@ pub enum DefinitionKind {
     Closure,
     /// A local variable.
     Local,
+    /// A module that can be jumped to.
+    Module,
 }
 
-#[derive(Default)]
-struct Visitor {
-    definitions: BTreeMap<Span, Definition>,
+struct Visitor<'a> {
+    indexes: &'a mut HashMap<Url, Index>,
 }
 
-impl CompileVisitor for Visitor {
-    fn visit_meta(&mut self, meta: &CompileMeta, span: Span) {
-        match &meta.kind {
-            CompileMetaKind::Tuple { .. } => {
-                self.definitions.insert(
-                    span,
-                    Definition {
-                        span: meta.span,
-                        kind: DefinitionKind::Tuple,
-                    },
-                );
+impl<'a> Visitor<'a> {
+    /// Construct a new visitor.
+    pub fn new(indexes: &'a mut HashMap<Url, Index>) -> Self {
+        Self { indexes }
+    }
+}
+
+impl CompileVisitor for Visitor<'_> {
+    fn visit_meta(&mut self, url: &Url, meta: &CompileMeta, span: Span) {
+        let kind = match &meta.kind {
+            CompileMetaKind::Tuple { .. } => DefinitionKind::Tuple,
+            CompileMetaKind::TupleVariant { .. } => DefinitionKind::TupleVariant,
+            CompileMetaKind::Struct { .. } => DefinitionKind::Struct,
+            CompileMetaKind::StructVariant { .. } => DefinitionKind::StructVariant,
+            CompileMetaKind::Enum { .. } => DefinitionKind::Enum,
+            CompileMetaKind::Function { .. } => DefinitionKind::Function,
+            CompileMetaKind::Closure { .. } => DefinitionKind::Closure,
+            CompileMetaKind::AsyncBlock { .. } => return,
+            CompileMetaKind::Macro { .. } => return,
+        };
+
+        let definition = Definition {
+            span: meta.span,
+            url: meta.url.clone(),
+            kind,
+        };
+
+        if let Some(index) = self.indexes.get_mut(url) {
+            if let Some(d) = index.definitions.insert(span, definition) {
+                log::warn!("replaced definition: {:?}", d.kind)
             }
-            CompileMetaKind::TupleVariant { .. } => {
-                self.definitions.insert(
-                    span,
-                    Definition {
-                        span: meta.span,
-                        kind: DefinitionKind::TupleVariant,
-                    },
-                );
-            }
-            CompileMetaKind::Struct { .. } => {
-                self.definitions.insert(
-                    span,
-                    Definition {
-                        span: meta.span,
-                        kind: DefinitionKind::Struct,
-                    },
-                );
-            }
-            CompileMetaKind::StructVariant { .. } => {
-                self.definitions.insert(
-                    span,
-                    Definition {
-                        span: meta.span,
-                        kind: DefinitionKind::StructVariant,
-                    },
-                );
-            }
-            CompileMetaKind::Enum { .. } => {
-                self.definitions.insert(
-                    span,
-                    Definition {
-                        span: meta.span,
-                        kind: DefinitionKind::Enum,
-                    },
-                );
-            }
-            CompileMetaKind::Function { .. } => {
-                self.definitions.insert(
-                    span,
-                    Definition {
-                        span: meta.span,
-                        kind: DefinitionKind::Function,
-                    },
-                );
-            }
-            CompileMetaKind::Closure { .. } => {
-                self.definitions.insert(
-                    span,
-                    Definition {
-                        span: meta.span,
-                        kind: DefinitionKind::Closure,
-                    },
-                );
-            }
-            CompileMetaKind::AsyncBlock { .. } => {}
-            CompileMetaKind::Macro { .. } => {}
         }
     }
 
-    fn visit_variable_use(&mut self, var: &Var, span: Span) {
-        self.definitions.insert(
-            span,
-            Definition {
+    fn visit_variable_use(&mut self, url: &Url, var: &Var, span: Span) {
+        if let Some(index) = self.indexes.get_mut(url) {
+            let definition = Definition {
                 span: Some(var.span()),
+                url: Some(url.clone()),
                 kind: DefinitionKind::Local,
-            },
-        );
+            };
+
+            if let Some(d) = index.definitions.insert(span, definition) {
+                log::warn!("replaced definition: {:?}", d.kind)
+            }
+        }
+    }
+
+    fn visit_mod(&mut self, url: &Url, span: Span) {
+        if let Some(index) = self.indexes.get_mut(url) {
+            let definition = Definition {
+                span: None,
+                url: Some(url.clone()),
+                kind: DefinitionKind::Module,
+            };
+
+            if let Some(d) = index.definitions.insert(span, definition) {
+                log::warn!("replaced definition: {:?}", d.kind)
+            }
+        }
+    }
+}
+
+struct SourceLoader<'a> {
+    sources: &'a HashMap<Url, Source>,
+    base: rune::FileSourceLoader,
+}
+
+impl<'a> SourceLoader<'a> {
+    /// Construct a new source loader.
+    pub fn new(sources: &'a HashMap<Url, Source>) -> Self {
+        Self {
+            sources,
+            base: rune::FileSourceLoader::new(),
+        }
+    }
+
+    /// Generate a collection of URl candidates.
+    fn candidates(url: &Url, name: &str) -> Option<[Url; 2]> {
+        let mut a = url.clone();
+
+        {
+            let mut path = a.path_segments_mut().ok()?;
+            path.pop();
+            path.push(&format!("{}.rn", name));
+        }
+
+        let mut b = url.clone();
+
+        {
+            let mut path = b.path_segments_mut().ok()?;
+            path.pop();
+            path.push(name);
+            path.push("mod.rn");
+        };
+
+        Some([a, b])
+    }
+}
+
+impl rune::SourceLoader for SourceLoader<'_> {
+    fn load(
+        &mut self,
+        url: &Url,
+        name: &str,
+        span: Span,
+    ) -> Result<runestick::Source, rune::CompileError> {
+        log::trace!("load: {}", url);
+
+        if let Some(candidates) = Self::candidates(url, name) {
+            for url in candidates.iter() {
+                if let Some(s) = self.sources.get(url) {
+                    // TODO: can this clone be avoided? The compiler requires a complete buffer.
+                    let mut source = runestick::Source::new(url.to_string(), s.to_string());
+                    *source.url_mut() = Some(url.clone());
+                    return Ok(source);
+                }
+            }
+        }
+
+        self.base.load(url, name, span)
     }
 }

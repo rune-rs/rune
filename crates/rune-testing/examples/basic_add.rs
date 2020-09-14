@@ -6,7 +6,7 @@ fn main() -> runestick::Result<()> {
     let context = Context::with_default_modules()?;
     let mut sources = Sources::new();
 
-    sources.insert_default(Source::new(
+    sources.insert(Source::new(
         "test",
         r#"
          fn main(number) {

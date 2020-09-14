@@ -165,6 +165,7 @@ pub use crate::vm_execution::VmExecution;
 pub use crate::vm_halt::{VmHalt, VmHaltInfo};
 pub(crate) use runestick_macros::__internal_impl_any;
 pub use runestick_macros::{Any, FromValue};
+pub use url::Url;
 
 mod collections {
     pub use hashbrown::{hash_map, HashMap};

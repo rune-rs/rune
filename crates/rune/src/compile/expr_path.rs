@@ -12,14 +12,16 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
         // NB: do nothing if we don't need a value.
         if !needs.value() {
             self.warnings.not_used(self.source_id, span, self.context());
-            return Ok(());
         }
 
         let item = self.convert_path_to_item(path)?;
 
         if let Needs::Value = needs {
             if let Some(local) = item.as_local() {
-                if let Some(var) = self.scopes.try_get_var(local, self.visitor, span)? {
+                if let Some(var) =
+                    self.scopes
+                        .try_get_var(local, self.source.url(), self.visitor, span)?
+                {
                     var.copy(&mut self.asm, span, format!("var `{}`", local));
                     return Ok(());
                 }

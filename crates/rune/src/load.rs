@@ -1,7 +1,10 @@
 use crate::unit_builder::LinkerErrors;
 use crate::unit_builder::UnitBuilder;
 use crate::{compiler, CompileVisitor};
-use crate::{LoadError, LoadErrorKind, NoopCompileVisitor, Options, Sources, Warnings};
+use crate::{
+    FileSourceLoader, LoadError, LoadErrorKind, NoopCompileVisitor, Options, SourceLoader, Sources,
+    Warnings,
+};
 use runestick::{Context, Source, Unit};
 use std::cell::RefCell;
 use std::path::Path;
@@ -63,7 +66,7 @@ pub fn load_path(
     path: &Path,
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
-    sources.insert_default(Source::from_path(path).map_err(|error| {
+    sources.insert(Source::from_path(path).map_err(|error| {
         LoadError::from(LoadErrorKind::ReadFile {
             error,
             path: path.to_owned(),
@@ -98,7 +101,7 @@ pub fn load_path(
 /// let mut sources = rune::Sources::new();
 /// let mut warnings = rune::Warnings::new();
 ///
-/// sources.insert_default(Source::new("entry", r#"
+/// sources.insert(Source::new("entry", r#"
 /// fn main() {
 ///     println("Hello World");
 /// }
@@ -131,7 +134,15 @@ pub fn load_sources(
     warnings: &mut Warnings,
 ) -> Result<Unit, LoadError> {
     let mut visitor = NoopCompileVisitor::new();
-    load_sources_with_visitor(context, options, sources, warnings, &mut visitor)
+    let mut source_loader = FileSourceLoader::new();
+    load_sources_with_visitor(
+        context,
+        options,
+        sources,
+        warnings,
+        &mut visitor,
+        &mut source_loader,
+    )
 }
 
 /// Load the specified sources with a visitor.
@@ -141,6 +152,7 @@ pub fn load_sources_with_visitor(
     sources: &mut Sources,
     warnings: &mut Warnings,
     visitor: &mut dyn CompileVisitor,
+    source_loader: &mut dyn SourceLoader,
 ) -> Result<Unit, LoadError> {
     let unit = if context.has_default_modules() {
         UnitBuilder::with_default_prelude()
@@ -149,7 +161,15 @@ pub fn load_sources_with_visitor(
     };
 
     let unit = Rc::new(RefCell::new(unit));
-    compiler::compile_with_options(&*context, sources, &unit, warnings, &options, visitor)?;
+    compiler::compile_with_options(
+        &*context,
+        sources,
+        &unit,
+        warnings,
+        &options,
+        visitor,
+        source_loader,
+    )?;
 
     let unit = match Rc::try_unwrap(unit) {
         Ok(unit) => unit.into_inner(),

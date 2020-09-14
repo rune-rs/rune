@@ -392,6 +392,7 @@ impl Context {
             name.clone(),
             CompileMeta {
                 span: None,
+                url: None,
                 kind: CompileMetaKind::Struct {
                     type_of,
                     object: CompileMetaStruct {
@@ -457,6 +458,7 @@ impl Context {
             name.clone(),
             CompileMeta {
                 span: None,
+                url: None,
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(hash),
                     item: name,
@@ -486,6 +488,7 @@ impl Context {
             name.clone(),
             CompileMeta {
                 span: None,
+                url: None,
                 kind: CompileMetaKind::Macro { item: name },
             },
         );
@@ -580,6 +583,7 @@ impl Context {
             enum_item.clone(),
             CompileMeta {
                 span: None,
+                url: None,
                 kind: CompileMetaKind::Enum {
                     type_of: Type::from(internal_enum.static_type),
                     item: enum_item.clone(),
@@ -619,6 +623,7 @@ impl Context {
 
             let meta = CompileMeta {
                 span: None,
+                url: None,
                 kind: CompileMetaKind::TupleVariant {
                     type_of: variant.type_of,
                     enum_item: enum_item.clone(),
@@ -670,6 +675,7 @@ impl Context {
         let meta = match enum_item {
             Some(enum_item) => CompileMeta {
                 span: None,
+                url: None,
                 kind: CompileMetaKind::TupleVariant {
                     type_of,
                     enum_item,
@@ -678,6 +684,7 @@ impl Context {
             },
             None => CompileMeta {
                 span: None,
+                url: None,
                 kind: CompileMetaKind::Tuple { type_of, tuple },
             },
         };

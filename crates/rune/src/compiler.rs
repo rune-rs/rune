@@ -3,16 +3,15 @@ use crate::collections::HashMap;
 use crate::compile_visitor::NoopCompileVisitor;
 use crate::error::CompileError;
 use crate::error::CompileResult;
-use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::loops::Loops;
 use crate::query::{Build, BuildEntry, Query};
 use crate::scopes::{Scope, ScopeGuard, Scopes};
 use crate::traits::Compile as _;
-use crate::worker::{Expanded, IndexAst, Task, Worker};
+use crate::worker::{Expanded, Task, Worker};
 use crate::{
-    Assembly, CompileVisitor, LoadError, LoadErrorKind, Options, Resolve as _, Sources, Storage,
-    UnitBuilder, Warnings,
+    Assembly, CompileVisitor, FileSourceLoader, LoadError, LoadErrorKind, Options, Resolve as _,
+    SourceLoader, Sources, Storage, UnitBuilder, Warnings,
 };
 use runestick::{
     CompileMeta, CompileMetaKind, Context, Inst, Item, Label, Source, Span, TypeCheck,
@@ -47,6 +46,8 @@ pub fn compile(
     warnings: &mut Warnings,
 ) -> Result<(), LoadError> {
     let mut visitor = NoopCompileVisitor::new();
+    let mut source_loader = FileSourceLoader::new();
+
     compile_with_options(
         context,
         sources,
@@ -54,7 +55,9 @@ pub fn compile(
         warnings,
         &Default::default(),
         &mut visitor,
+        &mut source_loader,
     )?;
+
     Ok(())
 }
 
@@ -66,38 +69,18 @@ pub fn compile_with_options(
     warnings: &mut Warnings,
     options: &Options,
     visitor: &mut dyn CompileVisitor,
+    source_loader: &mut dyn SourceLoader,
 ) -> Result<(), LoadError> {
     // Global storage.
     let storage = Storage::new();
     // Worker queue.
     let mut queue = VecDeque::new();
 
-    while let Some((item, source_id)) = sources.next_source() {
-        let source = match sources.get(source_id).cloned() {
-            Some(source) => source,
-            None => return Err(LoadError::internal("missing queued source by id")),
-        };
-
-        let file = match crate::parse_all::<ast::File>(source.as_str()) {
-            Ok(file) => file,
-            Err(error) => {
-                return Err(LoadError::from(LoadErrorKind::ParseError {
-                    source_id,
-                    error,
-                }))
-            }
-        };
-
-        let items = Items::new(item.clone().into_vec());
-
-        queue.push_back(Task::Index {
-            item,
-            items,
+    // Queue up the initial sources to be loaded.
+    for source_id in sources.source_ids() {
+        queue.push_back(Task::LoadFile {
+            item: Item::new(),
             source_id,
-            source,
-            scopes: IndexScopes::new(),
-            impl_items: Default::default(),
-            ast: IndexAst::File(file),
         });
     }
 
@@ -109,6 +92,8 @@ pub fn compile_with_options(
         options,
         unit.clone(),
         warnings,
+        visitor,
+        source_loader,
         storage.clone(),
     );
 
@@ -128,7 +113,7 @@ pub fn compile_with_options(
                 query: &mut worker.query,
                 entry,
                 expanded: &worker.expanded,
-                visitor,
+                visitor: worker.visitor,
             }) {
                 return Err(LoadError::from(LoadErrorKind::CompileError {
                     source_id,
@@ -137,7 +122,7 @@ pub fn compile_with_options(
             }
         }
 
-        match worker.query.queue_unused_entries(visitor) {
+        match worker.query.queue_unused_entries(worker.visitor) {
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
@@ -399,7 +384,11 @@ impl<'a> Compiler<'a> {
 
         if let Some(meta) = self.context.lookup_meta(name) {
             log::trace!("found in context: {:?}", meta);
-            self.visitor.visit_meta(&meta, span);
+
+            if let Some(url) = self.source.url() {
+                self.visitor.visit_meta(url, &meta, span);
+            }
+
             return Ok(Some(meta));
         }
 
@@ -411,7 +400,11 @@ impl<'a> Compiler<'a> {
 
             if let Some(meta) = self.query.query_meta(&current)? {
                 log::trace!("found in query: {:?}", meta);
-                self.visitor.visit_meta(&meta, span);
+
+                if let Some(url) = self.source.url() {
+                    self.visitor.visit_meta(url, &meta, span);
+                }
+
                 return Ok(Some(meta));
             }
 

@@ -1,12 +1,11 @@
-use runestick::{Item, Source};
-use std::collections::VecDeque;
+use crate::SourceId;
+use runestick::Source;
 use std::sync::Arc;
 
 /// A collection of source files, and a queue of things to compile.
 #[derive(Debug, Default)]
 pub struct Sources {
     sources: Vec<Arc<Source>>,
-    queue: VecDeque<(Item, usize)>,
 }
 
 impl Sources {
@@ -14,7 +13,6 @@ impl Sources {
     pub fn new() -> Self {
         Self {
             sources: Vec::new(),
-            queue: VecDeque::new(),
         }
     }
 
@@ -23,17 +21,17 @@ impl Sources {
         self.sources.get(source_id)
     }
 
-    /// Insert a new source and return its associated id.
-    pub fn insert(&mut self, item: Item, source: Source) -> usize {
-        let source_id = self.sources.len();
-        self.queue.push_back((item, source_id));
-        self.sources.push(Arc::new(source));
-        source_id
+    /// Insert a source to be built and return its id.
+    #[deprecated = "use `insert` instead"]
+    pub fn insert_default(&mut self, source: Source) -> usize {
+        self.insert(source)
     }
 
-    /// Insert a new source and return its associated id.
-    pub fn insert_default(&mut self, source: Source) -> usize {
-        self.insert(Item::default(), source)
+    /// Insert a source to be built and return its id.
+    pub fn insert(&mut self, source: Source) -> usize {
+        let source_id = self.sources.len();
+        self.sources.push(Arc::new(source));
+        source_id
     }
 
     /// Get the source matching the given source id.
@@ -41,9 +39,9 @@ impl Sources {
         self.sources.get(source_id)
     }
 
-    /// Get the next source in the queue to compile.
-    pub(crate) fn next_source(&mut self) -> Option<(Item, usize)> {
-        self.queue.pop_front()
+    /// Get all available source ids.
+    pub(crate) fn source_ids(&self) -> impl Iterator<Item = SourceId> {
+        0..self.sources.len()
     }
 
     /// Iterate over all sources in order by index.

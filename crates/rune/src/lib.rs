@@ -107,7 +107,7 @@
 //!     let mut warnings = rune::Warnings::new();
 //!     let mut sources = rune::Sources::new();
 //!
-//!     sources.insert_default(Source::new(
+//!     sources.insert(Source::new(
 //!         "script",
 //!         r#"
 //!         fn calculate(a, b) {
@@ -187,6 +187,7 @@ mod parser;
 mod query;
 mod quote;
 mod scopes;
+mod source_loader;
 mod sources;
 mod storage;
 mod token_stream;
@@ -214,6 +215,7 @@ pub use crate::macro_context::MacroContext;
 pub use crate::options::Options;
 pub use crate::parser::Parser;
 pub use crate::scopes::Var;
+pub use crate::source_loader::{FileSourceLoader, SourceLoader};
 pub use crate::sources::Sources;
 pub use crate::storage::Storage;
 pub use crate::token_stream::{IntoTokens, TokenStream, TokenStreamIter};

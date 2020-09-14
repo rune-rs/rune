@@ -10,7 +10,7 @@ fn main() -> runestick::Result<()> {
     context.install(&module)?;
 
     let mut sources = Sources::new();
-    sources.insert_default(Source::new("test", r#"fn main(a) { add(a) }"#));
+    sources.insert(Source::new("test", r#"fn main(a) { add(a) }"#));
 
     let unit = rune::load_sources(
         &context,

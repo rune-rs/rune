@@ -18,7 +18,7 @@ async fn main() -> runestick::Result<()> {
     let mut warnings = Warnings::disabled();
     let mut sources = Sources::new();
 
-    sources.insert_default(Source::new(
+    sources.insert(Source::new(
         "test",
         r#"
         fn main(number) {

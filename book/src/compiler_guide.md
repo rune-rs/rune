@@ -8,7 +8,7 @@ people who want to hack on it.
 Compiling a rune program involves the following stages:
 
 * Parse and queue the initial source files into [`AST`], specified by
-  [`Source::insert_default`].
+  [`Source::insert`].
 * **Indexing and macro expansion**, which processes tasks in the [`Worker`]
   queue until it is empty. These are:
   * `Task::Index` - Index language items.
@@ -19,7 +19,7 @@ Compiling a rune program involves the following stages:
 * **Compilation** which processes a queue of items to be compiled.
 
 [`AST`]: https://github.com/rune-rs/rune/tree/master/crates/rune/src/ast
-[`Source::insert_default`]: https://docs.rs/runestick/0/runestick/struct.Source.html#method.insert_default
+[`Source::insert`]: https://docs.rs/runestick/0/runestick/struct.Source.html#method.insert
 [`Worker`]: https://github.com/rune-rs/rune/blob/master/crates/rune/src/worker.rs
 
 ## Indexing

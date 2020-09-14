@@ -109,7 +109,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut warnings = rune::Warnings::new();
     let mut sources = rune::Sources::new();
 
-    sources.insert_default(Source::new(
+    sources.insert(Source::new(
         "script",
         r#"
         fn calculate(a, b) {

@@ -119,7 +119,7 @@ fn rhs_needs_of(op: ast::BinOp) -> Needs {
 }
 
 fn compile_assign_binop(
-    compiler: &mut Compiler<'_>,
+    this: &mut Compiler<'_>,
     lhs: &ast::Expr,
     rhs: &ast::Expr,
     bin_op: ast::BinOp,
@@ -132,13 +132,13 @@ fn compile_assign_binop(
         let supported = match lhs {
             // <var> = <value>
             ast::Expr::Path(path) if path.rest.is_empty() => {
-                compiler.compile((rhs, Needs::Value))?;
+                this.compile((rhs, Needs::Value))?;
 
-                let ident = path.first.resolve(compiler.storage, &*compiler.source)?;
-                let var = compiler.scopes.get_var(&*ident, compiler.visitor, span)?;
-                compiler
-                    .asm
-                    .push(Inst::Replace { offset: var.offset }, span);
+                let ident = path.first.resolve(this.storage, &*this.source)?;
+                let var = this
+                    .scopes
+                    .get_var(&*ident, this.source.url(), this.visitor, span)?;
+                this.asm.push(Inst::Replace { offset: var.offset }, span);
 
                 true
             }
@@ -149,36 +149,33 @@ fn compile_assign_binop(
                     ast::ExprField::Ident(index) => {
                         let span = index.span();
 
-                        let index = index.resolve(compiler.storage, &*compiler.source)?;
-                        let index = compiler
-                            .unit
-                            .borrow_mut()
-                            .new_static_string(index.as_ref())?;
+                        let index = index.resolve(this.storage, &*this.source)?;
+                        let index = this.unit.borrow_mut().new_static_string(index.as_ref())?;
 
-                        compiler.compile((rhs, Needs::Value))?;
-                        compiler.scopes.decl_anon(rhs.span())?;
+                        this.compile((rhs, Needs::Value))?;
+                        this.scopes.decl_anon(rhs.span())?;
 
-                        compiler.asm.push(Inst::String { slot: index }, span);
-                        compiler.scopes.decl_anon(span)?;
+                        this.asm.push(Inst::String { slot: index }, span);
+                        this.scopes.decl_anon(span)?;
 
-                        compiler.compile((&*field_access.expr, Needs::Value))?;
-                        compiler.asm.push(Inst::IndexSet, span);
-                        compiler.scopes.undecl_anon(2, span)?;
+                        this.compile((&*field_access.expr, Needs::Value))?;
+                        this.asm.push(Inst::IndexSet, span);
+                        this.scopes.undecl_anon(2, span)?;
                         true
                     }
                     ast::ExprField::LitNumber(field) => {
                         let span = field.span();
-                        let number = field.resolve(compiler.storage, &*compiler.source)?;
+                        let number = field.resolve(this.storage, &*this.source)?;
                         let index = number
                             .into_tuple_index()
                             .ok_or_else(|| CompileError::UnsupportedTupleIndex { number, span })?;
 
-                        compiler.compile((rhs, Needs::Value))?;
-                        compiler.scopes.decl_anon(rhs.span())?;
+                        this.compile((rhs, Needs::Value))?;
+                        this.scopes.decl_anon(rhs.span())?;
 
-                        compiler.compile((&*field_access.expr, Needs::Value))?;
-                        compiler.asm.push(Inst::TupleIndexSet { index }, span);
-                        compiler.scopes.undecl_anon(1, span)?;
+                        this.compile((&*field_access.expr, Needs::Value))?;
+                        this.asm.push(Inst::TupleIndexSet { index }, span);
+                        this.scopes.undecl_anon(1, span)?;
                         true
                     }
                 }
@@ -193,8 +190,10 @@ fn compile_assign_binop(
         let supported = match lhs {
             // <var> <op> <expr>
             ast::Expr::Path(path) if path.rest.is_empty() => {
-                let ident = path.first.resolve(compiler.storage, &*compiler.source)?;
-                let var = compiler.scopes.get_var(&*ident, compiler.visitor, span)?;
+                let ident = path.first.resolve(this.storage, &*this.source)?;
+                let var = this
+                    .scopes
+                    .get_var(&*ident, this.source.url(), this.visitor, span)?;
                 Some(var.offset)
             }
             // Note: we would like to support assign operators for tuples and
@@ -213,38 +212,38 @@ fn compile_assign_binop(
             }
         };
 
-        compiler.compile((rhs, Needs::Value))?;
+        this.compile((rhs, Needs::Value))?;
 
         match bin_op {
             ast::BinOp::AddAssign => {
-                compiler.asm.push(Inst::AddAssign { offset }, span);
+                this.asm.push(Inst::AddAssign { offset }, span);
             }
             ast::BinOp::SubAssign => {
-                compiler.asm.push(Inst::SubAssign { offset }, span);
+                this.asm.push(Inst::SubAssign { offset }, span);
             }
             ast::BinOp::MulAssign => {
-                compiler.asm.push(Inst::MulAssign { offset }, span);
+                this.asm.push(Inst::MulAssign { offset }, span);
             }
             ast::BinOp::DivAssign => {
-                compiler.asm.push(Inst::DivAssign { offset }, span);
+                this.asm.push(Inst::DivAssign { offset }, span);
             }
             ast::BinOp::RemAssign => {
-                compiler.asm.push(Inst::RemAssign { offset }, span);
+                this.asm.push(Inst::RemAssign { offset }, span);
             }
             ast::BinOp::BitAndAssign => {
-                compiler.asm.push(Inst::BitAndAssign { offset }, span);
+                this.asm.push(Inst::BitAndAssign { offset }, span);
             }
             ast::BinOp::BitXorAssign => {
-                compiler.asm.push(Inst::BitXorAssign { offset }, span);
+                this.asm.push(Inst::BitXorAssign { offset }, span);
             }
             ast::BinOp::BitOrAssign => {
-                compiler.asm.push(Inst::BitOrAssign { offset }, span);
+                this.asm.push(Inst::BitOrAssign { offset }, span);
             }
             ast::BinOp::ShlAssign => {
-                compiler.asm.push(Inst::ShlAssign { offset }, span);
+                this.asm.push(Inst::ShlAssign { offset }, span);
             }
             ast::BinOp::ShrAssign => {
-                compiler.asm.push(Inst::ShrAssign { offset }, span);
+                this.asm.push(Inst::ShrAssign { offset }, span);
             }
             _ => {
                 return Err(CompileError::UnsupportedBinaryExpr { span });
@@ -253,7 +252,7 @@ fn compile_assign_binop(
     }
 
     if needs.value() {
-        compiler.asm.push(Inst::Unit, span);
+        this.asm.push(Inst::Unit, span);
     }
 
     Ok(())
