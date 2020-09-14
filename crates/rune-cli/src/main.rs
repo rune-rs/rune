@@ -45,7 +45,7 @@
 //! [Rune Language]: https://github.com/rune-rs/rune
 //! [runestick]: https://github.com/rune-rs/rune
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::EmitDiagnostics as _;
 use std::fs;
@@ -54,7 +54,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
 
-use runestick::{Item, Unit, Value, VmExecution};
+use runestick::{Unit, Value, VmExecution};
 
 #[derive(Default, Debug, Clone, StructOpt)]
 #[structopt(name = "rune", about = "The Rune Language")]
@@ -169,10 +169,13 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         context.install(&rune_macros::module()?)?;
     }
 
+    let source = runestick::Source::from_path(path)
+        .with_context(|| format!("reading file: {}", path.display()))?;
+
     let context = Arc::new(context);
     let mut sources = rune::Sources::new();
-    let mut errors = rune::Errors::new();
-    let mut warnings = rune::Warnings::new();
+
+    sources.insert(source);
 
     let use_cache = options.bytecode && should_cache_be_used(&path, &bytecode_path)?;
     let maybe_unit = if use_cache {
@@ -196,6 +199,9 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         None => {
             log::trace!("building file: {}", path.display());
 
+            let mut errors = rune::Errors::new();
+            let mut warnings = rune::Warnings::new();
+
             let unit = match rune::load_sources(
                 &*context,
                 &options,
@@ -217,14 +223,14 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 bincode::serialize_into(f, &unit)?;
             }
 
+            if !warnings.is_empty() {
+                let mut writer = StandardStream::stderr(ColorChoice::Always);
+                warnings.emit_diagnostics(&mut writer, &sources)?;
+            }
+
             Arc::new(unit)
         }
     };
-
-    if !warnings.is_empty() {
-        let mut writer = StandardStream::stderr(ColorChoice::Always);
-        warnings.emit_diagnostics(&mut writer, &sources)?;
-    }
 
     let vm = runestick::Vm::new(context.clone(), unit.clone());
 
@@ -346,7 +352,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
     let last = std::time::Instant::now();
 
-    let mut execution: runestick::VmExecution = vm.execute(&Item::of(&["main"]), ())?;
+    let mut execution: runestick::VmExecution = vm.execute(&["main"], ())?;
 
     let result = if args.trace {
         match do_trace(&mut execution, &sources, args.dump_stack, args.with_source).await {
