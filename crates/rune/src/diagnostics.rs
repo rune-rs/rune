@@ -1,7 +1,9 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
 use crate::unit_builder::LinkerError;
-use crate::{CompileError, LoadError, LoadErrorKind, ParseError, Sources, WarningKind, Warnings};
+use crate::{
+    CompileError, Errors, LoadError, LoadErrorKind, ParseError, Sources, WarningKind, Warnings,
+};
 use runestick::{Span, VmError};
 use std::error::Error as _;
 use std::fmt;
@@ -29,7 +31,7 @@ pub enum DiagnosticsError {
 
 /// Helper trait for emitting diagnostics.
 ///
-/// See [load_path](crate::load_path) for how to use.
+/// See [load_sources](crate::load_sources) for how to use.
 pub trait EmitDiagnostics {
     /// Emit diagnostics for the current type.
     fn emit_diagnostics<O>(self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
@@ -37,9 +39,25 @@ pub trait EmitDiagnostics {
         O: WriteColor;
 }
 
+/// Emit error diagnostics.
+///
+/// See [load_sources](crate::load_sources) for how to use.
+impl EmitDiagnostics for Errors {
+    fn emit_diagnostics<O>(self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
+    where
+        O: WriteColor,
+    {
+        for error in self {
+            error.emit_diagnostics(out, sources)?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Emit warning diagnostics.
 ///
-/// See [load_path](crate::load_path) for how to use.
+/// See [load_sources](crate::load_sources) for how to use.
 impl EmitDiagnostics for Warnings {
     fn emit_diagnostics<O>(self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
     where
@@ -225,43 +243,37 @@ impl EmitDiagnostics for LoadError {
         let mut labels = Vec::new();
         let mut notes = Vec::new();
 
-        let (span, source_id) = match self.kind() {
-            LoadErrorKind::Internal { message } => {
+        let span = match self.kind() {
+            LoadErrorKind::Internal(message) => {
                 writeln!(out, "internal error: {}", message)?;
                 return Ok(());
             }
-            LoadErrorKind::ReadFile { error, path } => {
-                writeln!(out, "failed to read file: {}: {}", path.display(), error)?;
-                return Ok(());
-            }
-            LoadErrorKind::LinkError { errors } => {
-                for error in errors {
-                    match error {
-                        LinkerError::MissingFunction { hash, spans } => {
-                            let mut labels = Vec::new();
+            LoadErrorKind::LinkError(error) => {
+                match error {
+                    LinkerError::MissingFunction { hash, spans } => {
+                        let mut labels = Vec::new();
 
-                            for (span, source_id) in spans {
-                                labels.push(
-                                    Label::primary(*source_id, span.start..span.end)
-                                        .with_message("called here."),
-                                );
-                            }
-
-                            let diagnostic = Diagnostic::error()
-                                .with_message(format!(
-                                    "linker error: missing function with hash `{}`",
-                                    hash
-                                ))
-                                .with_labels(labels);
-
-                            term::emit(out, &config, &files, &diagnostic)?;
+                        for (span, source_id) in spans {
+                            labels.push(
+                                Label::primary(*source_id, span.start..span.end)
+                                    .with_message("called here."),
+                            );
                         }
+
+                        let diagnostic = Diagnostic::error()
+                            .with_message(format!(
+                                "linker error: missing function with hash `{}`",
+                                hash
+                            ))
+                            .with_labels(labels);
+
+                        term::emit(out, &config, &files, &diagnostic)?;
                     }
                 }
 
                 return Ok(());
             }
-            LoadErrorKind::ParseError { source_id, error } => {
+            LoadErrorKind::ParseError(error) => {
                 // we allow here single match, since it is hard to use `if let` with pattern destruction.
                 #[allow(clippy::single_match)]
                 match error {
@@ -271,11 +283,16 @@ impl EmitDiagnostics for LoadError {
                         ..
                     } => {
                         labels.push(
-                            Label::secondary(*source_id, followed_span.start..followed_span.end)
-                                .with_message("because this immediately follows"),
+                            Label::secondary(
+                                self.source_id(),
+                                followed_span.start..followed_span.end,
+                            )
+                            .with_message("because this immediately follows"),
                         );
 
-                        let binding = sources.source_at(*source_id).and_then(|s| s.source(*span));
+                        let binding = sources
+                            .source_at(self.source_id())
+                            .and_then(|s| s.source(*span));
 
                         if let Some(binding) = binding {
                             let mut note = String::new();
@@ -286,80 +303,75 @@ impl EmitDiagnostics for LoadError {
                     _ => (),
                 }
 
-                (error.span(), *source_id)
+                error.span()
             }
-            LoadErrorKind::CompileError { source_id, error } => {
-                let source_id = *source_id;
-
-                let span = match error {
-                    CompileError::ReturnLocalReferences {
-                        block,
-                        references_at,
-                        span,
-                        ..
-                    } => {
-                        for ref_span in references_at {
-                            if span.overlaps(*ref_span) {
-                                continue;
-                            }
-
-                            labels.push(
-                                Label::secondary(source_id, ref_span.start..ref_span.end)
-                                    .with_message("reference created here"),
-                            );
+            LoadErrorKind::CompileError(error) => match error {
+                CompileError::ReturnLocalReferences {
+                    block,
+                    references_at,
+                    span,
+                    ..
+                } => {
+                    for ref_span in references_at {
+                        if span.overlaps(*ref_span) {
+                            continue;
                         }
 
                         labels.push(
-                            Label::secondary(source_id, block.start..block.end)
-                                .with_message("block returned from"),
+                            Label::secondary(self.source_id(), ref_span.start..ref_span.end)
+                                .with_message("reference created here"),
                         );
-
-                        *span
                     }
-                    CompileError::DuplicateObjectKey {
-                        span,
-                        existing,
-                        object,
-                    } => {
-                        labels.push(
-                            Label::secondary(source_id, existing.start..existing.end)
-                                .with_message("previously defined here"),
-                        );
 
-                        labels.push(
-                            Label::secondary(source_id, object.start..object.end)
-                                .with_message("object being defined here"),
-                        );
+                    labels.push(
+                        Label::secondary(self.source_id(), block.start..block.end)
+                            .with_message("block returned from"),
+                    );
 
-                        *span
-                    }
-                    CompileError::ModAlreadyLoaded { span, existing, .. } => {
-                        let (existing_source_id, existing_span) = *existing;
+                    *span
+                }
+                CompileError::DuplicateObjectKey {
+                    span,
+                    existing,
+                    object,
+                } => {
+                    labels.push(
+                        Label::secondary(self.source_id(), existing.start..existing.end)
+                            .with_message("previously defined here"),
+                    );
 
-                        labels.push(
-                            Label::secondary(
-                                existing_source_id,
-                                existing_span.start..existing_span.end,
-                            )
-                            .with_message("previously loaded here"),
-                        );
+                    labels.push(
+                        Label::secondary(self.source_id(), object.start..object.end)
+                            .with_message("object being defined here"),
+                    );
 
-                        *span
-                    }
-                    error => error.span(),
-                };
+                    *span
+                }
+                CompileError::ModAlreadyLoaded { span, existing, .. } => {
+                    let (existing_source_id, existing_span) = *existing;
 
-                (span, source_id)
-            }
+                    labels.push(
+                        Label::secondary(
+                            existing_source_id,
+                            existing_span.start..existing_span.end,
+                        )
+                        .with_message("previously loaded here"),
+                    );
+
+                    *span
+                }
+                error => error.span(),
+            },
         };
 
-        if let Some(e) = self.source() {
-            labels
-                .push(Label::primary(source_id, span.start..span.end).with_message(e.to_string()));
+        if let Some(e) = self.kind().source() {
+            labels.push(
+                Label::primary(self.source_id(), span.start..span.end).with_message(e.to_string()),
+            );
         }
 
         let diagnostic = Diagnostic::error()
-            .with_message(self.to_string())
+            .with_message(self.kind().to_string())
             .with_labels(labels)
             .with_notes(notes);
 

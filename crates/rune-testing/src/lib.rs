@@ -48,50 +48,70 @@ pub use rune::ParseError::*;
 use rune::Sources;
 use rune::UnitBuilder;
 pub use rune::WarningKind::*;
-use rune::Warnings;
-pub use runestick::Result;
+use rune::{Errors, Warnings};
 pub use runestick::VmErrorKind::*;
 pub use runestick::{CompileMeta, CompileMetaKind, Function, IntoComponent, Span, Value};
+pub use runestick::{ContextError, VmError};
 use runestick::{Item, Source, Unit};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum RunError {
+    #[error("load errors")]
+    Errors(Errors),
+    #[error("vm error")]
+    VmError(#[source] VmError),
+    #[error("context error")]
+    ContextError(#[source] ContextError),
+}
 
 /// Compile the given source into a unit and collection of warnings.
-pub fn compile_source(context: &runestick::Context, source: &str) -> Result<(Unit, Warnings)> {
+pub fn compile_source(
+    context: &runestick::Context,
+    source: &str,
+) -> Result<(Unit, Warnings), Errors> {
+    let mut errors = Errors::new();
     let mut warnings = Warnings::new();
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
     let unit = Rc::new(RefCell::new(UnitBuilder::with_default_prelude()));
 
-    rune::compile(context, &mut sources, &unit, &mut warnings)?;
+    if let Err(()) = rune::compile(context, &mut sources, &unit, &mut errors, &mut warnings) {
+        return Err(errors);
+    }
 
     let unit = Rc::try_unwrap(unit).unwrap().into_inner();
     Ok((unit.into_unit(), warnings))
 }
 
 /// Call the specified function in the given script.
-pub async fn run_async<N, A, T>(function: N, args: A, source: &str) -> Result<T>
+pub async fn run_async<N, A, T>(function: N, args: A, source: &str) -> Result<T, RunError>
 where
     N: IntoIterator,
     N::Item: IntoComponent,
     A: runestick::Args,
     T: runestick::FromValue,
 {
-    let context = runestick::Context::with_default_modules()?;
-    let (unit, _) = compile_source(&context, &source)?;
+    let context = runestick::Context::with_default_modules().map_err(RunError::ContextError)?;
+    let (unit, _) = compile_source(&context, &source).map_err(RunError::Errors)?;
 
     let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));
-    let output = vm
-        .execute(&Item::of(function), args)?
-        .async_complete()
-        .await?;
 
-    Ok(T::from_value(output)?)
+    let output = vm
+        .execute(&Item::of(function), args)
+        .map_err(RunError::VmError)?
+        .async_complete()
+        .await
+        .map_err(RunError::VmError)?;
+
+    T::from_value(output).map_err(RunError::VmError)
 }
 
 /// Call the specified function in the given script.
-pub fn run<N, A, T>(function: N, args: A, source: &str) -> Result<T>
+pub fn run<N, A, T>(function: N, args: A, source: &str) -> Result<T, RunError>
 where
     N: IntoIterator,
     N::Item: IntoComponent,
@@ -142,14 +162,11 @@ macro_rules! rune {
 macro_rules! assert_parse_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
         let context = runestick::Context::with_default_modules().unwrap();
-        let err = $crate::compile_source(&context, &$source).unwrap_err();
-
-        let err = err
-            .downcast::<rune::LoadError>()
-            .expect("expected LoadError");
+        let errors = $crate::compile_source(&context, &$source).unwrap_err();
+        let err = errors.into_iter().next().expect("expected one error");
 
         match err.into_kind() {
-            rune::LoadErrorKind::ParseError { error: $pat, .. } => ($cond),
+            rune::LoadErrorKind::ParseError($pat) => ($cond),
             kind => {
                 panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
             }
@@ -187,13 +204,18 @@ macro_rules! assert_vm_error {
     // Second variant which allows for specifyinga type.
     ($ty:ty => $source:expr, $pat:pat => $cond:block) => {{
         let e = $crate::run::<_, _, $ty>(&["main"], (), $source).unwrap_err();
-        let e = e.downcast::<runestick::VmError>().expect("expected VmError");
-        let (kind, _) = e.kind().as_unwound_ref();
 
-        match kind {
+        let (e, _) = match e {
+            $crate::RunError::VmError(e) => e.into_unwound(),
+            actual => {
+                panic!("expected vm error `{}` but was `{:?}`", stringify!($pat), actual);
+            }
+        };
+
+        match e.into_kind() {
             $pat => $cond,
-            _ => {
-                panic!("expected error `{}` but was `{:?}`", stringify!($pat), e);
+            actual => {
+                panic!("expected error `{}` but was `{:?}`", stringify!($pat), actual);
             }
         }
     }};
@@ -238,14 +260,11 @@ macro_rules! assert_parse {
 macro_rules! assert_compile_error {
     ($source:expr, $pat:pat => $cond:expr) => {{
         let context = runestick::Context::with_default_modules().unwrap();
-        let err = $crate::compile_source(&context, $source).unwrap_err();
+        let e = $crate::compile_source(&context, $source).unwrap_err();
+        let e = e.into_iter().next().expect("expected one error");
 
-        let err = err
-            .downcast::<rune::LoadError>()
-            .expect("expected LoadError");
-
-        match err.into_kind() {
-            rune::LoadErrorKind::CompileError { error: $pat, .. } => ($cond),
+        match e.into_kind() {
+            rune::LoadErrorKind::CompileError($pat) => ($cond),
             kind => {
                 panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
             }

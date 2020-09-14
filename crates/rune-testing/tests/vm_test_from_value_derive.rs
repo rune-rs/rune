@@ -67,8 +67,8 @@ fn test_missing_dynamic_field() {
         }
         "#,
         MissingDynamicStructField { target, name } => {
-            assert_eq!(*target, "vm_test_from_value_derive::test_missing_dynamic_field::ProxyStruct");
-            assert_eq!(*name, "missing");
+            assert_eq!(target, "vm_test_from_value_derive::test_missing_dynamic_field::ProxyStruct");
+            assert_eq!(name, "missing");
         }
     );
 
@@ -84,8 +84,8 @@ fn test_missing_dynamic_field() {
         }
         "#,
         MissingDynamicStructTupleIndex { target, index } => {
-            assert_eq!(*target, "vm_test_from_value_derive::test_missing_dynamic_field::ProxyTuple");
-            assert_eq!(*index, 1);
+            assert_eq!(target, "vm_test_from_value_derive::test_missing_dynamic_field::ProxyTuple");
+            assert_eq!(index, 1);
         }
     );
 }

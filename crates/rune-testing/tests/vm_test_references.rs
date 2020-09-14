@@ -1,4 +1,4 @@
-use rune::{Options, Sources, Warnings};
+use rune::{Errors, Options, Sources, Warnings};
 use runestick::{Any, AnyObj, Context, Module, Shared, Source, Value, Vm, VmError};
 use std::sync::Arc;
 
@@ -27,7 +27,6 @@ fn vm_test_references() {
     let context = Arc::new(context);
 
     let mut sources = Sources::new();
-
     sources.insert(Source::new(
         "test",
         r#"
@@ -37,10 +36,13 @@ fn vm_test_references() {
         "#,
     ));
 
+    let mut errors = Errors::new();
+
     let unit = rune::load_sources(
         &context,
         &Options::default(),
         &mut sources,
+        &mut errors,
         &mut Warnings::disabled(),
     )
     .unwrap();
@@ -71,16 +73,18 @@ fn vm_test_references_error() {
     let context = Arc::new(context);
 
     let mut sources = Sources::new();
-
     sources.insert(Source::new(
         "test",
         r#"fn main(number) { take_it(number) }"#,
     ));
 
+    let mut errors = Errors::new();
+
     let unit = rune::load_sources(
         &context,
         &Options::default(),
         &mut sources,
+        &mut errors,
         &mut Warnings::disabled(),
     )
     .unwrap();

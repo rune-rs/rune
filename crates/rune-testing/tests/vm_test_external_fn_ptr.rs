@@ -1,7 +1,7 @@
 use rune_testing::*;
 
 #[test]
-fn test_external_function() -> Result<()> {
+fn test_external_function() -> runestick::Result<()> {
     // NB: here we test passing the function from one virtual machine instance
     // into another, making sure that the function holds everything it needs to
     // be called.
@@ -28,7 +28,7 @@ fn test_external_function() -> Result<()> {
 }
 
 #[test]
-fn test_external_generator() -> Result<()> {
+fn test_external_generator() -> runestick::Result<()> {
     // NB: here we test passing the generator from one virtual machine instance
     // into another, making sure that the function holds everything it needs to
     // be called.

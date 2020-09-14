@@ -1,5 +1,5 @@
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{EmitDiagnostics as _, Options, Sources, Warnings};
+use rune::{EmitDiagnostics as _, Errors, Options, Sources, Warnings};
 use runestick::{FromValue as _, Source, Vm};
 
 use std::error::Error;
@@ -9,7 +9,6 @@ use std::sync::Arc;
 async fn main() -> Result<(), Box<dyn Error>> {
     let context = Arc::new(rune::default_context()?);
     let options = Options::default();
-    let mut warnings = Warnings::new();
     let mut sources = Sources::new();
 
     sources.insert(Source::new(
@@ -22,11 +21,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "#,
     ));
 
-    let unit = match rune::load_sources(&*context, &options, &mut sources, &mut warnings) {
+    let mut warnings = Warnings::new();
+    let mut errors = Errors::new();
+
+    let unit = match rune::load_sources(
+        &*context,
+        &options,
+        &mut sources,
+        &mut errors,
+        &mut warnings,
+    ) {
         Ok(unit) => unit,
-        Err(error) => {
+        Err(rune::LoadSourcesError) => {
             let mut writer = StandardStream::stderr(ColorChoice::Always);
-            error.emit_diagnostics(&mut writer, &sources)?;
+            errors.emit_diagnostics(&mut writer, &sources)?;
             return Ok(());
         }
     };

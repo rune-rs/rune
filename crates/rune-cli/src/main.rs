@@ -171,6 +171,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
 
     let context = Arc::new(context);
     let mut sources = rune::Sources::new();
+    let mut errors = rune::Errors::new();
     let mut warnings = rune::Warnings::new();
 
     let use_cache = options.bytecode && should_cache_be_used(&path, &bytecode_path)?;
@@ -195,15 +196,20 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         None => {
             log::trace!("building file: {}", path.display());
 
-            let unit =
-                match rune::load_path(&*context, &options, &mut sources, &path, &mut warnings) {
-                    Ok(unit) => unit,
-                    Err(error) => {
-                        let mut writer = StandardStream::stderr(ColorChoice::Always);
-                        error.emit_diagnostics(&mut writer, &sources)?;
-                        return Ok(ExitCode::Failure);
-                    }
-                };
+            let unit = match rune::load_sources(
+                &*context,
+                &options,
+                &mut sources,
+                &mut errors,
+                &mut warnings,
+            ) {
+                Ok(unit) => unit,
+                Err(rune::LoadSourcesError) => {
+                    let mut writer = StandardStream::stderr(ColorChoice::Always);
+                    errors.emit_diagnostics(&mut writer, &sources)?;
+                    return Ok(ExitCode::Failure);
+                }
+            };
 
             if options.bytecode {
                 log::trace!("serializing cache: {}", bytecode_path.display());

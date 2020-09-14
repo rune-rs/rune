@@ -57,6 +57,11 @@ impl VmError {
         &*self.kind
     }
 
+    /// Access the underlying error kind while consuming the error.
+    pub fn into_kind(self) -> VmErrorKind {
+        *self.kind
+    }
+
     /// Convert into an unwinded vm error.
     pub fn into_unwinded(self, unit: &Arc<Unit>, ip: usize) -> Self {
         if let VmErrorKind::Unwound { .. } = &*self.kind {

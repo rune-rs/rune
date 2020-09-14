@@ -59,46 +59,24 @@ impl Pat {
 
     /// Parse a pattern with a starting identifier.
     pub fn parse_ident(parser: &mut Parser) -> Result<Self, ParseError> {
-        let first = parser.parse()?;
+        let path: ast::Path = parser.parse()?;
 
-        if let Some(token) = parser.token_peek()? {
-            match token.kind {
-                ast::Kind::ColonColon
-                | ast::Kind::Open(ast::Delimiter::Parenthesis)
-                | ast::Kind::Open(ast::Delimiter::Brace) => {
-                    let path = ast::Path::parse_with_first(parser, first)?;
+        let t = match parser.token_peek()? {
+            Some(t) => t,
+            None => return Ok(Self::PatPath(ast::PatPath { path })),
+        };
 
-                    if let Some(t) = parser.token_peek()? {
-                        match t.kind {
-                            ast::Kind::Open(ast::Delimiter::Parenthesis) => {
-                                return Ok(Self::PatTuple(ast::PatTuple::parse_with_path(
-                                    parser,
-                                    Some(path),
-                                )?));
-                            }
-                            ast::Kind::Open(ast::Delimiter::Brace) => {
-                                let ident = ast::LitObjectIdent::Named(path);
-
-                                return Ok(Self::PatObject(ast::PatObject::parse_with_ident(
-                                    parser, ident,
-                                )?));
-                            }
-                            _ => (),
-                        }
-                    }
-
-                    return Ok(Self::PatPath(ast::PatPath { path }));
-                }
-                _ => (),
+        Ok(match t.kind {
+            ast::Kind::Open(ast::Delimiter::Parenthesis) => {
+                Self::PatTuple(ast::PatTuple::parse_with_path(parser, Some(path))?)
             }
-        }
+            ast::Kind::Open(ast::Delimiter::Brace) => {
+                let ident = ast::LitObjectIdent::Named(path);
 
-        Ok(Self::PatPath(ast::PatPath {
-            path: ast::Path {
-                first,
-                rest: Default::default(),
-            },
-        }))
+                Self::PatObject(ast::PatObject::parse_with_ident(parser, ident)?)
+            }
+            _ => Self::PatPath(ast::PatPath { path }),
+        })
     }
 }
 

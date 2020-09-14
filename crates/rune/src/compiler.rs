@@ -10,7 +10,7 @@ use crate::scopes::{Scope, ScopeGuard, Scopes};
 use crate::traits::Compile as _;
 use crate::worker::{Expanded, Task, Worker};
 use crate::{
-    Assembly, CompileVisitor, FileSourceLoader, LoadError, LoadErrorKind, Options, Resolve as _,
+    Assembly, CompileVisitor, Errors, FileSourceLoader, LoadError, Options, Resolve as _,
     SourceLoader, Sources, Storage, UnitBuilder, Warnings,
 };
 use runestick::{
@@ -43,8 +43,9 @@ pub fn compile(
     context: &Context,
     sources: &mut Sources,
     unit: &Rc<RefCell<UnitBuilder>>,
+    errors: &mut Errors,
     warnings: &mut Warnings,
-) -> Result<(), LoadError> {
+) -> Result<(), ()> {
     let mut visitor = NoopCompileVisitor::new();
     let mut source_loader = FileSourceLoader::new();
 
@@ -52,6 +53,7 @@ pub fn compile(
         context,
         sources,
         unit,
+        errors,
         warnings,
         &Default::default(),
         &mut visitor,
@@ -66,11 +68,12 @@ pub fn compile_with_options(
     context: &Context,
     sources: &mut Sources,
     unit: &Rc<RefCell<UnitBuilder>>,
+    errors: &mut Errors,
     warnings: &mut Warnings,
     options: &Options,
     visitor: &mut dyn CompileVisitor,
     source_loader: &mut dyn SourceLoader,
-) -> Result<(), LoadError> {
+) -> Result<(), ()> {
     // Global storage.
     let storage = Storage::new();
     // Worker queue.
@@ -91,14 +94,20 @@ pub fn compile_with_options(
         sources,
         options,
         unit.clone(),
+        errors,
         warnings,
         visitor,
         source_loader,
         storage.clone(),
     );
 
-    worker.run()?;
-    verify_imports(context, &mut *unit.borrow_mut())?;
+    worker.run();
+
+    if !worker.errors.is_empty() {
+        return Err(());
+    }
+
+    verify_imports(worker.errors, context, &mut *unit.borrow_mut())?;
 
     loop {
         while let Some(entry) = worker.query.queue.pop_front() {
@@ -115,10 +124,7 @@ pub fn compile_with_options(
                 expanded: &worker.expanded,
                 visitor: worker.visitor,
             }) {
-                return Err(LoadError::from(LoadErrorKind::CompileError {
-                    source_id,
-                    error,
-                }));
+                worker.errors.push(LoadError::new(source_id, error));
             }
         }
 
@@ -126,12 +132,13 @@ pub fn compile_with_options(
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
-                return Err(LoadError::from(LoadErrorKind::CompileError {
-                    source_id,
-                    error,
-                }));
+                worker.errors.push(LoadError::new(source_id, error));
             }
         }
+    }
+
+    if !worker.errors.is_empty() {
+        return Err(());
     }
 
     Ok(())
@@ -317,27 +324,35 @@ where
     Ok(args)
 }
 
-fn verify_imports(context: &Context, unit: &mut UnitBuilder) -> Result<(), LoadError> {
+fn verify_imports(
+    errors: &mut Errors,
+    context: &Context,
+    unit: &mut UnitBuilder,
+) -> Result<(), ()> {
     for (_, entry) in unit.iter_imports() {
         if context.contains_prefix(&entry.item) || unit.contains_prefix(&entry.item) {
             continue;
         }
 
         if let Some((span, source_id)) = entry.span {
-            return Err(LoadError::from(LoadErrorKind::CompileError {
-                error: CompileError::MissingModule {
+            errors.push(LoadError::new(
+                source_id,
+                CompileError::MissingModule {
                     span,
                     item: entry.item.clone(),
                 },
-                source_id,
-            }));
+            ));
+
+            return Err(());
         } else {
-            return Err(LoadError::from(LoadErrorKind::CompileError {
-                error: CompileError::MissingPreludeModule {
+            errors.push(LoadError::new(
+                0,
+                CompileError::MissingPreludeModule {
                     item: entry.item.clone(),
                 },
-                source_id: 0,
-            }));
+            ));
+
+            return Err(());
         }
     }
 

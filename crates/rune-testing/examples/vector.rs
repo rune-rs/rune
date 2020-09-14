@@ -1,6 +1,6 @@
 use rune_testing::*;
 
-fn main() -> Result<()> {
+fn main() -> runestick::Result<()> {
     let input: Vec<i64> = vec![1, 2, 3, 4];
 
     let output: Vec<i64> = run(
