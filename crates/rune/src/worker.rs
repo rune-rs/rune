@@ -11,8 +11,8 @@ use crate::items::Items;
 use crate::macros::MacroCompiler;
 use crate::query::Query;
 use crate::{
-    CompileError, CompileVisitor, LoadError, LoadErrorKind, MacroContext, Options, Parse,
-    Resolve as _, SourceId, SourceLoader, Sources, Storage, UnitBuilder, Warnings,
+    CompileError, CompileVisitor, Errors, LoadError, MacroContext, Options, Resolve as _, SourceId,
+    SourceLoader, Sources, Storage, UnitBuilder, Warnings,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -64,6 +64,7 @@ pub(crate) struct Worker<'a> {
     context: &'a Context,
     pub(crate) sources: &'a mut Sources,
     options: &'a Options,
+    pub(crate) errors: &'a mut Errors,
     pub(crate) warnings: &'a mut Warnings,
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     pub(crate) source_loader: &'a mut dyn SourceLoader,
@@ -80,6 +81,7 @@ impl<'a> Worker<'a> {
         sources: &'a mut Sources,
         options: &'a Options,
         unit: Rc<RefCell<UnitBuilder>>,
+        errors: &'a mut Errors,
         warnings: &'a mut Warnings,
         visitor: &'a mut dyn CompileVisitor,
         source_loader: &'a mut dyn SourceLoader,
@@ -90,6 +92,7 @@ impl<'a> Worker<'a> {
             context,
             sources,
             options,
+            errors,
             warnings,
             visitor,
             source_loader,
@@ -100,22 +103,28 @@ impl<'a> Worker<'a> {
     }
 
     /// Run the worker until the task queue is empty.
-    pub(crate) fn run(&mut self) -> Result<(), LoadError> {
+    pub(crate) fn run(&mut self) {
         while let Some(task) = self.queue.pop_front() {
             match task {
                 Task::LoadFile { item, source_id } => {
                     let source = match self.sources.get(source_id).cloned() {
                         Some(source) => source,
-                        None => return Err(LoadError::internal("missing queued source by id")),
+                        None => {
+                            self.errors.push(LoadError::internal(
+                                source_id,
+                                "missing queued source by id",
+                            ));
+
+                            continue;
+                        }
                     };
 
                     let file = match crate::parse_all::<ast::File>(source.as_str()) {
                         Ok(file) => file,
                         Err(error) => {
-                            return Err(LoadError::from(LoadErrorKind::ParseError {
-                                source_id,
-                                error,
-                            }))
+                            self.errors.push(LoadError::new(source_id, error));
+
+                            continue;
                         }
                     };
 
@@ -180,10 +189,7 @@ impl<'a> Worker<'a> {
                             }
                         }
                         Err(error) => {
-                            return Err(LoadError::from(LoadErrorKind::CompileError {
-                                source_id,
-                                error,
-                            }));
+                            self.errors.push(LoadError::new(source_id, error));
                         }
                     }
                 }
@@ -192,15 +198,14 @@ impl<'a> Worker<'a> {
 
                     let source_id = import.source_id;
 
-                    if let Err(error) = import.process(
+                    let result = import.process(
                         self.context,
                         &self.query.storage,
                         &mut *self.query.unit.borrow_mut(),
-                    ) {
-                        return Err(LoadError::from(LoadErrorKind::CompileError {
-                            error,
-                            source_id,
-                        }));
+                    );
+
+                    if let Err(error) = result {
+                        self.errors.push(LoadError::new(source_id, error));
                     }
                 }
                 Task::ExpandMacro(m) => {
@@ -227,13 +232,16 @@ impl<'a> Worker<'a> {
                             // done on the correct item.
                             match items.pop() {
                                 Some(Component::Macro(..)) => (),
-                                _ => return Err(LoadError::from(LoadErrorKind::CompileError {
-                                    source_id,
-                                    error: CompileError::internal(
-                                        "expected macro item as last component of macro expansion",
-                                        span,
-                                    ),
-                                })),
+                                _ => {
+                                    self.errors.push(
+                                        LoadError::new(source_id, CompileError::internal(
+                                            "expected macro item as last component of macro expansion",
+                                            span,
+                                        ))
+                                    );
+
+                                    continue;
+                                }
                             }
                         }
                     }
@@ -241,7 +249,7 @@ impl<'a> Worker<'a> {
                     let mut macro_context =
                         MacroContext::new(self.query.storage.clone(), source.clone());
 
-                    let compiler = MacroCompiler {
+                    let mut compiler = MacroCompiler {
                         storage: self.query.storage.clone(),
                         item: item.clone(),
                         macro_context: &mut macro_context,
@@ -253,10 +261,28 @@ impl<'a> Worker<'a> {
 
                     let ast = match kind {
                         MacroKind::Expr => {
-                            IndexAst::Expr(compile_macro::<ast::Expr>(source_id, compiler, ast)?)
+                            let ast = match compiler.eval_macro::<ast::Expr>(ast) {
+                                Ok(ast) => ast,
+                                Err(error) => {
+                                    self.errors.push(LoadError::new(source_id, error));
+
+                                    continue;
+                                }
+                            };
+
+                            IndexAst::Expr(ast)
                         }
                         MacroKind::Item => {
-                            IndexAst::Item(compile_macro::<ast::Item>(source_id, compiler, ast)?)
+                            let ast = match compiler.eval_macro::<ast::Item>(ast) {
+                                Ok(ast) => ast,
+                                Err(error) => {
+                                    self.errors.push(LoadError::new(source_id, error));
+
+                                    continue;
+                                }
+                            };
+
+                            IndexAst::Item(ast)
                         }
                     };
 
@@ -272,8 +298,6 @@ impl<'a> Worker<'a> {
                 }
             }
         }
-
-        Ok(())
     }
 }
 
@@ -378,27 +402,4 @@ pub(crate) struct Macro {
     pub(crate) scopes: IndexScopes,
     pub(crate) impl_items: Vec<Item>,
     pub(crate) kind: MacroKind,
-}
-
-/// Compile the given macro, return the output from the macro.
-fn compile_macro<'a, T>(
-    source_id: usize,
-    mut compiler: MacroCompiler<'_>,
-    ast: ast::MacroCall,
-) -> Result<T, LoadError>
-where
-    T: Parse,
-    Indexer<'a>: Index<T>,
-{
-    let output = match compiler.eval_macro::<T>(ast) {
-        Ok(output) => output,
-        Err(error) => {
-            return Err(LoadError::from(LoadErrorKind::CompileError {
-                source_id,
-                error,
-            }));
-        }
-    };
-
-    Ok(output)
 }

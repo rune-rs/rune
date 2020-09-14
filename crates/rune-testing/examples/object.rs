@@ -1,7 +1,7 @@
-use rune_testing::{run, Result};
+use rune_testing::run;
 use runestick::{Object, Value};
 
-fn main() -> Result<()> {
+fn main() -> runestick::Result<()> {
     let mut object = Object::new();
     object.insert(String::from("Hello"), Value::from(42i64));
 

@@ -3,7 +3,6 @@ use anyhow::{anyhow, Result};
 use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
-use rune::{CompileVisitor, Var};
 use runestick::{CompileMeta, CompileMetaKind, Span};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -26,7 +25,13 @@ impl State {
         options: rune::Options,
     ) -> Self {
         Self {
-            inner: Arc::new(Inner::new(rebuild_tx, context, options)),
+            inner: Arc::new(Inner {
+                rebuild_tx,
+                context,
+                options,
+                initialized: Default::default(),
+                sources: Default::default(),
+            }),
         }
     }
 
@@ -110,80 +115,67 @@ impl State {
 
             sources.insert(input);
 
+            let mut errors = rune::Errors::new();
             let mut warnings = rune::Warnings::new();
             let mut visitor = Visitor::new(&mut definitions);
             let mut source_loader = SourceLoader::new(&inner.sources);
 
-            let error = rune::load_sources_with_visitor(
+            let result = rune::load_sources_with_visitor(
                 &self.inner.context,
                 &self.inner.options,
                 &mut sources,
+                &mut errors,
                 &mut warnings,
                 &mut visitor,
                 &mut source_loader,
             );
 
-            if let Err(error) = error {
-                match error.kind() {
-                    rune::LoadErrorKind::ReadFile { error, path } => {
-                        let diagnostics = by_url.entry(url.clone()).or_default();
+            if let Err(rune::LoadSourcesError) = result {
+                for error in errors {
+                    let source_id = error.source_id();
 
-                        let range = lsp::Range::default();
+                    match error.kind() {
+                        rune::LoadErrorKind::ParseError(error) => {
+                            report(
+                                &sources,
+                                &mut by_url,
+                                error.span(),
+                                source_id,
+                                error,
+                                display_to_error,
+                            );
+                        }
+                        // TODO: match the source id with the document that has the error.
+                        rune::LoadErrorKind::CompileError(error) => {
+                            report(
+                                &sources,
+                                &mut by_url,
+                                error.span(),
+                                source_id,
+                                error,
+                                display_to_error,
+                            );
+                        }
+                        rune::LoadErrorKind::LinkError(error) => match error {
+                            rune::LinkerError::MissingFunction { hash, spans } => {
+                                for (span, _) in spans {
+                                    let diagnostics = by_url.entry(url.clone()).or_default();
 
-                        diagnostics.push(display_to_error(
-                            range,
-                            format!("failed to read file: {}: {}", path.display(), error),
-                        ));
-                    }
-                    // TODO: match source id with the document that has the error.
-                    rune::LoadErrorKind::ParseError {
-                        error, source_id, ..
-                    } => {
-                        report(
-                            &sources,
-                            &mut by_url,
-                            error.span(),
-                            *source_id,
-                            error,
-                            display_to_error,
-                        );
-                    }
-                    // TODO: match the source id with the document that has the error.
-                    rune::LoadErrorKind::CompileError {
-                        error, source_id, ..
-                    } => {
-                        report(
-                            &sources,
-                            &mut by_url,
-                            error.span(),
-                            *source_id,
-                            error,
-                            display_to_error,
-                        );
-                    }
-                    rune::LoadErrorKind::LinkError { errors } => {
-                        for error in errors {
-                            match error {
-                                rune::LinkerError::MissingFunction { hash, spans } => {
-                                    for (span, _) in spans {
-                                        let diagnostics = by_url.entry(url.clone()).or_default();
+                                    let range = source.span_to_lsp_range(*span);
 
-                                        let range = source.span_to_lsp_range(*span);
-
-                                        diagnostics.push(display_to_error(
-                                            range,
-                                            format!("missing function with hash `{}`", hash),
-                                        ));
-                                    }
+                                    diagnostics.push(display_to_error(
+                                        range,
+                                        format!("missing function with hash `{}`", hash),
+                                    ));
                                 }
                             }
-                        }
-                    }
-                    rune::LoadErrorKind::Internal { message } => {
-                        let diagnostics = by_url.entry(url.clone()).or_default();
+                        },
+                        rune::LoadErrorKind::Internal(message) => {
+                            let diagnostics = by_url.entry(url.clone()).or_default();
 
-                        let range = lsp::Range::default();
-                        diagnostics.push(display_to_error(range, message));
+                            let range = lsp::Range::default();
+                            diagnostics.push(display_to_error(range, message));
+                        }
                     }
                 }
             }
@@ -223,34 +215,17 @@ impl State {
 }
 
 struct Inner {
+    /// Sender to indicate interest in rebuilding the project.
+    /// Can be triggered on modification.
+    rebuild_tx: mpsc::Sender<()>,
     /// The rune context to build for.
     context: runestick::Context,
     /// Build options.
     options: rune::Options,
-    /// Sender to indicate interest in rebuilding the project.
-    /// Can be triggered on modification.
-    rebuild_tx: mpsc::Sender<()>,
     /// Indicate if the server is initialized.
     initialized: AtomicBool,
     /// Sources used in the project.
     sources: RwLock<Sources>,
-}
-
-impl Inner {
-    /// Construct a new empty inner state.
-    pub fn new(
-        rebuild_tx: mpsc::Sender<()>,
-        context: runestick::Context,
-        options: rune::Options,
-    ) -> Self {
-        Self {
-            context,
-            options,
-            rebuild_tx,
-            initialized: Default::default(),
-            sources: Default::default(),
-        }
-    }
 }
 
 /// A collection of open sources.
@@ -499,8 +474,6 @@ pub enum DefinitionKind {
     Enum,
     /// A function.
     Function,
-    /// A defined closure.
-    Closure,
     /// A local variable.
     Local,
     /// A module that can be jumped to.
@@ -518,7 +491,7 @@ impl<'a> Visitor<'a> {
     }
 }
 
-impl CompileVisitor for Visitor<'_> {
+impl rune::CompileVisitor for Visitor<'_> {
     fn visit_meta(&mut self, url: &Url, meta: &CompileMeta, span: Span) {
         let kind = match &meta.kind {
             CompileMetaKind::Tuple { .. } => DefinitionKind::Tuple,
@@ -527,9 +500,7 @@ impl CompileVisitor for Visitor<'_> {
             CompileMetaKind::StructVariant { .. } => DefinitionKind::StructVariant,
             CompileMetaKind::Enum { .. } => DefinitionKind::Enum,
             CompileMetaKind::Function { .. } => DefinitionKind::Function,
-            CompileMetaKind::Closure { .. } => DefinitionKind::Closure,
-            CompileMetaKind::AsyncBlock { .. } => return,
-            CompileMetaKind::Macro { .. } => return,
+            _ => return,
         };
 
         let definition = Definition {
@@ -545,7 +516,7 @@ impl CompileVisitor for Visitor<'_> {
         }
     }
 
-    fn visit_variable_use(&mut self, url: &Url, var: &Var, span: Span) {
+    fn visit_variable_use(&mut self, url: &Url, var: &rune::Var, span: Span) {
         if let Some(index) = self.indexes.get_mut(url) {
             let definition = Definition {
                 span: Some(var.span()),

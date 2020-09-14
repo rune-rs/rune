@@ -104,9 +104,8 @@
 //! async fn main() -> Result<(), Box<dyn Error>> {
 //!     let context = Arc::new(rune::default_context()?);
 //!     let options = rune::Options::default();
-//!     let mut warnings = rune::Warnings::new();
-//!     let mut sources = rune::Sources::new();
 //!
+//!     let mut sources = rune::Sources::new();
 //!     sources.insert(Source::new(
 //!         "script",
 //!         r#"
@@ -117,11 +116,14 @@
 //!         "#,
 //!     ));
 //!
-//!     let unit = match rune::load_sources(&*context, &options, &mut sources, &mut warnings) {
+//!     let mut errors = rune::Errors::new();
+//!     let mut warnings = rune::Warnings::new();
+//!
+//!     let unit = match rune::load_sources(&*context, &options, &mut sources, &mut errors, &mut warnings) {
 //!         Ok(unit) => unit,
-//!         Err(error) => {
+//!         Err(rune::LoadSourcesError) => {
 //!             let mut writer = StandardStream::stderr(ColorChoice::Always);
-//!             error.emit_diagnostics(&mut writer, &sources)?;
+//!             errors.emit_diagnostics(&mut writer, &sources)?;
 //!             return Ok(());
 //!         }
 //!     };
@@ -209,8 +211,8 @@ pub use crate::assembly::Assembly;
 pub use crate::compile_visitor::{CompileVisitor, NoopCompileVisitor};
 pub use crate::error::{CompileError, ParseError};
 pub use crate::lexer::Lexer;
-pub use crate::load::{load_path, load_sources, load_sources_with_visitor};
-pub use crate::load_error::{LoadError, LoadErrorKind};
+pub use crate::load::{load_sources, load_sources_with_visitor, LoadSourcesError};
+pub use crate::load_error::{Errors, LoadError, LoadErrorKind};
 pub use crate::macro_context::MacroContext;
 pub use crate::options::Options;
 pub use crate::parser::Parser;
@@ -222,7 +224,7 @@ pub use crate::token_stream::{IntoTokens, TokenStream, TokenStreamIter};
 pub use crate::traits::{Parse, Peek, Resolve};
 pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
-pub use unit_builder::{ImportEntry, ImportKey, LinkerError, LinkerErrors, UnitBuilder};
+pub use unit_builder::{ImportEntry, ImportKey, LinkerError, UnitBuilder};
 
 #[cfg(feature = "diagnostics")]
 pub use diagnostics::{termcolor, DiagnosticsError, EmitDiagnostics};
@@ -232,7 +234,7 @@ pub use diagnostics::{termcolor, DiagnosticsError, EmitDiagnostics};
 /// If built with the `modules` feature, this includes all available native
 /// modules.
 ///
-/// See [load_path](crate::load_path) for how to use.
+/// See [load_sources](crate::load_sources) for how to use.
 pub fn default_context() -> Result<runestick::Context, runestick::ContextError> {
     #[allow(unused_mut)]
     let mut context = runestick::Context::with_default_modules()?;

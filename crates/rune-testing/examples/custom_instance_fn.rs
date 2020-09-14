@@ -1,4 +1,4 @@
-use rune::{Options, Sources, Warnings};
+use rune::{Errors, Options, Sources, Warnings};
 use runestick::{Context, FromValue, Module, Source, Vm};
 use std::sync::Arc;
 
@@ -15,9 +15,8 @@ async fn main() -> runestick::Result<()> {
     context.install(&my_module)?;
 
     let options = Options::default();
-    let mut warnings = Warnings::disabled();
-    let mut sources = Sources::new();
 
+    let mut sources = Sources::new();
     sources.insert(Source::new(
         "test",
         r#"
@@ -27,7 +26,10 @@ async fn main() -> runestick::Result<()> {
         "#,
     ));
 
-    let unit = rune::load_sources(&context, &options, &mut sources, &mut warnings)?;
+    let mut errors = Errors::new();
+    let mut warnings = Warnings::disabled();
+
+    let unit = rune::load_sources(&context, &options, &mut sources, &mut errors, &mut warnings)?;
 
     let vm = Vm::new(Arc::new(context), Arc::new(unit));
     let output = vm.execute(&["main"], (33i64,))?.complete()?;

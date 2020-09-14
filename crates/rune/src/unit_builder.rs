@@ -7,7 +7,7 @@ use crate::assembly::{Assembly, AssemblyInst};
 use crate::ast;
 use crate::collections::HashMap;
 use crate::error::CompileResult;
-use crate::{Resolve as _, Storage};
+use crate::{Errors, LoadError, Resolve as _, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst,
@@ -868,60 +868,30 @@ impl UnitBuilder {
     /// functions are provided.
     ///
     /// This can prevent a number of runtime errors, like missing functions.
-    pub(crate) fn link(&self, context: &Context, errors: &mut LinkerErrors) -> bool {
+    pub(crate) fn link(&self, context: &Context, errors: &mut Errors) {
         for (hash, spans) in &self.required_functions {
             if self.functions.get(hash).is_none() && context.lookup(*hash).is_none() {
-                errors.errors.push(LinkerError::MissingFunction {
-                    hash: *hash,
-                    spans: spans.clone(),
-                });
+                errors.push(LoadError::new(
+                    0,
+                    LinkerError::MissingFunction {
+                        hash: *hash,
+                        spans: spans.clone(),
+                    },
+                ));
             }
         }
-
-        errors.errors.is_empty()
     }
 }
 
 /// An error raised during linking.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum LinkerError {
     /// Missing a function with the given hash.
+    #[error("missing function with hash {hash}")]
     MissingFunction {
         /// Hash of the function.
         hash: Hash,
         /// Spans where the function is used.
         spans: Vec<(Span, usize)>,
     },
-}
-
-/// Linker errors.
-#[derive(Debug, Default)]
-pub struct LinkerErrors {
-    errors: Vec<LinkerError>,
-}
-
-impl LinkerErrors {
-    /// Construct a new collection of linker errors.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Test if error collection is empty.
-    pub fn is_empty(&self) -> bool {
-        self.errors.is_empty()
-    }
-
-    /// Return an iterator over all linker errors.
-    pub fn errors(self) -> impl Iterator<Item = LinkerError> {
-        self.errors.into_iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a LinkerErrors {
-    type IntoIter = std::slice::Iter<'a, LinkerError>;
-    type Item = <Self::IntoIter as Iterator>::Item;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.errors.iter()
-    }
 }

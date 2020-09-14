@@ -1,7 +1,7 @@
-use rune_testing::{run, Result};
+use rune_testing::run;
 use runestick::VecTuple;
 
-fn main() -> Result<()> {
+fn main() -> runestick::Result<()> {
     let input: VecTuple<(i64, String)> = VecTuple::new((1, String::from("Hello")));
 
     let output: VecTuple<(i64, String)> = run(

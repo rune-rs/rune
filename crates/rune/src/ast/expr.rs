@@ -472,11 +472,11 @@ impl Expr {
                         Expr::Path(path) => {
                             let span = path.span();
 
-                            if let Some(name) = path.try_into_ident() {
+                            if let Some(name) = path.try_as_ident() {
                                 expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
                                     expr: Box::new(expr),
                                     dot,
-                                    expr_field: ast::ExprField::Ident(name),
+                                    expr_field: ast::ExprField::Ident(name.clone()),
                                 });
 
                                 continue;

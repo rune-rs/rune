@@ -1,26 +1,74 @@
-use crate::unit_builder::LinkerErrors;
+use crate::unit_builder::LinkerError;
 use crate::{CompileError, ParseError};
-use std::io;
-use std::path::PathBuf;
 use thiserror::Error;
 
+/// A collection of errors.
+#[derive(Debug)]
+pub struct Errors {
+    errors: Vec<LoadError>,
+}
+
+impl Errors {
+    /// Construct a new collection of errors.
+    pub fn new() -> Self {
+        Self { errors: Vec::new() }
+    }
+
+    /// Push an error to the collection.
+    pub fn push(&mut self, error: LoadError) {
+        self.errors.push(error);
+    }
+
+    /// Test if the collection of errors is empty.
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty()
+    }
+}
+
+impl IntoIterator for Errors {
+    type Item = LoadError;
+    type IntoIter = std::vec::IntoIter<LoadError>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.errors.into_iter()
+    }
+}
+
 /// An error raised when using one of the `load_*` functions.
-#[derive(Debug, Error)]
-#[error(transparent)]
+#[derive(Debug)]
 pub struct LoadError {
+    /// The source id of the error.
+    source_id: usize,
     /// The kind of the load error.
     kind: Box<LoadErrorKind>,
 }
 
 impl LoadError {
+    /// Construct a new load error.
+    pub fn new<E>(source_id: usize, err: E) -> Self
+    where
+        LoadErrorKind: From<E>,
+    {
+        Self {
+            source_id,
+            kind: Box::new(LoadErrorKind::from(err)),
+        }
+    }
+
     /// Construct an internal error.
     ///
     /// This should be used for programming invariants of the compiler which are
     /// broken for some reason.
-    pub fn internal(message: &'static str) -> Self {
+    pub fn internal(source_id: usize, message: &'static str) -> Self {
         Self {
-            kind: Box::new(LoadErrorKind::Internal { message }),
+            source_id,
+            kind: Box::new(LoadErrorKind::Internal(message)),
         }
+    }
+
+    /// The source id where the error originates from.
+    pub fn source_id(&self) -> usize {
+        self.source_id
     }
 
     /// The kind of the load error.
@@ -34,57 +82,31 @@ impl LoadError {
     }
 }
 
-impl<E> From<E> for LoadError
-where
-    LoadErrorKind: From<E>,
-{
-    fn from(err: E) -> Self {
-        Self {
-            kind: Box::new(LoadErrorKind::from(err)),
-        }
-    }
-}
-
 /// The kind of the load error.
 #[derive(Debug, Error)]
 pub enum LoadErrorKind {
-    /// Failed to read the given file.
-    #[error("failed to read file: {path}: {error}")]
-    ReadFile {
-        /// The source error.
-        #[source]
-        error: io::Error,
-        /// The path that we couldn't read.
-        path: PathBuf,
-    },
     /// Parse error.
     #[error("parse error")]
-    ParseError {
-        /// The source error.
+    ParseError(
+        #[from]
         #[source]
-        error: ParseError,
-        /// The source id of the error.
-        source_id: usize,
-    },
+        ParseError,
+    ),
     /// Compiler error.
     #[error("compile error")]
-    CompileError {
-        /// The source error.
+    CompileError(
+        #[from]
         #[source]
-        error: CompileError,
-        /// The source id of the error.
-        source_id: usize,
-    },
+        CompileError,
+    ),
     /// A linker error occured.
     #[error("linker error")]
-    LinkError {
-        /// Errors that happened during linking.
-        errors: LinkerErrors,
-    },
+    LinkError(
+        #[from]
+        #[source]
+        LinkerError,
+    ),
     /// An internal error.
-    #[error("internal error: {message}")]
-    Internal {
-        /// The message of the internal error.
-        message: &'static str,
-    },
+    #[error("internal error: {0}")]
+    Internal(&'static str),
 }

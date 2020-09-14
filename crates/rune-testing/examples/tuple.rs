@@ -1,6 +1,6 @@
-use rune_testing::{run, Result};
+use rune_testing::run;
 
-fn main() -> Result<()> {
+fn main() -> runestick::Result<()> {
     let object: (i64, i64) = run(
         &["calc"],
         ((1, 2),),

@@ -13,45 +13,33 @@ pub struct Path {
     pub first: ast::Ident,
     /// The rest of the components in the path.
     pub rest: Vec<(ast::Scope, ast::Ident)>,
+    /// Trailing scope.
+    pub trailing: Option<ast::Scope>,
 }
 
 impl Path {
-    /// Convert into an identifier used for field access calls.
-    ///
-    /// This is only allowed if there are no other path components.
-    pub fn try_into_ident(self) -> Option<ast::Ident> {
-        if !self.rest.is_empty() {
-            return None;
-        }
-
-        Some(self.first)
-    }
-
     /// Borrow as an identifier used for field access calls.
     ///
     /// This is only allowed if there are no other path components.
     pub fn try_as_ident(&self) -> Option<&ast::Ident> {
-        if !self.rest.is_empty() {
-            return None;
+        if self.rest.is_empty() && self.trailing.is_none() {
+            Some(&self.first)
+        } else {
+            None
         }
-
-        Some(&self.first)
     }
 
     /// Calculate the full span of the path.
     pub fn span(&self) -> Span {
-        match self.rest.last() {
-            Some((_, ident)) => self.first.span().join(ident.span()),
-            None => self.first.span(),
+        if let Some(trailing) = &self.trailing {
+            return self.first.span().join(trailing.span());
         }
-    }
 
-    /// Parse with the first identifier already parsed.
-    pub fn parse_with_first(parser: &mut Parser, first: ast::Ident) -> Result<Self, ParseError> {
-        Ok(Self {
-            first,
-            rest: parser.parse()?,
-        })
+        if let Some((_, ident)) = self.rest.last() {
+            return self.first.span().join(ident.span());
+        }
+
+        self.first.span()
     }
 
     /// Iterate over all components in path.
@@ -82,8 +70,11 @@ impl Peek for Path {
 
 impl Parse for Path {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let first = parser.parse()?;
-        Self::parse_with_first(parser, first)
+        Ok(Self {
+            first: parser.parse()?,
+            rest: parser.parse()?,
+            trailing: parser.parse()?,
+        })
     }
 }
 
