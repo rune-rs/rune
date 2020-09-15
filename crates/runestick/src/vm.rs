@@ -1,13 +1,51 @@
 use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
-    Args, Awaited, Bytes, Call, Context, FromValue, Function, Future, Generator, GuardedArgs, Hash,
-    Inst, IntoHash, Object, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject,
-    Unit, Value, VariantObject, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    Args, Awaited, BorrowMut, Bytes, Call, Context, FromValue, Function, Future, Generator,
+    GuardedArgs, Hash, Inst, InstNumericOp, InstTarget, IntoHash, Object, Panic, Select, Shared,
+    Stack, Stream, Tuple, TypeCheck, TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind,
+    VmExecution, VmHalt, VmIntegerRepr,
 };
 use std::fmt;
 use std::mem;
 use std::sync::Arc;
+
+macro_rules! target_value {
+    ($vm:ident, $target:expr, $guard:ident, $lhs:ident) => {{
+        let rhs = $vm.stack.pop()?;
+
+        let lhs = match $target {
+            InstTarget::Offset(offset) => $vm.stack.at_offset_mut(offset)?,
+            InstTarget::TupleField(index) => {
+                $lhs = $vm.stack.pop()?;
+
+                if let Some(value) = Vm::try_tuple_like_index_get_mut(&$lhs, index)? {
+                    $guard = value;
+                    &mut *$guard
+                } else {
+                    return Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
+                        target: $lhs.type_info()?,
+                    }));
+                }
+            }
+            InstTarget::Field(field) => {
+                let field = $vm.unit.lookup_string(field)?;
+                $lhs = $vm.stack.pop()?;
+
+                if let Some(value) = Vm::try_object_like_index_get_mut(&$lhs, field)? {
+                    $guard = value;
+                    &mut *$guard
+                } else {
+                    return Err(VmError::from(VmErrorKind::UnsupportedTupleIndexGet {
+                        target: $lhs.type_info()?,
+                    }));
+                }
+            }
+        };
+
+        (lhs, rhs)
+    }};
+}
 
 /// A stack which references variables indirectly from a slab.
 #[derive(Debug, Clone)]
@@ -592,224 +630,178 @@ impl Vm {
     }
 
     #[inline]
-    fn op_add(&mut self) -> Result<(), VmError> {
-        self.internal_num(
-            crate::ADD,
-            || VmError::from(VmErrorKind::Overflow),
-            i64::checked_add,
-            std::ops::Add::add,
-            "+",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_sub(&mut self) -> Result<(), VmError> {
-        self.internal_num(
-            crate::SUB,
-            || VmError::from(VmErrorKind::Underflow),
-            i64::checked_sub,
-            std::ops::Sub::sub,
-            "-",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_mul(&mut self) -> Result<(), VmError> {
-        self.internal_num(
-            crate::ADD,
-            || VmError::from(VmErrorKind::Overflow),
-            i64::checked_mul,
-            std::ops::Mul::mul,
-            "*",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_div(&mut self) -> Result<(), VmError> {
-        self.internal_num(
-            crate::ADD,
-            || VmError::from(VmErrorKind::DivideByZero),
-            i64::checked_div,
-            std::ops::Div::div,
-            "+",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_rem(&mut self) -> Result<(), VmError> {
-        self.internal_num(
-            crate::REM,
-            || VmError::from(VmErrorKind::DivideByZero),
-            i64::checked_rem,
-            std::ops::Rem::rem,
-            "%",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_bit_and(&mut self) -> Result<(), VmError> {
-        self.internal_infallible_bitwise(crate::BIT_AND, std::ops::BitAnd::bitand, "&")?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_bit_xor(&mut self) -> Result<(), VmError> {
-        self.internal_infallible_bitwise(crate::BIT_XOR, std::ops::BitXor::bitxor, "^")?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_bit_or(&mut self) -> Result<(), VmError> {
-        self.internal_infallible_bitwise(crate::BIT_OR, std::ops::BitOr::bitor, "|")?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_bit_and_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_infallible_bitwise_assign(
-            offset,
-            crate::BIT_AND_ASSIGN,
-            std::ops::BitAndAssign::bitand_assign,
-            "&=",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_bit_xor_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_infallible_bitwise_assign(
-            offset,
-            crate::BIT_XOR_ASSIGN,
-            std::ops::BitXorAssign::bitxor_assign,
-            "^=",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_bit_or_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_infallible_bitwise_assign(
-            offset,
-            crate::BIT_OR_ASSIGN,
-            std::ops::BitOrAssign::bitor_assign,
-            "|=",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_shl(&mut self) -> Result<(), VmError> {
+    fn op_stack_numeric(&mut self, op: InstNumericOp) -> Result<(), VmError> {
         use std::convert::TryFrom as _;
 
-        self.internal_bitwise(
-            crate::SHL,
-            || VmError::from(VmErrorKind::Overflow),
-            |a, b| a.checked_shl(u32::try_from(b).ok()?),
-            "<<",
-        )?;
+        match op {
+            InstNumericOp::Add => {
+                self.internal_num(
+                    crate::ADD,
+                    || VmError::from(VmErrorKind::Overflow),
+                    i64::checked_add,
+                    std::ops::Add::add,
+                    "+",
+                )?;
+            }
+            InstNumericOp::Sub => {
+                self.internal_num(
+                    crate::SUB,
+                    || VmError::from(VmErrorKind::Underflow),
+                    i64::checked_sub,
+                    std::ops::Sub::sub,
+                    "-",
+                )?;
+            }
+            InstNumericOp::Mul => {
+                self.internal_num(
+                    crate::ADD,
+                    || VmError::from(VmErrorKind::Overflow),
+                    i64::checked_mul,
+                    std::ops::Mul::mul,
+                    "*",
+                )?;
+            }
+            InstNumericOp::Div => {
+                self.internal_num(
+                    crate::ADD,
+                    || VmError::from(VmErrorKind::DivideByZero),
+                    i64::checked_div,
+                    std::ops::Div::div,
+                    "+",
+                )?;
+            }
+            InstNumericOp::Rem => {
+                self.internal_num(
+                    crate::REM,
+                    || VmError::from(VmErrorKind::DivideByZero),
+                    i64::checked_rem,
+                    std::ops::Rem::rem,
+                    "%",
+                )?;
+            }
+            InstNumericOp::BitAnd => {
+                self.internal_infallible_bitwise(crate::BIT_AND, std::ops::BitAnd::bitand, "&")?;
+            }
+            InstNumericOp::BitXor => {
+                self.internal_infallible_bitwise(crate::BIT_XOR, std::ops::BitXor::bitxor, "^")?;
+            }
+            InstNumericOp::BitOr => {
+                self.internal_infallible_bitwise(crate::BIT_OR, std::ops::BitOr::bitor, "|")?;
+            }
+            InstNumericOp::Shl => {
+                self.internal_bitwise(
+                    crate::SHL,
+                    || VmError::from(VmErrorKind::Overflow),
+                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
+                    "<<",
+                )?;
+            }
+            InstNumericOp::Shr => {
+                self.internal_infallible_bitwise(crate::SHR, std::ops::Shr::shr, ">>")?;
+            }
+        }
 
         Ok(())
     }
 
     #[inline]
-    fn op_shr(&mut self) -> Result<(), VmError> {
-        self.internal_infallible_bitwise(crate::SHR, std::ops::Shr::shr, ">>")?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_shl_assign(&mut self, offset: usize) -> Result<(), VmError> {
+    fn op_assign_numeric(&mut self, target: InstTarget, op: InstNumericOp) -> Result<(), VmError> {
         use std::convert::TryFrom as _;
 
-        self.internal_bitwise_assign(
-            offset,
-            crate::SHL_ASSIGN,
-            || VmError::from(VmErrorKind::Overflow),
-            |a, b| a.checked_shl(u32::try_from(b).ok()?),
-            "<<=",
-        )?;
+        match op {
+            InstNumericOp::Add => {
+                self.internal_num_assign(
+                    target,
+                    crate::ADD_ASSIGN,
+                    || VmError::from(VmErrorKind::Overflow),
+                    i64::checked_add,
+                    std::ops::Add::add,
+                    "+=",
+                )?;
+            }
+            InstNumericOp::Sub => {
+                self.internal_num_assign(
+                    target,
+                    crate::SUB_ASSIGN,
+                    || VmError::from(VmErrorKind::Underflow),
+                    i64::checked_sub,
+                    std::ops::Sub::sub,
+                    "-=",
+                )?;
+            }
+            InstNumericOp::Mul => {
+                self.internal_num_assign(
+                    target,
+                    crate::MUL_ASSIGN,
+                    || VmError::from(VmErrorKind::Overflow),
+                    i64::checked_mul,
+                    std::ops::Mul::mul,
+                    "*=",
+                )?;
+            }
+            InstNumericOp::Div => {
+                self.internal_num_assign(
+                    target,
+                    crate::DIV_ASSIGN,
+                    || VmError::from(VmErrorKind::DivideByZero),
+                    i64::checked_div,
+                    std::ops::Div::div,
+                    "/=",
+                )?;
+            }
+            InstNumericOp::Rem => {
+                self.internal_num_assign(
+                    target,
+                    crate::REM_ASSIGN,
+                    || VmError::from(VmErrorKind::DivideByZero),
+                    i64::checked_rem,
+                    std::ops::Rem::rem,
+                    "%=",
+                )?;
+            }
+            InstNumericOp::BitAnd => {
+                self.internal_infallible_bitwise_assign(
+                    target,
+                    crate::BIT_AND_ASSIGN,
+                    std::ops::BitAndAssign::bitand_assign,
+                    "&=",
+                )?;
+            }
+            InstNumericOp::BitXor => {
+                self.internal_infallible_bitwise_assign(
+                    target,
+                    crate::BIT_XOR_ASSIGN,
+                    std::ops::BitXorAssign::bitxor_assign,
+                    "^=",
+                )?;
+            }
+            InstNumericOp::BitOr => {
+                self.internal_infallible_bitwise_assign(
+                    target,
+                    crate::BIT_OR_ASSIGN,
+                    std::ops::BitOrAssign::bitor_assign,
+                    "|=",
+                )?;
+            }
+            InstNumericOp::Shl => {
+                self.internal_bitwise_assign(
+                    target,
+                    crate::SHL_ASSIGN,
+                    || VmError::from(VmErrorKind::Overflow),
+                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
+                    "<<=",
+                )?;
+            }
+            InstNumericOp::Shr => {
+                self.internal_infallible_bitwise_assign(
+                    target,
+                    crate::SHR_ASSIGN,
+                    std::ops::ShrAssign::shr_assign,
+                    ">>=",
+                )?;
+            }
+        }
 
-        Ok(())
-    }
-
-    #[inline]
-    fn op_shr_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_infallible_bitwise_assign(
-            offset,
-            crate::SHR_ASSIGN,
-            std::ops::ShrAssign::shr_assign,
-            ">>=",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_add_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_num_assign(
-            offset,
-            crate::ADD_ASSIGN,
-            || VmError::from(VmErrorKind::Overflow),
-            i64::checked_add,
-            std::ops::Add::add,
-            "+=",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_sub_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_num_assign(
-            offset,
-            crate::SUB_ASSIGN,
-            || VmError::from(VmErrorKind::Underflow),
-            i64::checked_sub,
-            std::ops::Sub::sub,
-            "-=",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_mul_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_num_assign(
-            offset,
-            crate::MUL_ASSIGN,
-            || VmError::from(VmErrorKind::Overflow),
-            i64::checked_mul,
-            std::ops::Mul::mul,
-            "*=",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_div_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_num_assign(
-            offset,
-            crate::DIV_ASSIGN,
-            || VmError::from(VmErrorKind::DivideByZero),
-            i64::checked_div,
-            std::ops::Div::div,
-            "/=",
-        )?;
-        Ok(())
-    }
-
-    #[inline]
-    fn op_rem_assign(&mut self, offset: usize) -> Result<(), VmError> {
-        self.internal_num_assign(
-            offset,
-            crate::REM_ASSIGN,
-            || VmError::from(VmErrorKind::DivideByZero),
-            i64::checked_rem,
-            std::ops::Rem::rem,
-            "%=",
-        )?;
         Ok(())
     }
 
@@ -1000,6 +992,112 @@ impl Vm {
                 return Err(VmError::from(VmErrorKind::MissingIndex {
                     target: target.type_info()?,
                     index: VmIntegerRepr::Usize(index),
+                }));
+            }
+        };
+
+        Ok(Some(value))
+    }
+
+    /// Implementation of getting a mutable value out of a tuple-like value.
+    fn try_tuple_like_index_get_mut(
+        target: &Value,
+        index: usize,
+    ) -> Result<Option<BorrowMut<'_, Value>>, VmError> {
+        let value = match target {
+            Value::Unit => None,
+            Value::Tuple(tuple) => {
+                let tuple = tuple.borrow_mut()?;
+
+                BorrowMut::try_map(tuple, |tuple| tuple.get_mut(index))
+            }
+            Value::Vec(vec) => {
+                let vec = vec.borrow_mut()?;
+
+                BorrowMut::try_map(vec, |vec| vec.get_mut(index))
+            }
+            Value::Result(result) => {
+                let result = result.borrow_mut()?;
+
+                BorrowMut::try_map(result, |result| match result {
+                    Ok(value) if index == 0 => Some(value),
+                    Err(value) if index == 0 => Some(value),
+                    _ => None,
+                })
+            }
+            Value::Option(option) => {
+                let option = option.borrow_mut()?;
+
+                BorrowMut::try_map(option, |option| match option {
+                    Some(value) if index == 0 => Some(value),
+                    _ => None,
+                })
+            }
+            Value::GeneratorState(state) => {
+                use crate::GeneratorState::*;
+                let state = state.borrow_mut()?;
+
+                BorrowMut::try_map(state, |state| match state {
+                    Yielded(value) if index == 0 => Some(value),
+                    Complete(value) if index == 0 => Some(value),
+                    _ => None,
+                })
+            }
+            Value::TypedTuple(typed_tuple) => {
+                let typed_tuple = typed_tuple.borrow_mut()?;
+
+                BorrowMut::try_map(typed_tuple, |typed_tuple| typed_tuple.get_mut(index))
+            }
+            Value::TupleVariant(variant_tuple) => {
+                let variant_tuple = variant_tuple.borrow_mut()?;
+
+                BorrowMut::try_map(variant_tuple, |variant_tuple| {
+                    variant_tuple.tuple.get_mut(index)
+                })
+            }
+            _ => return Ok(None),
+        };
+
+        let value = match value {
+            Some(value) => value,
+            None => {
+                return Err(VmError::from(VmErrorKind::MissingIndex {
+                    target: target.type_info()?,
+                    index: VmIntegerRepr::Usize(index),
+                }));
+            }
+        };
+
+        Ok(Some(value))
+    }
+
+    /// Implementation of getting a mutable string index on an object-like type.
+    fn try_object_like_index_get_mut<'a>(
+        target: &'a Value,
+        field: &str,
+    ) -> Result<Option<BorrowMut<'a, Value>>, VmError> {
+        let value = match &target {
+            Value::Object(target) => {
+                let target = target.borrow_mut()?;
+                BorrowMut::try_map(target, |target| target.get_mut(field))
+            }
+            Value::TypedObject(target) => {
+                let target = target.borrow_mut()?;
+                BorrowMut::try_map(target, |target| target.get_mut(field))
+            }
+            Value::VariantObject(target) => {
+                let target = target.borrow_mut()?;
+                BorrowMut::try_map(target, |target| target.get_mut(field))
+            }
+            _ => return Ok(None),
+        };
+
+        let value = match value {
+            Some(value) => value,
+            None => {
+                return Err(VmError::from(VmErrorKind::MissingField {
+                    target: target.type_info()?,
+                    field: field.to_owned(),
                 }));
             }
         };
@@ -1979,36 +2077,6 @@ impl Vm {
                 Inst::Not => {
                     self.op_not()?;
                 }
-                Inst::Add => {
-                    self.op_add()?;
-                }
-                Inst::AddAssign { offset } => {
-                    self.op_add_assign(offset)?;
-                }
-                Inst::Sub => {
-                    self.op_sub()?;
-                }
-                Inst::SubAssign { offset } => {
-                    self.op_sub_assign(offset)?;
-                }
-                Inst::Mul => {
-                    self.op_mul()?;
-                }
-                Inst::MulAssign { offset } => {
-                    self.op_mul_assign(offset)?;
-                }
-                Inst::Div => {
-                    self.op_div()?;
-                }
-                Inst::DivAssign { offset } => {
-                    self.op_div_assign(offset)?;
-                }
-                Inst::Rem => {
-                    self.op_rem()?;
-                }
-                Inst::RemAssign { offset } => {
-                    self.op_rem_assign(offset)?;
-                }
                 Inst::Fn { hash } => {
                     self.op_fn(hash)?;
                 }
@@ -2200,36 +2268,6 @@ impl Vm {
                 Inst::Or => {
                     self.op_or()?;
                 }
-                Inst::BitAnd => {
-                    self.op_bit_and()?;
-                }
-                Inst::BitAndAssign { offset } => {
-                    self.op_bit_and_assign(offset)?;
-                }
-                Inst::BitXor => {
-                    self.op_bit_xor()?;
-                }
-                Inst::BitXorAssign { offset } => {
-                    self.op_bit_xor_assign(offset)?;
-                }
-                Inst::BitOr => {
-                    self.op_bit_or()?;
-                }
-                Inst::BitOrAssign { offset } => {
-                    self.op_bit_or_assign(offset)?;
-                }
-                Inst::Shl => {
-                    self.op_shl()?;
-                }
-                Inst::ShlAssign { offset } => {
-                    self.op_shl_assign(offset)?;
-                }
-                Inst::Shr => {
-                    self.op_shr()?;
-                }
-                Inst::ShrAssign { offset } => {
-                    self.op_shr_assign(offset)?;
-                }
                 Inst::EqByte { byte } => {
                     self.op_eq_byte(byte)?;
                 }
@@ -2265,6 +2303,12 @@ impl Vm {
                     self.stack.push(Value::Unit);
                     return Ok(VmHalt::Yielded);
                 }
+                Inst::StackNumeric { op } => {
+                    self.op_stack_numeric(op)?;
+                }
+                Inst::AssignNumeric { target, op } => {
+                    self.op_assign_numeric(target, op)?;
+                }
                 Inst::Panic { reason } => {
                     return Err(VmError::from(VmErrorKind::Panic {
                         reason: Panic::from(reason),
@@ -2286,7 +2330,7 @@ impl Vm {
 
     fn internal_num_assign<H, E, I, F>(
         &mut self,
-        offset: usize,
+        target: InstTarget,
         hash: H,
         error: E,
         integer_op: I,
@@ -2295,12 +2339,14 @@ impl Vm {
     ) -> Result<(), VmError>
     where
         H: IntoHash,
-        E: Copy + FnOnce() -> VmError,
+        E: FnOnce() -> VmError,
         I: FnOnce(i64, i64) -> Option<i64>,
         F: FnOnce(f64, f64) -> f64,
     {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.at_offset_mut(offset)?;
+        let mut guard;
+        let lhs;
+
+        let (lhs, rhs) = target_value!(self, target, guard, lhs);
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
@@ -2339,7 +2385,7 @@ impl Vm {
     ) -> Result<(), VmError>
     where
         H: IntoHash,
-        E: Copy + FnOnce() -> VmError,
+        E: FnOnce() -> VmError,
         I: FnOnce(i64, i64) -> Option<i64>,
         F: FnOnce(f64, f64) -> f64,
     {
@@ -2404,7 +2450,7 @@ impl Vm {
 
     fn internal_infallible_bitwise_assign<H, I>(
         &mut self,
-        offset: usize,
+        target: InstTarget,
         hash: H,
         integer_op: I,
         op: &'static str,
@@ -2413,8 +2459,10 @@ impl Vm {
         H: IntoHash,
         I: FnOnce(&mut i64, i64),
     {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.at_offset_mut(offset)?;
+        let mut guard;
+        let lhs;
+
+        let (lhs, rhs) = target_value!(self, target, guard, lhs);
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {
@@ -2472,7 +2520,7 @@ impl Vm {
 
     fn internal_bitwise_assign<H, E, I>(
         &mut self,
-        offset: usize,
+        target: InstTarget,
         hash: H,
         error: E,
         integer_op: I,
@@ -2483,8 +2531,10 @@ impl Vm {
         E: FnOnce() -> VmError,
         I: FnOnce(i64, i64) -> Option<i64>,
     {
-        let rhs = self.stack.pop()?;
-        let lhs = self.stack.at_offset_mut(offset)?;
+        let mut guard;
+        let lhs;
+
+        let (lhs, rhs) = target_value!(self, target, guard, lhs);
 
         let (lhs, rhs) = match (lhs, rhs) {
             (Value::Integer(lhs), Value::Integer(rhs)) => {

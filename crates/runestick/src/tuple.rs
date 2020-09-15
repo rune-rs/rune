@@ -15,9 +15,14 @@ impl Tuple {
         self.inner
     }
 
-    /// Get the typle at the given index.
+    /// Get the value at the given index.
     pub fn get(&self, index: usize) -> Option<&Value> {
         self.inner.get(index)
+    }
+
+    /// Get the mutable value at the given index.
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
+        self.inner.get_mut(index)
     }
 }
 

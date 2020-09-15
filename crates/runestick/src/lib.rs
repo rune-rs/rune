@@ -142,7 +142,7 @@ pub use crate::debug::{DebugInfo, DebugInst};
 pub use crate::function::Function;
 pub use crate::future::Future;
 pub use crate::hash::{Hash, IntoHash};
-pub use crate::inst::{Inst, PanicReason, TypeCheck};
+pub use crate::inst::{Inst, InstNumericOp, InstTarget, PanicReason, TypeCheck};
 pub use crate::item::{Component, IntoComponent, Item};
 pub use crate::names::Names;
 pub use crate::object::Object;

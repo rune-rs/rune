@@ -416,16 +416,30 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     }
 
     /// Map the mutable reference.
-    pub fn try_map<M, U: ?Sized, E>(this: Self, m: M) -> Result<BorrowMut<'a, U>, E>
+    pub fn map<M, U: ?Sized>(this: Self, m: M) -> BorrowMut<'a, U>
     where
-        M: FnOnce(&mut T) -> Result<&mut U, E>,
+        M: FnOnce(&mut T) -> &mut U,
     {
-        let data = m(unsafe { &mut *this.data })?;
+        let data = m(unsafe { &mut *this.data });
         let guard = this.guard;
 
-        Ok(BorrowMut {
+        BorrowMut {
             data,
             guard,
+            _marker: marker::PhantomData,
+        }
+    }
+
+    /// Try to optionally map the mutable reference.
+    pub fn try_map<M, U: ?Sized>(this: Self, m: M) -> Option<BorrowMut<'a, U>>
+    where
+        M: FnOnce(&mut T) -> Option<&mut U>,
+    {
+        let data = m(unsafe { &mut *this.data })?;
+
+        Some(BorrowMut {
+            data,
+            guard: this.guard,
             _marker: marker::PhantomData,
         })
     }

@@ -3,7 +3,7 @@ use crate::compiler::{Compiler, Needs};
 use crate::traits::{Compile, Resolve as _};
 use crate::CompileResult;
 use crate::{CompileError, CompileErrorKind, Spanned as _};
-use runestick::Inst;
+use runestick::{Inst, InstNumericOp, InstTarget};
 
 /// Compile a binary expression.
 impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
@@ -32,74 +32,56 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
         self.compile((&*expr_binary.rhs, rhs_needs_of(expr_binary.op)))?;
         self.scopes.decl_anon(span)?;
 
-        match expr_binary.op {
-            ast::BinOp::Add { .. } => {
-                self.asm.push(Inst::Add, span);
-            }
-            ast::BinOp::Sub { .. } => {
-                self.asm.push(Inst::Sub, span);
-            }
-            ast::BinOp::Div { .. } => {
-                self.asm.push(Inst::Div, span);
-            }
-            ast::BinOp::Mul { .. } => {
-                self.asm.push(Inst::Mul, span);
-            }
-            ast::BinOp::Rem { .. } => {
-                self.asm.push(Inst::Rem, span);
-            }
-            ast::BinOp::Eq { .. } => {
-                self.asm.push(Inst::Eq, span);
-            }
-            ast::BinOp::Neq { .. } => {
-                self.asm.push(Inst::Neq, span);
-            }
-            ast::BinOp::Lt { .. } => {
-                self.asm.push(Inst::Lt, span);
-            }
-            ast::BinOp::Gt { .. } => {
-                self.asm.push(Inst::Gt, span);
-            }
-            ast::BinOp::Lte { .. } => {
-                self.asm.push(Inst::Lte, span);
-            }
-            ast::BinOp::Gte { .. } => {
-                self.asm.push(Inst::Gte, span);
-            }
-            ast::BinOp::Is { .. } => {
-                self.asm.push(Inst::Is, span);
-            }
-            ast::BinOp::IsNot { .. } => {
-                self.asm.push(Inst::IsNot, span);
-            }
-            ast::BinOp::And { .. } => {
-                self.asm.push(Inst::And, span);
-            }
-            ast::BinOp::Or { .. } => {
-                self.asm.push(Inst::Or, span);
-            }
-            ast::BinOp::BitAnd { .. } => {
-                self.asm.push(Inst::BitAnd, span);
-            }
-            ast::BinOp::BitXor { .. } => {
-                self.asm.push(Inst::BitXor, span);
-            }
-            ast::BinOp::BitOr { .. } => {
-                self.asm.push(Inst::BitOr, span);
-            }
-            ast::BinOp::Shl { .. } => {
-                self.asm.push(Inst::Shl, span);
-            }
-            ast::BinOp::Shr { .. } => {
-                self.asm.push(Inst::Shr, span);
-            }
+        let inst = match expr_binary.op {
+            ast::BinOp::Eq => Inst::Eq,
+            ast::BinOp::Neq => Inst::Neq,
+            ast::BinOp::Lt => Inst::Lt,
+            ast::BinOp::Gt => Inst::Gt,
+            ast::BinOp::Lte => Inst::Lte,
+            ast::BinOp::Gte => Inst::Gte,
+            ast::BinOp::Is => Inst::Is,
+            ast::BinOp::IsNot => Inst::IsNot,
+            ast::BinOp::And => Inst::And,
+            ast::BinOp::Or => Inst::Or,
+            ast::BinOp::Add => Inst::StackNumeric {
+                op: InstNumericOp::Add,
+            },
+            ast::BinOp::Sub => Inst::StackNumeric {
+                op: InstNumericOp::Sub,
+            },
+            ast::BinOp::Div => Inst::StackNumeric {
+                op: InstNumericOp::Div,
+            },
+            ast::BinOp::Mul => Inst::StackNumeric {
+                op: InstNumericOp::Mul,
+            },
+            ast::BinOp::Rem => Inst::StackNumeric {
+                op: InstNumericOp::Rem,
+            },
+            ast::BinOp::BitAnd => Inst::StackNumeric {
+                op: InstNumericOp::BitAnd,
+            },
+            ast::BinOp::BitXor => Inst::StackNumeric {
+                op: InstNumericOp::BitXor,
+            },
+            ast::BinOp::BitOr => Inst::StackNumeric {
+                op: InstNumericOp::BitOr,
+            },
+            ast::BinOp::Shl => Inst::StackNumeric {
+                op: InstNumericOp::Shl,
+            },
+            ast::BinOp::Shr => Inst::StackNumeric {
+                op: InstNumericOp::Shr,
+            },
             op => {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::UnsupportedBinaryOp { op },
                 ));
             }
-        }
+        };
+
+        self.asm.push(inst, span);
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.
@@ -199,23 +181,48 @@ fn compile_assign_binop(
         let supported = match lhs {
             // <var> <op> <expr>
             ast::Expr::Path(path) if path.rest.is_empty() => {
+                this.compile((rhs, Needs::Value))?;
+
                 let ident = path.first.resolve(this.storage, &*this.source)?;
                 let var = this
                     .scopes
                     .get_var(&*ident, this.source.url(), this.visitor, span)?;
-                Some(var.offset)
-            }
-            // Note: we would like to support assign operators for tuples and
-            // objects as well, but these would require a different addressing
-            // mode for the operations which would require adding instructions
-            // or more capabilities to existing ones.
 
-            // See
+                Some(InstTarget::Offset(var.offset))
+            }
+            // <expr>.<field> <op> <value>
+            ast::Expr::ExprFieldAccess(field_access) => {
+                this.compile((&*field_access.expr, Needs::Value))?;
+                this.compile((rhs, Needs::Value))?;
+
+                // field assignment
+                match &field_access.expr_field {
+                    ast::ExprField::Ident(index) => {
+                        let index = index.resolve(this.storage, &*this.source)?;
+                        let index = this.unit.borrow_mut().new_static_string(index.as_ref())?;
+
+                        Some(InstTarget::Field(index))
+                    }
+                    ast::ExprField::LitNumber(field) => {
+                        let span = field.span();
+
+                        let number = field.resolve(this.storage, &*this.source)?;
+                        let index = number.into_tuple_index().ok_or_else(|| {
+                            CompileError::new(
+                                span,
+                                CompileErrorKind::UnsupportedTupleIndex { number },
+                            )
+                        })?;
+
+                        Some(InstTarget::TupleField(index))
+                    }
+                }
+            }
             _ => None,
         };
 
-        let offset = match supported {
-            Some(offset) => offset,
+        let target = match supported {
+            Some(target) => target,
             None => {
                 return Err(CompileError::new(
                     span,
@@ -224,46 +231,26 @@ fn compile_assign_binop(
             }
         };
 
-        this.compile((rhs, Needs::Value))?;
-
-        match bin_op {
-            ast::BinOp::AddAssign => {
-                this.asm.push(Inst::AddAssign { offset }, span);
-            }
-            ast::BinOp::SubAssign => {
-                this.asm.push(Inst::SubAssign { offset }, span);
-            }
-            ast::BinOp::MulAssign => {
-                this.asm.push(Inst::MulAssign { offset }, span);
-            }
-            ast::BinOp::DivAssign => {
-                this.asm.push(Inst::DivAssign { offset }, span);
-            }
-            ast::BinOp::RemAssign => {
-                this.asm.push(Inst::RemAssign { offset }, span);
-            }
-            ast::BinOp::BitAndAssign => {
-                this.asm.push(Inst::BitAndAssign { offset }, span);
-            }
-            ast::BinOp::BitXorAssign => {
-                this.asm.push(Inst::BitXorAssign { offset }, span);
-            }
-            ast::BinOp::BitOrAssign => {
-                this.asm.push(Inst::BitOrAssign { offset }, span);
-            }
-            ast::BinOp::ShlAssign => {
-                this.asm.push(Inst::ShlAssign { offset }, span);
-            }
-            ast::BinOp::ShrAssign => {
-                this.asm.push(Inst::ShrAssign { offset }, span);
-            }
+        let op = match bin_op {
+            ast::BinOp::AddAssign => InstNumericOp::Add,
+            ast::BinOp::SubAssign => InstNumericOp::Sub,
+            ast::BinOp::MulAssign => InstNumericOp::Mul,
+            ast::BinOp::DivAssign => InstNumericOp::Div,
+            ast::BinOp::RemAssign => InstNumericOp::Rem,
+            ast::BinOp::BitAndAssign => InstNumericOp::BitAnd,
+            ast::BinOp::BitXorAssign => InstNumericOp::BitXor,
+            ast::BinOp::BitOrAssign => InstNumericOp::BitOr,
+            ast::BinOp::ShlAssign => InstNumericOp::Shl,
+            ast::BinOp::ShrAssign => InstNumericOp::Shr,
             _ => {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::UnsupportedBinaryExpr,
                 ));
             }
-        }
+        };
+
+        this.asm.push(Inst::AssignNumeric { target, op }, span);
     }
 
     if needs.value() {
