@@ -71,7 +71,7 @@ impl Compile<(&ast::Block, Needs)> for Compiler<'_> {
                 self.locals_clean(scope.local_var_count, span);
             } else {
                 self.locals_pop(scope.local_var_count, span);
-                self.asm.push(Inst::Unit, span);
+                self.asm.push(Inst::unit(), span);
             }
         } else {
             self.locals_pop(scope.local_var_count, span);

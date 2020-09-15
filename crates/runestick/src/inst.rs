@@ -1,4 +1,4 @@
-use crate::Hash;
+use crate::{Hash, Value};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -92,17 +92,6 @@ pub enum Inst {
     /// => <bool>
     /// ```
     Not,
-    /// Encode a function pointer on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <fn>
-    /// ```
-    Fn {
-        /// The hash to construct a function pointer from.
-        hash: Hash,
-    },
     /// Construct a closure that takes the given number of arguments and
     /// captures `count` elements from the top of the stack.
     ///
@@ -231,7 +220,7 @@ pub enum Inst {
     /// <object>
     /// => <value>
     /// ```
-    ObjectSlotIndexGet {
+    ObjectIndexGet {
         /// The static string slot corresponding to the index to fetch.
         slot: usize,
     },
@@ -246,7 +235,7 @@ pub enum Inst {
     /// ```text
     /// => <value>
     /// ```
-    ObjectSlotIndexGetAt {
+    ObjectIndexGetAt {
         /// The slot offset to get the value to test from.
         offset: usize,
         /// The static string slot corresponding to the index to fetch.
@@ -263,16 +252,6 @@ pub enum Inst {
     /// => *noop*
     /// ```
     IndexSet,
-    /// Push a literal integer.
-    Integer {
-        /// The number to push.
-        number: i64,
-    },
-    /// Push a literal float into a slot.
-    Float {
-        /// The number to push.
-        number: f64,
-    },
     /// Await the future that is on the stack and push the value that it
     /// produces.
     ///
@@ -299,6 +278,28 @@ pub enum Inst {
     Select {
         /// The number of futures to poll.
         len: usize,
+    },
+    /// Load the given function by hash and push onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <value>
+    /// ```
+    LoadFn {
+        /// The hash of the function to push.
+        hash: Hash,
+    },
+    /// Push a value onto the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <value>
+    /// ```
+    Push {
+        /// The value to push.
+        value: InstValue,
     },
     /// Pop the value on the stack, discarding its result.
     ///
@@ -482,25 +483,6 @@ pub enum Inst {
         /// The offset to jump.
         offset: isize,
     },
-    /// Push a unit value onto the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <unit>
-    /// ```
-    Unit,
-    /// Push a boolean value onto the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <boolean>
-    /// ```
-    Bool {
-        /// The boolean value to push.
-        value: bool,
-    },
     /// Construct a push a vector value onto the stack. The number of elements
     /// in the vector are determined by `count` and are popped from the stack.
     ///
@@ -593,28 +575,6 @@ pub enum Inst {
         hash: Hash,
         /// The static slot of the object keys.
         slot: usize,
-    },
-    /// Load a literal character.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <char>
-    /// ```
-    Char {
-        /// The literal character to load.
-        c: char,
-    },
-    /// Load a literal byte.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <byte>
-    /// ```
-    Byte {
-        /// The literal byte to load.
-        b: u8,
     },
     /// Load a literal string from a static string slot.
     ///
@@ -813,17 +773,6 @@ pub enum Inst {
         /// `false`.
         exact: bool,
     },
-    /// Push the type with the given hash as a value on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <value>
-    /// ```
-    Type {
-        /// The hash of the type.
-        hash: Hash,
-    },
     /// Perform a generator yield where the value yielded is expected to be
     /// found at the top of the stack.
     ///
@@ -856,9 +805,9 @@ pub enum Inst {
     /// <value>
     /// => <value>
     /// ```
-    StackNumeric {
+    Op {
         /// The actual operation.
-        op: InstNumericOp,
+        op: InstOp,
     },
     /// A built-in operation that assigns to the left-hand side operand. Like
     /// `a += b`.
@@ -871,11 +820,11 @@ pub enum Inst {
     /// <value>
     /// =>
     /// ```
-    AssignNumeric {
+    Assign {
         /// The target of the operation.
         target: InstTarget,
         /// The actual operation.
-        op: InstNumericOp,
+        op: InstOp,
     },
     /// Cause the VM to panic and error out without a reason.
     ///
@@ -885,6 +834,50 @@ pub enum Inst {
         /// The reason for the panic.
         reason: PanicReason,
     },
+}
+
+impl Inst {
+    /// Construct an instruction to push a unit.
+    pub fn unit() -> Self {
+        Self::Push {
+            value: InstValue::Unit,
+        }
+    }
+
+    /// Construct an instruction to push a boolean.
+    pub fn bool(b: bool) -> Self {
+        Self::Push {
+            value: InstValue::Bool(b),
+        }
+    }
+
+    /// Construct an instruction to push a byte.
+    pub fn byte(b: u8) -> Self {
+        Self::Push {
+            value: InstValue::Byte(b),
+        }
+    }
+
+    /// Construct an instruction to push a character.
+    pub fn char(c: char) -> Self {
+        Self::Push {
+            value: InstValue::Char(c),
+        }
+    }
+
+    /// Construct an instruction to push an integer.
+    pub fn integer(v: i64) -> Self {
+        Self::Push {
+            value: InstValue::Integer(v),
+        }
+    }
+
+    /// Construct an instruction to push a float.
+    pub fn float(v: f64) -> Self {
+        Self::Push {
+            value: InstValue::Float(v),
+        }
+    }
 }
 
 impl fmt::Display for Inst {
@@ -901,9 +894,6 @@ impl fmt::Display for Inst {
             }
             Self::CallInstance { hash, args } => {
                 write!(fmt, "call-instance {}, {}", hash, args)?;
-            }
-            Self::Fn { hash } => {
-                write!(fmt, "fn {}", hash)?;
             }
             Self::Closure { hash, count } => {
                 write!(fmt, "closure {}, {}", hash, count)?;
@@ -926,26 +916,26 @@ impl fmt::Display for Inst {
             Self::TupleIndexGetAt { offset, index } => {
                 write!(fmt, "tuple-index-get-at {}, {}", offset, index)?;
             }
-            Self::ObjectSlotIndexGet { slot } => {
-                write!(fmt, "object-slot-index-get {}", slot)?;
+            Self::ObjectIndexGet { slot } => {
+                write!(fmt, "object-index-get {}", slot)?;
             }
-            Self::ObjectSlotIndexGetAt { offset, slot } => {
-                write!(fmt, "object-slot-index-get-at {}, {}", offset, slot)?;
+            Self::ObjectIndexGetAt { offset, slot } => {
+                write!(fmt, "object-index-get-at {}, {}", offset, slot)?;
             }
             Self::IndexSet => {
                 write!(fmt, "index-set")?;
-            }
-            Self::Integer { number } => {
-                write!(fmt, "integer {}", number)?;
-            }
-            Self::Float { number } => {
-                write!(fmt, "float {}", number)?;
             }
             Self::Await => {
                 write!(fmt, "await")?;
             }
             Self::Select { len } => {
                 write!(fmt, "select {}", len)?;
+            }
+            Self::LoadFn { hash } => {
+                write!(fmt, "load-fn {}", hash)?;
+            }
+            Self::Push { value } => {
+                write!(fmt, "push {}", value)?;
             }
             Self::Pop => {
                 write!(fmt, "pop")?;
@@ -1004,12 +994,6 @@ impl fmt::Display for Inst {
             Self::JumpIfBranch { branch, offset } => {
                 write!(fmt, "jump-if-branch {}, {}", branch, offset)?;
             }
-            Self::Unit => {
-                write!(fmt, "unit")?;
-            }
-            Self::Bool { value } => {
-                write!(fmt, "bool {}", value)?;
-            }
             Self::Vec { count } => {
                 write!(fmt, "vec {}", count)?;
             }
@@ -1040,12 +1024,6 @@ impl fmt::Display for Inst {
             }
             Self::StringConcat { len, size_hint } => {
                 write!(fmt, "string-concat {}, {}", len, size_hint)?;
-            }
-            Self::Char { c } => {
-                write!(fmt, "char {:?}", c)?;
-            }
-            Self::Byte { b } => {
-                write!(fmt, "byte {:?}", b)?;
             }
             Self::Is => {
                 write!(fmt, "is")?;
@@ -1094,20 +1072,17 @@ impl fmt::Display for Inst {
             } => {
                 write!(fmt, "match-object {}, {}, {}", type_check, slot, exact)?;
             }
-            Self::Type { hash } => {
-                write!(fmt, "type {}", hash)?;
-            }
             Self::Yield => {
                 write!(fmt, "yield")?;
             }
             Self::YieldUnit => {
                 write!(fmt, "yield-unit")?;
             }
-            Self::StackNumeric { op } => {
-                write!(fmt, "stack-numeric {}", op)?;
+            Self::Op { op } => {
+                write!(fmt, "op {}", op)?;
             }
-            Self::AssignNumeric { target, op } => {
-                write!(fmt, "assign-numeric {}, {}", target, op)?;
+            Self::Assign { target, op } => {
+                write!(fmt, "assign {}, {}", target, op)?;
             }
             Self::Panic { reason } => {
                 write!(fmt, "panic {}", reason.ident())?;
@@ -1141,7 +1116,7 @@ impl fmt::Display for InstTarget {
 
 /// An operation between two values on the machine.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum InstNumericOp {
+pub enum InstOp {
     /// The add operation. `a + b`.
     Add,
     /// The sub operation. `a - b`.
@@ -1164,7 +1139,7 @@ pub enum InstNumericOp {
     Shr,
 }
 
-impl fmt::Display for InstNumericOp {
+impl fmt::Display for InstOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Add => write!(f, "+"),
@@ -1178,5 +1153,61 @@ impl fmt::Display for InstNumericOp {
             Self::Shl => write!(f, "<<"),
             Self::Shr => write!(f, ">>"),
         }
+    }
+}
+
+/// A literal value that can be pushed.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InstValue {
+    /// A unit.
+    Unit,
+    /// A boolean.
+    Bool(bool),
+    /// A byte.
+    Byte(u8),
+    /// A character.
+    Char(char),
+    /// An integer.
+    Integer(i64),
+    /// A float.
+    Float(f64),
+    /// A type hash.
+    Type(Hash),
+}
+
+impl InstValue {
+    /// Convert into a value that can be pushed onto the stack.
+    pub fn into_value(self) -> Value {
+        match self {
+            Self::Unit => Value::Unit,
+            Self::Bool(v) => Value::Bool(v),
+            Self::Byte(v) => Value::Byte(v),
+            Self::Char(v) => Value::Char(v),
+            Self::Integer(v) => Value::Integer(v),
+            Self::Float(v) => Value::Float(v),
+            Self::Type(v) => Value::Type(v),
+        }
+    }
+}
+
+impl fmt::Display for InstValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unit => write!(f, "()")?,
+            Self::Bool(v) => write!(f, "{}", v)?,
+            Self::Byte(v) => {
+                if v.is_ascii_graphic() {
+                    write!(f, "b'{}'", *v as char)?
+                } else {
+                    write!(f, "b'\\x{:02x}'", v)?
+                }
+            }
+            Self::Char(v) => write!(f, "{:?}", v)?,
+            Self::Integer(v) => write!(f, "{}", v)?,
+            Self::Float(v) => write!(f, "{}", v)?,
+            Self::Type(v) => write!(f, "{}", v)?,
+        }
+
+        Ok(())
     }
 }

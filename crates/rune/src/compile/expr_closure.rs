@@ -92,7 +92,7 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
             // NB: if closure doesn't capture the environment it acts like a regular
             // function. No need to store and load the environment.
             self.asm
-                .push_with_comment(Inst::Fn { hash }, span, format!("closure `{}`", item));
+                .push_with_comment(Inst::LoadFn { hash }, span, format!("closure `{}`", item));
         } else {
             // Construct a closure environment.
             for capture in &**captures {

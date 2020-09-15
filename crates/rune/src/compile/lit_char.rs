@@ -17,8 +17,8 @@ impl Compile<(&ast::LitChar, Needs)> for Compiler<'_> {
             return Ok(());
         }
 
-        let resolved_char = lit_char.resolve(&self.storage, &*self.source)?;
-        self.asm.push(Inst::Char { c: resolved_char }, span);
+        let c = lit_char.resolve(&self.storage, &*self.source)?;
+        self.asm.push(Inst::char(c), span);
         Ok(())
     }
 }

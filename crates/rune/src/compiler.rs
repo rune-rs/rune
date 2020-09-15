@@ -13,7 +13,7 @@ use crate::{
     Options, Resolve as _, SourceLoader, Sources, Spanned as _, Storage, UnitBuilder, Warnings,
 };
 use runestick::{
-    CompileMeta, CompileMetaKind, Context, Inst, Item, Label, Source, Span, TypeCheck,
+    CompileMeta, CompileMetaKind, Context, Inst, InstValue, Item, Label, Source, Span, TypeCheck,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -507,7 +507,7 @@ impl<'a> Compiler<'a> {
                 }
                 CompileMetaKind::Tuple { tuple, .. } => {
                     self.asm.push_with_comment(
-                        Inst::Fn { hash: tuple.hash },
+                        Inst::LoadFn { hash: tuple.hash },
                         span,
                         format!("tuple `{}`", tuple.item),
                     );
@@ -516,15 +516,18 @@ impl<'a> Compiler<'a> {
                     enum_item, tuple, ..
                 } => {
                     self.asm.push_with_comment(
-                        Inst::Fn { hash: tuple.hash },
+                        Inst::LoadFn { hash: tuple.hash },
                         span,
                         format!("tuple variant `{}::{}`", enum_item, tuple.item),
                     );
                 }
                 CompileMetaKind::Function { type_of, item, .. } => {
                     let hash = **type_of;
-                    self.asm
-                        .push_with_comment(Inst::Fn { hash }, span, format!("fn `{}`", item));
+                    self.asm.push_with_comment(
+                        Inst::LoadFn { hash },
+                        span,
+                        format!("fn `{}`", item),
+                    );
                 }
                 _ => {
                     return Err(CompileError::new(
@@ -545,7 +548,12 @@ impl<'a> Compiler<'a> {
         })?;
 
         let hash = *type_of;
-        self.asm.push(Inst::Type { hash }, span);
+        self.asm.push(
+            Inst::Push {
+                value: InstValue::Type(hash),
+            },
+            span,
+        );
         Ok(())
     }
 
@@ -871,8 +879,7 @@ impl<'a> Compiler<'a> {
 
             let load = move |this: &mut Self, needs: Needs| {
                 if needs.value() {
-                    this.asm
-                        .push(Inst::ObjectSlotIndexGetAt { offset, slot }, span);
+                    this.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
                 }
 
                 Ok(())

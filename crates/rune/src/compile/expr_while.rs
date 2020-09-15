@@ -39,7 +39,7 @@ impl Compile<(&ast::ExprWhile, Needs)> for Compiler<'_> {
         self.asm.label(end_label)?;
 
         if needs.value() {
-            self.asm.push(Inst::Unit, span);
+            self.asm.push(Inst::unit(), span);
         }
 
         // NB: breaks produce their own value.

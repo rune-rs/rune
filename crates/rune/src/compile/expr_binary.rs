@@ -3,7 +3,7 @@ use crate::compiler::{Compiler, Needs};
 use crate::traits::{Compile, Resolve as _};
 use crate::CompileResult;
 use crate::{CompileError, CompileErrorKind, Spanned as _};
-use runestick::{Inst, InstNumericOp, InstTarget};
+use runestick::{Inst, InstOp, InstTarget};
 
 /// Compile a binary expression.
 impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
@@ -43,36 +43,16 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
             ast::BinOp::IsNot => Inst::IsNot,
             ast::BinOp::And => Inst::And,
             ast::BinOp::Or => Inst::Or,
-            ast::BinOp::Add => Inst::StackNumeric {
-                op: InstNumericOp::Add,
-            },
-            ast::BinOp::Sub => Inst::StackNumeric {
-                op: InstNumericOp::Sub,
-            },
-            ast::BinOp::Div => Inst::StackNumeric {
-                op: InstNumericOp::Div,
-            },
-            ast::BinOp::Mul => Inst::StackNumeric {
-                op: InstNumericOp::Mul,
-            },
-            ast::BinOp::Rem => Inst::StackNumeric {
-                op: InstNumericOp::Rem,
-            },
-            ast::BinOp::BitAnd => Inst::StackNumeric {
-                op: InstNumericOp::BitAnd,
-            },
-            ast::BinOp::BitXor => Inst::StackNumeric {
-                op: InstNumericOp::BitXor,
-            },
-            ast::BinOp::BitOr => Inst::StackNumeric {
-                op: InstNumericOp::BitOr,
-            },
-            ast::BinOp::Shl => Inst::StackNumeric {
-                op: InstNumericOp::Shl,
-            },
-            ast::BinOp::Shr => Inst::StackNumeric {
-                op: InstNumericOp::Shr,
-            },
+            ast::BinOp::Add => Inst::Op { op: InstOp::Add },
+            ast::BinOp::Sub => Inst::Op { op: InstOp::Sub },
+            ast::BinOp::Div => Inst::Op { op: InstOp::Div },
+            ast::BinOp::Mul => Inst::Op { op: InstOp::Mul },
+            ast::BinOp::Rem => Inst::Op { op: InstOp::Rem },
+            ast::BinOp::BitAnd => Inst::Op { op: InstOp::BitAnd },
+            ast::BinOp::BitXor => Inst::Op { op: InstOp::BitXor },
+            ast::BinOp::BitOr => Inst::Op { op: InstOp::BitOr },
+            ast::BinOp::Shl => Inst::Op { op: InstOp::Shl },
+            ast::BinOp::Shr => Inst::Op { op: InstOp::Shr },
             op => {
                 return Err(CompileError::new(
                     span,
@@ -232,16 +212,16 @@ fn compile_assign_binop(
         };
 
         let op = match bin_op {
-            ast::BinOp::AddAssign => InstNumericOp::Add,
-            ast::BinOp::SubAssign => InstNumericOp::Sub,
-            ast::BinOp::MulAssign => InstNumericOp::Mul,
-            ast::BinOp::DivAssign => InstNumericOp::Div,
-            ast::BinOp::RemAssign => InstNumericOp::Rem,
-            ast::BinOp::BitAndAssign => InstNumericOp::BitAnd,
-            ast::BinOp::BitXorAssign => InstNumericOp::BitXor,
-            ast::BinOp::BitOrAssign => InstNumericOp::BitOr,
-            ast::BinOp::ShlAssign => InstNumericOp::Shl,
-            ast::BinOp::ShrAssign => InstNumericOp::Shr,
+            ast::BinOp::AddAssign => InstOp::Add,
+            ast::BinOp::SubAssign => InstOp::Sub,
+            ast::BinOp::MulAssign => InstOp::Mul,
+            ast::BinOp::DivAssign => InstOp::Div,
+            ast::BinOp::RemAssign => InstOp::Rem,
+            ast::BinOp::BitAndAssign => InstOp::BitAnd,
+            ast::BinOp::BitXorAssign => InstOp::BitXor,
+            ast::BinOp::BitOrAssign => InstOp::BitOr,
+            ast::BinOp::ShlAssign => InstOp::Shl,
+            ast::BinOp::ShrAssign => InstOp::Shr,
             _ => {
                 return Err(CompileError::new(
                     span,
@@ -250,11 +230,11 @@ fn compile_assign_binop(
             }
         };
 
-        this.asm.push(Inst::AssignNumeric { target, op }, span);
+        this.asm.push(Inst::Assign { target, op }, span);
     }
 
     if needs.value() {
-        this.asm.push(Inst::Unit, span);
+        this.asm.push(Inst::unit(), span);
     }
 
     Ok(())

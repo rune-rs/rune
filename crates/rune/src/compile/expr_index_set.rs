@@ -21,7 +21,7 @@ impl Compile<(&ast::ExprIndexSet, Needs)> for Compiler<'_> {
 
         // Encode a unit in case a value is needed.
         if needs.value() {
-            self.asm.push(Inst::Unit, span);
+            self.asm.push(Inst::unit(), span);
         }
 
         Ok(())

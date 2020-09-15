@@ -16,12 +16,7 @@ impl Compile<(&ast::LitBool, Needs)> for Compiler<'_> {
             return Ok(());
         }
 
-        self.asm.push(
-            Inst::Bool {
-                value: lit_bool.value,
-            },
-            span,
-        );
+        self.asm.push(Inst::bool(lit_bool.value), span);
 
         Ok(())
     }

@@ -18,7 +18,7 @@ impl Compile<(&ast::LitByte, Needs)> for Compiler<'_> {
         }
 
         let b = lit_byte.resolve(&self.storage, &*self.source)?;
-        self.asm.push(Inst::Byte { b }, span);
+        self.asm.push(Inst::byte(b), span);
         Ok(())
     }
 }

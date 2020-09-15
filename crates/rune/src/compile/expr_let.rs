@@ -38,7 +38,7 @@ impl Compile<(&ast::ExprLet, Needs)> for Compiler<'_> {
 
         // If a value is needed for a let expression, it is evaluated as a unit.
         if needs.value() {
-            self.asm.push(Inst::Unit, span);
+            self.asm.push(Inst::unit(), span);
         }
 
         Ok(())

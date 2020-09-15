@@ -30,7 +30,7 @@ impl Compile<(&ast::ExprIf, Needs)> for Compiler<'_> {
             // NB: if we must produce a value and there is no fallback branch,
             // encode the result of the statement as a unit.
             if needs.value() {
-                self.asm.push(Inst::Unit, span);
+                self.asm.push(Inst::unit(), span);
             }
         }
 

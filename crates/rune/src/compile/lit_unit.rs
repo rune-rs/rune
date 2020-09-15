@@ -16,7 +16,7 @@ impl Compile<(&ast::LitUnit, Needs)> for Compiler<'_> {
             return Ok(());
         }
 
-        self.asm.push(Inst::Unit, span);
+        self.asm.push(Inst::unit(), span);
         Ok(())
     }
 }

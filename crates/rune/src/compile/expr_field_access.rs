@@ -57,7 +57,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
                     let field = ident.resolve(&self.storage, &*self.source)?;
                     let slot = self.unit.borrow_mut().new_static_string(field.as_ref())?;
 
-                    self.asm.push(Inst::ObjectSlotIndexGet { slot }, span);
+                    self.asm.push(Inst::ObjectIndexGet { slot }, span);
 
                     if !needs.value() {
                         self.warnings.not_used(self.source_id, span, self.context());

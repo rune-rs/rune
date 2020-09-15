@@ -45,7 +45,7 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
 
         // Declare named loop variable.
         let binding_offset = {
-            self.asm.push(Inst::Unit, expr_for.iter.span());
+            self.asm.push(Inst::unit(), expr_for.iter.span());
             let name = expr_for.var.resolve(&self.storage, &*self.source)?;
             self.scopes.decl_var(name.as_ref(), expr_for.var.span())?
         };
@@ -175,7 +175,7 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
 
         // NB: If a value is needed from a for loop, encode it as a unit.
         if needs.value() {
-            self.asm.push(Inst::Unit, span);
+            self.asm.push(Inst::unit(), span);
         }
 
         // NB: breaks produce their own value.

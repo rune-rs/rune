@@ -66,7 +66,7 @@ impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_> {
         // what to do in case nothing matches and the pattern doesn't have any
         // default match branch.
         if needs.value() {
-            self.asm.push(Inst::Unit, span);
+            self.asm.push(Inst::unit(), span);
         }
 
         self.asm.jump(end_label, span);

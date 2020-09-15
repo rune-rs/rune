@@ -137,7 +137,7 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
                 let span = decl.span();
 
                 if needs.value() {
-                    self.asm.push(Inst::Unit, span);
+                    self.asm.push(Inst::unit(), span);
                 }
             }
         }

@@ -21,10 +21,10 @@ impl Compile<(&ast::LitNumber, Needs)> for Compiler<'_> {
 
         match lit_number {
             ast::Number::Float(number) => {
-                self.asm.push(Inst::Float { number }, span);
+                self.asm.push(Inst::float(number), span);
             }
             ast::Number::Integer(number) => {
-                self.asm.push(Inst::Integer { number }, span);
+                self.asm.push(Inst::integer(number), span);
             }
         }
 

@@ -2,8 +2,8 @@ use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Context, FromValue, Function, Future, Generator,
-    GuardedArgs, Hash, Inst, InstNumericOp, InstTarget, IntoHash, Object, Panic, Select, Shared,
-    Stack, Stream, Tuple, TypeCheck, TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind,
+    GuardedArgs, Hash, Inst, InstOp, InstTarget, IntoHash, Object, Panic, Select, Shared, Stack,
+    Stream, Tuple, TypeCheck, TypedObject, Unit, Value, VariantObject, VmError, VmErrorKind,
     VmExecution, VmHalt, VmIntegerRepr,
 };
 use std::fmt;
@@ -630,11 +630,11 @@ impl Vm {
     }
 
     #[inline]
-    fn op_stack_numeric(&mut self, op: InstNumericOp) -> Result<(), VmError> {
+    fn op_op(&mut self, op: InstOp) -> Result<(), VmError> {
         use std::convert::TryFrom as _;
 
         match op {
-            InstNumericOp::Add => {
+            InstOp::Add => {
                 self.internal_num(
                     crate::ADD,
                     || VmError::from(VmErrorKind::Overflow),
@@ -643,7 +643,7 @@ impl Vm {
                     "+",
                 )?;
             }
-            InstNumericOp::Sub => {
+            InstOp::Sub => {
                 self.internal_num(
                     crate::SUB,
                     || VmError::from(VmErrorKind::Underflow),
@@ -652,7 +652,7 @@ impl Vm {
                     "-",
                 )?;
             }
-            InstNumericOp::Mul => {
+            InstOp::Mul => {
                 self.internal_num(
                     crate::ADD,
                     || VmError::from(VmErrorKind::Overflow),
@@ -661,7 +661,7 @@ impl Vm {
                     "*",
                 )?;
             }
-            InstNumericOp::Div => {
+            InstOp::Div => {
                 self.internal_num(
                     crate::ADD,
                     || VmError::from(VmErrorKind::DivideByZero),
@@ -670,7 +670,7 @@ impl Vm {
                     "+",
                 )?;
             }
-            InstNumericOp::Rem => {
+            InstOp::Rem => {
                 self.internal_num(
                     crate::REM,
                     || VmError::from(VmErrorKind::DivideByZero),
@@ -679,16 +679,16 @@ impl Vm {
                     "%",
                 )?;
             }
-            InstNumericOp::BitAnd => {
+            InstOp::BitAnd => {
                 self.internal_infallible_bitwise(crate::BIT_AND, std::ops::BitAnd::bitand, "&")?;
             }
-            InstNumericOp::BitXor => {
+            InstOp::BitXor => {
                 self.internal_infallible_bitwise(crate::BIT_XOR, std::ops::BitXor::bitxor, "^")?;
             }
-            InstNumericOp::BitOr => {
+            InstOp::BitOr => {
                 self.internal_infallible_bitwise(crate::BIT_OR, std::ops::BitOr::bitor, "|")?;
             }
-            InstNumericOp::Shl => {
+            InstOp::Shl => {
                 self.internal_bitwise(
                     crate::SHL,
                     || VmError::from(VmErrorKind::Overflow),
@@ -696,7 +696,7 @@ impl Vm {
                     "<<",
                 )?;
             }
-            InstNumericOp::Shr => {
+            InstOp::Shr => {
                 self.internal_infallible_bitwise(crate::SHR, std::ops::Shr::shr, ">>")?;
             }
         }
@@ -705,11 +705,11 @@ impl Vm {
     }
 
     #[inline]
-    fn op_assign_numeric(&mut self, target: InstTarget, op: InstNumericOp) -> Result<(), VmError> {
+    fn op_assign(&mut self, target: InstTarget, op: InstOp) -> Result<(), VmError> {
         use std::convert::TryFrom as _;
 
         match op {
-            InstNumericOp::Add => {
+            InstOp::Add => {
                 self.internal_num_assign(
                     target,
                     crate::ADD_ASSIGN,
@@ -719,7 +719,7 @@ impl Vm {
                     "+=",
                 )?;
             }
-            InstNumericOp::Sub => {
+            InstOp::Sub => {
                 self.internal_num_assign(
                     target,
                     crate::SUB_ASSIGN,
@@ -729,7 +729,7 @@ impl Vm {
                     "-=",
                 )?;
             }
-            InstNumericOp::Mul => {
+            InstOp::Mul => {
                 self.internal_num_assign(
                     target,
                     crate::MUL_ASSIGN,
@@ -739,7 +739,7 @@ impl Vm {
                     "*=",
                 )?;
             }
-            InstNumericOp::Div => {
+            InstOp::Div => {
                 self.internal_num_assign(
                     target,
                     crate::DIV_ASSIGN,
@@ -749,7 +749,7 @@ impl Vm {
                     "/=",
                 )?;
             }
-            InstNumericOp::Rem => {
+            InstOp::Rem => {
                 self.internal_num_assign(
                     target,
                     crate::REM_ASSIGN,
@@ -759,7 +759,7 @@ impl Vm {
                     "%=",
                 )?;
             }
-            InstNumericOp::BitAnd => {
+            InstOp::BitAnd => {
                 self.internal_infallible_bitwise_assign(
                     target,
                     crate::BIT_AND_ASSIGN,
@@ -767,7 +767,7 @@ impl Vm {
                     "&=",
                 )?;
             }
-            InstNumericOp::BitXor => {
+            InstOp::BitXor => {
                 self.internal_infallible_bitwise_assign(
                     target,
                     crate::BIT_XOR_ASSIGN,
@@ -775,7 +775,7 @@ impl Vm {
                     "^=",
                 )?;
             }
-            InstNumericOp::BitOr => {
+            InstOp::BitOr => {
                 self.internal_infallible_bitwise_assign(
                     target,
                     crate::BIT_OR_ASSIGN,
@@ -783,7 +783,7 @@ impl Vm {
                     "|=",
                 )?;
             }
-            InstNumericOp::Shl => {
+            InstOp::Shl => {
                 self.internal_bitwise_assign(
                     target,
                     crate::SHL_ASSIGN,
@@ -792,7 +792,7 @@ impl Vm {
                     "<<=",
                 )?;
             }
-            InstNumericOp::Shr => {
+            InstOp::Shr => {
                 self.internal_infallible_bitwise_assign(
                     target,
                     crate::SHR_ASSIGN,
@@ -1338,7 +1338,7 @@ impl Vm {
 
     /// Perform a specialized index get operation on an object.
     #[inline]
-    fn op_object_slot_index_get(&mut self, string_slot: usize) -> Result<(), VmError> {
+    fn op_object_index_get(&mut self, string_slot: usize) -> Result<(), VmError> {
         let target = self.stack.pop()?;
 
         if let Some(value) = self.try_object_slot_index_get(&target, string_slot)? {
@@ -1354,11 +1354,7 @@ impl Vm {
 
     /// Perform a specialized index get operation on an object.
     #[inline]
-    fn op_object_slot_index_get_at(
-        &mut self,
-        offset: usize,
-        string_slot: usize,
-    ) -> Result<(), VmError> {
+    fn op_object_index_get_at(&mut self, offset: usize, string_slot: usize) -> Result<(), VmError> {
         let target = self.stack.at_offset(offset)?.clone();
 
         if let Some(value) = self.try_object_slot_index_get(&target, string_slot)? {
@@ -1887,7 +1883,7 @@ impl Vm {
         Ok(())
     }
 
-    fn op_fn(&mut self, hash: Hash) -> Result<(), VmError> {
+    fn op_load_fn(&mut self, hash: Hash) -> Result<(), VmError> {
         let function = match self.unit.lookup(hash) {
             Some(info) => match info {
                 UnitFn::Offset { offset, call, args } => Function::from_offset(
@@ -2077,9 +2073,6 @@ impl Vm {
                 Inst::Not => {
                     self.op_not()?;
                 }
-                Inst::Fn { hash } => {
-                    self.op_fn(hash)?;
-                }
                 Inst::Closure { hash, count } => {
                     self.op_closure(hash, count)?;
                 }
@@ -2109,11 +2102,11 @@ impl Vm {
                 Inst::TupleIndexGetAt { offset, index } => {
                     self.op_tuple_index_get_at(offset, index)?;
                 }
-                Inst::ObjectSlotIndexGet { slot } => {
-                    self.op_object_slot_index_get(slot)?;
+                Inst::ObjectIndexGet { slot } => {
+                    self.op_object_index_get(slot)?;
                 }
-                Inst::ObjectSlotIndexGetAt { offset, slot } => {
-                    self.op_object_slot_index_get_at(offset, slot)?;
+                Inst::ObjectIndexGetAt { offset, slot } => {
+                    self.op_object_index_get_at(offset, slot)?;
                 }
                 Inst::IndexSet => {
                     self.op_index_set()?;
@@ -2141,6 +2134,12 @@ impl Vm {
                         return Ok(VmHalt::Awaited(Awaited::Select(select)));
                     }
                 }
+                Inst::LoadFn { hash } => {
+                    self.op_load_fn(hash)?;
+                }
+                Inst::Push { value } => {
+                    self.stack.push(value.into_value());
+                }
                 Inst::Pop => {
                     self.stack.pop()?;
                 }
@@ -2152,12 +2151,6 @@ impl Vm {
                 }
                 Inst::Clean { count } => {
                     self.op_clean(count)?;
-                }
-                Inst::Integer { number } => {
-                    self.stack.push(Value::Integer(number));
-                }
-                Inst::Float { number } => {
-                    self.stack.push(Value::Float(number));
                 }
                 Inst::Copy { offset } => {
                     self.op_copy(offset)?;
@@ -2201,12 +2194,6 @@ impl Vm {
                 Inst::JumpIfBranch { branch, offset } => {
                     self.op_jump_if_branch(branch, offset)?;
                 }
-                Inst::Unit => {
-                    self.stack.push(Value::Unit);
-                }
-                Inst::Bool { value } => {
-                    self.stack.push(Value::Bool(value));
-                }
                 Inst::Vec { count } => {
                     self.op_vec(count)?;
                 }
@@ -2228,15 +2215,6 @@ impl Vm {
                     slot,
                 } => {
                     self.op_variant_object(enum_hash, hash, slot)?;
-                }
-                Inst::Type { hash } => {
-                    self.stack.push(Value::Type(hash));
-                }
-                Inst::Char { c } => {
-                    self.stack.push(Value::Char(c));
-                }
-                Inst::Byte { b } => {
-                    self.stack.push(Value::Byte(b));
                 }
                 Inst::String { slot } => {
                     self.op_string(slot)?;
@@ -2303,11 +2281,11 @@ impl Vm {
                     self.stack.push(Value::Unit);
                     return Ok(VmHalt::Yielded);
                 }
-                Inst::StackNumeric { op } => {
-                    self.op_stack_numeric(op)?;
+                Inst::Op { op } => {
+                    self.op_op(op)?;
                 }
-                Inst::AssignNumeric { target, op } => {
-                    self.op_assign_numeric(target, op)?;
+                Inst::Assign { target, op } => {
+                    self.op_assign(target, op)?;
                 }
                 Inst::Panic { reason } => {
                     return Err(VmError::from(VmErrorKind::Panic {
