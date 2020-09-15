@@ -92,70 +92,6 @@ pub enum Inst {
     /// => <bool>
     /// ```
     Not,
-    /// Add two things together.
-    ///
-    /// This is the result of an `<a> + <b>` expression.
-    Add,
-    /// Add a value to the given frame offset.
-    ///
-    /// This is the result of an `<offset> += <b>` expression.
-    AddAssign {
-        /// The frame offset to assign to.
-        offset: usize,
-    },
-    /// Subtract two things.
-    ///
-    /// This is the result of an `<a> - <b>` expression.
-    Sub,
-    /// Subtract a value to the given frame offset.
-    ///
-    /// This is the result of an `<offset> -= <b>` expression.
-    SubAssign {
-        /// The frame offset to assign to.
-        offset: usize,
-    },
-    /// Multiply two things.
-    ///
-    /// This is the result of an `<a> * <b>` expression.
-    Mul,
-    /// Multiply a value to the given frame offset.
-    ///
-    /// This is the result of an `<offset> *= <b>` expression.
-    MulAssign {
-        /// The frame offset to assign to.
-        offset: usize,
-    },
-    /// Divide two things.
-    ///
-    /// This is the result of an `<a> / <b>` expression.
-    Div,
-    /// Divide a value to the given frame offset.
-    ///
-    /// This is the result of an `<offset> /= <b>` expression.
-    DivAssign {
-        /// The frame offset to assign to.
-        offset: usize,
-    },
-    /// Remainder operation.
-    ///
-    /// This is the result of an `<a> % <b>` expression.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// <value>
-    /// => <value>
-    /// ```
-    Rem,
-    /// Calculate the remainder based on the value of the given offset and the
-    /// top of the stack.
-    ///
-    /// This is the result of an `<offset> %= <b>` expression.
-    RemAssign {
-        /// The frame offset to assign to.
-        offset: usize,
-    },
     /// Encode a function pointer on the stack.
     ///
     /// # Operation
@@ -762,126 +698,6 @@ pub enum Inst {
     /// => <boolean>
     /// ```
     Or,
-    /// Pop two values from the stack and perform a bitwise and operation over
-    /// them.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// <value>
-    /// => <value>
-    /// ```
-    BitAnd,
-    /// Pop a value from the stack and perform a bitwise and operation over the
-    /// offset and that value.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <value>
-    /// ```
-    BitAndAssign {
-        /// The offset to assign the result to.
-        offset: usize,
-    },
-    /// Pop two values from the stack and perform a bitwise xor operation over
-    /// them.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// <value>
-    /// => <value>
-    /// ```
-    BitXor,
-    /// Pop a value from the stack and perform a bitwise xor operation over the
-    /// offset and that value.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <value>
-    /// ```
-    BitXorAssign {
-        /// The offset to assign the result to.
-        offset: usize,
-    },
-    /// Pop two values from the stack and perform a bitwise or operation over
-    /// them.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// <value>
-    /// => <value>
-    /// ```
-    BitOr,
-    /// Pop a value from the stack and perform a bitwise or operation over the
-    /// offset and that value.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <value>
-    /// ```
-    BitOrAssign {
-        /// The offset to assign the result to.
-        offset: usize,
-    },
-    /// Pop two values from the stack and perform a bitwise shift left operation
-    /// over them.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// <value>
-    /// => <value>
-    /// ```
-    Shl,
-    /// Pop a value from the stack and perform a bitwise shift left operation
-    /// over the offset and that value.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <value>
-    /// ```
-    ShlAssign {
-        /// The offset to assign the result to.
-        offset: usize,
-    },
-    /// Pop two values from the stack and perform a bitwise shift right
-    /// operation over them.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// <value>
-    /// => <value>
-    /// ```
-    Shr,
-    /// Pop a value from the stack and perform a bitwise shift right operation
-    /// over the offset and that value.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <value>
-    /// ```
-    ShrAssign {
-        /// The offset to assign the result to.
-        offset: usize,
-    },
     /// Test if the top of the stack is a unit.
     ///
     /// # Operation
@@ -1030,6 +846,37 @@ pub enum Inst {
     /// => <unit>
     /// ```
     YieldUnit,
+    /// A built-in operation like `a + b` that takes its operands and pushes its
+    /// result to and from the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// <value>
+    /// => <value>
+    /// ```
+    StackNumeric {
+        /// The actual operation.
+        op: InstNumericOp,
+    },
+    /// A built-in operation that assigns to the left-hand side operand. Like
+    /// `a += b`.
+    ///
+    /// The target determines the left hand side operation.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// =>
+    /// ```
+    AssignNumeric {
+        /// The target of the operation.
+        target: InstTarget,
+        /// The actual operation.
+        op: InstNumericOp,
+    },
     /// Cause the VM to panic and error out without a reason.
     ///
     /// This should only be used during testing or extreme scenarios that are
@@ -1048,36 +895,6 @@ impl fmt::Display for Inst {
             }
             Self::Not => {
                 write!(fmt, "not")?;
-            }
-            Self::Add => {
-                write!(fmt, "add")?;
-            }
-            Self::AddAssign { offset } => {
-                write!(fmt, "add-assign {}", offset)?;
-            }
-            Self::Sub => {
-                write!(fmt, "sub")?;
-            }
-            Self::SubAssign { offset } => {
-                write!(fmt, "sub-assign {}", offset)?;
-            }
-            Self::Mul => {
-                write!(fmt, "mul")?;
-            }
-            Self::MulAssign { offset } => {
-                write!(fmt, "mul-assign {}", offset)?;
-            }
-            Self::Div => {
-                write!(fmt, "div")?;
-            }
-            Self::DivAssign { offset } => {
-                write!(fmt, "div-assign {}", offset)?;
-            }
-            Self::Rem => {
-                write!(fmt, "rem")?;
-            }
-            Self::RemAssign { offset } => {
-                write!(fmt, "rem-assign {}", offset)?;
             }
             Self::Call { hash, args } => {
                 write!(fmt, "call {}, {}", hash, args)?;
@@ -1242,36 +1059,6 @@ impl fmt::Display for Inst {
             Self::Or => {
                 write!(fmt, "or")?;
             }
-            Self::BitAnd => {
-                write!(fmt, "bit-and")?;
-            }
-            Self::BitAndAssign { offset } => {
-                write!(fmt, "bit-and-assign {}", offset)?;
-            }
-            Self::BitXor => {
-                write!(fmt, "bit-xor")?;
-            }
-            Self::BitXorAssign { offset } => {
-                write!(fmt, "bit-xor-assign {}", offset)?;
-            }
-            Self::BitOr => {
-                write!(fmt, "bit-or")?;
-            }
-            Self::BitOrAssign { offset } => {
-                write!(fmt, "bit-or-assign {}", offset)?;
-            }
-            Self::Shl => {
-                write!(fmt, "shl")?;
-            }
-            Self::ShlAssign { offset } => {
-                write!(fmt, "shl-assign {}", offset)?;
-            }
-            Self::Shr => {
-                write!(fmt, "shr")?;
-            }
-            Self::ShrAssign { offset } => {
-                write!(fmt, "shr-assign {}", offset)?;
-            }
             Self::IsUnit => {
                 write!(fmt, "is-unit")?;
             }
@@ -1316,11 +1103,80 @@ impl fmt::Display for Inst {
             Self::YieldUnit => {
                 write!(fmt, "yield-unit")?;
             }
+            Self::StackNumeric { op } => {
+                write!(fmt, "stack-numeric {}", op)?;
+            }
+            Self::AssignNumeric { target, op } => {
+                write!(fmt, "assign-numeric {}, {}", target, op)?;
+            }
             Self::Panic { reason } => {
                 write!(fmt, "panic {}", reason.ident())?;
             }
         }
 
         Ok(())
+    }
+}
+
+/// The target of an operation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InstTarget {
+    /// Target is an offset to the current call frame.
+    Offset(usize),
+    /// Target the field of an object.
+    Field(usize),
+    /// Target a tuple field.
+    TupleField(usize),
+}
+
+impl fmt::Display for InstTarget {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Offset(offset) => write!(f, "offset({})", offset),
+            Self::Field(slot) => write!(f, "field({})", slot),
+            Self::TupleField(slot) => write!(f, "tuple-field({})", slot),
+        }
+    }
+}
+
+/// An operation between two values on the machine.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InstNumericOp {
+    /// The add operation. `a + b`.
+    Add,
+    /// The sub operation. `a - b`.
+    Sub,
+    /// The multiply operation. `a * b`.
+    Mul,
+    /// The division operation. `a / b`.
+    Div,
+    /// The remainder operation. `a % b`.
+    Rem,
+    /// The bitwise and operation. `a & b`.
+    BitAnd,
+    /// The bitwise xor operation. `a ^ b`.
+    BitXor,
+    /// The bitwise or operation. `a | b`.
+    BitOr,
+    /// The shift left operation. `a << b`.
+    Shl,
+    /// The shift right operation. `a << b`.
+    Shr,
+}
+
+impl fmt::Display for InstNumericOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Add => write!(f, "+"),
+            Self::Sub => write!(f, "-"),
+            Self::Mul => write!(f, "*"),
+            Self::Div => write!(f, "/"),
+            Self::Rem => write!(f, "%"),
+            Self::BitAnd => write!(f, "&"),
+            Self::BitXor => write!(f, "^"),
+            Self::BitOr => write!(f, "|"),
+            Self::Shl => write!(f, "<<"),
+            Self::Shr => write!(f, ">>"),
+        }
     }
 }

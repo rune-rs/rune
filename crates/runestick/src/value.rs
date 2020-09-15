@@ -25,6 +25,11 @@ impl TypedTuple {
     pub fn get(&self, index: usize) -> Option<&Value> {
         self.tuple.get(index)
     }
+
+    /// Get the mutable value at the given index in the tuple.
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
+        self.tuple.get_mut(index)
+    }
 }
 
 /// A tuple with a well-defined type as a variant of an enum.
@@ -79,6 +84,15 @@ impl TypedObject {
     {
         self.object.get(k)
     }
+
+    /// Get the given mutable value by key in the object.
+    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
+    where
+        String: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + std::cmp::Eq,
+    {
+        self.object.get_mut(k)
+    }
 }
 
 /// An object with a well-defined variant of an enum.
@@ -96,6 +110,24 @@ impl VariantObject {
     /// Get type info for the typed object.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Hash(self.enum_hash)
+    }
+
+    /// Get the given key in the object.
+    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&Value>
+    where
+        String: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + std::cmp::Eq,
+    {
+        self.object.get(k)
+    }
+
+    /// Get the given mutable value by key in the object.
+    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
+    where
+        String: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + std::cmp::Eq,
+    {
+        self.object.get_mut(k)
     }
 }
 
