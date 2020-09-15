@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::traits::Compile;
-use crate::CompileError;
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Spanned as _};
 use runestick::Inst;
 
 /// Compile a select expression.
@@ -69,9 +69,10 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
                     _ => (),
                 }
 
-                return Err(CompileError::UnsupportedSelectPattern {
-                    span: branch.span(),
-                });
+                return Err(CompileError::new(
+                    branch.span(),
+                    CompileErrorKind::UnsupportedSelectPattern,
+                ));
             }
 
             // Set up a new scope with the binding.
@@ -89,7 +90,7 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
 
         self.contexts
             .pop()
-            .ok_or_else(|| CompileError::internal("missing parent context", span))?;
+            .ok_or_else(|| CompileError::internal(span, "missing parent context"))?;
 
         Ok(())
     }

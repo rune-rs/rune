@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
-use crate::traits::{Compile, Resolve as _};
-use crate::CompileError;
+use crate::traits::Compile;
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
 use runestick::{CompileMetaKind, Hash, Inst};
 
 /// Compile a call expression.
@@ -76,7 +76,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         if let Some(name) = item.as_local() {
             if let Some(var) =
                 self.scopes
-                    .try_get_var(name, self.source.url(), self.visitor, path.span())?
+                    .try_get_var(name, self.source.url(), self.visitor, path.span())
             {
                 var.copy(&mut self.asm, span, format!("var `{}`", name));
                 self.asm.push(Inst::CallFn { args }, span);
@@ -93,19 +93,24 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         let meta = match self.lookup_meta(&item, path.span())? {
             Some(meta) => meta,
             None => {
-                return Err(CompileError::MissingFunction { span, item });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::MissingFunction { item },
+                ));
             }
         };
 
         let item = match &meta.kind {
             CompileMetaKind::Tuple { tuple, .. } | CompileMetaKind::TupleVariant { tuple, .. } => {
                 if tuple.args != expr_call.args.items.len() {
-                    return Err(CompileError::UnsupportedArgumentCount {
+                    return Err(CompileError::new(
                         span,
-                        meta: meta.clone(),
-                        expected: tuple.args,
-                        actual: expr_call.args.items.len(),
-                    });
+                        CompileErrorKind::UnsupportedArgumentCount {
+                            meta: meta.clone(),
+                            expected: tuple.args,
+                            actual: expr_call.args.items.len(),
+                        },
+                    ));
                 }
 
                 if tuple.args == 0 {
@@ -122,7 +127,10 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
             CompileMetaKind::Function { item, .. } => item.clone(),
             _ => {
-                return Err(CompileError::MissingFunction { span, item });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::MissingFunction { item },
+                ));
             }
         };
 

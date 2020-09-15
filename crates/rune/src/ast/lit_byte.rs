@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
+use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 
 /// A byte literal.
@@ -11,10 +11,9 @@ pub struct LitByte {
     pub source: ast::CopySource<u8>,
 }
 
-impl LitByte {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.token.span
+impl Spanned for LitByte {
+    fn span(&self) -> Span {
+        self.token.span()
     }
 }
 
@@ -38,10 +37,10 @@ impl Parse for LitByte {
         Ok(match token.kind {
             ast::Kind::LitByte(source) => LitByte { token, source },
             _ => {
-                return Err(ParseError::ExpectedByte {
-                    actual: token.kind,
-                    span: token.span,
-                })
+                return Err(ParseError::new(
+                    token,
+                    ParseErrorKind::ExpectedByte { actual: token.kind },
+                ));
             }
         })
     }
@@ -56,11 +55,11 @@ impl<'a> Resolve<'a> for LitByte {
             ast::CopySource::Text => (),
         }
 
-        let span = self.token.span;
+        let span = self.token.span();
 
         let string = source
             .source(span.trim_start(2).trim_end(1))
-            .ok_or_else(|| ParseError::BadSlice { span })?;
+            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
 
         let mut it = string
             .char_indices()
@@ -70,7 +69,7 @@ impl<'a> Resolve<'a> for LitByte {
         let (n, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(ParseError::BadByteLiteral { span });
+                return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral));
             }
         };
 
@@ -78,13 +77,13 @@ impl<'a> Resolve<'a> for LitByte {
             '\\' => ast::utils::parse_byte_escape(span.with_start(n), &mut it)?,
             c if c.is_ascii() && !c.is_control() => c as u8,
             _ => {
-                return Err(ParseError::BadByteLiteral { span });
+                return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral));
             }
         };
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(ParseError::BadByteLiteral { span });
+            return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral));
         }
 
         Ok(c)

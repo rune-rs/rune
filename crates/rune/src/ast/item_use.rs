@@ -1,11 +1,5 @@
 use crate::ast;
-use crate::ast::Kind;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::{
-    traits::{Parse, Peek},
-    IntoTokens,
-};
+use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// An imported declaration.
@@ -28,9 +22,8 @@ into_tokens!(ItemUse {
     semi
 });
 
-impl ItemUse {
-    /// Get the span for the declaration.
-    pub fn span(&self) -> Span {
+impl Spanned for ItemUse {
+    fn span(&self) -> Span {
         self.use_.span().join(self.semi.span())
     }
 }
@@ -84,10 +77,10 @@ impl Parse for ItemUseComponent {
             ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
             ast::Kind::Star => Self::Wildcard(parser.parse()?),
             actual => {
-                return Err(ParseError::ExpectedItemUseImportComponent {
-                    span: t.span,
-                    actual,
-                })
+                return Err(ParseError::new(
+                    t,
+                    ParseErrorKind::ExpectedItemUseImportComponent { actual },
+                ));
             }
         })
     }
@@ -100,7 +93,7 @@ impl Peek for ItemUseComponent {
             None => return false,
         };
 
-        matches!(kind, Kind::Ident(..) | Kind::Star)
+        matches!(kind, ast::Kind::Ident(..) | ast::Kind::Star)
     }
 }
 

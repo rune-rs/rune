@@ -4,15 +4,15 @@ use runestick::{Component, Context, Item, Source, Span};
 
 use crate::ast;
 use crate::collections::HashMap;
-use crate::error::CompileResult;
 use crate::index::{Index, Indexer};
 use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::macros::MacroCompiler;
 use crate::query::Query;
+use crate::CompileResult;
 use crate::{
-    CompileError, CompileVisitor, Errors, LoadError, MacroContext, Options, Resolve as _, SourceId,
-    SourceLoader, Sources, Storage, UnitBuilder, Warnings,
+    CompileError, CompileErrorKind, CompileVisitor, Errors, LoadError, MacroContext, Options,
+    Resolve as _, SourceId, SourceLoader, Sources, Spanned as _, Storage, UnitBuilder, Warnings,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -235,8 +235,8 @@ impl<'a> Worker<'a> {
                                 _ => {
                                     self.errors.push(
                                         LoadError::new(source_id, CompileError::internal(
-                                            "expected macro item as last component of macro expansion",
                                             span,
+                                            "expected macro item as last component of macro expansion",
                                         ))
                                     );
 
@@ -343,7 +343,10 @@ impl Import {
         for (_, c) in it {
             match c {
                 ast::ItemUseComponent::Wildcard(t) => {
-                    return Err(CompileError::UnsupportedWildcard { span: t.span() });
+                    return Err(CompileError::new(
+                        t.span(),
+                        CompileErrorKind::UnsupportedWildcard,
+                    ));
                 }
                 ast::ItemUseComponent::Ident(ident) => {
                     name.push(ident.resolve(storage, &*source)?.as_ref());
@@ -357,7 +360,10 @@ impl Import {
                     let mut new_names = Vec::new();
 
                     if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
-                        return Err(CompileError::MissingModule { span, item: name });
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::MissingModule { item: name },
+                        ));
                     }
 
                     let iter = context

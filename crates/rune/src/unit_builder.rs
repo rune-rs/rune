@@ -6,7 +6,7 @@
 use crate::assembly::{Assembly, AssemblyInst};
 use crate::ast;
 use crate::collections::HashMap;
-use crate::error::CompileResult;
+use crate::CompileResult;
 use crate::{Errors, LoadError, Resolve as _, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{

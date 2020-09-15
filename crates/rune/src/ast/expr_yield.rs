@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser};
+use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A return statement `break [expr]`.
@@ -11,9 +11,8 @@ pub struct ExprYield {
     pub expr: Option<Box<ast::Expr>>,
 }
 
-impl ExprYield {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprYield {
+    fn span(&self) -> Span {
         if let Some(expr) = &self.expr {
             self.yield_.span().join(expr.span())
         } else {

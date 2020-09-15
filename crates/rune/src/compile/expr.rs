@@ -1,9 +1,9 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::traits::Compile;
 use crate::worker::Expanded;
-use crate::CompileError;
+use crate::CompileResult;
+use crate::{CompileError, Spanned as _};
 use runestick::Inst;
 
 /// Compile an expression.
@@ -127,7 +127,7 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
                 } else {
                     let span = expr_call_macro.span();
 
-                    return Err(CompileError::internal("macro has not been expanded", span));
+                    return Err(CompileError::internal(span, "macro has not been expanded"));
                 }
             }
             // NB: declarations are not used in this compilation stage.

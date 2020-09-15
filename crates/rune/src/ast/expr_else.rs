@@ -1,7 +1,5 @@
 use crate::ast::{Else, ExprBlock};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An else branch of an if expression.
@@ -15,9 +13,8 @@ pub struct ExprElse {
 
 into_tokens!(ExprElse { else_, block });
 
-impl ExprElse {
-    /// Access the span for the expression.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprElse {
+    fn span(&self) -> Span {
         self.else_.span().join(self.block.span())
     }
 }

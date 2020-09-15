@@ -1,6 +1,6 @@
 //! AST for the Rune language.
 
-use crate::{Parse, ParseError, Parser, Peek};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek};
 use runestick::Span;
 
 mod block;
@@ -141,10 +141,9 @@ macro_rules! decl_tokens {
                 pub token: Token,
             }
 
-            impl $parser {
-                /// Access the span of the token.
-                pub fn span(&self) -> Span {
-                    self.token.span
+            impl crate::Spanned for $parser {
+                fn span(&self) -> Span {
+                    self.token.span()
                 }
             }
 
@@ -156,11 +155,10 @@ macro_rules! decl_tokens {
                         $($kind)* => Ok(Self {
                             token,
                         }),
-                        _ => Err(ParseError::TokenMismatch {
+                        _ => Err(ParseError::new(token, ParseErrorKind::TokenMismatch {
                             expected: $($kind)*,
                             actual: token.kind,
-                            span: token.span,
-                        }),
+                        })),
                     }
                 }
             }

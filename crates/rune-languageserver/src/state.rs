@@ -3,6 +3,7 @@ use anyhow::{anyhow, Result};
 use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
+use rune::Spanned as _;
 use runestick::{CompileMeta, CompileMetaKind, Span};
 use std::collections::BTreeMap;
 use std::fmt;

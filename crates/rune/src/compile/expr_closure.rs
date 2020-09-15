@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::traits::Compile;
-use crate::{traits::Resolve as _, CompileError};
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
 use runestick::{CompileMetaCapture, CompileMetaKind, Hash, Inst};
 
 /// Compile the body of a closure function.
@@ -20,7 +20,7 @@ impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
 
                 match arg {
                     ast::FnArg::Self_(s) => {
-                        return Err(CompileError::UnsupportedSelf { span: s.span() })
+                        return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf))
                     }
                     ast::FnArg::Ident(ident) => {
                         let ident = ident.resolve(&self.storage, &*self.source)?;
@@ -72,21 +72,17 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
         let item = self.items.item();
         let hash = Hash::type_hash(&item);
 
-        let meta = self
-            .query
-            .query_meta(&item)?
-            .ok_or_else(|| CompileError::MissingType {
-                item: item.clone(),
-                span,
-            })?;
+        let meta = self.query.query_meta(&item)?.ok_or_else(|| {
+            CompileError::new(span, CompileErrorKind::MissingType { item: item.clone() })
+        })?;
 
         let captures = match &meta.kind {
             CompileMetaKind::Closure { captures, .. } => captures,
             _ => {
-                return Err(CompileError::UnsupportedMetaClosure {
-                    meta: meta.clone(),
+                return Err(CompileError::new(
                     span,
-                });
+                    CompileErrorKind::UnsupportedMetaClosure { meta: meta.clone() },
+                ));
             }
         };
 

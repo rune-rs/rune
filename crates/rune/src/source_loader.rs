@@ -1,4 +1,4 @@
-use crate::CompileError;
+use crate::{CompileError, CompileErrorKind};
 use runestick::{Source, Span, Url};
 
 /// A source loader.
@@ -20,23 +20,26 @@ impl FileSourceLoader {
 impl SourceLoader for FileSourceLoader {
     fn load(&mut self, url: &Url, name: &str, span: Span) -> Result<Source, CompileError> {
         if url.scheme() != "file" {
-            return Err(CompileError::UnsupportedLoadUrl {
+            return Err(CompileError::new(
                 span,
-                url: url.clone(),
-            });
+                CompileErrorKind::UnsupportedLoadUrl { url: url.clone() },
+            ));
         }
 
-        let path = url
-            .to_file_path()
-            .map_err(|_| CompileError::UnsupportedLoadUrl {
+        let path = url.to_file_path().map_err(|_| {
+            CompileError::new(
                 span,
-                url: url.clone(),
-            })?;
+                CompileErrorKind::UnsupportedLoadUrl { url: url.clone() },
+            )
+        })?;
 
         let base = match path.parent() {
             Some(parent) => parent.join(name),
             None => {
-                return Err(CompileError::UnsupportedFileMod { span });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedFileMod,
+                ));
             }
         };
 
@@ -57,18 +60,23 @@ impl SourceLoader for FileSourceLoader {
         let path = match found {
             Some(path) => path,
             None => {
-                return Err(CompileError::ModNotFound { path: base, span });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::ModNotFound { path: base },
+                ));
             }
         };
 
         match Source::from_path(path) {
             Ok(source) => Ok(source),
             Err(error) => {
-                return Err(CompileError::ModFileError {
+                return Err(CompileError::new(
                     span,
-                    path: path.to_owned(),
-                    error,
-                });
+                    CompileErrorKind::ModFileError {
+                        path: path.to_owned(),
+                        error,
+                    },
+                ));
             }
         }
     }

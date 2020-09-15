@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser};
+use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A closure.
@@ -24,9 +24,10 @@ impl ExprClosure {
             self.args.span()
         }
     }
+}
 
-    /// Access the span for the closure.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprClosure {
+    fn span(&self) -> Span {
         if let Some(async_) = &self.async_ {
             async_.span().join(self.body.span())
         } else {
@@ -98,14 +99,6 @@ pub enum ExprClosureArgs {
 }
 
 impl ExprClosureArgs {
-    /// Access the span for the closure arguments.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Empty { token } => token.span(),
-            Self::List { open, close, .. } => open.span().join(close.span()),
-        }
-    }
-
     /// The number of arguments the closure takes.
     pub fn len(&self) -> usize {
         match self {
@@ -119,6 +112,15 @@ impl ExprClosureArgs {
         match self {
             Self::Empty { .. } => &[],
             Self::List { args, .. } => &args[..],
+        }
+    }
+}
+
+impl Spanned for ExprClosureArgs {
+    fn span(&self) -> Span {
+        match self {
+            Self::Empty { token } => token.span(),
+            Self::List { open, close, .. } => open.span().join(close.span()),
         }
     }
 }

@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::traits::Compile;
-use crate::{traits::Resolve as _, CompileError};
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
 use runestick::Inst;
 
 impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
@@ -18,7 +18,7 @@ impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
             match arg {
                 ast::FnArg::Self_(s) => {
                     if !instance_fn || !first {
-                        return Err(CompileError::UnsupportedSelf { span });
+                        return Err(CompileError::new(span, CompileErrorKind::UnsupportedSelf));
                     }
 
                     let span = s.span();

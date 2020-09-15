@@ -1,8 +1,5 @@
 use crate::ast;
-use crate::ast::{Kind, Token};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::{IntoTokens, Parse, Peek, Resolve, Storage};
+use crate::{IntoTokens, Parse, ParseError, Parser, Peek, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -29,19 +26,6 @@ impl Path {
         }
     }
 
-    /// Calculate the full span of the path.
-    pub fn span(&self) -> Span {
-        if let Some(trailing) = &self.trailing {
-            return self.first.span().join(trailing.span());
-        }
-
-        if let Some((_, ident)) = self.rest.last() {
-            return self.first.span().join(ident.span());
-        }
-
-        self.first.span()
-    }
-
     /// Iterate over all components in path.
     pub fn into_components(&self) -> impl Iterator<Item = &'_ ast::Ident> + '_ {
         let mut first = Some(&self.first);
@@ -57,14 +41,28 @@ impl Path {
     }
 }
 
+impl Spanned for Path {
+    fn span(&self) -> Span {
+        if let Some(trailing) = &self.trailing {
+            return self.first.span().join(trailing.span());
+        }
+
+        if let Some((_, ident)) = self.rest.last() {
+            return self.first.span().join(ident.span());
+        }
+
+        self.first.span()
+    }
+}
+
 impl Peek for Path {
-    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
+    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
         let t1 = match t1 {
             Some(t1) => t1,
             None => return false,
         };
 
-        matches!(t1.kind, Kind::Ident(..))
+        matches!(t1.kind, ast::Kind::Ident(..))
     }
 }
 

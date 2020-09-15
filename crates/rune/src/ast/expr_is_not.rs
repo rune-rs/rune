@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An is expression.
@@ -25,14 +23,15 @@ impl ExprIsNot {
         false
     }
 
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.lhs.span().join(self.rhs.span())
-    }
-
     /// Test if the expression is a constant expression.
     pub fn is_const(&self) -> bool {
         self.lhs.is_const() && self.rhs.is_const()
+    }
+}
+
+impl Spanned for ExprIsNot {
+    fn span(&self) -> Span {
+        self.lhs.span().join(self.rhs.span())
     }
 }
 

@@ -1,7 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
-use crate::traits::{Compile, Resolve as _};
+use crate::traits::Compile;
+use crate::CompileResult;
+use crate::{Resolve as _, Spanned as _};
 use runestick::Inst;
 
 /// Compile a literal byte such as `b'a'`.

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser};
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A block of expressions.
@@ -12,11 +12,6 @@ pub struct ExprBlock {
 into_tokens!(ExprBlock { block });
 
 impl ExprBlock {
-    /// Get the span of the block.
-    pub fn span(&self) -> Span {
-        self.block.span()
-    }
-
     /// Test if the block expression doesn't produce a value.
     pub fn produces_nothing(&self) -> bool {
         self.block.produces_nothing()
@@ -25,6 +20,12 @@ impl ExprBlock {
     /// Test if the block is a constant expression.
     pub fn is_const(&self) -> bool {
         self.block.is_const()
+    }
+}
+
+impl Spanned for ExprBlock {
+    fn span(&self) -> Span {
+        self.block.span()
     }
 }
 

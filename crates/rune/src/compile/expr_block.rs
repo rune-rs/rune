@@ -1,7 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::traits::Compile;
+use crate::CompileResult;
+use crate::Spanned as _;
 
 /// Compile a block expression.
 ///

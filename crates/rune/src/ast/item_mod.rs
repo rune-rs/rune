@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Peek};
+use crate::{IntoTokens, Parse, ParseError, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// A module declaration.
@@ -13,9 +13,8 @@ pub struct ItemMod {
     pub body: ItemModBody,
 }
 
-impl ItemMod {
-    /// The span of the declaration.
-    pub fn span(&self) -> Span {
+impl Spanned for ItemMod {
+    fn span(&self) -> Span {
         self.mod_.span().join(self.body.span())
     }
 }

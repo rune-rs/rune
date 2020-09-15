@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser};
+use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An impl declaration.
@@ -17,9 +17,8 @@ pub struct ItemImpl {
     pub close: ast::CloseBrace,
 }
 
-impl ItemImpl {
-    /// The span of the declaration.
-    pub fn span(&self) -> Span {
+impl Spanned for ItemImpl {
+    fn span(&self) -> Span {
         self.impl_.span().join(self.close.span())
     }
 }

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek};
+use crate::{Parse, ParseError, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// The unit literal `()`.
@@ -13,9 +13,8 @@ pub struct LitUnit {
 
 into_tokens!(LitUnit { open, close });
 
-impl LitUnit {
-    /// Get the span of this unit literal.
-    pub fn span(&self) -> Span {
+impl Spanned for LitUnit {
+    fn span(&self) -> Span {
         self.open.span().join(self.close.span())
     }
 }

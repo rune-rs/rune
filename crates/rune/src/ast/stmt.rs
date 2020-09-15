@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::IntoTokens;
+use crate::{IntoTokens, Spanned};
 use runestick::Span;
 
 /// A statement within a block.
@@ -13,9 +13,8 @@ pub enum Stmt {
     Semi(ast::Expr, ast::SemiColon),
 }
 
-impl Stmt {
-    /// Get the span of the statement.
-    pub fn span(&self) -> Span {
+impl Spanned for Stmt {
+    fn span(&self) -> Span {
         match self {
             Self::Item(decl) => decl.span(),
             Self::Expr(expr) => expr.span(),

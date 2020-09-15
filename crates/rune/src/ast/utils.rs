@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
+use crate::{ParseError, ParseErrorKind};
 use runestick::Span;
 use std::iter::Peekable;
 use std::ops;
@@ -24,7 +24,7 @@ where
     let (n, c) = match it.next() {
         Some(c) => c,
         None => {
-            return Err(ParseError::BadEscapeSequence { span });
+            return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
         }
     };
 
@@ -40,17 +40,20 @@ where
             let (result, span) = parse_hex_escape(span, it)?;
 
             if result > 0xff {
-                return Err(ParseError::UnsupportedByteEscape { span });
+                return Err(ParseError::new(span, ParseErrorKind::UnsupportedByteEscape));
             }
 
             result as u8
         }
         'u' => {
-            return Err(ParseError::UnicodeEscapeNotSupported { span });
+            return Err(ParseError::new(
+                span,
+                ParseErrorKind::UnicodeEscapeNotSupported,
+            ));
         }
         _ => {
             let span = span.with_end(n);
-            return Err(ParseError::BadEscapeSequence { span });
+            return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
         }
     })
 }
@@ -67,7 +70,7 @@ where
     let (n, c) = match it.next() {
         Some(c) => c,
         None => {
-            return Err(ParseError::BadEscapeSequence { span });
+            return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
         }
     };
 
@@ -85,19 +88,22 @@ where
             let (result, span) = parse_hex_escape(span, it)?;
 
             if result > 0x7f {
-                return Err(ParseError::UnsupportedUnicodeByteEscape { span });
+                return Err(ParseError::new(
+                    span,
+                    ParseErrorKind::UnsupportedUnicodeByteEscape,
+                ));
             }
 
             if let Some(c) = std::char::from_u32(result) {
                 c
             } else {
-                return Err(ParseError::BadByteEscape { span });
+                return Err(ParseError::new(span, ParseErrorKind::BadByteEscape));
             }
         }
         'u' => parse_unicode_escape(span, it)?,
         _ => {
             let span = span.with_end(n);
-            return Err(ParseError::BadEscapeSequence { span });
+            return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
         }
     })
 }
@@ -112,19 +118,19 @@ where
     for _ in 0..2 {
         let (_, c) = it
             .next()
-            .ok_or_else(|| ParseError::BadByteEscape { span })?;
+            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadByteEscape))?;
 
         let span = it.peek().map(|(n, _)| span.with_end(*n)).unwrap_or(span);
 
         result = result
             .checked_shl(4)
-            .ok_or_else(|| ParseError::BadByteEscape { span })?;
+            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadByteEscape))?;
 
         result += match c {
             '0'..='9' => c as u32 - '0' as u32,
             'a'..='f' => c as u32 - 'a' as u32 + 10,
             'A'..='F' => c as u32 - 'A' as u32 + 10,
-            _ => return Err(ParseError::BadByteEscape { span }),
+            _ => return Err(ParseError::new(span, ParseErrorKind::BadByteEscape)),
         };
     }
 
@@ -139,7 +145,7 @@ where
 {
     match it.next() {
         Some((_, '{')) => (),
-        _ => return Err(ParseError::BadUnicodeEscape { span }),
+        _ => return Err(ParseError::new(span, ParseErrorKind::BadUnicodeEscape)),
     };
 
     let mut first = true;
@@ -148,35 +154,35 @@ where
     loop {
         let (_, c) = it
             .next()
-            .ok_or_else(|| ParseError::BadUnicodeEscape { span })?;
+            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadUnicodeEscape))?;
 
         let span = it.peek().map(|(n, _)| span.with_end(*n)).unwrap_or(span);
 
         match c {
             '}' => {
                 if first {
-                    return Err(ParseError::BadUnicodeEscape { span });
+                    return Err(ParseError::new(span, ParseErrorKind::BadUnicodeEscape));
                 }
 
                 if let Some(c) = std::char::from_u32(result) {
                     return Ok(c);
                 }
 
-                return Err(ParseError::BadUnicodeEscape { span });
+                return Err(ParseError::new(span, ParseErrorKind::BadUnicodeEscape));
             }
             c => {
                 first = false;
 
                 result = result
                     .checked_shl(4)
-                    .ok_or_else(|| ParseError::BadUnicodeEscape { span })?;
+                    .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadUnicodeEscape))?;
 
                 result += match c {
                     '0'..='9' => c as u32 - '0' as u32,
                     'a'..='f' => c as u32 - 'a' as u32 + 10,
                     'A'..='F' => c as u32 - 'A' as u32 + 10,
                     _ => {
-                        return Err(ParseError::BadUnicodeEscape { span });
+                        return Err(ParseError::new(span, ParseErrorKind::BadUnicodeEscape));
                     }
                 };
             }
@@ -197,7 +203,7 @@ where
     loop {
         let (n, c) = it
             .next()
-            .ok_or_else(|| ParseError::InvalidTemplateLiteral { span })?;
+            .ok_or_else(|| ParseError::new(span, ParseErrorKind::InvalidTemplateLiteral))?;
 
         if start.is_none() {
             start = Some(n);
@@ -210,7 +216,8 @@ where
         }
 
         if level == 0 {
-            let start = start.ok_or_else(|| ParseError::InvalidTemplateLiteral { span })?;
+            let start = start
+                .ok_or_else(|| ParseError::new(span, ParseErrorKind::InvalidTemplateLiteral))?;
             return Ok(Span::new(start, n));
         }
     }

@@ -1,25 +1,22 @@
-use crate::ast::{Await, Dot, Expr};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::ast;
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A return statement `<expr>.await`.
 #[derive(Debug, Clone)]
 pub struct ExprAwait {
     /// The expression being awaited.
-    pub expr: Box<Expr>,
+    pub expr: Box<ast::Expr>,
     /// The dot separating the expression.
-    pub dot: Dot,
+    pub dot: ast::Dot,
     /// The await token.
-    pub await_: Await,
+    pub await_: ast::Await,
 }
 
 into_tokens!(ExprAwait { expr, dot, await_ });
 
-impl ExprAwait {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprAwait {
+    fn span(&self) -> Span {
         self.expr.span().join(self.await_.span())
     }
 }

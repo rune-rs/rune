@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A let expression `let <name> = <expr>;`
@@ -25,11 +23,6 @@ into_tokens!(ExprWhile {
 });
 
 impl ExprWhile {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.while_.token.span.join(self.body.span())
-    }
-
     /// Parse with the given label.
     pub fn parse_with_label(
         parser: &mut Parser<'_>,
@@ -41,6 +34,12 @@ impl ExprWhile {
             condition: parser.parse()?,
             body: Box::new(parser.parse()?),
         })
+    }
+}
+
+impl Spanned for ExprWhile {
+    fn span(&self) -> Span {
+        self.while_.span().join(self.body.span())
     }
 }
 

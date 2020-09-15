@@ -1,38 +1,8 @@
 use crate::unit_builder::LinkerError;
 use crate::{CompileError, ParseError};
+use std::error;
+use std::fmt;
 use thiserror::Error;
-
-/// A collection of errors.
-#[derive(Debug)]
-pub struct Errors {
-    errors: Vec<LoadError>,
-}
-
-impl Errors {
-    /// Construct a new collection of errors.
-    pub fn new() -> Self {
-        Self { errors: Vec::new() }
-    }
-
-    /// Push an error to the collection.
-    pub fn push(&mut self, error: LoadError) {
-        self.errors.push(error);
-    }
-
-    /// Test if the collection of errors is empty.
-    pub fn is_empty(&self) -> bool {
-        self.errors.is_empty()
-    }
-}
-
-impl IntoIterator for Errors {
-    type Item = LoadError;
-    type IntoIter = std::vec::IntoIter<LoadError>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.errors.into_iter()
-    }
-}
 
 /// An error raised when using one of the `load_*` functions.
 #[derive(Debug)]
@@ -79,6 +49,18 @@ impl LoadError {
     /// Convert into the kind of the load error.
     pub fn into_kind(self) -> LoadErrorKind {
         *self.kind
+    }
+}
+
+impl fmt::Display for LoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+impl error::Error for LoadError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        self.kind.source()
     }
 }
 

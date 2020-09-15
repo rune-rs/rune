@@ -2,7 +2,8 @@
 
 use crate::unit_builder::LinkerError;
 use crate::{
-    CompileError, Errors, LoadError, LoadErrorKind, ParseError, Sources, WarningKind, Warnings,
+    CompileErrorKind, Errors, LoadError, LoadErrorKind, ParseErrorKind, Sources, Spanned as _,
+    WarningKind, Warnings,
 };
 use runestick::{Span, VmError};
 use std::error::Error as _;
@@ -276,12 +277,8 @@ impl EmitDiagnostics for LoadError {
             LoadErrorKind::ParseError(error) => {
                 // we allow here single match, since it is hard to use `if let` with pattern destruction.
                 #[allow(clippy::single_match)]
-                match error {
-                    ParseError::ExpectedBlockSemiColon {
-                        span,
-                        followed_span,
-                        ..
-                    } => {
+                match error.kind() {
+                    ParseErrorKind::ExpectedBlockSemiColon { followed_span } => {
                         labels.push(
                             Label::secondary(
                                 self.source_id(),
@@ -292,7 +289,7 @@ impl EmitDiagnostics for LoadError {
 
                         let binding = sources
                             .source_at(self.source_id())
-                            .and_then(|s| s.source(*span));
+                            .and_then(|s| s.source(error.span()));
 
                         if let Some(binding) = binding {
                             let mut note = String::new();
@@ -305,63 +302,35 @@ impl EmitDiagnostics for LoadError {
 
                 error.span()
             }
-            LoadErrorKind::CompileError(error) => match error {
-                CompileError::ReturnLocalReferences {
-                    block,
-                    references_at,
-                    span,
-                    ..
-                } => {
-                    for ref_span in references_at {
-                        if span.overlaps(*ref_span) {
-                            continue;
-                        }
+            LoadErrorKind::CompileError(error) => {
+                match error.kind() {
+                    CompileErrorKind::DuplicateObjectKey { existing, object } => {
+                        labels.push(
+                            Label::secondary(self.source_id(), existing.start..existing.end)
+                                .with_message("previously defined here"),
+                        );
 
                         labels.push(
-                            Label::secondary(self.source_id(), ref_span.start..ref_span.end)
-                                .with_message("reference created here"),
+                            Label::secondary(self.source_id(), object.start..object.end)
+                                .with_message("object being defined here"),
                         );
                     }
+                    CompileErrorKind::ModAlreadyLoaded { existing, .. } => {
+                        let (existing_source_id, existing_span) = *existing;
 
-                    labels.push(
-                        Label::secondary(self.source_id(), block.start..block.end)
-                            .with_message("block returned from"),
-                    );
-
-                    *span
+                        labels.push(
+                            Label::secondary(
+                                existing_source_id,
+                                existing_span.start..existing_span.end,
+                            )
+                            .with_message("previously loaded here"),
+                        );
+                    }
+                    _ => (),
                 }
-                CompileError::DuplicateObjectKey {
-                    span,
-                    existing,
-                    object,
-                } => {
-                    labels.push(
-                        Label::secondary(self.source_id(), existing.start..existing.end)
-                            .with_message("previously defined here"),
-                    );
 
-                    labels.push(
-                        Label::secondary(self.source_id(), object.start..object.end)
-                            .with_message("object being defined here"),
-                    );
-
-                    *span
-                }
-                CompileError::ModAlreadyLoaded { span, existing, .. } => {
-                    let (existing_source_id, existing_span) = *existing;
-
-                    labels.push(
-                        Label::secondary(
-                            existing_source_id,
-                            existing_span.start..existing_span.end,
-                        )
-                        .with_message("previously loaded here"),
-                    );
-
-                    *span
-                }
-                error => error.span(),
-            },
+                error.span()
+            }
         };
 
         if let Some(e) = self.kind().source() {

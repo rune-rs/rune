@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
+use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 
 /// A character literal.
@@ -11,10 +11,9 @@ pub struct LitChar {
     pub source: ast::CopySource<char>,
 }
 
-impl LitChar {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.token.span
+impl Spanned for LitChar {
+    fn span(&self) -> Span {
+        self.token.span()
     }
 }
 
@@ -35,15 +34,13 @@ impl Parse for LitChar {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let token = parser.token_next()?;
 
-        Ok(match token.kind {
-            ast::Kind::LitChar(source) => LitChar { token, source },
-            _ => {
-                return Err(ParseError::ExpectedChar {
-                    actual: token.kind,
-                    span: token.span,
-                })
-            }
-        })
+        match token.kind {
+            ast::Kind::LitChar(source) => Ok(LitChar { token, source }),
+            _ => Err(ParseError::new(
+                token,
+                ParseErrorKind::ExpectedChar { actual: token.kind },
+            )),
+        }
     }
 }
 
@@ -56,10 +53,10 @@ impl<'a> Resolve<'a> for LitChar {
             ast::CopySource::Text => (),
         }
 
-        let span = self.token.span;
+        let span = self.token.span();
         let string = source
             .source(span.narrow(1))
-            .ok_or_else(|| ParseError::BadSlice { span })?;
+            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
         let mut it = string
             .char_indices()
             .map(|(n, c)| (span.start + n, c))
@@ -68,7 +65,7 @@ impl<'a> Resolve<'a> for LitChar {
         let (n, c) = match it.next() {
             Some(c) => c,
             None => {
-                return Err(ParseError::BadCharLiteral { span });
+                return Err(ParseError::new(span, ParseErrorKind::BadCharLiteral));
             }
         };
 
@@ -83,7 +80,7 @@ impl<'a> Resolve<'a> for LitChar {
 
         // Too many characters in literal.
         if it.next().is_some() {
-            return Err(ParseError::BadCharLiteral { span });
+            return Err(ParseError::new(span, ParseErrorKind::BadCharLiteral));
         }
 
         Ok(c)

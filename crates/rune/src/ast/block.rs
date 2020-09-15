@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned};
 use runestick::Span;
 
 /// A block of expressions.
@@ -20,11 +20,6 @@ into_tokens!(Block {
 });
 
 impl Block {
-    /// Get the span of the block.
-    pub fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
-    }
-
     /// Test if the block expression doesn't produce a value.
     pub fn produces_nothing(&self) -> bool {
         let mut it = self.statements.iter();
@@ -51,6 +46,12 @@ impl Block {
         }
 
         true
+    }
+}
+
+impl Spanned for Block {
+    fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
     }
 }
 
@@ -94,10 +95,12 @@ impl Parse for Block {
                 let decl: ast::Item = parser.parse()?;
 
                 if let Some(span) = must_be_last {
-                    return Err(ParseError::ExpectedBlockSemiColon {
+                    return Err(ParseError::new(
                         span,
-                        followed_span: decl.span(),
-                    });
+                        ParseErrorKind::ExpectedBlockSemiColon {
+                            followed_span: decl.span(),
+                        },
+                    ));
                 }
 
                 statements.push(ast::Stmt::Item(decl));
@@ -107,10 +110,12 @@ impl Parse for Block {
             let expr: ast::Expr = parser.parse()?;
 
             if let Some(span) = must_be_last {
-                return Err(ParseError::ExpectedBlockSemiColon {
+                return Err(ParseError::new(
                     span,
-                    followed_span: expr.span(),
-                });
+                    ParseErrorKind::ExpectedBlockSemiColon {
+                        followed_span: expr.span(),
+                    },
+                ));
             }
 
             if parser.peek::<ast::SemiColon>()? {

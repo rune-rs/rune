@@ -170,11 +170,12 @@ mod util_macros;
 mod assembly;
 pub mod ast;
 mod compile;
+mod compile_error;
 mod compile_visitor;
 mod compiler;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;
-mod error;
+mod errors;
 mod index;
 mod index_scopes;
 mod items;
@@ -185,6 +186,7 @@ mod loops;
 mod macro_context;
 mod macros;
 mod options;
+mod parse_error;
 mod parser;
 mod query;
 mod quote;
@@ -208,20 +210,22 @@ mod collections {
 }
 
 pub use crate::assembly::Assembly;
+pub use crate::compile_error::{CompileError, CompileErrorKind, CompileResult};
 pub use crate::compile_visitor::{CompileVisitor, NoopCompileVisitor};
-pub use crate::error::{CompileError, ParseError};
+pub use crate::errors::Errors;
 pub use crate::lexer::Lexer;
 pub use crate::load::{load_sources, load_sources_with_visitor, LoadSourcesError};
-pub use crate::load_error::{Errors, LoadError, LoadErrorKind};
+pub use crate::load_error::{LoadError, LoadErrorKind};
 pub use crate::macro_context::MacroContext;
 pub use crate::options::Options;
+pub use crate::parse_error::{ParseError, ParseErrorKind};
 pub use crate::parser::Parser;
 pub use crate::scopes::Var;
 pub use crate::source_loader::{FileSourceLoader, SourceLoader};
 pub use crate::sources::Sources;
 pub use crate::storage::Storage;
 pub use crate::token_stream::{IntoTokens, TokenStream, TokenStreamIter};
-pub use crate::traits::{Parse, Peek, Resolve};
+pub use crate::traits::{Parse, Peek, Resolve, Spanned};
 pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
 pub use unit_builder::{ImportEntry, ImportKey, LinkerError, UnitBuilder};

@@ -1,7 +1,7 @@
 //! Simplified scope implementation used for indexing.
 
 use crate::collections::{HashMap, HashSet};
-use crate::error::CompileError;
+use crate::{CompileError, CompileErrorKind};
 use runestick::{CompileMetaCapture, Span};
 use std::rc::Rc;
 use std::{cell::RefCell, mem::ManuallyDrop};
@@ -20,7 +20,7 @@ impl IndexScopeGuard {
             .levels
             .borrow_mut()
             .pop()
-            .ok_or_else(|| CompileError::internal("missing scope", span))?;
+            .ok_or_else(|| CompileError::internal(span, "missing scope"))?;
 
         match level {
             IndexScopeLevel::IndexClosure(closure) => Ok(Closure {
@@ -29,7 +29,7 @@ impl IndexScopeGuard {
                 is_async: closure.is_async,
                 has_await: closure.has_await,
             }),
-            _ => Err(CompileError::internal("expected closure", span)),
+            _ => Err(CompileError::internal(span, "expected closure")),
         }
     }
 
@@ -41,7 +41,7 @@ impl IndexScopeGuard {
             .levels
             .borrow_mut()
             .pop()
-            .ok_or_else(|| CompileError::internal("missing scope", span))?;
+            .ok_or_else(|| CompileError::internal(span, "missing scope"))?;
 
         match level {
             IndexScopeLevel::IndexFunction(fun) => Ok(Function {
@@ -49,7 +49,7 @@ impl IndexScopeGuard {
                 is_async: fun.is_async,
                 has_await: fun.has_await,
             }),
-            _ => Err(CompileError::internal("expected function", span)),
+            _ => Err(CompileError::internal(span, "expected function")),
         }
     }
 }
@@ -177,7 +177,7 @@ impl IndexScopes {
 
         let level = levels
             .last_mut()
-            .ok_or_else(|| CompileError::internal("empty scopes", span))?;
+            .ok_or_else(|| CompileError::internal(span, "empty scopes"))?;
 
         let scope = match level {
             IndexScopeLevel::IndexScope(scope) => scope,
@@ -262,7 +262,10 @@ impl IndexScopes {
             }
         }
 
-        Err(CompileError::YieldOutsideFunction { span })
+        Err(CompileError::new(
+            span,
+            CompileErrorKind::YieldOutsideFunction,
+        ))
     }
 
     /// Mark that a yield was used, meaning the encapsulating function is a
@@ -293,7 +296,10 @@ impl IndexScopes {
             }
         }
 
-        Err(CompileError::AwaitOutsideFunction { span })
+        Err(CompileError::new(
+            span,
+            CompileErrorKind::AwaitOutsideFunction,
+        ))
     }
 
     /// Push a function.

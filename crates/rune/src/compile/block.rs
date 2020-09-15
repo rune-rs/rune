@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::traits::Compile;
-use crate::CompileError;
+use crate::CompileResult;
+use crate::{CompileError, Spanned as _};
 use runestick::{CompileMetaCapture, Inst};
 
 /// Compile the async block.
@@ -79,7 +79,7 @@ impl Compile<(&ast::Block, Needs)> for Compiler<'_> {
 
         self.contexts
             .pop()
-            .ok_or_else(|| CompileError::internal("missing parent context", span))?;
+            .ok_or_else(|| CompileError::internal(span, "missing parent context"))?;
 
         Ok(())
     }

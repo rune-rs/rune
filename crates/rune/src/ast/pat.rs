@@ -1,62 +1,33 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek};
-use runestick::Span;
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek};
 
-/// A pattern match.
-#[derive(Debug, Clone)]
-pub enum Pat {
-    /// An ignored binding `_`.
-    PatIgnore(ast::Underscore),
-    /// A variable binding `n`.
-    PatPath(ast::PatPath),
-    /// A literal unit.
-    PatUnit(ast::LitUnit),
-    /// A literal byte.
-    PatByte(ast::LitByte),
-    /// A literal character.
-    PatChar(ast::LitChar),
-    /// A literal number.
-    PatNumber(ast::LitNumber),
-    /// A literal string.
-    PatString(ast::LitStr),
-    /// A vector pattern.
-    PatVec(ast::PatVec),
-    /// A tuple pattern.
-    PatTuple(ast::PatTuple),
-    /// An object pattern.
-    PatObject(ast::PatObject),
+impl_enum_ast! {
+    /// A pattern match.
+    pub enum Pat {
+        /// An ignored binding `_`.
+        PatIgnore(ast::Underscore),
+        /// A variable binding `n`.
+        PatPath(ast::PatPath),
+        /// A literal unit.
+        PatUnit(ast::LitUnit),
+        /// A literal byte.
+        PatByte(ast::LitByte),
+        /// A literal character.
+        PatChar(ast::LitChar),
+        /// A literal number.
+        PatNumber(ast::LitNumber),
+        /// A literal string.
+        PatString(ast::LitStr),
+        /// A vector pattern.
+        PatVec(ast::PatVec),
+        /// A tuple pattern.
+        PatTuple(ast::PatTuple),
+        /// An object pattern.
+        PatObject(ast::PatObject),
+    }
 }
 
-into_tokens_enum!(Pat {
-    PatIgnore,
-    PatPath,
-    PatUnit,
-    PatByte,
-    PatChar,
-    PatNumber,
-    PatString,
-    PatVec,
-    PatTuple,
-    PatObject
-});
-
 impl Pat {
-    /// Get the span of the pattern.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::PatUnit(pat) => pat.span(),
-            Self::PatByte(pat) => pat.span(),
-            Self::PatChar(pat) => pat.span(),
-            Self::PatNumber(pat) => pat.span(),
-            Self::PatString(pat) => pat.span(),
-            Self::PatPath(pat) => pat.span(),
-            Self::PatIgnore(pat) => pat.span(),
-            Self::PatVec(pat) => pat.span(),
-            Self::PatTuple(pat) => pat.span(),
-            Self::PatObject(pat) => pat.span(),
-        }
-    }
-
     /// Parse a pattern with a starting identifier.
     pub fn parse_ident(parser: &mut Parser) -> Result<Self, ParseError> {
         let path: ast::Path = parser.parse()?;
@@ -116,10 +87,10 @@ impl Parse for Pat {
             ast::Kind::Underscore => Self::PatIgnore(parser.parse()?),
             ast::Kind::Ident(..) => Self::parse_ident(parser)?,
             _ => {
-                return Err(ParseError::ExpectedPatError {
-                    span: token.span,
-                    actual: token.kind,
-                })
+                return Err(ParseError::new(
+                    token,
+                    ParseErrorKind::ExpectedPatError { actual: token.kind },
+                ));
             }
         })
     }

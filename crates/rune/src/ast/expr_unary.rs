@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::ast::expr::{EagerBrace, ExprChain};
-use crate::{Parse, ParseError, Parser};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned};
 use runestick::Span;
 use std::fmt;
 
@@ -17,10 +17,9 @@ pub struct ExprUnary {
 
 into_tokens!(ExprUnary { token, expr });
 
-impl ExprUnary {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.token.span.join(self.expr.span())
+impl Spanned for ExprUnary {
+    fn span(&self) -> Span {
+        self.token.span().join(self.expr.span())
     }
 }
 
@@ -71,10 +70,10 @@ impl UnaryOp {
             ast::Kind::Amp => Self::BorrowRef,
             ast::Kind::Star => Self::Deref,
             actual => {
-                return Err(ParseError::ExpectedUnaryOperator {
-                    span: token.span,
-                    actual,
-                })
+                return Err(ParseError::new(
+                    token,
+                    ParseErrorKind::ExpectedUnaryOperator { actual },
+                ))
             }
         })
     }

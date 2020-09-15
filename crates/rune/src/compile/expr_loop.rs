@@ -1,8 +1,9 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::loops::Loop;
 use crate::traits::Compile;
+use crate::CompileResult;
+use crate::Spanned as _;
 
 /// Compile a loop.
 impl Compile<(&ast::ExprLoop, Needs)> for Compiler<'_> {

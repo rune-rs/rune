@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek};
-use runestick::Span;
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
 use std::ops;
 
 /// Indicator that an expression should be parsed with an eager brace.
@@ -27,127 +26,86 @@ impl ops::Deref for ExprChain {
     }
 }
 
-/// A rune expression.
-#[derive(Debug, Clone)]
-pub enum Expr {
-    /// The `self` keyword.
-    Self_(ast::Self_),
-    /// An path expression.
-    Path(ast::Path),
-    /// A declaration.
-    // large size difference between variants
-    // we should box this variant.
-    // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
-    Item(ast::Item),
-    /// A while loop.
-    ExprWhile(ast::ExprWhile),
-    /// An unconditional loop.
-    ExprLoop(ast::ExprLoop),
-    /// An for loop.
-    ExprFor(ast::ExprFor),
-    /// A let expression.
-    ExprLet(ast::ExprLet),
-    /// An index set operation.
-    ExprIndexSet(ast::ExprIndexSet),
-    /// An if expression.
-    ExprIf(ast::ExprIf),
-    /// An match expression.
-    ExprMatch(ast::ExprMatch),
-    /// A function call,
-    ExprCall(ast::ExprCall),
-    /// A macro call,
-    MacroCall(ast::MacroCall),
-    /// A field access on an expression.
-    ExprFieldAccess(ast::ExprFieldAccess),
-    /// A grouped expression.
-    ExprGroup(ast::ExprGroup),
-    /// A binary expression.
-    ExprBinary(ast::ExprBinary),
-    /// A unary expression.
-    ExprUnary(ast::ExprUnary),
-    /// An index set operation.
-    ExprIndexGet(ast::ExprIndexGet),
-    /// A break expression.
-    ExprBreak(ast::ExprBreak),
-    /// A yield expression.
-    ExprYield(ast::ExprYield),
-    /// A block as an expression.
-    ExprBlock(ast::ExprBlock),
-    /// An async block as an expression.
-    ExprAsync(ast::ExprAsync),
-    /// A return statement.
-    ExprReturn(ast::ExprReturn),
-    /// An await expression.
-    ExprAwait(ast::ExprAwait),
-    /// Try expression.
-    ExprTry(ast::ExprTry),
-    /// A select expression.
-    ExprSelect(ast::ExprSelect),
-    /// A closure expression.
-    ExprClosure(ast::ExprClosure),
-    /// A unit expression.
-    LitUnit(ast::LitUnit),
-    /// A boolean literal.
-    LitBool(ast::LitBool),
-    /// A char literal.
-    LitChar(ast::LitChar),
-    /// A byte literal.
-    LitByte(ast::LitByte),
-    /// A literal number expression.
-    LitNumber(ast::LitNumber),
-    /// A literal string expression.
-    LitStr(ast::LitStr),
-    /// A literal byte string expression.
-    LitByteStr(ast::LitByteStr),
-    /// A literal string expression.
-    LitTemplate(ast::LitTemplate),
-    /// A literal vector declaration.
-    LitVec(ast::LitVec),
-    /// A literal object declaration.
-    LitObject(ast::LitObject),
-    /// A literal tuple declaration.
-    LitTuple(ast::LitTuple),
-}
-
-into_tokens_enum! {
-    Expr {
-        Self_,
-        Path,
-        Item,
-        ExprWhile,
-        ExprLoop,
-        ExprFor,
-        ExprLet,
-        ExprIndexSet,
-        ExprIf,
-        ExprMatch,
-        ExprCall,
-        MacroCall,
-        ExprFieldAccess,
-        ExprGroup,
-        ExprBinary,
-        ExprUnary,
-        ExprIndexGet,
-        ExprBreak,
-        ExprYield,
-        ExprBlock,
-        ExprAsync,
-        ExprReturn,
-        ExprAwait,
-        ExprTry,
-        ExprSelect,
-        ExprClosure,
-        LitUnit,
-        LitBool,
-        LitChar,
-        LitByte,
-        LitNumber,
-        LitStr,
-        LitByteStr,
-        LitTemplate,
-        LitVec,
-        LitObject,
-        LitTuple
+impl_enum_ast! {
+    /// A rune expression.
+    pub enum Expr {
+        /// The `self` keyword.
+        Self_(ast::Self_),
+        /// An path expression.
+        Path(ast::Path),
+        /// A declaration.
+        // large size difference between variants
+        // we should box this variant.
+        // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
+        Item(ast::Item),
+        /// A while loop.
+        ExprWhile(ast::ExprWhile),
+        /// An unconditional loop.
+        ExprLoop(ast::ExprLoop),
+        /// An for loop.
+        ExprFor(ast::ExprFor),
+        /// A let expression.
+        ExprLet(ast::ExprLet),
+        /// An index set operation.
+        ExprIndexSet(ast::ExprIndexSet),
+        /// An if expression.
+        ExprIf(ast::ExprIf),
+        /// An match expression.
+        ExprMatch(ast::ExprMatch),
+        /// A function call,
+        ExprCall(ast::ExprCall),
+        /// A macro call,
+        MacroCall(ast::MacroCall),
+        /// A field access on an expression.
+        ExprFieldAccess(ast::ExprFieldAccess),
+        /// A grouped expression.
+        ExprGroup(ast::ExprGroup),
+        /// A binary expression.
+        ExprBinary(ast::ExprBinary),
+        /// A unary expression.
+        ExprUnary(ast::ExprUnary),
+        /// An index set operation.
+        ExprIndexGet(ast::ExprIndexGet),
+        /// A break expression.
+        ExprBreak(ast::ExprBreak),
+        /// A yield expression.
+        ExprYield(ast::ExprYield),
+        /// A block as an expression.
+        ExprBlock(ast::ExprBlock),
+        /// An async block as an expression.
+        ExprAsync(ast::ExprAsync),
+        /// A return statement.
+        ExprReturn(ast::ExprReturn),
+        /// An await expression.
+        ExprAwait(ast::ExprAwait),
+        /// Try expression.
+        ExprTry(ast::ExprTry),
+        /// A select expression.
+        ExprSelect(ast::ExprSelect),
+        /// A closure expression.
+        ExprClosure(ast::ExprClosure),
+        /// A unit expression.
+        LitUnit(ast::LitUnit),
+        /// A boolean literal.
+        LitBool(ast::LitBool),
+        /// A char literal.
+        LitChar(ast::LitChar),
+        /// A byte literal.
+        LitByte(ast::LitByte),
+        /// A literal number expression.
+        LitNumber(ast::LitNumber),
+        /// A literal string expression.
+        LitStr(ast::LitStr),
+        /// A literal byte string expression.
+        LitByteStr(ast::LitByteStr),
+        /// A literal string expression.
+        LitTemplate(ast::LitTemplate),
+        /// A literal vector declaration.
+        LitVec(ast::LitVec),
+        /// A literal object declaration.
+        LitObject(ast::LitObject),
+        /// A literal tuple declaration.
+        LitTuple(ast::LitTuple),
     }
 }
 
@@ -155,14 +113,14 @@ impl Expr {
     /// Indicates if an expression needs a semicolon or must be last in a block.
     pub fn needs_semi(&self) -> bool {
         match self {
-            Expr::ExprWhile(_) => false,
-            Expr::ExprLoop(_) => false,
-            Expr::ExprFor(_) => false,
-            Expr::ExprIf(_) => false,
-            Expr::ExprMatch(_) => false,
-            Expr::ExprBlock(_) => false,
-            Expr::ExprAsync(_) => false,
-            Expr::ExprSelect(_) => false,
+            Self::ExprWhile(_) => false,
+            Self::ExprLoop(_) => false,
+            Self::ExprFor(_) => false,
+            Self::ExprIf(_) => false,
+            Self::ExprMatch(_) => false,
+            Self::ExprBlock(_) => false,
+            Self::ExprAsync(_) => false,
+            Self::ExprSelect(_) => false,
             _ => true,
         }
     }
@@ -193,49 +151,6 @@ impl Expr {
             Self::ExprLoop(..) => false,
             Self::ExprFor(..) => false,
             _ => true,
-        }
-    }
-
-    /// Get the span of the expression.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Self_(s) => s.span(),
-            Self::Path(path) => path.span(),
-            Self::Item(decl) => decl.span(),
-            Self::ExprWhile(expr) => expr.span(),
-            Self::ExprLoop(expr) => expr.span(),
-            Self::ExprFor(expr) => expr.span(),
-            Self::ExprLet(expr) => expr.span(),
-            Self::ExprIndexSet(expr) => expr.span(),
-            Self::ExprIf(expr) => expr.span(),
-            Self::ExprMatch(expr) => expr.span(),
-            Self::ExprCall(expr) => expr.span(),
-            Self::MacroCall(expr) => expr.span(),
-            Self::ExprFieldAccess(expr) => expr.span(),
-            Self::ExprGroup(expr) => expr.span(),
-            Self::ExprUnary(expr) => expr.span(),
-            Self::ExprBinary(expr) => expr.span(),
-            Self::ExprIndexGet(expr) => expr.span(),
-            Self::ExprBreak(b) => b.span(),
-            Self::ExprYield(b) => b.span(),
-            Self::ExprBlock(b) => b.span(),
-            Self::ExprAsync(b) => b.span(),
-            Self::ExprReturn(ret) => ret.span(),
-            Self::ExprAwait(ret) => ret.span(),
-            Self::ExprTry(ret) => ret.span(),
-            Self::ExprSelect(ret) => ret.span(),
-            Self::ExprClosure(ret) => ret.span(),
-            Self::LitUnit(unit) => unit.span(),
-            Self::LitBool(b) => b.span(),
-            Self::LitVec(expr) => expr.span(),
-            Self::LitObject(expr) => expr.span(),
-            Self::LitTuple(expr) => expr.span(),
-            Self::LitNumber(expr) => expr.span(),
-            Self::LitByte(expr) => expr.span(),
-            Self::LitChar(expr) => expr.span(),
-            Self::LitStr(expr) => expr.span(),
-            Self::LitByteStr(expr) => expr.span(),
-            Self::LitTemplate(expr) => expr.span(),
         }
     }
 
@@ -345,7 +260,12 @@ impl Expr {
                         async_,
                         block: expr_block.block,
                     }),
-                    _ => return Err(ParseError::UnsupportedAsyncExpr { span: expr.span() }),
+                    _ => {
+                        return Err(ParseError::new(
+                            expr.span(),
+                            ParseErrorKind::UnsupportedAsyncExpr,
+                        ))
+                    }
                 }
             }
             ast::Kind::Self_ => Self::Self_(parser.parse()?),
@@ -364,10 +284,10 @@ impl Expr {
                     }
                     ast::Kind::For => Self::ExprFor(ast::ExprFor::parse_with_label(parser, label)?),
                     _ => {
-                        return Err(ParseError::ExpectedLoop {
-                            actual: token.kind,
-                            span: token.span,
-                        });
+                        return Err(ParseError::new(
+                            token,
+                            ParseErrorKind::ExpectedLoop { actual: token.kind },
+                        ));
                     }
                 });
             }
@@ -394,10 +314,10 @@ impl Expr {
             ast::Kind::Yield => Self::ExprYield(parser.parse()?),
             ast::Kind::Return => Self::ExprReturn(parser.parse()?),
             _ => {
-                return Err(ParseError::ExpectedExpr {
-                    actual: token.kind,
-                    span: token.span,
-                })
+                return Err(ParseError::new(
+                    token,
+                    ParseErrorKind::ExpectedExpr { actual: token.kind },
+                ));
             }
         };
 
@@ -496,7 +416,10 @@ impl Expr {
                         other => other.span(),
                     };
 
-                    return Err(ParseError::UnsupportedFieldAccess { span });
+                    return Err(ParseError::new(
+                        span,
+                        ParseErrorKind::UnsupportedFieldAccess,
+                    ));
                 }
                 _ => break,
             }
@@ -534,9 +457,10 @@ impl Expr {
                 let lh = match lookahead_tok.and_then(ast::BinOp::from_token) {
                     Some((lh, _, _)) if lh.precedence() > op.precedence() => lh,
                     Some((lh, _, _)) if lh.precedence() == op.precedence() && !op.is_assoc() => {
-                        return Err(ParseError::PrecedenceGroupRequired {
-                            span: lhs.span().join(rhs.span()),
-                        });
+                        return Err(ParseError::new(
+                            lhs.span().join(rhs.span()),
+                            ParseErrorKind::PrecedenceGroupRequired,
+                        ));
                     }
                     _ => break,
                 };
