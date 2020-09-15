@@ -1,6 +1,6 @@
 use crate::collections::HashMap;
-use crate::error::CompileResult;
-use crate::{Assembly, CompileError, CompileVisitor};
+use crate::CompileResult;
+use crate::{Assembly, CompileError, CompileErrorKind, CompileVisitor};
 use runestick::{Inst, Span, Url};
 
 /// A locally declared variable, its calculated stack offset and where it was
@@ -86,11 +86,13 @@ impl Scope {
         self.local_var_count += 1;
 
         if let Some(old) = self.locals.insert(name.to_owned(), local) {
-            return Err(CompileError::VariableConflict {
-                name: name.to_owned(),
+            return Err(CompileError::new(
                 span,
-                existing_span: old.span(),
-            });
+                CompileErrorKind::VariableConflict {
+                    name: name.to_owned(),
+                    existing_span: old.span(),
+                },
+            ));
         }
 
         Ok(offset)
@@ -131,12 +133,12 @@ impl Scope {
         self.total_var_count = self
             .total_var_count
             .checked_sub(n)
-            .ok_or_else(|| CompileError::internal("totals out of bounds", span))?;
+            .ok_or_else(|| CompileError::internal(span, "totals out of bounds"))?;
 
         self.local_var_count = self
             .local_var_count
             .checked_sub(n)
-            .ok_or_else(|| CompileError::internal("locals out of bounds", span))?;
+            .ok_or_else(|| CompileError::internal(span, "locals out of bounds"))?;
 
         Ok(())
     }
@@ -178,7 +180,7 @@ impl Scopes {
         url: Option<&Url>,
         visitor: &mut dyn CompileVisitor,
         span: Span,
-    ) -> CompileResult<Option<&Var>> {
+    ) -> Option<&Var> {
         log::trace!("get var: {}", name);
 
         for scope in self.scopes.iter().rev() {
@@ -189,11 +191,11 @@ impl Scopes {
                     visitor.visit_variable_use(url, var, span);
                 }
 
-                return Ok(Some(var));
+                return Some(var);
             }
         }
 
-        Ok(None)
+        None
     }
 
     /// Get the local with the given name.
@@ -204,12 +206,14 @@ impl Scopes {
         visitor: &mut dyn CompileVisitor,
         span: Span,
     ) -> CompileResult<&Var> {
-        match self.try_get_var(name, url, visitor, span)? {
+        match self.try_get_var(name, url, visitor, span) {
             Some(var) => Ok(var),
-            None => Err(CompileError::MissingLocal {
-                name: name.to_owned(),
+            None => Err(CompileError::new(
                 span,
-            }),
+                CompileErrorKind::MissingLocal {
+                    name: name.to_owned(),
+                },
+            )),
         }
     }
 
@@ -245,8 +249,8 @@ impl Scopes {
 
         if self.scopes.len() != expected {
             return Err(CompileError::internal(
-                "the number of scopes do not match",
                 span,
+                "the number of scopes do not match",
             ));
         }
 
@@ -263,7 +267,7 @@ impl Scopes {
         let scope = self
             .scopes
             .pop()
-            .ok_or_else(|| CompileError::internal("missing parent scope", span))?;
+            .ok_or_else(|| CompileError::internal(span, "missing parent scope"))?;
 
         Ok(scope)
     }
@@ -294,7 +298,7 @@ impl Scopes {
         Ok(self
             .scopes
             .last()
-            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
+            .ok_or_else(|| CompileError::internal(span, "missing head of locals"))?)
     }
 
     /// Get the last locals scope.
@@ -302,6 +306,6 @@ impl Scopes {
         Ok(self
             .scopes
             .last_mut()
-            .ok_or_else(|| CompileError::internal("missing head of locals", span))?)
+            .ok_or_else(|| CompileError::internal(span, "missing head of locals"))?)
     }
 }

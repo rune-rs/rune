@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
+use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 
 /// A number literal.
@@ -11,10 +11,9 @@ pub struct LitNumber {
     token: ast::Token,
 }
 
-impl LitNumber {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.token.span
+impl Spanned for LitNumber {
+    fn span(&self) -> Span {
+        self.token.span()
     }
 }
 
@@ -37,10 +36,10 @@ impl Parse for LitNumber {
         Ok(match token.kind {
             ast::Kind::LitNumber(source) => LitNumber { source, token },
             _ => {
-                return Err(ParseError::ExpectedNumber {
-                    actual: token.kind,
-                    span: token.span,
-                })
+                return Err(ParseError::new(
+                    token,
+                    ParseErrorKind::ExpectedNumber { actual: token.kind },
+                ));
             }
         })
     }
@@ -54,17 +53,16 @@ impl<'a> Resolve<'a> for LitNumber {
         use std::ops::Neg as _;
         use std::str::FromStr as _;
 
-        let span = self.token.span;
+        let span = self.token.span();
 
         let text = match self.source {
             ast::NumberSource::Synthetic(id) => match storage.get_number(id) {
                 Some(number) => return Ok(number),
                 None => {
-                    return Err(ParseError::BadSyntheticId {
-                        kind: "number",
-                        id,
+                    return Err(ParseError::new(
                         span,
-                    });
+                        ParseErrorKind::BadSyntheticId { kind: "number", id },
+                    ));
                 }
             },
             ast::NumberSource::Text(text) => text,
@@ -72,7 +70,7 @@ impl<'a> Resolve<'a> for LitNumber {
 
         let string = source
             .source(span)
-            .ok_or_else(|| ParseError::BadSlice { span })?;
+            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
 
         let string = if text.is_negative {
             &string[1..]
@@ -102,13 +100,13 @@ impl<'a> Resolve<'a> for LitNumber {
 
         let number = match number {
             Some(n) => n,
-            None => return Err(ParseError::BadNumberOutOfBounds { span }),
+            None => return Err(ParseError::new(span, ParseErrorKind::BadNumberOutOfBounds)),
         };
 
         return Ok(ast::Number::Integer(number));
 
         fn err_span<E>(span: Span) -> impl Fn(E) -> ParseError {
-            move |_| ParseError::BadNumberLiteral { span }
+            move |_| ParseError::new(span, ParseErrorKind::BadNumberLiteral)
         }
     }
 }

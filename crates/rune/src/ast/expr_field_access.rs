@@ -1,24 +1,14 @@
 use crate::ast;
+use crate::Spanned;
 use runestick::Span;
 
-/// The field being accessed.
-#[derive(Debug, Clone)]
-pub enum ExprField {
-    /// An identifier.
-    Ident(ast::Ident),
-    /// A literal number.
-    LitNumber(ast::LitNumber),
-}
-
-into_tokens_enum!(ExprField { Ident, LitNumber });
-
-impl ExprField {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Ident(ident) => ident.span(),
-            Self::LitNumber(n) => n.span(),
-        }
+impl_enum_ast! {
+    /// The field being accessed.
+    pub enum ExprField {
+        /// An identifier.
+        Ident(ast::Ident),
+        /// A literal number.
+        LitNumber(ast::LitNumber),
     }
 }
 
@@ -39,9 +29,8 @@ into_tokens!(ExprFieldAccess {
     expr_field
 });
 
-impl ExprFieldAccess {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprFieldAccess {
+    fn span(&self) -> Span {
         self.expr.span().join(self.expr_field.span())
     }
 }

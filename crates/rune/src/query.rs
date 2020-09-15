@@ -2,8 +2,11 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::error::CompileResult;
-use crate::{CompileError, CompileVisitor, Resolve as _, SourceId, Storage, UnitBuilder};
+use crate::CompileResult;
+use crate::{
+    CompileError, CompileErrorKind, CompileVisitor, Resolve as _, SourceId, Spanned as _, Storage,
+    UnitBuilder,
+};
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
     Hash, Item, Source, Span, Type,
@@ -267,10 +270,10 @@ impl Query {
         self.unit.borrow_mut().insert_name(&item);
 
         if let Some(old) = self.indexed.insert(item.clone(), entry) {
-            return Err(CompileError::ItemConflict {
-                existing: item,
-                span: old.span,
-            });
+            return Err(CompileError::new(
+                old.span,
+                CompileErrorKind::ItemConflict { existing: item },
+            ));
         }
 
         Ok(())

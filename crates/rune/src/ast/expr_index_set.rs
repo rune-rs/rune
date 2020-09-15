@@ -1,21 +1,22 @@
-use crate::ast::{CloseBracket, Eq, Expr, OpenBracket};
+use crate::ast;
+use crate::Spanned;
 use runestick::Span;
 
 /// An index set operation `<target>[<index>] = <value>`.
 #[derive(Debug, Clone)]
 pub struct ExprIndexSet {
     /// The target of the index set.
-    pub target: Box<Expr>,
+    pub target: Box<ast::Expr>,
     /// The opening bracket.
-    pub open: OpenBracket,
+    pub open: ast::OpenBracket,
     /// The indexing expression.
-    pub index: Box<Expr>,
+    pub index: Box<ast::Expr>,
     /// The closening bracket.
-    pub close: CloseBracket,
+    pub close: ast::CloseBracket,
     /// The equals sign.
-    pub eq: Eq,
+    pub eq: ast::Eq,
     /// The value expression we are assigning.
-    pub value: Box<Expr>,
+    pub value: Box<ast::Expr>,
 }
 
 into_tokens!(ExprIndexSet {
@@ -27,9 +28,8 @@ into_tokens!(ExprIndexSet {
     value
 });
 
-impl ExprIndexSet {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprIndexSet {
+    fn span(&self) -> Span {
         self.target.span().join(self.value.span())
     }
 }

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser};
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A block of expressions.
@@ -13,9 +13,8 @@ pub struct ExprAsync {
 
 into_tokens!(ExprAsync { async_, block });
 
-impl ExprAsync {
-    /// Get the span of the block.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprAsync {
+    fn span(&self) -> Span {
         self.async_.span().join(self.block.span())
     }
 }

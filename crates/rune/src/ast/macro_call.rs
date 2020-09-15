@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::token_stream::TokenStream;
-use crate::{Parse, ParseError, Parser};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, TokenStream};
 use runestick::Span;
 
 /// A function call `<expr>!(<args>)`.
@@ -29,7 +28,7 @@ into_tokens!(MacroCall {
 impl MacroCall {
     /// Access the span of expression.
     pub fn span(&self) -> Span {
-        self.path.span().join(self.close.span)
+        self.path.span().join(self.close.span())
     }
 
     /// Parse with an expression.
@@ -42,10 +41,10 @@ impl MacroCall {
         let delim = match open.kind {
             ast::Kind::Open(delim) => delim,
             kind => {
-                return Err(ParseError::ExpectedMacroDelimiter {
-                    span: open.span,
-                    actual: kind,
-                })
+                return Err(ParseError::new(
+                    open,
+                    ParseErrorKind::ExpectedMacroDelimiter { actual: kind },
+                ));
             }
         };
 
@@ -64,14 +63,16 @@ impl MacroCall {
 
                     if level == 0 {
                         if actual != delim {
-                            return Err(ParseError::ExpectedMacroCloseDelimiter {
-                                span: open.span,
-                                actual: token.kind,
-                                expected: ast::Kind::Close(delim),
-                            });
+                            return Err(ParseError::new(
+                                open,
+                                ParseErrorKind::ExpectedMacroCloseDelimiter {
+                                    actual: token.kind,
+                                    expected: ast::Kind::Close(delim),
+                                },
+                            ));
                         }
 
-                        end = Span::point(token.span.start);
+                        end = Span::point(token.span().start);
                         close = token;
                         break;
                     }

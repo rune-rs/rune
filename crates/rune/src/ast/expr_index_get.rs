@@ -1,17 +1,18 @@
-use crate::ast::{CloseBracket, Expr, OpenBracket};
+use crate::ast;
+use crate::Spanned;
 use runestick::Span;
 
 /// An index get operation `<target>[<index>]`.
 #[derive(Debug, Clone)]
 pub struct ExprIndexGet {
     /// The target of the index set.
-    pub target: Box<Expr>,
+    pub target: Box<ast::Expr>,
     /// The opening bracket.
-    pub open: OpenBracket,
+    pub open: ast::OpenBracket,
     /// The indexing expression.
-    pub index: Box<Expr>,
+    pub index: Box<ast::Expr>,
     /// The closening bracket.
-    pub close: CloseBracket,
+    pub close: ast::CloseBracket,
 }
 
 into_tokens!(ExprIndexGet {
@@ -21,9 +22,8 @@ into_tokens!(ExprIndexGet {
     close
 });
 
-impl ExprIndexGet {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprIndexGet {
+    fn span(&self) -> Span {
         self.target.span().join(self.close.span())
     }
 }

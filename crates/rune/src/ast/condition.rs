@@ -1,27 +1,13 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
-use runestick::Span;
+use crate::{Parse, ParseError, Parser};
 
-/// An if condition.
-#[derive(Debug, Clone)]
-pub enum Condition {
-    /// A regular expression.
-    Expr(Box<ast::Expr>),
-    /// A pattern match.
-    ExprLet(Box<ast::ExprLet>),
-}
-
-into_tokens_enum!(Condition { Expr, ExprLet });
-
-impl Condition {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Expr(expr) => expr.span(),
-            Self::ExprLet(expr_let) => expr_let.span(),
-        }
+impl_enum_ast! {
+    /// An if condition.
+    pub enum Condition {
+        /// A regular expression.
+        Expr(Box<ast::Expr>),
+        /// A pattern match.
+        ExprLet(Box<ast::ExprLet>),
     }
 }
 

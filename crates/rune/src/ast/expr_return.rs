@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A return statement `return [expr]`.
@@ -15,9 +13,8 @@ pub struct ExprReturn {
 
 into_tokens!(ExprReturn { return_, expr });
 
-impl ExprReturn {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprReturn {
+    fn span(&self) -> Span {
         if let Some(expr) = &self.expr {
             self.return_.span().join(expr.span())
         } else {

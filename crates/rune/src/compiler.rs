@@ -1,17 +1,16 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compile_visitor::NoopCompileVisitor;
-use crate::error::CompileError;
-use crate::error::CompileResult;
 use crate::items::Items;
 use crate::loops::Loops;
 use crate::query::{Build, BuildEntry, Query};
 use crate::scopes::{Scope, ScopeGuard, Scopes};
 use crate::traits::Compile as _;
 use crate::worker::{Expanded, Task, Worker};
+use crate::CompileResult;
 use crate::{
-    Assembly, CompileVisitor, Errors, FileSourceLoader, LoadError, Options, Resolve as _,
-    SourceLoader, Sources, Storage, UnitBuilder, Warnings,
+    Assembly, CompileError, CompileErrorKind, CompileVisitor, Errors, FileSourceLoader, LoadError,
+    Options, Resolve as _, SourceLoader, Sources, Spanned as _, Storage, UnitBuilder, Warnings,
 };
 use runestick::{
     CompileMeta, CompileMetaKind, Context, Inst, Item, Label, Source, Span, TypeCheck,
@@ -118,6 +117,7 @@ pub fn compile_with_options(
                 options,
                 storage: &storage,
                 unit,
+                errors: worker.errors,
                 warnings: worker.warnings,
                 query: &mut worker.query,
                 entry,
@@ -149,6 +149,7 @@ struct CompileEntryArgs<'a> {
     options: &'a Options,
     storage: &'a Storage,
     unit: &'a Rc<RefCell<UnitBuilder>>,
+    errors: &'a mut Errors,
     warnings: &'a mut Warnings,
     query: &'a mut Query,
     entry: BuildEntry,
@@ -162,6 +163,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
         options,
         storage,
         unit,
+        errors,
         warnings,
         query,
         entry,
@@ -192,6 +194,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
         contexts: vec![],
         loops: Loops::new(),
         options,
+        errors,
         warnings,
         expanded,
         visitor,
@@ -225,17 +228,21 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
 
             let meta = compiler
                 .lookup_meta(&f.impl_item, f.instance_span)?
-                .ok_or_else(|| CompileError::MissingType {
-                    span: f.instance_span,
-                    item: f.impl_item.clone(),
+                .ok_or_else(|| {
+                    CompileError::new(
+                        f.instance_span,
+                        CompileErrorKind::MissingType {
+                            item: f.impl_item.clone(),
+                        },
+                    )
                 })?;
 
-            let type_of =
-                meta.type_of()
-                    .ok_or_else(|| CompileError::UnsupportedInstanceFunction {
-                        meta: meta.clone(),
-                        span,
-                    })?;
+            let type_of = meta.type_of().ok_or_else(|| {
+                CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedInstanceFunction { meta: meta.clone() },
+                )
+            })?;
 
             compiler.compile((f.ast, true))?;
 
@@ -337,19 +344,24 @@ fn verify_imports(
         if let Some((span, source_id)) = entry.span {
             errors.push(LoadError::new(
                 source_id,
-                CompileError::MissingModule {
+                CompileError::new(
                     span,
-                    item: entry.item.clone(),
-                },
+                    CompileErrorKind::MissingModule {
+                        item: entry.item.clone(),
+                    },
+                ),
             ));
 
             return Err(());
         } else {
             errors.push(LoadError::new(
                 0,
-                CompileError::MissingPreludeModule {
-                    item: entry.item.clone(),
-                },
+                CompileError::new(
+                    Span::empty(),
+                    CompileErrorKind::MissingPreludeModule {
+                        item: entry.item.clone(),
+                    },
+                ),
             ));
 
             return Err(());
@@ -386,6 +398,9 @@ pub(crate) struct Compiler<'a> {
     pub(crate) loops: Loops,
     /// Enabled optimizations.
     pub(crate) options: &'a Options,
+    /// Compilation warnings.
+    #[allow(unused)]
+    pub(crate) errors: &'a mut Errors,
     /// Compilation warnings.
     pub(crate) warnings: &'a mut Warnings,
     /// Compiler visitor.
@@ -512,22 +527,22 @@ impl<'a> Compiler<'a> {
                         .push_with_comment(Inst::Fn { hash }, span, format!("fn `{}`", item));
                 }
                 _ => {
-                    return Err(CompileError::UnsupportedValue {
+                    return Err(CompileError::new(
                         span,
-                        meta: meta.clone(),
-                    });
+                        CompileErrorKind::UnsupportedValue { meta: meta.clone() },
+                    ));
                 }
             }
 
             return Ok(());
         }
 
-        let type_of = meta
-            .type_of()
-            .ok_or_else(|| CompileError::UnsupportedType {
+        let type_of = meta.type_of().ok_or_else(|| {
+            CompileError::new(
                 span,
-                meta: meta.clone(),
-            })?;
+                CompileErrorKind::UnsupportedType { meta: meta.clone() },
+            )
+        })?;
 
         let hash = *type_of;
         self.asm.push(Inst::Type { hash }, span);
@@ -662,22 +677,32 @@ impl<'a> Compiler<'a> {
                             let type_check = TypeCheck::Variant(**type_of);
                             (tuple.clone(), meta, type_check)
                         }
-                        _ => return Err(CompileError::UnsupportedMetaPattern { meta, span }),
+                        _ => {
+                            return Err(CompileError::new(
+                                span,
+                                CompileErrorKind::UnsupportedMetaPattern { meta },
+                            ))
+                        }
                     }
                 } else {
-                    return Err(CompileError::UnsupportedPattern { span });
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::UnsupportedPattern,
+                    ));
                 };
 
             let count = pat_tuple.items.len();
             let is_open = pat_tuple.open_pattern.is_some();
 
             if !(tuple.args == count || count < tuple.args && is_open) {
-                return Err(CompileError::UnsupportedArgumentCount {
+                return Err(CompileError::new(
                     span,
-                    meta,
-                    expected: tuple.args,
-                    actual: count,
-                });
+                    CompileErrorKind::UnsupportedArgumentCount {
+                        meta,
+                        expected: tuple.args,
+                        actual: count,
+                    },
+                ));
             }
 
             match self.context.type_check_for(&tuple.item) {
@@ -747,11 +772,13 @@ impl<'a> Compiler<'a> {
             keys.push(key.to_string());
 
             if let Some(existing) = keys_dup.insert(key.to_string(), span) {
-                return Err(CompileError::DuplicateObjectKey {
+                return Err(CompileError::new(
                     span,
-                    existing,
-                    object: pat_object.span(),
-                });
+                    CompileErrorKind::DuplicateObjectKey {
+                        existing,
+                        object: pat_object.span(),
+                    },
+                ));
             }
         }
 
@@ -765,7 +792,10 @@ impl<'a> Compiler<'a> {
                 let meta = match self.lookup_meta(&item, span)? {
                     Some(meta) => meta,
                     None => {
-                        return Err(CompileError::MissingType { span, item });
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::MissingType { item },
+                        ));
                     }
                 };
 
@@ -783,7 +813,10 @@ impl<'a> Compiler<'a> {
                         (object, type_check)
                     }
                     _ => {
-                        return Err(CompileError::UnsupportedMetaPattern { meta, span });
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::UnsupportedMetaPattern { meta },
+                        ));
                     }
                 };
 
@@ -791,7 +824,10 @@ impl<'a> Compiler<'a> {
                     Some(fields) => fields,
                     None => {
                         // NB: might want to describe that field composition is unknown because it is an external meta item.
-                        return Err(CompileError::UnsupportedMetaPattern { meta, span });
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::UnsupportedMetaPattern { meta },
+                        ));
                     }
                 };
 
@@ -800,11 +836,13 @@ impl<'a> Compiler<'a> {
                     let key = field.key.resolve(&self.storage, &*self.source)?;
 
                     if !fields.contains(&*key) {
-                        return Err(CompileError::LitObjectNotField {
+                        return Err(CompileError::new(
                             span,
-                            field: key.to_string(),
-                            item: object.item.clone(),
-                        });
+                            CompileErrorKind::LitObjectNotField {
+                                field: key.to_string(),
+                                item: object.item.clone(),
+                            },
+                        ));
                     }
                 }
 
@@ -849,7 +887,12 @@ impl<'a> Compiler<'a> {
             // NB: only raw identifiers are supported as anonymous bindings
             let ident = match &item.key {
                 ast::LitObjectKey::Ident(ident) => ident,
-                _ => return Err(CompileError::UnsupportedBinding { span }),
+                _ => {
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::UnsupportedBinding,
+                    ))
+                }
             };
 
             load(self, Needs::Value)?;
@@ -929,7 +972,10 @@ impl<'a> Compiler<'a> {
                 let ident = match item.as_local() {
                     Some(ident) => ident,
                     None => {
-                        return Err(CompileError::UnsupportedBinding { span });
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::UnsupportedBinding,
+                        ));
                     }
                 };
 
@@ -965,7 +1011,10 @@ impl<'a> Compiler<'a> {
                 let integer = match number {
                     ast::Number::Integer(integer) => integer,
                     ast::Number::Float(..) => {
-                        return Err(CompileError::MatchFloatInPattern { span });
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::MatchFloatInPattern,
+                        ));
                     }
                 };
 

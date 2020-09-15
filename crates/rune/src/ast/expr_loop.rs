@@ -1,7 +1,5 @@
 use crate::ast::{Colon, ExprBlock, Label, Loop};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A let expression `let <name> = <expr>;`
@@ -18,11 +16,6 @@ pub struct ExprLoop {
 into_tokens!(ExprLoop { label, loop_, body });
 
 impl ExprLoop {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.loop_.token.span.join(self.body.span())
-    }
-
     /// Parse with the given label.
     pub fn parse_with_label(
         parser: &mut Parser<'_>,
@@ -33,6 +26,12 @@ impl ExprLoop {
             loop_: parser.parse()?,
             body: Box::new(parser.parse()?),
         })
+    }
+}
+
+impl Spanned for ExprLoop {
+    fn span(&self) -> Span {
+        self.loop_.token.span().join(self.body.span())
     }
 }
 

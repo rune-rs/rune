@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser};
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An array pattern.
@@ -22,9 +22,8 @@ into_tokens!(PatVec {
     close
 });
 
-impl PatVec {
-    /// Get the span of the pattern.
-    pub fn span(&self) -> Span {
+impl Spanned for PatVec {
+    fn span(&self) -> Span {
         self.open.span().join(self.close.span())
     }
 }

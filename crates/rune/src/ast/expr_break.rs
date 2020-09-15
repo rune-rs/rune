@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::{Parse, Peek};
+use crate::{Parse, ParseError, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// A return statement `break [expr]`.
@@ -35,24 +33,13 @@ impl Parse for ExprBreak {
     }
 }
 
-/// Things that we can break on.
-#[derive(Debug, Clone)]
-pub enum ExprBreakValue {
-    /// Breaking a value out of a loop.
-    Expr(Box<ast::Expr>),
-    /// Break and jump to the given label.
-    Label(ast::Label),
-}
-
-into_tokens_enum!(ExprBreakValue { Expr, Label });
-
-impl ExprBreakValue {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Expr(expr) => expr.span(),
-            Self::Label(label) => label.span(),
-        }
+impl_enum_ast! {
+    /// Things that we can break on.
+    pub enum ExprBreakValue {
+        /// Breaking a value out of a loop.
+        Expr(Box<ast::Expr>),
+        /// Break and jump to the given label.
+        Label(ast::Label),
     }
 }
 

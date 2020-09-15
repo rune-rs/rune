@@ -1,55 +1,30 @@
 use crate::ast;
-use crate::parser::Parser;
-use crate::traits::{Parse, Peek};
-use crate::ParseError;
-use runestick::Span;
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek};
 
-/// A declaration.
-#[derive(Debug, Clone)]
-pub enum Item {
-    /// A use declaration.
-    ItemUse(ast::ItemUse),
-    /// A function declaration.
-    // large size difference between variants
-    // we should box this variant.
-    // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
-    ItemFn(ast::ItemFn),
-    /// An enum declaration.
-    ItemEnum(ast::ItemEnum),
-    /// A struct declaration.
-    ItemStruct(ast::ItemStruct),
-    /// An impl declaration.
-    ItemImpl(ast::ItemImpl),
-    /// A module declaration.
-    ItemMod(ast::ItemMod),
-    /// A macro call expanding into an item.
-    MacroCall(ast::MacroCall),
+impl_enum_ast! {
+    /// A declaration.
+    pub enum Item {
+        /// A use declaration.
+        ItemUse(ast::ItemUse),
+        /// A function declaration.
+        // large size difference between variants
+        // we should box this variant.
+        // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
+        ItemFn(ast::ItemFn),
+        /// An enum declaration.
+        ItemEnum(ast::ItemEnum),
+        /// A struct declaration.
+        ItemStruct(ast::ItemStruct),
+        /// An impl declaration.
+        ItemImpl(ast::ItemImpl),
+        /// A module declaration.
+        ItemMod(ast::ItemMod),
+        /// A macro call expanding into an item.
+        MacroCall(ast::MacroCall),
+    }
 }
 
-into_tokens_enum!(Item {
-    ItemUse,
-    ItemFn,
-    ItemEnum,
-    ItemStruct,
-    ItemImpl,
-    ItemMod,
-    MacroCall
-});
-
 impl Item {
-    /// The span of the declaration.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::ItemUse(decl) => decl.span(),
-            Self::ItemFn(decl) => decl.span(),
-            Self::ItemEnum(decl) => decl.span(),
-            Self::ItemStruct(decl) => decl.span(),
-            Self::ItemImpl(decl) => decl.span(),
-            Self::ItemMod(decl) => decl.span(),
-            Self::MacroCall(expr) => expr.span(),
-        }
-    }
-
     /// Indicates if the declaration needs a semi-colon or not.
     pub fn needs_semi_colon(&self) -> bool {
         matches!(self, Self::MacroCall(..))
@@ -109,10 +84,10 @@ impl Parse for Item {
             ast::Kind::Mod => Self::ItemMod(parser.parse()?),
             ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
             _ => {
-                return Err(ParseError::ExpectedItem {
-                    actual: t.kind,
-                    span: t.span,
-                })
+                return Err(ParseError::new(
+                    t,
+                    ParseErrorKind::ExpectedItem { actual: t.kind },
+                ));
             }
         })
     }

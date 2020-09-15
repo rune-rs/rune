@@ -1,11 +1,14 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::error::{CompileError, CompileResult};
 use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::query::{Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query};
 use crate::worker::{Import, Macro, MacroKind, Task};
-use crate::{CompileVisitor, Resolve as _, SourceId, SourceLoader, Sources, Storage, Warnings};
+use crate::CompileResult;
+use crate::{
+    CompileError, CompileErrorKind, CompileVisitor, Resolve as _, SourceId, SourceLoader, Sources,
+    Spanned as _, Storage, Warnings,
+};
 use runestick::{Call, CompileMeta, CompileMetaKind, Hash, Item, Source, Span, Type};
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -55,7 +58,10 @@ impl<'a> Indexer<'a> {
         let url = match self.source.url() {
             Some(url) => url,
             None => {
-                return Err(CompileError::UnsupportedFileMod { span });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedFileMod,
+                ));
             }
         };
 
@@ -68,11 +74,10 @@ impl<'a> Indexer<'a> {
         let item = self.items.item();
 
         if let Some(existing) = self.loaded.insert(item.clone(), (self.source_id, span)) {
-            return Err(CompileError::ModAlreadyLoaded {
-                item,
+            return Err(CompileError::new(
                 span,
-                existing,
-            });
+                CompileErrorKind::ModAlreadyLoaded { item, existing },
+            ));
         }
 
         let source_id = self.sources.insert(source);
@@ -140,10 +145,9 @@ impl Index<ast::ItemFn> for Indexer<'_> {
         };
 
         if decl_fn.is_instance() {
-            let impl_item = self
-                .impl_items
-                .last()
-                .ok_or_else(|| CompileError::InstanceFunctionOutsideImpl { span })?;
+            let impl_item = self.impl_items.last().ok_or_else(|| {
+                CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
+            })?;
 
             let f = InstanceFunction {
                 ast: fun.ast,
@@ -672,7 +676,7 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
         for (arg, _) in expr_closure.args.as_slice() {
             match arg {
                 ast::FnArg::Self_(s) => {
-                    return Err(CompileError::UnsupportedSelf { span: s.span() });
+                    return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
                 }
                 ast::FnArg::Ident(ident) => {
                     let ident = ident.resolve(&self.storage, &*self.source)?;

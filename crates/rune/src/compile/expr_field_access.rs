@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
-use crate::traits::{Compile, Resolve as _};
-use crate::CompileError;
+use crate::traits::Compile;
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
 use runestick::{Inst, Span};
 use std::convert::TryFrom as _;
 
@@ -69,7 +69,10 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
             }
         }
 
-        Err(CompileError::UnsupportedFieldAccess { span })
+        Err(CompileError::new(
+            span,
+            CompileErrorKind::UnsupportedFieldAccess,
+        ))
     }
 }
 
@@ -97,15 +100,14 @@ fn try_immediate_field_access_optimization(
         Err(..) => return Ok(false),
     };
 
-    let var = match this.scopes.try_get_var(
-        ident.as_ref(),
-        this.source.url(),
-        this.visitor,
-        path.span(),
-    )? {
-        Some(var) => var,
-        None => return Ok(false),
-    };
+    let var =
+        match this
+            .scopes
+            .try_get_var(ident.as_ref(), this.source.url(), this.visitor, path.span())
+        {
+            Some(var) => var,
+            None => return Ok(false),
+        };
 
     this.asm.push(
         Inst::TupleIndexGetAt {

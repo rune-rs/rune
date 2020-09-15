@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser};
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A number literal.
@@ -18,14 +18,15 @@ pub struct LitVec {
 into_tokens!(LitVec { open, items, close });
 
 impl LitVec {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
-    }
-
     /// Test if the entire expression is constant.
     pub fn is_const(&self) -> bool {
         self.is_const
+    }
+}
+
+impl Spanned for LitVec {
+    fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
     }
 }
 

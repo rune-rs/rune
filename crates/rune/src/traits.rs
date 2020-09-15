@@ -1,9 +1,14 @@
 use crate::ast::Token;
-use crate::error::CompileResult;
-use crate::error::ParseError;
+use crate::parse_error::ParseError;
 use crate::parser::Parser;
+use crate::CompileResult;
 use crate::{MacroContext, Storage};
-use runestick::Source;
+use runestick::{Source, Span};
+
+pub(crate) trait Compile<T> {
+    /// Walk the current type with the given item.
+    fn compile(&mut self, item: T) -> CompileResult<()>;
+}
 
 /// The parse trait, implemented by items that can be parsed.
 pub trait Parse
@@ -105,7 +110,23 @@ pub trait Resolve<'a> {
     }
 }
 
-pub(crate) trait Compile<T> {
-    /// Walk the current type with the given item.
-    fn compile(&mut self, item: T) -> CompileResult<()>;
+/// Types for which we can get a span.
+pub trait Spanned {
+    /// Get the span of the type.
+    fn span(&self) -> Span;
+}
+
+impl Spanned for Span {
+    fn span(&self) -> Span {
+        *self
+    }
+}
+
+impl<T> Spanned for &T
+where
+    T: Spanned,
+{
+    fn span(&self) -> Span {
+        Spanned::span(*self)
+    }
 }

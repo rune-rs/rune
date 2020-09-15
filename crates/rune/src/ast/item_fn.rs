@@ -1,8 +1,5 @@
 use crate::ast;
-use crate::ast::{Kind, Token};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::{IntoTokens, Parse, Peek};
+use crate::{IntoTokens, Parse, ParseError, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// A function.
@@ -30,29 +27,30 @@ impl ItemFn {
         }
     }
 
-    /// Access the span for the function declaration.
-    pub fn span(&self) -> Span {
-        if let Some(async_) = &self.async_ {
-            async_.span().join(self.body.span())
-        } else {
-            self.fn_.span().join(self.body.span())
-        }
-    }
-
     /// Test if function is an instance fn.
     pub fn is_instance(&self) -> bool {
         matches!(self.args.items.first(), Some((ast::FnArg::Self_(..), _)))
     }
 }
 
+impl Spanned for ItemFn {
+    fn span(&self) -> Span {
+        if let Some(async_) = &self.async_ {
+            async_.span().join(self.body.span())
+        } else {
+            self.fn_.span().join(self.body.span())
+        }
+    }
+}
+
 impl Peek for ItemFn {
-    fn peek(t1: Option<Token>, _: Option<Token>) -> bool {
+    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
         let t = match t1 {
             Some(t) => t,
             None => return false,
         };
 
-        matches!(t.kind, Kind::Fn | Kind::Async)
+        matches!(t.kind, ast::Kind::Fn | ast::Kind::Async)
     }
 }
 

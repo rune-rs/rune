@@ -4,7 +4,7 @@ use rune_testing::*;
 fn test_binary_exprs() {
     assert_parse_error! {
         r#"fn main() { 0 < 10 >= 10 }"#,
-        PrecedenceGroupRequired { span } => {
+        span, PrecedenceGroupRequired => {
             assert_eq!(span, Span::new(12, 18));
         }
     };

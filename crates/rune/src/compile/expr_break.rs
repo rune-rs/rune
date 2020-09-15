@@ -1,7 +1,8 @@
 use crate::ast;
 use crate::compiler::Compiler;
-use crate::error::CompileResult;
-use crate::{traits::Compile, CompileError};
+use crate::traits::Compile;
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind};
 use runestick::Inst;
 
 /// Compile a break expression.
@@ -15,7 +16,10 @@ impl Compile<&ast::ExprBreak> for Compiler<'_> {
         let current_loop = match self.loops.last() {
             Some(current_loop) => current_loop,
             None => {
-                return Err(CompileError::BreakOutsideOfLoop { span });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::BreakOutsideOfLoop,
+                ));
             }
         };
 
@@ -45,7 +49,7 @@ impl Compile<&ast::ExprBreak> for Compiler<'_> {
             .scopes
             .total_var_count(span)?
             .checked_sub(last_loop.total_var_count)
-            .ok_or_else(|| CompileError::internal("var count should be larger", span))?;
+            .ok_or_else(|| CompileError::internal(span, "var count should be larger"))?;
 
         if last_loop.needs.value() {
             if has_value {

@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::traits::Compile;
-use crate::CompileError;
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Spanned as _};
 use runestick::{CompileMetaKind, Hash, Inst};
 
 /// Call an async block.
@@ -16,14 +16,20 @@ impl Compile<(&ast::ExprAsync, Needs)> for Compiler<'_> {
         let meta = match self.lookup_meta(&item, span)? {
             Some(meta) => meta,
             None => {
-                return Err(CompileError::MissingType { span, item });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::MissingType { item },
+                ));
             }
         };
 
         let captures = match &meta.kind {
             CompileMetaKind::AsyncBlock { captures, .. } => captures,
             _ => {
-                return Err(CompileError::UnsupportedAsyncBlock { span, meta });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedAsyncBlock { meta },
+                ));
             }
         };
 

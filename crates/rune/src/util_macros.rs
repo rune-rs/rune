@@ -16,13 +16,35 @@ macro_rules! into_tokens {
     };
 }
 
-/// impl IntoTokens for an enum.
-macro_rules! into_tokens_enum {
-    ($ty:ty {$($variant:ident),*}) => {
-        impl $crate::IntoTokens for $ty {
+/// Implement an enum with variants containing AST.
+macro_rules! impl_enum_ast {
+    (
+        $(#[$meta:meta])*
+        pub enum $name:ident {
+            $(
+                $(#[$v_meta:meta])*
+                $v_name:ident ($v_ty:ty),
+            )*
+        }
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone)]
+        pub enum $name {
+            $($(#[$v_meta])* $v_name ($v_ty),)*
+        }
+
+        impl $crate::IntoTokens for $name {
             fn into_tokens(&self, context: &mut $crate::MacroContext, stream: &mut $crate::TokenStream) {
                 match self {
-                    $(Self::$variant(value) => value.into_tokens(context, stream),)*
+                    $(Self::$v_name(value) => value.into_tokens(context, stream),)*
+                }
+            }
+        }
+
+        impl $crate::Spanned for $name {
+            fn span(&self) -> runestick::Span {
+                match self {
+                    $(Self::$v_name(v) => v.span(),)*
                 }
             }
         }

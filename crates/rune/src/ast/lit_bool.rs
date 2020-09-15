@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// The unit literal `()`.
@@ -13,10 +13,9 @@ pub struct LitBool {
 
 into_tokens!(LitBool { token });
 
-impl LitBool {
-    /// Get the span of this unit literal.
-    pub fn span(&self) -> Span {
-        self.token.span
+impl Spanned for LitBool {
+    fn span(&self) -> Span {
+        self.token.span()
     }
 }
 
@@ -38,10 +37,10 @@ impl Parse for LitBool {
             ast::Kind::True => true,
             ast::Kind::False => false,
             _ => {
-                return Err(ParseError::ExpectedBool {
-                    span: token.span,
-                    actual: token.kind,
-                })
+                return Err(ParseError::new(
+                    token,
+                    ParseErrorKind::ExpectedBool { actual: token.kind },
+                ));
             }
         };
 

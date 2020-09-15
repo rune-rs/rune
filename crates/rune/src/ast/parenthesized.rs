@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Peek};
+use crate::{IntoTokens, Parse, ParseError, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// Something parenthesized and comma separated `(<T,>*)`.
@@ -13,10 +13,9 @@ pub struct Parenthesized<T, S> {
     pub close: ast::CloseParen,
 }
 
-impl<T, S> Parenthesized<T, S> {
-    /// Access the span of expression.
-    pub fn span(&self) -> Span {
-        self.open.token.span.join(self.close.token.span)
+impl<T, S> Spanned for Parenthesized<T, S> {
+    fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
     }
 }
 

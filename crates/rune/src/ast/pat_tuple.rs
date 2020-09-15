@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser};
+use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A tuple pattern.
@@ -18,15 +18,6 @@ pub struct PatTuple {
 }
 
 impl PatTuple {
-    /// Get the span of the pattern.
-    pub fn span(&self) -> Span {
-        if let Some(path) = &self.path {
-            path.span().join(self.close.span())
-        } else {
-            self.open.span().join(self.close.span())
-        }
-    }
-
     /// Parse a tuple pattern with a known preceeding path.
     pub fn parse_with_path(
         parser: &mut Parser<'_>,
@@ -65,6 +56,16 @@ impl PatTuple {
             open_pattern,
             close,
         })
+    }
+}
+
+impl Spanned for PatTuple {
+    fn span(&self) -> Span {
+        if let Some(path) = &self.path {
+            path.span().join(self.close.span())
+        } else {
+            self.open.span().join(self.close.span())
+        }
     }
 }
 

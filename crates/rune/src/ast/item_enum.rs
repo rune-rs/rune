@@ -1,8 +1,5 @@
 use crate::ast;
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
-use crate::{IntoTokens, MacroContext, TokenStream};
+use crate::{IntoTokens, MacroContext, Parse, ParseError, Parser, Spanned, TokenStream};
 use runestick::Span;
 
 /// An enum declaration.
@@ -20,9 +17,8 @@ pub struct ItemEnum {
     pub close: ast::CloseBrace,
 }
 
-impl ItemEnum {
-    /// Access the span for the enum declaration.
-    pub fn span(&self) -> Span {
+impl Spanned for ItemEnum {
+    fn span(&self) -> Span {
         self.enum_.span().join(self.close.span())
     }
 }

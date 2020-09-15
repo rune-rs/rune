@@ -1,11 +1,9 @@
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
-use crate::{
-    traits::{Compile, Resolve as _},
-    CompileError,
-};
+use crate::traits::Compile;
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
 use runestick::{CompileMetaKind, Hash, Inst, Item, Span};
 
 /// Compile a literal object.
@@ -33,11 +31,13 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
             check_keys.push((key.clone(), assign.key.span()));
 
             if let Some(existing) = keys_dup.insert(key, span) {
-                return Err(CompileError::DuplicateObjectKey {
+                return Err(CompileError::new(
                     span,
-                    existing,
-                    object: span,
-                });
+                    CompileErrorKind::DuplicateObjectKey {
+                        existing,
+                        object: span,
+                    },
+                ));
             }
         }
 
@@ -79,7 +79,10 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                 let meta = match self.lookup_meta(&item, path.span())? {
                     Some(meta) => meta,
                     None => {
-                        return Err(CompileError::MissingType { span, item });
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::MissingType { item },
+                        ));
                     }
                 };
 
@@ -118,10 +121,12 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         );
                     }
                     _ => {
-                        return Err(CompileError::UnsupportedLitObject {
+                        return Err(CompileError::new(
                             span,
-                            item: meta.item().clone(),
-                        });
+                            CompileErrorKind::UnsupportedLitObject {
+                                item: meta.item().clone(),
+                            },
+                        ));
                     }
                 };
             }
@@ -143,29 +148,33 @@ fn check_object_fields(
     let mut fields = match fields {
         Some(fields) => fields.clone(),
         None => {
-            return Err(CompileError::MissingType {
+            return Err(CompileError::new(
                 span,
-                item: item.clone(),
-            });
+                CompileErrorKind::MissingType { item: item.clone() },
+            ));
         }
     };
 
     for (field, span) in check_keys {
         if !fields.remove(&field) {
-            return Err(CompileError::LitObjectNotField {
+            return Err(CompileError::new(
                 span,
-                field,
-                item: item.clone(),
-            });
+                CompileErrorKind::LitObjectNotField {
+                    field,
+                    item: item.clone(),
+                },
+            ));
         }
     }
 
     if let Some(field) = fields.into_iter().next() {
-        return Err(CompileError::LitObjectMissingField {
+        return Err(CompileError::new(
             span,
-            field,
-            item: item.clone(),
-        });
+            CompileErrorKind::LitObjectMissingField {
+                field,
+                item: item.clone(),
+            },
+        ));
     }
 
     Ok(())

@@ -1,9 +1,6 @@
 use crate::ast;
 use crate::compiler::Needs;
-use crate::{
-    error::{CompileError, CompileResult},
-    Storage,
-};
+use crate::{CompileError, CompileErrorKind, CompileResult, Spanned as _, Storage};
 use runestick::{Label, Source};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -90,7 +87,7 @@ impl Loops {
             }
         }
 
-        Err(CompileError::MissingLabel { span })
+        Err(CompileError::new(span, CompileErrorKind::MissingLabel))
     }
 
     /// Construct an iterator over all available scopes.

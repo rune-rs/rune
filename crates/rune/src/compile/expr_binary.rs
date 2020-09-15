@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::traits::{Compile, Resolve as _};
-use crate::CompileError;
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Spanned as _};
 use runestick::Inst;
 
 /// Compile a binary expression.
@@ -94,7 +94,10 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
                 self.asm.push(Inst::Shr, span);
             }
             op => {
-                return Err(CompileError::UnsupportedBinaryOp { span, op });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedBinaryOp { op },
+                ));
             }
         }
 
@@ -166,9 +169,12 @@ fn compile_assign_binop(
                     ast::ExprField::LitNumber(field) => {
                         let span = field.span();
                         let number = field.resolve(this.storage, &*this.source)?;
-                        let index = number
-                            .into_tuple_index()
-                            .ok_or_else(|| CompileError::UnsupportedTupleIndex { number, span })?;
+                        let index = number.into_tuple_index().ok_or_else(|| {
+                            CompileError::new(
+                                span,
+                                CompileErrorKind::UnsupportedTupleIndex { number },
+                            )
+                        })?;
 
                         this.compile((rhs, Needs::Value))?;
                         this.scopes.decl_anon(rhs.span())?;
@@ -184,7 +190,10 @@ fn compile_assign_binop(
         };
 
         if !supported {
-            return Err(CompileError::UnsupportedAssignExpr { span });
+            return Err(CompileError::new(
+                span,
+                CompileErrorKind::UnsupportedAssignExpr,
+            ));
         }
     } else {
         let supported = match lhs {
@@ -208,7 +217,10 @@ fn compile_assign_binop(
         let offset = match supported {
             Some(offset) => offset,
             None => {
-                return Err(CompileError::UnsupportedBinaryExpr { span });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedBinaryExpr,
+                ));
             }
         };
 
@@ -246,7 +258,10 @@ fn compile_assign_binop(
                 this.asm.push(Inst::ShrAssign { offset }, span);
             }
             _ => {
-                return Err(CompileError::UnsupportedBinaryExpr { span });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedBinaryExpr,
+                ));
             }
         }
     }

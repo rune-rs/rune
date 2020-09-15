@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
+use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -141,10 +141,10 @@ impl Parse for LitObjectKey {
             ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
             ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
             _ => {
-                return Err(ParseError::ExpectedLitObjectKey {
-                    actual: token.kind,
-                    span: token.span,
-                })
+                return Err(ParseError::new(
+                    token,
+                    ParseErrorKind::ExpectedLitObjectKey { actual: token.kind },
+                ));
             }
         })
     }
@@ -187,11 +187,6 @@ pub struct LitObject {
 }
 
 impl LitObject {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.ident.span().join(self.close.span())
-    }
-
     /// Test if the entire expression is constant.
     pub fn is_const(&self) -> bool {
         self.is_const
@@ -233,6 +228,12 @@ impl LitObject {
             close,
             is_const,
         })
+    }
+}
+
+impl Spanned for LitObject {
+    fn span(&self) -> Span {
+        self.ident.span().join(self.close.span())
     }
 }
 

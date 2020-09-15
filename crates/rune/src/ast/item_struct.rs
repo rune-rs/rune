@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, MacroContext, Parse, ParseError, Parser, TokenStream};
+use crate::{IntoTokens, MacroContext, Parse, ParseError, Parser, Spanned, TokenStream};
 use runestick::Span;
 
 /// A struct declaration.
@@ -13,9 +13,8 @@ pub struct ItemStruct {
     pub body: ItemStructBody,
 }
 
-impl ItemStruct {
-    /// Get the span for the declaration.
-    pub fn span(&self) -> Span {
+impl Spanned for ItemStruct {
+    fn span(&self) -> Span {
         let start = self.struct_.span();
 
         match &self.body {

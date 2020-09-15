@@ -1,7 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
-use crate::{traits::Compile, CompileError};
+use crate::traits::Compile;
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Spanned as _};
 
 /// Compile `self`.
 impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
@@ -20,7 +21,7 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
             if let Some(local) = item.as_local() {
                 if let Some(var) =
                     self.scopes
-                        .try_get_var(local, self.source.url(), self.visitor, span)?
+                        .try_get_var(local, self.source.url(), self.visitor, span)
                 {
                     var.copy(&mut self.asm, span, format!("var `{}`", local));
                     return Ok(());
@@ -30,17 +31,27 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
 
         let meta = match self.lookup_meta(&item, span)? {
             Some(meta) => meta,
-            None => match (needs, item.as_local()) {
-                (Needs::Value, Some(local)) => {
-                    return Err(CompileError::MissingLocal {
-                        name: local.to_owned(),
-                        span,
-                    });
-                }
-                _ => {
-                    return Err(CompileError::MissingType { span, item });
-                }
-            },
+            None => {
+                let error = match (needs, item.as_local()) {
+                    (Needs::Value, Some(local)) => {
+                        // light heuristics, treat it as a type error in case the
+                        // first character is uppercase.
+                        if local.starts_with(char::is_uppercase) {
+                            CompileError::new(span, CompileErrorKind::MissingType { item })
+                        } else {
+                            CompileError::new(
+                                span,
+                                CompileErrorKind::MissingLocal {
+                                    name: local.to_owned(),
+                                },
+                            )
+                        }
+                    }
+                    _ => CompileError::new(span, CompileErrorKind::MissingType { item }),
+                };
+
+                return Err(error);
+            }
         };
 
         self.compile_meta(&meta, span, needs)?;

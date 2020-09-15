@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::ast::utils;
-use crate::{IntoTokens, Parse, ParseError, Parser};
+use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A select expression that selects over a collection of futures.
@@ -18,9 +18,8 @@ pub struct ExprSelect {
     pub close: ast::CloseBrace,
 }
 
-impl ExprSelect {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprSelect {
+    fn span(&self) -> Span {
         self.select.span().join(self.close.span())
     }
 }

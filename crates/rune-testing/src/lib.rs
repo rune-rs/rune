@@ -43,8 +43,8 @@
 //! [Rune Language]: https://github.com/rune-rs/rune
 
 pub use futures_executor::block_on;
-pub use rune::CompileError::*;
-pub use rune::ParseError::*;
+pub use rune::CompileErrorKind::*;
+pub use rune::ParseErrorKind::*;
 use rune::Sources;
 use rune::UnitBuilder;
 pub use rune::WarningKind::*;
@@ -152,7 +152,7 @@ macro_rules! rune {
 /// # fn main() {
 /// assert_parse_error! {
 ///     r#"fn main() { 0 < 10 >= 10 }"#,
-///     PrecedenceGroupRequired { span } => {
+///     span, PrecedenceGroupRequired => {
 ///         assert_eq!(span, Span::new(12, 18));
 ///     }
 /// };
@@ -160,13 +160,26 @@ macro_rules! rune {
 /// ```
 #[macro_export]
 macro_rules! assert_parse_error {
-    ($source:expr, $pat:pat => $cond:expr) => {{
+    ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
         let context = runestick::Context::with_default_modules().unwrap();
         let errors = $crate::compile_source(&context, &$source).unwrap_err();
         let err = errors.into_iter().next().expect("expected one error");
 
-        match err.into_kind() {
-            rune::LoadErrorKind::ParseError($pat) => ($cond),
+        let e = match err.into_kind() {
+            rune::LoadErrorKind::ParseError(e) => (e),
+            kind => {
+                panic!(
+                    "expected parse error `{}` but was `{:?}`",
+                    stringify!($pat),
+                    kind
+                );
+            }
+        };
+
+        let $span = rune::Spanned::span(&e);
+
+        match e.into_kind() {
+            $pat => $cond,
             kind => {
                 panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
             }
@@ -250,7 +263,7 @@ macro_rules! assert_parse {
 /// # fn main() {
 /// assert_compile_error! {
 ///     r#"fn main() { break; }"#,
-///     BreakOutsideOfLoop { span } => {
+///     span, BreakOutsideOfLoop => {
 ///         assert_eq!(span, Span::new(12, 17));
 ///     }
 /// };
@@ -258,13 +271,26 @@ macro_rules! assert_parse {
 /// ```
 #[macro_export]
 macro_rules! assert_compile_error {
-    ($source:expr, $pat:pat => $cond:expr) => {{
+    ($source:expr, $span:ident, $pat:pat => $cond:expr) => {{
         let context = runestick::Context::with_default_modules().unwrap();
         let e = $crate::compile_source(&context, $source).unwrap_err();
         let e = e.into_iter().next().expect("expected one error");
 
+        let e = match e.into_kind() {
+            rune::LoadErrorKind::CompileError(e) => (e),
+            kind => {
+                panic!(
+                    "expected parse error `{}` but was `{:?}`",
+                    stringify!($pat),
+                    kind
+                );
+            }
+        };
+
+        let $span = rune::Spanned::span(&e);
+
         match e.into_kind() {
-            rune::LoadErrorKind::CompileError($pat) => ($cond),
+            $pat => $cond,
             kind => {
                 panic!("expected error `{}` but was `{:?}`", stringify!($pat), kind);
             }

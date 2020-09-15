@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser};
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An object pattern.
@@ -26,11 +26,6 @@ into_tokens!(PatObject {
 });
 
 impl PatObject {
-    /// Get the span of the pattern.
-    pub fn span(&self) -> Span {
-        self.ident.span().join(self.close.span())
-    }
-
     /// Parse the object with an opening path.
     pub fn parse_with_ident(
         parser: &mut Parser<'_>,
@@ -73,6 +68,12 @@ impl PatObject {
             close,
             open_pattern,
         })
+    }
+}
+
+impl Spanned for PatObject {
+    fn span(&self) -> Span {
+        self.ident.span().join(self.close.span())
     }
 }
 

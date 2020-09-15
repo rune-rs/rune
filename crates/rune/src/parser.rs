@@ -1,8 +1,8 @@
 use crate::ast::Token;
-use crate::error::ParseError;
 use crate::lexer::Lexer;
 use crate::token_stream::{TokenStream, TokenStreamIter};
 use crate::traits::{Parse, Peek};
+use crate::{ParseError, ParseErrorKind};
 use runestick::Span;
 use std::fmt;
 
@@ -98,9 +98,10 @@ impl<'a> Parser<'a> {
 
         match token? {
             Some(token) => Ok(token),
-            None => Err(ParseError::UnexpectedEof {
-                span: self.source.end(),
-            }),
+            None => Err(ParseError::new(
+                self.source.end(),
+                ParseErrorKind::UnexpectedEof,
+            )),
         }
     }
 
@@ -109,9 +110,10 @@ impl<'a> Parser<'a> {
     pub fn token_peek_eof(&mut self) -> Result<Token, ParseError> {
         match self.p1? {
             Some(token) => Ok(token),
-            None => Err(ParseError::UnexpectedEof {
-                span: self.source.end(),
-            }),
+            None => Err(ParseError::new(
+                self.source.end(),
+                ParseErrorKind::UnexpectedEof,
+            )),
         }
     }
 
@@ -124,10 +126,10 @@ impl<'a> Parser<'a> {
     /// Assert that the parser has reached its end-of-file.
     pub fn parse_eof(&mut self) -> Result<(), ParseError> {
         if let Some(token) = self.source.next()? {
-            return Err(ParseError::ExpectedEof {
-                actual: token.kind,
-                span: token.span,
-            });
+            return Err(ParseError::new(
+                token,
+                ParseErrorKind::ExpectedEof { actual: token.kind },
+            ));
         }
 
         Ok(())

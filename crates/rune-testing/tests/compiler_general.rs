@@ -4,7 +4,7 @@ use rune_testing::*;
 fn test_use_variant_as_type() {
     assert_compile_error! {
         r#"fn main() { Err(0) is Err }"#,
-        UnsupportedType { span, meta: CompileMeta { kind: CompileMetaKind::TupleVariant { .. }, .. } } => {
+        span, UnsupportedType { meta: CompileMeta { kind: CompileMetaKind::TupleVariant { .. }, .. } } => {
             assert_eq!(span, Span::new(22, 25));
         }
     };
@@ -14,7 +14,7 @@ fn test_use_variant_as_type() {
 fn break_outside_of_loop() {
     assert_compile_error! {
         r#"fn main() { break; }"#,
-        BreakOutsideOfLoop { span } => {
+        span, BreakOutsideOfLoop => {
             assert_eq!(span, Span::new(12, 17));
         }
     };
@@ -24,7 +24,7 @@ fn break_outside_of_loop() {
 fn test_pointers() {
     assert_compile_error! {
         r#"fn main() { let n = 0; foo(&n); }"#,
-        UnsupportedRef { span } => {
+        span, UnsupportedRef => {
             assert_eq!(span, Span::new(27, 29));
         }
     };
@@ -36,7 +36,7 @@ fn test_template_strings() {
 
     assert_compile_error! {
         r#"fn main() { `hello }` }"#,
-        ParseError { error: UnexpectedCloseBrace { span } } => {
+        span, ParseError { error: UnexpectedCloseBrace {} } => {
             assert_eq!(span, Span::new(13, 20));
         }
     };
@@ -46,7 +46,7 @@ fn test_template_strings() {
 fn test_wrong_arguments() {
     assert_compile_error! {
         r#"fn main() { Some(1, 2) }"#,
-        UnsupportedArgumentCount { span, expected, actual, .. } => {
+        span, UnsupportedArgumentCount { expected, actual, .. } => {
             assert_eq!(span, Span::new(12, 22));
             assert_eq!(expected, 1);
             assert_eq!(actual, 2);
@@ -55,7 +55,7 @@ fn test_wrong_arguments() {
 
     assert_compile_error! {
         r#"fn main() { None(1) }"#,
-        UnsupportedArgumentCount { span, expected, actual, .. } => {
+        span, UnsupportedArgumentCount { expected, actual, .. } => {
             assert_eq!(span, Span::new(12, 19));
             assert_eq!(expected, 0);
             assert_eq!(actual, 1);
@@ -67,7 +67,7 @@ fn test_wrong_arguments() {
 fn test_bad_struct_declaration() {
     assert_compile_error! {
         r#"struct Foo { a, b } fn main() { Foo { a: 12 } }"#,
-        LitObjectMissingField { span, field, .. } => {
+        span, LitObjectMissingField { field, .. } => {
             assert_eq!(span, Span::new(32, 45));
             assert_eq!(field, "b");
         }
@@ -75,7 +75,7 @@ fn test_bad_struct_declaration() {
 
     assert_compile_error! {
         r#"struct Foo { a, b } fn main() { Foo { not_field: 12 } }"#,
-        LitObjectNotField { span, field, .. } => {
+        span, LitObjectNotField { field, .. } => {
             assert_eq!(span, Span::new(38, 47));
             assert_eq!(field, "not_field");
         }
@@ -83,7 +83,7 @@ fn test_bad_struct_declaration() {
 
     assert_compile_error! {
         r#"fn main() { None(1) }"#,
-        UnsupportedArgumentCount { span, expected, actual, .. } => {
+        span, UnsupportedArgumentCount { expected, actual, .. } => {
             assert_eq!(span, Span::new(12, 19));
             assert_eq!(expected, 0);
             assert_eq!(actual, 1);

@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
 use crate::traits::Compile;
-use crate::CompileError;
+use crate::CompileResult;
+use crate::{CompileError, CompileErrorKind, Spanned as _};
 use runestick::Inst;
 
 /// Compile a unary expression.
@@ -13,9 +13,10 @@ impl Compile<(&ast::ExprUnary, Needs)> for Compiler<'_> {
 
         // NB: special unary expressions.
         if let ast::UnaryOp::BorrowRef { .. } = expr_unary.op {
-            return Err(CompileError::UnsupportedRef {
-                span: expr_unary.span(),
-            });
+            return Err(CompileError::new(
+                expr_unary.span(),
+                CompileErrorKind::UnsupportedRef,
+            ));
         }
 
         self.compile((&*expr_unary.expr, Needs::Value))?;
@@ -25,7 +26,10 @@ impl Compile<(&ast::ExprUnary, Needs)> for Compiler<'_> {
                 self.asm.push(Inst::Not, span);
             }
             op => {
-                return Err(CompileError::UnsupportedUnaryOp { span, op });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedUnaryOp { op },
+                ));
             }
         }
 

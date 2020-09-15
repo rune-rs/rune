@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Resolve, Storage};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -12,10 +12,9 @@ pub struct Label {
     pub kind: ast::StringSource,
 }
 
-impl Label {
-    /// Access the span of the identifier.
-    pub fn span(&self) -> Span {
-        self.token.span
+impl Spanned for Label {
+    fn span(&self) -> Span {
+        self.token.span()
     }
 }
 
@@ -25,11 +24,13 @@ impl Parse for Label {
 
         match token.kind {
             ast::Kind::Label(kind) => Ok(Self { token, kind }),
-            _ => Err(ParseError::TokenMismatch {
-                expected: ast::Kind::Label(ast::StringSource::Text),
-                actual: token.kind,
-                span: token.span,
-            }),
+            _ => Err(ParseError::new(
+                token,
+                ParseErrorKind::TokenMismatch {
+                    expected: ast::Kind::Label(ast::StringSource::Text),
+                    actual: token.kind,
+                },
+            )),
         }
     }
 }
@@ -47,26 +48,22 @@ impl<'a> Resolve<'a> for Label {
     type Output = Cow<'a, str>;
 
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
-        let span = self.token.span;
+        let span = self.token.span();
 
         match self.kind {
             ast::StringSource::Text => {
-                let span = self.token.span;
+                let span = self.token.span();
 
                 let ident = source
                     .source(span.trim_start(1))
-                    .ok_or_else(|| ParseError::BadSlice { span })?;
+                    .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
 
                 Ok(Cow::Borrowed(ident))
             }
             ast::StringSource::Synthetic(id) => {
-                let ident = storage
-                    .get_string(id)
-                    .ok_or_else(|| ParseError::BadSyntheticId {
-                        kind: "ident",
-                        id,
-                        span,
-                    })?;
+                let ident = storage.get_string(id).ok_or_else(|| {
+                    ParseError::new(span, ParseErrorKind::BadSyntheticId { kind: "ident", id })
+                })?;
 
                 Ok(Cow::Owned(ident))
             }

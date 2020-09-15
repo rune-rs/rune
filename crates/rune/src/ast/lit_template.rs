@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
+use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -12,10 +12,9 @@ pub struct LitTemplate {
     source: ast::LitStrSource,
 }
 
-impl LitTemplate {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.token.span
+impl Spanned for LitTemplate {
+    fn span(&self) -> Span {
+        self.token.span()
     }
 }
 
@@ -40,7 +39,7 @@ impl<'a> Resolve<'a> for LitTemplate {
     type Output = Template;
 
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ParseError> {
-        let span = self.token.span;
+        let span = self.token.span();
 
         let (span, text) = match self.source {
             ast::LitStrSource::Text(..) => {
@@ -48,18 +47,20 @@ impl<'a> Resolve<'a> for LitTemplate {
 
                 let string = source
                     .source(span)
-                    .ok_or_else(|| ParseError::BadSlice { span })?;
+                    .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
 
                 (span, Cow::Borrowed(string))
             }
             ast::LitStrSource::Synthetic(id) => {
-                let string = storage
-                    .get_string(id)
-                    .ok_or_else(|| ParseError::BadSyntheticId {
-                        kind: "template string",
-                        id,
+                let string = storage.get_string(id).ok_or_else(|| {
+                    ParseError::new(
                         span,
-                    })?;
+                        ParseErrorKind::BadSyntheticId {
+                            kind: "template string",
+                            id,
+                        },
+                    )
+                })?;
 
                 (Span::new(0, string.len()), Cow::Owned(string))
             }
@@ -84,7 +85,7 @@ impl<'a> Resolve<'a> for LitTemplate {
                     buf.push(c);
                 }
                 '}' => {
-                    return Err(ParseError::UnexpectedCloseBrace { span });
+                    return Err(ParseError::new(span, ParseErrorKind::UnexpectedCloseBrace));
                 }
                 '{' => {
                     if !buf.is_empty() {
@@ -137,10 +138,10 @@ impl Parse for LitTemplate {
 
         match token.kind {
             ast::Kind::LitTemplate(source) => Ok(LitTemplate { token, source }),
-            _ => Err(ParseError::ExpectedString {
-                actual: token.kind,
-                span: token.span,
-            }),
+            _ => Err(ParseError::new(
+                token,
+                ParseErrorKind::ExpectedString { actual: token.kind },
+            )),
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Resolve, Storage};
+use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -12,10 +12,9 @@ pub struct LitStr {
     source: ast::LitStrSource,
 }
 
-impl LitStr {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.token.span
+impl Spanned for LitStr {
+    fn span(&self) -> Span {
+        self.token.span()
     }
 }
 
@@ -46,18 +45,14 @@ impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
-        let span = self.token.span;
+        let span = self.token.span();
 
         let text = match self.source {
             ast::LitStrSource::Text(text) => text,
             ast::LitStrSource::Synthetic(id) => {
-                let bytes = storage
-                    .get_string(id)
-                    .ok_or_else(|| ParseError::BadSyntheticId {
-                        kind: "string",
-                        id,
-                        span,
-                    })?;
+                let bytes = storage.get_string(id).ok_or_else(|| {
+                    ParseError::new(span, ParseErrorKind::BadSyntheticId { kind: "string", id })
+                })?;
 
                 return Ok(Cow::Owned(bytes));
             }
@@ -67,7 +62,7 @@ impl<'a> Resolve<'a> for LitStr {
 
         let string = source
             .source(span)
-            .ok_or_else(|| ParseError::BadSlice { span })?;
+            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
 
         Ok(if text.escaped {
             Cow::Owned(self.parse_escaped(span, string)?)
@@ -93,10 +88,10 @@ impl Parse for LitStr {
 
         match token.kind {
             ast::Kind::LitStr(source) => Ok(Self { token, source }),
-            _ => Err(ParseError::ExpectedString {
-                actual: token.kind,
-                span: token.span,
-            }),
+            _ => Err(ParseError::new(
+                token,
+                ParseErrorKind::ExpectedString { actual: token.kind },
+            )),
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser};
+use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An expression to construct a literal tuple.
@@ -16,11 +16,6 @@ pub struct LitTuple {
 }
 
 impl LitTuple {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
-    }
-
     /// If the tuple is constant.
     pub fn is_const(&self) -> bool {
         self.is_const
@@ -64,6 +59,12 @@ impl LitTuple {
             close,
             is_const,
         })
+    }
+}
+
+impl Spanned for LitTuple {
+    fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
     }
 }
 

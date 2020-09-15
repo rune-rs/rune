@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::ast::utils;
-use crate::error::ParseError;
+use crate::{ParseError, ParseErrorKind};
 use runestick::Span;
 
 /// Lexer for the rune language.
@@ -175,12 +175,12 @@ impl<'a> Lexer<'a> {
                 Some(c) => c,
                 None => {
                     if is_label {
-                        return Err(ParseError::ExpectedCharClose {
-                            span: Span {
-                                start,
-                                end: self.source.len(),
-                            },
-                        });
+                        let span = Span {
+                            start,
+                            end: self.source.len(),
+                        };
+
+                        return Err(ParseError::new(span, ParseErrorKind::ExpectedCharClose));
                     }
 
                     break self.source.len();
@@ -205,12 +205,12 @@ impl<'a> Lexer<'a> {
                     char_count += 1;
                 }
                 c if c.is_control() => {
-                    return Err(ParseError::UnterminatedCharLit {
-                        span: Span {
-                            start,
-                            end: self.cursor + n,
-                        },
-                    });
+                    let span = Span {
+                        start,
+                        end: self.cursor + n,
+                    };
+
+                    return Err(ParseError::new(span, ParseErrorKind::UnterminatedCharLit));
                 }
                 _ if is_label && char_count > 0 => {
                     break self.cursor + n;
@@ -255,12 +255,12 @@ impl<'a> Lexer<'a> {
             let (n, c) = match it.clone().next() {
                 Some(c) => c,
                 None => {
-                    return Err(ParseError::ExpectedByteClose {
-                        span: Span {
-                            start,
-                            end: self.source.len(),
-                        },
-                    })
+                    let span = Span {
+                        start,
+                        end: self.source.len(),
+                    };
+
+                    return Err(ParseError::new(span, ParseErrorKind::ExpectedByteClose));
                 }
             };
 
@@ -274,12 +274,12 @@ impl<'a> Lexer<'a> {
                     break self.end_span(it);
                 }
                 c if c.is_control() => {
-                    return Err(ParseError::UnterminatedByteLit {
-                        span: Span {
-                            start,
-                            end: self.cursor + n,
-                        },
-                    });
+                    let span = Span {
+                        start,
+                        end: self.cursor + n,
+                    };
+
+                    return Err(ParseError::new(span, ParseErrorKind::UnterminatedByteLit));
                 }
                 _ => {
                     it.next();
@@ -317,23 +317,26 @@ impl<'a> Lexer<'a> {
                             continue;
                         }
                         None => {
-                            return Err(ParseError::ExpectedStringEscape {
-                                span: Span {
-                                    start,
-                                    end: self.source.len(),
-                                },
-                            });
+                            let span = Span {
+                                start,
+                                end: self.source.len(),
+                            };
+
+                            return Err(ParseError::new(
+                                span,
+                                ParseErrorKind::ExpectedStringEscape,
+                            ));
                         }
                     },
                     _ => continue,
                 },
                 None => {
-                    return Err(ParseError::UnterminatedStrLit {
-                        span: Span {
-                            start,
-                            end: self.source.len(),
-                        },
-                    })
+                    let span = Span {
+                        start,
+                        end: self.source.len(),
+                    };
+
+                    return Err(ParseError::new(span, ParseErrorKind::UnterminatedStrLit));
                 }
             };
         };
@@ -368,23 +371,26 @@ impl<'a> Lexer<'a> {
                             continue;
                         }
                         None => {
-                            return Err(ParseError::ExpectedStringEscape {
-                                span: Span {
-                                    start,
-                                    end: self.source.len(),
-                                },
-                            });
+                            let span = Span {
+                                start,
+                                end: self.source.len(),
+                            };
+
+                            return Err(ParseError::new(
+                                span,
+                                ParseErrorKind::ExpectedStringEscape,
+                            ));
                         }
                     },
                     _ => continue,
                 },
                 None => {
-                    return Err(ParseError::UnterminatedStrLit {
-                        span: Span {
-                            start,
-                            end: self.source.len(),
-                        },
-                    })
+                    let span = Span {
+                        start,
+                        end: self.source.len(),
+                    };
+
+                    return Err(ParseError::new(span, ParseErrorKind::UnterminatedStrLit));
                 }
             };
         };
@@ -426,23 +432,26 @@ impl<'a> Lexer<'a> {
                             continue;
                         }
                         None => {
-                            return Err(ParseError::ExpectedTemplateClose {
-                                span: Span {
-                                    start,
-                                    end: self.source.len(),
-                                },
-                            });
+                            let span = Span {
+                                start,
+                                end: self.source.len(),
+                            };
+
+                            return Err(ParseError::new(
+                                span,
+                                ParseErrorKind::ExpectedTemplateClose,
+                            ));
                         }
                     },
                     _ => continue,
                 },
                 None => {
-                    return Err(ParseError::ExpectedTemplateClose {
-                        span: Span {
-                            start,
-                            end: self.source.len(),
-                        },
-                    })
+                    let span = Span {
+                        start,
+                        end: self.source.len(),
+                    };
+
+                    return Err(ParseError::new(span, ParseErrorKind::ExpectedTemplateClose));
                 }
             };
         };
@@ -645,7 +654,7 @@ impl<'a> Lexer<'a> {
                             end: self.end_span(&it),
                         };
 
-                        return Err(ParseError::UnexpectedChar { span, c });
+                        return Err(ParseError::new(span, ParseErrorKind::UnexpectedChar { c }));
                     }
                 };
             };

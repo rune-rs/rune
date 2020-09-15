@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::Spanned;
 use runestick::Span;
 
 /// A try expression `<expr>?`.
@@ -12,9 +13,8 @@ pub struct ExprTry {
 
 into_tokens!(ExprTry { expr, try_ });
 
-impl ExprTry {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
+impl Spanned for ExprTry {
+    fn span(&self) -> Span {
         self.expr.span().join(self.try_.span())
     }
 }

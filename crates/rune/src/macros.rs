@@ -1,9 +1,9 @@
 //! Macro compiler.
 
-use crate::error::CompileResult;
+use crate::CompileResult;
 use crate::{
-    ast, CompileError, MacroContext, Options, Parse, ParseError, Parser, Storage, TokenStream,
-    UnitBuilder,
+    ast, CompileError, CompileErrorKind, MacroContext, Options, Parse, ParseError, Parser,
+    Spanned as _, Storage, TokenStream, UnitBuilder,
 };
 use runestick::{Context, Hash, Item, Source, Span};
 use std::cell::RefCell;
@@ -30,8 +30,8 @@ impl MacroCompiler<'_> {
 
         if !self.options.macros {
             return Err(CompileError::experimental(
-                "macros must be enabled with `-O macros=true`",
                 span,
+                "macros must be enabled with `-O macros=true`",
             ));
         }
 
@@ -46,7 +46,10 @@ impl MacroCompiler<'_> {
         let handler = match self.context.lookup_macro(hash) {
             Some(handler) => handler,
             None => {
-                return Err(CompileError::MissingMacro { span, item });
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::MissingMacro { item },
+                ));
             }
         };
 
@@ -65,8 +68,16 @@ impl MacroCompiler<'_> {
             Ok(output) => output,
             Err(error) => {
                 return match error.downcast::<ParseError>() {
-                    Ok(error) => Err(CompileError::ParseError { error }),
-                    Err(error) => Err(CompileError::CallMacroError { span, error }),
+                    Ok(error) => Err(CompileError::new(
+                        error.span(),
+                        CompileErrorKind::ParseError {
+                            error: error.into_kind(),
+                        },
+                    )),
+                    Err(error) => Err(CompileError::new(
+                        span,
+                        CompileErrorKind::CallMacroError { error },
+                    )),
                 };
             }
         };
@@ -74,13 +85,15 @@ impl MacroCompiler<'_> {
         let token_stream = match output.downcast::<TokenStream>() {
             Ok(token_stream) => *token_stream,
             Err(..) => {
-                return Err(CompileError::CallMacroError {
+                return Err(CompileError::new(
                     span,
-                    error: runestick::Error::msg(format!(
-                        "failed to downcast macro result, expected `{}`",
-                        std::any::type_name::<TokenStream>()
-                    )),
-                });
+                    CompileErrorKind::CallMacroError {
+                        error: runestick::Error::msg(format!(
+                            "failed to downcast macro result, expected `{}`",
+                            std::any::type_name::<TokenStream>()
+                        )),
+                    },
+                ));
             }
         };
 

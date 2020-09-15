@@ -1,4 +1,4 @@
-use crate::MacroContext;
+use crate::{MacroContext, Spanned};
 use runestick::Span;
 use std::fmt;
 
@@ -14,6 +14,12 @@ pub struct Token {
 impl crate::IntoTokens for Token {
     fn into_tokens(&self, _: &mut MacroContext, stream: &mut crate::TokenStream) {
         stream.push(*self);
+    }
+}
+
+impl Spanned for Token {
+    fn span(&self) -> Span {
+        self.span
     }
 }
 

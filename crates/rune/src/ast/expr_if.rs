@@ -1,7 +1,5 @@
 use crate::ast::{Condition, Else, ExprBlock, ExprElse, ExprElseIf, If};
-use crate::error::ParseError;
-use crate::parser::Parser;
-use crate::traits::Parse;
+use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An if expression.
@@ -28,20 +26,21 @@ into_tokens!(ExprIf {
 });
 
 impl ExprIf {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        if let Some(else_) = &self.expr_else {
-            self.if_.token.span.join(else_.block.span())
-        } else if let Some(else_if) = self.expr_else_ifs.last() {
-            self.if_.token.span.join(else_if.block.span())
-        } else {
-            self.if_.token.span.join(self.block.span())
-        }
-    }
-
     /// An if statement evaluates to empty if it does not have an else branch.
     pub fn produces_nothing(&self) -> bool {
         self.expr_else.is_none()
+    }
+}
+
+impl Spanned for ExprIf {
+    fn span(&self) -> Span {
+        if let Some(else_) = &self.expr_else {
+            self.if_.token.span().join(else_.block.span())
+        } else if let Some(else_if) = self.expr_else_ifs.last() {
+            self.if_.token.span().join(else_if.block.span())
+        } else {
+            self.if_.token.span().join(self.block.span())
+        }
     }
 }
 

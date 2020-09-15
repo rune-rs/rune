@@ -1,4 +1,14 @@
-use crate::error::ConfigurationError;
+use thiserror::Error;
+
+#[derive(Debug, Clone, Error)]
+pub enum ConfigurationError {
+    /// Tried to configure the compiler with an unsupported optimzation option.
+    #[error("unsupported optimization option `{option}`")]
+    UnsupportedOptimizationOption {
+        /// The unsupported option.
+        option: String,
+    },
+}
 
 /// Compiler options.
 #[derive(Debug, Clone, Copy)]

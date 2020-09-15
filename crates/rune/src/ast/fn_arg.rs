@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser};
+use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Spanned};
 use runestick::Span;
 
 /// A single argument in a closure.
@@ -13,9 +13,8 @@ pub enum FnArg {
     Ident(ast::Ident),
 }
 
-impl FnArg {
-    /// Get the span of the argument.
-    pub fn span(&self) -> Span {
+impl Spanned for FnArg {
+    fn span(&self) -> Span {
         match self {
             Self::Self_(s) => s.span(),
             Self::Ignore(ignore) => ignore.span(),
@@ -32,7 +31,12 @@ impl Parse for FnArg {
             ast::Kind::Self_ => Self::Self_(parser.parse()?),
             ast::Kind::Underscore => Self::Ignore(parser.parse()?),
             ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
-            _ => return Err(ParseError::ExpectedFunctionArgument { span: token.span }),
+            _ => {
+                return Err(ParseError::new(
+                    token,
+                    ParseErrorKind::ExpectedFunctionArgument,
+                ))
+            }
         })
     }
 }
