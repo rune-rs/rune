@@ -55,10 +55,11 @@ pointers out of the virtual machine using the `Function` type.
 This allows you to write code that takes a function constructed in Rune, and use
 it for something else.
 
-Below we showcase this, with the help of the `rune!` macro from `rune-testing`.
+Below we showcase this, with the help of the `rune!` macro from the `testing`
+module.
 
 ```rust,noplaypen
-{{#include ../../crates/rune-testing/examples/call_rune_fn.rs}}
+{{#include ../../crates/rune/examples/call_rune_fn.rs}}
 ```
 
 ```text

@@ -31,7 +31,7 @@ based on its item. So the hash for the item `Foo::new` will always be the same.
 In Rust, we can calculate this hash using the `Hash::type_hash` method:
 
 ```rune
-{{#include ../../crates/rune-testing/examples/function_hash.rs}}
+{{#include ../../crates/rune/examples/function_hash.rs}}
 ```
 
 ```text
@@ -51,7 +51,7 @@ identified as the first argument of the instance function, and must be a type
 registered in the module using [`Module::ty`].
 
 ```rust,noplaypen
-{{#include ../../crates/rune-testing/examples/custom_instance_fn.rs}}
+{{#include ../../crates/rune/examples/custom_instance_fn.rs}}
 ```
 
 ```text
