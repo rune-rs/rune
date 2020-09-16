@@ -117,14 +117,14 @@ fn compile_assign_binop(
                         let index = index.resolve(this.storage, &*this.source)?;
                         let index = this.unit.borrow_mut().new_static_string(index.as_ref())?;
 
+                        this.compile((rhs, Needs::Value))?;
+                        this.scopes.decl_anon(rhs.span())?;
+
                         this.compile((&*field_access.expr, Needs::Value))?;
                         this.scopes.decl_anon(span)?;
 
                         this.asm.push(Inst::String { slot: index }, span);
                         this.scopes.decl_anon(span)?;
-
-                        this.compile((rhs, Needs::Value))?;
-                        this.scopes.decl_anon(rhs.span())?;
 
                         this.asm.push(Inst::IndexSet, span);
                         this.scopes.undecl_anon(3, span)?;
