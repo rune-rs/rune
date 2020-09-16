@@ -1,8 +1,15 @@
+// Parts of these projects have been copied and modified from rust-analyzer under the MIT license: 
+// https://github.com/rust-analyzer/rust-analyzer
+//
+// Copyright of the rust-analyzer developers.
+
 import * as vscode from 'vscode';
 import * as lc from 'vscode-languageclient/node';
 import * as path from 'path';
-import { existsSync } from 'fs';
-import { log } from './util'
+import { promises as fs, PathLike } from "fs";
+import { log, isValidExecutable, assert, pathExists } from './util'
+import { fetchRelease, download } from './net';
+import { PersistentState } from './persistent_state';
 
 export async function activate(context: vscode.ExtensionContext) {
     log.info('activating rune language server...');
@@ -12,14 +19,15 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 }
 
-async function tryActivate(_context: vscode.ExtensionContext) {
+async function tryActivate(context: vscode.ExtensionContext) {
     let platform = detectPlatform();
 
     if (!platform) {
         return;
     }
 
-    let command = findCommand(platform);
+    const state = new PersistentState(context.globalState);
+    let command = await findCommand(context, state, platform);
 
     if (!command) {
         log.error('could not find rune language server!');
@@ -27,7 +35,7 @@ async function tryActivate(_context: vscode.ExtensionContext) {
     }
 
     const run: lc.Executable = {
-        command,
+        command: command as string,
         options: {},
     };
 
@@ -61,31 +69,36 @@ async function tryActivate(_context: vscode.ExtensionContext) {
 
 /**
  * Find the path to the command to execute.
- *
- * @param context The extension context in use.
- * @param platform The detected platform.
  */
-function findCommand(platform: Platform): string | undefined {
+async function findCommand(
+    context: vscode.ExtensionContext,
+    state: PersistentState,
+    platform: Platform,
+): Promise<PathLike | undefined> {
     const exe = `rune-languageserver${platform.ext}`;
+
+    let alternatives = [];
+
     if (!!process.env.RUNE_DEBUG_FOLDER) {
-        const p = path.join(process.env.RUNE_DEBUG_FOLDER, exe);
-        if (existsSync(p)) { return p; }
-        else {
-            log.warn('env var `RUNE_DEBUG_FOLDER` is set but', p, 'does not exist');
+        alternatives.push(path.join(process.env.RUNE_DEBUG_FOLDER, exe));
+    }
+
+    alternatives.push(path.join(process.env.HOME || '~', '.cargo', 'bin', exe));
+
+    for (let p of alternatives) {
+        if (await pathExists(p)) {
+            return p;
         }
     }
 
-    const p = path.join(process.env.HOME || '~', '.cargo', 'bin', exe);
-    if (existsSync(p)) { return p; }
-
-    log.debug("Cannot find a command for the Rune Language Server.");
-    return undefined;
+    return await bootstrapServer(context, state, platform);
 }
 
 /**
  * Information on the current platform.
  */
 interface Platform {
+    name: string,
     ext: string,
 }
 
@@ -93,31 +106,31 @@ interface Platform {
  * Functio used to detect the platform we are on.
  */
 function detectPlatform(): Platform | undefined {
-    let out: string | undefined;
+    let name: string | undefined;
 
     if (process.arch === "x64") {
         switch (process.platform) {
         case "win32":
-            out = "windows"
+            name = "windows"
             break;
         case "linux":
-            out = "linux"
+            name = "linux"
             break;
         case "darwin":
-            out = "mac"
+            name = "macos"
             break;
         default:
             break;
         }
     }
 
-    switch (out) {
+    switch (name) {
     case "windows":
-        return {ext: ".exe"};
+        return {name, ext: ".exe"};
     case "linux":
-        return {ext: ""};
-    case "mac":
-        return {ext: ""};
+        return {name, ext: ""};
+    case "macos":
+        return {name, ext: ""};
     default:
         vscode.window.showErrorMessage(
             `Unfortunately we don't support your platform yet.
@@ -127,4 +140,94 @@ function detectPlatform(): Platform | undefined {
 
         return undefined;
     }
+}
+
+/** Bootstrap a language server. */
+async function bootstrapServer(
+    context: vscode.ExtensionContext,
+    state: PersistentState,
+    platform: Platform,
+): Promise<string> {
+    const path = await getServer(context, state, platform);
+
+    if (!path) {
+        throw new Error("Rune Language Server is not available.");
+    }
+
+    log.info("Using server binary at", path);
+
+    if (!isValidExecutable(path)) {
+        throw new Error(`Failed to execute: ${path} --version`);
+    }
+
+    return path;
+}
+
+/** Note: cache time of 2 hours to check for a new release */
+const CACHE_TIME = 3600 * 2;
+
+/** Download a language server from GitHub from the "latest" tag. */
+async function getServer(
+    context: vscode.ExtensionContext,
+    state: PersistentState,
+    platform: Platform,
+): Promise<string | undefined> {
+    const bin = `rune-languageserver-${platform.name}${platform.ext}`;
+    const dest = path.join(context.globalStoragePath, bin);
+
+    const destExists = await pathExists(dest);
+
+    let now = (new Date()).getTime() / 1000;
+    let lastCheck = state.lastCheck;
+
+    let timedOut = !lastCheck || (now - lastCheck) > CACHE_TIME;
+    log.debug("Check cache timeout", {now, lastCheck, timedOut, timeout: CACHE_TIME});
+
+    if (destExists && !timedOut) {
+        // Only check for updates once every two hours.
+        return dest;
+    }
+
+    await state.updateLastCheck(now);
+    const release = await fetchRelease("latest");
+
+    const artifact = release.assets.find(artifact => artifact.name === `rune-languageserver-${platform.name}.gz`);
+    assert(!!artifact, `Bad release: ${JSON.stringify(release)}`);
+
+    if (destExists && state.releaseId == artifact.id) {
+        return dest;
+    }
+
+    const userResponse = await vscode.window.showInformationMessage(
+        `A new version of the Rune Language Server is available (asset id: ${artifact.id}).`,
+        "Download now"
+    );
+
+    if (userResponse !== "Download now") {
+        return dest;
+    }
+
+    await fs.unlink(dest).catch(err => {
+        if (err.code !== "ENOENT") {
+            throw err;
+        }
+    });
+
+    let globalStorageExists = await pathExists(context.globalStoragePath);
+
+    if (!globalStorageExists) {
+        log.debug(`Creating global storage: ${context.globalStoragePath}`);
+        await fs.mkdir(context.globalStoragePath);
+    }
+
+    await download({
+        url: artifact.browser_download_url,
+        dest,
+        progressTitle: "Downloading Rune Language Server",
+        gunzip: true,
+        mode: 0o755
+    });
+
+    await state.updateReleaseId(release.id);
+    return dest;
 }
