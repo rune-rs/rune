@@ -15,10 +15,11 @@ An embeddable dynamic programming language for Rust.
 """
 
 [features]
-default = ["diagnostics"]
+default = ["diagnostics", "testing"]
 diagnostics = ["codespan-reporting"]
 # include all native modules in the default context.
 modules = ["rune-modules"]
+testing = ["futures-executor"]
 
 [dependencies]
 thiserror = "1.0.20"
@@ -26,12 +27,14 @@ log = "0.4.11"
 codespan-reporting = {version = "0.9.5", optional = true}
 hashbrown = "0.8.2"
 num = "0.3.0"
+futures-executor = {version = "0.3.5", optional = true}
 
 runestick = {version = "0.6.16", path = "../runestick"}
 rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["full"], optional = true}
 
 [dev-dependencies]
 tokio = {version = "0.2.12", features = ["macros"]}
+futures-executor = "0.3.5"
 
 [package.metadata.docs.rs]
 all-features = true
