@@ -557,7 +557,7 @@ impl Module {
     /// ```
     pub fn inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        N: IntoInstFnHash,
+        N: InstFnNameHash,
         Func: InstFn<Args>,
     {
         self.assoc_fn(name, f, ModuleAssociatedKind::Instance)
@@ -566,7 +566,7 @@ impl Module {
     /// Install a getter for the specified field.
     pub fn getter<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        N: IntoInstFnHash,
+        N: InstFnNameHash,
         Func: InstFn<Args>,
     {
         self.assoc_fn(name, f, ModuleAssociatedKind::Getter)
@@ -580,7 +580,7 @@ impl Module {
         kind: ModuleAssociatedKind,
     ) -> Result<(), ContextError>
     where
-        N: IntoInstFnHash,
+        N: InstFnNameHash,
         Func: InstFn<Args>,
     {
         let type_of = Func::instance_type_of();
@@ -588,7 +588,7 @@ impl Module {
 
         let key = ModuleAssocKey {
             type_of,
-            hash: name.into_inst_fn_hash(),
+            hash: name.inst_fn_name_hash(),
             kind,
         };
 
@@ -641,7 +641,7 @@ impl Module {
     /// ```
     pub fn async_inst_fn<N, Func, Args>(&mut self, name: N, f: Func) -> Result<(), ContextError>
     where
-        N: IntoInstFnHash,
+        N: InstFnNameHash,
         Func: AsyncInstFn<Args>,
     {
         let type_of = Func::instance_type_of();
@@ -649,7 +649,7 @@ impl Module {
 
         let key = ModuleAssocKey {
             type_of,
-            hash: name.into_inst_fn_hash(),
+            hash: name.inst_fn_name_hash(),
             kind: ModuleAssociatedKind::Instance,
         };
 
@@ -674,21 +674,31 @@ impl Module {
 }
 
 /// Trait used to determine what can be used as an instance function name.
-pub trait IntoInstFnHash: Copy {
+pub trait InstFnNameHash: Copy {
     /// Generate a locally unique hash to check for conflicts.
-    fn into_inst_fn_hash(self) -> Hash;
+    fn inst_fn_name_hash(self) -> Hash;
 
     /// Get a human readable name for the function.
     fn into_name(self) -> String;
 }
 
-impl<'a> IntoInstFnHash for &'a str {
-    fn into_inst_fn_hash(self) -> Hash {
+impl<'a> InstFnNameHash for &'a str {
+    fn inst_fn_name_hash(self) -> Hash {
         Hash::of(self)
     }
 
     fn into_name(self) -> String {
         self.to_owned()
+    }
+}
+
+impl<'a> InstFnNameHash for Hash {
+    fn inst_fn_name_hash(self) -> Hash {
+        self
+    }
+
+    fn into_name(self) -> String {
+        String::new()
     }
 }
 
