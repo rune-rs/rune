@@ -41,7 +41,7 @@ A cli for the [Rune Language].
 If you're in the repo, you can take it for a spin with:
 
 ```
-cargo run -- scripts/hello_world.rn
+cargo run --bin rune -- scripts/hello_world.rn
 ```
 
 [Rune Language]: https://github.com/rune-rs/rune

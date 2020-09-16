@@ -9,7 +9,7 @@ tuple.
 ```
 
 ```text
-$> cargo run -- scripts/book/tuples/tuple_masquerade.rn
+$> cargo run --bin rune -- scripts/book/tuples/tuple_masquerade.rn
 ("Now", "You", "See", "Me")
 ("Now", "You", "Don\'t", "!")
 == () (38.3136ms)
@@ -22,7 +22,7 @@ The following is a simple example of a function returning a tuple:
 ```
 
 ```text
-$> cargo run -- scripts/book/tuples/basic_tuples.rn
+$> cargo run --bin rune -- scripts/book/tuples/basic_tuples.rn
 (1, "test")
 == () (387.6µs)
 ```
@@ -34,7 +34,7 @@ Tuples can also be pattern matched:
 ```
 
 ```text
-$> cargo run -- scripts/book/tuples/tuple_patterns.rn
+$> cargo run --bin rune -- scripts/book/tuples/tuple_patterns.rn
 "the first part was a number:"
 1
 == () (7.7892ms)

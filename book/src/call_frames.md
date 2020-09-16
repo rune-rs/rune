@@ -31,7 +31,7 @@ To look close at the mechanism, let's trace the following program:
 ```
 
 ```text
-$> cargo run -- scripts/book/the_stack/call_and_add.rn --trace --dump-stack
+$> cargo run --bin rune -- scripts/book/the_stack/call_and_add.rn --trace --dump-stack
 fn main() (0xe7fc1d6083100dcd):
   0005 = integer 3
     0+0 = 3

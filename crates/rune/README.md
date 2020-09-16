@@ -73,14 +73,14 @@ you are working on it.
 You can run Rune programs with the bundled CLI:
 
 ```
-cargo run -- scripts/hello_world.rn
+cargo run --bin rune -- scripts/hello_world.rn
 ```
 
 If you want to see detailed diagnostics of your program while it's running,
 you can use:
 
 ```
-cargo run -- scripts/hello_world.rn --dump-unit --trace --dump-vm
+cargo run --bin rune -- scripts/hello_world.rn --dump-unit --trace --dump-vm
 ```
 
 See `--help` for more information.
@@ -106,9 +106,8 @@ use std::sync::Arc;
 async fn main() -> Result<(), Box<dyn Error>> {
     let context = Arc::new(rune::default_context()?);
     let options = rune::Options::default();
-    let mut warnings = rune::Warnings::new();
-    let mut sources = rune::Sources::new();
 
+    let mut sources = rune::Sources::new();
     sources.insert(Source::new(
         "script",
         r#"
@@ -119,11 +118,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "#,
     ));
 
-    let unit = match rune::load_sources(&*context, &options, &mut sources, &mut warnings) {
+    let mut errors = rune::Errors::new();
+    let mut warnings = rune::Warnings::new();
+
+    let unit = match rune::load_sources(&*context, &options, &mut sources, &mut errors, &mut warnings) {
         Ok(unit) => unit,
-        Err(error) => {
+        Err(rune::LoadSourcesError) => {
             let mut writer = StandardStream::stderr(ColorChoice::Always);
-            error.emit_diagnostics(&mut writer, &sources)?;
+            errors.emit_diagnostics(&mut writer, &sources)?;
             return Ok(());
         }
     };

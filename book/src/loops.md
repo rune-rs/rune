@@ -18,7 +18,7 @@ currently in and continue running right after it.
 ```
 
 ```text
-$> cargo run -- scripts/book/loops/while_loop.rn
+$> cargo run --bin rune -- scripts/book/loops/while_loop.rn
 The value is 50
 == () (501.1µs)
 ```
@@ -34,7 +34,7 @@ control flow operator like a `break` or a `return`.
 ```
 
 ```text
-$> cargo run -- scripts/book/loops/loop_forever.rn
+$> cargo run --bin rune -- scripts/book/loops/loop_forever.rn
 Hello forever!
 Hello forever!
 Hello forever!
@@ -56,7 +56,7 @@ By default, this is simply a unit `()`.
 ```
 
 ```text
-$> cargo run -- scripts/book/loops/loop_break.rn
+$> cargo run --bin rune -- scripts/book/loops/loop_break.rn
 The final count is: 11
 == () (281.5µs)
 ```

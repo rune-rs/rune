@@ -21,7 +21,7 @@ simply what the Rune cli looks for when deciding what to execute.
 ```
 
 ```text
-$> cargo run -- scripts/book/functions/main_function.rn
+$> cargo run --bin rune -- scripts/book/functions/main_function.rn
 Hello World
 == () (277.8µs)
 ```
@@ -35,7 +35,7 @@ anything, even completely distinct types.
 ```
 
 ```text
-$> cargo run -- scripts/book/functions/return_value.rn
+$> cargo run --bin rune -- scripts/book/functions/return_value.rn
 Hello
 1
 == () (8.437ms)

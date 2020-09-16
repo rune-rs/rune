@@ -8,7 +8,7 @@ keys.
 ```
 
 ```text
-$> cargo run -- scripts/book/objects/objects.rn
+$> cargo run --bin rune -- scripts/book/objects/objects.rn
 "bar"
 42
 key did not exist
@@ -28,7 +28,7 @@ we can natively handle data with unknown structure.
 ```
 
 ```text
-$> cargo run -- scripts/book/objects/json.rn
+$> cargo run --bin rune -- scripts/book/objects/json.rn
 9c4bdaf194410d8b2f5d7f9f52eb3e64709d3414
 06419f2580e7a18838f483321055fc06c0d75c4c
 cba225dad143779a0a9543cfb05cde9710083af5

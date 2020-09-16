@@ -23,7 +23,7 @@ variable, because a separate copy of the variable will be used.
 ```
 
 ```text
-$> cargo run -- scripts/book/primitives/copy.rn
+$> cargo run --bin rune -- scripts/book/primitives/copy.rn
 2
 1
 == () (691.3µs)
@@ -38,7 +38,7 @@ to the same underlying data.
 ```
 
 ```text
-$> cargo run -- scripts/book/primitives/primitives.rn
+$> cargo run --bin rune -- scripts/book/primitives/primitives.rn
 Hello World
 Hello World
 == () (9.7406ms)

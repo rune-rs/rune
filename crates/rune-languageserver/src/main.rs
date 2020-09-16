@@ -40,9 +40,10 @@
 //!
 //! [Rune Language]: https://github.com/rune-rs/rune
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use rune_languageserver::envelope::IncomingMessage;
 use rune_languageserver::{Output, Server, State};
+use std::env;
 use tokio::sync::mpsc;
 
 fn setup_logging() -> Result<()> {
@@ -71,6 +72,21 @@ fn setup_logging() -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     setup_logging()?;
+
+    let mut it = env::args();
+    it.next();
+
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--version" => {
+                println!("Rune language server {}", rune_languageserver::VERSION);
+                return Ok(());
+            }
+            other => {
+                bail!("Unsupported option: {}", other);
+            }
+        }
+    }
 
     let mut context = rune::default_context()?;
     context.install(&rune_macros::module()?)?;

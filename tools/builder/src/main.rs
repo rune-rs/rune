@@ -1,4 +1,6 @@
-use anyhow::{anyhow, bail, Result};
+//! A utility project for building and packaging Rune binaries.
+
+use anyhow::{anyhow, bail, Context as _, Result};
 use regex::Regex;
 use std::env;
 use std::env::consts;
@@ -45,7 +47,7 @@ impl Version {
 }
 
 /// Get the version from GITHUB_REF.
-fn github_ref_version() -> Result<Version> {
+fn github_ref_version() -> Result<Option<Version>> {
     let version = match env::var("GITHUB_REF") {
         Ok(version) => version,
         _ => bail!("missing: GITHUB_REF"),
@@ -55,12 +57,16 @@ fn github_ref_version() -> Result<Version> {
 
     let version = match (it.next(), it.next(), it.next()) {
         (Some("refs"), Some("tags"), Some(version)) => {
+            if version == "latest" {
+                return Ok(None);
+            }
+
             Version::open(version)?.ok_or_else(|| anyhow!("Expected valid version"))?
         }
         _ => bail!("expected GITHUB_REF: refs/tags/*"),
     };
 
-    Ok(version)
+    Ok(Some(version))
 }
 
 impl fmt::Display for Version {
@@ -92,6 +98,28 @@ fn cargo(args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+fn create_release_zip<I, V>(dest: &Path, version: V, sources: I) -> Result<()>
+where
+    I: IntoIterator,
+    I::Item: AsRef<Path>,
+    V: fmt::Display,
+{
+    if !dest.is_dir() {
+        fs::create_dir_all(dest)?;
+    }
+
+    let zip_file = dest.join(format!(
+        "rune-{version}-{os}-{arch}.zip",
+        version = version,
+        os = consts::OS,
+        arch = consts::ARCH
+    ));
+
+    println!("Creating Zip File: {}", zip_file.display());
+    create_zip(&zip_file, sources)?;
+    Ok(())
+}
+
 fn create_zip<I>(file: &Path, sources: I) -> Result<()>
 where
     I: IntoIterator,
@@ -120,94 +148,99 @@ where
     Ok(())
 }
 
+fn create_gz(output: &Path, input: &Path) -> Result<()> {
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+
+    println!("building: {}", output.display());
+
+    let input = fs::File::open(input)?;
+    let output = fs::File::create(output)?;
+
+    let mut input = io::BufReader::new(input);
+    let mut encoder = GzEncoder::new(output, Compression::default());
+
+    io::copy(&mut input, &mut encoder)?;
+    encoder.finish()?;
+    Ok(())
+}
+
 /// Copy an iterator of files to the given directory.
-fn copy_files<I>(dest: &Path, sources: I) -> Result<()>
+fn copy_files<I, S, N>(dest: &Path, sources: I) -> Result<()>
 where
-    I: IntoIterator,
-    I::Item: AsRef<Path>,
+    I: IntoIterator<Item = (S, N)>,
+    S: AsRef<Path>,
+    N: AsRef<str>,
 {
-    for s in sources {
+    for (s, name) in sources {
         let s = s.as_ref();
+        let name = name.as_ref();
 
-        if let Some(name) = s.file_name() {
-            fs::copy(s, dest.join(name))?;
-        }
+        fs::copy(s, dest.join(name))?;
     }
 
     Ok(())
 }
 
-/// Create a zip distribution.
-fn create_zip_dist<I>(dest: &Path, version: &Version, sources: I) -> Result<()>
-where
-    I: IntoIterator,
-    I::Item: AsRef<Path>,
-{
-    if !dest.is_dir() {
-        fs::create_dir_all(dest)?;
-    }
-
-    let zip_file = dest.join(format!(
-        "rune-{version}-{os}-{arch}.zip",
-        version = version,
-        os = consts::OS,
-        arch = consts::ARCH
-    ));
-
-    println!("Creating Zip File: {}", zip_file.display());
-    create_zip(&zip_file, sources)?;
-    Ok(())
-}
-
-fn build(root: &Path, ext: &str) -> Result<()> {
+fn build(root: &Path, suffix: &str, ext: &str) -> Result<()> {
     let version = github_ref_version()?;
 
-    env::set_var("RUNE_VERSION", &version);
+    if let Some(version) = &version {
+        env::set_var("RUNE_VERSION", &version);
+        println!("version: {}", version);
+    }
 
-    println!("version: {}", version);
+    let version_string = version
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| String::from("latest"));
 
     let readme = root.join("README.md");
     let release_dir = root.join("target").join("release");
     let upload = root.join("target").join("upload");
+
+    if !upload.is_dir() {
+        fs::create_dir_all(&upload).context("creating upload directory")?;
+    }
 
     let rune = release_dir.join(format!("rune{}", ext));
     let rune_languageserver = release_dir.join(format!("rune-languageserver{}", ext));
 
     if !rune.is_file() {
         println!("building: {}", rune.display());
-        cargo(&["build", "--release", "-p", "rune"])?;
+        cargo(&["build", "--release", "--bin", "rune"]).context("building rune")?;
     }
 
     if !rune_languageserver.is_file() {
         println!("building: {}", rune_languageserver.display());
-        cargo(&["build", "--release", "-p", "rune-languageserver"])?;
+        cargo(&["build", "--release", "--bin", "rune-languageserver"])
+            .context("building rune-languageserver")?;
     }
 
-    create_zip_dist(
+    // Create a zip file containing everything related to rune.
+    create_release_zip(
         &upload,
-        &version,
+        &version_string,
         vec![&readme, &rune, &rune_languageserver],
-    )?;
+    )
+    .context("building .zip")?;
 
-    copy_files(&upload, vec![&rune_languageserver])?;
-    Ok(())
-}
+    // Create rune-languageserver gzip.
+    create_gz(
+        &upload.join(format!("rune-languageserver-{}.gz", consts::OS)),
+        &rune_languageserver,
+    )
+    .context("building rune-languageserver .gz")?;
 
-/// Perform a Windows build.
-fn windows_build(root: &Path) -> Result<()> {
-    build(root, ".exe")?;
-    Ok(())
-}
+    // Copy files to be uploaded.
+    copy_files(
+        &upload,
+        vec![(
+            rune_languageserver,
+            format!("rune-languageserver-{}{}", suffix, ext),
+        )],
+    )
+    .context("copying raw files to upload")?;
 
-/// Perform a Linux build.
-fn linux_build(root: &Path) -> Result<()> {
-    build(root, "")?;
-    Ok(())
-}
-
-/// Perform a MacOS build.
-fn macos_build(root: &Path) -> Result<()> {
-    build(root, "")?;
     Ok(())
 }
 
@@ -216,11 +249,11 @@ fn main() -> Result<()> {
     println!("root: {}", root.display());
 
     if cfg!(target_os = "windows") {
-        windows_build(&root)?;
+        build(&root, "windows", ".exe")?;
     } else if cfg!(target_os = "linux") {
-        linux_build(&root)?;
+        build(&root, "linux", "")?;
     } else if cfg!(target_os = "macos") {
-        macos_build(&root)?;
+        build(&root, "macos", "")?;
     } else {
         bail!("unsupported operating system: {}", consts::OS);
     }

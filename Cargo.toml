@@ -1,20 +1,21 @@
 [workspace]
 members = [
-    "crates/runestick",
-    "crates/runestick-macros",
-    "crates/rune-languageserver",
-    "crates/rune-modules",
-    "crates/rune-macros",
-    "crates/rune",
     "crates/rune-cli",
+    "crates/rune-languageserver",
+    "crates/rune-macros",
+    "crates/rune-modules",
+    "crates/rune",
+    "crates/runestick-macros",
+    "crates/runestick",
     "tools/builder",
 ]
 
 default-members = [
-    "crates/runestick",
-    "crates/runestick-macros",
-    "crates/rune-modules",
-    "crates/rune-macros",
-    "crates/rune",
     "crates/rune-cli",
+    "crates/rune-languageserver",
+    "crates/rune-macros",
+    "crates/rune-modules",
+    "crates/rune",
+    "crates/runestick-macros",
+    "crates/runestick",
 ]

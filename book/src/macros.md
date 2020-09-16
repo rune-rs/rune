@@ -51,7 +51,7 @@ With this module installed, we can now take `stringy_math!` for a spin.
 ```
 
 ```text
-$> cargo run -- scripts/book/macros/stringy_math.rn -O macros=true --experimental
+$> cargo run --bin rune -- scripts/book/macros/stringy_math.rn -O macros=true --experimental
 200
 == () (2.9737ms)
 ```
