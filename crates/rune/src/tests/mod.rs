@@ -8,6 +8,7 @@ mod vm_assign_exprs;
 mod vm_async_block;
 mod vm_blocks;
 mod vm_closures;
+mod vm_early_termination;
 mod vm_function;
 mod vm_general;
 mod vm_generators;
