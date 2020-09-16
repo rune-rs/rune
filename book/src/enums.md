@@ -19,7 +19,7 @@ absent with `Option::None`.
 ```
 
 ```text
-$> cargo run -- scripts/book/enums/count_numbers.rn
+$> cargo run --bin rune -- scripts/book/enums/count_numbers.rn
 First count!
 Count: 0
 Count: 1

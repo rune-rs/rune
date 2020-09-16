@@ -60,7 +60,7 @@ Consider the following unit:
 Let's dump all dynamic functions in it:
 
 ```text
-$> cargo run -- scripts/book/compiler_guide/dead_code.rn --dump-functions
+$> cargo run --bin rune -- scripts/book/compiler_guide/dead_code.rn --dump-functions
 # dynamic functions
 0xe7fc1d6083100dcd = main()
 0x20c6d8dd92b51018 = main::$block0::foo()
@@ -126,7 +126,7 @@ script:
 ```
 
 ```text
-$> cargo run -- scripts/book/compiler_guide/closures.rn --dump-instructions --dump-functions
+$> cargo run --bin rune -- scripts/book/compiler_guide/closures.rn --dump-instructions --dump-functions
 # instructions
 fn main() (0xe7fc1d6083100dcd):
   0000 = fn 0x9aa62663879132fb // closure `main::$block0::$closure0`

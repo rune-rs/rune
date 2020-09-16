@@ -13,7 +13,7 @@ instance functions must be looked up at runtime.
 ```
 
 ```text
-$> cargo run -- scripts/book/instance_functions/missing_instance_fn.rn
+$> cargo run --bin rune -- scripts/book/instance_functions/missing_instance_fn.rn
 error: virtual machine error
    ┌─ scripts/book/instance_functions/missing_instance_fn.rn:11:5
    │

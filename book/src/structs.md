@@ -12,7 +12,7 @@ struct.
 ```
 
 ```text
-$> cargo run -- scripts/book/structs/user_database.rn
+$> cargo run --bin rune -- scripts/book/structs/user_database.rn
 setbac is inactive
 setbac is active
 == () (6.2095ms)
@@ -28,7 +28,7 @@ ensure that you're only using fields which are defined.
 ```
 
 ```text
-$> cargo run -- scripts/book/structs/struct_matching.rn
+$> cargo run --bin rune -- scripts/book/structs/struct_matching.rn
 Yep, it's setbac.
 Other user: newt.
 == () (1.0652ms)

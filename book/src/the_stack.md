@@ -11,7 +11,7 @@ the add operation with `--trace` and `--dump-stack`.
 ```
 
 ```text
-$> cargo run -- scripts/book/the_stack/add.rn --trace --dump-stack
+$> cargo run --bin rune -- scripts/book/the_stack/add.rn --trace --dump-stack
 fn main() (0xe7fc1d6083100dcd):
   0000 = integer 1
     0+0 = 1

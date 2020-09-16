@@ -18,7 +18,7 @@ what the function returns by default unless a `return` is specified.
 ```
 
 ```text
-$> cargo run -- scripts/book/control_flow/numbers_game.rn
+$> cargo run --bin rune -- scripts/book/control_flow/numbers_game.rn
 less than one
 something else
 == () (3.8608ms)
@@ -34,7 +34,7 @@ If the condition is `true`, the provided block of code will run.
 ```
 
 ```text
-$> cargo run -- scripts/book/control_flow/conditional.rn
+$> cargo run --bin rune -- scripts/book/control_flow/conditional.rn
 The number *is* smaller than 5
 == () (5.108ms)
 ```
@@ -47,7 +47,7 @@ the condition is false.
 ```
 
 ```text
-$> cargo run -- scripts/book/control_flow/conditional_else.rn
+$> cargo run --bin rune -- scripts/book/control_flow/conditional_else.rn
 the number is smaller than 5
 == () (196.1µs)
 ```
@@ -60,7 +60,7 @@ specify many different conditions.
 ```
 
 ```text
-$> cargo run -- scripts/book/control_flow/conditional_else_ifs.rn
+$> cargo run --bin rune -- scripts/book/control_flow/conditional_else_ifs.rn
 the number is smaller than 5
 == () (227.9µs)
 ```
@@ -75,7 +75,7 @@ This will be covered in a later section, but here is a sneak peek:
 ```
 
 ```text
-$> cargo run -- scripts/book/control_flow/first_match.rn
+$> cargo run --bin rune -- scripts/book/control_flow/first_match.rn
 the number is smaller than 5
 == () (124.2µs)
 ```

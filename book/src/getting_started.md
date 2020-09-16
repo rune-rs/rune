@@ -9,7 +9,7 @@ be provided to it, and it will do its best to describe it.
 ```
 
 ```text
-$> cargo run -- scripts/book/getting_started/dbg.rn
+$> cargo run --bin rune -- scripts/book/getting_started/dbg.rn
 [1, 2, 3]
 '今'
 dynamic function (at: 0x17)
@@ -35,7 +35,7 @@ So for a more formal introduction, here is the official Rune `"Hello World"`:
 ```
 
 ```text
-$> cargo run -- scripts/book/getting_started/hello_world.rn
+$> cargo run --bin rune -- scripts/book/getting_started/hello_world.rn
 Hello World
 == () (1.0864ms)
 ```
