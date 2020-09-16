@@ -45,6 +45,8 @@ pub mod envelope;
 mod server;
 mod state;
 
+pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
+
 pub use crate::connection::stdio;
 pub use crate::connection::{Input, Output};
 pub use crate::server::Server;

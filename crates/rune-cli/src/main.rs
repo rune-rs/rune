@@ -56,8 +56,10 @@ use structopt::StructOpt;
 
 use runestick::{Unit, Value, VmExecution};
 
+pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
+
 #[derive(Default, Debug, Clone, StructOpt)]
-#[structopt(name = "rune", about = "The Rune Language")]
+#[structopt(name = "rune", about = "The Rune Language Interpreter", version = VERSION)]
 struct Args {
     /// Provide detailed tracing for each instruction executed.
     #[structopt(short, long)]
@@ -96,7 +98,7 @@ struct Args {
     /// This makes the `std::experimental` module available to scripts.
     #[structopt(long)]
     experimental: bool,
-    /// Input Rune Scripts
+    /// Rune scripts to run.
     #[structopt(parse(from_os_str))]
     paths: Vec<PathBuf>,
     /// Set the given compiler option (see `--help` for available options).

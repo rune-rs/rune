@@ -45,8 +45,11 @@ ll.push_back(1)
 ll.push_back(2)
 ll.push_back(3)
 
+out = list()
+
 for value in ll:
-    print(value)
+    out.append(value)
 
 elapsed_time = time.time() - start_time
+print(out)
 print("{0}ms".format(round(elapsed_time * 1_000_000) / 1000))
