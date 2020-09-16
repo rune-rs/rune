@@ -1,4 +1,4 @@
-use crate::{Hash, IntoHash, IntoInstFnHash, Item};
+use crate::{Hash, InstFnNameHash, IntoTypeHash, Item};
 use std::fmt;
 
 /// A built in instance function.
@@ -10,8 +10,8 @@ pub struct Protocol {
     pub hash: Hash,
 }
 
-impl IntoInstFnHash for Protocol {
-    fn into_inst_fn_hash(self) -> Hash {
+impl InstFnNameHash for Protocol {
+    fn inst_fn_name_hash(self) -> Hash {
         self.hash
     }
 
@@ -20,8 +20,8 @@ impl IntoInstFnHash for Protocol {
     }
 }
 
-impl IntoHash for Protocol {
-    fn into_hash(self) -> Hash {
+impl IntoTypeHash for Protocol {
+    fn into_type_hash(self) -> Hash {
         self.hash
     }
 

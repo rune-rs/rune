@@ -1,4 +1,4 @@
-use crate::{Any, IntoComponent, Item, Type};
+use crate::{Any, InstFnNameHash, IntoComponent, Item, Type};
 use serde::{Deserialize, Serialize};
 use std::any;
 use std::fmt;
@@ -24,6 +24,21 @@ impl Hash {
         Self(hash)
     }
 
+    /// Construct a simple hash from something that is hashable.
+    pub(crate) fn of<T: hash::Hash>(thing: T) -> Self {
+        let mut hasher = Self::new_hasher();
+        thing.hash(&mut hasher);
+        Self(hasher.finish())
+    }
+
+    /// Get the hash of a type.
+    pub fn type_hash<I>(path: I) -> Self
+    where
+        I: IntoTypeHash,
+    {
+        path.into_type_hash()
+    }
+
     /// Construct a hash from the given type id.
     pub fn from_any<T>() -> Self
     where
@@ -43,26 +58,29 @@ impl Hash {
     /// pre-determined type.
     pub fn instance_function<N>(type_of: Type, name: N) -> Self
     where
-        N: IntoHash,
+        N: InstFnNameHash,
     {
-        let name = name.into_hash();
-        Self(Hash::of((INSTANCE_FUNCTION, type_of, SEP, name)).0)
+        let name = name.inst_fn_name_hash();
+        Self::of((INSTANCE_FUNCTION, type_of, SEP, name))
     }
 
     /// Construct a hash corresponding to a getter.
     pub fn getter<N>(type_of: Type, name: N) -> Self
     where
-        N: IntoHash,
+        N: InstFnNameHash,
     {
-        let name = name.into_hash();
-        Self(Hash::of((GETTER, type_of, SEP, name)).0)
+        let name = name.inst_fn_name_hash();
+        Self::of((GETTER, type_of, SEP, name))
     }
 
-    /// Construct a simple hash from something that is hashable.
-    pub fn of<T: hash::Hash>(thing: T) -> Self {
-        let mut hasher = Self::new_hasher();
-        thing.hash(&mut hasher);
-        Self(hasher.finish())
+    /// Get the hash corresponding to a static byte array.
+    pub fn static_bytes(bytes: &[u8]) -> Hash {
+        Self::of(bytes)
+    }
+
+    /// Get the hash corresponding to a instance function name.
+    pub fn instance_fn_name(name: &str) -> Hash {
+        Self::of(name)
     }
 
     /// Hash the given iterator of object keys.
@@ -80,14 +98,6 @@ impl Hash {
         }
 
         Self(hasher.finish())
-    }
-
-    /// Get the hash of a type.
-    pub fn type_hash<I>(path: I) -> Self
-    where
-        I: IntoHash,
-    {
-        path.into_hash()
     }
 
     /// Construct a new hasher.
@@ -125,16 +135,16 @@ impl fmt::Debug for Hash {
 }
 
 /// Helper conversion into a function hash.
-pub trait IntoHash: Copy {
+pub trait IntoTypeHash: Copy {
     /// Generate a function hash.
-    fn into_hash(self) -> Hash;
+    fn into_type_hash(self) -> Hash;
 
     /// Optionally convert into an item, if appropriate.
     fn into_item(self) -> Item;
 }
 
-impl IntoHash for Hash {
-    fn into_hash(self) -> Hash {
+impl IntoTypeHash for Hash {
+    fn into_type_hash(self) -> Hash {
         self
     }
 
@@ -143,12 +153,12 @@ impl IntoHash for Hash {
     }
 }
 
-impl<I> IntoHash for I
+impl<I> IntoTypeHash for I
 where
     I: Copy + IntoIterator,
     I::Item: IntoComponent,
 {
-    fn into_hash(self) -> Hash {
+    fn into_type_hash(self) -> Hash {
         Hash::path_hash(TYPE, self)
     }
 

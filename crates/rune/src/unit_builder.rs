@@ -418,7 +418,7 @@ impl UnitBuilder {
     ///
     /// Only uses up space if the static byte string is unique.
     pub(crate) fn new_static_bytes(&mut self, current: &[u8]) -> Result<usize, UnitBuilderError> {
-        let hash = Hash::of(&current);
+        let hash = Hash::static_bytes(&current);
 
         if let Some(existing_slot) = self.static_bytes_rev.get(&hash).copied() {
             let existing = self.static_bytes.get(existing_slot).ok_or_else(|| {
@@ -747,8 +747,7 @@ impl UnitBuilder {
         log::trace!("instance fn: {}", path);
 
         let offset = self.instructions.len();
-        let instance_fn = Hash::of(name);
-        let instance_fn = Hash::instance_function(type_of, instance_fn);
+        let instance_fn = Hash::instance_function(type_of, name);
         let hash = Hash::type_hash(&path);
 
         let info = UnitFn::Offset { offset, call, args };

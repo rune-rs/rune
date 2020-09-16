@@ -42,7 +42,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                     }
 
                     let ident = ident.resolve(&self.storage, &*self.source)?;
-                    let hash = Hash::of(ident);
+                    let hash = Hash::instance_fn_name(ident.as_ref());
                     self.asm.push(Inst::CallInstance { hash, args }, span);
                 }
                 expr => {
