@@ -808,9 +808,9 @@ impl Vm {
     /// Perform an index set operation.
     #[inline]
     fn op_index_set(&mut self) -> Result<(), VmError> {
-        let target = self.stack.pop()?;
-        let index = self.stack.pop()?;
         let value = self.stack.pop()?;
+        let index = self.stack.pop()?;
+        let target = self.stack.pop()?;
 
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
@@ -1183,8 +1183,8 @@ impl Vm {
     /// Perform an index get operation.
     #[inline]
     fn op_index_get(&mut self) -> Result<(), VmError> {
-        let target = self.stack.pop()?;
         let index = self.stack.pop()?;
+        let target = self.stack.pop()?;
 
         // This is a useful pattern.
         #[allow(clippy::never_loop)]
