@@ -14,10 +14,17 @@ impl Compile<(&ast::ExprIndexSet, Needs)> for Compiler<'_> {
         let span = expr_index_set.span();
         log::trace!("ExprIndexSet => {:?}", self.source.source(span));
 
-        self.compile((&*expr_index_set.value, Needs::Value))?;
-        self.compile((&*expr_index_set.index, Needs::Value))?;
         self.compile((&*expr_index_set.target, Needs::Value))?;
+        self.scopes.decl_anon(span)?;
+
+        self.compile((&*expr_index_set.index, Needs::Value))?;
+        self.scopes.decl_anon(span)?;
+
+        self.compile((&*expr_index_set.value, Needs::Value))?;
+        self.scopes.decl_anon(span)?;
+
         self.asm.push(Inst::IndexSet, span);
+        self.scopes.undecl_anon(3, span)?;
 
         // Encode a unit in case a value is needed.
         if needs.value() {
