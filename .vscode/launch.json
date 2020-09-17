@@ -10,7 +10,7 @@
                 "--extensionDevelopmentPath=${workspaceFolder}/editors/code"
             ],
             "env": {
-                "RUNE_DEBUG_FOLDER": "${workspaceFolder}/target/debug",
+                "RUNE_BUILD_FOLDER": "${workspaceFolder}/target/debug",
                 "RUNE_TRACE_LOG_FILE": "${workspaceFolder}/target/debug/rune-languageserver.log",
                 "RUST_BACKTRACE": "1"
             }

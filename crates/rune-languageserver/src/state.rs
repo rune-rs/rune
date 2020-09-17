@@ -75,7 +75,7 @@ impl State {
         let offset = source.lsp_position_to_offset(position);
         let def = source.find_definition_at(Span::point(offset))?;
 
-        let url = def.source.url.as_ref()?;
+        let url = def.source.url.as_ref().unwrap_or(uri);
         let source = source.build_sources.as_ref()?.get(def.source.source_id)?;
 
         let (l, c) = source.position_to_utf16cu_line_char(def.source.span.start)?;

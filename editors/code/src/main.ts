@@ -6,7 +6,8 @@
 import * as vscode from 'vscode';
 import * as lc from 'vscode-languageclient/node';
 import * as path from 'path';
-import { promises as fs, PathLike } from "fs";
+import { promises as fs, PathLike } from 'fs';
+import * as os from 'os';
 import { log, isValidExecutable, assert, pathExists } from './util'
 import { fetchRelease, download } from './net';
 import { PersistentState } from './persistent_state';
@@ -77,18 +78,20 @@ async function findCommand(
 ): Promise<PathLike | undefined> {
     const exe = `rune-languageserver${platform.ext}`;
 
-    let alternatives = [];
+    if (!!process.env.RUNE_BUILD_FOLDER) {
+        let envPath = path.join(process.env.RUNE_BUILD_FOLDER, exe);
 
-    if (!!process.env.RUNE_DEBUG_FOLDER) {
-        alternatives.push(path.join(process.env.RUNE_DEBUG_FOLDER, exe));
+        if (await pathExists(envPath)) {
+            log.debug(`Using language server from RUNE_BUILD_FOLDER: ${envPath}`);
+            return envPath;
+        }
     }
 
-    alternatives.push(path.join(process.env.HOME || '~', '.cargo', 'bin', exe));
+    let cargoPath = path.join(os.homedir(), '.cargo', 'bin', exe);
 
-    for (let p of alternatives) {
-        if (await pathExists(p)) {
-            return p;
-        }
+    if (await pathExists(cargoPath)) {
+        log.debug(`Using language server from cargo home: ${cargoPath}`);
+        return cargoPath;
     }
 
     return await bootstrapServer(context, state, platform);
