@@ -11,7 +11,7 @@ impl Compile<(&ast::Self_, Needs)> for Compiler<'_> {
         log::trace!("Self_ => {:?}", self.source.source(span));
         let var = self
             .scopes
-            .get_var("self", self.source.url(), self.visitor, span)?;
+            .get_var("self", self.source_id, self.visitor, span)?;
 
         if !needs.value() {
             return Ok(());

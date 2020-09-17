@@ -4,7 +4,7 @@ use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
 use rune::Spanned as _;
-use runestick::{CompileMeta, CompileMetaKind, Span};
+use runestick::{CompileMeta, CompileMetaKind, CompileSource, Component, Item, SourceId, Span};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -70,25 +70,35 @@ impl State {
         position: lsp::Position,
     ) -> Option<lsp::Location> {
         let sources = self.inner.sources.read().await;
+
         let source = sources.get(uri)?;
         let offset = source.lsp_position_to_offset(position);
-        let definition = source.find_definition_at(Span::point(offset))?;
+        let def = source.find_definition_at(Span::point(offset))?;
 
-        let url = definition.url.as_ref()?;
+        let url = def.source.url.as_ref()?;
+        let source = source.build_sources.as_ref()?.get(def.source.source_id)?;
 
-        let range = match definition.span {
-            Some(span) => {
-                let start = source.offset_to_lsp_position(span.start);
-                let end = source.offset_to_lsp_position(span.end);
-                lsp::Range { start, end }
-            }
-            None => lsp::Range::default(),
+        let (l, c) = source.position_to_utf16cu_line_char(def.source.span.start)?;
+        let start = lsp::Position {
+            line: l as u64,
+            character: c as u64,
         };
 
-        Some(lsp::Location {
+        let (l, c) = source.position_to_utf16cu_line_char(def.source.span.end)?;
+        let end = lsp::Position {
+            line: l as u64,
+            character: c as u64,
+        };
+
+        let range = lsp::Range { start, end };
+
+        let location = lsp::Location {
             uri: url.clone(),
             range,
-        })
+        };
+
+        log::trace!("go to location: {:?}", location);
+        Some(location)
     }
 
     /// Rebuild the current project.
@@ -101,13 +111,13 @@ impl State {
             by_url.insert(url.clone(), Vec::new());
         }
 
-        let mut definitions = HashMap::new();
+        let mut builds = Vec::new();
 
         for (url, source) in &inner.sources {
             log::trace!("build: {}", url);
 
             by_url.insert(url.clone(), Default::default());
-            definitions.insert(url.clone(), Default::default());
+            let mut index = Index::default();
 
             let mut sources = rune::Sources::new();
 
@@ -118,7 +128,7 @@ impl State {
 
             let mut errors = rune::Errors::new();
             let mut warnings = rune::Warnings::new();
-            let mut visitor = Visitor::new(&mut definitions);
+            let mut visitor = Visitor::new(&mut index);
             let mut source_loader = SourceLoader::new(&inner.sources);
 
             let result = rune::load_sources_with_visitor(
@@ -191,11 +201,14 @@ impl State {
                     display_to_warning,
                 );
             }
+
+            builds.push((url.clone(), sources, index));
         }
 
-        for (url, index) in definitions {
+        for (url, build_sources, index) in builds {
             if let Some(source) = inner.sources.get_mut(&url) {
                 source.index = index;
+                source.build_sources = Some(build_sources);
             }
         }
 
@@ -244,6 +257,7 @@ impl Sources {
         let source = Source {
             content: Rope::from(text),
             index: Default::default(),
+            build_sources: None,
         };
 
         self.sources.insert(url, source)
@@ -273,15 +287,18 @@ pub struct Source {
     content: Rope,
     /// Indexes used to answer queries.
     index: Index,
+    /// Loaded Rune sources for this source file. Will be present after the
+    /// source file has been built.
+    build_sources: Option<rune::Sources>,
 }
 
 impl Source {
     /// Find the definition at the given span.
     pub fn find_definition_at(&self, span: Span) -> Option<&Definition> {
         let (found_span, definition) = self.index.definitions.range(..=span).rev().next()?;
-        log::info!("found {:?} (at {:?})", definition.kind, definition.url);
 
         if span.start >= found_span.start && span.end <= found_span.end {
+            log::trace!("found {:?}", definition);
             return Some(definition);
         }
 
@@ -456,9 +473,10 @@ pub struct Index {
 
 #[derive(Debug, Clone)]
 pub struct Definition {
-    pub(crate) span: Option<Span>,
-    pub(crate) url: Option<Url>,
+    /// The kind of the definition.
     pub(crate) kind: DefinitionKind,
+    /// The id of the source id the definition corresponds to.
+    pub(crate) source: CompileSource,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -482,18 +500,27 @@ pub enum DefinitionKind {
 }
 
 struct Visitor<'a> {
-    indexes: &'a mut HashMap<Url, Index>,
+    index: &'a mut Index,
 }
 
 impl<'a> Visitor<'a> {
     /// Construct a new visitor.
-    pub fn new(indexes: &'a mut HashMap<Url, Index>) -> Self {
-        Self { indexes }
+    pub fn new(index: &'a mut Index) -> Self {
+        Self { index }
     }
 }
 
 impl rune::CompileVisitor for Visitor<'_> {
-    fn visit_meta(&mut self, url: &Url, meta: &CompileMeta, span: Span) {
+    fn visit_meta(&mut self, source_id: SourceId, meta: &CompileMeta, span: Span) {
+        if source_id != 0 {
+            return;
+        }
+
+        let source = match meta.source.as_ref() {
+            Some(source) => source,
+            None => return,
+        };
+
         let kind = match &meta.kind {
             CompileMetaKind::Tuple { .. } => DefinitionKind::Tuple,
             CompileMetaKind::TupleVariant { .. } => DefinitionKind::TupleVariant,
@@ -505,43 +532,50 @@ impl rune::CompileVisitor for Visitor<'_> {
         };
 
         let definition = Definition {
-            span: meta.span,
-            url: meta.url.clone(),
             kind,
+            source: source.clone(),
         };
 
-        if let Some(index) = self.indexes.get_mut(url) {
-            if let Some(d) = index.definitions.insert(span, definition) {
-                log::warn!("replaced definition: {:?}", d.kind)
-            }
+        if let Some(d) = self.index.definitions.insert(span, definition) {
+            log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
-    fn visit_variable_use(&mut self, url: &Url, var: &rune::Var, span: Span) {
-        if let Some(index) = self.indexes.get_mut(url) {
-            let definition = Definition {
-                span: Some(var.span()),
-                url: Some(url.clone()),
-                kind: DefinitionKind::Local,
-            };
+    fn visit_variable_use(&mut self, source_id: SourceId, var: &rune::Var, span: Span) {
+        if source_id != 0 {
+            return;
+        }
 
-            if let Some(d) = index.definitions.insert(span, definition) {
-                log::warn!("replaced definition: {:?}", d.kind)
-            }
+        let definition = Definition {
+            kind: DefinitionKind::Local,
+            source: CompileSource {
+                span: var.span(),
+                url: None,
+                source_id,
+            },
+        };
+
+        if let Some(d) = self.index.definitions.insert(span, definition) {
+            log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 
-    fn visit_mod(&mut self, url: &Url, span: Span) {
-        if let Some(index) = self.indexes.get_mut(url) {
-            let definition = Definition {
-                span: None,
-                url: Some(url.clone()),
-                kind: DefinitionKind::Module,
-            };
+    fn visit_mod(&mut self, source_id: SourceId, span: Span) {
+        if source_id != 0 {
+            return;
+        }
 
-            if let Some(d) = index.definitions.insert(span, definition) {
-                log::warn!("replaced definition: {:?}", d.kind)
-            }
+        let definition = Definition {
+            kind: DefinitionKind::Module,
+            source: CompileSource {
+                span: Span::empty(),
+                url: None,
+                source_id,
+            },
+        };
+
+        if let Some(d) = self.index.definitions.insert(span, definition) {
+            log::warn!("replaced definition: {:?}", d.kind)
         }
     }
 }
@@ -561,23 +595,37 @@ impl<'a> SourceLoader<'a> {
     }
 
     /// Generate a collection of URl candidates.
-    fn candidates(url: &Url, name: &str) -> Option<[Url; 2]> {
-        let mut a = url.clone();
+    fn candidates(root: &Url, item: &Item) -> Option<[Url; 2]> {
+        let mut base = root.clone();
+
+        let mut it = item.iter();
+
+        let last = match it.next_back()? {
+            Component::String(string) => string,
+            _ => return None,
+        };
 
         {
-            let mut path = a.path_segments_mut().ok()?;
+            let mut path = base.path_segments_mut().ok()?;
             path.pop();
-            path.push(&format!("{}.rn", name));
+
+            for c in it {
+                if let Component::String(string) = c {
+                    path.push(string.as_ref());
+                } else {
+                    return None;
+                }
+            }
         }
 
-        let mut b = url.clone();
+        let mut a = base.clone();
+        a.path_segments_mut().ok()?.push(&format!("{}.rn", last));
 
-        {
-            let mut path = b.path_segments_mut().ok()?;
-            path.pop();
-            path.push(name);
-            path.push("mod.rn");
-        };
+        let mut b = base.clone();
+        b.path_segments_mut()
+            .ok()?
+            .push(last.as_ref())
+            .push("mod.rn");
 
         Some([a, b])
     }
@@ -586,13 +634,13 @@ impl<'a> SourceLoader<'a> {
 impl rune::SourceLoader for SourceLoader<'_> {
     fn load(
         &mut self,
-        url: &Url,
-        name: &str,
+        root: &Url,
+        item: &Item,
         span: Span,
     ) -> Result<runestick::Source, rune::CompileError> {
-        log::trace!("load: {}", url);
+        log::trace!("load {} (root: {})", item, root);
 
-        if let Some(candidates) = Self::candidates(url, name) {
+        if let Some(candidates) = Self::candidates(root, item) {
             for url in candidates.iter() {
                 if let Some(s) = self.sources.get(url) {
                     // TODO: can this clone be avoided? The compiler requires a complete buffer.
@@ -603,6 +651,6 @@ impl rune::SourceLoader for SourceLoader<'_> {
             }
         }
 
-        self.base.load(url, name, span)
+        self.base.load(root, item, span)
     }
 }

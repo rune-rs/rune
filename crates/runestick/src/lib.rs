@@ -96,6 +96,9 @@ mod vm_error;
 mod vm_execution;
 mod vm_halt;
 
+/// The identifier of a source file.
+pub type SourceId = usize;
+
 /// Exported result type for convenience.
 pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
 
@@ -106,6 +109,7 @@ pub use self::any_obj::{AnyObj, AnyObjVtable};
 pub use self::args::Args;
 pub use self::compile_meta::{
     CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
+    CompileSource,
 };
 pub use self::from_value::{FromValue, UnsafeFromValue};
 pub use self::generator::Generator;

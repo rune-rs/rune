@@ -6,7 +6,7 @@ use crate::loops::Loops;
 use crate::query::{Build, BuildEntry, Query};
 use crate::scopes::{Scope, ScopeGuard, Scopes};
 use crate::traits::Compile as _;
-use crate::worker::{Expanded, Task, Worker};
+use crate::worker::{Expanded, LoadFileKind, Task, Worker};
 use crate::CompileResult;
 use crate::{
     Assembly, CompileError, CompileErrorKind, CompileVisitor, Errors, FileSourceLoader, LoadError,
@@ -81,6 +81,7 @@ pub fn compile_with_options(
     // Queue up the initial sources to be loaded.
     for source_id in sources.source_ids() {
         queue.push_back(Task::LoadFile {
+            kind: LoadFileKind::Root,
             item: Item::new(),
             source_id,
         });
@@ -414,11 +415,7 @@ impl<'a> Compiler<'a> {
 
         if let Some(meta) = self.context.lookup_meta(name) {
             log::trace!("found in context: {:?}", meta);
-
-            if let Some(url) = self.source.url() {
-                self.visitor.visit_meta(url, &meta, span);
-            }
-
+            self.visitor.visit_meta(self.source_id, &meta, span);
             return Ok(Some(meta));
         }
 
@@ -430,11 +427,7 @@ impl<'a> Compiler<'a> {
 
             if let Some(meta) = self.query.query_meta(&current)? {
                 log::trace!("found in query: {:?}", meta);
-
-                if let Some(url) = self.source.url() {
-                    self.visitor.visit_meta(url, &meta, span);
-                }
-
+                self.visitor.visit_meta(self.source_id, &meta, span);
                 return Ok(Some(meta));
             }
 

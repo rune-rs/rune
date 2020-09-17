@@ -391,8 +391,6 @@ impl Context {
         self.install_meta(
             name.clone(),
             CompileMeta {
-                span: None,
-                url: None,
                 kind: CompileMetaKind::Struct {
                     type_of,
                     object: CompileMetaStruct {
@@ -400,6 +398,7 @@ impl Context {
                         fields: None,
                     },
                 },
+                source: None,
             },
         )?;
 
@@ -457,12 +456,11 @@ impl Context {
         self.meta.insert(
             name.clone(),
             CompileMeta {
-                span: None,
-                url: None,
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(hash),
                     item: name,
                 },
+                source: None,
             },
         );
 
@@ -487,9 +485,8 @@ impl Context {
         self.meta.insert(
             name.clone(),
             CompileMeta {
-                span: None,
-                url: None,
                 kind: CompileMetaKind::Macro { item: name },
+                source: None,
             },
         );
 
@@ -582,12 +579,11 @@ impl Context {
         self.install_meta(
             enum_item.clone(),
             CompileMeta {
-                span: None,
-                url: None,
                 kind: CompileMetaKind::Enum {
                     type_of: Type::from(internal_enum.static_type),
                     item: enum_item.clone(),
                 },
+                source: None,
             },
         )?;
 
@@ -622,13 +618,12 @@ impl Context {
             };
 
             let meta = CompileMeta {
-                span: None,
-                url: None,
                 kind: CompileMetaKind::TupleVariant {
                     type_of: variant.type_of,
                     enum_item: enum_item.clone(),
                     tuple,
                 },
+                source: None,
             };
 
             self.install_meta(item.clone(), meta)?;
@@ -674,18 +669,16 @@ impl Context {
 
         let meta = match enum_item {
             Some(enum_item) => CompileMeta {
-                span: None,
-                url: None,
                 kind: CompileMetaKind::TupleVariant {
                     type_of,
                     enum_item,
                     tuple,
                 },
+                source: None,
             },
             None => CompileMeta {
-                span: None,
-                url: None,
                 kind: CompileMetaKind::Tuple { type_of, tuple },
+                source: None,
             },
         };
 

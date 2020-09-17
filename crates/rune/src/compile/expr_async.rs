@@ -36,7 +36,7 @@ impl Compile<(&ast::ExprAsync, Needs)> for Compiler<'_> {
         for ident in &**captures {
             let var = self
                 .scopes
-                .get_var(&ident.ident, self.source.url(), self.visitor, span)?;
+                .get_var(&ident.ident, self.source_id, self.visitor, span)?;
             var.copy(&mut self.asm, span, format!("captures `{}`", ident.ident));
         }
 

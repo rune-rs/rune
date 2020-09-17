@@ -1,10 +1,10 @@
 use crate::{CompileError, CompileErrorKind};
-use runestick::{Source, Span, Url};
+use runestick::{Component, Item, Source, Span, Url};
 
 /// A source loader.
 pub trait SourceLoader {
     /// Load the given URL.
-    fn load(&mut self, url: &Url, name: &str, span: Span) -> Result<Source, CompileError>;
+    fn load(&mut self, root: &Url, item: &Item, span: Span) -> Result<Source, CompileError>;
 }
 
 /// A filesystem-based source loader.
@@ -18,35 +18,40 @@ impl FileSourceLoader {
 }
 
 impl SourceLoader for FileSourceLoader {
-    fn load(&mut self, url: &Url, name: &str, span: Span) -> Result<Source, CompileError> {
-        if url.scheme() != "file" {
+    fn load(&mut self, root: &Url, item: &Item, span: Span) -> Result<Source, CompileError> {
+        if root.scheme() != "file" {
             return Err(CompileError::new(
                 span,
-                CompileErrorKind::UnsupportedLoadUrl { url: url.clone() },
+                CompileErrorKind::UnsupportedModuleRoot { url: root.clone() },
             ));
         }
 
-        let path = url.to_file_path().map_err(|_| {
+        let mut base = root.to_file_path().map_err(|_| {
             CompileError::new(
                 span,
-                CompileErrorKind::UnsupportedLoadUrl { url: url.clone() },
+                CompileErrorKind::UnsupportedModuleRoot { url: root.clone() },
             )
         })?;
 
-        let base = match path.parent() {
-            Some(parent) => parent.join(name),
-            None => {
+        if !base.pop() {
+            return Err(CompileError::new(
+                span,
+                CompileErrorKind::UnsupportedModuleRoot { url: root.clone() },
+            ));
+        }
+
+        for c in item {
+            if let Component::String(string) = c {
+                base.push(string.as_ref());
+            } else {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::UnsupportedFileMod,
+                    CompileErrorKind::UnsupportedModuleItem { item: item.clone() },
                 ));
             }
-        };
+        }
 
-        let candidates = [
-            base.join("mod").with_extension("rn"),
-            base.with_extension("rn"),
-        ];
+        let candidates = [base.join("mod.rn"), base.with_extension("rn")];
 
         let mut found = None;
 

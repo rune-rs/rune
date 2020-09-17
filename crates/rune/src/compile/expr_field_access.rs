@@ -103,7 +103,7 @@ fn try_immediate_field_access_optimization(
     let var =
         match this
             .scopes
-            .try_get_var(ident.as_ref(), this.source.url(), this.visitor, path.span())
+            .try_get_var(ident.as_ref(), this.source_id, this.visitor, path.span())
         {
             Some(var) => var,
             None => return Ok(false),
