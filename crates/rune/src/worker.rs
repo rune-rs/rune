@@ -2,7 +2,7 @@
 
 use crate::ast;
 use crate::collections::HashMap;
-use crate::index::{Index, Indexer};
+use crate::index::{Index as _, Indexer};
 use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::macros::MacroCompiler;
@@ -31,21 +31,7 @@ pub(crate) enum Task {
         source_id: SourceId,
     },
     /// An indexing task, which will index the specified item.
-    Index {
-        /// The root URL of the file which caused this item to be indexed.
-        root: Option<Url>,
-        /// Item being built.
-        item: Item,
-        /// Path to index.
-        items: Items,
-        /// The source id where the item came from.
-        source_id: SourceId,
-        /// The source where the item came from.
-        source: Arc<Source>,
-        scopes: IndexScopes,
-        impl_items: Vec<Item>,
-        ast: IndexAst,
-    },
+    Index(Index),
     /// Task to process an import.
     Import(Import),
     /// Task to expand a macro. This might produce additional indexing tasks.
@@ -124,6 +110,8 @@ impl<'a> Worker<'a> {
                     item,
                     source_id,
                 } => {
+                    log::trace!("load file: {}", item);
+
                     let source = match self.sources.get(source_id).cloned() {
                         Some(source) => source,
                         None => {
@@ -152,7 +140,7 @@ impl<'a> Worker<'a> {
 
                     let items = Items::new(item.clone().into_vec());
 
-                    self.queue.push_back(Task::Index {
+                    self.queue.push_back(Task::Index(Index {
                         root,
                         item,
                         items,
@@ -161,18 +149,20 @@ impl<'a> Worker<'a> {
                         scopes: IndexScopes::new(),
                         impl_items: Default::default(),
                         ast: IndexAst::File(file),
-                    });
+                    }));
                 }
-                Task::Index {
-                    root,
-                    item,
-                    items,
-                    source_id,
-                    source,
-                    scopes,
-                    impl_items,
-                    ast,
-                } => {
+                Task::Index(index) => {
+                    let Index {
+                        root,
+                        item,
+                        items,
+                        source_id,
+                        source,
+                        scopes,
+                        impl_items,
+                        ast,
+                    } = index;
+
                     log::trace!("index: {}", item);
 
                     let mut indexer = Indexer {
@@ -247,7 +237,8 @@ impl<'a> Worker<'a> {
 
                     let item = items.item();
                     let span = ast.span();
-                    log::trace!("expanding macro: {}", item);
+
+                    log::trace!("expand macro: {} => {:?}", item, source.source(ast.span()));
 
                     match kind {
                         MacroKind::Expr => (),
@@ -312,7 +303,7 @@ impl<'a> Worker<'a> {
                         }
                     };
 
-                    self.queue.push_back(Task::Index {
+                    self.queue.push_back(Task::Index(Index {
                         root,
                         item,
                         items,
@@ -321,7 +312,7 @@ impl<'a> Worker<'a> {
                         scopes,
                         impl_items,
                         ast,
-                    });
+                    }));
                 }
             }
         }
@@ -332,6 +323,24 @@ impl<'a> Worker<'a> {
 pub(crate) enum Expanded {
     /// The expansion resulted in an expression.
     Expr(ast::Expr),
+}
+
+/// Indexing to process.
+#[derive(Debug)]
+pub(crate) struct Index {
+    /// The root URL of the file which caused this item to be indexed.
+    root: Option<Url>,
+    /// Item being built.
+    item: Item,
+    /// Path to index.
+    items: Items,
+    /// The source id where the item came from.
+    source_id: SourceId,
+    /// The source where the item came from.
+    source: Arc<Source>,
+    scopes: IndexScopes,
+    impl_items: Vec<Item>,
+    ast: IndexAst,
 }
 
 /// Import to process.
