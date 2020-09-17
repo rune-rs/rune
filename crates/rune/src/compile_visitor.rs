@@ -1,16 +1,16 @@
 use crate::Var;
-use runestick::{CompileMeta, Span, Url};
+use runestick::{CompileMeta, SourceId, Span};
 
 /// A visitor that will be called for every language item compiled.
 pub trait CompileVisitor {
     /// Mark that we've encountered a specific compile meta at the given span.
-    fn visit_meta(&mut self, _url: &Url, _meta: &CompileMeta, _span: Span) {}
+    fn visit_meta(&mut self, _source_id: SourceId, _meta: &CompileMeta, _span: Span) {}
 
     /// Visit a variable use.
-    fn visit_variable_use(&mut self, _url: &Url, _var: &Var, _span: Span) {}
+    fn visit_variable_use(&mut self, _source_id: SourceId, _var: &Var, _span: Span) {}
 
     /// Visit something that is a module.
-    fn visit_mod(&mut self, _url: &Url, _span: Span) {}
+    fn visit_mod(&mut self, _source_id: SourceId, _span: Span) {}
 }
 
 /// A compile visitor that does nothing.

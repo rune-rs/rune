@@ -87,6 +87,10 @@ impl Source {
 
     /// Convert the given offset to a utf-16 line and character.
     pub fn position_to_utf16cu_line_char(&self, offset: usize) -> Option<(usize, usize)> {
+        if offset == 0 {
+            return Some((0, 0));
+        }
+
         let line = match self.line_starts.binary_search(&offset) {
             Ok(exact) => exact,
             Err(0) => return None,
@@ -111,7 +115,7 @@ impl Source {
             line_count += c.encode_utf16(&mut [0u16; 2]).len();
         }
 
-        None
+        Some((line, line_count))
     }
 }
 

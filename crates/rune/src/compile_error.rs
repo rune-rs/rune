@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::unit_builder::UnitBuilderError;
-use crate::{ParseError, ParseErrorKind, SourceId, Spanned};
-use runestick::{CompileMeta, Item, Span, Url};
+use crate::{ParseError, ParseErrorKind, Spanned};
+use runestick::{CompileMeta, Item, SourceId, Span, Url};
 use std::error;
 use std::fmt;
 use std::io;
@@ -196,11 +196,20 @@ pub enum CompileErrorKind {
     /// A specific label is missing.
     #[error("label not found in scope")]
     MissingLabel,
+    /// Tried to load module in a source where it wasn't supported.
+    #[error("cannot load modules using a source without an associated URL")]
+    UnsupportedModuleSource,
     /// Encountered an unsupported URL when loading a module.
-    #[error("cannot load the url `{url}`")]
-    UnsupportedLoadUrl {
+    #[error("cannot load modules relative to `{url}`")]
+    UnsupportedModuleRoot {
         /// The URL that was unsupported.
         url: Url,
+    },
+    /// Encountered an unsupported Item when loading a module.
+    #[error("cannot load module for `{item}`")]
+    UnsupportedModuleItem {
+        /// The item that cannot be used as a module.
+        item: Item,
     },
     /// Unsupported wildcard component in use.
     #[error("wildcard support not supported in this position")]
@@ -347,9 +356,6 @@ pub enum CompileErrorKind {
         /// The item that didn't exist.
         item: Item,
     },
-    /// Trying to use a filesystem module from an in-memory soruce.
-    #[error("cannot load external modules from in-memory sources")]
-    UnsupportedFileMod,
     /// Trying to use a number as a tuple index for which it is not suported.
     #[error("unsupported tuple index `{number}`")]
     UnsupportedTupleIndex {

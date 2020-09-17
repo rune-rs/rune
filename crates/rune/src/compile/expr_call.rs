@@ -76,7 +76,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         if let Some(name) = item.as_local() {
             if let Some(var) =
                 self.scopes
-                    .try_get_var(name, self.source.url(), self.visitor, path.span())
+                    .try_get_var(name, self.source_id, self.visitor, path.span())
             {
                 var.copy(&mut self.asm, span, format!("var `{}`", name));
                 self.asm.push(Inst::CallFn { args }, span);

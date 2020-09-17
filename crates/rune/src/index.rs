@@ -3,17 +3,23 @@ use crate::collections::HashMap;
 use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::query::{Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query};
-use crate::worker::{Import, Macro, MacroKind, Task};
+use crate::worker::{Import, LoadFileKind, Macro, MacroKind, Task};
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, Resolve as _, SourceId, SourceLoader, Sources,
+    CompileError, CompileErrorKind, CompileVisitor, Resolve as _, SourceLoader, Sources,
     Spanned as _, Storage, Warnings,
 };
-use runestick::{Call, CompileMeta, CompileMetaKind, Hash, Item, Source, Span, Type};
+use runestick::{
+    Call, CompileMeta, CompileMetaKind, CompileSource, Hash, Item, Source, SourceId, Span, Type,
+    Url,
+};
 use std::collections::VecDeque;
 use std::sync::Arc;
 
 pub(crate) struct Indexer<'a> {
+    /// The root URL that the indexed file originated from.
+    pub(crate) root: Option<Url>,
+    /// Storage associated with the compilation.
     pub(crate) storage: Storage,
     pub(crate) loaded: &'a mut HashMap<Item, (SourceId, Span)>,
     pub(crate) query: &'a mut Query,
@@ -55,23 +61,18 @@ impl<'a> Indexer<'a> {
         let name = item_mod.name.resolve(&self.storage, &*self.source)?;
         let _guard = self.items.push_name(name.as_ref());
 
-        let url = match self.source.url() {
-            Some(url) => url,
+        let root = match &self.root {
+            Some(root) => root,
             None => {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::UnsupportedFileMod,
+                    CompileErrorKind::UnsupportedModuleSource,
                 ));
             }
         };
 
-        let source = self.source_loader.load(url, name.as_ref(), span)?;
-
-        if let Some(url) = source.url() {
-            self.visitor.visit_mod(url, span);
-        }
-
         let item = self.items.item();
+        let source = self.source_loader.load(root, &item, span)?;
 
         if let Some(existing) = self.loaded.insert(item.clone(), (self.source_id, span)) {
             return Err(CompileError::new(
@@ -81,7 +82,16 @@ impl<'a> Indexer<'a> {
         }
 
         let source_id = self.sources.insert(source);
-        self.queue.push_back(Task::LoadFile { item, source_id });
+        self.visitor.visit_mod(source_id, span);
+
+        self.queue.push_back(Task::LoadFile {
+            kind: LoadFileKind::Module {
+                root: self.root.clone(),
+            },
+            item,
+            source_id,
+        });
+
         Ok(())
     }
 }
@@ -168,12 +178,15 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             });
 
             let meta = CompileMeta {
-                span: Some(span),
-                url: self.source.url().cloned(),
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&item)),
                     item,
                 },
+                source: Some(CompileSource {
+                    span,
+                    url: self.source.url().cloned(),
+                    source_id: self.source_id,
+                }),
             };
 
             self.query.unit.borrow_mut().insert_meta(meta)?;
@@ -188,12 +201,15 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             });
 
             self.query.unit.borrow_mut().insert_meta(CompileMeta {
-                span: Some(span),
-                url: self.source.url().cloned(),
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&item)),
                     item,
                 },
+                source: Some(CompileSource {
+                    span,
+                    url: self.source.url().cloned(),
+                    source_id: self.source_id,
+                }),
             })?;
         } else {
             // NB: non toplevel functions can be indexed for later construction.
@@ -453,6 +469,7 @@ impl Index<ast::Expr> for Indexer<'_> {
                 let _guard = self.items.push_macro();
 
                 self.queue.push_back(Task::ExpandMacro(Macro {
+                    root: self.root.clone(),
                     items: self.items.snapshot(),
                     ast: expr_call_macro.clone(),
                     source: self.source.clone(),
@@ -612,6 +629,7 @@ impl Index<ast::Item> for Indexer<'_> {
                 let _guard = self.items.push_macro();
 
                 self.queue.push_back(Task::ExpandMacro(Macro {
+                    root: self.root.clone(),
                     items: self.items.snapshot(),
                     ast: expr_call_macro.clone(),
                     source: self.source.clone(),

@@ -102,7 +102,7 @@ fn compile_assign_binop(
                 let ident = path.first.resolve(this.storage, &*this.source)?;
                 let var = this
                     .scopes
-                    .get_var(&*ident, this.source.url(), this.visitor, span)?;
+                    .get_var(&*ident, this.source_id, this.visitor, span)?;
                 this.asm.push(Inst::Replace { offset: var.offset }, span);
 
                 true
@@ -168,7 +168,7 @@ fn compile_assign_binop(
                 let ident = path.first.resolve(this.storage, &*this.source)?;
                 let var = this
                     .scopes
-                    .get_var(&*ident, this.source.url(), this.visitor, span)?;
+                    .get_var(&*ident, this.source_id, this.visitor, span)?;
 
                 Some(InstTarget::Offset(var.offset))
             }

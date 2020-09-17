@@ -207,9 +207,6 @@ pub mod testing;
 #[cfg(test)]
 pub mod tests;
 
-/// The identifier of a source file.
-pub type SourceId = usize;
-
 /// Internal collection re-export.
 mod collections {
     pub use hashbrown::{hash_map, HashMap};

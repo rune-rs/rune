@@ -4,12 +4,12 @@ use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, Resolve as _, SourceId, Spanned as _, Storage,
+    CompileError, CompileErrorKind, CompileVisitor, Resolve as _, Spanned as _, Storage,
     UnitBuilder,
 };
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
-    Hash, Item, Source, Span, Type,
+    CompileSource, Hash, Item, Source, SourceId, Span, Type,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -108,7 +108,7 @@ pub(crate) struct IndexedEntry {
     /// The source of the indexed entry.
     pub(crate) source: Arc<Source>,
     /// The source id of the indexed entry.
-    pub(crate) source_id: usize,
+    pub(crate) source_id: SourceId,
     /// The entry data.
     pub(crate) indexed: Indexed,
 }
@@ -295,15 +295,12 @@ impl Query {
         for (item, entry) in unused {
             let span = entry.span;
             let source_id = entry.source_id;
-            let url = entry.source.url().cloned();
 
             let meta = self
                 .build_indexed_entry(item, entry, true)
                 .map_err(|error| (source_id, error))?;
 
-            if let Some(url) = url {
-                visitor.visit_meta(&url, &meta, span);
-            }
+            visitor.visit_meta(source_id, &meta, span);
         }
 
         Ok(true)
@@ -404,9 +401,12 @@ impl Query {
         };
 
         let meta = CompileMeta {
-            span: Some(entry_span),
-            url,
             kind,
+            source: Some(CompileSource {
+                span: entry_span,
+                url,
+                source_id,
+            }),
         };
 
         self.unit.borrow_mut().insert_meta(meta.clone())?;

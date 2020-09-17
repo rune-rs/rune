@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use crate::{Hash, Item, Span, Type, Url};
+use crate::{Hash, Item, SourceId, Span, Type, Url};
 use std::fmt;
 use std::sync::Arc;
 
@@ -13,12 +13,21 @@ pub struct CompileMetaCapture {
 /// Compile-time metadata about a unit.
 #[derive(Debug, Clone)]
 pub struct CompileMeta {
-    /// The span where the meta is declared.
-    pub span: Option<Span>,
-    /// The optional source id where the meta is declared.
-    pub url: Option<Url>,
     /// The kind of the compile meta.
     pub kind: CompileMetaKind,
+    /// The source of the meta.
+    pub source: Option<CompileSource>,
+}
+
+/// Information on a compile sourc.
+#[derive(Debug, Clone)]
+pub struct CompileSource {
+    /// The span where the meta is declared.
+    pub span: Span,
+    /// The optional source id where the meta is declared.
+    pub url: Option<Url>,
+    /// The source id where the compile meta is defined.
+    pub source_id: SourceId,
 }
 
 impl CompileMeta {
