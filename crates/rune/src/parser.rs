@@ -82,6 +82,11 @@ impl<'a> Parser<'a> {
         self.p1
     }
 
+    /// Peek the next token.
+    pub fn token_peek2(&mut self) -> Result<Option<Token>, ParseError> {
+        self.p2
+    }
+
     /// Peek the next two tokens.
     pub fn token_peek_pair(&mut self) -> Result<Option<(Token, Option<Token>)>, ParseError> {
         Ok(match self.p1? {

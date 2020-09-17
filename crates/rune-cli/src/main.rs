@@ -98,6 +98,12 @@ struct Args {
     /// This makes the `std::experimental` module available to scripts.
     #[structopt(long)]
     experimental: bool,
+    /// Recursively load all files in the given directory.
+    #[structopt(long)]
+    recursive: bool,
+    /// Only test that the specified files compile, but don't execute them.
+    #[structopt(long)]
+    test: bool,
     /// Rune scripts to run.
     #[structopt(parse(from_os_str))]
     paths: Vec<PathBuf>,
@@ -118,52 +124,108 @@ struct Args {
 
 async fn try_main() -> Result<ExitCode> {
     env_logger::init();
-    let args = {
-        let mut args = Args::from_args();
-        if args.dump {
-            args.dump_unit = true;
-            args.dump_stack = true;
-            args.dump_functions = true;
-            args.dump_types = true;
-            args.dump_native_functions = true;
-            args.dump_native_types = true;
-        }
 
-        if args.dump_unit {
-            args.dump_unit = true;
-            args.dump_instructions = true;
-        }
-        if args.dump_functions
-            || args.dump_native_functions
-            || args.dump_stack
-            || args.dump_types
-            || args.dump_instructions
-        {
-            args.dump_unit = true;
-        }
-        args
-    };
+    let mut args = Args::from_args();
+
+    if args.dump {
+        args.dump_unit = true;
+        args.dump_stack = true;
+        args.dump_functions = true;
+        args.dump_types = true;
+        args.dump_native_functions = true;
+        args.dump_native_types = true;
+    }
+
+    if args.dump_unit {
+        args.dump_unit = true;
+        args.dump_instructions = true;
+    }
+
+    if args.dump_functions
+        || args.dump_native_functions
+        || args.dump_stack
+        || args.dump_types
+        || args.dump_instructions
+    {
+        args.dump_unit = true;
+    }
 
     let mut options = rune::Options::default();
+
     for opt in &args.compiler_options {
         options.parse_option(opt)?;
     }
+
     if args.paths.is_empty() {
         println!("Invalid usage: Missing Input Paths (at least one file required)");
         return Ok(ExitCode::Failure);
     }
 
-    for path in &args.paths {
-        match run_path(&args, &options, path).await? {
+    let paths = walk_paths(args.recursive, std::mem::take(&mut args.paths));
+    let mut status = ExitCode::Success;
+
+    for path in paths {
+        let path = path?;
+
+        match run_path(&args, &options, &path).await? {
             ExitCode::Success => (),
-            other => return Ok(other),
+            other => {
+                if args.test {
+                    status = ExitCode::Failure;
+                    continue;
+                }
+
+                return Ok(other);
+            }
         }
     }
-    Ok(ExitCode::Success)
+
+    Ok(status)
+}
+
+fn walk_paths(recursive: bool, paths: Vec<PathBuf>) -> impl Iterator<Item = io::Result<PathBuf>> {
+    use std::collections::VecDeque;
+    use std::ffi::OsStr;
+
+    let mut queue = paths.into_iter().collect::<VecDeque<_>>();
+
+    std::iter::from_fn(move || loop {
+        let path = queue.pop_front()?;
+
+        if path.is_file() {
+            if path.extension() == Some(OsStr::new("rn")) {
+                return Some(Ok(path));
+            }
+
+            continue;
+        }
+
+        if !recursive {
+            continue;
+        }
+
+        let d = match fs::read_dir(path) {
+            Ok(d) => d,
+            Err(error) => return Some(Err(error)),
+        };
+
+        for e in d {
+            let e = match e {
+                Ok(e) => e,
+                Err(error) => return Some(Err(error)),
+            };
+
+            queue.push_back(e.path());
+        }
+    })
 }
 
 /// Run a single path.
 async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<ExitCode> {
+    if args.test {
+        println!("testing: {}", path.display());
+    }
+
     let bytecode_path = path.with_extension("rnc");
     let mut context = rune::default_context()?;
 
@@ -350,6 +412,10 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 println!("{} = {:?}", hash, keys);
             }
         }
+    }
+
+    if args.test {
+        return Ok(ExitCode::Success);
     }
 
     let last = std::time::Instant::now();

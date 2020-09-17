@@ -44,7 +44,14 @@ impl Item {
             ast::Kind::Enum => true,
             ast::Kind::Struct => true,
             ast::Kind::Impl => true,
-            ast::Kind::Async | ast::Kind::Fn => true,
+            ast::Kind::Fn => true,
+            ast::Kind::Async => match parser.token_peek2()? {
+                Some(t) => match t.kind {
+                    ast::Kind::Fn => true,
+                    _ => false,
+                },
+                _ => false,
+            },
             ast::Kind::Mod => true,
             _ => false,
         })
@@ -52,7 +59,7 @@ impl Item {
 }
 
 impl Peek for Item {
-    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         let t1 = match t1 {
             Some(t1) => t1,
             None => return false,
@@ -63,7 +70,14 @@ impl Peek for Item {
             ast::Kind::Enum => true,
             ast::Kind::Struct => true,
             ast::Kind::Impl => true,
-            ast::Kind::Async | ast::Kind::Fn => true,
+            ast::Kind::Fn => true,
+            ast::Kind::Async => match t2 {
+                Some(t) => match t.kind {
+                    ast::Kind::Fn => true,
+                    _ => false,
+                },
+                _ => false,
+            },
             ast::Kind::Mod => true,
             ast::Kind::Ident(..) => true,
             _ => false,

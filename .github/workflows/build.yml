@@ -1,6 +1,10 @@
 name: Build
 
-on: [push, pull_request]
+on:
+  pull_request: {}
+  push:
+    branches:
+      - master
 
 jobs:
   build:
@@ -24,4 +28,4 @@ jobs:
       - name: Run tests
         run: cargo test --all
       - name: Run example scripts
-        run: cargo run --bin rune -- --experimental -O macros=true scripts/*.rn
+        run: cargo run --release --bin rune -- --recursive --test --experimental -O macros=true scripts

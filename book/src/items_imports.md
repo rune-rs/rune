@@ -29,13 +29,13 @@ $> cargo run --bin rune -- scripts/book/items_imports/example_import.rn
 Trying to use an item which doesn't exist results in a compile error:
 
 ```rune
-{{#include ../../scripts/book/items_imports/missing_item.rn}}
+{{#include ../../scripts/book/items_imports/missing_item.rn.fail}}
 ```
 
 ```text
-$> cargo run --bin rune -- scripts/book/items_imports/missing_item.rn
+$> cargo run --bin rune -- scripts/book/items_imports/missing_item.rn.fail
 error: compile error
-  ┌─ scripts/book/items_imports/missing_item.rn:2:15
+  ┌─ scripts/book/items_imports/missing_item.rn.fail:2:15
   │
 2 │     let foo = Foo::new();
   │               ^^^^^^^^^^ `Foo::new` is not a function
