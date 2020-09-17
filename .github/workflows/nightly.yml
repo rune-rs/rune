@@ -1,9 +1,11 @@
-name: Release
+name: Nightly Build
 
 on:
+  schedule:
+    - cron:  '* 1 * * *'
   push:
-    tags:
-      - '*'
+    branches:
+      - nightly
 
 jobs:
   build:
@@ -18,15 +20,20 @@ jobs:
       with:
         toolchain: stable
         override: true
+    - name: Run tests
+      run: cargo test --all
+    - name: Run example scripts
+      run: cargo run --bin rune -- --experimental -O macros=true scripts/*.rn
     - name: Build
       uses: actions-rs/cargo@v1
       with:
         command: run
-        args: --manifest-path=tools/builder/Cargo.toml
+        args: --manifest-path=tools/builder/Cargo.toml -- --channel nightly
     - name: Create release
       uses: softprops/action-gh-release@v1
       with:
-        draft: true
+        prerelease: true
+        tag_name: nightly
         files: target/upload/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

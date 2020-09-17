@@ -8,8 +8,49 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+fn main() -> Result<()> {
+    let mut it = env::args();
+    it.next();
+
+    let mut channel = None::<Box<str>>;
+
+    while let Some(args) = it.next() {
+        match args.as_str() {
+            "--channel" => {
+                let name = it
+                    .next()
+                    .ok_or_else(|| anyhow!("expected argument to --channel"))?;
+                channel = Some(name.into_boxed_str())
+            }
+            other => {
+                bail!("Unsupported option `{}`", other);
+            }
+        }
+    }
+
+    let build = if let Some(channel) = channel {
+        Build::Channel(channel)
+    } else {
+        let version = github_ref_version()?;
+        env::set_var("RUNE_VERSION", &version);
+        Build::Version(version)
+    };
+
+    if cfg!(target_os = "windows") {
+        do_build(build, "windows", ".exe")?;
+    } else if cfg!(target_os = "linux") {
+        do_build(build, "linux", "")?;
+    } else if cfg!(target_os = "macos") {
+        do_build(build, "macos", "")?;
+    } else {
+        bail!("unsupported operating system: {}", consts::OS);
+    }
+
+    Ok(())
+}
 
 #[derive(Debug, Clone)]
 struct Version {
@@ -47,7 +88,7 @@ impl Version {
 }
 
 /// Get the version from GITHUB_REF.
-fn github_ref_version() -> Result<Option<Version>> {
+fn github_ref_version() -> Result<Version> {
     let version = match env::var("GITHUB_REF") {
         Ok(version) => version,
         _ => bail!("missing: GITHUB_REF"),
@@ -57,16 +98,12 @@ fn github_ref_version() -> Result<Option<Version>> {
 
     let version = match (it.next(), it.next(), it.next()) {
         (Some("refs"), Some("tags"), Some(version)) => {
-            if version == "latest" {
-                return Ok(None);
-            }
-
             Version::open(version)?.ok_or_else(|| anyhow!("Expected valid version"))?
         }
         _ => bail!("expected GITHUB_REF: refs/tags/*"),
     };
 
-    Ok(Some(version))
+    Ok(version)
 }
 
 impl fmt::Display for Version {
@@ -128,11 +165,12 @@ where
     let options =
         zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
-    let mut zip = zip::ZipWriter::new(fs::File::create(file)?);
+    let out = fs::File::create(file)?;
+    let mut zip = zip::ZipWriter::new(out);
 
     for p in sources {
         let p = p.as_ref();
-        println!("Adding to zip: {}", p.display());
+        println!("{}: adding: {}", file.display(), p.display());
 
         let file_name = p
             .file_name()
@@ -182,21 +220,10 @@ where
     Ok(())
 }
 
-fn build(root: &Path, suffix: &str, ext: &str) -> Result<()> {
-    let version = github_ref_version()?;
-
-    if let Some(version) = &version {
-        env::set_var("RUNE_VERSION", &version);
-        println!("version: {}", version);
-    }
-
-    let version_string = version
-        .map(|v| v.to_string())
-        .unwrap_or_else(|| String::from("latest"));
-
-    let readme = root.join("README.md");
-    let release_dir = root.join("target").join("release");
-    let upload = root.join("target").join("upload");
+fn do_build(build: Build, suffix: &str, ext: &str) -> Result<()> {
+    let readme = PathBuf::from("README.md");
+    let release_dir = PathBuf::from("target").join("release");
+    let upload = PathBuf::from("target").join("upload");
 
     if !upload.is_dir() {
         fs::create_dir_all(&upload).context("creating upload directory")?;
@@ -217,46 +244,53 @@ fn build(root: &Path, suffix: &str, ext: &str) -> Result<()> {
     }
 
     // Create a zip file containing everything related to rune.
-    create_release_zip(
-        &upload,
-        &version_string,
-        vec![&readme, &rune, &rune_languageserver],
-    )
-    .context("building .zip")?;
+    create_release_zip(&upload, &build, vec![&readme, &rune, &rune_languageserver])
+        .context("building .zip")?;
 
-    // Create rune-languageserver gzip.
-    create_gz(
-        &upload.join(format!("rune-languageserver-{}.gz", consts::OS)),
-        &rune_languageserver,
-    )
-    .context("building rune-languageserver .gz")?;
+    if build.is_channel() {
+        // Create rune-languageserver gzip.
+        create_gz(
+            &upload.join(format!("rune-languageserver-{}.gz", consts::OS)),
+            &rune_languageserver,
+        )
+        .context("building rune-languageserver .gz")?;
 
-    // Copy files to be uploaded.
-    copy_files(
-        &upload,
-        vec![(
-            rune_languageserver,
-            format!("rune-languageserver-{}{}", suffix, ext),
-        )],
-    )
-    .context("copying raw files to upload")?;
+        // Copy files to be uploaded.
+        copy_files(
+            &upload,
+            vec![(
+                rune_languageserver,
+                format!("rune-languageserver-{}{}", suffix, ext),
+            )],
+        )
+        .context("copying raw files to upload")?;
+    }
 
     Ok(())
 }
 
-fn main() -> Result<()> {
-    let root = env::current_dir()?;
-    println!("root: {}", root.display());
+enum Build {
+    Channel(Box<str>),
+    Version(Version),
+}
 
-    if cfg!(target_os = "windows") {
-        build(&root, "windows", ".exe")?;
-    } else if cfg!(target_os = "linux") {
-        build(&root, "linux", "")?;
-    } else if cfg!(target_os = "macos") {
-        build(&root, "macos", "")?;
-    } else {
-        bail!("unsupported operating system: {}", consts::OS);
+impl Build {
+    /// Test if the build is a channel.
+    fn is_channel(&self) -> bool {
+        match self {
+            Self::Channel(..) => true,
+            _ => false,
+        }
     }
+}
 
-    Ok(())
+impl fmt::Display for Build {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Channel(channel) => write!(f, "{}", channel)?,
+            Self::Version(version) => write!(f, "{}", version)?,
+        }
+
+        Ok(())
+    }
 }

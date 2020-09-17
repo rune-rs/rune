@@ -189,7 +189,7 @@ async function getServer(
     }
 
     await state.updateLastCheck(now);
-    const release = await fetchRelease("latest");
+    const release = await fetchRelease("nightly");
 
     const artifact = release.assets.find(artifact => artifact.name === `rune-languageserver-${platform.name}.gz`);
     assert(!!artifact, `Bad release: ${JSON.stringify(release)}`);
