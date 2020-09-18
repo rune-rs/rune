@@ -16,16 +16,30 @@ jobs:
       with:
         toolchain: stable
         override: true
+    - name: Setup Node
+      uses: actions/setup-node@v1
+      with:
+        node-version: 12
     - name: Setup mdBook
       uses: peaceiris/actions-mdbook@v1
       with:
         mdbook-version: 'latest'
+
+    - name: Build Playground (Install Dependencies)
+      working-directory: crates/rune-wasm
+      run: npm install
+    - name: Build Playground
+      working-directory: crates/rune-wasm
+      run: npm run build
+
     - name: Build zola static site
       run: cargo run --manifest-path=tools/site/Cargo.toml -- -r site build -o target/site
       env:
         ZOLA_URL: "https://github.com/getzola/zola/releases/download/v0.12.0/zola-v0.12.0-x86_64-unknown-linux-gnu.tar.gz"
+
     - name: Build mdbook
       run: mdbook build -d ../target/site/book book
+
     - name: Deploy to https://rune-rs.github.io
       uses: peaceiris/actions-gh-pages@v3
       with:

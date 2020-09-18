@@ -337,7 +337,7 @@ impl Query {
             source_id,
         } = entry;
 
-        let url = source.url().cloned();
+        let path = source.path().map(ToOwned::to_owned);
 
         let kind = match indexed {
             Indexed::Enum => CompileMetaKind::Enum {
@@ -404,7 +404,7 @@ impl Query {
             kind,
             source: Some(CompileSource {
                 span: entry_span,
-                url,
+                path,
                 source_id,
             }),
         };

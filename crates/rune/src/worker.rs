@@ -12,9 +12,10 @@ use crate::{
     CompileError, CompileErrorKind, CompileVisitor, Errors, LoadError, MacroContext, Options,
     Resolve as _, SourceLoader, Sources, Spanned as _, Storage, UnitBuilder, Warnings,
 };
-use runestick::{Component, Context, Item, Source, SourceId, Span, Url};
+use runestick::{Component, Context, Item, Source, SourceId, Span};
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -45,7 +46,7 @@ pub(crate) enum LoadFileKind {
     Root,
     /// A loaded module, which inherits its root from the file it was loaded
     /// from.
-    Module { root: Option<Url> },
+    Module { root: Option<PathBuf> },
 }
 
 #[derive(Debug)]
@@ -134,7 +135,7 @@ impl<'a> Worker<'a> {
                     };
 
                     let root = match kind {
-                        LoadFileKind::Root => source.url().cloned(),
+                        LoadFileKind::Root => source.path().map(ToOwned::to_owned),
                         LoadFileKind::Module { root } => root,
                     };
 
@@ -329,7 +330,7 @@ pub(crate) enum Expanded {
 #[derive(Debug)]
 pub(crate) struct Index {
     /// The root URL of the file which caused this item to be indexed.
-    root: Option<Url>,
+    root: Option<PathBuf>,
     /// Item being built.
     item: Item,
     /// Path to index.
@@ -440,7 +441,7 @@ pub(crate) struct Macro {
     /// The kind of the macro.
     pub(crate) kind: MacroKind,
     /// The URL root at which the macro is being expanded.
-    pub(crate) root: Option<Url>,
+    pub(crate) root: Option<PathBuf>,
     /// The item path where the macro is being expanded.
     pub(crate) items: Items,
     /// The AST of the macro call causing the expansion.

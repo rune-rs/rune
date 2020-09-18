@@ -1,10 +1,11 @@
 use crate::{CompileError, CompileErrorKind};
-use runestick::{Component, Item, Source, Span, Url};
+use runestick::{Component, Item, Source, Span};
+use std::path::Path;
 
 /// A source loader.
 pub trait SourceLoader {
     /// Load the given URL.
-    fn load(&mut self, root: &Url, item: &Item, span: Span) -> Result<Source, CompileError>;
+    fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<Source, CompileError>;
 }
 
 /// A filesystem-based source loader.
@@ -18,25 +19,15 @@ impl FileSourceLoader {
 }
 
 impl SourceLoader for FileSourceLoader {
-    fn load(&mut self, root: &Url, item: &Item, span: Span) -> Result<Source, CompileError> {
-        if root.scheme() != "file" {
-            return Err(CompileError::new(
-                span,
-                CompileErrorKind::UnsupportedModuleRoot { url: root.clone() },
-            ));
-        }
-
-        let mut base = root.to_file_path().map_err(|_| {
-            CompileError::new(
-                span,
-                CompileErrorKind::UnsupportedModuleRoot { url: root.clone() },
-            )
-        })?;
+    fn load(&mut self, root: &Path, item: &Item, span: Span) -> Result<Source, CompileError> {
+        let mut base = root.to_owned();
 
         if !base.pop() {
             return Err(CompileError::new(
                 span,
-                CompileErrorKind::UnsupportedModuleRoot { url: root.clone() },
+                CompileErrorKind::UnsupportedModuleRoot {
+                    root: root.to_owned(),
+                },
             ));
         }
 

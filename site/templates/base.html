@@ -32,15 +32,15 @@
     <body>
       {% block header %}
         <header class="header">
-            <figure class="user-logo">
-                <a href="{{config.base_url}}" style="background-image: url({{config.base_url}}/img/{{config.extra.profile}}"></a>
-            </figure>
-    
-            <h2 class="site-title">{{config.title}}</h2>
-    
-            <div>{{config.description | markdown(inline=true) | safe }}</div>
+          <figure class="user-logo">
+              <a href="{{config.base_url}}" style="background-image: url({{config.base_url}}/img/{{config.extra.profile}}"></a>
+          </figure>
+  
+          <h2 class="site-title">{{config.title}}</h2>
+  
+          <div>{{config.description | markdown(inline=true) | safe }}</div>
 
-            {{ macros::nav() }}
+          {{ macros::nav() }}
         </header>
       {% endblock header %}
 

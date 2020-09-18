@@ -1,21 +1,18 @@
-use runestick::Span;
+use runestick::{SourceId, Span};
+use std::error;
+use std::fmt;
 use thiserror::Error;
 
 /// Compilation warning.
 #[derive(Debug, Clone, Copy)]
 pub struct Warning {
-    /// The id of the source where the id happened.
-    pub source_id: usize,
+    /// The id of the source where the warning happened.
+    pub source_id: SourceId,
     /// The kind of the warning.
     pub kind: WarningKind,
 }
 
 impl Warning {
-    /// Access the kind of the warning.
-    pub fn kind(&self) -> &WarningKind {
-        &self.kind
-    }
-
     /// Get the span of the warning.
     pub fn span(&self) -> Span {
         match &self.kind {
@@ -25,6 +22,18 @@ impl Warning {
             WarningKind::RemoveTupleCallParams { span, .. } => *span,
             WarningKind::UnecessarySemiColon { span, .. } => *span,
         }
+    }
+}
+
+impl fmt::Display for Warning {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.kind, f)
+    }
+}
+
+impl error::Error for Warning {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        self.kind.source()
     }
 }
 

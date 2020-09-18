@@ -11,14 +11,14 @@ use crate::{
 };
 use runestick::{
     Call, CompileMeta, CompileMetaKind, CompileSource, Hash, Item, Source, SourceId, Span, Type,
-    Url,
 };
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 pub(crate) struct Indexer<'a> {
     /// The root URL that the indexed file originated from.
-    pub(crate) root: Option<Url>,
+    pub(crate) root: Option<PathBuf>,
     /// Storage associated with the compilation.
     pub(crate) storage: Storage,
     pub(crate) loaded: &'a mut HashMap<Item, (SourceId, Span)>,
@@ -186,7 +186,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 },
                 source: Some(CompileSource {
                     span,
-                    url: self.source.url().cloned(),
+                    path: self.source.path().map(ToOwned::to_owned),
                     source_id: self.source_id,
                 }),
             };
@@ -209,7 +209,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 },
                 source: Some(CompileSource {
                     span,
-                    url: self.source.url().cloned(),
+                    path: self.source.path().map(ToOwned::to_owned),
                     source_id: self.source_id,
                 }),
             })?;

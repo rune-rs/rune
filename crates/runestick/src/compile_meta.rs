@@ -1,6 +1,7 @@
 use crate::collections::HashSet;
-use crate::{Hash, Item, SourceId, Span, Type, Url};
+use crate::{Hash, Item, SourceId, Span, Type};
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Metadata about a closure.
@@ -25,7 +26,7 @@ pub struct CompileSource {
     /// The span where the meta is declared.
     pub span: Span,
     /// The optional source id where the meta is declared.
-    pub url: Option<Url>,
+    pub path: Option<PathBuf>,
     /// The source id where the compile meta is defined.
     pub source_id: SourceId,
 }

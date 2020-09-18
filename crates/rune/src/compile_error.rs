@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::unit_builder::UnitBuilderError;
 use crate::{ParseError, ParseErrorKind, Spanned};
-use runestick::{CompileMeta, Item, SourceId, Span, Url};
+use runestick::{CompileMeta, Item, SourceId, Span};
 use std::error;
 use std::fmt;
 use std::io;
@@ -200,10 +200,10 @@ pub enum CompileErrorKind {
     #[error("cannot load modules using a source without an associated URL")]
     UnsupportedModuleSource,
     /// Encountered an unsupported URL when loading a module.
-    #[error("cannot load modules relative to `{url}`")]
+    #[error("cannot load modules relative to `{root}`")]
     UnsupportedModuleRoot {
-        /// The URL that was unsupported.
-        url: Url,
+        /// The Path that was unsupported.
+        root: PathBuf,
     },
     /// Encountered an unsupported Item when loading a module.
     #[error("cannot load module for `{item}`")]

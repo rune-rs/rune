@@ -1,8 +1,7 @@
 use crate::Span;
 use std::fs;
 use std::io;
-use std::path::Path;
-use url::Url;
+use std::path::{Path, PathBuf};
 
 /// A single source file.
 #[derive(Default, Debug, Clone)]
@@ -11,8 +10,8 @@ pub struct Source {
     name: String,
     /// The source string.
     source: String,
-    /// The (optional) path of a source file.
-    url: Option<Url>,
+    /// The path the source was loaded from.
+    path: Option<PathBuf>,
     /// The starting byte indices in the source code.
     line_starts: Vec<usize>,
 }
@@ -30,7 +29,7 @@ impl Source {
         Self {
             name: name.as_ref().to_owned(),
             source: source.to_owned(),
-            url: None,
+            path: None,
             line_starts,
         }
     }
@@ -40,17 +39,13 @@ impl Source {
         let name = path.display().to_string();
         let path = &path.canonicalize()?;
 
-        let url = url::Url::from_file_path(path).map_err(|_| {
-            io::Error::new(io::ErrorKind::Other, "path could not be converted to url")
-        })?;
-
         let source = fs::read_to_string(path)?;
         let line_starts = line_starts(&source).collect::<Vec<_>>();
 
         Ok(Self {
             name,
             source,
-            url: Some(url),
+            path: Some(path.to_owned()),
             line_starts,
         })
     }
@@ -76,13 +71,13 @@ impl Source {
     }
 
     /// Get the (optional) path of the source.
-    pub fn url(&self) -> Option<&Url> {
-        self.url.as_ref()
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
     }
 
     /// Get a mutable path.
-    pub fn url_mut(&mut self) -> &mut Option<Url> {
-        &mut self.url
+    pub fn path_mut(&mut self) -> &mut Option<PathBuf> {
+        &mut self.path
     }
 
     /// Convert the given offset to a utf-16 line and character.
@@ -116,6 +111,39 @@ impl Source {
         }
 
         Some((line, line_count))
+    }
+
+    /// Convert the given offset to a utf-16 line and character.
+    pub fn position_to_unicode_line_char(&self, offset: usize) -> (usize, usize) {
+        if offset == 0 {
+            return (0, 0);
+        }
+
+        let line = match self.line_starts.binary_search(&offset) {
+            Ok(exact) => exact,
+            Err(0) => return (0, 0),
+            Err(n) => n - 1,
+        };
+
+        let line_start = self.line_starts[line];
+
+        let rest = &self.source[line_start..];
+        let offset = offset - line_start;
+        let mut line_count = 0;
+
+        for (n, _) in rest.char_indices() {
+            if n == offset {
+                return (line, line_count);
+            }
+
+            if n > offset {
+                break;
+            }
+
+            line_count += 1;
+        }
+
+        (line, line_count)
     }
 }
 
