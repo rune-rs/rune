@@ -7,8 +7,12 @@
 <br>
 
 <div align="center">
-<a href="https://rune-rs.github.io/rune/">
-    <b>Read the Book 📖</b>
+<a href="https://rune-rs.github.io">
+    <b>Visit the site 🌐</b>
+</a>
+-
+<a href="https://rune-rs.github.io/bool/">
+    <b>Read the book 📖</b>
 </a>
 </div>
 

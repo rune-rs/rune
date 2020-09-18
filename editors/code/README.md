@@ -2,7 +2,7 @@
 
 <div align="center">
 <a href="https://rune-rs.github.io/rune/">
-    <b>Read the Book 📖</b>
+    <b>Read the book 📖</b>
 </a>
 </div>
 
