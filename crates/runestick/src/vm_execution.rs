@@ -1,3 +1,4 @@
+use crate::budget;
 use crate::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo};
 
 /// The execution environment for a virtual machine.
@@ -58,7 +59,7 @@ impl VmExecution {
             let len = self.vms.len();
             let vm = self.vm_mut()?;
 
-            match Self::run_for(vm, None)? {
+            match Self::run(vm)? {
                 VmHalt::Exited => (),
                 VmHalt::Awaited(awaited) => {
                     awaited.into_vm(vm).await?;
@@ -95,7 +96,7 @@ impl VmExecution {
             let len = self.vms.len();
             let vm = self.vm_mut()?;
 
-            match Self::run_for(vm, None)? {
+            match Self::run(vm)? {
                 VmHalt::Exited => (),
                 VmHalt::VmCall(vm_call) => {
                     vm_call.into_execution(self)?;
@@ -128,7 +129,7 @@ impl VmExecution {
         let len = self.vms.len();
         let vm = self.vm_mut()?;
 
-        match Self::run_for(vm, Some(1))? {
+        match budget::with(1, || Self::run(vm)).call()? {
             VmHalt::Exited => (),
             VmHalt::VmCall(vm_call) => {
                 vm_call.into_execution(self)?;
@@ -158,7 +159,7 @@ impl VmExecution {
         let len = self.vms.len();
         let vm = self.vm_mut()?;
 
-        match Self::run_for(vm, Some(1))? {
+        match budget::with(1, || Self::run(vm)).call()? {
             VmHalt::Exited => (),
             VmHalt::Awaited(awaited) => {
                 awaited.into_vm(vm).await?;
@@ -210,8 +211,8 @@ impl VmExecution {
     }
 
     #[inline]
-    fn run_for(vm: &mut Vm, limit: Option<usize>) -> Result<VmHalt, VmError> {
-        match vm.run_for(limit) {
+    fn run(vm: &mut Vm) -> Result<VmHalt, VmError> {
+        match vm.run() {
             Ok(reason) => Ok(reason),
             Err(error) => Err(error.into_unwinded(vm.unit(), vm.ip())),
         }

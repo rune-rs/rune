@@ -154,8 +154,9 @@ impl Stack {
         Ok(self.drain_stack_top(count)?.collect::<Vec<_>>())
     }
 
-    /// Pop a sub stack of the given size.
-    pub(crate) fn drain_stack_top(
+    /// Drain the top `count` elements of the stack in the order that they were
+    /// pushed, from bottom to top.
+    pub fn drain_stack_top(
         &mut self,
         count: usize,
     ) -> Result<impl DoubleEndedIterator<Item = Value> + '_, StackError> {

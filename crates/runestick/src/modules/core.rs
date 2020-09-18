@@ -5,7 +5,7 @@ use std::io;
 use std::io::Write as _;
 
 /// Construct the `std` module.
-pub fn module() -> Result<Module, ContextError> {
+pub fn module(io: bool) -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
     module.unit(&["unit"])?;
@@ -13,11 +13,13 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<char>()?;
     module.ty::<u8>()?;
 
-    module.function(&["print"], print_impl)?;
-    module.function(&["println"], println_impl)?;
-    module.function(&["panic"], panic_impl)?;
-    module.raw_fn(&["dbg"], dbg_impl)?;
+    if io {
+        module.function(&["print"], print_impl)?;
+        module.function(&["println"], println_impl)?;
+        module.raw_fn(&["dbg"], dbg_impl)?;
+    }
 
+    module.function(&["panic"], panic_impl)?;
     module.function(&["drop"], drop_impl)?;
     module.function(&["is_readable"], is_readable)?;
     module.function(&["is_writable"], is_writable)?;
@@ -66,15 +68,8 @@ fn dbg_impl(stack: &mut Stack, args: usize) -> Result<(), VmError> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
-    for _ in 0..args {
-        match stack.pop() {
-            Ok(value) => {
-                writeln!(stdout, "{:?}", value).map_err(VmError::panic)?;
-            }
-            Err(e) => {
-                writeln!(stdout, "{}", e).map_err(VmError::panic)?;
-            }
-        }
+    for value in stack.drain_stack_top(args)? {
+        writeln!(stdout, "{:?}", value).map_err(VmError::panic)?;
     }
 
     stack.push(Value::Unit);

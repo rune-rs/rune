@@ -57,6 +57,7 @@ mod access;
 mod any_obj;
 mod args;
 mod awaited;
+pub mod budget;
 mod bytes;
 mod call;
 mod compile_meta;

@@ -238,8 +238,16 @@ impl Context {
 
     /// Construct a new collection of functions with default packages installed.
     pub fn with_default_modules() -> Result<Self, ContextError> {
+        Self::with_config(true)
+    }
+
+    /// Construct a default set of modules with the given configuration.
+    ///
+    /// * `io` determines if we include I/O functions, like `dbg`, `print`, and
+    ///   `println`.
+    pub fn with_config(io: bool) -> Result<Self, ContextError> {
         let mut this = Self::new();
-        this.install(&crate::modules::core::module()?)?;
+        this.install(&crate::modules::core::module(io)?)?;
         this.install(&crate::modules::generator::module()?)?;
         this.install(&crate::modules::bytes::module()?)?;
         this.install(&crate::modules::string::module()?)?;
