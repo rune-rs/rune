@@ -30,6 +30,108 @@ impl Expander {
         })
     }
 
+    fn expand_union(
+        &mut self,
+        input: &syn::DeriveInput,
+        un: &syn::DataUnion,
+    ) -> Option<TokenStream> {
+        let inner = self.expand_named(&un.fields)?;
+
+        let ident = &input.ident;
+        let value = &self.ctx.value;
+        let vm_error = &self.ctx.vm_error;
+        let from_value = &self.ctx.from_value;
+
+        Some(quote! {
+            impl #from_value for #ident {
+                fn from_value(value: #value) -> Result<Self, #vm_error> {
+                    #inner
+                }
+            }
+        })
+    }
+
+    fn expand_enum(
+        &mut self,
+        input: &syn::DeriveInput,
+        en: &syn::DataEnum,
+    ) -> Option<TokenStream> {
+
+        let inner = self.expand_variants(&en.variants)?;
+
+        let ident = &input.ident;
+        let value = &self.ctx.value;
+        let vm_error = &self.ctx.vm_error;
+        let to_value = &self.ctx.to_value;
+
+        Some(quote! {
+            impl #to_value for #ident {
+                fn to_value(self) -> Result<#value, #vm_error> {
+                    #inner
+                }
+            }
+        })
+    }
+
+    fn expand_variants(&mut self, named: &syn::punctuated::Punctuated<syn::Variant, syn::Token![,]>) -> Option<TokenStream> {
+        let mut from_values = Vec::new();
+
+        for field in named {
+            let ident = &field.ident;
+            let _ = self.ctx.parse_field_attrs(&field.attrs)?;
+
+            let name = &syn::LitStr::new(&ident.to_string(), ident.span());
+
+            let from_value = &self.ctx.from_value;
+            let vm_error = &self.ctx.vm_error;
+            let vm_error_kind = &self.ctx.vm_error_kind;
+
+            let from_value = quote_spanned! {
+                field.span() => #from_value::from_value(value.clone())?
+            };
+
+            from_values.push(quote_spanned! {
+                field.span() =>
+                #ident: match object.get(#name) {
+                    Some(value) => #from_value,
+                    None => {
+                        return Err(#vm_error::from(#vm_error_kind::MissingDynamicStructField {
+                            target: std::any::type_name::<Self>(),
+                            name: #name,
+                        }));
+                    }
+                }
+            });
+        }
+
+        let object = &self.ctx.object;
+        let value = &self.ctx.value;
+        let vm_error = &self.ctx.vm_error;
+
+        Some(quote_spanned! {
+            named.span() =>
+            match value {
+                #value::Object(object) => {
+                    let object = object.borrow_ref()?;
+
+                    Ok(Self {
+                        #(#from_values),*
+                    })
+                }
+                #value::TypedObject(object) => {
+                    let object = object.borrow_ref()?;
+
+                    Ok(Self {
+                        #(#from_values),*
+                    })
+                }
+                actual => {
+                    Err(#vm_error::expected::<#object>(actual.type_info()?))
+                }
+            }
+        })
+    }
+
     /// Expand field decoding.
     fn expand_fields(&mut self, fields: &syn::Fields) -> Option<TokenStream> {
         match fields {
@@ -183,16 +285,14 @@ pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
             }
         }
         syn::Data::Enum(en) => {
-            expander.ctx.errors.push(syn::Error::new_spanned(
-                en.enum_token,
-                "not supported on enums",
-            ));
+            if let Some(expanded) = expander.expand_enum(input, en) {
+                return Ok(expanded);
+            }
         }
         syn::Data::Union(un) => {
-            expander.ctx.errors.push(syn::Error::new_spanned(
-                un.union_token,
-                "not supported on unions",
-            ));
+            if let Some(expanded) = expander.expand_union(input, un) {
+                return Ok(expanded);
+            }
         }
     }
 

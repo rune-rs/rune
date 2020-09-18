@@ -33,9 +33,9 @@ impl Expander {
     fn expand_union(
         &mut self,
         input: &syn::DeriveInput,
-        st: &syn::DataUnion,
+        un: &syn::DataUnion,
     ) -> Option<TokenStream> {
-        let inner = self.expand_named(&st.fields)?;
+        let inner = self.expand_named(&un.fields)?;
 
         let ident = &input.ident;
         let value = &self.ctx.value;
