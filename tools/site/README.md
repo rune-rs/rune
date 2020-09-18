@@ -1,3 +1,3 @@
-# sitebuild
+# site
 
-A utility which can only build the site on Linux
+A small utility to build the guts of https://rune-rs.github.io
