@@ -483,6 +483,15 @@ impl Index<ast::Expr> for Indexer<'_> {
             ast::Expr::LitTemplate(lit_template) => {
                 self.index(lit_template)?;
             }
+            ast::Expr::LitTuple(lit_tuple) => {
+                self.index(lit_tuple)?;
+            }
+            ast::Expr::LitVec(lit_vec) => {
+                self.index(lit_vec)?;
+            }
+            ast::Expr::LitObject(lit_object) => {
+                self.index(lit_object)?;
+            }
             // NB: literals have nothing to index, they don't export language
             // items.
             ast::Expr::LitUnit(..) => (),
@@ -490,11 +499,8 @@ impl Index<ast::Expr> for Indexer<'_> {
             ast::Expr::LitByte(..) => (),
             ast::Expr::LitChar(..) => (),
             ast::Expr::LitNumber(..) => (),
-            ast::Expr::LitObject(..) => (),
             ast::Expr::LitStr(..) => (),
             ast::Expr::LitByteStr(..) => (),
-            ast::Expr::LitTuple(..) => (),
-            ast::Expr::LitVec(..) => (),
             // NB: macros have nothing to index, they don't export language
             // items.
             ast::Expr::MacroCall(macro_call) => {
@@ -950,6 +956,47 @@ impl Index<ast::LitTemplate> for Indexer<'_> {
                     self.index(&**expr)?;
                 }
                 ast::TemplateComponent::String(..) => (),
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Index<ast::LitTuple> for Indexer<'_> {
+    fn index(&mut self, lit_tuple: &ast::LitTuple) -> CompileResult<()> {
+        let span = lit_tuple.span();
+        log::trace!("LitTuple => {:?}", self.source.source(span));
+
+        for (expr, _) in &lit_tuple.items {
+            self.index(expr)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Index<ast::LitVec> for Indexer<'_> {
+    fn index(&mut self, lit_vec: &ast::LitVec) -> CompileResult<()> {
+        let span = lit_vec.span();
+        log::trace!("LitVec => {:?}", self.source.source(span));
+
+        for expr in &lit_vec.items {
+            self.index(expr)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Index<ast::LitObject> for Indexer<'_> {
+    fn index(&mut self, lit_object: &ast::LitObject) -> CompileResult<()> {
+        let span = lit_object.span();
+        log::trace!("LitObject => {:?}", self.source.source(span));
+
+        for assign in &lit_object.assignments {
+            if let Some((_, expr)) = &assign.assign {
+                self.index(expr)?;
             }
         }
 

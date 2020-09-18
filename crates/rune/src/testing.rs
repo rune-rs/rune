@@ -10,8 +10,10 @@ pub use crate::WarningKind::*;
 use crate::{Errors, Warnings};
 pub use futures_executor::block_on;
 pub use runestick::VmErrorKind::*;
-pub use runestick::{CompileMeta, CompileMetaKind, Function, IntoComponent, Span, Value};
-pub use runestick::{ContextError, VmError};
+pub use runestick::{
+    CompileMeta, CompileMetaKind, ContextError, FromValue, Function, IntoComponent, Span, ToValue,
+    Value, VecTuple, VmError,
+};
 use runestick::{Item, Source, Unit};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -57,7 +59,7 @@ where
     N: IntoIterator,
     N::Item: IntoComponent,
     A: runestick::Args,
-    T: runestick::FromValue,
+    T: FromValue,
 {
     let context = runestick::Context::with_default_modules().map_err(RunError::ContextError)?;
     let (unit, _) = compile_source(&context, &source).map_err(RunError::Errors)?;

@@ -1,3 +1,5 @@
+use crate::testing::*;
+
 #[test]
 fn test_nested_closures() {
     assert_eq! {
@@ -162,4 +164,53 @@ fn test_nested_async_closure() {
             "#
         }
     };
+}
+
+#[test]
+fn test_closure_in_lit_vec() -> runestick::Result<()> {
+    let ret = rune! {
+        VecTuple<(i64, Function, Function, i64)> => r#"fn main() { let a = 4; [0, || 2, || 4, 3] }"#
+    };
+
+    let (start, first, second, end) = ret.0;
+    assert_eq!(0, start);
+    assert_eq!(2, first.call::<_, i64>(())?);
+    assert_eq!(4, second.call::<_, i64>(())?);
+    assert_eq!(3, end);
+    Ok(())
+}
+
+#[test]
+fn test_closure_in_lit_tuple() -> runestick::Result<()> {
+    let ret = rune! {
+        (i64, Function, Function, i64) => r#"fn main() { let a = 4; (0, || 2, || a, 3) }"#
+    };
+
+    let (start, first, second, end) = ret;
+    assert_eq!(0, start);
+    assert_eq!(2, first.call::<_, i64>(())?);
+    assert_eq!(4, second.call::<_, i64>(())?);
+    assert_eq!(3, end);
+    Ok(())
+}
+
+#[test]
+fn test_closure_in_lit_object() -> runestick::Result<()> {
+    #[derive(FromValue)]
+    struct Proxy {
+        a: i64,
+        b: Function,
+        c: Function,
+        d: i64,
+    }
+
+    let proxy = rune! {
+        Proxy => r#"fn main() { let a = 4; #{a: 0, b: || 2, c: || a, d: 3} }"#
+    };
+
+    assert_eq!(0, proxy.a);
+    assert_eq!(2, proxy.b.call::<_, i64>(())?);
+    assert_eq!(4, proxy.c.call::<_, i64>(())?);
+    assert_eq!(3, proxy.d);
+    Ok(())
 }
