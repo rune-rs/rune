@@ -429,44 +429,63 @@ nav.pagination {
     border: 1px solid $accent;
 }
 
-#play-editor {
-    display: block;
-    width: 100%;
-    height: 400px;
-    font-size: 20px;
+.rune {
+    margin-top: 10px;
     margin-bottom: 10px;
 
-    .error {
-        position: absolute;
-        background-color: $error-color;
+    &-editor {
+        display: block;
+        width: 100%;
+        font-size: 14px;
+
+        &.big {
+            font-size: 20px;
+        }
+
+        .error {
+            position: absolute;
+            background-color: $error-color;
+        }
+    
+        .warning {
+            position: absolute;
+            border-bottom: 2px solid $warning-color;
+        }
     }
 
-    .warning {
-        position: absolute;
-        border-bottom: 2px solid $warning-color;
-    }
-}
+    &-console {
+        display: block;
+        background-color: black;
+        padding: 6px;
+        font-size: 14px;
 
-#play-output {
-    display: block;
-    color: $accent2;
-    background-color: black;
-    font-size: 20px;
-    padding: 10px;
-    margin-bottom: 10px;
+        &.big {
+            font-size: 20px;
+            padding: 10px;
+        }
+    }
+    
+    &-output {
+        font-family: monospace;
+        color: $accent2;
+        white-space: pre;
+    }
+
+    &-title {
+        font-family: monospace;
+        color: $accent2;
+        margin: 0;
+        margin-bottom: 5px;
+    }
+
+    &-footnote {
+        padding: 4px 0px;
+        font-size: 0.7em;
+        text-align: center;
+    }
 
     .hidden {
         display: none;
     }
-
-    .title {
-        color: $accent2;
-        margin: 0;
-        margin-bottom: 1em;
-    }
-
-    .content {
-        font-family: monospace;
-        white-space: pre;
-    }
 }
+
