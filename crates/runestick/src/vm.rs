@@ -1,3 +1,4 @@
+use crate::budget;
 use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
@@ -2060,8 +2061,12 @@ impl Vm {
     }
 
     /// Evaluate a single instruction.
-    pub(crate) fn run_for(&mut self, mut limit: Option<usize>) -> Result<VmHalt, VmError> {
+    pub(crate) fn run(&mut self) -> Result<VmHalt, VmError> {
         loop {
+            if !budget::take() {
+                return Ok(VmHalt::Limited);
+            }
+
             let inst = *self
                 .unit
                 .instruction_at(self.ip)
@@ -2295,14 +2300,6 @@ impl Vm {
             }
 
             self.advance();
-
-            if let Some(limit) = &mut limit {
-                if *limit <= 1 {
-                    return Ok(VmHalt::Limited);
-                }
-
-                *limit -= 1;
-            }
         }
     }
 
