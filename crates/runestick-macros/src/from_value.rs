@@ -62,11 +62,11 @@ impl Expander {
         let ident = &input.ident;
         let value = &self.ctx.value;
         let vm_error = &self.ctx.vm_error;
-        let to_value = &self.ctx.to_value;
+        let from_value = &self.ctx.from_value;
 
         Some(quote! {
-            impl #to_value for #ident {
-                fn to_value(self) -> Result<#value, #vm_error> {
+            impl #from_value for #ident {
+                fn from_value(value: #value) -> Result<Self, #vm_error> {
                     #inner
                 }
             }
