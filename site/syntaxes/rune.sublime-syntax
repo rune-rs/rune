@@ -1,0 +1,1430 @@
+%YAML 1.2
+---
+# http://www.sublimetext.com/docs/3/syntax.html
+name: Rune
+file_extensions:
+  - rn
+scope: source.rune
+variables:
+  non_raw_ident: '[[:alpha:]][_[:alnum:]]*|_[_[:alnum:]]+'
+  identifier: '(?:(?:r\#)?{{non_raw_ident}})'
+  camel_ident: '\b_*[A-Z][a-zA-Z0-9_]*[a-z][a-zA-Z0-9_]*\b'
+  lifetime: '''(?:_|{{non_raw_ident}})(?!\'')\b'
+  escaped_byte: '\\([nrt0\"''\\]|x\h{2})'
+  escaped_char: '\\([nrt0\"''\\]|x[0-7]\h|u\{(?:\h_*){1,6}\})'
+  int_suffixes: '[iu](?:8|16|32|64|128|size)'
+  float_suffixes: 'f(32|64)'
+  dec_literal: '[0-9](?:[0-9_])*'
+  float_exponent: '[eE][+-]?[0-9_]*[0-9][0-9_]*'
+contexts:
+  main:
+    - include: statements
+
+  prototype:
+    # Macro metavariables. Ideally we would do this as a with_prototype,
+    # however then we run into infinite recursion. It needs to be a prototype
+    # since macro_rules! allows constructing new code, thus the metavariables
+    # can be inserted in just about any position in the syntax.
+    - match: '\${{identifier}}'
+      scope: variable.other.rune
+
+  statements:
+
+    - include: visibility
+
+    - match: ';'
+      scope: punctuation.terminator.rune
+
+    - match: '(''(?:{{non_raw_ident}}))\s*(:)'
+      captures:
+        1: entity.name.label.rune
+        2: punctuation.separator.rune
+
+    - include: lifetime
+
+    - match: '\b(mod)\s+({{identifier}})\b'
+      captures:
+        1: storage.type.module.rune
+        2: entity.name.module.rune
+      push:
+        - meta_scope: meta.module.rune
+        - match: ';'
+          set: after-operator
+        - include: statements-block
+
+    - match: '\b({{identifier}})\s*(=)\s*(?=\|)'
+      captures:
+        1: entity.name.function.rune
+        2: keyword.operator.rune
+      push: closure
+
+    - match: '\b(fn)\s+(?={{identifier}})'
+      captures:
+        1: storage.type.function.rune
+      push: fn-definition
+
+    - match: '\bstruct\b'
+      scope: storage.type.struct.rune
+      push: struct-identifier
+
+    - match: '\bunion\b'
+      scope: storage.type.union.rune
+      push: union-identifier
+
+    - match: '\b(type)\s+({{identifier}})\b'
+      captures:
+        1: storage.type.type.rune
+        2: entity.name.type.rune
+      push:
+      - match: '=(?!=)'
+        scope: keyword.operator.rune
+        push: after-operator
+      - match: '(?=\S)'
+        pop: true
+
+    - match: '\b(trait)\s+({{identifier}})\b'
+      captures:
+        1: storage.type.trait.rune
+        2: entity.name.trait.rune
+      push:
+        - meta_scope: meta.trait.rune
+        - match: '(?=:)'
+          push: impl-where
+        - match: '(?=\bwhere\b)'
+          push: impl-where
+        - match: '(?=<)'
+          push: generic-angles
+        - include: statements-block
+
+    - match: '\bimpl\b'
+      scope: storage.type.impl.rune
+      push: impl-definition
+
+    - match: '\benum\b'
+      scope: storage.type.enum.rune
+      push: enum-identifier
+
+    - include: raw-pointer
+
+    # `const` in a function header has a different scope from `const` values.
+    - match: '\b(const)\s+(?=unsafe|extern|fn)'
+      captures:
+        1: storage.modifier.rune
+
+    - match: '\b(const)\s+({{identifier}})'
+      captures:
+        1: storage.type.rune
+        2: entity.name.constant.rune
+
+    - match: '\b(static)\s+(?:(mut)\s+)?({{identifier}})'
+      captures:
+        1: storage.type.rune
+        2: storage.modifier.rune
+        3: entity.name.constant.rune
+
+    - match: '\b(break|continue)\b(?:\s+(''{{non_raw_ident}}))?'
+      captures:
+        1: keyword.control.rune
+        2: entity.name.label.rune
+
+    - include: type
+
+    - match: '\b(macro_rules!)\s+({{identifier}})\b'
+      captures:
+        1: support.function.rune
+        2: entity.name.macro.rune
+      push: macro-block
+
+    - include: comments
+    - include: attribute
+    - include: strings
+    - include: chars
+
+    # macros which take format specs as the only parameter
+    - match: '\b((?:format(?:_args)?|e?print(?:ln)?|panic|unreachable|unimplemented)!)\s*(\()'
+      captures:
+        1: support.macro.rune
+        2: meta.group.rune punctuation.definition.group.begin.rune
+      push:
+        - meta_content_scope: meta.group.rune
+        - include: comments
+        - include: format-string
+        - include: format-raw-string
+        - match: '(?=\S)'
+          set: group-tail
+
+    # macros which take format specs as the second parameter
+    - match: '\b((?:write(?:ln)?|(?:debug_)?assert)!)\s*(\()'
+      captures:
+        1: support.macro.rune
+        2: meta.group.rune punctuation.definition.group.begin.rune
+      push:
+        - meta_scope: meta.group.rune
+        - include: comments
+        - match: ','
+          set:
+            - meta_content_scope: meta.group.rune
+            - include: format-string
+            - include: format-raw-string
+            - match: '(?=\S)'
+              set: group-tail
+        - include: group-tail
+
+    # macros which take format specs as the third parameter
+    # - match: '\b((?:assert_eq|assert_ne|debug_assert_eq|debug_assert_ne)!)\s*(\()'
+    # is more performant as the below
+    # - match: '\b((?:debug_)?assert_(?:eq|ne)!)\s*(\()'
+
+    - match: '\b{{identifier}}!(?=\s*(\(|\{|\[))'
+      scope: support.macro.rune
+
+    - include: support-type
+
+    - include: basic-identifiers
+    - include: numbers
+
+    - match: '(?=\{)'
+      push: block
+
+    - match: '(?=\()'
+      push: group
+
+    - match: '\['
+      scope: punctuation.definition.group.begin.rune
+      push:
+        - meta_scope: meta.group.rune
+        - match: '\]'
+          scope: punctuation.definition.group.end.rune
+          pop: true
+        - include: statements
+
+    - include: return-type
+    - include: symbols
+    - include: keywords
+
+    - match: '\b[[:lower:]_][[:lower:][:digit:]_]*(?=\()'
+      scope: support.function.rune
+
+    - match: '{{identifier}}'
+
+  visibility:
+    - match: '\b(pub)\s*(\()'
+      captures:
+        1: storage.modifier.rune
+        2: punctuation.definition.group.begin.rune
+      push:
+        - include: comments
+        - match: '\)'
+          scope: punctuation.definition.group.end.rune
+          pop: true
+        - match: '(crate|in|self|super)'
+          scope: keyword.other.rune
+        - match: '::'
+          scope: meta.path.rune
+        - match: '{{identifier}}'
+          scope: meta.path.rune
+    - match: '\bpub\b'
+      scope: storage.modifier.rune
+
+  attribute:
+    - match: '#!?\['
+      push:
+        # https://github.com/sublimehq/Packages/issues/709#issuecomment-266835130
+        - meta_scope: meta.annotation.rune
+        - include: statements
+        - match: '\]'
+          pop: true
+
+  block:
+    - match: '\}'
+      scope: meta.block.rune punctuation.definition.block.end.rune
+      pop: true
+    - match: '\{'
+      scope: punctuation.definition.block.begin.rune
+      push: [block-body, try-closure]
+
+  block-body:
+    - meta_scope: meta.block.rune
+    - match: '(?=\})'
+      pop: true
+    - include: statements
+    - include: attribute
+
+  group:
+    - match: '\)'
+      scope: meta.group.rune punctuation.definition.group.end.rune
+      pop: true
+    - match: '\('
+      scope: punctuation.definition.group.begin.rune
+      push: [group-body, try-closure]
+
+  group-body:
+    - meta_scope: meta.group.rune
+    - match: '(?=\))'
+      pop: true
+    - include: statements
+
+  group-tail:
+    - meta_scope: meta.group.rune
+    - match: '\)'
+      scope: punctuation.definition.group.end.rune
+      pop: true
+    - include: statements
+
+  after-operator:
+    - match: '(?=<)'
+      set: generic-angles
+    - include: try-closure
+
+  try-closure:
+    - match: '\s*(?=\|)'
+      set: closure
+    # Exit the context if we didn't find a closure
+    - match: '(?=\S)'
+      pop: true
+
+  support-type:
+    - match: '(Vec|Option|Result|BTreeMap|HashMap|Box|Rc|Arc|AsRef|AsMut|Into|From)\s*(?=<)'
+      scope: support.type.rune
+      push: generic-angles
+    - match: '[?]?(?=\bSized\b)'
+      scope: keyword.operator.rune
+    - match: '[!]?(?=\bSync|Send\b)'
+      scope: keyword.operator.rune
+    - match: \b(Copy|Send|Sized|Sync|Drop|Fn|FnMut|FnOnce|Box|ToOwned|Clone|PartialEq|PartialOrd|Eq|Ord|AsRef|AsMut|Into|From|Default|Iterator|Extend|IntoIterator|DoubleEndedIterator|ExactSizeIterator|Option|Some|None|Result|Ok|Err|SliceConcatExt|String|ToString|Vec)\b
+      scope: support.type.rune
+
+  return-type:
+    - match: '\bimpl\b'
+      scope: storage.type.impl.rune
+      push:
+        - include: comments
+        - include: impl-generic
+        - match: '(?=\S)'
+          pop: true
+    - match: '->'
+      scope: punctuation.separator.rune
+      push:
+        - meta_scope: meta.function.return-type.rune
+        - match: '(?=\s*\{|\bwhere\b)'
+          pop: true
+        - match: '(?=<)'
+          push: generic-angles
+        - include: type-any-identifier
+        - match: '{{identifier}}'
+        # Escape for incomplete expression
+        - match: '(?=\S)'
+          pop: true
+
+  pattern-param:
+    - include: comments
+    - match: '&'
+      scope: keyword.operator.rune
+    - match: \b(mut|ref)\b
+      scope: storage.modifier.rune
+    - match: '@'
+      scope: keyword.operator.rune
+    - include: lifetime
+    - match: '\b{{identifier}}\b(?!\s*(?:::|\{|\[|\())'
+      scope: variable.parameter.rune
+
+    - match: '\{'
+      # Struct pattern.
+      scope: punctuation.section.block.begin.rune
+      push:
+        - meta_scope: meta.block.rune
+        - match: '\}'
+          scope: punctuation.section.block.end.rune
+          pop: true
+        - match: '(\d+)\s*(:)'
+          # Tuple struct field specifier.
+          captures:
+            1: constant.numeric.integer.decimal.rune
+            2: punctuation.separator.rune
+        - match: '{{identifier}}\s*(:)'
+          # Struct field specifier.
+          captures:
+            1: punctuation.separator.rune
+        - match: '\.\.'
+          scope: keyword.operator.rune
+        - include: pattern-param
+
+    - match: '\('
+      # Tuple or tuple struct pattern.
+      scope: punctuation.section.group.begin.rune
+      push:
+        - meta_scope: meta.group.rune
+        - match: '\)'
+          scope: punctuation.section.group.end.rune
+          pop: true
+        - match: '\.\.'
+          scope: keyword.operator.rune
+        - include: pattern-param
+
+    - match: '\['
+      # Slice pattern.
+      scope: punctuation.section.brackets.begin.rune
+      push:
+        - meta_scope: meta.brackets.rune
+        - match: '\]'
+          scope: punctuation.section.brackets.end.rune
+          pop: true
+        - include: pattern-param
+
+    # Path for struct patterns.
+    - match: '\bself\b|\bsuper\b'
+      scope: keyword.other.rune
+    - match: '\b{{identifier}}\b'
+    - match: '::'
+
+    - match: ':(?!:)'
+      # Type
+      scope: punctuation.separator.rune
+      push:
+        - match: '(?=,|\)|\]|\}|\|)'
+          pop: true
+        - include: type-any-identifier
+
+  closure:
+    - meta_content_scope: meta.function.closure.rune
+    - match: '\|'
+      scope: punctuation.definition.parameters.begin.rune
+      set: [closure-return, closure-parameters]
+
+  closure-parameters:
+    - meta_scope: meta.function.parameters.rune
+    - match: '\|'
+      scope: punctuation.definition.parameters.end.rune
+      pop: true
+    - include: pattern-param
+    # If the user has just typed a |, exit the params
+    # scope as soon as we hit something that it not a
+    # valid part so the whole rest of the document isn't
+    # highlighted using the params scope
+    - match: '(?=[=};)\]])'
+      pop: true
+
+  closure-return:
+    - meta_content_scope: meta.function.closure.rune
+    - include: return-type
+    - match: (?=\S)
+      set: closure-body
+
+  closure-body:
+    - match: '(?=\{)'
+      set: closure-explicit-body
+    - match: (?=\S)
+      set:
+        - meta_scope: meta.function.closure.rune
+        - match: '(?=[};)\]\n])'
+          pop: true
+        - include: statements
+
+  closure-explicit-body:
+    - meta_scope: meta.function.closure.rune
+    - include: block
+
+  type:
+    - match: '{{identifier}}(?=<)'
+      push: generic-angles
+    - match: \b(Self|{{int_suffixes}}|{{float_suffixes}}|bool|char|str)\b
+      scope: storage.type.rune
+    # stdsimd types
+    - match: |-
+        (?x)
+        \b(?:
+          [ium]8x(?:2|4|8|16|32) | [iu]8x64   |
+          [ium]16x(?:2|4|8|16)   | [iu]16x32  | # f16xN types might come later
+          [iumf]32x(?:2|4|8)     | [iuf]32x16 |
+          [iumf]64x(?:2|4)       | [iuf]64x8  |
+          m1x(?:64|32|16|8)                   | # 512-bit masks
+          __m(?:64|128|256)[di]? # __m512 should come later
+        )\b
+      scope: storage.type.rune
+    - match: '\bdyn\b(?!\s*::)(?=\s*(?:\(|{{lifetime}}|{{identifier}}))'
+      scope: storage.type.trait.rune
+
+  generic-angles:
+    - meta_scope: meta.generic.rune
+    # -> to cover https://doc.rune-lang.org/std/boxed/trait.FnBox.html
+    - include: support-type
+    - match: '>'
+      scope: punctuation.definition.generic.end.rune
+      pop: true
+    - match: '<'
+      scope: punctuation.definition.generic.begin.rune
+      push: generic-angles-contents
+    # Alert the user of a broken generic construct
+    - match: '(?=\S)'
+      scope: invalid.illegal.rune
+      pop: true
+
+  generic-angles-contents:
+    - include: comments
+    - include: attribute
+    - include: type-slice
+    - match: '(?=>)'
+      pop: true
+    - match: '<'
+      scope: punctuation.definition.generic.begin.rune
+      push:
+        - match: '>'
+          scope: punctuation.definition.generic.begin.rune
+          pop: true
+        - include: generic-angles-contents
+    - include: type-any-identifier
+    - match: '{{identifier}}'
+    - match: ':|,'
+      scope: punctuation.separator.rune
+    - match: '\+|\bas\b|='
+      scope: keyword.operator.rune
+    - match: '(?=\S)'
+      scope: invalid.illegal.rune
+      pop: true
+
+  type-any-identifier:
+    - include: comments
+    - include: support-type
+    - include: return-type
+    - match: '&'
+      scope: keyword.operator.rune
+    - include: raw-pointer
+    - match: \b(mut|ref|const|unsafe)\b
+      scope: storage.modifier.rune
+    - match: \b(fn)\b\s*(\()
+      captures:
+        1: storage.type.function.rune
+        2: meta.group.rune punctuation.definition.group.begin.rune
+      push:
+        - meta_content_scope: meta.group.rune
+        - match: \)
+          scope: meta.group.rune punctuation.definition.group.end.rune
+          set:
+            - include: return-type
+            - match: '(?=\S)'
+              pop: true
+        - include: type-any-identifier
+    - include: lifetime
+    - match: '\b([[:upper:]]|_*[[:upper:]][[:alnum:]_]*[[:lower:]][[:alnum:]_]*)\b::'
+      scope: meta.path.rune storage.type.rune
+      captures:
+        1: storage.type.rune
+    - match: '{{identifier}}::'
+      scope: meta.path.rune
+    - match: '::(?={{identifier}})'
+      scope: meta.path.rune
+    - match: '(?=<)'
+      push: generic-angles
+    - match: '\('
+      scope: punctuation.definition.type.begin.rune
+      push:
+        - match: '\)'
+          scope: punctuation.definition.type.end.rune
+          pop: true
+        - include: type-any-identifier
+    - match: \bextern\b
+      scope: keyword.other.rune
+      push:
+        - include: strings
+        - match: '(?=\S)'
+          pop: true
+    - include: hrtb
+    - include: type
+    - include: type-slice
+    - match: '\b_\b'
+      scope: keyword.operator.rune
+    - match: '!'
+      scope: keyword.operator.rune
+    - match: '{{identifier}}'
+
+  raw-pointer:
+    - match: '\*\s*(?:const|mut)\b'
+      scope: storage.modifier.rune
+
+  hrtb:
+    - match: \bfor\b
+      scope: keyword.other.rune
+      push:
+        - match: '(?=<)'
+          push: generic-angles
+        - include: type-any-identifier
+        - match: '&'
+          scope: keyword.operator.rune
+        - include: lifetime
+        - match: '(?=\S)'
+          pop: true
+
+  type-slice:
+    - match: '\['
+      scope: punctuation.definition.group.begin.rune
+      push:
+        - match: '\]'
+          scope: punctuation.definition.group.end.rune
+          pop: true
+        - include: type-any-identifier
+
+  struct-identifier:
+    - meta_scope: meta.struct.rune
+    - include: comments
+    - match: '{{identifier}}(?=<)'
+      scope: entity.name.struct.rune
+      set:
+        - meta_scope: meta.struct.rune meta.generic.rune
+        - match: '(?=<)'
+          push: generic-angles
+        - match: ''
+          set: struct-body
+    - match: '{{identifier}}'
+      scope: entity.name.struct.rune
+      set: struct-body
+    - match: '(?=\S)'
+      # Abort on invalid character.
+      pop: true
+
+  struct-body:
+    - meta_scope: meta.struct.rune
+    - include: comments
+    - match: '(?=\bwhere\b)'
+      push: impl-where
+    - match: '(?=\()'
+      push: struct-tuple
+    - match: '(?=\{)'
+      set: struct-classic
+    - match: '(?=\S)'
+      # Semicolon is valid here, others should just abort.
+      pop: true
+
+  struct-tuple:
+    - meta_scope: meta.struct.rune
+    - match: '\)'
+      scope: punctuation.definition.group.end.rune
+      pop: true
+    - match: '\('
+      scope: punctuation.definition.group.begin.rune
+      push:
+        - match: '(?=\))'
+          pop: true
+        - meta_scope: meta.group.rune
+        - include: comments
+        - include: visibility
+        - include: type-any-identifier
+
+  struct-classic:
+    - meta_scope: meta.struct.rune
+    - match: '\}'
+      scope: meta.block.rune punctuation.definition.block.end.rune
+      pop: true
+    - match: '\{'
+      scope: punctuation.definition.block.begin.rune
+      push: struct-classic-body
+    - match: '(?=\S)'
+      # Abort for an invalid match.
+      pop: true
+
+  struct-classic-body:
+    - meta_scope: meta.block.rune
+    - match: '(?=\})'
+      pop: true
+    - include: comments
+    - include: attribute
+    - include: visibility
+    - match: '{{identifier}}(?=\s*:)'
+      scope: variable.other.member.rune
+      push:
+        - match: ',|(?=\})'
+          pop: true
+        - include: comments
+        - match: ':'
+          scope: punctuation.separator.rune
+        - include: type-any-identifier
+    - match: '(?=\S)'
+      # Abort for an invalid match.
+      pop: true
+
+  union-identifier:
+    - meta_scope: meta.union.rune
+    - include: comments
+    - match: '{{identifier}}(?=<)'
+      scope: entity.name.union.rune
+      set:
+        - meta_scope: meta.union.rune meta.generic.rune
+        - match: '(?=<)'
+          push: generic-angles
+        - match: ''
+          set: union-body
+    - match: '{{identifier}}'
+      scope: entity.name.union.rune
+      set: union-body
+
+  union-body:
+    - meta_scope: meta.union.rune
+    - include: comments
+    - match: '(?=\bwhere\b)'
+      push: impl-where
+    - match: '\{'
+      scope: punctuation.definition.block.begin.rune
+      push: struct-classic-body
+    - match: '\}'
+      scope: meta.block.rune punctuation.definition.block.end.rune
+      pop: true
+    - match: '(?=;)'
+      pop: true
+
+  enum-identifier:
+    - meta_scope: meta.enum.rune
+    - include: comments
+    - match: '{{identifier}}(?=<)'
+      scope: entity.name.enum.rune
+      set:
+        - meta_scope: meta.enum.rune meta.generic.rune
+        - match: '(?=<)'
+          push: generic-angles
+        - match: ''
+          set: enum-maybe-where
+    - match: '{{identifier}}'
+      scope: entity.name.enum.rune
+      set: enum-maybe-where
+    - match: '(?=\S)'
+      # Abort on invalid character.
+      pop: true
+
+  enum-maybe-where:
+    - meta_scope: meta.enum.rune
+    - include: comments
+    - match: '(?=\bwhere\b)'
+      push: impl-where
+    - match: '\{'
+      scope: punctuation.definition.block.begin.rune
+      set: enum-body
+    - match: '(?=\S)'
+      # Abort on invalid character.
+      pop: true
+
+  enum-body:
+    - meta_scope: meta.enum.rune
+    - include: comments
+    - include: attribute
+    - match: '\}'
+      scope: punctuation.definition.block.end.rune
+      pop: true
+    - match: '\b[[:upper:]_][[:upper:][:digit:]_]*\b'
+      scope: constant.other.rune
+      push: enum-variant-type
+    - match: '{{camel_ident}}'
+      scope: storage.type.source.rune
+      push: enum-variant-type
+    - match: '{{identifier}}'
+      push: enum-variant-type
+
+  enum-variant-type:
+    - include: comments
+    - match: '(?=\})'
+      pop: true
+    - match: ','
+      pop: true
+    - match: '='
+      set: enum-discriminant
+    - match: '(?=\()'
+      push: struct-tuple
+    - match: '(?=\{)'
+      push: struct-classic
+
+  enum-discriminant:
+    - match: ','
+      pop: true
+    - match: '(?=\})'
+      pop: true
+    # This is just constant-expression, but we don't have that defined.
+    - include: statements
+
+  macro-block:
+    - meta_scope: meta.macro.rune
+    - include: comments
+    - match: '\{'
+      scope: punctuation.section.block.begin.rune
+      set:
+        - meta_scope: meta.macro.rune
+        - match: '\}'
+          scope: punctuation.section.block.end.rune
+          pop: true
+        - include: macro-block-contents
+
+    # Note: ) and ] require a trailing semicolon, but this
+    # does not check for that.
+    - match: '\('
+      scope: punctuation.section.block.begin.rune
+      set:
+        - meta_scope: meta.macro.rune
+        - match: '\)'
+          scope: punctuation.section.block.end.rune
+          pop: true
+        - include: macro-block-contents
+
+    - match: '\['
+      scope: punctuation.section.block.begin.rune
+      set:
+        - meta_scope: meta.macro.rune
+        - match: '\]'
+          scope: punctuation.section.block.end.rune
+          pop: true
+        - include: macro-block-contents
+
+  macro-block-contents:
+    # Macro block consists of a series of rules separated by semicolon
+    # (trailing semicolon is optional).
+    #
+    # A rule is: BRACKET matchers BRACKET => BRACKET transcribers BRACKET
+    # where BRACKET needs to be matched () or [] or {}
+    - include: comments
+    - match: '\{'
+      scope: punctuation.section.block.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: meta.macro.matchers.rune
+        - match: '\}'
+          scope: punctuation.section.block.end.rune
+          set: macro-rule-sep
+        - include: macro-matchers
+
+    - match: '\('
+      scope: punctuation.section.block.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: meta.macro.matchers.rune
+        - match: '\)'
+          scope: punctuation.section.block.end.rune
+          set: macro-rule-sep
+        - include: macro-matchers
+
+    - match: '\['
+      scope: punctuation.section.block.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: meta.macro.matchers.rune
+        - match: '\]'
+          scope: punctuation.section.block.end.rune
+          set: macro-rule-sep
+        - include: macro-matchers
+
+  macro-matchers:
+    - include: comments
+    - match: '\('
+      scope: punctuation.section.block.begin.rune
+      push:
+        - meta_include_prototype: false
+        - match: '\)'
+          scope: punctuation.section.block.end.rune
+          pop: true
+        - include: macro-matchers
+
+    - match: '\['
+      scope: punctuation.section.block.begin.rune
+      push:
+        - meta_include_prototype: false
+        - match: '\]'
+          scope: punctuation.section.block.end.rune
+          pop: true
+        - include: macro-matchers
+
+    - match: '\{'
+      scope: punctuation.section.block.begin.rune
+      push:
+        - meta_include_prototype: false
+        - match: '\}'
+          scope: punctuation.section.block.end.rune
+          pop: true
+        - include: macro-matchers
+
+    - match: '(\$\s*{{identifier}})\s*(:)\s*(ident|path|expr|ty|pat|stmt|block|item|meta|tt|lifetime|vis|literal)'
+      captures:
+        1: variable.parameter.rune
+        2: punctuation.separator.rune
+        3: storage.type.rune
+
+    - match: '(\$)\s*(\()'
+      # Kleene operator.
+      captures:
+        1: keyword.operator.rune
+        2: punctuation.section.group.begin.rune
+      push:
+        - meta_include_prototype: false
+        - match: '(\))\s*[^?*+]*\s*([?*+])'
+          captures:
+            1: punctuation.definition.group.end.rune
+            2: keyword.operator.rune
+          pop: true
+        - include: macro-matchers
+
+    # All other tokens except $ and delimiters are allowed here.
+    - include: numbers
+    - include: strings
+    - include: keywords
+    - include: lifetime
+    - include: chars
+    - include: symbols
+
+  macro-rule-sep:
+    - include: comments
+    - match: '=>'
+      scope: keyword.operator.rune
+      set: macro-transcriber-block
+    - match: '(?=\S)'
+      # Abort on unexpected character.
+      pop: true
+
+  macro-transcriber-block:
+    - include: comments
+
+    - match: '\{'
+      scope: punctuation.section.block.begin.rune
+      set:
+        - meta_scope: meta.macro.transcribers.rune
+        - match: '\}'
+          scope: punctuation.section.block.end.rune
+          set: macro-semi-sep
+        - include: statements
+
+    - match: '\('
+      scope: punctuation.section.block.begin.rune
+      set:
+        - meta_scope: meta.macro.transcribers.rune
+        - match: '\)'
+          scope: punctuation.section.block.end.rune
+          set: macro-semi-sep
+        - include: statements
+
+    - match: '\['
+      scope: punctuation.section.block.begin.rune
+      set:
+        - meta_scope: meta.macro.transcribers.rune
+        - match: '\]'
+          scope: punctuation.section.block.end.rune
+          set: macro-semi-sep
+        - include: statements
+
+    - match: '(?=\S)'
+      # Abort on unexpected character.
+      pop: true
+
+  macro-semi-sep:
+    - include: comments
+    - match: ';'
+      scope: punctuation.terminator.rune
+      pop: true
+    - match: '(?=[})\]])'
+      pop: true
+    - match: '\S'
+      # This is intended to help make it evident when you forget a semicolon.
+      scope: invalid.illegal.rune
+
+  impl-definition:
+    - meta_scope: meta.impl.rune
+    - include: comments
+    - match: '(?=<)'
+      set: [impl-for, impl-generic]
+    - match: (?=\S)
+      set: impl-for
+
+  impl-generic:
+    - meta_scope: meta.impl.rune
+    - match: '(?=<)'
+      push: generic-angles
+    - match: ''
+      pop: true
+
+  impl-for:
+    # `!?` here matches opt-out trait impls
+    - match: '(?=\s*(?:::|!?{{identifier}}|\$|<)+(<.*?>)?\s+for\s+)'
+      set:
+        - meta_scope: meta.impl.rune
+        - include: comments
+        - match: '!?(?=\s*{{identifier}})'
+          scope: keyword.operator.rune meta.impl.opt-out.rune
+        - match: \bfor\b
+          scope: keyword.other.rune
+          set: impl-identifier
+        - include: type-any-identifier
+    - match: ''
+      set: impl-identifier
+
+  impl-identifier:
+    - meta_content_scope: meta.impl.rune
+    - include: comments
+    - match: '(?=\{)'
+      set: impl-body
+    - match: '(?=\bwhere\b)'
+      push: impl-where
+    - match: \b(mut|ref)\b
+      scope: storage.modifier.rune
+    - match: '{{identifier}}(?=<)'
+      scope: entity.name.impl.rune
+      push: generic-angles
+    - match: '{{identifier}}'
+      scope: entity.name.impl.rune
+    - match: '&'
+      scope: keyword.operator.rune
+    - include: lifetime
+    - match: '(?=\S)'
+      # Abort on unexpected character.
+      pop: true
+
+  impl-where:
+    - meta_scope: meta.where.rune
+    - include: comments
+    - match: '(?=(\{|;))'
+      pop: true
+    - match: \bwhere\b
+      scope: keyword.other.rune
+    - include: type-any-identifier
+    - match: ':'
+      scope: punctuation.separator.rune
+
+  impl-body:
+    - meta_scope: meta.impl.rune
+    - include: statements-block
+
+  fn-definition:
+    - meta_scope: meta.function.rune
+    - include: comments
+    - match: '{{identifier}}'
+      scope: entity.name.function.rune
+      set: fn-generic
+
+  fn-generic:
+    - include: comments
+    - match: '(?=<)'
+      push: generic-angles
+    - match: '(?=\()'
+      set: fn-parameters
+    - match: \bwhere\b
+      set: fn-where
+    # Escape for incomplete expression
+    - match: '(?=;)'
+      pop: true
+
+  fn-parameters:
+    - meta_scope: meta.function.rune
+    - match: '\)'
+      scope: meta.function.parameters.rune punctuation.definition.parameters.end.rune
+      set: fn-return
+    - match: '\('
+      scope: punctuation.definition.parameters.begin.rune
+      push:
+        - meta_scope: meta.function.parameters.rune
+        - include: comments
+        - match: '(?=\))'
+          pop: true
+        - include: pattern-param
+
+  fn-return:
+    - meta_scope: meta.function.rune
+    - include: comments
+    - match: '(?=\{)'
+      set: fn-body
+    - match: '(?=\bwhere\b)'
+      set: fn-where
+    - include: return-type
+    # Escape for incomplete expression
+    - match: '(?=\S)'
+      pop: true
+
+  fn-where:
+    - meta_scope: meta.function.rune meta.where.rune
+    - include: comments
+    - match: '(?=\{)'
+      set: fn-body
+    - match: \bwhere\b
+      scope: keyword.other.rune
+    - include: type-any-identifier
+    - match: ':'
+      scope: punctuation.separator.rune
+    - match: ';'
+      pop: true
+
+  fn-body:
+    - meta_scope: meta.function.rune
+    - match: '\}'
+      scope: meta.block.rune punctuation.definition.block.end.rune
+      pop: true
+    - match: '\{'
+      scope: punctuation.definition.block.begin.rune
+      push:
+        - meta_scope: meta.block.rune
+        - match: '(?=\})'
+          pop: true
+        - include: statements
+
+  statements-block:
+    - include: comments
+    - match: '\}'
+      scope: meta.block.rune punctuation.definition.block.end.rune
+      pop: true
+    - match: '\{'
+      scope: punctuation.definition.block.begin.rune
+      push: [block-body, try-closure]
+
+  comments:
+    - include: block-comments
+    - match: "//[!/]"
+      push:
+        - meta_scope: comment.line.documentation.rune
+        - match: $\n?
+          pop: true
+    - match: //
+      push:
+        - meta_scope: comment.line.double-slash.rune
+        - match: $\n?
+          pop: true
+
+  block-comments:
+    - match: '/\*[!\*][^\*/]'
+      push:
+        - meta_scope: comment.block.documentation.rune
+        - match: \*/
+          pop: true
+        - include: block-comments
+    - match: /\*
+      push:
+        - meta_scope: comment.block.rune
+        - match: \*/
+          pop: true
+        - include: block-comments
+
+  strings:
+    - include: byte-string
+    - include: raw-byte-string
+    - include: string
+    - include: template-string
+    - include: raw-string
+
+  chars:
+    - include: char
+    - include: byte
+
+  byte:
+    - match: "(b)(')"
+      captures:
+        1: storage.type.string.rune
+        2: punctuation.definition.string.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.single.rune
+        # ASCII except ', \, \n, \r or \t
+        - match: '[\x00-\x08\x0b-\x0c\x0e-\x26\x28-\x5b\x5d-\x7f]'
+          set: byte-tail
+        # Don't mark entire file invalid while writing, even though this is
+        # not valid syntax.
+        - match: '\n'
+          pop: true
+        - match: '{{escaped_byte}}'
+          scope: constant.character.escape.rune
+          set: byte-tail
+        - match: ''
+          set: byte-tail
+
+  byte-tail:
+    - match: "'"
+      scope: string.quoted.single.rune punctuation.definition.string.end.rune
+      pop: true
+    - match: '\n'
+      pop: true
+    - match: '.'
+      scope: invalid.illegal.byte.rune
+
+  byte-string:
+    - match: '(b)(")'
+      captures:
+        1: storage.type.string.rune
+        2: punctuation.definition.string.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.double.rune
+        - match: '"'
+          scope: punctuation.definition.string.end.rune
+          pop: true
+        - match: '{{escaped_byte}}'
+          scope: constant.character.escape.rune
+        - match: '\\.'
+          scope: invalid.illegal.character.escape.rune
+
+  raw-byte-string:
+    - match: (br)(#*)"
+      captures:
+        1: storage.type.string.rune
+        2: punctuation.definition.string.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.double.raw.rune
+        - match: '"\2'
+          scope: punctuation.definition.string.end.rune
+          pop: true
+
+  escaped-char:
+    - match: '{{escaped_char}}'
+      scope: constant.character.escape.rune
+    - match: '\\u\{[^}]*\}'
+      scope: invalid.illegal.character.escape.rune
+    - match: '\\.'
+      scope: invalid.illegal.character.escape.rune
+
+  char:
+    - match: "'"
+      scope: punctuation.definition.string.begin.rune
+      push:
+        - meta_scope: string.quoted.single.rune
+        - match: "[^'\\\\\n\r\t]"
+          set: char-tail
+        # Don't mark entire file invalid while writing, even though this is
+        # not valid syntax.
+        - match: '\n'
+          pop: true
+        - match: '{{escaped_char}}'
+          scope: constant.character.escape.rune
+          set: char-tail
+        - match: ''
+          set: char-tail
+
+  char-tail:
+    - match: "'"
+      scope: string.quoted.single.rune punctuation.definition.string.end.rune
+      pop: true
+    - match: '\n'
+      pop: true
+    - match: '.'
+      scope: invalid.illegal.char.rune
+
+  string:
+    - match: '"'
+      scope: punctuation.definition.string.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.double.rune
+        - match: '"'
+          scope: punctuation.definition.string.end.rune
+          pop: true
+        - include: escaped-char
+
+  template-string:
+    - match: '`'
+      scope: punctuation.definition.string.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.double.rune
+        - match: '`'
+          scope: punctuation.definition.string.end.rune
+          pop: true
+        - include: escaped-char
+
+  raw-string:
+    - match: (r)(#*)"
+      captures:
+        1: storage.type.string.rune
+        2: punctuation.definition.string.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.double.raw.rune
+        - match: '"\2'
+          scope: punctuation.definition.string.end.rune
+          pop: true
+
+  format-string:
+    - match: '"'
+      scope: punctuation.definition.string.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.double.rune
+        - match: '"'
+          scope: punctuation.definition.string.end.rune
+          pop: true
+        - include: escaped-char
+        - include: format-escapes
+
+  format-raw-string:
+    - match: (r)(#*)"
+      captures:
+        1: storage.type.string.rune
+        2: punctuation.definition.string.begin.rune
+      push:
+        - meta_include_prototype: false
+        - meta_scope: string.quoted.double.raw.rune
+        - match: '"\2'
+          scope: punctuation.definition.string.end.rune
+          pop: true
+        - include: format-escapes
+
+  format-escapes:
+    - match: '\{\{|\}\}'
+      scope: constant.character.escape.rune
+    - match: |-
+        (?x)                      # Spec from http://doc.rune-lang.org/std/fmt/
+        \{
+          (\d+|{{identifier}})?
+          (
+            :                     # format_spec delimiter
+            (.?[<>^])?            # [[fill]align]
+            [+-]?                 # [sign]
+            \#?                   # ['#']
+            0?                    # [0]
+            (\d+\$?)?             # [width]
+            (\.(\d+\$?|\*)?)?     # ['.' precision]
+            (\?|{{identifier}})?  # [type]
+          )?
+        \}
+      scope: constant.other.placeholder.rune
+
+  numbers:
+    - match: '\b({{dec_literal}}(?:\.{{dec_literal}})?(?:{{float_exponent}})?)({{float_suffixes}})'
+      captures:
+        1: constant.numeric.float.rune
+        2: storage.type.numeric.rune
+    - match: '\b{{dec_literal}}\.{{dec_literal}}(?:{{float_exponent}})?'
+      scope: constant.numeric.float.rune
+    - match: '\b{{dec_literal}}{{float_exponent}}'
+      scope: constant.numeric.float.rune
+    - match: '\b{{dec_literal}}\.(?![A-Za-z._''])'
+      scope: constant.numeric.float.rune
+
+    - match: '\b({{dec_literal}})({{int_suffixes}})?\b'
+      captures:
+        1: constant.numeric.integer.decimal.rune
+        2: storage.type.numeric.rune
+    - match: '\b(0x[\h_]+)({{int_suffixes}})?\b'
+      captures:
+        1: constant.numeric.integer.hexadecimal.rune
+        2: storage.type.numeric.rune
+    - match: '\b(0o[0-7_]+)({{int_suffixes}})?\b'
+      captures:
+        1: constant.numeric.integer.octal.rune
+        2: storage.type.numeric.rune
+    - match: '\b(0b[0-1_]+)({{int_suffixes}})?\b'
+      captures:
+        1: constant.numeric.integer.binary.rune
+        2: storage.type.numeric.rune
+
+  lifetime:
+    - match: '{{lifetime}}'
+      scope: storage.modifier.lifetime.rune
+
+  basic-identifiers:
+    - match: '\b(?:(?:r#)?[[:upper:]_][[:upper:][:digit:]_]+)\b'
+      scope: constant.other.rune
+    - match: '\b(c_[[:lower:][:digit:]_]+|[[:lower:]_][[:lower:][:digit:]_]*_t)\b'
+      scope: storage.type.rune
+    - match: '\b(?:r#)?_*[A-Z][a-zA-Z0-9_]*[a-z][a-zA-Z0-9_]*\b'
+      scope: storage.type.source.rune
+    - match: '(?={{identifier}}::)'
+      push:
+        - meta_scope: meta.path.rune
+        - include: no-path-identifiers
+        - match: '::'
+          set: no-type-names
+    - match: '::(?={{identifier}})'
+      scope: meta.path.rune
+      push: no-type-names
+    - include: no-path-identifiers
+
+  no-path-identifiers:
+    - match: \b(self)\b
+      scope: variable.language.rune
+    - match: \b(super)\b
+      scope: keyword.other.rune
+
+  no-type-names:
+      # This push state prevents highlighting basic types like
+      # i32, etc when following ::
+      - include: comments
+      - include: basic-identifiers
+      - match: '{{identifier}}'
+      - match: '(?=<)'
+        push: generic-angles
+      - match: ''
+        pop: true
+
+  symbols:
+    - match: '=>'
+      # Making this an operator helps visually break up large
+      # match blocks containing just enums
+      scope: keyword.operator.rune
+
+    - match: '=(?!=)'
+      scope: keyword.operator.rune
+
+    - match: '[;,]'
+
+    - match: ':'
+      scope: punctuation.separator.rune
+
+    - match: '\.\.\.'
+      scope: keyword.operator.rune
+
+    - match: '\.\.'
+      scope: keyword.operator.rune
+
+    - match: '<<=|>>=|<<|>>'
+      scope: keyword.operator.rune
+
+    - match: '>=|<=|==|!=|&&|\|\|'
+      scope: keyword.operator.rune
+
+    - match: '\*=|/=|\+=|-=|%=|\^=|&=|\|='
+      scope: keyword.operator.rune
+
+    - match: '[-=<>&|!~@?+*/%^''#$]'
+      scope: keyword.operator.rune
+
+    - match: '<-|->'
+      scope: keyword.operator.rune
+
+  keywords:
+    # All keywords.  Note in `statements` some of these are superseded by more
+    # specific rules.
+    - match: \b(true|false)\b
+      scope: constant.language.rune
+
+    - match: \b(let|const|static)\b
+      scope: storage.type.rune
+
+    - match: \bfn\b
+      scope: storage.type.function.rune
+
+    - match: \bmod\b
+      scope: storage.type.module.rune
+
+    - match: \bstruct\b
+      scope: storage.type.struct.rune
+
+    - match: \bimpl\b
+      scope: storage.type.impl.rune
+
+    - match: \benum\b
+      scope: storage.type.enum.rune
+
+    - match: \btype\b
+      scope: storage.type.type.rune
+
+    - match: \btrait\b
+      scope: storage.type.trait.rune
+
+    - match: \b(mut|pub|unsafe|move|ref)\b
+      scope: storage.modifier.rune
+
+    - match: \b(crate|extern|use|where)\b
+      scope: keyword.other.rune
+
+    - match: \b(async|await|else|for|if|loop|match|try|while|yield|select)\b
+      scope: keyword.control.rune
+
+    - match: \b(break|continue)\b
+      scope: keyword.control.rune
+
+    - match: \breturn\b
+      scope: keyword.control.rune
+
+    - match: \b(as|in|box)\b
+      scope: keyword.operator.rune
+
+    - match: \b(virtual|become|priv|typeof|unsized|do|abstract|final|override|macro)\b
+      scope: invalid.illegal.rune
+
+    - match: \b(super|self|Self)\b
+      scope: keyword.other.rune

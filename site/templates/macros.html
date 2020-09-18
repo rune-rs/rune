@@ -1,0 +1,51 @@
+{% macro mini_logo(classes, title, siteurl, logourl) %}
+<img class="mini-logo {{ classes }}" src="{{siteurl}}/img/{{logourl}}"></img>
+<span class="mini-logo-title">
+    <a href="{{siteurl}}">{{title}}</a>
+</span>
+{% endmacro mini_logo %}
+
+<!-- classes=any extra styling, bsize=buttonsize, extra=config.extra, siteurl=config.base_url -->
+{% macro social_list(classes, bsize, extra, rss, siteurl) %}
+<ul class="social-list {{classes}}" >
+    {% if extra.website %}
+    <li class="button {{bsize}} font_faint"><a href="https://{{extra.website}}" target="_blank">{{extra.website}}</a></li>
+    {% endif %}
+
+    {% if extra.book %}
+    <li class="button {{bsize}} font_faint"><a title="Read The Book" href="https://{{extra.book}}" target="_blank" >book</a><i class="fa fa-book" ></i></li>
+    {% endif %}
+
+    {% if extra.github %}
+    <li class="button {{bsize}} font_faint"><a title="Visit GitHub Project" href="https://github.com/{{extra.github}}" target="_blank" >{{extra.github}}</a><i class="fab fa-github" ></i></li>
+    {% endif %}
+
+    {% if extra.discord %}
+    <li class="button {{bsize}} font_faint"><a title="Join Community Discord" href="{{extra.discord}}" target="_blank" >discord</a><i class="fab fa-discord" ></i></li>
+    {% endif %}
+</ul>
+{% endmacro social_list %}
+
+{% macro frontmatter(classes, author, date, word_count, read_time) %}
+<ul class="frontmatter {{classes}}" id="frontmatter">
+    {% if author %}
+    <li>{{author}}</li>
+    <span class="dot-divider"></span>
+    {% endif %}
+    <li>
+        <time class="article_time"  datetime="{{date}}">{{ date | date(format="%B %d, %Y") }}</time>
+    </li>
+    <span class="dot-divider"></span>
+    <li> {{word_count}} words </li>
+    <span class="dot-divider" ></span>
+    <li> {{read_time}} min </li>
+</ul>
+{% endmacro frontmatter %}
+
+{%macro nav() %}
+<nav>
+    <a href="{{config.base_url}}">Home</a>
+    <span class="dot-divider"></span>
+    <a href="{{config.base_url}}/posts/">Posts</a>
+</nav>
+{% endmacro nav %}

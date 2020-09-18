@@ -1,0 +1,11 @@
+[package]
+name = "site"
+version = "0.0.0"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+edition = "2018"
+
+[dependencies]
+reqwest = {version = "0.10.8", features = ["blocking"]}
+anyhow = "1.0.32"
+flate2 = "1.0.17"
+tar = "0.4.30"

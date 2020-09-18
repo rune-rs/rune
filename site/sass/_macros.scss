@@ -1,0 +1,60 @@
+@import 'colors';
+
+.mini-logo {
+    width: 30px;
+    height: 30px;
+
+    & > a {
+        display: block;
+        width: 26px;
+        height: 26px;
+        margin: 0 auto;
+        background-size: 100%;
+        text-decoration: none;
+    }
+}
+
+.mini-logo-title {
+    margin: 0;
+    text-transform: uppercase;
+    font-size: 16px;
+    line-height: 30px;
+    text-align: center;
+
+    & > a {
+        text-decoration: none;
+        color: $accent;
+    }
+}
+
+ul.social-list {
+    & > li {
+        margin: 0.10em 0.10em 0.10em 0.10em;
+        list-style: none;
+        display: inline-block;
+        transition: all 0.35s ease-out;
+
+        & > a {
+            text-decoration: none;
+            color: $text;
+            transition: all 0.35s ease-out;
+        }
+
+        & > i {
+            margin-left: 0.25em;
+            transition: opacity 0.35s ease-out;
+            opacity: 0.70;
+        }
+    }
+
+    & > li:hover {
+        & > a {
+            color: $background;
+        }
+
+        & > i {
+            opacity: 1;
+            transition: opacity 0.35s ease-in;
+        }
+    }
+}

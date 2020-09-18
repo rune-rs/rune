@@ -1,0 +1,218 @@
+@import 'colors';
+@import 'vars';
+
+#sidebarMenu {
+    height: 100%;
+    width: 11em;
+    position: fixed;
+    right: 0%;
+    top: 0%;
+    transform: translateX(11em);
+    transition: transform 150ms ease-in-out;
+    z-index: 90;
+}
+
+#sidebarMenu:focus, input:focus {
+    outline: none;
+}
+
+.menu_wrapper {
+    position: inherit;
+    width: 100%;
+    height: 100%;
+    background: $background;
+    z-index: 90;
+    padding-top: 5em;
+    box-shadow: -0.10em 0 1em $outline, 1em 1em 1em 0 rgba(0,0,0,0.19);
+}
+.sidebarMenuInner{
+    position: inherit;
+    margin:0;
+    padding:0;
+    border-top: 1px solid rgba(255, 255, 255, 0.10);
+    right: 0;
+    z-index: 95;
+}
+
+.sidebarMenuInner li:not(:first-child){
+    list-style: none;
+    cursor: pointer;
+    margin-bottom: 10px;
+    text-align: right;
+    margin-right: 10px;
+    color: $text;
+    a {
+        color: $text;
+    }
+}
+
+.sidebarMenuInner li:not(:first-child):hover {
+    color: $title;
+    transition-property: all;
+    transition-duration: 0.35s;
+    a {
+        color: $title;
+        transition-property: all;
+        transition-duration: 0.35s;
+    }
+}
+.sidebarMenuInner li:not(:first-child):hover {
+    color: $title;
+    transition-property: all;
+    transition-duration: 0.35s;
+    a {
+        color: $title;
+        transition-property: all;
+        transition-duration: 0.35s;
+    }
+    i {
+        opacity: 1;
+        transition-property: all;
+        transition-duration: 0.35s;
+    }
+}
+
+.sidebarMenuInner li:first-child {
+    list-style: none;
+    text-align: right;
+    margin-right: 10px;
+    font-weight: bold;
+    a {
+        text-decoration: none;
+        font-weight: bold;
+        color: $title;
+        text-transform:unset;
+    }
+}
+
+.menu_div {
+    // vertical line
+    // border-left: 6px solid $accent;
+    border-bottom: 1px solid $accent;
+    width: 10em;
+    margin: auto;
+    margin-right: -10px;
+    margin-bottom: 2em;
+    z-index: 91;
+}
+
+.sidebarMenuInner {
+    li {
+        a {
+            text-transform: lowercase;
+            cursor: pointer;
+            text-decoration: none;
+            padding-bottom: 5px;
+        }
+        i {
+            padding-left: 0.5em;
+            opacity: .50;
+        }
+    }
+}
+
+/* BEGIN SVG */
+input#openSidebarMenu {
+    display: none;
+}
+
+label {
+  display: block;
+  cursor: pointer;
+  position: absolute;
+  width: 25vw;
+  height: 25vw;
+  max-width: 75px;
+  max-height: 75px;
+  @include disable-select;
+}
+
+@media (min-aspect-ratio: 1/1) {
+  label {
+    width: 25vh;
+    height: 25vh;
+    @include disable-select;
+  }
+}
+
+.menu--1 label {
+    top: 0;
+    right: 1em;
+    z-index: 100;
+}
+
+path {
+  fill: none;
+  stroke: $title;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: var(--length) var(--total-length);
+  stroke-dashoffset: var(--offset);
+  transition: all 350ms cubic-bezier(.645, .045, .355, 1);
+}
+
+.menu {
+  --length: 24;
+  --offset: -38;
+  top: 0%;
+  right: 1em;
+  z-index: 91;
+  position: fixed;
+  @media screen and (max-width: 750px) { // if screen is too small, don't let the menu drag when trying to read text
+      position: absolute;
+  }
+  @include disable-select;
+}
+
+// 750 pixels position = absolute
+
+.dots {
+  --length: 0;
+  --offset: -50;
+}
+
+circle {
+  fill: $accent;
+  opacity: 0;
+}
+
+input[type=checkbox]:checked ~ #sidebarMenu {
+    transform: translateX(0);
+}
+
+input[type=checkbox]:checked ~ .cross > svg {
+    .line--1,
+    .line--3 {
+        --length: 22.627416998;
+    }
+    .line--2 {
+        --length: 0;
+    }
+}
+input[type=checkbox]:checked ~ .back > svg {
+    .line--1,
+    .line--3 {
+        --length: 8.602325267;
+    }
+}
+
+input[type=checkbox]:checked ~ .menu--1 > svg {
+    .line--1,
+    .line--3 {
+        --offset: -94.1149185097;
+    }
+    .line--2 {
+        --offset: -50;
+    }
+}
+
+.menu--1 {
+  .line--1,
+  .line--3 {
+    --total-length: 126.64183044433594;
+  }
+  .line--2 {
+    --total-length: 70;
+  }
+}

@@ -1,0 +1,56 @@
+{% import "macros.html" as macros %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+      {% block head %}
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" >
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+
+        <!-- SEO -->
+        {% if page.title %}
+        <title> {{ page.title }} | {{ config.title }} </title>
+        {% else %}
+        <title> {{ config.title }} </title>
+        {% endif %}
+
+        <!-- Enable responsiveness on mobile devices-->
+        <meta name="viewport"  content="width=device-width, initial-scale=1.0, maximum-scale=1" >
+
+        <!--  css -->
+        <link rel="stylesheet"  href="{{ config.base_url }}/style.css" >
+
+        <!-- fonts -->
+        <!-- preload  -->
+        <link rel="preload" href="https://fonts.googleapis.com/css?family=Montserrat:200,300,300i,400,500,500i,600,700,800,900|Raleway" as="style">
+        <link rel="preload"  href="https://use.fontawesome.com/releases/v5.3.1/css/all.css" integrity="sha384-mzrmE5qonljUremFsqc01SB46JvROS7bZs3IO2EmfFsd15uHvIt+Y8vEf7N7fWAU" crossorigin="anonymous" as="style" >
+        <!-- load -->
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Montserrat:200,300,300i,400,500,500i,600,700,800,900|Raleway">
+        <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.3.1/css/all.css"  integrity="sha384-mzrmE5qonljUremFsqc01SB46JvROS7bZs3IO2EmfFsd15uHvIt+Y8vEf7N7fWAU" crossorigin="anonymous">
+      {% endblock head %}
+    </head>
+
+    <body>
+      {% block header %}
+        <header class="header">
+            <figure class="user-logo">
+                <a href="{{config.base_url}}" style="background-image: url({{config.base_url}}/img/{{config.extra.profile}}"></a>
+            </figure>
+    
+            <h2 class="site-title">{{config.title}}</h2>
+    
+            <div>{{config.description | markdown(inline=true) | safe }}</div>
+
+            {{ macros::nav() }}
+        </header>
+      {% endblock header %}
+
+      {% block content %} {% endblock content %}
+      {% block pagination %} {% endblock pagination %}
+
+      {% block footer %}
+        <footer>
+          {{ macros::social_list(classes="foot-list", bsize="extra-small", extra=config.extra, siteurl=config.base_url, rss=config.generate_feed) }}
+        </footer>
+      {% endblock footer %}
+    </body>
+</html>

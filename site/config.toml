@@ -1,0 +1,19 @@
+base_url = "https://rune-rs.github.io"
+
+title = "The Rune Programming Language"
+description="The Rune Programming Language"
+default_language = "en"
+
+highlight_theme = "nord"
+generate_rss = true
+rss_limit = 20
+compile_sass = true
+highlight_code = true
+build_search_index = false
+extra_syntaxes = ["syntaxes"]
+
+[extra]
+profile = "logo.png"
+github = "rune-rs"
+discord = "https://discord.gg/v5AeNkT"
+book = "rune-rs.github.io/book/"

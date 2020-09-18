@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "macros.html" as macros %}
+
+
+{% block content %}
+<section class="container post-list">
+    {% for page in paginator.pages %}
+      <article id="{{page.title}}" class="post-list-item">
+        <h1 class="article-title" >
+          <a href="{{page.permalink}}"  id="article-link" >{{page.title}}</a>
+        </h1>
+          {% if page.date %}
+            {{ macros::frontmatter(classes="", author=page.extra.author, date=page.date, word_count=page.word_count, read_time=page.reading_time) }}
+          {% else %}
+            {{ macros::frontmatter(classes="", author=page.extra.author, date="", word_count=page.word_count, read_time=page.reading_time) }}
+          {% endif %}
+          {% if page.summary %}
+            <p class="article_content">{{ page.summary | safe }}</p>
+          {% else %}
+            <p class="article_content">{{ page.content | striptags | truncate | safe }}</p>
+          {% endif %}
+        <a class="button small" href="{{page.permalink}}">Continue Reading →</a>
+      </article>
+    {% endfor %}
+</section>
+{% endblock content %}
+
+{% block pagination %}
+  <nav class="pagination">
+    {% if paginator.previous %}
+      <span class="prev" ><a rel="prev" href="{{paginator.previous}}" class="button medium font_faint">← prev</a></span>
+    {% endif %}
+
+    {% if paginator.next %}
+      <span class="next" ><a rel="next" href="{{paginator.next}}" class="button medium font_faint">next →</a></span>
+    {% endif %}
+  </nav>
+{% endblock pagination %}
