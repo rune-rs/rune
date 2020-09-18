@@ -7,6 +7,7 @@ use rune::Spanned as _;
 use runestick::{CompileMeta, CompileMetaKind, CompileSource, Component, Item, SourceId, Span};
 use std::collections::BTreeMap;
 use std::fmt;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLockWriteGuard;
@@ -75,7 +76,11 @@ impl State {
         let offset = source.lsp_position_to_offset(position);
         let def = source.find_definition_at(Span::point(offset))?;
 
-        let url = def.source.url.as_ref().unwrap_or(uri);
+        let url = match def.source.path.as_ref() {
+            Some(path) => Url::from_file_path(path).ok()?,
+            None => uri.clone(),
+        };
+
         let source = source.build_sources.as_ref()?.get(def.source.source_id)?;
 
         let (l, c) = source.position_to_utf16cu_line_char(def.source.span.start)?;
@@ -122,7 +127,7 @@ impl State {
             let mut sources = rune::Sources::new();
 
             let mut input = runestick::Source::new(url.to_string(), source.to_string());
-            *input.url_mut() = Some(url.clone());
+            *input.path_mut() = url.to_file_path().ok();
 
             sources.insert(input);
 
@@ -197,7 +202,7 @@ impl State {
                     &mut by_url,
                     warning.span(),
                     warning.source_id,
-                    warning.kind(),
+                    &warning.kind,
                     display_to_warning,
                 );
             }
@@ -415,8 +420,11 @@ fn report<E, R>(
         None => return,
     };
 
-    let url = match source.url() {
-        Some(url) => url,
+    let url = match source.path() {
+        Some(path) => match Url::from_file_path(path) {
+            Ok(url) => url,
+            Err(()) => return,
+        },
         None => return,
     };
 
@@ -425,7 +433,7 @@ fn report<E, R>(
         None => return,
     };
 
-    let diagnostics = by_url.entry(url.clone()).or_default();
+    let diagnostics = by_url.entry(url).or_default();
     diagnostics.push(report(range, error));
 }
 
@@ -550,7 +558,7 @@ impl rune::CompileVisitor for Visitor<'_> {
             kind: DefinitionKind::Local,
             source: CompileSource {
                 span: var.span(),
-                url: None,
+                path: None,
                 source_id,
             },
         };
@@ -569,7 +577,7 @@ impl rune::CompileVisitor for Visitor<'_> {
             kind: DefinitionKind::Module,
             source: CompileSource {
                 span: Span::empty(),
-                url: None,
+                path: None,
                 source_id,
             },
         };
@@ -595,8 +603,8 @@ impl<'a> SourceLoader<'a> {
     }
 
     /// Generate a collection of URl candidates.
-    fn candidates(root: &Url, item: &Item) -> Option<[Url; 2]> {
-        let mut base = root.clone();
+    fn candidates(root: &Path, item: &Item) -> Option<[Url; 2]> {
+        let mut base = root.to_owned();
 
         let mut it = item.iter();
 
@@ -606,12 +614,9 @@ impl<'a> SourceLoader<'a> {
         };
 
         {
-            let mut path = base.path_segments_mut().ok()?;
-            path.pop();
-
             for c in it {
                 if let Component::String(string) = c {
-                    path.push(string.as_ref());
+                    base.push(string.as_ref());
                 } else {
                     return None;
                 }
@@ -619,13 +624,14 @@ impl<'a> SourceLoader<'a> {
         }
 
         let mut a = base.clone();
-        a.path_segments_mut().ok()?.push(&format!("{}.rn", last));
+        a.push(&format!("{}.rn", last));
 
         let mut b = base.clone();
-        b.path_segments_mut()
-            .ok()?
-            .push(last.as_ref())
-            .push("mod.rn");
+        b.push(last.as_ref());
+        b.push("mod.rn");
+
+        let a = Url::from_file_path(&a).ok()?;
+        let b = Url::from_file_path(&b).ok()?;
 
         Some([a, b])
     }
@@ -634,19 +640,16 @@ impl<'a> SourceLoader<'a> {
 impl rune::SourceLoader for SourceLoader<'_> {
     fn load(
         &mut self,
-        root: &Url,
+        root: &Path,
         item: &Item,
         span: Span,
     ) -> Result<runestick::Source, rune::CompileError> {
-        log::trace!("load {} (root: {})", item, root);
+        log::trace!("load {} (root: {})", item, root.display());
 
         if let Some(candidates) = Self::candidates(root, item) {
             for url in candidates.iter() {
                 if let Some(s) = self.sources.get(url) {
-                    // TODO: can this clone be avoided? The compiler requires a complete buffer.
-                    let mut source = runestick::Source::new(url.to_string(), s.to_string());
-                    *source.url_mut() = Some(url.clone());
-                    return Ok(source);
+                    return Ok(runestick::Source::new(url.to_string(), s.to_string()));
                 }
             }
         }

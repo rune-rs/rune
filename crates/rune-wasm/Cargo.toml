@@ -1,0 +1,30 @@
+[package]
+name = "rune-wasm"
+version = "0.6.16"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+license = "MIT/Apache-2.0"
+edition = "2018"
+readme = "README.md"
+repository = "https://github.com/rune-rs/rune"
+homepage = "https://github.com/rune-rs/rune"
+documentation = "https://docs.rs/rune-cli"
+keywords = ["language", "scripting"]
+categories = []
+description = """
+A WASM module for Rune, an embeddable dynamic programming language for Rust. 
+"""
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+wasm-bindgen = {version = "0.2.68", features = ["serde-serialize"]}
+
+rune = {version = "0.6.16", path = "../rune", features = []}
+rune-macros = {version = "0.6.16", path = "../rune-macros"}
+runestick = {version = "0.6.16", path = "../runestick"}
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.wasm-pack.profile.release]
+# Note: doesn't work
+wasm-opt = false

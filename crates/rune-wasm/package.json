@@ -1,0 +1,16 @@
+{
+  "name": "rune-wasm",
+  "version": "0.0.0",
+  "description": "",
+  "main": "rollup.config.js",
+  "dependencies": {},
+  "devDependencies": {
+    "@wasm-tool/rollup-plugin-rust": "^1.0.5",
+    "rollup": "^2.27.1"
+  },
+  "scripts": {
+    "build": "rollup -c"
+  },
+  "author": "John-John Tedro <udoprog@tedro.se>",
+  "license": "ISC"
+}

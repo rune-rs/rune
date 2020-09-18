@@ -35,7 +35,7 @@ pub enum DiagnosticsError {
 /// See [load_sources](crate::load_sources) for how to use.
 pub trait EmitDiagnostics {
     /// Emit diagnostics for the current type.
-    fn emit_diagnostics<O>(self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
+    fn emit_diagnostics<O>(&self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
     where
         O: WriteColor;
 }
@@ -44,7 +44,7 @@ pub trait EmitDiagnostics {
 ///
 /// See [load_sources](crate::load_sources) for how to use.
 impl EmitDiagnostics for Errors {
-    fn emit_diagnostics<O>(self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
+    fn emit_diagnostics<O>(&self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
     {
@@ -60,10 +60,14 @@ impl EmitDiagnostics for Errors {
 ///
 /// See [load_sources](crate::load_sources) for how to use.
 impl EmitDiagnostics for Warnings {
-    fn emit_diagnostics<O>(self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
+    fn emit_diagnostics<O>(&self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
     {
+        if self.is_empty() {
+            return Ok(());
+        }
+
         let config = codespan_reporting::term::Config::default();
         let mut files = SimpleFiles::new();
 
@@ -74,7 +78,7 @@ impl EmitDiagnostics for Warnings {
         let mut labels = Vec::new();
         let mut notes = Vec::new();
 
-        for w in &self {
+        for w in self {
             let context = match &w.kind {
                 WarningKind::NotUsed { span, context } => {
                     labels.push(
@@ -163,7 +167,7 @@ impl EmitDiagnostics for Warnings {
 }
 
 impl EmitDiagnostics for VmError {
-    fn emit_diagnostics<O>(self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
+    fn emit_diagnostics<O>(&self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
     {
@@ -173,7 +177,7 @@ impl EmitDiagnostics for VmError {
             files.add(source.name(), source.as_str());
         }
 
-        let (error, unwound) = self.into_unwound();
+        let (error, unwound) = self.as_unwound();
 
         let (unit, ip) = match unwound {
             Some((unit, ip)) => (unit, ip),
@@ -229,7 +233,7 @@ impl EmitDiagnostics for VmError {
 }
 
 impl EmitDiagnostics for LoadError {
-    fn emit_diagnostics<O>(self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
+    fn emit_diagnostics<O>(&self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
     {

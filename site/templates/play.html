@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% import "macros.html" as macros %}
+
+{% block header %}
+  <header class="header-small">
+    <nav id="overlord" class="overlord" >
+      {{ macros::mini_logo(classes="", title=config.title, siteurl=config.base_url, logourl=config.extra.profile) }}
+    </nav>
+
+    {{ macros::nav() }}
+  </header>
+{% endblock header %}
+
+{% block content %}
+  <div id="play-editor">fn main() {
+  42
+}</div>
+
+  <div id="play-output" class="hidden">
+    <h4 class="title"></h4>
+    <div class="content"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js" integrity="sha512-GZ1RIgZaSc8rnco/8CXfRdCpDxRCphenIiZ2ztLy3XQfCbQUSCuk8IudvNHxkRA3oUg6q0qejgN/qqyG1duv5Q==" crossorigin="anonymous"></script>
+  <script type="text/javascript"  src="{{ config.base_url }}/play/rune.js"></script>
+
+  <script type="text/javascript">
+    window.onload = () => {
+      let output = document.getElementById("play-output");
+      let outputTitle = output.getElementsByClassName("title")[0];
+      let outputContent = output.getElementsByClassName("content")[0];
+  
+      let markers = [];
+
+      let editor = ace.edit("play-editor");
+      editor.setTheme("ace/theme/monokai");
+
+      editor.session.setOptions({
+          mode: "ace/mode/rust",
+          tabSize: 2,
+          useSoftTabs: false,
+      });
+
+      let content = getUrlContent();
+
+      if (!!content) {
+        editor.setValue(content);
+      }
+  
+      let recompile = () => {
+        let content = editor.getValue();
+
+        if (!rune.module) {
+          return;
+        }
+
+        updateUrlContent(content);
+        
+        for (let m of markers) {
+          editor.getSession().removeMarker(m);
+        }
+
+        markers = [];
+
+        let result = rune.module.compile(content);
+
+        if (!!result.error) {
+          outputTitle.textContent = "Error when running playground";
+          outputContent.textContent = result.diagnostics_output;
+          output.className = "";
+        } else {
+          if (!!result.diagnostics_output) {
+            outputContent.textContent  = result.diagnostics_output + "\n== " + result.output;
+          } else {
+            outputContent.textContent  = "== " + result.output;
+          }
+
+          outputTitle.className = "hidden";
+          output.className = "";
+        }
+
+        let annotations = [];
+
+        for (let d of result.diagnostics) {
+          let r = new ace.Range(
+            d.start.line, d.start.character,
+            d.end.line, d.end.character,
+          );
+
+          markers.push(editor.getSession().addMarker(r, d.kind, "text"));
+
+          annotations.push({
+            row: d.start.line,
+            column: d.start.character,
+            text: d.message, // Or the Json reply from the parser 
+            type: d.kind,
+          });
+        }
+
+        editor.getSession().clearAnnotations();
+        editor.getSession().setAnnotations(annotations);
+      };
+
+      editor.session.on('change', function(delta) {
+        if (!!rune.module) {
+          recompile();
+        }
+      });
+
+      rune.init().then(() => {
+        recompile();
+      });
+    };
+
+    function getUrlContent() {
+      var query = new URLSearchParams(window.location.search);
+      let content = query.get("c");
+
+      if (!content) {
+        return null;
+      }
+
+      try {
+        return atob(content);
+      } catch(e) {
+        return null;
+      }
+    }
+
+    function updateUrlContent(content) {
+      var query = new URLSearchParams(window.location.search);
+      query.set("c", btoa(content));
+      history.replaceState(null, null, "?" + query.toString());
+    }
+  </script>
+{% endblock content %}

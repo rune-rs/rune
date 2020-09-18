@@ -31,3 +31,12 @@ impl IntoIterator for Errors {
         self.errors.into_iter()
     }
 }
+
+impl<'a> IntoIterator for &'a Errors {
+    type Item = &'a LoadError;
+    type IntoIter = std::slice::Iter<'a, LoadError>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.errors.iter()
+    }
+}

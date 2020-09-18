@@ -170,13 +170,16 @@ tr {
 }
 
 header {
-    position: relative;
     display: block;
-    margin: auto;
     margin-top: 140px;
     margin-bottom: 50px;
     border-bottom: 0px solid #f0f0f0;
     text-align: center;
+
+    &.header-small {
+        margin-top: 0;
+        margin-bottom: 0;
+    }
 
     & > h1, h2, h3 {
         margin: auto;
@@ -424,4 +427,46 @@ nav.pagination {
     background-color: $accent;
     color: $background;
     border: 1px solid $accent;
+}
+
+#play-editor {
+    display: block;
+    width: 100%;
+    height: 400px;
+    font-size: 20px;
+    margin-bottom: 10px;
+
+    .error {
+        position: absolute;
+        background-color: $error-color;
+    }
+
+    .warning {
+        position: absolute;
+        border-bottom: 2px solid $warning-color;
+    }
+}
+
+#play-output {
+    display: block;
+    color: $accent2;
+    background-color: black;
+    font-size: 20px;
+    padding: 10px;
+    margin-bottom: 10px;
+
+    .hidden {
+        display: none;
+    }
+
+    .title {
+        color: $accent2;
+        margin: 0;
+        margin-bottom: 1em;
+    }
+
+    .content {
+        font-family: monospace;
+        white-space: pre;
+    }
 }

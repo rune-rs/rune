@@ -1,5 +1,6 @@
 use crate::unit_builder::LinkerError;
 use crate::{CompileError, ParseError};
+use runestick::SourceId;
 use std::error;
 use std::fmt;
 use thiserror::Error;
@@ -8,14 +9,14 @@ use thiserror::Error;
 #[derive(Debug)]
 pub struct LoadError {
     /// The source id of the error.
-    source_id: usize,
+    source_id: SourceId,
     /// The kind of the load error.
     kind: Box<LoadErrorKind>,
 }
 
 impl LoadError {
     /// Construct a new load error.
-    pub fn new<E>(source_id: usize, err: E) -> Self
+    pub fn new<E>(source_id: SourceId, err: E) -> Self
     where
         LoadErrorKind: From<E>,
     {
@@ -29,7 +30,7 @@ impl LoadError {
     ///
     /// This should be used for programming invariants of the compiler which are
     /// broken for some reason.
-    pub fn internal(source_id: usize, message: &'static str) -> Self {
+    pub fn internal(source_id: SourceId, message: &'static str) -> Self {
         Self {
             source_id,
             kind: Box::new(LoadErrorKind::Internal(message)),
@@ -37,7 +38,7 @@ impl LoadError {
     }
 
     /// The source id where the error originates from.
-    pub fn source_id(&self) -> usize {
+    pub fn source_id(&self) -> SourceId {
         self.source_id
     }
 
