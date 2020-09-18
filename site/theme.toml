@@ -1,0 +1,10 @@
+name = "Ergo"
+description = "A simple blog Theme focused on writing, inspired by svbtle"
+license = "MIT"
+homepage = "https://github.com/insipx/Ergo"
+min_version = "0.4.1"
+demo = "https://ergo.liquidthink.net"
+
+[author]
+name = "Andrew Plaza"
+homepage = "https://liquidthink.net"

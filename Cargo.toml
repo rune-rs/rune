@@ -8,6 +8,7 @@ members = [
     "crates/runestick-macros",
     "crates/runestick",
     "tools/builder",
+    "tools/site",
 ]
 
 default-members = [

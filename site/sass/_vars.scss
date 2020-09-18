@@ -1,0 +1,10 @@
+// used for disabling select, which can get annoying on mobile devices.
+// Currently this is only used for disabling selections on the hamburger menu icon (since our menu is CSS-only).
+@mixin disable-select {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}

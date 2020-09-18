@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% import "macros.html" as macros %}
+
+{% block header %}
+  <nav id="overlord" class="overlord" >
+    {{ macros::mini_logo(classes="", title=config.title, siteurl=config.base_url, logourl=config.extra.profile) }}
+  </nav>
+{% endblock header %}
+
+{% block content %}
+  <section class="container content {{page.extra.classes}}">
+    {{ page.content | safe }}
+  </section>
+{% endblock content %}
