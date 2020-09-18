@@ -30,6 +30,77 @@ impl Expander {
         })
     }
 
+    fn expand_union(
+        &mut self,
+        input: &syn::DeriveInput,
+        st: &syn::DataUnion,
+    ) -> Option<TokenStream> {
+        let inner = self.expand_named(&st.fields)?;
+
+        let ident = &input.ident;
+        let value = &self.ctx.value;
+        let vm_error = &self.ctx.vm_error;
+        let to_value = &self.ctx.to_value;
+
+        Some(quote! {
+            impl #to_value for #ident {
+                fn to_value(self) -> Result<#value, #vm_error> {
+                    #inner
+                }
+            }
+        })
+    }
+
+    fn expand_enum(
+        &mut self,
+        input: &syn::DeriveInput,
+        en: &syn::DataEnum,
+    ) -> Option<TokenStream> {
+
+        let inner = self.expand_variants(&en.variants)?;
+
+        let ident = &input.ident;
+        let value = &self.ctx.value;
+        let vm_error = &self.ctx.vm_error;
+        let to_value = &self.ctx.to_value;
+
+        Some(quote! {
+            impl #to_value for #ident {
+                fn to_value(self) -> Result<#value, #vm_error> {
+                    #inner
+                }
+            }
+        })
+    }
+
+    fn expand_variants(&mut self, named: &syn::punctuated::Punctuated<syn::Variant, syn::Token![,]>) -> Option<TokenStream> {
+        let mut to_values = Vec::new();
+
+        for field in named {
+            let ident = &field.ident;
+            let _ = self.ctx.parse_field_attrs(&field.attrs)?;
+
+            let name = &syn::LitStr::new(&ident.to_string(), ident.span());
+
+            let to_value = &self.ctx.to_value;
+
+            to_values.push(quote_spanned! {
+                field.span() =>
+                object.insert(String::from(#name), #to_value::to_value(self.#ident)?);
+            });
+        }
+
+        let value = &self.ctx.value;
+        let object = &self.ctx.object;
+
+        Some(quote_spanned! {
+            named.span() =>
+            let mut object = <#object>::new();
+            #(#to_values)*
+            Ok(#value::from(object))
+        })
+    }
+
     /// Expand field decoding.
     fn expand_fields(&mut self, fields: &syn::Fields) -> Option<TokenStream> {
         match fields {
@@ -130,16 +201,14 @@ pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
             }
         }
         syn::Data::Enum(en) => {
-            expander.ctx.errors.push(syn::Error::new_spanned(
-                en.enum_token,
-                "not supported on enums",
-            ));
+            if let Some(expanded) = expander.expand_enum(input, en) {
+                return Ok(expanded);
+            }
         }
         syn::Data::Union(un) => {
-            expander.ctx.errors.push(syn::Error::new_spanned(
-                un.union_token,
-                "not supported on unions",
-            ));
+            if let Some(expanded) = expander.expand_union(input, un) {
+                return Ok(expanded);
+            }
         }
     }
 
