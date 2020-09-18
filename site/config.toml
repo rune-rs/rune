@@ -17,3 +17,16 @@ profile = "logo.png"
 github = "rune-rs"
 discord = "https://discord.gg/v5AeNkT"
 book = "rune-rs.github.io/book/"
+playground = """
+fn fib(n) {
+    if n <= 1 {
+        n
+    } else {
+        fib(n - 1) + fib(n - 2)
+    }
+}
+
+fn main() {
+    fib(15)
+}
+"""
