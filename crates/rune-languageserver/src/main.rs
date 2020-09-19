@@ -42,7 +42,7 @@
 //!
 //! The language server for the [Rune language].
 //!
-//! [Rune Language]: https://github.com/rune-rs/rune
+//! [Rune Language]: https://rune-rs.github.io
 
 use anyhow::{bail, Result};
 use rune_languageserver::envelope::IncomingMessage;

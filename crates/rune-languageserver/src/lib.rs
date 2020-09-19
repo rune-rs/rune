@@ -42,7 +42,7 @@
 //!
 //! A language server for the [Rune language].
 //!
-//! [Rune Language]: https://github.com/rune-rs/rune
+//! [Rune Language]: https://rune-rs.github.io
 
 mod connection;
 pub mod envelope;

@@ -25,6 +25,7 @@ runestick = {version = "0.6.16", path = "../runestick"}
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
 
 [package.metadata.wasm-pack.profile.release]
 # Note: doesn't work
