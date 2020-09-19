@@ -21,6 +21,16 @@ impl ExprBlock {
     pub fn is_const(&self) -> bool {
         self.block.is_const()
     }
+
+    /// Parse the block expression attaching the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
+        Ok(Self {
+            block: ast::Block::parse_with_attributes(parser, attributes)?,
+        })
+    }
 }
 
 impl Spanned for ExprBlock {
@@ -31,8 +41,7 @@ impl Spanned for ExprBlock {
 
 impl Parse for ExprBlock {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            block: parser.parse()?,
-        })
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }

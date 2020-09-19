@@ -5,6 +5,8 @@ use runestick::Span;
 /// A match expression.
 #[derive(Debug, Clone)]
 pub struct ExprMatch {
+    /// The attributes for the match expression
+    pub attributes: Vec<ast::Attribute>,
     /// The `match` token.
     pub match_: ast::Match,
     /// The expression who's result we match over.
@@ -18,6 +20,7 @@ pub struct ExprMatch {
 }
 
 into_tokens!(ExprMatch {
+    attributes,
     match_,
     expr,
     open,
@@ -25,23 +28,12 @@ into_tokens!(ExprMatch {
     close
 });
 
-impl Spanned for ExprMatch {
-    fn span(&self) -> Span {
-        self.match_.span().join(self.close.span())
-    }
-}
-
-/// Parse a match statement.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// parse_all::<ast::ExprMatch>("match 0 { _ => 1, }").unwrap();
-/// ```
-impl Parse for ExprMatch {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+impl ExprMatch {
+    /// Parse the `match` expression attaching the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
         let match_ = parser.parse()?;
         let expr = Box::new(ast::Expr::parse_without_eager_brace(parser)?);
 
@@ -69,12 +61,37 @@ impl Parse for ExprMatch {
         let close = parser.parse()?;
 
         Ok(ExprMatch {
+            attributes,
             match_,
             expr,
             open,
             branches,
             close,
         })
+    }
+}
+
+impl Spanned for ExprMatch {
+    fn span(&self) -> Span {
+        self.match_.span().join(self.close.span())
+    }
+}
+
+/// Parse a match statement.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::ExprMatch>("match 0 { _ => 1, }").unwrap();
+/// let expr = parse_all::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }").unwrap();
+/// assert_eq!(expr.attributes.len(), 1);
+/// ```
+impl Parse for ExprMatch {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }
 

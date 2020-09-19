@@ -589,6 +589,10 @@ impl<'a> Lexer<'a> {
                             it.next();
                             break ast::Kind::Rocket;
                         }
+                        ('-', '>') => {
+                            it.next();
+                            break ast::Kind::Arrow;
+                        }
                         ('-', c @ '0'..='9') => {
                             it.next();
                             return self.next_number_literal(&mut it, c, start, true);
@@ -633,6 +637,9 @@ impl<'a> Lexer<'a> {
                     '|' => ast::Kind::Pipe,
                     '%' => ast::Kind::Perc,
                     '^' => ast::Kind::Caret,
+                    '@' => ast::Kind::At,
+                    '$' => ast::Kind::Dollar,
+                    '~' => ast::Kind::Tilde,
                     'a'..='z' | 'A'..='Z' => {
                         return self.next_ident(&mut it, start);
                     }

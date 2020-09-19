@@ -470,7 +470,7 @@ impl Query {
 
         let mut fields = HashSet::new();
 
-        for (ident, _) in &st.fields {
+        for (_, ident, _) in &st.fields {
             let ident = ident.resolve(&self.storage, &*source)?;
             fields.insert(ident.to_string());
         }

@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
-/// A let expression `let <name> = <expr>;`
+/// A for loop expression `for i in [1, 2, 3] {}`
 #[derive(Debug, Clone)]
 pub struct ExprFor {
     /// The label of the loop.

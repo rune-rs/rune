@@ -5,6 +5,8 @@ use runestick::Span;
 /// A closure.
 #[derive(Debug, Clone)]
 pub struct ExprClosure {
+    /// The attributes for the async closure
+    pub attributes: Vec<ast::Attribute>,
     /// If the closure is async or not.
     pub async_: Option<ast::Async>,
     /// Arguments to the closure.
@@ -13,7 +15,12 @@ pub struct ExprClosure {
     pub body: Box<ast::Expr>,
 }
 
-into_tokens!(ExprClosure { async_, args, body });
+into_tokens!(ExprClosure {
+    attributes,
+    async_,
+    args,
+    body
+});
 
 impl ExprClosure {
     /// Get the identifying span for this closure.
@@ -24,31 +31,12 @@ impl ExprClosure {
             self.args.span()
         }
     }
-}
 
-impl Spanned for ExprClosure {
-    fn span(&self) -> Span {
-        if let Some(async_) = &self.async_ {
-            async_.span().join(self.body.span())
-        } else {
-            self.args.span().join(self.body.span())
-        }
-    }
-}
-
-/// Parse implementation for a function.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// parse_all::<ast::ExprClosure>("async || 42").unwrap();
-/// parse_all::<ast::ExprClosure>("|| 42").unwrap();
-/// parse_all::<ast::ExprClosure>("|| { 42 }").unwrap();
-/// ```
-impl Parse for ExprClosure {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    /// Parse the closure attaching the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
         let async_ = parser.parse()?;
 
         let args = if let Some(token) = parser.parse::<Option<ast::Or>>()? {
@@ -75,10 +63,45 @@ impl Parse for ExprClosure {
         };
 
         Ok(Self {
+            attributes,
             async_,
             args,
             body: Box::new(parser.parse()?),
         })
+    }
+}
+
+impl Spanned for ExprClosure {
+    fn span(&self) -> Span {
+        if let Some(async_) = &self.async_ {
+            async_.span().join(self.body.span())
+        } else {
+            self.args.span().join(self.body.span())
+        }
+    }
+}
+
+/// Parse implementation for a function.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::ExprClosure>("async || 42").unwrap();
+/// parse_all::<ast::ExprClosure>("|| 42").unwrap();
+/// parse_all::<ast::ExprClosure>("|| { 42 }").unwrap();
+///
+/// let expr = parse_all::<ast::ExprClosure>("#[retry(n=3)]  || 43").unwrap();
+/// assert_eq!(expr.attributes.len(), 1);
+///
+/// let expr = parse_all::<ast::ExprClosure>("#[retry(n=3)] async || 43").unwrap();
+/// assert_eq!(expr.attributes.len(), 1);
+/// ```
+impl Parse for ExprClosure {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }
 

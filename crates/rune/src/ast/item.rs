@@ -7,10 +7,8 @@ impl_enum_ast! {
         /// A use declaration.
         ItemUse(ast::ItemUse),
         /// A function declaration.
-        // large size difference between variants
-        // we should box this variant.
-        // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
-        ItemFn(ast::ItemFn),
+        // large variant, so boxed
+        ItemFn(Box<ast::ItemFn>),
         /// An enum declaration.
         ItemEnum(ast::ItemEnum),
         /// A struct declaration.
@@ -32,76 +30,123 @@ impl Item {
 
     /// Test if declaration is suitable inside of a block.
     pub fn peek_as_stmt(parser: &mut Parser<'_>) -> Result<bool, ParseError> {
-        let t1 = parser.token_peek()?;
+        let t1 = parser.token_peek_pair()?;
 
-        let t1 = match t1 {
+        let (t, t2) = match t1 {
             Some(t1) => t1,
             None => return Ok(false),
         };
 
-        Ok(match t1.kind {
+        Ok(match t.kind {
             ast::Kind::Use => true,
             ast::Kind::Enum => true,
             ast::Kind::Struct => true,
             ast::Kind::Impl => true,
+            ast::Kind::Async => {
+                if let Some(ast::Kind::Fn) = t2.map(|t| t.kind) {
+                    true
+                } else {
+                    false
+                }
+            }
             ast::Kind::Fn => true,
-            ast::Kind::Async => match parser.token_peek2()? {
-                Some(t) => match t.kind {
-                    ast::Kind::Fn => true,
-                    _ => false,
-                },
-                _ => false,
-            },
             ast::Kind::Mod => true,
             _ => false,
+        })
+    }
+
+    /// Parse an item within a nested block
+    pub fn parse_in_nested_block(parser: &mut Parser) -> Result<Self, ParseError> {
+        let attributes: Vec<ast::Attribute> = parser.parse()?;
+        let t = parser.token_peek_eof()?;
+
+        Ok(match t.kind {
+            ast::Kind::Use => {
+                Self::ItemUse(ast::ItemUse::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Enum => {
+                Self::ItemEnum(ast::ItemEnum::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Struct => {
+                Self::ItemStruct(ast::ItemStruct::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Impl => {
+                Self::ItemImpl(ast::ItemImpl::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Async | ast::Kind::Fn => Self::ItemFn(Box::new(
+                ast::ItemFn::parse_with_attributes(parser, attributes)?,
+            )),
+            ast::Kind::Mod => {
+                Self::ItemMod(ast::ItemMod::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
+            _ => {
+                return Err(ParseError::new(
+                    t,
+                    ParseErrorKind::ExpectedItem { actual: t.kind },
+                ))
+            }
         })
     }
 }
 
 impl Peek for Item {
     fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        let t1 = match t1 {
+        let t = match t1 {
             Some(t1) => t1,
             None => return false,
         };
 
-        match t1.kind {
+        match t.kind {
             ast::Kind::Use => true,
             ast::Kind::Enum => true,
             ast::Kind::Struct => true,
             ast::Kind::Impl => true,
+            ast::Kind::Async => {
+                if let Some(ast::Kind::Fn) = t2.map(|t| t.kind) {
+                    true
+                } else {
+                    false
+                }
+            }
             ast::Kind::Fn => true,
-            ast::Kind::Async => match t2 {
-                Some(t) => match t.kind {
-                    ast::Kind::Fn => true,
-                    _ => false,
-                },
-                _ => false,
-            },
             ast::Kind::Mod => true,
             ast::Kind::Ident(..) => true,
-            _ => false,
+            _ => ast::Attribute::peek(t1, t2),
         }
     }
 }
 
 impl Parse for Item {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let attributes: Vec<ast::Attribute> = parser.parse()?;
         let t = parser.token_peek_eof()?;
 
         Ok(match t.kind {
-            ast::Kind::Use => Self::ItemUse(parser.parse()?),
-            ast::Kind::Enum => Self::ItemEnum(parser.parse()?),
-            ast::Kind::Struct => Self::ItemStruct(parser.parse()?),
-            ast::Kind::Impl => Self::ItemImpl(parser.parse()?),
-            ast::Kind::Async | ast::Kind::Fn => Self::ItemFn(parser.parse()?),
-            ast::Kind::Mod => Self::ItemMod(parser.parse()?),
+            ast::Kind::Use => {
+                Self::ItemUse(ast::ItemUse::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Enum => {
+                Self::ItemEnum(ast::ItemEnum::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Struct => {
+                Self::ItemStruct(ast::ItemStruct::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Impl => {
+                Self::ItemImpl(ast::ItemImpl::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Async | ast::Kind::Fn => Self::ItemFn(Box::new(
+                ast::ItemFn::parse_with_attributes(parser, attributes)?,
+            )),
+            ast::Kind::Mod => {
+                Self::ItemMod(ast::ItemMod::parse_with_attributes(parser, attributes)?)
+            }
             ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
             _ => {
                 return Err(ParseError::new(
                     t,
                     ParseErrorKind::ExpectedItem { actual: t.kind },
-                ));
+                ))
             }
         })
     }

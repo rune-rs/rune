@@ -5,6 +5,8 @@ use runestick::Span;
 /// A module declaration.
 #[derive(Debug, Clone)]
 pub struct ItemMod {
+    /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
+    pub attributes: Vec<ast::Attribute>,
     /// The `mod` keyword.
     pub mod_: ast::Mod,
     /// The name of the mod.
@@ -13,15 +15,14 @@ pub struct ItemMod {
     pub body: ItemModBody,
 }
 
-impl Spanned for ItemMod {
-    fn span(&self) -> Span {
-        self.mod_.span().join(self.body.span())
-    }
-}
-
-impl Parse for ItemMod {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+impl ItemMod {
+    /// Parse a `mod` item with the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
         Ok(Self {
+            attributes,
             mod_: parser.parse()?,
             name: parser.parse()?,
             body: parser.parse()?,
@@ -29,8 +30,44 @@ impl Parse for ItemMod {
     }
 }
 
+impl Spanned for ItemMod {
+    fn span(&self) -> Span {
+        self.mod_.span().join(self.body.span())
+    }
+}
+
+/// Parse a `mod` item
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast, ParseError};
+///
+/// parse_all::<ast::ItemMod>("mod ruins {}").unwrap();
+///
+/// let item = parse_all::<ast::ItemMod>("#[cfg(test)] mod tests {}").unwrap();
+/// assert_eq!(item.attributes.len(), 1);
+///
+/// let item = parse_all::<ast::ItemMod>("mod whiskey_bravo { #![allow(dead_code)] fn x() {} }").unwrap();
+/// assert_eq!(item.attributes.len(), 0);
+///
+/// if let ast::ItemModBody::InlineBody(body) = &item.body {
+///     assert_eq!(body.file.attributes.len(), 1);
+/// } else {
+///     panic!("module body was not the ItemModBody::InlineBody variant");
+/// }
+///
+/// ```
+impl Parse for ItemMod {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
+    }
+}
+
 impl IntoTokens for ItemMod {
     fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.attributes.into_tokens(context, stream);
         self.mod_.into_tokens(context, stream);
         self.name.into_tokens(context, stream);
         self.body.into_tokens(context, stream);

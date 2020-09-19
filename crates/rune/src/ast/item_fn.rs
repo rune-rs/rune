@@ -5,6 +5,8 @@ use runestick::Span;
 /// A function.
 #[derive(Debug, Clone)]
 pub struct ItemFn {
+    /// The attributes for the fn
+    pub attributes: Vec<ast::Attribute>,
     /// The optional `async` keyword.
     pub async_: Option<ast::Async>,
     /// The `fn` token.
@@ -30,6 +32,21 @@ impl ItemFn {
     /// Test if function is an instance fn.
     pub fn is_instance(&self) -> bool {
         matches!(self.args.items.first(), Some((ast::FnArg::Self_(..), _)))
+    }
+
+    /// Parse a `fn` item with the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
+        Ok(Self {
+            attributes,
+            async_: parser.parse()?,
+            fn_: parser.parse()?,
+            name: parser.parse()?,
+            args: parser.parse()?,
+            body: parser.parse()?,
+        })
     }
 }
 
@@ -69,16 +86,16 @@ impl Peek for ItemFn {
 ///
 /// let item = parse_all::<ast::ItemFn>("fn hello(foo, bar) {}").unwrap();
 /// assert_eq!(item.args.items.len(), 2);
+///
+/// let item = parse_all::<ast::ItemFn>("#[inline] fn hello(foo, bar) {}").unwrap();
+/// assert_eq!(item.args.items.len(), 2);
+/// assert_eq!(item.attributes.len(), 1);
+///
 /// ```
 impl Parse for ItemFn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            async_: parser.parse()?,
-            fn_: parser.parse()?,
-            name: parser.parse()?,
-            args: parser.parse()?,
-            body: parser.parse()?,
-        })
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }
 
