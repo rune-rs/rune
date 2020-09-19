@@ -1,26 +1,16 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A block of expressions.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprAsync {
     /// The attributes for the block.
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The `async` keyword.
     pub async_: ast::Async,
     /// The close brace.
     pub block: ast::Block,
-}
-
-impl Spanned for ExprAsync {
-    fn span(&self) -> Span {
-        if let Some(first) = self.attributes.first() {
-            first.span().join(self.block.span())
-        } else {
-            self.async_.span().join(self.block.span())
-        }
-    }
 }
 
 impl ExprAsync {

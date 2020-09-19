@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A struct declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemStruct {
     /// The attributes for the struct
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The `struct` keyword.
     pub struct_: ast::Struct,
@@ -30,18 +30,6 @@ impl ItemStruct {
     }
 }
 
-impl Spanned for ItemStruct {
-    fn span(&self) -> Span {
-        let start = self.struct_.span();
-
-        match &self.body {
-            ItemStructBody::EmptyBody(semi) => start.join(semi.span()),
-            ItemStructBody::TupleBody(_, semi) => start.join(semi.span()),
-            ItemStructBody::StructBody(body) => start.join(body.span()),
-        }
-    }
-}
-
 /// Parse implementation for a struct.
 ///
 /// # Examples
@@ -63,7 +51,7 @@ impl Parse for ItemStruct {
 }
 
 /// A struct declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum ItemStructBody {
     /// An empty struct declaration.
     EmptyBody(ast::SemiColon),
@@ -114,7 +102,7 @@ impl Parse for ItemStructBody {
 }
 
 /// A variant declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct TupleBody {
     /// The opening paren.
     pub open: ast::OpenParen,
@@ -122,13 +110,6 @@ pub struct TupleBody {
     pub fields: Vec<Field>,
     /// The close paren.
     pub close: ast::CloseParen,
-}
-
-impl TupleBody {
-    /// Get the span for the tuple body.
-    pub fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
-    }
 }
 
 /// Parse implementation for a struct body.
@@ -166,7 +147,7 @@ impl Parse for TupleBody {
 }
 
 /// A variant declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct StructBody {
     /// The opening brace.
     pub open: ast::OpenBrace,
@@ -174,13 +155,6 @@ pub struct StructBody {
     pub fields: Vec<Field>,
     /// The close brace.
     pub close: ast::CloseBrace,
-}
-
-impl StructBody {
-    /// Get the span for the tuple body.
-    pub fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
-    }
 }
 
 /// Parse implementation for a struct body.
@@ -228,28 +202,14 @@ impl Parse for StructBody {
 /// parse_all::<ast::Field>("a").unwrap();
 /// parse_all::<ast::Field>("#[x] a").unwrap();
 /// ```
-#[derive(Debug, Clone, Ast, Parse)]
+#[derive(Debug, Clone, Ast, Parse, Spanned)]
 pub struct Field {
     /// Attributes associated with field.
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// Name of the field.
     pub name: ast::Ident,
     /// Trailing comma of the field.
+    #[spanned(last)]
     pub comma: Option<ast::Comma>,
-}
-
-impl Spanned for Field {
-    fn span(&self) -> Span {
-        let last = self
-            .comma
-            .as_ref()
-            .map(Spanned::span)
-            .unwrap_or_else(|| self.name.span());
-
-        if let Some(first) = self.attributes.first() {
-            first.span().join(last)
-        } else {
-            last
-        }
-    }
 }

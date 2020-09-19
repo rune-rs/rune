@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned};
-use runestick::Span;
 
 /// A block of expressions.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct Block {
     /// The close brace.
     pub open: ast::OpenBrace,
@@ -40,12 +39,6 @@ impl Block {
         }
 
         true
-    }
-}
-
-impl Spanned for Block {
-    fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
     }
 }
 

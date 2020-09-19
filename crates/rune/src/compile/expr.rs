@@ -129,7 +129,7 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
                 } else {
                     let span = expr_call_macro.span();
 
-                    return Err(CompileError::internal(span, "macro has not been expanded"));
+                    return Err(CompileError::internal(&span, "macro has not been expanded"));
                 }
             }
             // NB: declarations are not used in this compilation stage.

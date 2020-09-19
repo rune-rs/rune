@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// An impl declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemImpl {
     /// The attributes of the `impl` block
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The `impl` keyword.
     pub impl_: ast::Impl,
@@ -30,6 +30,7 @@ impl ItemImpl {
         let open = parser.parse()?;
 
         let mut functions = vec![];
+
         while !parser.peek::<ast::CloseBrace>()? {
             let attributes = parser.parse()?;
             functions.push(ast::ItemFn::parse_with_attributes(parser, attributes)?);
@@ -45,16 +46,6 @@ impl ItemImpl {
             functions,
             close,
         })
-    }
-}
-
-impl Spanned for ItemImpl {
-    fn span(&self) -> Span {
-        if let Some(first) = self.attributes.first() {
-            first.span().join(self.close.span())
-        } else {
-            self.impl_.span().join(self.close.span())
-        }
     }
 }
 

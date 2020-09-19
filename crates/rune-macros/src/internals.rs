@@ -9,6 +9,10 @@ pub const AST: Symbol = Symbol("ast");
 pub const SKIP: Symbol = Symbol("skip");
 pub const PARSE: Symbol = Symbol("parse");
 
+pub const SPANNED: Symbol = Symbol("spanned");
+pub const FIRST: Symbol = Symbol("first");
+pub const LAST: Symbol = Symbol("last");
+
 impl PartialEq<Symbol> for syn::Ident {
     fn eq(&self, word: &Symbol) -> bool {
         self == word.0

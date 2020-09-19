@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Peek, Spanned};
-use runestick::Span;
 
 /// A module declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemMod {
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The `mod` keyword.
     pub mod_: ast::Mod,
@@ -27,16 +27,6 @@ impl ItemMod {
             name: parser.parse()?,
             body: parser.parse()?,
         })
-    }
-}
-
-impl Spanned for ItemMod {
-    fn span(&self) -> Span {
-        if let Some(first) = self.attributes.first() {
-            first.span().join(self.body.span())
-        } else {
-            self.mod_.span().join(self.body.span())
-        }
     }
 }
 
@@ -70,7 +60,7 @@ impl Parse for ItemMod {
 }
 
 /// An item body.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum ItemModBody {
     /// An empty body terminated by a semicolon.
     EmptyBody(ast::SemiColon),
@@ -90,7 +80,7 @@ impl Parse for ItemModBody {
 }
 
 /// A module declaration.
-#[derive(Debug, Clone, Ast, Parse)]
+#[derive(Debug, Clone, Ast, Parse, Spanned)]
 pub struct ItemInlineBody {
     /// The open brace.
     pub open: ast::OpenBrace,
@@ -98,13 +88,6 @@ pub struct ItemInlineBody {
     pub file: Box<ast::File>,
     /// The close brace.
     pub close: ast::CloseBrace,
-}
-
-impl ItemInlineBody {
-    /// The span of the body.
-    pub fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
-    }
 }
 
 impl Peek for ItemInlineBody {

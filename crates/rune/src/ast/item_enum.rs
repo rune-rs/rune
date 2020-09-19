@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// An enum declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemEnum {
     /// The attributes for the enum block
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The `enum` token.
     pub enum_: ast::Enum,
@@ -60,16 +60,6 @@ impl ItemEnum {
     }
 }
 
-impl Spanned for ItemEnum {
-    fn span(&self) -> Span {
-        if let Some(first) = self.attributes.first() {
-            first.span().join(self.close.span())
-        } else {
-            self.enum_.span().join(self.close.span())
-        }
-    }
-}
-
 /// Parse implementation for an enum.
 ///
 /// # Examples
@@ -89,38 +79,19 @@ impl Parse for ItemEnum {
 }
 
 /// An enum variant.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemVariant {
     /// The attributes associated with the variant.
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The name of the variant.
     pub name: ast::Ident,
     /// The body of the variant.
+    #[spanned(skip)]
     pub body: ItemVariantBody,
     /// Optional trailing comma in variant.
+    #[spanned(last)]
     pub comma: Option<ast::Comma>,
-}
-
-impl Spanned for ItemVariant {
-    fn span(&self) -> Span {
-        let first = self
-            .attributes
-            .first()
-            .map(Spanned::span)
-            .unwrap_or_else(|| self.name.span());
-
-        let last = self
-            .comma
-            .as_ref()
-            .map(Spanned::span)
-            .unwrap_or_else(|| match &self.body {
-                ItemVariantBody::EmptyBody => self.name.span(),
-                ItemVariantBody::TupleBody(body) => body.span(),
-                ItemVariantBody::StructBody(body) => body.span(),
-            });
-
-        first.join(last)
-    }
 }
 
 /// An item body declaration.

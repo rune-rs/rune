@@ -3,11 +3,6 @@ use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
-struct ExpandedVariant {
-    into_tokens: TokenStream,
-    spanned: Option<TokenStream>,
-}
-
 /// Derive implementation of the AST macro.
 pub struct Derive {
     input: syn::DeriveInput,
@@ -74,42 +69,16 @@ impl Expander {
         let _ = self.ctx.parse_ast_derive(&input.attrs)?;
 
         let mut impl_into_tokens = Vec::new();
-        let mut impl_spanned = Option::Some::<Vec<TokenStream>>(vec![]);
 
         for variant in &st.variants {
             let expanded = self.expand_variant_fields(variant, &variant.fields)?;
-            impl_into_tokens.push(expanded.into_tokens);
-
-            if let Some(s) = &mut impl_spanned {
-                if let Some(out) = expanded.spanned {
-                    s.push(out);
-                } else {
-                    // NB: if one variant doesn't support implementing `Spanned`, it
-                    // won't be implemented.
-                    impl_spanned = None;
-                }
-            }
+            impl_into_tokens.push(expanded);
         }
 
         let ident = &input.ident;
         let into_tokens = &self.ctx.into_tokens;
-        let spanned = &self.ctx.spanned;
-        let span = &self.ctx.span;
         let macro_context = &self.ctx.macro_context;
         let token_stream = &self.ctx.token_stream;
-
-        let spanned_impl = match impl_spanned {
-            Some(impl_spanned) => Some(quote_spanned! { input.span() =>
-                impl #spanned for #ident {
-                    fn span(&self) -> #span {
-                        match self {
-                            #(#impl_spanned,)*
-                        }
-                    }
-                }
-            }),
-            None => None,
-        };
 
         Some(quote_spanned! { input.span() =>
             impl #into_tokens for #ident {
@@ -119,8 +88,6 @@ impl Expander {
                     }
                 }
             }
-
-            #spanned_impl
         })
     }
 
@@ -154,7 +121,7 @@ impl Expander {
         &mut self,
         variant: &syn::Variant,
         fields: &syn::Fields,
-    ) -> Option<ExpandedVariant> {
+    ) -> Option<TokenStream> {
         match fields {
             syn::Fields::Named(named) => self.expand_variant_named(variant, named),
             syn::Fields::Unnamed(unnamed) => self.expand_variant_unnamed(variant, unnamed),
@@ -205,7 +172,7 @@ impl Expander {
         &mut self,
         variant: &syn::Variant,
         named: &syn::FieldsNamed,
-    ) -> Option<ExpandedVariant> {
+    ) -> Option<TokenStream> {
         let mut fields = Vec::new();
         let mut idents = Vec::new();
 
@@ -222,11 +189,8 @@ impl Expander {
 
         let ident = &variant.ident;
 
-        Some(ExpandedVariant {
-            into_tokens: quote_spanned! { named.span() =>
-                Self::#ident { #(#idents,)* } => { #(#fields;)* }
-            },
-            spanned: None,
+        Some(quote_spanned! { named.span() =>
+            Self::#ident { #(#idents,)* } => { #(#fields;)* }
         })
     }
 
@@ -235,7 +199,7 @@ impl Expander {
         &mut self,
         variant: &syn::Variant,
         named: &syn::FieldsUnnamed,
-    ) -> Option<ExpandedVariant> {
+    ) -> Option<TokenStream> {
         let mut field_into_tokens = Vec::new();
         let mut idents = Vec::new();
 
@@ -255,31 +219,17 @@ impl Expander {
 
         let ident = &variant.ident;
 
-        let spanned = if named.unnamed.len() == 1 {
-            Some(quote_spanned! { named.span() =>
-                Self::#ident(v) => v.span()
-            })
-        } else {
-            None
-        };
-
-        Some(ExpandedVariant {
-            into_tokens: quote_spanned! { named.span() =>
-                Self::#ident(#(#idents,)*) => { #(#field_into_tokens;)* }
-            },
-            spanned,
+        Some(quote_spanned! { named.span() =>
+            Self::#ident(#(#idents,)*) => { #(#field_into_tokens;)* }
         })
     }
 
     /// Expand unit variant.
-    fn expand_variant_unit(&mut self, variant: &syn::Variant) -> Option<ExpandedVariant> {
+    fn expand_variant_unit(&mut self, variant: &syn::Variant) -> Option<TokenStream> {
         let ident = &variant.ident;
 
-        Some(ExpandedVariant {
-            into_tokens: quote_spanned! { variant.span() =>
-                Self::#ident => ()
-            },
-            spanned: None,
+        Some(quote_spanned! { variant.span() =>
+            Self::#ident => ()
         })
     }
 }

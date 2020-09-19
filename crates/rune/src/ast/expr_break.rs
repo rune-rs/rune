@@ -1,38 +1,18 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Peek, Spanned};
-use runestick::Span;
 
 /// A return statement `break [expr]`.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Parse, Spanned)]
 pub struct ExprBreak {
     /// The return token.
     pub break_: ast::Break,
     /// An optional expression to break with.
+    #[spanned(last)]
     pub expr: Option<ExprBreakValue>,
 }
 
-impl ExprBreak {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        if let Some(expr) = &self.expr {
-            self.break_.span().join(expr.span())
-        } else {
-            self.break_.span()
-        }
-    }
-}
-
-impl Parse for ExprBreak {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            break_: parser.parse()?,
-            expr: parser.parse()?,
-        })
-    }
-}
-
 /// Things that we can break on.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum ExprBreakValue {
     /// Breaking a value out of a loop.
     Expr(Box<ast::Expr>),

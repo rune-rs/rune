@@ -1,21 +1,16 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
-use runestick::{Source, Span};
+use runestick::Source;
 
 /// A character literal.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitChar {
     /// The token corresponding to the literal.
     pub token: ast::Token,
     /// The source of the literal character.
     #[ast(skip)]
+    #[spanned(skip)]
     pub source: ast::CopySource<char>,
-}
-
-impl Spanned for LitChar {
-    fn span(&self) -> Span {
-        self.token.span()
-    }
 }
 
 /// Parse a character literal.

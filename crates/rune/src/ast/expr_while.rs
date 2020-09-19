@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A let expression `let <name> = <expr>;`
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprWhile {
     /// A label for the while loop.
+    #[spanned(first)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `while` keyword.
     pub while_: ast::While,
@@ -27,12 +27,6 @@ impl ExprWhile {
             condition: parser.parse()?,
             body: Box::new(parser.parse()?),
         })
-    }
-}
-
-impl Spanned for ExprWhile {
-    fn span(&self) -> Span {
-        self.while_.span().join(self.body.span())
     }
 }
 

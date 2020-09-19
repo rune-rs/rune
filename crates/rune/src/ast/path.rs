@@ -1,16 +1,18 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Peek, Resolve, Spanned, Storage};
-use runestick::{Source, Span};
+use crate::{Ast, Parse, ParseError, Peek, Resolve, Spanned, Storage};
+use runestick::Source;
 use std::borrow::Cow;
 
 /// A path, where each element is separated by a `::`.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned, Parse)]
 pub struct Path {
     /// The first component in the path.
     pub first: ast::Ident,
     /// The rest of the components in the path.
+    #[spanned(last)]
     pub rest: Vec<(ast::Scope, ast::Ident)>,
     /// Trailing scope.
+    #[spanned(last)]
     pub trailing: Option<ast::Scope>,
 }
 
@@ -41,33 +43,9 @@ impl Path {
     }
 }
 
-impl Spanned for Path {
-    fn span(&self) -> Span {
-        if let Some(trailing) = &self.trailing {
-            return self.first.span().join(trailing.span());
-        }
-
-        if let Some((_, ident)) = self.rest.last() {
-            return self.first.span().join(ident.span());
-        }
-
-        self.first.span()
-    }
-}
-
 impl Peek for Path {
     fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
         matches!(peek!(t1).kind, ast::Kind::Ident(..))
-    }
-}
-
-impl Parse for Path {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            first: parser.parse()?,
-            rest: parser.parse()?,
-            trailing: parser.parse()?,
-        })
     }
 }
 

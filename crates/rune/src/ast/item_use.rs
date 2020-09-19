@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
-use runestick::Span;
 
 /// An imported declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemUse {
     /// The attributes on use item
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The use token.
     pub use_: ast::Use,
@@ -32,15 +32,6 @@ impl ItemUse {
         })
     }
 }
-impl Spanned for ItemUse {
-    fn span(&self) -> Span {
-        if let Some(first) = self.attributes.first() {
-            first.span().join(self.semi.span())
-        } else {
-            self.use_.span().join(self.semi.span())
-        }
-    }
-}
 
 /// Parsing an use declaration.
 ///
@@ -61,7 +52,7 @@ impl Parse for ItemUse {
 }
 
 /// A use component.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum ItemUseComponent {
     /// An identifier import.
     Ident(ast::Ident),

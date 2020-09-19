@@ -79,7 +79,7 @@ impl Compile<(&ast::Block, Needs)> for Compiler<'_> {
 
         self.contexts
             .pop()
-            .ok_or_else(|| CompileError::internal(span, "missing parent context"))?;
+            .ok_or_else(|| CompileError::internal(&span, "missing parent context"))?;
 
         Ok(())
     }

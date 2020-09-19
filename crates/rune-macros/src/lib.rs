@@ -53,6 +53,7 @@ mod ast;
 mod context;
 mod internals;
 mod parse;
+mod spanned;
 
 /// Helper derive to implement AST nodes in a less error prone manner.
 #[proc_macro_derive(Ast, attributes(ast))]
@@ -67,6 +68,14 @@ pub fn ast(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[doc(hidden)]
 pub fn parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as parse::Derive);
+    derive.expand().unwrap_or_else(to_compile_errors).into()
+}
+
+/// Helper derive to implement AST nodes in a less error prone manner.
+#[proc_macro_derive(Spanned, attributes(spanned))]
+#[doc(hidden)]
+pub fn spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let derive = syn::parse_macro_input!(input as spanned::Derive);
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 

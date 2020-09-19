@@ -1,10 +1,9 @@
 use crate::ast;
 use crate::ast::utils;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A select expression that selects over a collection of futures.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprSelect {
     /// The `select` keyword.
     pub select: ast::Select,
@@ -16,12 +15,6 @@ pub struct ExprSelect {
     pub default_branch: Option<(ExprDefaultBranch, Option<ast::Comma>)>,
     /// The closing brace of the select.
     pub close: ast::CloseBrace,
-}
-
-impl Spanned for ExprSelect {
-    fn span(&self) -> Span {
-        self.select.span().join(self.close.span())
-    }
 }
 
 impl Parse for ExprSelect {
@@ -37,23 +30,13 @@ impl Parse for ExprSelect {
 
             if parser.peek::<ast::Default>()? {
                 let branch = parser.parse::<ExprDefaultBranch>()?;
-
-                let comma = if parser.peek::<ast::Comma>()? {
-                    Some(parser.parse()?)
-                } else {
-                    None
-                };
+                let comma = parser.parse::<Option<ast::Comma>>()?;
 
                 is_end = utils::is_block_end(&*branch.body, comma.as_ref());
                 default_branch = Some((branch, comma));
             } else {
                 let branch = parser.parse::<ExprSelectBranch>()?;
-
-                let comma = if parser.peek::<ast::Comma>()? {
-                    Some(parser.parse()?)
-                } else {
-                    None
-                };
+                let comma = parser.parse::<Option<ast::Comma>>()?;
 
                 is_end = utils::is_block_end(&*branch.body, comma.as_ref());
                 branches.push((branch, comma));
@@ -77,7 +60,7 @@ impl Parse for ExprSelect {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, Ast, Parse)]
+#[derive(Debug, Clone, Ast, Parse, Spanned)]
 pub struct ExprSelectBranch {
     /// The identifier to bind the result to.
     pub pat: ast::Pat,
@@ -91,15 +74,8 @@ pub struct ExprSelectBranch {
     pub body: Box<ast::Expr>,
 }
 
-impl ExprSelectBranch {
-    /// The span of the expression.
-    pub fn span(&self) -> Span {
-        self.pat.span().join(self.body.span())
-    }
-}
-
 /// A single selection branch.
-#[derive(Debug, Clone, Ast, Parse)]
+#[derive(Debug, Clone, Ast, Parse, Spanned)]
 pub struct ExprDefaultBranch {
     /// The `default` keyword.
     pub default: ast::Default,
@@ -107,11 +83,4 @@ pub struct ExprDefaultBranch {
     pub rocket: ast::Rocket,
     /// The body of the expression.
     pub body: Box<ast::Expr>,
-}
-
-impl ExprDefaultBranch {
-    /// The span of the expression.
-    pub fn span(&self) -> Span {
-        self.default.span().join(self.body.span())
-    }
 }

@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A match expression.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprMatch {
     /// The attributes for the match expression
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The `match` token.
     pub match_: ast::Match,
@@ -62,12 +62,6 @@ impl ExprMatch {
     }
 }
 
-impl Spanned for ExprMatch {
-    fn span(&self) -> Span {
-        self.match_.span().join(self.close.span())
-    }
-}
-
 /// Parse a match statement.
 ///
 /// # Examples
@@ -87,7 +81,15 @@ impl Parse for ExprMatch {
 }
 
 /// A match branch.
-#[derive(Debug, Clone, Ast)]
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::ExprMatchBranch>("1 => { foo }").unwrap();
+/// ```
+#[derive(Debug, Clone, Ast, Parse, Spanned)]
 pub struct ExprMatchBranch {
     /// The pattern to match.
     pub pat: ast::Pat,
@@ -100,33 +102,8 @@ pub struct ExprMatchBranch {
 }
 
 impl ExprMatchBranch {
-    /// Access the span of the expression.
-    pub fn span(&self) -> Span {
-        self.pat.span().join(self.body.span())
-    }
-
     /// Test if the branch produces nothing.
     pub fn produces_nothing(&self) -> bool {
         self.body.produces_nothing()
-    }
-}
-
-/// Parse a match statement.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// parse_all::<ast::ExprMatchBranch>("1 => { foo }").unwrap();
-/// ```
-impl Parse for ExprMatchBranch {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(Self {
-            pat: parser.parse()?,
-            condition: parser.parse()?,
-            rocket: parser.parse()?,
-            body: Box::new(parser.parse()?),
-        })
     }
 }

@@ -1,10 +1,10 @@
 use crate::{ast, Peek};
 use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
-use runestick::{Source, Span};
+use runestick::Source;
 use std::borrow::Cow;
 
 /// A literal object identifier.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum LitObjectIdent {
     /// An anonymous object.
     Anonymous(ast::Hash),
@@ -24,22 +24,13 @@ impl Parse for LitObjectIdent {
 }
 
 /// A literal object field.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitObjectFieldAssign {
     /// The key of the field.
     pub key: LitObjectKey,
     /// The assigned expression of the field.
+    #[spanned(last)]
     pub assign: Option<(ast::Colon, ast::Expr)>,
-}
-
-impl Spanned for LitObjectFieldAssign {
-    fn span(&self) -> Span {
-        if let Some((_, expr)) = &self.assign {
-            self.key.span().join(expr.span())
-        } else {
-            self.key.span()
-        }
-    }
 }
 
 impl LitObjectFieldAssign {
@@ -80,7 +71,7 @@ impl Parse for LitObjectFieldAssign {
 }
 
 /// Possible literal object keys.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum LitObjectKey {
     /// A literal string (with escapes).
     LitStr(ast::LitStr),
@@ -127,7 +118,7 @@ impl<'a> Resolve<'a> for LitObjectKey {
 }
 
 /// A number literal.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitObject {
     /// An object identifier.
     pub ident: LitObjectIdent,
@@ -140,6 +131,7 @@ pub struct LitObject {
     /// Indicates if the object is completely literal and cannot have side
     /// effects.
     #[ast(skip)]
+    #[spanned(skip)]
     is_const: bool,
 }
 
@@ -185,12 +177,6 @@ impl LitObject {
             close,
             is_const,
         })
-    }
-}
-
-impl Spanned for LitObject {
-    fn span(&self) -> Span {
-        self.ident.span().join(self.close.span())
     }
 }
 

@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A tuple pattern.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct PatTuple {
     /// The path, if the tuple is typed.
+    #[spanned(first)]
     pub path: Option<ast::Path>,
     /// The open bracket.
     pub open: ast::OpenParen,
@@ -56,16 +56,6 @@ impl PatTuple {
             open_pattern,
             close,
         })
-    }
-}
-
-impl Spanned for PatTuple {
-    fn span(&self) -> Span {
-        if let Some(path) = &self.path {
-            path.span().join(self.close.span())
-        } else {
-            self.open.span().join(self.close.span())
-        }
     }
 }
 

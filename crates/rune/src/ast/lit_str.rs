@@ -4,19 +4,14 @@ use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitStr {
     /// The token corresponding to the literal.
     token: ast::Token,
     /// The source of the literal string.
     #[ast(skip)]
+    #[spanned(skip)]
     source: ast::LitStrSource,
-}
-
-impl Spanned for LitStr {
-    fn span(&self) -> Span {
-        self.token.span()
-    }
 }
 
 impl LitStr {

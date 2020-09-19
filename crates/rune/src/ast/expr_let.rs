@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A let expression `let <name> = <expr>;`
-#[derive(Debug, Clone, Ast, Parse)]
+#[derive(Debug, Clone, Ast, Parse, Spanned)]
 pub struct ExprLet {
     /// The `let` keyword.
     pub let_: ast::Let,
@@ -24,12 +23,5 @@ impl ExprLet {
             eq: parser.parse()?,
             expr: Box::new(ast::Expr::parse_without_eager_brace(parser)?),
         })
-    }
-}
-
-impl Spanned for ExprLet {
-    /// Access the span of the expression.
-    fn span(&self) -> Span {
-        self.let_.span().join(self.expr.span())
     }
 }

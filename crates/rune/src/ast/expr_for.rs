@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A for loop expression `for i in [1, 2, 3] {}`
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprFor {
     /// The label of the loop.
+    #[spanned(first)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `for` keyword.
     pub for_: ast::For,
@@ -34,12 +34,6 @@ impl ExprFor {
             iter: Box::new(ast::Expr::parse_without_eager_brace(parser)?),
             body: Box::new(parser.parse()?),
         })
-    }
-}
-
-impl Spanned for ExprFor {
-    fn span(&self) -> Span {
-        self.for_.token.span().join(self.body.span())
     }
 }
 

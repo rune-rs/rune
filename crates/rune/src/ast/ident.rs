@@ -1,21 +1,17 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage};
-use runestick::{Source, Span};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage};
+use runestick::Source;
 use std::borrow::Cow;
 
 /// An identifier, like `foo` or `Hello`.".
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Ast, Spanned)]
 pub struct Ident {
     /// The kind of the identifier.
     pub token: ast::Token,
     /// The kind of the identifier.
+    #[ast(skip)]
+    #[spanned(skip)]
     pub kind: ast::StringSource,
-}
-
-impl Spanned for Ident {
-    fn span(&self) -> Span {
-        self.token.span()
-    }
 }
 
 impl Parse for Ident {
@@ -66,11 +62,5 @@ impl<'a> Resolve<'a> for Ident {
                 Ok(Cow::Owned(ident))
             }
         }
-    }
-}
-
-impl crate::IntoTokens for Ident {
-    fn into_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        stream.push(self.token);
     }
 }

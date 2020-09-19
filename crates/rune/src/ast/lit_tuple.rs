@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// An expression to construct a literal tuple.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitTuple {
     /// The open bracket.
     pub open: ast::OpenParen,
@@ -13,6 +12,7 @@ pub struct LitTuple {
     pub close: ast::CloseParen,
     /// If the entire tuple is constant.
     #[ast(skip)]
+    #[spanned(skip)]
     is_const: bool,
 }
 
@@ -60,12 +60,6 @@ impl LitTuple {
             close,
             is_const,
         })
-    }
-}
-
-impl Spanned for LitTuple {
-    fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
     }
 }
 
