@@ -9,7 +9,7 @@
 //!     <b>Visit the site 🌐</b>
 //! </a>
 //! -
-//! <a href="https://rune-rs.github.io/bool/">
+//! <a href="https://rune-rs.github.io/book/">
 //!     <b>Read the book 📖</b>
 //! </a>
 //! </div>
@@ -153,18 +153,18 @@
 //! [future-optimizations]: https://github.com/rune-rs/rune/blob/master/FUTURE_OPTIMIZATIONS.md
 //! [Open Issues]: https://github.com/rune-rs/rune/issues
 //! [support-rust-integration]: https://github.com/rune-rs/rune/tree/master/crates/rune-modules
-//! [support-reference-counted]: https://rune-rs.github.io/rune/variables.html
-//! [support-templates]: https://rune-rs.github.io/rune/template_strings.html
-//! [support-try]: https://rune-rs.github.io/rune/try_operator.html
-//! [support-patterns]: https://rune-rs.github.io/rune/pattern_matching.html
-//! [support-structs]: https://rune-rs.github.io/rune/structs.html
-//! [support-async]: https://rune-rs.github.io/rune/async.html
-//! [support-generators]: https://rune-rs.github.io/rune/generators.html
-//! [support-instance-functions]: https://rune-rs.github.io/rune/instance_functions.html
-//! [support-stack-isolation]: https://rune-rs.github.io/rune/call_frames.html
-//! [support-dynamic-vectors]: https://rune-rs.github.io/rune/vectors.html
-//! [support-anon-objects]: https://rune-rs.github.io/rune/objects.html
-//! [support-anon-tuples]: https://rune-rs.github.io/rune/tuples.html
+//! [support-reference-counted]: https://rune-rs.github.io/book/variables.html
+//! [support-templates]: https://rune-rs.github.io/book/template_strings.html
+//! [support-try]: https://rune-rs.github.io/book/try_operator.html
+//! [support-patterns]: https://rune-rs.github.io/book/pattern_matching.html
+//! [support-structs]: https://rune-rs.github.io/book/structs.html
+//! [support-async]: https://rune-rs.github.io/book/async.html
+//! [support-generators]: https://rune-rs.github.io/book/generators.html
+//! [support-instance-functions]: https://rune-rs.github.io/book/instance_functions.html
+//! [support-stack-isolation]: https://rune-rs.github.io/book/call_frames.html
+//! [support-dynamic-vectors]: https://rune-rs.github.io/book/vectors.html
+//! [support-anon-objects]: https://rune-rs.github.io/book/objects.html
+//! [support-anon-tuples]: https://rune-rs.github.io/book/tuples.html
 //! [support-serde]: https://github.com/rune-rs/rune/blob/master/crates/rune-modules/src/json.rs
 
 #![deny(missing_docs)]

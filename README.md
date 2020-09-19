@@ -167,4 +167,4 @@ async fn main() -> Result<(), Box<dyn Error>> {
 [support-dynamic-vectors]: https://rune-rs.github.io/book/vectors.html
 [support-anon-objects]: https://rune-rs.github.io/book/objects.html
 [support-anon-tuples]: https://rune-rs.github.io/book/tuples.html
-[support-serde]: https://github.com/rune-rs/book/blob/master/crates/rune-modules/src/json.rs
+[support-serde]: https://github.com/rune-rs/rune/blob/master/crates/rune-modules/src/json.rs

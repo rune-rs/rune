@@ -11,7 +11,7 @@
     <b>Visit the site 🌐</b>
 </a>
 -
-<a href="https://rune-rs.github.io/bool/">
+<a href="https://rune-rs.github.io/book/">
     <b>Read the book 📖</b>
 </a>
 </div>

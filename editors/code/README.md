@@ -1,7 +1,7 @@
 # rune-vscode
 
 <div align="center">
-<a href="https://rune-rs.github.io/rune/">
+<a href="https://rune-rs.github.io/book/">
     <b>Read the book 📖</b>
 </a>
 </div>
@@ -32,6 +32,6 @@
 
 Provides support for the [Rune language] in Visual Studio Code.
 
-See https://rune-rs.github.io/rune/ for more information.
+See https://rune-rs.github.io/book/ for more information.
 
 [Rune Language]: https://github.com/rune-rs/rune
