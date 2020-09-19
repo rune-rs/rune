@@ -1,11 +1,11 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A block of expressions.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprBlock {
     /// The attributes for the block.
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The close brace.
     pub block: ast::Block,
@@ -31,16 +31,6 @@ impl ExprBlock {
             attributes,
             block: parser.parse()?,
         })
-    }
-}
-
-impl Spanned for ExprBlock {
-    fn span(&self) -> Span {
-        if let Some(first) = self.attributes.first() {
-            first.span().join(self.block.span())
-        } else {
-            self.block.span()
-        }
     }
 }
 

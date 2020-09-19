@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
 
 /// A pattern match.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum Pat {
     /// An ignored binding `_`.
     PatIgnore(ast::Underscore),

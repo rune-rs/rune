@@ -3,7 +3,7 @@ use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned, TokenStream
 use runestick::Span;
 
 /// A function call `<expr>!(<args>)`.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct MacroCall {
     /// The expression being called over.
     pub path: ast::Path,
@@ -15,13 +15,6 @@ pub struct MacroCall {
     pub stream: TokenStream,
     /// Closing paren.
     pub close: ast::Token,
-}
-
-impl Spanned for MacroCall {
-    /// Access the span of expression.
-    fn span(&self) -> Span {
-        self.path.span().join(self.close.span())
-    }
 }
 
 impl MacroCall {

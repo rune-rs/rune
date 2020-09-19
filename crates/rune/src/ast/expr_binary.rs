@@ -1,10 +1,9 @@
 use crate::ast;
 use crate::{Ast, Peek, Spanned};
-use runestick::Span;
 use std::fmt;
 
 /// A binary expression.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprBinary {
     /// The left-hand side of a binary operation.
     pub lhs: Box<ast::Expr>,
@@ -16,6 +15,7 @@ pub struct ExprBinary {
     pub rhs: Box<ast::Expr>,
     /// The operation to apply.
     #[ast(skip)]
+    #[spanned(skip)]
     pub op: BinOp,
 }
 
@@ -29,12 +29,6 @@ impl ExprBinary {
     /// Test if the expression is a constant expression.
     pub fn is_const(&self) -> bool {
         self.lhs.is_const() && self.rhs.is_const()
-    }
-}
-
-impl Spanned for ExprBinary {
-    fn span(&self) -> Span {
-        self.lhs.span().join(self.rhs.span())
     }
 }
 

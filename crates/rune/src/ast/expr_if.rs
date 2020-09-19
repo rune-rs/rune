@@ -1,9 +1,8 @@
 use crate::ast::{Condition, Else, ExprBlock, ExprElse, ExprElseIf, If};
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// An if expression.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprIf {
     /// The `if` token.
     pub if_: If,
@@ -12,8 +11,10 @@ pub struct ExprIf {
     /// The body of the if statement.
     pub block: Box<ExprBlock>,
     /// Else if branches.
+    #[spanned(last)]
     pub expr_else_ifs: Vec<ExprElseIf>,
     /// The else part of the if expression.
+    #[spanned(last)]
     pub expr_else: Option<ExprElse>,
 }
 
@@ -21,18 +22,6 @@ impl ExprIf {
     /// An if statement evaluates to empty if it does not have an else branch.
     pub fn produces_nothing(&self) -> bool {
         self.expr_else.is_none()
-    }
-}
-
-impl Spanned for ExprIf {
-    fn span(&self) -> Span {
-        if let Some(else_) = &self.expr_else {
-            self.if_.token.span().join(else_.block.span())
-        } else if let Some(else_if) = self.expr_else_ifs.last() {
-            self.if_.token.span().join(else_if.block.span())
-        } else {
-            self.if_.token.span().join(self.block.span())
-        }
     }
 }
 

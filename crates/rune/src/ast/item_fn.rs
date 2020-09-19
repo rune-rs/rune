@@ -3,11 +3,13 @@ use crate::{Ast, Parse, ParseError, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// A function.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemFn {
     /// The attributes for the fn
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The optional `async` keyword.
+    #[spanned(first)]
     pub async_: Option<ast::Async>,
     /// The `fn` token.
     pub fn_: ast::Fn,
@@ -47,18 +49,6 @@ impl ItemFn {
             args: parser.parse()?,
             body: parser.parse()?,
         })
-    }
-}
-
-impl Spanned for ItemFn {
-    fn span(&self) -> Span {
-        if let Some(first) = self.attributes.first() {
-            first.span().join(self.body.span())
-        } else if let Some(async_) = &self.async_ {
-            async_.span().join(self.body.span())
-        } else {
-            self.fn_.span().join(self.body.span())
-        }
     }
 }
 

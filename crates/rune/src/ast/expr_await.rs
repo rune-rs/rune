@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A return statement `<expr>.await`.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprAwait {
     /// The expression being awaited.
     pub expr: Box<ast::Expr>,
@@ -11,12 +10,6 @@ pub struct ExprAwait {
     pub dot: ast::Dot,
     /// The await token.
     pub await_: ast::Await,
-}
-
-impl Spanned for ExprAwait {
-    fn span(&self) -> Span {
-        self.expr.span().join(self.await_.span())
-    }
 }
 
 impl Parse for ExprAwait {

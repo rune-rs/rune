@@ -3,7 +3,7 @@ use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, Token
 use runestick::Span;
 
 /// Attribute like `#[derive(Debug)]`
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct Attribute {
     /// The `#` character
     pub hash: ast::Hash,
@@ -17,12 +17,6 @@ pub struct Attribute {
     pub input: TokenStream,
     /// The `]` character
     pub close: ast::CloseBracket,
-}
-
-impl crate::Spanned for Attribute {
-    fn span(&self) -> Span {
-        self.hash.span().join(self.close.span())
-    }
 }
 
 /// Parsing an Attribute

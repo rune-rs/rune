@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned};
 
 /// A literal value
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum Lit {
     /// A unit literal
     Unit(ast::LitUnit),

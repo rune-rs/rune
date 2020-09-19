@@ -1,8 +1,18 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned};
 
 /// A single argument in a closure.
-#[derive(Debug, Clone, Ast)]
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::FnArg>("self").unwrap();
+/// parse_all::<ast::FnArg>("_").unwrap();
+/// parse_all::<ast::FnArg>("abc").unwrap();
+/// ```
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum FnArg {
     /// The `self` parameter.
     Self_(ast::Self_),

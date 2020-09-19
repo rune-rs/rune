@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// An object pattern.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct PatObject {
     /// The identifier of the object pattern.
     pub ident: ast::LitObjectIdent,
@@ -63,12 +62,6 @@ impl PatObject {
     }
 }
 
-impl Spanned for PatObject {
-    fn span(&self) -> Span {
-        self.ident.span().join(self.close.span())
-    }
-}
-
 impl Parse for PatObject {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let ident = parser.parse()?;
@@ -77,35 +70,11 @@ impl Parse for PatObject {
 }
 
 /// An object item.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned, Parse)]
 pub struct PatObjectItem {
     /// The key of an object.
     pub key: ast::LitObjectKey,
     /// The binding used for the pattern object.
+    #[spanned(last)]
     pub binding: Option<(ast::Colon, ast::Pat)>,
-}
-
-impl PatObjectItem {
-    /// The span of the expression.
-    pub fn span(&self) -> Span {
-        if let Some((_, pat)) = &self.binding {
-            self.key.span().join(pat.span())
-        } else {
-            self.key.span()
-        }
-    }
-}
-
-impl Parse for PatObjectItem {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let key = parser.parse()?;
-
-        let binding = if parser.peek::<ast::Colon>()? {
-            Some((parser.parse()?, parser.parse()?))
-        } else {
-            None
-        };
-
-        Ok(Self { key, binding })
-    }
 }

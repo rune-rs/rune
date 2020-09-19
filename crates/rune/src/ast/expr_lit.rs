@@ -3,9 +3,10 @@ use crate::{Ast, Spanned};
 use crate::{ParseError, Parser};
 
 /// A literal expression.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprLit {
     /// Attributes associated with the literal expression.
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// The literal in the expression.
     pub lit: ast::Lit,
@@ -26,15 +27,5 @@ impl ExprLit {
             attributes,
             lit: parser.parse()?,
         })
-    }
-}
-
-impl Spanned for ExprLit {
-    fn span(&self) -> runestick::Span {
-        if let Some(first) = self.attributes.first() {
-            first.span().join(self.lit.span())
-        } else {
-            self.lit.span()
-        }
     }
 }

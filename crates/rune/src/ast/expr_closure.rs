@@ -3,11 +3,13 @@ use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A closure.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprClosure {
     /// The attributes for the async closure
+    #[spanned(first)]
     pub attributes: Vec<ast::Attribute>,
     /// If the closure is async or not.
+    #[spanned(first)]
     pub async_: Option<ast::Async>,
     /// Arguments to the closure.
     pub args: ExprClosureArgs,
@@ -61,16 +63,6 @@ impl ExprClosure {
             args,
             body: Box::new(parser.parse()?),
         })
-    }
-}
-
-impl Spanned for ExprClosure {
-    fn span(&self) -> Span {
-        if let Some(async_) = &self.async_ {
-            async_.span().join(self.body.span())
-        } else {
-            self.args.span().join(self.body.span())
-        }
     }
 }
 

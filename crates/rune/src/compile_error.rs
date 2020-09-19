@@ -45,7 +45,7 @@ impl CompileError {
     ///
     /// This should be used for programming invariants of the encoder which are
     /// broken for some reason.
-    pub fn internal<S>(spanned: S, msg: &'static str) -> Self
+    pub fn internal<S>(spanned: &S, msg: &'static str) -> Self
     where
         S: Spanned,
     {

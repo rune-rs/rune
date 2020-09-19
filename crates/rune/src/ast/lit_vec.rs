@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, Parser, Spanned};
-use runestick::Span;
 
 /// A number literal.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitVec {
     /// The open bracket.
     pub open: ast::OpenBracket,
@@ -13,6 +12,7 @@ pub struct LitVec {
     pub close: ast::CloseBracket,
     /// If the entire array is constant.
     #[ast(skip)]
+    #[spanned(skip)]
     is_const: bool,
 }
 
@@ -20,12 +20,6 @@ impl LitVec {
     /// Test if the entire expression is constant.
     pub fn is_const(&self) -> bool {
         self.is_const
-    }
-}
-
-impl Spanned for LitVec {
-    fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
     }
 }
 

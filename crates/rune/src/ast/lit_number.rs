@@ -3,19 +3,14 @@ use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, St
 use runestick::{Source, Span};
 
 /// A number literal.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitNumber {
     /// The token corresponding to the literal.
     token: ast::Token,
     /// The source of the number.
     #[ast(skip)]
+    #[spanned(skip)]
     source: ast::NumberSource,
-}
-
-impl Spanned for LitNumber {
-    fn span(&self) -> Span {
-        self.token.span()
-    }
 }
 
 /// Parse a number literal.

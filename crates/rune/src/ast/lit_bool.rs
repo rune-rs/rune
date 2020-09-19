@@ -1,21 +1,15 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
-use runestick::Span;
 
 /// The unit literal `()`.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitBool {
     /// The value of the literal.
     #[ast(skip)]
+    #[spanned(skip)]
     pub value: bool,
     /// The token of the literal.
     pub token: ast::Token,
-}
-
-impl Spanned for LitBool {
-    fn span(&self) -> Span {
-        self.token.span()
-    }
 }
 
 /// Parsing a unit literal

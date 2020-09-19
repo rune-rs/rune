@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
 
 /// A declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum Item {
     /// A use declaration.
     ItemUse(ast::ItemUse),

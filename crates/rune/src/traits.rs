@@ -116,17 +116,27 @@ pub trait Spanned {
     fn span(&self) -> Span;
 }
 
+impl<A, B> Spanned for (A, B)
+where
+    A: Spanned,
+    B: Spanned,
+{
+    fn span(&self) -> Span {
+        self.0.span().join(self.1.span())
+    }
+}
+
 impl Spanned for Span {
     fn span(&self) -> Span {
         *self
     }
 }
 
-impl<T> Spanned for &T
+impl<T> Spanned for Box<T>
 where
     T: Spanned,
 {
     fn span(&self) -> Span {
-        Spanned::span(*self)
+        Spanned::span(&**self)
     }
 }

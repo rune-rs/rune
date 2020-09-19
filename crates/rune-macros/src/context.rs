@@ -14,6 +14,14 @@ pub(crate) struct AstAttrs {
 #[derive(Default)]
 pub(crate) struct ParseAttrs {}
 
+/// Parsed `#[spanned(..)]` attributes.
+#[derive(Default)]
+pub(crate) struct SpannedAttrs {
+    pub(crate) first: bool,
+    pub(crate) last: bool,
+    pub(crate) skip: bool,
+}
+
 /// Parsed ast derive attributes.
 #[derive(Default)]
 pub(crate) struct AstDerive {}
@@ -94,6 +102,27 @@ impl Context {
         }
     }
 
+    /// Parse field attributes.
+    pub(crate) fn parse_ast_derive(&mut self, input: &[syn::Attribute]) -> Option<AstDerive> {
+        let attrs = AstDerive::default();
+
+        for attr in input {
+            #[allow(clippy::never_loop)] // I guess this is on purpose?
+            for meta in self.get_meta_items(attr, AST)? {
+                match meta {
+                    meta => {
+                        self.errors
+                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
+
+                        return None;
+                    }
+                }
+            }
+        }
+
+        Some(attrs)
+    }
+
     /// Parse `#[ast(..)]` field attributes.
     pub(crate) fn parse_ast_fields(&mut self, input: &[syn::Attribute]) -> Option<AstAttrs> {
         let mut attrs = AstAttrs::default();
@@ -140,14 +169,29 @@ impl Context {
         Some(attrs)
     }
 
-    /// Parse field attributes.
-    pub(crate) fn parse_ast_derive(&mut self, input: &[syn::Attribute]) -> Option<AstDerive> {
-        let attrs = AstDerive::default();
+    /// Parse `#[spanned(..)]` field attributes.
+    pub(crate) fn parse_spanned_fields(
+        &mut self,
+        input: &[syn::Attribute],
+    ) -> Option<SpannedAttrs> {
+        let mut attrs = SpannedAttrs::default();
 
         for attr in input {
             #[allow(clippy::never_loop)] // I guess this is on purpose?
-            for meta in self.get_meta_items(attr, AST)? {
+            for meta in self.get_meta_items(attr, SPANNED)? {
                 match meta {
+                    // Parse `#[spanned(first)]`.
+                    Meta(Path(word)) if word == FIRST => {
+                        attrs.first = true;
+                    }
+                    // Parse `#[spanned(last)]`.
+                    Meta(Path(word)) if word == LAST => {
+                        attrs.last = true;
+                    }
+                    // Parse `#[spanned(skip)]`.
+                    Meta(Path(word)) if word == SKIP => {
+                        attrs.skip = true;
+                    }
                     meta => {
                         self.errors
                             .push(syn::Error::new_spanned(meta, "unsupported attribute"));

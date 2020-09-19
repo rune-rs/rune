@@ -1,25 +1,19 @@
 use crate::ast;
 use crate::ast::expr::{EagerBrace, ExprChain};
 use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned};
-use runestick::Span;
 use std::fmt;
 
 /// A unary expression.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprUnary {
     /// The operation to apply.
     #[ast(skip)]
+    #[spanned(skip)]
     pub op: UnaryOp,
     /// Token associated with operator.
     pub token: ast::Token,
     /// The expression of the operation.
     pub expr: Box<ast::Expr>,
-}
-
-impl Spanned for ExprUnary {
-    fn span(&self) -> Span {
-        self.token.span().join(self.expr.span())
-    }
 }
 
 /// Parse a unary statement.

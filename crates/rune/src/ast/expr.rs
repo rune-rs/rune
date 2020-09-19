@@ -28,7 +28,7 @@ impl ops::Deref for ExprChain {
 }
 
 /// A rune expression.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub enum Expr {
     /// The `self` keyword.
     Self_(ast::Self_),

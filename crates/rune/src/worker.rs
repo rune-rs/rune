@@ -253,7 +253,7 @@ impl<'a> Worker<'a> {
                                 _ => {
                                     self.errors.push(
                                         LoadError::new(source_id, CompileError::internal(
-                                            span,
+                                            &span,
                                             "expected macro item as last component of macro expansion",
                                         ))
                                     );

@@ -1,6 +1,5 @@
 use crate::ast;
 use crate::{Ast, Parse, Peek, Spanned};
-use runestick::Span;
 
 /// The unit literal `()`.
 ///
@@ -11,18 +10,12 @@ use runestick::Span;
 ///
 /// parse_all::<ast::LitUnit>("()").unwrap();
 /// ```
-#[derive(Debug, Clone, Ast, Parse)]
+#[derive(Debug, Clone, Ast, Parse, Spanned)]
 pub struct LitUnit {
     /// The open parenthesis.
     pub open: ast::OpenParen,
     /// The close parenthesis.
     pub close: ast::CloseParen,
-}
-
-impl Spanned for LitUnit {
-    fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
-    }
 }
 
 impl Peek for LitUnit {

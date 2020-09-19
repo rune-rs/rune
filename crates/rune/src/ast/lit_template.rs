@@ -4,19 +4,14 @@ use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitTemplate {
     /// The token corresponding to the literal.
     token: ast::Token,
     /// The source string of the literal template.
     #[ast(skip)]
+    #[spanned(skip)]
     source: ast::LitStrSource,
-}
-
-impl Spanned for LitTemplate {
-    fn span(&self) -> Span {
-        self.token.span()
-    }
 }
 
 /// A single template component.

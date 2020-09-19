@@ -1,21 +1,16 @@
 use crate::ast;
 use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
-use runestick::{Source, Span};
+use runestick::Source;
 
 /// A byte literal.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, Ast, Spanned)]
 pub struct LitByte {
     /// The token corresponding to the literal.
     pub token: ast::Token,
     /// The source of the byte.
     #[ast(skip)]
+    #[spanned(skip)]
     pub source: ast::CopySource<u8>,
-}
-
-impl Spanned for LitByte {
-    fn span(&self) -> Span {
-        self.token.span()
-    }
 }
 
 /// Parse a byte literal.

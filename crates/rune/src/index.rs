@@ -839,7 +839,7 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
         for (arg, _) in expr_closure.args.as_slice() {
             match arg {
                 ast::FnArg::Self_(s) => {
-                    return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
+                    return Err(CompileError::new(*s, CompileErrorKind::UnsupportedSelf));
                 }
                 ast::FnArg::Ident(ident) => {
                     let ident = ident.resolve(&self.storage, &*self.source)?;

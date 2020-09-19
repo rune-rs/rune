@@ -2,7 +2,7 @@ use crate::ast;
 use crate::compiler::Compiler;
 use crate::traits::Compile;
 use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind};
+use crate::{CompileError, CompileErrorKind, Spanned as _};
 use runestick::Inst;
 
 /// Compile a break expression.
@@ -49,7 +49,7 @@ impl Compile<&ast::ExprBreak> for Compiler<'_> {
             .scopes
             .total_var_count(span)?
             .checked_sub(last_loop.total_var_count)
-            .ok_or_else(|| CompileError::internal(span, "var count should be larger"))?;
+            .ok_or_else(|| CompileError::internal(&span, "var count should be larger"))?;
 
         if last_loop.needs.value() {
             if has_value {
