@@ -42,7 +42,7 @@
 //!
 //! These are modules that can be used with the [Rune language].
 //!
-//! [Rune Language]: https://github.com/rune-rs/rune
+//! [Rune Language]: https://rune-rs.github.io
 //!
 //! See each module for documentation:
 //! * [http]

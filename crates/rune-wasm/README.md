@@ -1,4 +1,4 @@
-# rune-macros
+# rune-wasm
 
 <div align="center">
     <img alt="Rune Logo" src="https://raw.githubusercontent.com/rune-rs/rune/master/assets/icon.png" />
@@ -40,9 +40,8 @@
 </a>
 </div>
 
-<br>
+Very basic WASM bindings for Rune.
 
-Macros for Rune.
+This is part of the [Rune Language].
 
-This is part of the [Rune language].
 [Rune Language]: https://rune-rs.github.io

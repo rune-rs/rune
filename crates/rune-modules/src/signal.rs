@@ -1,6 +1,6 @@
 //! The native `signal` module for the [Rune Language].
 //!
-//! [Rune Language]: https://github.com/rune-rs/rune
+//! [Rune Language]: https://rune-rs.github.io
 //!
 //! ## Usage
 //!
