@@ -6,10 +6,10 @@ use runestick::Span;
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprClosure {
     /// The attributes for the async closure
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// If the closure is async or not.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub async_: Option<ast::Async>,
     /// Arguments to the closure.
     pub args: ExprClosureArgs,

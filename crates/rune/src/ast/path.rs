@@ -9,10 +9,10 @@ pub struct Path {
     /// The first component in the path.
     pub first: ast::Ident,
     /// The rest of the components in the path.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub rest: Vec<(ast::Scope, ast::Ident)>,
     /// Trailing scope.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub trailing: Option<ast::Scope>,
 }
 

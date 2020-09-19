@@ -17,8 +17,7 @@ pub(crate) struct ParseAttrs {}
 /// Parsed `#[spanned(..)]` attributes.
 #[derive(Default)]
 pub(crate) struct SpannedAttrs {
-    pub(crate) first: bool,
-    pub(crate) last: bool,
+    pub(crate) iter: bool,
     pub(crate) skip: bool,
 }
 
@@ -180,13 +179,9 @@ impl Context {
             #[allow(clippy::never_loop)] // I guess this is on purpose?
             for meta in self.get_meta_items(attr, SPANNED)? {
                 match meta {
-                    // Parse `#[spanned(first)]`.
-                    Meta(Path(word)) if word == FIRST => {
-                        attrs.first = true;
-                    }
-                    // Parse `#[spanned(last)]`.
-                    Meta(Path(word)) if word == LAST => {
-                        attrs.last = true;
+                    // Parse `#[spanned(iter)]`.
+                    Meta(Path(word)) if word == ITER => {
+                        attrs.iter = true;
                     }
                     // Parse `#[spanned(skip)]`.
                     Meta(Path(word)) if word == SKIP => {

@@ -137,7 +137,7 @@ impl Expander {
         tokens: &(impl quote::ToTokens + syn::spanned::Spanned),
         mut it: impl DoubleEndedIterator<Item = (Option<TokenStream>, &'a syn::Field)>,
     ) -> Option<TokenStream> {
-        let (begin_trailing, begin) = self.build_decode(&mut it)?;
+        let (begin_trailing, begin) = self.build_decode(false, &mut it)?;
 
         let begin = match (begin_trailing, begin) {
             (false, Some(begin)) => begin,
@@ -151,7 +151,7 @@ impl Expander {
         };
 
         let mut it = it.rev();
-        let (end_trailing, end) = self.build_decode(&mut it)?;
+        let (end_trailing, end) = self.build_decode(true, &mut it)?;
 
         Some(if end_trailing {
             if let Some(end) = end {
@@ -225,6 +225,7 @@ impl Expander {
 
     fn build_decode<'a>(
         &mut self,
+        back: bool,
         mut it: impl Iterator<Item = (Option<TokenStream>, &'a syn::Field)>,
     ) -> Option<(bool, Option<TokenStream>)> {
         let mut quote = None::<TokenStream>;
@@ -245,17 +246,16 @@ impl Expander {
                 continue;
             }
 
-            if attrs.first || attrs.last {
-                let spanned = &self.ctx.spanned;
-
-                let next = if attrs.first {
-                    quote_spanned! {
-                        field.span() => IntoIterator::into_iter(#var).next().map(#spanned::span)
-                    }
+            if attrs.iter {
+                let next = if back {
+                    quote_spanned!(field.span() => next_back)
                 } else {
-                    quote_spanned! {
-                        field.span() => IntoIterator::into_iter(#var).next_back().map(#spanned::span)
-                    }
+                    quote_spanned!(field.span() => next)
+                };
+
+                let spanned = &self.ctx.spanned;
+                let next = quote_spanned! {
+                    field.span() => IntoIterator::into_iter(#var).#next().map(#spanned::span)
                 };
 
                 if quote.is_some() {

@@ -6,7 +6,7 @@ use crate::{ParseError, Parser};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprLit {
     /// Attributes associated with the literal expression.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The literal in the expression.
     pub lit: ast::Lit,

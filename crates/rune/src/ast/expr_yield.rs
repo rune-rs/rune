@@ -16,6 +16,6 @@ pub struct ExprYield {
     /// The return token.
     pub yield_: ast::Yield,
     /// An optional expression to yield.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub expr: Option<Box<ast::Expr>>,
 }

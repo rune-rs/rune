@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, Parser, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprLoop {
     /// A label followed by a colon.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `loop` keyword.
     pub loop_: ast::Loop,

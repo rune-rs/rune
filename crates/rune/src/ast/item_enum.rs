@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, Parser, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemEnum {
     /// The attributes for the enum block
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `enum` token.
     pub enum_: ast::Enum,
@@ -82,7 +82,7 @@ impl Parse for ItemEnum {
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemVariant {
     /// The attributes associated with the variant.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The name of the variant.
     pub name: ast::Ident,
@@ -90,7 +90,7 @@ pub struct ItemVariant {
     #[spanned(skip)]
     pub body: ItemVariantBody,
     /// Optional trailing comma in variant.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub comma: Option<ast::Comma>,
 }
 

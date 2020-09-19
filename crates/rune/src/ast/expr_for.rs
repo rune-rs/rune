@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, Parser, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprFor {
     /// The label of the loop.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `for` keyword.
     pub for_: ast::For,

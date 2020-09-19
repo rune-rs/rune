@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, Parser, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprBlock {
     /// The attributes for the block.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The close brace.
     pub block: ast::Block,

@@ -7,7 +7,7 @@ pub struct ExprBreak {
     /// The return token.
     pub break_: ast::Break,
     /// An optional expression to break with.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub expr: Option<ExprBreakValue>,
 }
 

@@ -6,10 +6,10 @@ use runestick::Span;
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemFn {
     /// The attributes for the fn
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The optional `async` keyword.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub async_: Option<ast::Async>,
     /// The `fn` token.
     pub fn_: ast::Fn,

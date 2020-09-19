@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, Parser, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprMatch {
     /// The attributes for the match expression
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `match` token.
     pub match_: ast::Match,

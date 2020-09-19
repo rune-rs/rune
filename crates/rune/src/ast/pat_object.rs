@@ -75,6 +75,6 @@ pub struct PatObjectItem {
     /// The key of an object.
     pub key: ast::LitObjectKey,
     /// The binding used for the pattern object.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub binding: Option<(ast::Colon, ast::Pat)>,
 }

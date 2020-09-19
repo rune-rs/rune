@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemUse {
     /// The attributes on use item
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The use token.
     pub use_: ast::Use,

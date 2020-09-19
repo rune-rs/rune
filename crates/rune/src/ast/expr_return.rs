@@ -7,6 +7,6 @@ pub struct ExprReturn {
     /// The return token.
     pub return_: ast::Return,
     /// An optional expression to return.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub expr: Option<Box<ast::Expr>>,
 }

@@ -29,7 +29,7 @@ pub struct LitObjectFieldAssign {
     /// The key of the field.
     pub key: LitObjectKey,
     /// The assigned expression of the field.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub assign: Option<(ast::Colon, ast::Expr)>,
 }
 

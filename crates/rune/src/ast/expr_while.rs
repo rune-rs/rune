@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, Parser, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ExprWhile {
     /// A label for the while loop.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `while` keyword.
     pub while_: ast::While,

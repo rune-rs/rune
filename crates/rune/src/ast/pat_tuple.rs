@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, Parser, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct PatTuple {
     /// The path, if the tuple is typed.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub path: Option<ast::Path>,
     /// The open bracket.
     pub open: ast::OpenParen,

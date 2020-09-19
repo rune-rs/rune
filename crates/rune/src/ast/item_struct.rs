@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, Parser, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemStruct {
     /// The attributes for the struct
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `struct` keyword.
     pub struct_: ast::Struct,
@@ -205,11 +205,11 @@ impl Parse for StructBody {
 #[derive(Debug, Clone, Ast, Parse, Spanned)]
 pub struct Field {
     /// Attributes associated with field.
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// Name of the field.
     pub name: ast::Ident,
     /// Trailing comma of the field.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub comma: Option<ast::Comma>,
 }

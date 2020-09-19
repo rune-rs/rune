@@ -11,10 +11,10 @@ pub struct ExprIf {
     /// The body of the if statement.
     pub block: Box<ExprBlock>,
     /// Else if branches.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub expr_else_ifs: Vec<ExprElseIf>,
     /// The else part of the if expression.
-    #[spanned(last)]
+    #[spanned(iter)]
     pub expr_else: Option<ExprElse>,
 }
 

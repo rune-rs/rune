@@ -5,7 +5,7 @@ use crate::{Ast, Parse, ParseError, Parser, Peek, Spanned};
 #[derive(Debug, Clone, Ast, Spanned)]
 pub struct ItemMod {
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
-    #[spanned(first)]
+    #[spanned(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `mod` keyword.
     pub mod_: ast::Mod,
