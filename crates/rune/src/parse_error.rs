@@ -73,6 +73,30 @@ pub enum ParseErrorKind {
         /// Kind of the token encountered instead of a declaration.
         actual: ast::Kind,
     },
+    /// Error raised when a delimiter is encountered but was not expected in the given context.
+    #[error("expected any token but NOT one of `{{`, `}}`, `[`, `]` , `(`, `)`. got `{actual}`.")]
+    ExpectedNonDelimter {
+        /// Kind of the token that was a delimiter.
+        actual: ast::Kind,
+    },
+    /// Error raised when a delimiter is encountered but was not expected in the given context.
+    #[error("expected a close delimiter `{{`, `[` , `(`. got `{actual}`.")]
+    ExpectedOpenDelimiter {
+        /// Kind of the token that was not an Open delimiter.
+        actual: ast::Kind,
+    },
+    /// Error raised when a delimiter is encountered but was not expected in the given context.
+    #[error("expected a close delimiter `}}`, `]` , `)`. got `{actual}`.")]
+    ExpectedCloseDelimiter {
+        /// Kind of the token that was not a close delimiter.
+        actual: ast::Kind,
+    },
+    /// Error raised when a delimiter is encountered but was not expected in the given context.
+    #[error("expected a delimiter `{{`, `}}`, `[`, `]` , `(`, `)`. got `{actual}`.")]
+    ExpectedDelimiter {
+        /// Kind of the token that was not a close delimiter.
+        actual: ast::Kind,
+    },
     /// Expected use import but found something else.
     #[error("expected import component but found `{actual}`")]
     ExpectedItemUseImportComponent {
@@ -163,6 +187,12 @@ pub enum ParseErrorKind {
         /// The actual token that was encountered.
         actual: ast::Kind,
     },
+    /// Expected a literal.
+    #[error("expected a literal value but got `{actual}`")]
+    ExpectedLit {
+        /// The actual token that was encountered.
+        actual: ast::Kind,
+    },
     /// Expected a valid object key.
     #[error("expected an object key (string or identifier) but got `{actual}`")]
     ExpectedLitObjectKey {
@@ -173,6 +203,12 @@ pub enum ParseErrorKind {
     #[error("expected unary operator (`!`) but got `{actual}`")]
     ExpectedUnaryOperator {
         /// The actual token.
+        actual: ast::Kind,
+    },
+    /// Expected Attribute Input but got something else.
+    #[error("expected `=` (literal assignment) or a delimiter (delimited token tree) but got `{actual}`")]
+    ExpectedAttributeInput {
+        /// The kind of the actual token we saw.
         actual: ast::Kind,
     },
     /// Expression group required to break precedence.
@@ -257,5 +293,23 @@ pub enum ParseErrorKind {
     ExpectedBlockSemiColon {
         /// The following expression.
         followed_span: Span,
+    },
+    /// Encountered an expression for which attributes are not supported
+    #[error("attributes are not supported for expressions starting with `{actual}`.")]
+    AttributesNotSupportedForExpr {
+        /// The start token of the expression that does not support attributes
+        actual: ast::Kind,
+    },
+    /// The attributes associated with an async expression were in the incorrect
+    /// position.
+    #[error(
+        "bad position for async attribute at `{location}`, attributes in async \
+            expression must come before the `async` keyword at `{kw_location}`"
+    )]
+    BadAsyncExprAttributePosition {
+        /// The location of the bad attribute in the async expression  
+        location: Span,
+        /// The location of the `async` keyword
+        kw_location: Span,
     },
 }

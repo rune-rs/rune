@@ -1,0 +1,192 @@
+// attributes.rn - A demonstration of the valid placement of attributes
+// accepted by the parser.
+//
+// Attributes are ignored silently by the compiler at this time.
+//
+// Rune's attribute syntax is a superset of to Rust's attribute syntax. Rune accepts a
+// wider arrange of literal values (for example, `#[x = #{"key": Potato}]`).
+// As with Rust's attributes see `StructWithCustomSyntaxAttribute` below.
+//
+// See: https://doc.rust-lang.org/reference/attributes.html
+//
+//
+// Valid placement attributes:
+//
+// 1. top of file/module "outer" attributes
+// 2. attrs on `use` items
+// 3. on `struct` items
+// 4. on `struct` fields
+// 5. on `fn` items
+//   1. in `mod` items
+//   2. standalone `fn` items
+//   3. `fn` attributes work even in non-typical contexts
+//   4. on async `fn` items
+// 6. on `impl` items
+// 7. on `fn` items in `impl` items
+// 8. on `enum` items (with an object literal)
+// 9. on `enum` variants
+// 10. on `mod` items
+// 11. on `block` expressions
+//   1. when nested within a `fn` item
+//   2. nested `block` expressions within `block` expressions
+//   3. and `async` blocks
+// 12. on `match` expressions, but not the branches
+// 13. on `closure` expressions
+//   1. `#[ok] || {}`
+//   2. `#[also_ok] async` closures`
+// 14. custom syntaxes for attribute input
+//   1. custom/nonsensical syntax for input to the `custom_syntax` attribute
+//   2. embedding some info about an existing language that is not whitespace sensitive
+//   3. embedding a whitespace sensitive source in an attribute
+//
+
+
+// 1. top level "Outer" attributes
+#![feature(meme_powered)]
+#![allow(attributes)]
+#![abused_feature1 = [1,3,4,5]]
+
+
+// 2. attrs on `use` items
+#[doc = "oooh shiny!"]
+use json;
+
+// 3. on `struct` items
+#[abi(C11)]
+struct Potato {
+    // 4. on `struct` fields
+    #[abi(c_type = "uint32_t")]
+    a,
+    b
+}
+
+
+// 6. on `impl` items
+#[xyz]
+impl Potato {
+
+    // 7. on `fn` items in `impl` items
+    #[jit(always)]
+    fn sum(self) {
+        self.a + self.b
+    }
+}
+
+// 8. on `enum` items (with an object literal)
+#[x = #{"key": Potato}]
+enum Monster {
+    // 9. on `enum` variants
+    #[rust_type = "std::string::String" ]
+    S ,
+}
+
+
+// 10. on `mod` items
+#[cfg(test)]
+#[doc = "yes they stack"]
+mod tests {
+    // 5.1.  `fn` items in `mod` items
+    fn test() {
+
+        /// 11.1. on nested blocks within `fn` items
+        let value = #[runtime::cfg(have_tty)] {
+            println("nested block 1");
+            // 11.2. nested blocks within attributed blocks
+            let value = #[nesting_level = 2] {
+                println("nested block 2");
+                "value from nested block 2"
+            };
+
+
+            value
+        };
+
+
+        // 11.3. async blocks
+        #[retry(error = BrokenBananaPhone, attempts = 3)]
+        async {
+            println("async block");
+        }
+
+        value
+    }
+
+}
+
+// 5.2. on standalone `fn` items
+fn definetypeinfunction() {
+    fn buried_struct() {
+        struct BlockScopeDefinedStruct;
+
+        impl BlockScopeDefinedStruct {
+
+            // 5.3. `fn` attributes work even in non-typical contexts
+            #[memoize]
+            fn to_string(self) {
+                "BlockScopeDefinedStruct"
+            }
+        }
+
+        BlockScopeDefinedStruct
+    }
+
+    buried_struct()
+}
+
+
+/// 5.4. also works on async `fn` items
+#[wasm::bindgen]
+async fn main() {
+
+
+    // 12. match expressions
+    #[cfg(debug)]
+    match 0 {
+        _ => {}
+    }
+
+    // 13.1. closures
+    let f = #[captures(freeze)] || { 0 };
+
+    // 13.2. async closures
+    let n = #[ignore_errors] async || {
+        println("async closure");
+        3
+    };
+
+    println(`{n().await}`);
+    println(tests::test());
+    println(`{definetypeinfunction().to_string()}`);
+    println("attributes, attributes everywhere....");
+}
+
+// 14.1. using custom/nonsensical syntax for input to the `custom_syntax` attribute
+#[custom_syntax(
+    when x > 1 => trigger_event(#234) @ now! -> |**(xyz)| { do the thing }
+)]
+// 14.2. embedding some info about an existing language that is not whitespace sensitive
+#[transform_source::c(
+  struct StructWithCustomSyntax {
+    int base;
+  }
+
+  // @doc something something
+  int ipow(StructWithCustomSyntax* self, int pow) {
+    return self->base * pow;
+  }
+)]
+// 14.3. embedding a whitespace sensitive source in an attribute
+#[transform_source::python(
+lang="python",
+version="^3.6",
+source="
+class StructWithCustomSyntax:
+    base  # type: int
+
+    # python comment
+    def ipow(self, pow: int) -> int:
+        '''docstring'''
+        return self.value ^ pow
+")]
+struct StructWithCustomSyntaxAttribute;
+

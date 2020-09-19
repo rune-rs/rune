@@ -5,6 +5,8 @@ use runestick::Span;
 /// An imported declaration.
 #[derive(Debug, Clone)]
 pub struct ItemUse {
+    /// The attributes on use item
+    pub attributes: Vec<ast::Attribute>,
     /// The use token.
     pub use_: ast::Use,
     /// First component in use.
@@ -16,12 +18,28 @@ pub struct ItemUse {
 }
 
 into_tokens!(ItemUse {
+    attributes,
     use_,
     first,
     rest,
     semi
 });
 
+impl ItemUse {
+    /// Parse a `use` item with the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
+        Ok(Self {
+            attributes,
+            use_: parser.parse()?,
+            first: parser.parse()?,
+            rest: parser.parse()?,
+            semi: parser.parse()?,
+        })
+    }
+}
 impl Spanned for ItemUse {
     fn span(&self) -> Span {
         self.use_.span().join(self.semi.span())
@@ -41,12 +59,8 @@ impl Spanned for ItemUse {
 /// ```
 impl Parse for ItemUse {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(Self {
-            use_: parser.parse()?,
-            first: parser.parse()?,
-            rest: parser.parse()?,
-            semi: parser.parse()?,
-        })
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }
 

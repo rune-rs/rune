@@ -85,9 +85,7 @@ impl<'a> Indexer<'a> {
         self.visitor.visit_mod(source_id, span);
 
         self.queue.push_back(Task::LoadFile {
-            kind: LoadFileKind::Module {
-                root: self.root.clone(),
-            },
+            kind: LoadFileKind::Root,
             item,
             source_id,
         });
@@ -622,7 +620,7 @@ impl Index<ast::Item> for Indexer<'_> {
                     span,
                 )?;
 
-                for (variant, body, _) in &item_enum.variants {
+                for (_, variant, body, _) in &item_enum.variants {
                     let variant_ident = variant.resolve(&self.storage, &*self.source)?;
                     let _guard = self.items.push_name(variant_ident.as_ref());
 
@@ -650,7 +648,7 @@ impl Index<ast::Item> for Indexer<'_> {
                 )?;
             }
             ast::Item::ItemFn(item_fn) => {
-                self.index(item_fn)?;
+                self.index(&**item_fn)?;
             }
             ast::Item::ItemImpl(decl_impl) => {
                 let mut guards = Vec::new();

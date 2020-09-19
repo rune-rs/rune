@@ -57,7 +57,6 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                 let var = self
                     .scopes
                     .get_var(&*key, self.source_id, self.visitor, span)?;
-
                 if needs.value() {
                     var.copy(&mut self.asm, span, format!("name `{}`", key));
                 }

@@ -19,6 +19,20 @@ impl Spanned for ExprAsync {
     }
 }
 
+impl ExprAsync {
+    /// Parse an async block expression attaching the given attributes to the
+    /// block
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
+        Ok(Self {
+            async_: parser.parse()?,
+            block: ast::Block::parse_with_attributes(parser, attributes)?,
+        })
+    }
+}
+
 /// Parse implementation for a block.
 ///
 /// # Examples
@@ -33,12 +47,15 @@ impl Spanned for ExprAsync {
 /// let expr = parse_all::<ast::ExprAsync>("async { 42 }").unwrap();
 /// assert_eq!(expr.block.statements.len(), 1);
 /// assert!(!expr.block.produces_nothing());
+///
+/// let expr = parse_all::<ast::ExprAsync>("#[retry] async { 42 }").unwrap();
+/// assert_eq!(expr.block.statements.len(), 1);
+/// assert!(!expr.block.produces_nothing());
+/// assert_eq!(expr.block.attributes.len(), 1);
 /// ```
 impl Parse for ExprAsync {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            async_: parser.parse()?,
-            block: parser.parse()?,
-        })
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }

@@ -3,6 +3,7 @@
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek};
 use runestick::Span;
 
+mod attribute;
 mod block;
 mod condition;
 mod expr;
@@ -43,6 +44,7 @@ mod item_mod;
 mod item_struct;
 mod item_use;
 mod label;
+mod lit;
 mod lit_bool;
 mod lit_byte;
 mod lit_byte_str;
@@ -66,6 +68,7 @@ mod stmt;
 mod token;
 pub(super) mod utils;
 
+pub use self::attribute::{Attribute, OuterAttribute};
 pub use self::block::Block;
 pub use self::condition::Condition;
 pub use self::expr::Expr;
@@ -106,12 +109,15 @@ pub use self::item_mod::{ItemMod, ItemModBody};
 pub use self::item_struct::{ItemStruct, ItemStructBody, StructBody, TupleBody};
 pub use self::item_use::{ItemUse, ItemUseComponent};
 pub use self::label::Label;
+pub use self::lit::Lit;
 pub use self::lit_bool::LitBool;
 pub use self::lit_byte::LitByte;
 pub use self::lit_byte_str::LitByteStr;
 pub use self::lit_char::LitChar;
 pub use self::lit_number::LitNumber;
-pub use self::lit_object::{LitObject, LitObjectFieldAssign, LitObjectIdent, LitObjectKey};
+pub use self::lit_object::{
+    AnonymousLitObject, LitObject, LitObjectFieldAssign, LitObjectIdent, LitObjectKey,
+};
 pub use self::lit_str::LitStr;
 pub use self::lit_template::{LitTemplate, Template, TemplateComponent};
 pub use self::lit_tuple::LitTuple;
@@ -228,6 +234,7 @@ decl_tokens! {
     (Mul, "Multiply `*` operator.", Kind::Star),
     (Mod, "The `mod` keyword.", Kind::Mod),
     (Bang, "The `!` operator.", Kind::Bang),
+    (EOF, "The symbolic end of file.", Kind::EOF),
 }
 
 #[cfg(test)]

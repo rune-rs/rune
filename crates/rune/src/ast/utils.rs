@@ -1,4 +1,4 @@
-use crate::ast;
+use crate::{ast, IntoTokens, MacroContext, Parse, Parser, Peek, TokenStream};
 use crate::{ParseError, ParseErrorKind};
 use runestick::Span;
 use std::iter::Peekable;
@@ -236,6 +236,198 @@ pub(crate) fn is_block_end(expr: &ast::Expr, comma: Option<&ast::Comma>) -> bool
         (ast::Expr::ExprMatch(..), _) => false,
         (_, Some(..)) => false,
         (_, None) => true,
+    }
+}
+
+/// Any open delimiter `{`, `(`, or `{`
+#[derive(Debug, Clone, Copy)]
+pub enum OpenDelim {
+    Paren(ast::OpenParen),
+    Bracket(ast::OpenBracket),
+    Brace(ast::OpenBrace),
+}
+
+impl OpenDelim {
+    pub fn delim_kind(&self) -> ast::Delimiter {
+        use OpenDelim::*;
+
+        match self {
+            Paren(_) => ast::Delimiter::Parenthesis,
+            Bracket(_) => ast::Delimiter::Bracket,
+            Brace(_) => ast::Delimiter::Brace,
+        }
+    }
+
+    pub fn token(&self) -> ast::Token {
+        use OpenDelim::*;
+
+        match self {
+            Paren(d) => d.token,
+            Bracket(d) => d.token,
+            Brace(d) => d.token,
+        }
+    }
+}
+
+impl Parse for OpenDelim {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        if parser.peek::<ast::OpenParen>()? {
+            Ok(OpenDelim::Paren(parser.parse()?))
+        } else if parser.peek::<ast::OpenBrace>()? {
+            Ok(OpenDelim::Brace(parser.parse()?))
+        } else if parser.peek::<ast::OpenBracket>()? {
+            Ok(OpenDelim::Bracket(parser.parse()?))
+        } else {
+            let token = parser.token_peek_eof()?;
+            Err(ParseError::new(
+                token,
+                ParseErrorKind::ExpectedOpenDelimiter { actual: token.kind },
+            ))
+        }
+    }
+}
+
+impl Peek for OpenDelim {
+    fn peek(t1: Option<ast::Token>, _t2: Option<ast::Token>) -> bool {
+        let t1 = match t1 {
+            Some(t1) => t1,
+            None => return false,
+        };
+
+        match t1.kind {
+            ast::Kind::Open(_delimiter) => true,
+            _ => false,
+        }
+    }
+}
+
+impl IntoTokens for OpenDelim {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.token().into_tokens(context, stream)
+    }
+}
+
+/// Any close delimiter `}`, `)`, or `}`
+#[derive(Debug, Clone, Copy)]
+pub enum CloseDelim {
+    Paren(ast::CloseParen),
+    Bracket(ast::CloseBracket),
+    Brace(ast::CloseBrace),
+}
+
+impl CloseDelim {
+    pub fn delim_kind(&self) -> ast::Delimiter {
+        use CloseDelim::*;
+
+        match self {
+            Paren(_) => ast::Delimiter::Parenthesis,
+            Bracket(_) => ast::Delimiter::Bracket,
+            Brace(_) => ast::Delimiter::Brace,
+        }
+    }
+
+    pub fn token(&self) -> ast::Token {
+        use CloseDelim::*;
+
+        match self {
+            Paren(d) => d.token,
+            Bracket(d) => d.token,
+            Brace(d) => d.token,
+        }
+    }
+}
+
+impl Parse for CloseDelim {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        if parser.peek::<ast::CloseParen>()? {
+            Ok(CloseDelim::Paren(parser.parse()?))
+        } else if parser.peek::<ast::CloseBrace>()? {
+            Ok(CloseDelim::Brace(parser.parse()?))
+        } else if parser.peek::<ast::CloseBracket>()? {
+            Ok(CloseDelim::Bracket(parser.parse()?))
+        } else {
+            let token = parser.token_peek_eof()?;
+            Err(ParseError::new(
+                token,
+                ParseErrorKind::ExpectedCloseDelimiter { actual: token.kind },
+            ))
+        }
+    }
+}
+
+impl Peek for CloseDelim {
+    fn peek(t1: Option<ast::Token>, _t2: Option<ast::Token>) -> bool {
+        let t1 = match t1 {
+            Some(t1) => t1,
+            None => return false,
+        };
+
+        match t1.kind {
+            ast::Kind::Close(_delimiter) => true,
+            _ => false,
+        }
+    }
+}
+
+impl IntoTokens for CloseDelim {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.token().into_tokens(context, stream)
+    }
+}
+
+/// Any Any delimiter `}`, `)`, or `}`
+#[derive(Debug, Clone, Copy)]
+pub enum AnyDelim {
+    Open(OpenDelim),
+    Close(CloseDelim),
+}
+
+impl AnyDelim {
+    #[allow(dead_code)]
+    pub fn delim_kind(&self) -> ast::Delimiter {
+        use AnyDelim::*;
+
+        match self {
+            Open(delim) => delim.delim_kind(),
+            Close(delim) => delim.delim_kind(),
+        }
+    }
+
+    pub fn token(&self) -> ast::Token {
+        use AnyDelim::*;
+
+        match self {
+            Open(delim) => delim.token(),
+            Close(delim) => delim.token(),
+        }
+    }
+}
+
+impl Parse for AnyDelim {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        if parser.peek::<OpenDelim>()? {
+            Ok(AnyDelim::Open(parser.parse()?))
+        } else if parser.peek::<CloseDelim>()? {
+            Ok(AnyDelim::Close(parser.parse()?))
+        } else {
+            let token = parser.token_peek_eof()?;
+            Err(ParseError::new(
+                token,
+                ParseErrorKind::ExpectedDelimiter { actual: token.kind },
+            ))
+        }
+    }
+}
+
+impl Peek for AnyDelim {
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
+        OpenDelim::peek(t1, t2) || CloseDelim::peek(t1, t2)
+    }
+}
+
+impl IntoTokens for AnyDelim {
+    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.token().into_tokens(context, stream)
     }
 }
 

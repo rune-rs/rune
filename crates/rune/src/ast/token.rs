@@ -213,6 +213,8 @@ kinds! {
     AmpEq, "`&=`.",
     As, "The `as` keyword.",
     Async, "The `async` keyword.",
+    At, "`@`.",
+    Arrow, "`->`.",
     Await, "The `await` keyword.",
     Bang, "`!`.",
     BangEq, "`!=`.",
@@ -230,6 +232,7 @@ kinds! {
     Default, "The `default` keyword.",
     Div, "`/`.",
     Do, "The `do` keyword.",
+    Dollar, "`$`.",
     Dot, "`.`.",
     DotDot, "`..`.",
     Else, "The `else` keyword.",
@@ -296,6 +299,7 @@ kinds! {
     Static, "The `static` keyword.",
     Struct, "The `struct` keyword.",
     Super, "The `super` keyword.",
+    Tilde, "`~`.",
     True, "The `true` keyword.",
     TypeOf, "The `typeof` keyword.",
     Underscore, "`_`.",
@@ -304,6 +308,7 @@ kinds! {
     Virtual, "The `virtual` keyword.",
     While, "The `while` keyword.",
     Yield, "The `yield` keyword.",
+    EOF, "The symbolic end of  a file.",
 }
 
 impl Kind {
@@ -373,6 +378,8 @@ impl fmt::Display for Kind {
             Self::AmpEq => write!(f, "&=")?,
             Self::As => write!(f, "as")?,
             Self::Async => write!(f, "async")?,
+            Self::At => write!(f, "@")?,
+            Self::Arrow => write!(f, "->")?,
             Self::Await => write!(f, "await")?,
             Self::Bang => write!(f, "!")?,
             Self::BangEq => write!(f, "!=")?,
@@ -390,6 +397,7 @@ impl fmt::Display for Kind {
             Self::Default => write!(f, "default")?,
             Self::Div => write!(f, "/")?,
             Self::Do => write!(f, "do")?,
+            Self::Dollar => write!(f, "$")?,
             Self::Dot => write!(f, ".")?,
             Self::DotDot => write!(f, "..")?,
             Self::Else => write!(f, "else")?,
@@ -456,6 +464,7 @@ impl fmt::Display for Kind {
             Self::Static => write!(f, "static")?,
             Self::Struct => write!(f, "struct")?,
             Self::Super => write!(f, "super")?,
+            Self::Tilde => write!(f, "~")?,
             Self::True => write!(f, "true")?,
             Self::TypeOf => write!(f, "typeof")?,
             Self::Underscore => write!(f, "_")?,
@@ -464,6 +473,7 @@ impl fmt::Display for Kind {
             Self::Virtual => write!(f, "virtual")?,
             Self::While => write!(f, "while")?,
             Self::Yield => write!(f, "yield")?,
+            Self::EOF => {}
         }
 
         Ok(())

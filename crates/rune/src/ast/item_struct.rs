@@ -5,12 +5,29 @@ use runestick::Span;
 /// A struct declaration.
 #[derive(Debug, Clone)]
 pub struct ItemStruct {
+    /// The attributes for the struct
+    pub attributes: Vec<ast::Attribute>,
     /// The `struct` keyword.
     pub struct_: ast::Struct,
     /// The identifier of the struct declaration.
     pub ident: ast::Ident,
     /// The body of the struct.
     pub body: ItemStructBody,
+}
+
+impl ItemStruct {
+    /// Parse a `struct` item with the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
+        Ok(Self {
+            attributes,
+            struct_: parser.parse()?,
+            ident: parser.parse()?,
+            body: parser.parse()?,
+        })
+    }
 }
 
 impl Spanned for ItemStruct {
@@ -35,19 +52,19 @@ impl Spanned for ItemStruct {
 /// parse_all::<ast::ItemStruct>("struct Foo;").unwrap();
 /// parse_all::<ast::ItemStruct>("struct Foo ( a, b, c );").unwrap();
 /// parse_all::<ast::ItemStruct>("struct Foo { a, b, c }").unwrap();
+/// parse_all::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }").unwrap();
+/// parse_all::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c );").unwrap();
 /// ```
 impl Parse for ItemStruct {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            struct_: parser.parse()?,
-            ident: parser.parse()?,
-            body: parser.parse()?,
-        })
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }
 
 impl IntoTokens for ItemStruct {
     fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.attributes.into_tokens(context, stream);
         self.struct_.into_tokens(context, stream);
         self.ident.into_tokens(context, stream);
         self.body.into_tokens(context, stream);
@@ -76,6 +93,7 @@ pub enum ItemStructBody {
 /// parse_all::<ast::ItemStructBody>("( a, b, c );").unwrap();
 /// parse_all::<ast::ItemStructBody>("();").unwrap();
 /// parse_all::<ast::ItemStructBody>("{ a, b, c }").unwrap();
+/// parse_all::<ast::ItemStructBody>("{ #[x] a, #[y] b, #[z] #[w] #[f32] c }").unwrap();
 /// ```
 impl Parse for ItemStructBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -116,7 +134,7 @@ pub struct TupleBody {
     /// The opening paren.
     pub open: ast::OpenParen,
     /// Fields in the variant.
-    pub fields: Vec<(ast::Ident, Option<ast::Comma>)>,
+    pub fields: Vec<(Vec<ast::Attribute>, ast::Ident, Option<ast::Comma>)>,
     /// The close paren.
     pub close: ast::CloseParen,
 }
@@ -136,6 +154,7 @@ impl TupleBody {
 /// use rune::{parse_all, ast};
 ///
 /// parse_all::<ast::TupleBody>("( a, b, c )").unwrap();
+/// parse_all::<ast::TupleBody>("( #[x] a, b, c )").unwrap();
 /// ```
 impl Parse for TupleBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -144,6 +163,7 @@ impl Parse for TupleBody {
         let mut fields = Vec::new();
 
         while !parser.peek::<ast::CloseParen>()? {
+            let attrs = parser.parse()?;
             let field = parser.parse()?;
 
             let comma = if parser.peek::<ast::Comma>()? {
@@ -154,7 +174,7 @@ impl Parse for TupleBody {
 
             let done = comma.is_none();
 
-            fields.push((field, comma));
+            fields.push((attrs, field, comma));
 
             if done {
                 break;
@@ -173,7 +193,8 @@ impl IntoTokens for TupleBody {
     fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         self.open.into_tokens(context, stream);
 
-        for (field, comma) in &self.fields {
+        for (attrs, field, comma) in &self.fields {
+            attrs.into_tokens(context, stream);
             field.into_tokens(context, stream);
             comma.into_tokens(context, stream);
         }
@@ -188,7 +209,7 @@ pub struct StructBody {
     /// The opening brace.
     pub open: ast::OpenBrace,
     /// Fields in the variant.
-    pub fields: Vec<(ast::Ident, Option<ast::Comma>)>,
+    pub fields: Vec<(Vec<ast::Attribute>, ast::Ident, Option<ast::Comma>)>,
     /// The close brace.
     pub close: ast::CloseBrace,
 }
@@ -207,7 +228,7 @@ impl StructBody {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::StructBody>("{ a, b, c }").unwrap();
+/// parse_all::<ast::StructBody>("{ a, #[attribute] b, c }").unwrap();
 /// ```
 impl Parse for StructBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -216,6 +237,7 @@ impl Parse for StructBody {
         let mut fields = Vec::new();
 
         while !parser.peek::<ast::CloseBrace>()? {
+            let attrs = parser.parse()?;
             let field = parser.parse()?;
 
             let comma = if parser.peek::<ast::Comma>()? {
@@ -226,7 +248,7 @@ impl Parse for StructBody {
 
             let done = comma.is_none();
 
-            fields.push((field, comma));
+            fields.push((attrs, field, comma));
 
             if done {
                 break;
@@ -247,7 +269,8 @@ impl IntoTokens for StructBody {
     fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         self.open.into_tokens(context, stream);
 
-        for (field, comma) in &self.fields {
+        for (attrs, field, comma) in &self.fields {
+            attrs.into_tokens(context, stream);
             field.into_tokens(context, stream);
             comma.into_tokens(context, stream);
         }

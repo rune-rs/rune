@@ -5,6 +5,8 @@ use runestick::Span;
 /// An enum declaration.
 #[derive(Debug, Clone)]
 pub struct ItemEnum {
+    /// The attributes for the enum block
+    pub attributes: Vec<ast::Attribute>,
     /// The `enum` token.
     pub enum_: ast::Enum,
     /// The name of the enum.
@@ -12,9 +14,59 @@ pub struct ItemEnum {
     /// The open brace of the declaration.
     pub open: ast::OpenBrace,
     /// Variants in the declaration.
-    pub variants: Vec<(ast::Ident, ItemEnumVariant, Option<ast::Comma>)>,
+    pub variants: Vec<(
+        Vec<ast::Attribute>,
+        ast::Ident,
+        ItemEnumVariant,
+        Option<ast::Comma>,
+    )>,
     /// The close brace in the declaration.
     pub close: ast::CloseBrace,
+}
+
+impl ItemEnum {
+    /// Parse a `enum` item with the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
+        let enum_ = parser.parse()?;
+        let name = parser.parse()?;
+        let open = parser.parse()?;
+
+        let mut variants = Vec::new();
+
+        while !parser.peek::<ast::CloseBrace>()? {
+            let attrs = parser.parse()?;
+            let name = parser.parse()?;
+            let variant = parser.parse()?;
+
+            let comma = if parser.peek::<ast::Comma>()? {
+                Some(parser.parse()?)
+            } else {
+                None
+            };
+
+            let done = comma.is_none();
+
+            variants.push((attrs, name, variant, comma));
+
+            if done {
+                break;
+            }
+        }
+
+        let close = parser.parse()?;
+
+        Ok(Self {
+            attributes,
+            enum_,
+            name,
+            open,
+            variants,
+            close,
+        })
+    }
 }
 
 impl Spanned for ItemEnum {
@@ -31,43 +83,13 @@ impl Spanned for ItemEnum {
 /// use rune::{parse_all, ast};
 ///
 /// parse_all::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), Empty() }").unwrap();
+/// parse_all::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }").unwrap();
+/// parse_all::<ast::ItemEnum>("#[repr(Rune)] enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }").unwrap();
 /// ```
 impl Parse for ItemEnum {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let enum_ = parser.parse()?;
-        let name = parser.parse()?;
-        let open = parser.parse()?;
-
-        let mut variants = Vec::new();
-
-        while !parser.peek::<ast::CloseBrace>()? {
-            let name = parser.parse()?;
-            let variant = parser.parse()?;
-
-            let comma = if parser.peek::<ast::Comma>()? {
-                Some(parser.parse()?)
-            } else {
-                None
-            };
-
-            let done = comma.is_none();
-
-            variants.push((name, variant, comma));
-
-            if done {
-                break;
-            }
-        }
-
-        let close = parser.parse()?;
-
-        Ok(Self {
-            enum_,
-            name,
-            open,
-            variants,
-            close,
-        })
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }
 
@@ -77,7 +99,8 @@ impl IntoTokens for ItemEnum {
         self.name.into_tokens(context, stream);
         self.open.into_tokens(context, stream);
 
-        for (variant, body, comma) in &self.variants {
+        for (attrs, variant, body, comma) in &self.variants {
+            attrs.into_tokens(context, stream);
             variant.into_tokens(context, stream);
             body.into_tokens(context, stream);
             comma.into_tokens(context, stream);
@@ -107,6 +130,8 @@ pub enum ItemEnumVariant {
 ///
 /// parse_all::<ast::ItemEnumVariant>("( a, b, c );").unwrap();
 /// parse_all::<ast::ItemEnumVariant>("{ a, b, c }").unwrap();
+/// parse_all::<ast::ItemEnumVariant>("( #[serde(default)] a, b, c );").unwrap();
+/// parse_all::<ast::ItemEnumVariant>("{ a, #[debug(skip)] b, c }").unwrap();
 /// ```
 impl Parse for ItemEnumVariant {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

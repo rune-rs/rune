@@ -5,6 +5,8 @@ use runestick::Span;
 /// A block of expressions.
 #[derive(Debug, Clone)]
 pub struct Block {
+    /// The attributes for a block
+    pub attributes: Vec<ast::Attribute>,
     /// The close brace.
     pub open: ast::OpenBrace,
     /// Statements in the block.
@@ -14,6 +16,7 @@ pub struct Block {
 }
 
 into_tokens!(Block {
+    attributes,
     open,
     statements,
     close
@@ -47,44 +50,12 @@ impl Block {
 
         true
     }
-}
 
-impl Spanned for Block {
-    fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
-    }
-}
-
-/// Parse implementation for a block.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{parse_all, ast};
-///
-/// let block = parse_all::<ast::Block>("{}").unwrap();
-/// assert_eq!(block.statements.len(), 0);
-/// assert!(block.produces_nothing());
-///
-/// let block = parse_all::<ast::Block>("{ foo }").unwrap();
-/// assert_eq!(block.statements.len(), 1);
-/// assert!(!block.produces_nothing());
-///
-/// let block = parse_all::<ast::Block>("{ foo; }").unwrap();
-/// assert_eq!(block.statements.len(), 1);
-/// assert!(block.produces_nothing());
-///
-/// let block = parse_all::<ast::Block>(r#"
-///     {
-///         let foo = 42;
-///         let bar = "string";
-///         baz
-///     }
-/// "#).unwrap();
-/// assert_eq!(block.statements.len(), 3);
-/// ```
-impl Parse for Block {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    /// Parse a block attaching the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
         let mut statements = Vec::new();
 
         let open = parser.parse()?;
@@ -92,7 +63,7 @@ impl Parse for Block {
 
         while !parser.peek::<ast::CloseBrace>()? {
             if ast::Item::peek_as_stmt(parser)? {
-                let decl: ast::Item = parser.parse()?;
+                let decl: ast::Item = ast::Item::parse_in_nested_block(parser)?;
 
                 if let Some(span) = must_be_last {
                     return Err(ParseError::new(
@@ -132,9 +103,61 @@ impl Parse for Block {
         let close = parser.parse()?;
 
         Ok(Block {
+            attributes,
             open,
             statements,
             close,
         })
+    }
+}
+
+impl Spanned for Block {
+    fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
+    }
+}
+
+/// Parse implementation for a block.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// let block = parse_all::<ast::Block>("{}").unwrap();
+/// assert_eq!(block.statements.len(), 0);
+/// assert!(block.produces_nothing());
+///
+/// let block = parse_all::<ast::Block>("{ foo }").unwrap();
+/// assert_eq!(block.statements.len(), 1);
+/// assert!(!block.produces_nothing());
+///
+/// let block = parse_all::<ast::Block>("{ foo; }").unwrap();
+/// assert_eq!(block.statements.len(), 1);
+/// assert!(block.produces_nothing());
+///
+/// let block = parse_all::<ast::Block>(r#"
+///     {
+///         let foo = 42;
+///         let bar = "string";
+///         baz
+///     }
+/// "#).unwrap();
+/// assert_eq!(block.statements.len(), 3);
+/// let block = parse_all::<ast::Block>(r#"
+///     #[target = "x86_64"]
+///     #[cfg(debug)] {
+///         let foo = 42;
+///         let bar = "string";
+///         baz
+///     }
+/// "#).unwrap();
+/// assert_eq!(block.statements.len(), 3);
+/// assert_eq!(block.attributes.len(), 2);
+/// ```
+impl Parse for Block {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }
