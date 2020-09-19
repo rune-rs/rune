@@ -1,10 +1,10 @@
 use crate::ast;
-use crate::{Peek, Spanned};
+use crate::{Ast, Peek, Spanned};
 use runestick::Span;
 use std::fmt;
 
 /// A binary expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprBinary {
     /// The left-hand side of a binary operation.
     pub lhs: Box<ast::Expr>,
@@ -15,10 +15,9 @@ pub struct ExprBinary {
     /// The right-hand side of a binary operation.
     pub rhs: Box<ast::Expr>,
     /// The operation to apply.
+    #[ast(skip)]
     pub op: BinOp,
 }
-
-into_tokens!(ExprBinary { lhs, t1, t2, rhs });
 
 impl ExprBinary {
     /// If the expression is empty.

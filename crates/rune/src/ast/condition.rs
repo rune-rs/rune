@@ -1,14 +1,13 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser};
+use crate::{Ast, Parse, ParseError, Parser};
 
-impl_enum_ast! {
-    /// An if condition.
-    pub enum Condition {
-        /// A regular expression.
-        Expr(Box<ast::Expr>),
-        /// A pattern match.
-        ExprLet(Box<ast::ExprLet>),
-    }
+/// An if condition.
+#[derive(Debug, Clone, Ast)]
+pub enum Condition {
+    /// A regular expression.
+    Expr(Box<ast::Expr>),
+    /// A pattern match.
+    ExprLet(Box<ast::ExprLet>),
 }
 
 /// Parse a condition.

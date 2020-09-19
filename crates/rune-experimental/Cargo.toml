@@ -1,5 +1,5 @@
 [package]
-name = "rune-macros"
+name = "rune-experimental"
 version = "0.6.16"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 license = "MIT/Apache-2.0"
@@ -7,18 +7,16 @@ edition = "2018"
 readme = "README.md"
 repository = "https://github.com/rune-rs/rune"
 homepage = "https://github.com/rune-rs/rune"
-documentation = "https://docs.rs/runestick"
+documentation = "https://docs.rs/rune-modules"
 keywords = ["language", "scripting"]
 categories = []
 description = """
-Helper macros for Rune.
+Native macros for Rune.
 """
 
 [dependencies]
-syn = { version = "1.0.31", features = ["full"] }
-quote = "1.0.3"
-proc-macro2 = { version = "1.0.10", features = ["span-locations"] }
+rune = {version = "0.6.16", path = "../rune"}
+runestick = {version = "0.6.16", path = "../runestick"}
 
-[lib]
-proc-macro = true
-path = "src/lib.rs"
+[package.metadata.docs.rs]
+all-features = true

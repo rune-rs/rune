@@ -1,10 +1,10 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Peek, Resolve, Spanned, Storage};
+use crate::{Ast, Parse, ParseError, Parser, Peek, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A path, where each element is separated by a `::`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct Path {
     /// The first component in the path.
     pub first: ast::Ident,
@@ -57,12 +57,7 @@ impl Spanned for Path {
 
 impl Peek for Path {
     fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        let t1 = match t1 {
-            Some(t1) => t1,
-            None => return false,
-        };
-
-        matches!(t1.kind, ast::Kind::Ident(..))
+        matches!(peek!(t1).kind, ast::Kind::Ident(..))
     }
 }
 
@@ -93,16 +88,5 @@ impl<'a> Resolve<'a> for Path {
         }
 
         Ok(output)
-    }
-}
-
-impl IntoTokens for Path {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.first.into_tokens(context, stream);
-
-        for (sep, rest) in &self.rest {
-            sep.into_tokens(context, stream);
-            rest.into_tokens(context, stream);
-        }
     }
 }

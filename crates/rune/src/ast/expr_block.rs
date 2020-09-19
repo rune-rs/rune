@@ -1,17 +1,15 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A block of expressions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprBlock {
     /// The attributes for the block.
     pub attributes: Vec<ast::Attribute>,
     /// The close brace.
     pub block: ast::Block,
 }
-
-into_tokens!(ExprBlock { attributes, block });
 
 impl ExprBlock {
     /// Test if the block expression doesn't produce a value.

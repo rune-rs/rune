@@ -1,13 +1,14 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 
 /// A character literal.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct LitChar {
     /// The token corresponding to the literal.
     pub token: ast::Token,
     /// The source of the literal character.
+    #[ast(skip)]
     pub source: ast::CopySource<char>,
 }
 
@@ -84,11 +85,5 @@ impl<'a> Resolve<'a> for LitChar {
         }
 
         Ok(c)
-    }
-}
-
-impl IntoTokens for LitChar {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.token.into_tokens(context, stream);
     }
 }

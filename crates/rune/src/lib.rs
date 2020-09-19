@@ -238,6 +238,8 @@ pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
 pub use unit_builder::{ImportEntry, ImportKey, LinkerError, UnitBuilder};
 
+pub(crate) use rune_macros::{Ast, Parse};
+
 #[cfg(feature = "diagnostics")]
 pub use diagnostics::{termcolor, DiagnosticsError, EmitDiagnostics};
 

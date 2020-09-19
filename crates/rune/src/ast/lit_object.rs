@@ -1,25 +1,15 @@
 use crate::{ast, Peek};
-use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A literal object identifier.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub enum LitObjectIdent {
     /// An anonymous object.
     Anonymous(ast::Hash),
     /// A named object.
     Named(ast::Path),
-}
-
-impl LitObjectIdent {
-    /// Get the span of the identifier.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::Anonymous(hash) => hash.span(),
-            Self::Named(path) => path.span(),
-        }
-    }
 }
 
 impl Parse for LitObjectIdent {
@@ -33,17 +23,8 @@ impl Parse for LitObjectIdent {
     }
 }
 
-impl IntoTokens for LitObjectIdent {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        match self {
-            LitObjectIdent::Anonymous(hash) => hash.into_tokens(context, stream),
-            LitObjectIdent::Named(path) => path.into_tokens(context, stream),
-        }
-    }
-}
-
 /// A literal object field.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct LitObjectFieldAssign {
     /// The key of the field.
     pub key: LitObjectKey,
@@ -51,16 +32,17 @@ pub struct LitObjectFieldAssign {
     pub assign: Option<(ast::Colon, ast::Expr)>,
 }
 
-impl LitObjectFieldAssign {
-    /// Get the span of the assignment.
-    pub fn span(&self) -> Span {
+impl Spanned for LitObjectFieldAssign {
+    fn span(&self) -> Span {
         if let Some((_, expr)) = &self.assign {
             self.key.span().join(expr.span())
         } else {
             self.key.span()
         }
     }
+}
 
+impl LitObjectFieldAssign {
     /// Check if assignment is constant or not.
     pub fn is_const(&self) -> bool {
         match &self.assign {
@@ -97,30 +79,13 @@ impl Parse for LitObjectFieldAssign {
     }
 }
 
-impl IntoTokens for LitObjectFieldAssign {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.key.into_tokens(context, stream);
-        self.assign.into_tokens(context, stream);
-    }
-}
-
 /// Possible literal object keys.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub enum LitObjectKey {
     /// A literal string (with escapes).
     LitStr(ast::LitStr),
     /// An identifier.
     Ident(ast::Ident),
-}
-
-impl LitObjectKey {
-    /// Get the span of the object key.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::LitStr(lit_str) => lit_str.span(),
-            Self::Ident(ident) => ident.span(),
-        }
-    }
 }
 
 /// Parse an object literal.
@@ -161,17 +126,8 @@ impl<'a> Resolve<'a> for LitObjectKey {
     }
 }
 
-impl IntoTokens for LitObjectKey {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        match self {
-            LitObjectKey::LitStr(s) => s.into_tokens(context, stream),
-            LitObjectKey::Ident(ident) => ident.into_tokens(context, stream),
-        }
-    }
-}
-
 /// A number literal.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct LitObject {
     /// An object identifier.
     pub ident: LitObjectIdent,
@@ -183,6 +139,7 @@ pub struct LitObject {
     pub close: ast::CloseBrace,
     /// Indicates if the object is completely literal and cannot have side
     /// effects.
+    #[ast(skip)]
     is_const: bool,
 }
 
@@ -255,19 +212,6 @@ impl Parse for LitObject {
     }
 }
 
-impl IntoTokens for LitObject {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.ident.into_tokens(context, stream);
-        self.open.into_tokens(context, stream);
-
-        for assign in &self.assignments {
-            assign.into_tokens(context, stream);
-        }
-
-        self.close.into_tokens(context, stream);
-    }
-}
-
 impl Peek for LitObject {
     fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         let (t1, t2) = match (t1, t2) {
@@ -289,12 +233,9 @@ pub struct AnonymousLitObject;
 
 impl Peek for AnonymousLitObject {
     fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        let kind1 = t1.map(|t| t.kind);
-        let kind2 = t2.map(|t| t.kind);
-
-        match (kind1, kind2) {
-            (Some(ast::Kind::Pound), Some(ast::Kind::Open(ast::Delimiter::Brace))) => true,
-            _ => false,
-        }
+        matches!(
+            (peek!(t1).kind, peek!(t2).kind),
+            (ast::Kind::Pound, ast::Kind::Open(ast::Delimiter::Brace))
+        )
     }
 }

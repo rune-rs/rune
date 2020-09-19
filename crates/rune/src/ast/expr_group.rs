@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A prioritized expression group `(<expr>)`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprGroup {
     /// The open parenthesis.
     pub open: ast::OpenParen,
@@ -12,8 +12,6 @@ pub struct ExprGroup {
     /// The close parenthesis.
     pub close: ast::CloseParen,
 }
-
-into_tokens!(ExprGroup { open, expr, close });
 
 impl ExprGroup {
     /// Check if expression is empty.

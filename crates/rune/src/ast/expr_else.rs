@@ -1,29 +1,18 @@
-use crate::ast::{Else, ExprBlock};
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::ast;
+use crate::{Ast, Parse, Spanned};
 use runestick::Span;
 
 /// An else branch of an if expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast, Parse)]
 pub struct ExprElse {
     /// The `else` token.
-    pub else_: Else,
+    pub else_: ast::Else,
     /// The body of the else statement.
-    pub block: Box<ExprBlock>,
+    pub block: Box<ast::ExprBlock>,
 }
-
-into_tokens!(ExprElse { else_, block });
 
 impl Spanned for ExprElse {
     fn span(&self) -> Span {
         self.else_.span().join(self.block.span())
-    }
-}
-
-impl Parse for ExprElse {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(ExprElse {
-            else_: parser.parse()?,
-            block: Box::new(parser.parse()?),
-        })
     }
 }

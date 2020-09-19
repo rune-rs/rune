@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A return statement `break [expr]`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprYield {
     /// The return token.
     pub yield_: ast::Yield,
@@ -27,12 +27,5 @@ impl Parse for ExprYield {
             yield_: parser.parse()?,
             expr: parser.parse()?,
         })
-    }
-}
-
-impl IntoTokens for ExprYield {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.yield_.into_tokens(context, stream);
-        self.expr.into_tokens(context, stream);
     }
 }

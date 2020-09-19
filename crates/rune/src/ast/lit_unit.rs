@@ -1,25 +1,8 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Spanned};
+use crate::{Ast, Parse, Peek, Spanned};
 use runestick::Span;
 
 /// The unit literal `()`.
-#[derive(Debug, Clone)]
-pub struct LitUnit {
-    /// The open parenthesis.
-    pub open: ast::OpenParen,
-    /// The close parenthesis.
-    pub close: ast::CloseParen,
-}
-
-into_tokens!(LitUnit { open, close });
-
-impl Spanned for LitUnit {
-    fn span(&self) -> Span {
-        self.open.span().join(self.close.span())
-    }
-}
-
-/// Parsing a unit literal
 ///
 /// # Examples
 ///
@@ -28,24 +11,24 @@ impl Spanned for LitUnit {
 ///
 /// parse_all::<ast::LitUnit>("()").unwrap();
 /// ```
-impl Parse for LitUnit {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(Self {
-            open: parser.parse()?,
-            close: parser.parse()?,
-        })
+#[derive(Debug, Clone, Ast, Parse)]
+pub struct LitUnit {
+    /// The open parenthesis.
+    pub open: ast::OpenParen,
+    /// The close parenthesis.
+    pub close: ast::CloseParen,
+}
+
+impl Spanned for LitUnit {
+    fn span(&self) -> Span {
+        self.open.span().join(self.close.span())
     }
 }
 
 impl Peek for LitUnit {
-    fn peek(p1: Option<ast::Token>, p2: Option<ast::Token>) -> bool {
-        let (p1, p2) = match (p1, p2) {
-            (Some(p1), Some(p2)) => (p1, p2),
-            _ => return false,
-        };
-
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         matches! {
-            (p1.kind, p2.kind),
+            (peek!(t1).kind, peek!(t2).kind),
             (
                 ast::Kind::Open(ast::Delimiter::Parenthesis),
                 ast::Kind::Close(ast::Delimiter::Parenthesis),

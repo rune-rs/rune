@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::Spanned;
+use crate::{Ast, Spanned};
 use crate::{ParseError, Parser};
 
 /// A literal expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprLit {
     /// Attributes associated with the literal expression.
     pub attributes: Vec<ast::Attribute>,
@@ -28,8 +28,6 @@ impl ExprLit {
         })
     }
 }
-
-into_tokens!(ExprLit { attributes, lit });
 
 impl Spanned for ExprLit {
     fn span(&self) -> runestick::Span {

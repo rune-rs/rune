@@ -1,11 +1,9 @@
 use crate::ast;
-use crate::{
-    IntoTokens, MacroContext, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, TokenStream,
-};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, TokenStream};
 use runestick::Span;
 
 /// Attribute like `#[derive(Debug)]`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct Attribute {
     /// The `#` character
     pub hash: ast::Hash,
@@ -20,15 +18,6 @@ pub struct Attribute {
     /// The `]` character
     pub close: ast::CloseBracket,
 }
-
-into_tokens!(Attribute {
-    hash,
-    style,
-    open,
-    path,
-    input,
-    close,
-});
 
 impl crate::Spanned for Attribute {
     fn span(&self) -> Span {
@@ -107,21 +96,12 @@ impl Peek for Attribute {
 }
 
 /// Whether or not the attribute is an outer `#!` or inner `#` attribute
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Ast)]
 pub enum AttrStyle {
     /// `#`
     Inner,
     /// `#!`
     Outer(ast::Bang),
-}
-
-impl IntoTokens for AttrStyle {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        match self {
-            AttrStyle::Inner => (),
-            AttrStyle::Outer(bang) => bang.into_tokens(context, stream),
-        }
-    }
 }
 
 impl Parse for AttrStyle {

@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser};
+use crate::{Ast, Parse, ParseError, Parser};
 
 /// A parsed file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct File {
     /// Top level "Outer" `#![...]` attributes for the file
     pub attributes: Vec<ast::Attribute>,
@@ -91,12 +91,5 @@ impl Parse for File {
         }
 
         Ok(Self { attributes, items })
-    }
-}
-
-impl IntoTokens for File {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.attributes.into_tokens(context, stream);
-        self.items.into_tokens(context, stream);
     }
 }

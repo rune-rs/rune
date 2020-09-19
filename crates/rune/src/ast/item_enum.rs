@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{IntoTokens, MacroContext, Parse, ParseError, Parser, Spanned, TokenStream};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An enum declaration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ItemEnum {
     /// The attributes for the enum block
     pub attributes: Vec<ast::Attribute>,
@@ -18,15 +18,6 @@ pub struct ItemEnum {
     /// The close brace in the declaration.
     pub close: ast::CloseBrace,
 }
-
-into_tokens!(ItemEnum {
-    attributes,
-    enum_,
-    name,
-    open,
-    variants,
-    close,
-});
 
 impl ItemEnum {
     /// Parse a `enum` item with the given attributes
@@ -98,7 +89,7 @@ impl Parse for ItemEnum {
 }
 
 /// An enum variant.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ItemVariant {
     /// The attributes associated with the variant.
     pub attributes: Vec<ast::Attribute>,
@@ -109,13 +100,6 @@ pub struct ItemVariant {
     /// Optional trailing comma in variant.
     pub comma: Option<ast::Comma>,
 }
-
-into_tokens!(ItemVariant {
-    attributes,
-    name,
-    body,
-    comma,
-});
 
 impl Spanned for ItemVariant {
     fn span(&self) -> Span {
@@ -140,7 +124,7 @@ impl Spanned for ItemVariant {
 }
 
 /// An item body declaration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub enum ItemVariantBody {
     /// An empty enum body.
     EmptyBody,
@@ -182,19 +166,5 @@ impl Parse for ItemVariantBody {
             Some(ast::Kind::Open(ast::Delimiter::Brace)) => Self::StructBody(parser.parse()?),
             _ => Self::EmptyBody,
         })
-    }
-}
-
-impl IntoTokens for ItemVariantBody {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        match self {
-            Self::EmptyBody => (),
-            Self::TupleBody(body) => {
-                body.into_tokens(context, stream);
-            }
-            Self::StructBody(body) => {
-                body.into_tokens(context, stream);
-            }
-        }
     }
 }

@@ -38,36 +38,39 @@
 //! </a>
 //! </div>
 //!
-//! Native macros for Rune.
+//! <br>
+//!
+//! Macros for Rune.
+//!
+//! This is part of the [Rune language].
+//! [Rune Language]: https://github.com/rune-rs/rune
 
-use rune::ast;
-use rune::{MacroContext, Parser, TokenStream};
+extern crate proc_macro;
 
-mod stringy_math_macro;
+use quote::quote;
 
-/// Implementation for the `passthrough!` macro.
-fn passthrough_impl(_: &mut MacroContext, stream: &TokenStream) -> runestick::Result<TokenStream> {
-    Ok(stream.clone())
+mod ast;
+mod context;
+mod internals;
+mod parse;
+
+/// Helper derive to implement AST nodes in a less error prone manner.
+#[proc_macro_derive(Ast, attributes(ast))]
+#[doc(hidden)]
+pub fn ast(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let derive = syn::parse_macro_input!(input as ast::Derive);
+    derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
-/// Implementation for the `make_function!` macro.
-fn make_function(ctx: &mut MacroContext, stream: &TokenStream) -> runestick::Result<TokenStream> {
-    let mut parser = Parser::from_token_stream(stream);
-
-    let ident = parser.parse::<ast::Ident>()?;
-    let _ = parser.parse::<ast::Rocket>()?;
-    let output = parser.parse::<ast::ExprBlock>()?;
-    parser.parse_eof()?;
-
-    Ok(rune::quote!(ctx => fn #ident() { #output }))
+/// Helper derive to implement AST nodes in a less error prone manner.
+#[proc_macro_derive(Parse, attributes(parse))]
+#[doc(hidden)]
+pub fn parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let derive = syn::parse_macro_input!(input as parse::Derive);
+    derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
-/// Construct the `std::experimental` module, which contains experimental
-/// macros.
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
-    let mut module = runestick::Module::new(&["std", "experiments"]);
-    module.macro_(&["passthrough"], passthrough_impl)?;
-    module.macro_(&["stringy_math"], stringy_math_macro::stringy_math)?;
-    module.macro_(&["make_function"], make_function)?;
-    Ok(module)
+fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {
+    let compile_errors = errors.iter().map(syn::Error::to_compile_error);
+    quote!(#(#compile_errors)*)
 }

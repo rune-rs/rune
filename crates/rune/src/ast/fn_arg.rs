@@ -1,9 +1,8 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Spanned};
-use runestick::Span;
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser};
 
 /// A single argument in a closure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub enum FnArg {
     /// The `self` parameter.
     Self_(ast::Self_),
@@ -11,16 +10,6 @@ pub enum FnArg {
     Ignore(ast::Underscore),
     /// Binding the argument to an ident.
     Ident(ast::Ident),
-}
-
-impl Spanned for FnArg {
-    fn span(&self) -> Span {
-        match self {
-            Self::Self_(s) => s.span(),
-            Self::Ignore(ignore) => ignore.span(),
-            Self::Ident(ident) => ident.span(),
-        }
-    }
 }
 
 impl Parse for FnArg {
@@ -38,15 +27,5 @@ impl Parse for FnArg {
                 ))
             }
         })
-    }
-}
-
-impl IntoTokens for FnArg {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        match self {
-            Self::Self_(s) => s.into_tokens(context, stream),
-            Self::Ignore(ignore) => ignore.into_tokens(context, stream),
-            Self::Ident(ident) => ident.into_tokens(context, stream),
-        }
     }
 }

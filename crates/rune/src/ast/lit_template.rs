@@ -1,18 +1,17 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct LitTemplate {
     /// The token corresponding to the literal.
     token: ast::Token,
     /// The source string of the literal template.
+    #[ast(skip)]
     source: ast::LitStrSource,
 }
-
-into_tokens!(LitTemplate { token });
 
 impl Spanned for LitTemplate {
     fn span(&self) -> Span {
@@ -21,7 +20,7 @@ impl Spanned for LitTemplate {
 }
 
 /// A single template component.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TemplateComponent {
     /// A literal string.
     String(String),

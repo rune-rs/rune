@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A tuple pattern.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct PatTuple {
     /// The path, if the tuple is typed.
     pub path: Option<ast::Path>,
@@ -78,15 +78,5 @@ impl Parse for PatTuple {
         };
 
         Self::parse_with_path(parser, path)
-    }
-}
-
-impl IntoTokens for PatTuple {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.path.into_tokens(context, stream);
-        self.open.into_tokens(context, stream);
-        self.items.into_tokens(context, stream);
-        self.open_pattern.into_tokens(context, stream);
-        self.close.into_tokens(context, stream);
     }
 }

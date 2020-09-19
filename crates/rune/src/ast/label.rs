@@ -1,14 +1,15 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A label, like `'foo`
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Ast)]
 pub struct Label {
     /// The token of the label.
     pub token: ast::Token,
     /// The kind of the label.
+    #[ast(skip)]
     pub kind: ast::StringSource,
 }
 
@@ -68,11 +69,5 @@ impl<'a> Resolve<'a> for Label {
                 Ok(Cow::Owned(ident))
             }
         }
-    }
-}
-
-impl crate::IntoTokens for Label {
-    fn into_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        stream.push(self.token);
     }
 }

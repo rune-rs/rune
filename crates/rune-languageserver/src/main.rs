@@ -93,7 +93,7 @@ async fn main() -> Result<()> {
     }
 
     let mut context = rune::default_context()?;
-    context.install(&rune_macros::module()?)?;
+    context.install(&rune_experimental::module()?)?;
 
     let mut options = rune::Options::default();
     options.macros(true);

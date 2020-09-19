@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A for loop expression `for i in [1, 2, 3] {}`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprFor {
     /// The label of the loop.
     pub label: Option<(ast::Label, ast::Colon)>,
@@ -19,15 +19,6 @@ pub struct ExprFor {
     /// The body of the loop.
     pub body: Box<ast::ExprBlock>,
 }
-
-into_tokens!(ExprFor {
-    label,
-    for_,
-    var,
-    in_,
-    iter,
-    body
-});
 
 impl ExprFor {
     /// Parse with the given label.

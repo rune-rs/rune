@@ -234,7 +234,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     let mut context = rune::default_context()?;
 
     if args.experimental {
-        context.install(&rune_macros::module()?)?;
+        context.install(&rune_experimental::module()?)?;
     }
 
     let source = runestick::Source::from_path(path)

@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::Spanned;
+use crate::{Ast, Spanned};
 use runestick::Span;
 
 /// An index set operation `<target>[<index>] = <value>`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprIndexSet {
     /// The target of the index set.
     pub target: Box<ast::Expr>,
@@ -18,15 +18,6 @@ pub struct ExprIndexSet {
     /// The value expression we are assigning.
     pub value: Box<ast::Expr>,
 }
-
-into_tokens!(ExprIndexSet {
-    target,
-    open,
-    index,
-    close,
-    eq,
-    value
-});
 
 impl Spanned for ExprIndexSet {
     fn span(&self) -> Span {

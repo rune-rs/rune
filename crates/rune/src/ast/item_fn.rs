@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Peek, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// A function.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ItemFn {
     /// The attributes for the fn
     pub attributes: Vec<ast::Attribute>,
@@ -64,12 +64,7 @@ impl Spanned for ItemFn {
 
 impl Peek for ItemFn {
     fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        let t = match t1 {
-            Some(t) => t,
-            None => return false,
-        };
-
-        matches!(t.kind, ast::Kind::Fn | ast::Kind::Async)
+        matches!(peek!(t1).kind, ast::Kind::Fn | ast::Kind::Async)
     }
 }
 
@@ -98,15 +93,5 @@ impl Parse for ItemFn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
         Self::parse_with_attributes(parser, attributes)
-    }
-}
-
-impl IntoTokens for ItemFn {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.async_.into_tokens(context, stream);
-        self.fn_.into_tokens(context, stream);
-        self.name.into_tokens(context, stream);
-        self.args.into_tokens(context, stream);
-        self.body.into_tokens(context, stream);
     }
 }

@@ -1,4 +1,4 @@
-# rune-macros
+# rune-experimental
 
 <div align="center">
     <img alt="Rune Logo" src="https://raw.githubusercontent.com/rune-rs/rune/master/assets/icon.png" />
@@ -11,7 +11,7 @@
     <b>Visit the site 🌐</b>
 </a>
 -
-<a href="https://rune-rs.github.io/book/">
+<a href="https://rune-rs.github.io/bool/">
     <b>Read the book 📖</b>
 </a>
 </div>
@@ -40,9 +40,4 @@
 </a>
 </div>
 
-<br>
-
-Macros for Rune.
-
-This is part of the [Rune language].
-[Rune Language]: https://github.com/rune-rs/rune
+Native macros for Rune.

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
 use std::mem::take;
 use std::ops;
 
@@ -27,67 +27,66 @@ impl ops::Deref for ExprChain {
     }
 }
 
-impl_enum_ast! {
-    /// A rune expression.
-    pub enum Expr {
-        /// The `self` keyword.
-        Self_(ast::Self_),
-        /// An path expression.
-        Path(ast::Path),
-        /// A declaration.
-        // large size difference between variants
-        // we should box this variant.
-        // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
-        Item(ast::Item),
-        /// A while loop.
-        ExprWhile(ast::ExprWhile),
-        /// An unconditional loop.
-        ExprLoop(ast::ExprLoop),
-        /// An for loop.
-        ExprFor(ast::ExprFor),
-        /// A let expression.
-        ExprLet(ast::ExprLet),
-        /// An index set operation.
-        ExprIndexSet(ast::ExprIndexSet),
-        /// An if expression.
-        ExprIf(ast::ExprIf),
-        /// An match expression.
-        ExprMatch(ast::ExprMatch),
-        /// A function call,
-        ExprCall(ast::ExprCall),
-        /// A macro call,
-        MacroCall(ast::MacroCall),
-        /// A field access on an expression.
-        ExprFieldAccess(ast::ExprFieldAccess),
-        /// A grouped expression.
-        ExprGroup(ast::ExprGroup),
-        /// A binary expression.
-        ExprBinary(ast::ExprBinary),
-        /// A unary expression.
-        ExprUnary(ast::ExprUnary),
-        /// An index set operation.
-        ExprIndexGet(ast::ExprIndexGet),
-        /// A break expression.
-        ExprBreak(ast::ExprBreak),
-        /// A yield expression.
-        ExprYield(ast::ExprYield),
-        /// A block as an expression.
-        ExprBlock(ast::ExprBlock),
-        /// An async block as an expression.
-        ExprAsync(ast::ExprAsync),
-        /// A return statement.
-        ExprReturn(ast::ExprReturn),
-        /// An await expression.
-        ExprAwait(ast::ExprAwait),
-        /// Try expression.
-        ExprTry(ast::ExprTry),
-        /// A select expression.
-        ExprSelect(ast::ExprSelect),
-        /// A closure expression.
-        ExprClosure(ast::ExprClosure),
-        /// A literal expression.
-        ExprLit(ast::ExprLit),
-    }
+/// A rune expression.
+#[derive(Debug, Clone, Ast)]
+pub enum Expr {
+    /// The `self` keyword.
+    Self_(ast::Self_),
+    /// An path expression.
+    Path(ast::Path),
+    /// A declaration.
+    // large size difference between variants
+    // we should box this variant.
+    // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
+    Item(ast::Item),
+    /// A while loop.
+    ExprWhile(ast::ExprWhile),
+    /// An unconditional loop.
+    ExprLoop(ast::ExprLoop),
+    /// An for loop.
+    ExprFor(ast::ExprFor),
+    /// A let expression.
+    ExprLet(ast::ExprLet),
+    /// An index set operation.
+    ExprIndexSet(ast::ExprIndexSet),
+    /// An if expression.
+    ExprIf(ast::ExprIf),
+    /// An match expression.
+    ExprMatch(ast::ExprMatch),
+    /// A function call,
+    ExprCall(ast::ExprCall),
+    /// A macro call,
+    MacroCall(ast::MacroCall),
+    /// A field access on an expression.
+    ExprFieldAccess(ast::ExprFieldAccess),
+    /// A grouped expression.
+    ExprGroup(ast::ExprGroup),
+    /// A binary expression.
+    ExprBinary(ast::ExprBinary),
+    /// A unary expression.
+    ExprUnary(ast::ExprUnary),
+    /// An index set operation.
+    ExprIndexGet(ast::ExprIndexGet),
+    /// A break expression.
+    ExprBreak(ast::ExprBreak),
+    /// A yield expression.
+    ExprYield(ast::ExprYield),
+    /// A block as an expression.
+    ExprBlock(ast::ExprBlock),
+    /// An async block as an expression.
+    ExprAsync(ast::ExprAsync),
+    /// A return statement.
+    ExprReturn(ast::ExprReturn),
+    /// An await expression.
+    ExprAwait(ast::ExprAwait),
+    /// Try expression.
+    ExprTry(ast::ExprTry),
+    /// A select expression.
+    ExprSelect(ast::ExprSelect),
+    /// A closure expression.
+    ExprClosure(ast::ExprClosure),
+    /// A literal expression.
+    ExprLit(ast::ExprLit),
 }
 
 impl Expr {
@@ -559,16 +558,11 @@ impl Parse for Expr {
 
 impl Peek for Expr {
     fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        let t = match t1 {
-            Some(t1) => t1,
-            None => return false,
-        };
-
-        match t.kind {
+        match peek!(t1).kind {
             ast::Kind::Async => true,
             ast::Kind::Self_ => true,
             ast::Kind::Select => true,
-            ast::Kind::Label(..) => matches!(t2.map(|t| t.kind), Some(ast::Kind::Colon)),
+            ast::Kind::Label(..) => matches!(peek!(t2).kind, ast::Kind::Colon),
             ast::Kind::Pound => true,
             ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => true,
             ast::Kind::While => true,

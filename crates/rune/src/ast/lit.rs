@@ -1,32 +1,31 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser};
 
-impl_enum_ast! {
-    /// A literal value
-    pub enum Lit {
-        /// A unit literal
-        Unit(ast::LitUnit),
-        /// A boolean literal
-        Bool(ast::LitBool),
-        /// A byte literal
-        Byte(ast::LitByte),
-        /// A byte string literal
-        ByteStr(ast::LitByteStr),
-        /// A character literal
-        Char(ast::LitChar),
-        /// A number literal
-        Number(ast::LitNumber),
-        /// An object literal
-        Object(ast::LitObject),
-        /// A string literal
-        Str(ast::LitStr),
-        /// A template literal
-        Template(ast::LitTemplate),
-        /// A tuple literal
-        Tuple(ast::LitTuple),
-        /// A vec literal
-        Vec(ast::LitVec),
-    }
+/// A literal value
+#[derive(Debug, Clone, Ast)]
+pub enum Lit {
+    /// A unit literal
+    Unit(ast::LitUnit),
+    /// A boolean literal
+    Bool(ast::LitBool),
+    /// A byte literal
+    Byte(ast::LitByte),
+    /// A byte string literal
+    ByteStr(ast::LitByteStr),
+    /// A character literal
+    Char(ast::LitChar),
+    /// A number literal
+    Number(ast::LitNumber),
+    /// An object literal
+    Object(ast::LitObject),
+    /// A string literal
+    Str(ast::LitStr),
+    /// A template literal
+    Template(ast::LitTemplate),
+    /// A tuple literal
+    Tuple(ast::LitTuple),
+    /// A vec literal
+    Vec(ast::LitVec),
 }
 
 impl Lit {
