@@ -197,7 +197,7 @@ fn walk_paths(recursive: bool, paths: Vec<PathBuf>) -> impl Iterator<Item = io::
         let path = queue.pop_front()?;
 
         if path.is_file() {
-            if path.extension() == Some(OsStr::new("rn")) {
+            if !recursive || path.extension() == Some(OsStr::new("rn")) {
                 return Some(Ok(path));
             }
 

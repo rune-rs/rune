@@ -68,7 +68,7 @@ mod stmt;
 mod token;
 pub(super) mod utils;
 
-pub use self::attribute::{Attribute, OuterAttribute};
+pub use self::attribute::Attribute;
 pub use self::block::Block;
 pub use self::condition::Condition;
 pub use self::expr::Expr;
@@ -102,11 +102,11 @@ pub use self::file::File;
 pub use self::fn_arg::FnArg;
 pub use self::ident::Ident;
 pub use self::item::Item;
-pub use self::item_enum::{ItemEnum, ItemEnumVariant};
+pub use self::item_enum::{ItemEnum, ItemVariant, ItemVariantBody};
 pub use self::item_fn::ItemFn;
 pub use self::item_impl::ItemImpl;
 pub use self::item_mod::{ItemMod, ItemModBody};
-pub use self::item_struct::{ItemStruct, ItemStructBody, StructBody, TupleBody};
+pub use self::item_struct::{Field, ItemStruct, ItemStructBody, StructBody, TupleBody};
 pub use self::item_use::{ItemUse, ItemUseComponent};
 pub use self::label::Label;
 pub use self::lit::Lit;
@@ -234,7 +234,6 @@ decl_tokens! {
     (Mul, "Multiply `*` operator.", Kind::Star),
     (Mod, "The `mod` keyword.", Kind::Mod),
     (Bang, "The `!` operator.", Kind::Bang),
-    (EOF, "The symbolic end of file.", Kind::EOF),
 }
 
 #[cfg(test)]

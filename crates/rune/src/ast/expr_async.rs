@@ -5,6 +5,8 @@ use runestick::Span;
 /// A block of expressions.
 #[derive(Debug, Clone)]
 pub struct ExprAsync {
+    /// The attributes for the block.
+    pub attributes: Vec<ast::Attribute>,
     /// The `async` keyword.
     pub async_: ast::Async,
     /// The close brace.
@@ -15,7 +17,11 @@ into_tokens!(ExprAsync { async_, block });
 
 impl Spanned for ExprAsync {
     fn span(&self) -> Span {
-        self.async_.span().join(self.block.span())
+        if let Some(first) = self.attributes.first() {
+            first.span().join(self.block.span())
+        } else {
+            self.async_.span().join(self.block.span())
+        }
     }
 }
 
@@ -27,8 +33,9 @@ impl ExprAsync {
         attributes: Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
         Ok(Self {
+            attributes,
             async_: parser.parse()?,
-            block: ast::Block::parse_with_attributes(parser, attributes)?,
+            block: parser.parse()?,
         })
     }
 }
@@ -51,7 +58,7 @@ impl ExprAsync {
 /// let expr = parse_all::<ast::ExprAsync>("#[retry] async { 42 }").unwrap();
 /// assert_eq!(expr.block.statements.len(), 1);
 /// assert!(!expr.block.produces_nothing());
-/// assert_eq!(expr.block.attributes.len(), 1);
+/// assert_eq!(expr.attributes.len(), 1);
 /// ```
 impl Parse for ExprAsync {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

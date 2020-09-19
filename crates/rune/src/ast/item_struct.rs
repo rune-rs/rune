@@ -15,6 +15,13 @@ pub struct ItemStruct {
     pub body: ItemStructBody,
 }
 
+into_tokens!(ItemStruct {
+    attributes,
+    struct_,
+    ident,
+    body,
+});
+
 impl ItemStruct {
     /// Parse a `struct` item with the given attributes
     pub fn parse_with_attributes(
@@ -62,15 +69,6 @@ impl Parse for ItemStruct {
     }
 }
 
-impl IntoTokens for ItemStruct {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        self.attributes.into_tokens(context, stream);
-        self.struct_.into_tokens(context, stream);
-        self.ident.into_tokens(context, stream);
-        self.body.into_tokens(context, stream);
-    }
-}
-
 /// A struct declaration.
 #[derive(Debug, Clone)]
 pub enum ItemStructBody {
@@ -80,6 +78,17 @@ pub enum ItemStructBody {
     TupleBody(TupleBody, ast::SemiColon),
     /// A regular struct body.
     StructBody(StructBody),
+}
+
+impl ItemStructBody {
+    /// Iterate over the fields of the body.
+    pub fn fields(&self) -> impl Iterator<Item = &'_ Field> {
+        match self {
+            ItemStructBody::EmptyBody(..) => IntoIterator::into_iter(&[]),
+            ItemStructBody::TupleBody(body, ..) => body.fields.iter(),
+            ItemStructBody::StructBody(body) => body.fields.iter(),
+        }
+    }
 }
 
 /// Parse implementation for a struct body.
@@ -134,10 +143,16 @@ pub struct TupleBody {
     /// The opening paren.
     pub open: ast::OpenParen,
     /// Fields in the variant.
-    pub fields: Vec<(Vec<ast::Attribute>, ast::Ident, Option<ast::Comma>)>,
+    pub fields: Vec<Field>,
     /// The close paren.
     pub close: ast::CloseParen,
 }
+
+into_tokens!(TupleBody {
+    open,
+    fields,
+    close,
+});
 
 impl TupleBody {
     /// Get the span for the tuple body.
@@ -163,18 +178,10 @@ impl Parse for TupleBody {
         let mut fields = Vec::new();
 
         while !parser.peek::<ast::CloseParen>()? {
-            let attrs = parser.parse()?;
-            let field = parser.parse()?;
+            let field = parser.parse::<Field>()?;
+            let done = field.comma.is_none();
 
-            let comma = if parser.peek::<ast::Comma>()? {
-                Some(parser.parse()?)
-            } else {
-                None
-            };
-
-            let done = comma.is_none();
-
-            fields.push((attrs, field, comma));
+            fields.push(field);
 
             if done {
                 break;
@@ -189,30 +196,22 @@ impl Parse for TupleBody {
     }
 }
 
-impl IntoTokens for TupleBody {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        self.open.into_tokens(context, stream);
-
-        for (attrs, field, comma) in &self.fields {
-            attrs.into_tokens(context, stream);
-            field.into_tokens(context, stream);
-            comma.into_tokens(context, stream);
-        }
-
-        self.close.into_tokens(context, stream);
-    }
-}
-
 /// A variant declaration.
 #[derive(Debug, Clone)]
 pub struct StructBody {
     /// The opening brace.
     pub open: ast::OpenBrace,
     /// Fields in the variant.
-    pub fields: Vec<(Vec<ast::Attribute>, ast::Ident, Option<ast::Comma>)>,
+    pub fields: Vec<Field>,
     /// The close brace.
     pub close: ast::CloseBrace,
 }
+
+into_tokens!(StructBody {
+    open,
+    fields,
+    close,
+});
 
 impl StructBody {
     /// Get the span for the tuple body.
@@ -237,18 +236,9 @@ impl Parse for StructBody {
         let mut fields = Vec::new();
 
         while !parser.peek::<ast::CloseBrace>()? {
-            let attrs = parser.parse()?;
-            let field = parser.parse()?;
-
-            let comma = if parser.peek::<ast::Comma>()? {
-                Some(parser.parse()?)
-            } else {
-                None
-            };
-
-            let done = comma.is_none();
-
-            fields.push((attrs, field, comma));
+            let field = parser.parse::<Field>()?;
+            let done = field.comma.is_none();
+            fields.push(field);
 
             if done {
                 break;
@@ -265,16 +255,55 @@ impl Parse for StructBody {
     }
 }
 
-impl IntoTokens for StructBody {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        self.open.into_tokens(context, stream);
+/// A field as part of a struct or a tuple body.
+#[derive(Debug, Clone)]
+pub struct Field {
+    /// Attributes associated with field.
+    pub attributes: Vec<ast::Attribute>,
+    /// Name of the field.
+    pub name: ast::Ident,
+    /// Trailing comma of the field.
+    pub comma: Option<ast::Comma>,
+}
 
-        for (attrs, field, comma) in &self.fields {
-            attrs.into_tokens(context, stream);
-            field.into_tokens(context, stream);
-            comma.into_tokens(context, stream);
+into_tokens!(Field {
+    attributes,
+    name,
+    comma,
+});
+
+impl Spanned for Field {
+    fn span(&self) -> Span {
+        let last = self
+            .comma
+            .as_ref()
+            .map(Spanned::span)
+            .unwrap_or_else(|| self.name.span());
+
+        if let Some(first) = self.attributes.first() {
+            first.span().join(last)
+        } else {
+            last
         }
+    }
+}
 
-        self.close.into_tokens(context, stream);
+/// Parse implementation for a field.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::Field>("a").unwrap();
+/// parse_all::<ast::Field>("#[x] a").unwrap();
+/// ```
+impl Parse for Field {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(Self {
+            attributes: parser.parse()?,
+            name: parser.parse()?,
+            comma: parser.parse()?,
+        })
     }
 }

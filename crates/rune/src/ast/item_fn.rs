@@ -52,7 +52,9 @@ impl ItemFn {
 
 impl Spanned for ItemFn {
     fn span(&self) -> Span {
-        if let Some(async_) = &self.async_ {
+        if let Some(first) = self.attributes.first() {
+            first.span().join(self.body.span())
+        } else if let Some(async_) = &self.async_ {
             async_.span().join(self.body.span())
         } else {
             self.fn_.span().join(self.body.span())

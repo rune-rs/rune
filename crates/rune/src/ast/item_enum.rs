@@ -14,15 +14,19 @@ pub struct ItemEnum {
     /// The open brace of the declaration.
     pub open: ast::OpenBrace,
     /// Variants in the declaration.
-    pub variants: Vec<(
-        Vec<ast::Attribute>,
-        ast::Ident,
-        ItemEnumVariant,
-        Option<ast::Comma>,
-    )>,
+    pub variants: Vec<ItemVariant>,
     /// The close brace in the declaration.
     pub close: ast::CloseBrace,
 }
+
+into_tokens!(ItemEnum {
+    attributes,
+    enum_,
+    name,
+    open,
+    variants,
+    close,
+});
 
 impl ItemEnum {
     /// Parse a `enum` item with the given attributes
@@ -37,19 +41,15 @@ impl ItemEnum {
         let mut variants = Vec::new();
 
         while !parser.peek::<ast::CloseBrace>()? {
-            let attrs = parser.parse()?;
-            let name = parser.parse()?;
-            let variant = parser.parse()?;
-
-            let comma = if parser.peek::<ast::Comma>()? {
-                Some(parser.parse()?)
-            } else {
-                None
+            let variant = ItemVariant {
+                attributes: parser.parse()?,
+                name: parser.parse()?,
+                body: parser.parse()?,
+                comma: parser.parse()?,
             };
 
-            let done = comma.is_none();
-
-            variants.push((attrs, name, variant, comma));
+            let done = variant.comma.is_none();
+            variants.push(variant);
 
             if done {
                 break;
@@ -71,7 +71,11 @@ impl ItemEnum {
 
 impl Spanned for ItemEnum {
     fn span(&self) -> Span {
-        self.enum_.span().join(self.close.span())
+        if let Some(first) = self.attributes.first() {
+            first.span().join(self.close.span())
+        } else {
+            self.enum_.span().join(self.close.span())
+        }
     }
 }
 
@@ -93,32 +97,68 @@ impl Parse for ItemEnum {
     }
 }
 
-impl IntoTokens for ItemEnum {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        self.enum_.into_tokens(context, stream);
-        self.name.into_tokens(context, stream);
-        self.open.into_tokens(context, stream);
+/// An enum variant.
+#[derive(Debug, Clone)]
+pub struct ItemVariant {
+    /// The attributes associated with the variant.
+    pub attributes: Vec<ast::Attribute>,
+    /// The name of the variant.
+    pub name: ast::Ident,
+    /// The body of the variant.
+    pub body: ItemVariantBody,
+    /// Optional trailing comma in variant.
+    pub comma: Option<ast::Comma>,
+}
 
-        for (attrs, variant, body, comma) in &self.variants {
-            attrs.into_tokens(context, stream);
-            variant.into_tokens(context, stream);
-            body.into_tokens(context, stream);
-            comma.into_tokens(context, stream);
-        }
+into_tokens!(ItemVariant {
+    attributes,
+    name,
+    body,
+    comma,
+});
 
-        self.close.into_tokens(context, stream);
+impl Spanned for ItemVariant {
+    fn span(&self) -> Span {
+        let first = self
+            .attributes
+            .first()
+            .map(Spanned::span)
+            .unwrap_or_else(|| self.name.span());
+
+        let last = self
+            .comma
+            .as_ref()
+            .map(Spanned::span)
+            .unwrap_or_else(|| match &self.body {
+                ItemVariantBody::EmptyBody => self.name.span(),
+                ItemVariantBody::TupleBody(body) => body.span(),
+                ItemVariantBody::StructBody(body) => body.span(),
+            });
+
+        first.join(last)
     }
 }
 
 /// An item body declaration.
 #[derive(Debug, Clone)]
-pub enum ItemEnumVariant {
+pub enum ItemVariantBody {
     /// An empty enum body.
     EmptyBody,
     /// A tuple struct body.
     TupleBody(ast::TupleBody),
     /// A regular struct body.
     StructBody(ast::StructBody),
+}
+
+impl ItemVariantBody {
+    /// Iterate over the fields of the body.
+    pub fn fields(&self) -> impl Iterator<Item = &'_ ast::Field> {
+        match self {
+            ItemVariantBody::EmptyBody => IntoIterator::into_iter(&[]),
+            ItemVariantBody::TupleBody(body) => body.fields.iter(),
+            ItemVariantBody::StructBody(body) => body.fields.iter(),
+        }
+    }
 }
 
 /// Parse implementation for a struct body.
@@ -128,12 +168,12 @@ pub enum ItemEnumVariant {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::ItemEnumVariant>("( a, b, c );").unwrap();
-/// parse_all::<ast::ItemEnumVariant>("{ a, b, c }").unwrap();
-/// parse_all::<ast::ItemEnumVariant>("( #[serde(default)] a, b, c );").unwrap();
-/// parse_all::<ast::ItemEnumVariant>("{ a, #[debug(skip)] b, c }").unwrap();
+/// parse_all::<ast::ItemVariantBody>("( a, b, c );").unwrap();
+/// parse_all::<ast::ItemVariantBody>("{ a, b, c }").unwrap();
+/// parse_all::<ast::ItemVariantBody>("( #[serde(default)] a, b, c );").unwrap();
+/// parse_all::<ast::ItemVariantBody>("{ a, #[debug(skip)] b, c }").unwrap();
 /// ```
-impl Parse for ItemEnumVariant {
+impl Parse for ItemVariantBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let token = parser.token_peek()?;
 
@@ -145,7 +185,7 @@ impl Parse for ItemEnumVariant {
     }
 }
 
-impl IntoTokens for ItemEnumVariant {
+impl IntoTokens for ItemVariantBody {
     fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         match self {
             Self::EmptyBody => (),

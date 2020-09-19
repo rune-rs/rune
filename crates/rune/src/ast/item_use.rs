@@ -42,7 +42,11 @@ impl ItemUse {
 }
 impl Spanned for ItemUse {
     fn span(&self) -> Span {
-        self.use_.span().join(self.semi.span())
+        if let Some(first) = self.attributes.first() {
+            first.span().join(self.semi.span())
+        } else {
+            self.use_.span().join(self.semi.span())
+        }
     }
 }
 

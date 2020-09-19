@@ -50,7 +50,11 @@ impl ItemImpl {
 
 impl Spanned for ItemImpl {
     fn span(&self) -> Span {
-        self.impl_.span().join(self.close.span())
+        if let Some(first) = self.attributes.first() {
+            first.span().join(self.close.span())
+        } else {
+            self.impl_.span().join(self.close.span())
+        }
     }
 }
 
