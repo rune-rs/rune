@@ -85,7 +85,9 @@ impl<'a> Indexer<'a> {
         self.visitor.visit_mod(source_id, span);
 
         self.queue.push_back(Task::LoadFile {
-            kind: LoadFileKind::Root,
+            kind: LoadFileKind::Module {
+                root: self.root.clone(),
+            },
             item,
             source_id,
         });
@@ -101,6 +103,13 @@ pub(crate) trait Index<T> {
 
 impl Index<ast::File> for Indexer<'_> {
     fn index(&mut self, file: &ast::File) -> CompileResult<()> {
+        if let Some(first) = file.attributes.first() {
+            return Err(CompileError::internal(
+                first,
+                "file attributes are not supported yet",
+            ));
+        }
+
         for (decl, semi_colon) in &file.items {
             if let Some(semi_colon) = semi_colon {
                 if !decl.needs_semi_colon() {
@@ -233,6 +242,13 @@ impl Index<ast::ExprAsync> for Indexer<'_> {
         let span = expr_async.span();
         log::trace!("ExprAsync => {:?}", self.source.source(span));
 
+        if let Some(first) = expr_async.attributes.first() {
+            return Err(CompileError::internal(
+                first,
+                "async block attributes are not supported yet",
+            ));
+        }
+
         let _guard = self.items.push_async_block();
         let guard = self.scopes.push_closure(true);
         self.index(&expr_async.block)?;
@@ -259,6 +275,13 @@ impl Index<ast::ExprBlock> for Indexer<'_> {
     fn index(&mut self, expr_block: &ast::ExprBlock) -> CompileResult<()> {
         let span = expr_block.span();
         log::trace!("ExprBlock => {:?}", self.source.source(span));
+
+        if let Some(first) = expr_block.attributes.first() {
+            return Err(CompileError::internal(
+                first,
+                "block attributes are not supported yet",
+            ));
+        }
 
         self.index(&expr_block.block)?;
         Ok(())
@@ -599,6 +622,13 @@ impl Index<ast::Item> for Indexer<'_> {
 
         match item {
             ast::Item::ItemUse(import) => {
+                if let Some(first) = import.attributes.first() {
+                    return Err(CompileError::internal(
+                        first,
+                        "use attributes are not supported",
+                    ));
+                }
+
                 self.queue.push_back(Task::Import(Import {
                     item: self.items.item(),
                     ast: import.clone(),
@@ -607,6 +637,13 @@ impl Index<ast::Item> for Indexer<'_> {
                 }));
             }
             ast::Item::ItemEnum(item_enum) => {
+                if let Some(first) = item_enum.attributes.first() {
+                    return Err(CompileError::internal(
+                        first,
+                        "enum attributes are not supported",
+                    ));
+                }
+
                 let name = item_enum.name.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(name.as_ref());
 
@@ -620,11 +657,32 @@ impl Index<ast::Item> for Indexer<'_> {
                     span,
                 )?;
 
-                for (_, variant, body, _) in &item_enum.variants {
-                    let variant_ident = variant.resolve(&self.storage, &*self.source)?;
-                    let _guard = self.items.push_name(variant_ident.as_ref());
+                for ast::ItemVariant {
+                    attributes,
+                    name,
+                    body,
+                    ..
+                } in &item_enum.variants
+                {
+                    if let Some(first) = attributes.first() {
+                        return Err(CompileError::internal(
+                            first,
+                            "variant attributes are not supported yet",
+                        ));
+                    }
 
-                    let span = variant.span();
+                    for field in body.fields() {
+                        if let Some(first) = field.attributes.first() {
+                            return Err(CompileError::internal(
+                                first,
+                                "field attributes are not supported",
+                            ));
+                        }
+                    }
+
+                    let span = name.span();
+                    let name = name.resolve(&self.storage, &*self.source)?;
+                    let _guard = self.items.push_name(name.as_ref());
 
                     self.query.index_variant(
                         self.items.item(),
@@ -637,6 +695,22 @@ impl Index<ast::Item> for Indexer<'_> {
                 }
             }
             ast::Item::ItemStruct(item_struct) => {
+                if let Some(first) = item_struct.attributes.first() {
+                    return Err(CompileError::internal(
+                        first,
+                        "struct attributes are not supported",
+                    ));
+                }
+
+                for field in item_struct.body.fields() {
+                    if let Some(first) = field.attributes.first() {
+                        return Err(CompileError::internal(
+                            first,
+                            "field attributes are not supported",
+                        ));
+                    }
+                }
+
                 let ident = item_struct.ident.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(ident.as_ref());
 
@@ -648,34 +722,57 @@ impl Index<ast::Item> for Indexer<'_> {
                 )?;
             }
             ast::Item::ItemFn(item_fn) => {
+                if let Some(first) = item_fn.attributes.first() {
+                    return Err(CompileError::internal(
+                        first,
+                        "function attributes are not supported",
+                    ));
+                }
+
                 self.index(&**item_fn)?;
             }
-            ast::Item::ItemImpl(decl_impl) => {
+            ast::Item::ItemImpl(item_impl) => {
+                if let Some(first) = item_impl.attributes.first() {
+                    return Err(CompileError::internal(
+                        first,
+                        "impl attributes are not supported",
+                    ));
+                }
+
                 let mut guards = Vec::new();
 
-                for ident in decl_impl.path.into_components() {
+                for ident in item_impl.path.into_components() {
                     let ident = ident.resolve(&self.storage, &*self.source)?;
                     guards.push(self.items.push_name(ident.as_ref()));
                 }
 
                 self.impl_items.push(self.items.item());
 
-                for item_fn in &decl_impl.functions {
+                for item_fn in &item_impl.functions {
                     self.index(item_fn)?;
                 }
 
                 self.impl_items.pop();
             }
-            ast::Item::ItemMod(item_mod) => match &item_mod.body {
-                ast::ItemModBody::EmptyBody(..) => {
-                    self.handle_file_mod(item_mod)?;
+            ast::Item::ItemMod(item_mod) => {
+                if let Some(first) = item_mod.attributes.first() {
+                    return Err(CompileError::internal(
+                        first,
+                        "module attributes are not supported",
+                    ));
                 }
-                ast::ItemModBody::InlineBody(body) => {
-                    let name = item_mod.name.resolve(&self.storage, &*self.source)?;
-                    let _guard = self.items.push_name(name.as_ref());
-                    self.index(&*body.file)?;
+
+                match &item_mod.body {
+                    ast::ItemModBody::EmptyBody(..) => {
+                        self.handle_file_mod(item_mod)?;
+                    }
+                    ast::ItemModBody::InlineBody(body) => {
+                        let name = item_mod.name.resolve(&self.storage, &*self.source)?;
+                        let _guard = self.items.push_name(name.as_ref());
+                        self.index(&*body.file)?;
+                    }
                 }
-            },
+            }
             ast::Item::MacroCall(macro_call) => {
                 let _guard = self.items.push_macro();
 

@@ -32,7 +32,11 @@ impl ItemMod {
 
 impl Spanned for ItemMod {
     fn span(&self) -> Span {
-        self.mod_.span().join(self.body.span())
+        if let Some(first) = self.attributes.first() {
+            first.span().join(self.body.span())
+        } else {
+            self.mod_.span().join(self.body.span())
+        }
     }
 }
 

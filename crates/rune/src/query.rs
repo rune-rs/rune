@@ -40,12 +40,12 @@ pub struct Variant {
     /// Item of the enum type.
     enum_item: Item,
     /// Ast for declaration.
-    ast: ast::ItemEnumVariant,
+    ast: ast::ItemVariantBody,
 }
 
 impl Variant {
     /// Construct a new variant.
-    pub fn new(enum_item: Item, ast: ast::ItemEnumVariant) -> Self {
+    pub fn new(enum_item: Item, ast: ast::ItemVariantBody) -> Self {
         Self { enum_item, ast }
     }
 }
@@ -183,7 +183,7 @@ impl Query {
         &mut self,
         item: Item,
         enum_item: Item,
-        ast: ast::ItemEnumVariant,
+        ast: ast::ItemVariantBody,
         source: Arc<Source>,
         source_id: usize,
         span: Span,
@@ -470,9 +470,9 @@ impl Query {
 
         let mut fields = HashSet::new();
 
-        for (_, ident, _) in &st.fields {
-            let ident = ident.resolve(&self.storage, &*source)?;
-            fields.insert(ident.to_string());
+        for ast::Field { name, .. } in &st.fields {
+            let name = name.resolve(&self.storage, &*source)?;
+            fields.insert(name.to_string());
         }
 
         let object = CompileMetaStruct {
@@ -494,14 +494,14 @@ impl Query {
     fn variant_into_item_decl(
         &self,
         item: &Item,
-        body: ast::ItemEnumVariant,
+        body: ast::ItemVariantBody,
         enum_item: Option<Item>,
         source: &Source,
     ) -> Result<CompileMetaKind, CompileError> {
         Ok(match body {
-            ast::ItemEnumVariant::EmptyBody => self.empty_body_meta(item, enum_item),
-            ast::ItemEnumVariant::TupleBody(tuple) => self.tuple_body_meta(item, enum_item, tuple),
-            ast::ItemEnumVariant::StructBody(st) => {
+            ast::ItemVariantBody::EmptyBody => self.empty_body_meta(item, enum_item),
+            ast::ItemVariantBody::TupleBody(tuple) => self.tuple_body_meta(item, enum_item, tuple),
+            ast::ItemVariantBody::StructBody(st) => {
                 self.struct_body_meta(item, enum_item, source, st)?
             }
         })

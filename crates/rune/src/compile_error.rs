@@ -45,8 +45,11 @@ impl CompileError {
     ///
     /// This should be used for programming invariants of the encoder which are
     /// broken for some reason.
-    pub fn internal(span: Span, msg: &'static str) -> Self {
-        CompileError::new(span, CompileErrorKind::Internal { msg })
+    pub fn internal<S>(spanned: S, msg: &'static str) -> Self
+    where
+        S: Spanned,
+    {
+        CompileError::new(spanned.span(), CompileErrorKind::Internal { msg })
     }
 
     /// Construct an experimental error.

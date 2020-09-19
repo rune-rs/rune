@@ -1,6 +1,6 @@
 /// impl IntoTokens for a struct.
 macro_rules! into_tokens {
-    ($ty:ty {$($field:ident),+}) => {
+    ($ty:ty {$($field:ident),+ $(,)?}) => {
         impl $crate::IntoTokens for $ty {
             fn into_tokens(&self, context: &mut $crate::MacroContext, stream: &mut $crate::TokenStream) {
                 $(self.$field.into_tokens(context, stream);)*

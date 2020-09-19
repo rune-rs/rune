@@ -243,39 +243,29 @@ impl Expr {
         eager_brace: EagerBrace,
         expr_chain: ExprChain,
     ) -> Result<Self, ParseError> {
-        let attributes: Vec<ast::Attribute> = parser.parse()?;
-        let has_attrs = !attributes.is_empty();
+        use std::mem;
+
+        let mut attributes = parser.parse::<Vec<ast::Attribute>>()?;
 
         let token = parser.token_peek_eof()?;
 
-        let expr = match (has_attrs, token.kind) {
-            (_, ast::Kind::Async) => {
+        let expr = match token.kind {
+            ast::Kind::Async => {
                 let async_: ast::Async = parser.parse()?;
                 let expr: Self = Self::parse_primary(parser, eager_brace, expr_chain)?;
 
                 match expr {
                     Self::ExprClosure(expr_closure) => Self::ExprClosure(ast::ExprClosure {
-                        attributes,
+                        attributes: mem::take(&mut attributes),
                         async_: Some(async_),
                         args: expr_closure.args,
                         body: expr_closure.body,
                     }),
-                    Self::ExprBlock(expr_block) => {
-                        if let Some(attr) = expr_block.block.attributes.first().cloned() {
-                            return Err(ParseError::new(
-                                expr_block,
-                                ParseErrorKind::BadAsyncExprAttributePosition {
-                                    location: attr.span(),
-                                    kw_location: async_.span(),
-                                },
-                            ));
-                        }
-
-                        Self::ExprAsync(ast::ExprAsync {
-                            async_,
-                            block: expr_block.block,
-                        })
-                    }
+                    Self::ExprBlock(expr_block) => Self::ExprAsync(ast::ExprAsync {
+                        attributes: mem::take(&mut attributes),
+                        async_,
+                        block: expr_block.block,
+                    }),
                     _ => {
                         return Err(ParseError::new(
                             expr.span(),
@@ -284,12 +274,12 @@ impl Expr {
                     }
                 }
             }
-            (_, ast::Kind::PipePipe) | (_, ast::Kind::Pipe) => {
-                Self::ExprClosure(ast::ExprClosure::parse_with_attributes(parser, attributes)?)
-            }
-            (false, ast::Kind::Self_) => Self::Self_(parser.parse()?),
-            (false, ast::Kind::Select) => Self::ExprSelect(parser.parse()?),
-            (false, ast::Kind::Label(..)) => {
+            ast::Kind::PipePipe | ast::Kind::Pipe => Self::ExprClosure(
+                ast::ExprClosure::parse_with_attributes(parser, mem::take(&mut attributes))?,
+            ),
+            ast::Kind::Self_ => Self::Self_(parser.parse()?),
+            ast::Kind::Select => Self::ExprSelect(parser.parse()?),
+            ast::Kind::Label(..) => {
                 let label = Some((parser.parse::<ast::Label>()?, parser.parse::<ast::Colon>()?));
                 let token = parser.token_peek_eof()?;
 
@@ -309,42 +299,33 @@ impl Expr {
                     }
                 });
             }
-            (false, ast::Kind::Bang) | (false, ast::Kind::Amp) | (false, ast::Kind::Star) => {
-                Self::ExprUnary(parser.parse()?)
-            }
-            (false, ast::Kind::While) => Self::ExprWhile(parser.parse()?),
-            (false, ast::Kind::Loop) => Self::ExprLoop(parser.parse()?),
-            (false, ast::Kind::For) => Self::ExprFor(parser.parse()?),
-            (false, ast::Kind::Let) => Self::ExprLet(parser.parse()?),
-            (false, ast::Kind::If) => Self::ExprIf(parser.parse()?),
-            (_, ast::Kind::Match) => {
-                Self::ExprMatch(ast::ExprMatch::parse_with_attributes(parser, attributes)?)
-            }
-            (false, ast::Kind::LitNumber { .. }) => Self::LitNumber(parser.parse()?),
-            (false, ast::Kind::LitChar { .. }) => Self::LitChar(parser.parse()?),
-            (false, ast::Kind::LitByte { .. }) => Self::LitByte(parser.parse()?),
-            (false, ast::Kind::LitStr { .. }) => Self::LitStr(parser.parse()?),
-            (false, ast::Kind::LitByteStr { .. }) => Self::LitByteStr(parser.parse()?),
-            (false, ast::Kind::LitTemplate { .. }) => Self::LitTemplate(parser.parse()?),
-            (false, ast::Kind::Open(ast::Delimiter::Parenthesis)) => {
-                Self::parse_open_paren(parser)?
-            }
-            (false, ast::Kind::Open(ast::Delimiter::Bracket)) => Self::LitVec(parser.parse()?),
-            (_, ast::Kind::Open(ast::Delimiter::Brace)) => {
-                Self::ExprBlock(ast::ExprBlock::parse_with_attributes(parser, attributes)?)
-            }
-            (false, ast::Kind::True) | (false, ast::Kind::False) => Self::LitBool(parser.parse()?),
-            (false, ast::Kind::Ident(..)) => Self::parse_ident_start(parser, eager_brace)?,
-            (false, ast::Kind::Break) => Self::ExprBreak(parser.parse()?),
-            (false, ast::Kind::Yield) => Self::ExprYield(parser.parse()?),
-            (false, ast::Kind::Return) => Self::ExprReturn(parser.parse()?),
-            (false, ast::Kind::Pound) => Self::LitObject(parser.parse()?),
-            (true, _) => {
-                return Err(ParseError::new(
-                    token,
-                    ParseErrorKind::AttributesNotSupportedForExpr { actual: token.kind },
-                ));
-            }
+            ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => Self::ExprUnary(parser.parse()?),
+            ast::Kind::While => Self::ExprWhile(parser.parse()?),
+            ast::Kind::Loop => Self::ExprLoop(parser.parse()?),
+            ast::Kind::For => Self::ExprFor(parser.parse()?),
+            ast::Kind::Let => Self::ExprLet(parser.parse()?),
+            ast::Kind::If => Self::ExprIf(parser.parse()?),
+            ast::Kind::Match => Self::ExprMatch(ast::ExprMatch::parse_with_attributes(
+                parser,
+                mem::take(&mut attributes),
+            )?),
+            ast::Kind::LitNumber { .. } => Self::LitNumber(parser.parse()?),
+            ast::Kind::LitChar { .. } => Self::LitChar(parser.parse()?),
+            ast::Kind::LitByte { .. } => Self::LitByte(parser.parse()?),
+            ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
+            ast::Kind::LitByteStr { .. } => Self::LitByteStr(parser.parse()?),
+            ast::Kind::LitTemplate { .. } => Self::LitTemplate(parser.parse()?),
+            ast::Kind::Open(ast::Delimiter::Parenthesis) => Self::parse_open_paren(parser)?,
+            ast::Kind::Open(ast::Delimiter::Bracket) => Self::LitVec(parser.parse()?),
+            ast::Kind::Open(ast::Delimiter::Brace) => Self::ExprBlock(
+                ast::ExprBlock::parse_with_attributes(parser, mem::take(&mut attributes))?,
+            ),
+            ast::Kind::True | ast::Kind::False => Self::LitBool(parser.parse()?),
+            ast::Kind::Ident(..) => Self::parse_ident_start(parser, eager_brace)?,
+            ast::Kind::Break => Self::ExprBreak(parser.parse()?),
+            ast::Kind::Yield => Self::ExprYield(parser.parse()?),
+            ast::Kind::Return => Self::ExprReturn(parser.parse()?),
+            ast::Kind::Pound => Self::LitObject(parser.parse()?),
             _ => {
                 return Err(ParseError::new(
                     token,
@@ -352,6 +333,21 @@ impl Expr {
                 ));
             }
         };
+
+        let mut it = attributes.into_iter();
+
+        if let Some(first) = it.next() {
+            let span = if let Some(last) = it.next_back() {
+                first.span().join(last.span())
+            } else {
+                first.span()
+            };
+
+            return Err(ParseError::new(
+                span,
+                ParseErrorKind::AttributesNotSupported,
+            ));
+        }
 
         if !*expr_chain {
             return Ok(expr);
@@ -553,8 +549,8 @@ impl Expr {
 ///
 /// let expr = parse_all::<ast::Expr>("#[cfg(debug_assertions)] { assert_eq(x, 32); }").unwrap();
 /// if let ast::Expr::ExprBlock(block_expr) = expr {
+///     assert_eq!(block_expr.attributes.len(), 1);
 ///     assert_eq!(block_expr.block.statements.len(), 1);
-///     assert_eq!(block_expr.block.attributes.len(), 1);
 /// } else {
 ///     panic!("not a block statement")
 /// }

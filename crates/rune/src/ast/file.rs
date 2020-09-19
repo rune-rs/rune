@@ -72,7 +72,7 @@ impl Parse for File {
         let mut attributes = vec![];
 
         // only allow outer attributes at the top of a file
-        while parser.peek::<ast::OuterAttribute>()? {
+        while parser.peek::<ast::attribute::OuterAttribute>()? {
             attributes.push(parser.parse()?);
         }
 
