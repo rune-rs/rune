@@ -267,4 +267,7 @@ pub enum ParseErrorKind {
     /// Encountered a position with attributes for which it is not supported.
     #[error("attributes not supported in this position")]
     AttributesNotSupported,
+    /// Encountered when we expect inner attributes.
+    #[error("expected inner attribute")]
+    ExpectedInnerAttribute,
 }

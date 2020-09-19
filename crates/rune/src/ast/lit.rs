@@ -1,32 +1,84 @@
 use crate::ast;
-use crate::{IntoTokens, MacroContext, Parse, ParseError, ParseErrorKind, Parser, TokenStream};
-use runestick::Span;
+use crate::{Parse, ParseError, ParseErrorKind, Parser};
 
-/// A literal value
-#[derive(Debug, Clone)]
-pub enum Lit {
-    /// A boolean literal
-    Bool(ast::LitBool),
-    /// A byte literal
-    Byte(ast::LitByte),
-    /// A byte string literal
-    ByteStr(ast::LitByteStr),
-    /// A character literal
-    Char(ast::LitChar),
-    /// A number literal
-    Number(ast::LitNumber),
-    /// An object literal
-    Object(ast::LitObject),
-    /// A string literal
-    Str(ast::LitStr),
-    /// A template literal
-    Template(ast::LitTemplate),
-    /// A tuple literal
-    Tuple(ast::LitTuple),
-    /// A unit literal
-    Unit(ast::LitUnit),
-    /// A vec literal
-    Vec(ast::LitVec),
+impl_enum_ast! {
+    /// A literal value
+    pub enum Lit {
+        /// A unit literal
+        Unit(ast::LitUnit),
+        /// A boolean literal
+        Bool(ast::LitBool),
+        /// A byte literal
+        Byte(ast::LitByte),
+        /// A byte string literal
+        ByteStr(ast::LitByteStr),
+        /// A character literal
+        Char(ast::LitChar),
+        /// A number literal
+        Number(ast::LitNumber),
+        /// An object literal
+        Object(ast::LitObject),
+        /// A string literal
+        Str(ast::LitStr),
+        /// A template literal
+        Template(ast::LitTemplate),
+        /// A tuple literal
+        Tuple(ast::LitTuple),
+        /// A vec literal
+        Vec(ast::LitVec),
+    }
+}
+
+impl Lit {
+    /// Test if this literal is constant.
+    pub fn is_const(&self) -> bool {
+        match self {
+            Self::Template(..) => false,
+            Self::Unit(..) => true,
+            Self::Bool(..) => true,
+            Self::Byte(..) => true,
+            Self::Char(..) => true,
+            Self::Number(..) => true,
+            Self::Str(..) => true,
+            Self::ByteStr(..) => true,
+            Self::Vec(vec) => vec.is_const(),
+            Self::Object(object) => object.is_const(),
+            Self::Tuple(tuple) => tuple.is_const(),
+        }
+    }
+
+    /// Test if this is an immediate literal in an expression.
+    ///
+    /// Here we only test for unambiguous literals which will not be caused by
+    /// a later stage as an expression is being parsed.
+    ///
+    /// These include:
+    /// * Object literals that start with a path (handled in [ast::Expr::parse_ident_start]).
+    /// * Tuple literals that start with a path (handled in [ast::Expr::parse_open_paren]).
+    pub(crate) fn peek_in_expr(parser: &mut Parser<'_>) -> Result<bool, ParseError> {
+        let t1 = parser.token_peek()?;
+
+        let t1 = match t1 {
+            Some(t1) => t1,
+            None => return Ok(false),
+        };
+
+        Ok(match t1.kind {
+            ast::Kind::True | ast::Kind::False => true,
+            ast::Kind::LitByte(_) => true,
+            ast::Kind::LitNumber(_) => true,
+            ast::Kind::LitChar(_) => true,
+            ast::Kind::LitStr(_) => true,
+            ast::Kind::LitByteStr(_) => true,
+            ast::Kind::LitTemplate(_) => true,
+            ast::Kind::Open(ast::Delimiter::Bracket) => true,
+            ast::Kind::Pound => match parser.token_peek2()?.map(|t| t.kind) {
+                Some(ast::Kind::Open(ast::Delimiter::Brace)) => true,
+                _ => false,
+            },
+            _ => false,
+        })
+    }
 }
 
 /// Parsing a Lit
@@ -51,71 +103,37 @@ pub enum Lit {
 /// ```
 impl Parse for Lit {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let lit = if parser.peek::<ast::LitBool>()? {
-            Lit::Bool(parser.parse()?)
-        } else if parser.peek::<ast::LitUnit>()? {
-            Lit::Unit(parser.parse()?)
-        } else {
-            let token = parser.token_peek_eof()?;
-            match token.kind {
+        let token = parser.token_peek_eof()?;
+
+        // breaks are used as control flow to error.
+        #[allow(clippy::never_loop)]
+        loop {
+            return Ok(match token.kind {
+                ast::Kind::True | ast::Kind::False => Lit::Bool(parser.parse()?),
                 ast::Kind::LitByte(_) => Lit::Byte(parser.parse()?),
                 ast::Kind::LitNumber(_) => Lit::Number(parser.parse()?),
                 ast::Kind::LitChar(_) => Lit::Char(parser.parse()?),
                 ast::Kind::LitStr(_) => Lit::Str(parser.parse()?),
                 ast::Kind::LitByteStr(_) => Lit::ByteStr(parser.parse()?),
                 ast::Kind::LitTemplate(_) => Lit::Template(parser.parse()?),
-                ast::Kind::Open(ast::Delimiter::Parenthesis) => Lit::Tuple(parser.parse()?),
-                ast::Kind::Open(ast::Delimiter::Bracket) => Lit::Vec(parser.parse()?),
-                ast::Kind::Pound | ast::Kind::Ident(_) => Lit::Object(parser.parse()?),
-                _ => {
-                    return Err(ParseError::new(
-                        token,
-                        ParseErrorKind::ExpectedLit { actual: token.kind },
-                    ));
+                ast::Kind::Open(ast::Delimiter::Parenthesis) => {
+                    match parser.token_peek2_eof()?.kind {
+                        ast::Kind::Close(ast::Delimiter::Parenthesis) => Lit::Unit(parser.parse()?),
+                        _ => Lit::Tuple(parser.parse()?),
+                    }
                 }
-            }
-        };
-
-        Ok(lit)
-    }
-}
-
-impl IntoTokens for Lit {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        use Lit::*;
-
-        match self {
-            Bool(lit) => lit.into_tokens(context, stream),
-            Byte(lit) => lit.into_tokens(context, stream),
-            ByteStr(lit) => lit.into_tokens(context, stream),
-            Char(lit) => lit.into_tokens(context, stream),
-            Number(lit) => lit.into_tokens(context, stream),
-            Object(lit) => lit.into_tokens(context, stream),
-            Str(lit) => lit.into_tokens(context, stream),
-            Template(lit) => lit.into_tokens(context, stream),
-            Tuple(lit) => lit.into_tokens(context, stream),
-            Unit(lit) => lit.into_tokens(context, stream),
-            Vec(lit) => lit.into_tokens(context, stream),
+                ast::Kind::Open(ast::Delimiter::Bracket) => Lit::Vec(parser.parse()?),
+                ast::Kind::Pound | ast::Kind::Ident(..) => match parser.token_peek2_eof()?.kind {
+                    ast::Kind::Open(ast::Delimiter::Brace) => Lit::Object(parser.parse()?),
+                    _ => break,
+                },
+                _ => break,
+            });
         }
-    }
-}
 
-impl crate::Spanned for Lit {
-    fn span(&self) -> Span {
-        use Lit::*;
-
-        match self {
-            Bool(lit) => lit.span(),
-            Byte(lit) => lit.span(),
-            ByteStr(lit) => lit.span(),
-            Char(lit) => lit.span(),
-            Number(lit) => lit.span(),
-            Object(lit) => lit.span(),
-            Str(lit) => lit.span(),
-            Template(lit) => lit.span(),
-            Tuple(lit) => lit.span(),
-            Unit(lit) => lit.span(),
-            Vec(lit) => lit.span(),
-        }
+        Err(ParseError::new(
+            token,
+            ParseErrorKind::ExpectedLit { actual: token.kind },
+        ))
     }
 }

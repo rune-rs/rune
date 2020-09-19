@@ -122,6 +122,18 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Peek the next token from the lexer but treat a missing token as an
+    /// unexpected end-of-file.
+    pub fn token_peek2_eof(&mut self) -> Result<Token, ParseError> {
+        match self.p2? {
+            Some(token) => Ok(token),
+            None => Err(ParseError::new(
+                self.source.end(),
+                ParseErrorKind::UnexpectedEof,
+            )),
+        }
+    }
+
     /// Test if the parser is at end-of-file, after which there is no more input
     /// to parse.
     pub fn is_eof(&self) -> Result<bool, ParseError> {

@@ -501,27 +501,9 @@ impl Index<ast::Expr> for Indexer<'_> {
             ast::Expr::ExprCall(expr_call) => {
                 self.index(expr_call)?;
             }
-            ast::Expr::LitTemplate(lit_template) => {
-                self.index(lit_template)?;
+            ast::Expr::ExprLit(expr_lit) => {
+                self.index(expr_lit)?;
             }
-            ast::Expr::LitTuple(lit_tuple) => {
-                self.index(lit_tuple)?;
-            }
-            ast::Expr::LitVec(lit_vec) => {
-                self.index(lit_vec)?;
-            }
-            ast::Expr::LitObject(lit_object) => {
-                self.index(lit_object)?;
-            }
-            // NB: literals have nothing to index, they don't export language
-            // items.
-            ast::Expr::LitUnit(..) => (),
-            ast::Expr::LitBool(..) => (),
-            ast::Expr::LitByte(..) => (),
-            ast::Expr::LitChar(..) => (),
-            ast::Expr::LitNumber(..) => (),
-            ast::Expr::LitStr(..) => (),
-            ast::Expr::LitByteStr(..) => (),
             // NB: macros have nothing to index, they don't export language
             // items.
             ast::Expr::MacroCall(macro_call) => {
@@ -1034,6 +1016,43 @@ impl Index<ast::ExprCall> for Indexer<'_> {
         }
 
         self.index(&*expr_call.expr)?;
+        Ok(())
+    }
+}
+
+impl Index<ast::ExprLit> for Indexer<'_> {
+    fn index(&mut self, expr_lit: &ast::ExprLit) -> CompileResult<()> {
+        if let Some(first) = expr_lit.attributes.first() {
+            return Err(CompileError::internal(
+                first,
+                "literal attributes are not supported",
+            ));
+        }
+
+        match &expr_lit.lit {
+            ast::Lit::Template(lit_template) => {
+                self.index(lit_template)?;
+            }
+            ast::Lit::Tuple(lit_tuple) => {
+                self.index(lit_tuple)?;
+            }
+            ast::Lit::Vec(lit_vec) => {
+                self.index(lit_vec)?;
+            }
+            ast::Lit::Object(lit_object) => {
+                self.index(lit_object)?;
+            }
+            // NB: literals have nothing to index, they don't export language
+            // items.
+            ast::Lit::Unit(..) => (),
+            ast::Lit::Bool(..) => (),
+            ast::Lit::Byte(..) => (),
+            ast::Lit::Char(..) => (),
+            ast::Lit::Number(..) => (),
+            ast::Lit::Str(..) => (),
+            ast::Lit::ByteStr(..) => (),
+        }
+
         Ok(())
     }
 }
