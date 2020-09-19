@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -11,6 +11,8 @@ pub struct LitTemplate {
     /// The source string of the literal template.
     source: ast::LitStrSource,
 }
+
+into_tokens!(LitTemplate { token });
 
 impl Spanned for LitTemplate {
     fn span(&self) -> Span {
@@ -143,11 +145,5 @@ impl Parse for LitTemplate {
                 ParseErrorKind::ExpectedString { actual: token.kind },
             )),
         }
-    }
-}
-
-impl IntoTokens for LitTemplate {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.token.into_tokens(context, stream);
     }
 }

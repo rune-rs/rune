@@ -1,10 +1,11 @@
 use crate::ast;
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
+use std::mem::take;
 use std::ops;
 
 /// Indicator that an expression should be parsed with an eager brace.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct EagerBrace(pub(super) bool);
+pub(crate) struct EagerBrace(pub(crate) bool);
 
 impl ops::Deref for EagerBrace {
     type Target = bool;
@@ -16,7 +17,7 @@ impl ops::Deref for EagerBrace {
 
 /// Indicates if field accesses should be parsed or not.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct ExprChain(pub(super) bool);
+pub(crate) struct ExprChain(pub(crate) bool);
 
 impl ops::Deref for ExprChain {
     type Target = bool;
@@ -84,28 +85,8 @@ impl_enum_ast! {
         ExprSelect(ast::ExprSelect),
         /// A closure expression.
         ExprClosure(ast::ExprClosure),
-        /// A unit expression.
-        LitUnit(ast::LitUnit),
-        /// A boolean literal.
-        LitBool(ast::LitBool),
-        /// A char literal.
-        LitChar(ast::LitChar),
-        /// A byte literal.
-        LitByte(ast::LitByte),
-        /// A literal number expression.
-        LitNumber(ast::LitNumber),
-        /// A literal string expression.
-        LitStr(ast::LitStr),
-        /// A literal byte string expression.
-        LitByteStr(ast::LitByteStr),
-        /// A literal string expression.
-        LitTemplate(ast::LitTemplate),
-        /// A literal vector declaration.
-        LitVec(ast::LitVec),
-        /// A literal object declaration.
-        LitObject(ast::LitObject),
-        /// A literal tuple declaration.
-        LitTuple(ast::LitTuple),
+        /// A literal expression.
+        ExprLit(ast::ExprLit),
     }
 }
 
@@ -158,16 +139,7 @@ impl Expr {
     pub fn is_const(&self) -> bool {
         match self {
             Expr::ExprBinary(binary) => binary.is_const(),
-            Expr::LitUnit(..) => true,
-            Expr::LitBool(..) => true,
-            Expr::LitByte(..) => true,
-            Expr::LitChar(..) => true,
-            Expr::LitNumber(..) => true,
-            Expr::LitStr(..) => true,
-            Expr::LitByteStr(..) => true,
-            Expr::LitVec(vec) => vec.is_const(),
-            Expr::LitObject(object) => object.is_const(),
-            Expr::LitTuple(tuple) => tuple.is_const(),
+            Expr::ExprLit(lit) => lit.is_const(),
             Expr::ExprBlock(b) => b.is_const(),
             _ => false,
         }
@@ -178,12 +150,12 @@ impl Expr {
     /// This is used to solve a syntax ambiguity when parsing expressions that
     /// are arguments to statements immediately followed by blocks. Like `if`,
     /// `while`, and `match`.
-    pub(super) fn parse_without_eager_brace(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    pub(crate) fn parse_without_eager_brace(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         Self::parse_full(parser, EagerBrace(false), ExprChain(true))
     }
 
     /// Full, configurable parsing of an expression.
-    pub(super) fn parse_full(
+    pub(crate) fn parse_full(
         parser: &mut Parser<'_>,
         eager_brace: EagerBrace,
         expr_chain: ExprChain,
@@ -193,18 +165,20 @@ impl Expr {
     }
 
     /// Parse expressions that start with an identifier.
-    pub(super) fn parse_ident_start(
+    pub(crate) fn parse_ident_start(
         parser: &mut Parser<'_>,
         eager_brace: EagerBrace,
+        attributes: &mut Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
         let path = parser.parse::<ast::Path>()?;
 
         if *eager_brace && parser.peek::<ast::OpenBrace>()? {
             let ident = ast::LitObjectIdent::Named(path);
 
-            return Ok(Self::LitObject(ast::LitObject::parse_with_ident(
-                parser, ident,
-            )?));
+            return Ok(Self::ExprLit(ast::ExprLit {
+                attributes: take(attributes),
+                lit: ast::Lit::Object(ast::LitObject::parse_with_ident(parser, ident)?),
+            }));
         }
 
         if parser.peek::<ast::Bang>()? {
@@ -217,9 +191,15 @@ impl Expr {
     }
 
     /// Parsing something that opens with a parenthesis.
-    pub fn parse_open_paren(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    pub fn parse_open_paren(
+        parser: &mut Parser<'_>,
+        attributes: &mut Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
         if parser.peek::<ast::LitUnit>()? {
-            return Ok(Self::LitUnit(parser.parse()?));
+            return Ok(Self::ExprLit(ast::ExprLit {
+                attributes: take(attributes),
+                lit: parser.parse()?,
+            }));
         }
 
         let open = parser.parse::<ast::OpenParen>()?;
@@ -233,104 +213,117 @@ impl Expr {
             }));
         }
 
-        let lit_tuple = ast::LitTuple::parse_from_first_expr(parser, open, expr)?;
-        Ok(Expr::LitTuple(lit_tuple))
+        let tuple = ast::LitTuple::parse_from_first_expr(parser, open, expr)?;
+
+        Ok(Expr::ExprLit(ast::ExprLit {
+            attributes: take(attributes),
+            lit: ast::Lit::Tuple(tuple),
+        }))
     }
 
     /// Parse a single expression value.
-    pub(super) fn parse_primary(
+    pub(crate) fn parse_primary(
         parser: &mut Parser<'_>,
         eager_brace: EagerBrace,
         expr_chain: ExprChain,
     ) -> Result<Self, ParseError> {
-        use std::mem;
+        let mut attributes = Vec::new();
 
-        let mut attributes = parser.parse::<Vec<ast::Attribute>>()?;
+        while parser.peek::<ast::Attribute>()? {
+            attributes.push(parser.parse::<ast::attribute::InnerAttribute>()?.0);
+        }
 
-        let token = parser.token_peek_eof()?;
+        let expr = if ast::Lit::peek_in_expr(parser)? {
+            ast::Expr::ExprLit(ast::ExprLit::parse_with_attributes(
+                parser,
+                take(&mut attributes),
+            )?)
+        } else {
+            let token = parser.token_peek_eof()?;
 
-        let expr = match token.kind {
-            ast::Kind::Async => {
-                let async_: ast::Async = parser.parse()?;
-                let expr: Self = Self::parse_primary(parser, eager_brace, expr_chain)?;
+            match token.kind {
+                ast::Kind::Async => {
+                    let async_: ast::Async = parser.parse()?;
+                    let expr: Self = Self::parse_primary(parser, eager_brace, expr_chain)?;
 
-                match expr {
-                    Self::ExprClosure(expr_closure) => Self::ExprClosure(ast::ExprClosure {
-                        attributes: mem::take(&mut attributes),
-                        async_: Some(async_),
-                        args: expr_closure.args,
-                        body: expr_closure.body,
-                    }),
-                    Self::ExprBlock(expr_block) => Self::ExprAsync(ast::ExprAsync {
-                        attributes: mem::take(&mut attributes),
-                        async_,
-                        block: expr_block.block,
-                    }),
-                    _ => {
-                        return Err(ParseError::new(
-                            expr.span(),
-                            ParseErrorKind::UnsupportedAsyncExpr,
-                        ))
+                    match expr {
+                        Self::ExprClosure(expr_closure) => Self::ExprClosure(ast::ExprClosure {
+                            attributes: take(&mut attributes),
+                            async_: Some(async_),
+                            args: expr_closure.args,
+                            body: expr_closure.body,
+                        }),
+                        Self::ExprBlock(expr_block) => Self::ExprAsync(ast::ExprAsync {
+                            attributes: take(&mut attributes),
+                            async_,
+                            block: expr_block.block,
+                        }),
+                        _ => {
+                            return Err(ParseError::new(
+                                expr.span(),
+                                ParseErrorKind::UnsupportedAsyncExpr,
+                            ))
+                        }
                     }
                 }
-            }
-            ast::Kind::PipePipe | ast::Kind::Pipe => Self::ExprClosure(
-                ast::ExprClosure::parse_with_attributes(parser, mem::take(&mut attributes))?,
-            ),
-            ast::Kind::Self_ => Self::Self_(parser.parse()?),
-            ast::Kind::Select => Self::ExprSelect(parser.parse()?),
-            ast::Kind::Label(..) => {
-                let label = Some((parser.parse::<ast::Label>()?, parser.parse::<ast::Colon>()?));
-                let token = parser.token_peek_eof()?;
+                ast::Kind::PipePipe | ast::Kind::Pipe => Self::ExprClosure(
+                    ast::ExprClosure::parse_with_attributes(parser, take(&mut attributes))?,
+                ),
+                ast::Kind::Self_ => Self::Self_(parser.parse()?),
+                ast::Kind::Select => Self::ExprSelect(parser.parse()?),
+                ast::Kind::Label(..) => {
+                    let label =
+                        Some((parser.parse::<ast::Label>()?, parser.parse::<ast::Colon>()?));
+                    let token = parser.token_peek_eof()?;
 
-                return Ok(match token.kind {
-                    ast::Kind::While => {
-                        Self::ExprWhile(ast::ExprWhile::parse_with_label(parser, label)?)
-                    }
-                    ast::Kind::Loop => {
-                        Self::ExprLoop(ast::ExprLoop::parse_with_label(parser, label)?)
-                    }
-                    ast::Kind::For => Self::ExprFor(ast::ExprFor::parse_with_label(parser, label)?),
-                    _ => {
-                        return Err(ParseError::new(
-                            token,
-                            ParseErrorKind::ExpectedLoop { actual: token.kind },
-                        ));
-                    }
-                });
-            }
-            ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => Self::ExprUnary(parser.parse()?),
-            ast::Kind::While => Self::ExprWhile(parser.parse()?),
-            ast::Kind::Loop => Self::ExprLoop(parser.parse()?),
-            ast::Kind::For => Self::ExprFor(parser.parse()?),
-            ast::Kind::Let => Self::ExprLet(parser.parse()?),
-            ast::Kind::If => Self::ExprIf(parser.parse()?),
-            ast::Kind::Match => Self::ExprMatch(ast::ExprMatch::parse_with_attributes(
-                parser,
-                mem::take(&mut attributes),
-            )?),
-            ast::Kind::LitNumber { .. } => Self::LitNumber(parser.parse()?),
-            ast::Kind::LitChar { .. } => Self::LitChar(parser.parse()?),
-            ast::Kind::LitByte { .. } => Self::LitByte(parser.parse()?),
-            ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
-            ast::Kind::LitByteStr { .. } => Self::LitByteStr(parser.parse()?),
-            ast::Kind::LitTemplate { .. } => Self::LitTemplate(parser.parse()?),
-            ast::Kind::Open(ast::Delimiter::Parenthesis) => Self::parse_open_paren(parser)?,
-            ast::Kind::Open(ast::Delimiter::Bracket) => Self::LitVec(parser.parse()?),
-            ast::Kind::Open(ast::Delimiter::Brace) => Self::ExprBlock(
-                ast::ExprBlock::parse_with_attributes(parser, mem::take(&mut attributes))?,
-            ),
-            ast::Kind::True | ast::Kind::False => Self::LitBool(parser.parse()?),
-            ast::Kind::Ident(..) => Self::parse_ident_start(parser, eager_brace)?,
-            ast::Kind::Break => Self::ExprBreak(parser.parse()?),
-            ast::Kind::Yield => Self::ExprYield(parser.parse()?),
-            ast::Kind::Return => Self::ExprReturn(parser.parse()?),
-            ast::Kind::Pound => Self::LitObject(parser.parse()?),
-            _ => {
-                return Err(ParseError::new(
-                    token,
-                    ParseErrorKind::ExpectedExpr { actual: token.kind },
-                ));
+                    return Ok(match token.kind {
+                        ast::Kind::While => {
+                            Self::ExprWhile(ast::ExprWhile::parse_with_label(parser, label)?)
+                        }
+                        ast::Kind::Loop => {
+                            Self::ExprLoop(ast::ExprLoop::parse_with_label(parser, label)?)
+                        }
+                        ast::Kind::For => {
+                            Self::ExprFor(ast::ExprFor::parse_with_label(parser, label)?)
+                        }
+                        _ => {
+                            return Err(ParseError::new(
+                                token,
+                                ParseErrorKind::ExpectedLoop { actual: token.kind },
+                            ));
+                        }
+                    });
+                }
+                ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => {
+                    Self::ExprUnary(parser.parse()?)
+                }
+                ast::Kind::While => Self::ExprWhile(parser.parse()?),
+                ast::Kind::Loop => Self::ExprLoop(parser.parse()?),
+                ast::Kind::For => Self::ExprFor(parser.parse()?),
+                ast::Kind::Let => Self::ExprLet(parser.parse()?),
+                ast::Kind::If => Self::ExprIf(parser.parse()?),
+                ast::Kind::Match => Self::ExprMatch(ast::ExprMatch::parse_with_attributes(
+                    parser,
+                    take(&mut attributes),
+                )?),
+                ast::Kind::Open(ast::Delimiter::Parenthesis) => {
+                    Self::parse_open_paren(parser, &mut attributes)?
+                }
+                ast::Kind::Open(ast::Delimiter::Brace) => Self::ExprBlock(
+                    ast::ExprBlock::parse_with_attributes(parser, take(&mut attributes))?,
+                ),
+                ast::Kind::Ident(..) => {
+                    Self::parse_ident_start(parser, eager_brace, &mut attributes)?
+                }
+                ast::Kind::Break => Self::ExprBreak(parser.parse()?),
+                ast::Kind::Yield => Self::ExprYield(parser.parse()?),
+                ast::Kind::Return => Self::ExprReturn(parser.parse()?),
+                _ => {
+                    return Err(ParseError::new(
+                        token,
+                        ParseErrorKind::ExpectedExpr { actual: token.kind },
+                    ));
+                }
             }
         };
 
@@ -432,7 +425,10 @@ impl Expr {
 
                             span
                         }
-                        Expr::LitNumber(n) => {
+                        Expr::ExprLit(ast::ExprLit {
+                            lit: ast::Lit::Number(n),
+                            attributes,
+                        }) if attributes.is_empty() => {
                             expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
                                 expr: Box::new(expr),
                                 dot,

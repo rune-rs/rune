@@ -85,39 +85,41 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
             ast::Expr::ExprClosure(expr_closure) => {
                 self.compile((expr_closure, needs))?;
             }
-            ast::Expr::LitUnit(lit_unit) => {
-                self.compile((lit_unit, needs))?;
-            }
-            ast::Expr::LitTuple(lit_tuple) => {
-                self.compile((lit_tuple, needs))?;
-            }
-            ast::Expr::LitBool(lit_bool) => {
-                self.compile((lit_bool, needs))?;
-            }
-            ast::Expr::LitNumber(lit_number) => {
-                self.compile((lit_number, needs))?;
-            }
-            ast::Expr::LitVec(lit_vec) => {
-                self.compile((lit_vec, needs))?;
-            }
-            ast::Expr::LitObject(lit_object) => {
-                self.compile((lit_object, needs))?;
-            }
-            ast::Expr::LitChar(lit_char) => {
-                self.compile((lit_char, needs))?;
-            }
-            ast::Expr::LitStr(lit_str) => {
-                self.compile((lit_str, needs))?;
-            }
-            ast::Expr::LitByte(lit_char) => {
-                self.compile((lit_char, needs))?;
-            }
-            ast::Expr::LitByteStr(lit_str) => {
-                self.compile((lit_str, needs))?;
-            }
-            ast::Expr::LitTemplate(lit_template) => {
-                self.compile((lit_template, needs))?;
-            }
+            ast::Expr::ExprLit(expr_lit) => match &expr_lit.lit {
+                ast::Lit::Unit(lit_unit) => {
+                    self.compile((lit_unit, needs))?;
+                }
+                ast::Lit::Tuple(lit_tuple) => {
+                    self.compile((lit_tuple, needs))?;
+                }
+                ast::Lit::Bool(lit_bool) => {
+                    self.compile((lit_bool, needs))?;
+                }
+                ast::Lit::Number(lit_number) => {
+                    self.compile((lit_number, needs))?;
+                }
+                ast::Lit::Vec(lit_vec) => {
+                    self.compile((lit_vec, needs))?;
+                }
+                ast::Lit::Object(lit_object) => {
+                    self.compile((lit_object, needs))?;
+                }
+                ast::Lit::Char(lit_char) => {
+                    self.compile((lit_char, needs))?;
+                }
+                ast::Lit::Str(lit_str) => {
+                    self.compile((lit_str, needs))?;
+                }
+                ast::Lit::Byte(lit_char) => {
+                    self.compile((lit_char, needs))?;
+                }
+                ast::Lit::ByteStr(lit_str) => {
+                    self.compile((lit_str, needs))?;
+                }
+                ast::Lit::Template(lit_template) => {
+                    self.compile((lit_template, needs))?;
+                }
+            },
             ast::Expr::MacroCall(expr_call_macro) => {
                 let _guard = self.items.push_macro();
                 let item = self.items.item();

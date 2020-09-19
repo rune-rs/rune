@@ -1,5 +1,7 @@
 use crate::ast;
-use crate::{IntoTokens, MacroContext, Parse, ParseError, Parser, Peek, Spanned, TokenStream};
+use crate::{
+    IntoTokens, MacroContext, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, TokenStream,
+};
 use runestick::Span;
 
 /// Attribute like `#[derive(Debug)]`
@@ -129,6 +131,23 @@ impl Parse for AttrStyle {
         } else {
             Self::Inner
         })
+    }
+}
+
+/// Helper struct to only parse inner attributes.
+pub(crate) struct InnerAttribute(pub(crate) Attribute);
+
+impl Parse for InnerAttribute {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let attribute: Attribute = parser.parse()?;
+
+        match attribute.style {
+            AttrStyle::Inner => Ok(Self(attribute)),
+            _ => Err(ParseError::new(
+                attribute.span(),
+                ParseErrorKind::ExpectedInnerAttribute,
+            )),
+        }
     }
 }
 
