@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Peek, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// A module declaration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ItemMod {
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
     pub attributes: Vec<ast::Attribute>,
@@ -69,32 +69,13 @@ impl Parse for ItemMod {
     }
 }
 
-impl IntoTokens for ItemMod {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.attributes.into_tokens(context, stream);
-        self.mod_.into_tokens(context, stream);
-        self.name.into_tokens(context, stream);
-        self.body.into_tokens(context, stream);
-    }
-}
-
 /// An item body.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub enum ItemModBody {
     /// An empty body terminated by a semicolon.
     EmptyBody(ast::SemiColon),
     /// An inline body.
     InlineBody(ItemInlineBody),
-}
-
-impl ItemModBody {
-    /// Get the span of the mod body.
-    pub fn span(&self) -> Span {
-        match self {
-            Self::EmptyBody(semi) => semi.span(),
-            Self::InlineBody(body) => body.span(),
-        }
-    }
 }
 
 impl Parse for ItemModBody {
@@ -108,17 +89,8 @@ impl Parse for ItemModBody {
     }
 }
 
-impl IntoTokens for ItemModBody {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        match self {
-            Self::EmptyBody(semi) => semi.into_tokens(context, stream),
-            Self::InlineBody(body) => body.into_tokens(context, stream),
-        }
-    }
-}
-
 /// A module declaration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast, Parse)]
 pub struct ItemInlineBody {
     /// The open brace.
     pub open: ast::OpenBrace,
@@ -135,26 +107,8 @@ impl ItemInlineBody {
     }
 }
 
-impl Parse for ItemInlineBody {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(Self {
-            open: parser.parse()?,
-            file: parser.parse()?,
-            close: parser.parse()?,
-        })
-    }
-}
-
 impl Peek for ItemInlineBody {
     fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         ast::OpenBrace::peek(t1, t2)
-    }
-}
-
-impl IntoTokens for ItemInlineBody {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.open.into_tokens(context, stream);
-        self.file.into_tokens(context, stream);
-        self.close.into_tokens(context, stream);
     }
 }

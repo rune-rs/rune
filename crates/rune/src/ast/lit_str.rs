@@ -1,14 +1,15 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct LitStr {
     /// The token corresponding to the literal.
     token: ast::Token,
     /// The source of the literal string.
+    #[ast(skip)]
     source: ast::LitStrSource,
 }
 
@@ -93,11 +94,5 @@ impl Parse for LitStr {
                 ParseErrorKind::ExpectedString { actual: token.kind },
             )),
         }
-    }
-}
-
-impl IntoTokens for LitStr {
-    fn into_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        stream.push(self.token);
     }
 }

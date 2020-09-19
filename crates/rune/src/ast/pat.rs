@@ -1,30 +1,29 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek};
 
-impl_enum_ast! {
-    /// A pattern match.
-    pub enum Pat {
-        /// An ignored binding `_`.
-        PatIgnore(ast::Underscore),
-        /// A variable binding `n`.
-        PatPath(ast::PatPath),
-        /// A literal unit.
-        PatUnit(ast::LitUnit),
-        /// A literal byte.
-        PatByte(ast::LitByte),
-        /// A literal character.
-        PatChar(ast::LitChar),
-        /// A literal number.
-        PatNumber(ast::LitNumber),
-        /// A literal string.
-        PatString(ast::LitStr),
-        /// A vector pattern.
-        PatVec(ast::PatVec),
-        /// A tuple pattern.
-        PatTuple(ast::PatTuple),
-        /// An object pattern.
-        PatObject(ast::PatObject),
-    }
+/// A pattern match.
+#[derive(Debug, Clone, Ast)]
+pub enum Pat {
+    /// An ignored binding `_`.
+    PatIgnore(ast::Underscore),
+    /// A variable binding `n`.
+    PatPath(ast::PatPath),
+    /// A literal unit.
+    PatUnit(ast::LitUnit),
+    /// A literal byte.
+    PatByte(ast::LitByte),
+    /// A literal character.
+    PatChar(ast::LitChar),
+    /// A literal number.
+    PatNumber(ast::LitNumber),
+    /// A literal string.
+    PatString(ast::LitStr),
+    /// A vector pattern.
+    PatVec(ast::PatVec),
+    /// A tuple pattern.
+    PatTuple(ast::PatTuple),
+    /// An object pattern.
+    PatObject(ast::PatObject),
 }
 
 impl Pat {
@@ -98,12 +97,7 @@ impl Parse for Pat {
 
 impl Peek for Pat {
     fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        let t1 = match t1 {
-            Some(t1) => t1,
-            None => return false,
-        };
-
-        match t1.kind {
+        match peek!(t1).kind {
             ast::Kind::Open(ast::Delimiter::Parenthesis) => true,
             ast::Kind::Open(ast::Delimiter::Bracket) => true,
             ast::Kind::Pound => true,

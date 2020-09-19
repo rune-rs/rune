@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::Spanned;
+use crate::{Ast, Spanned};
 use runestick::Span;
 
 /// An index get operation `<target>[<index>]`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprIndexGet {
     /// The target of the index set.
     pub target: Box<ast::Expr>,
@@ -14,13 +14,6 @@ pub struct ExprIndexGet {
     /// The closening bracket.
     pub close: ast::CloseBracket,
 }
-
-into_tokens!(ExprIndexGet {
-    target,
-    open,
-    index,
-    close
-});
 
 impl Spanned for ExprIndexGet {
     fn span(&self) -> Span {

@@ -1,14 +1,15 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
 use runestick::{Source, Span};
 
 /// A number literal.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct LitNumber {
-    /// The source of the number.
-    source: ast::NumberSource,
     /// The token corresponding to the literal.
     token: ast::Token,
+    /// The source of the number.
+    #[ast(skip)]
+    source: ast::NumberSource,
 }
 
 impl Spanned for LitNumber {
@@ -108,11 +109,5 @@ impl<'a> Resolve<'a> for LitNumber {
         fn err_span<E>(span: Span) -> impl Fn(E) -> ParseError {
             move |_| ParseError::new(span, ParseErrorKind::BadNumberLiteral)
         }
-    }
-}
-
-impl IntoTokens for LitNumber {
-    fn into_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        stream.push(self.token);
     }
 }

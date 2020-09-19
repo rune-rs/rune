@@ -1,17 +1,16 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
 use runestick::Span;
 
 /// The unit literal `()`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct LitBool {
     /// The value of the literal.
+    #[ast(skip)]
     pub value: bool,
     /// The token of the literal.
     pub token: ast::Token,
 }
-
-into_tokens!(LitBool { token });
 
 impl Spanned for LitBool {
     fn span(&self) -> Span {
@@ -50,15 +49,6 @@ impl Parse for LitBool {
 
 impl Peek for LitBool {
     fn peek(p1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        let p1 = match p1 {
-            Some(p1) => p1,
-            None => return false,
-        };
-
-        match p1.kind {
-            ast::Kind::True => true,
-            ast::Kind::False => true,
-            _ => false,
-        }
+        matches!(peek!(p1).kind, ast::Kind::True | ast::Kind::False)
     }
 }

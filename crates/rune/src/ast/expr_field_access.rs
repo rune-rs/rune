@@ -1,19 +1,18 @@
 use crate::ast;
-use crate::Spanned;
+use crate::Ast;
 use runestick::Span;
 
-impl_enum_ast! {
-    /// The field being accessed.
-    pub enum ExprField {
-        /// An identifier.
-        Ident(ast::Ident),
-        /// A literal number.
-        LitNumber(ast::LitNumber),
-    }
+/// The field being accessed.
+#[derive(Debug, Clone, Ast)]
+pub enum ExprField {
+    /// An identifier.
+    Ident(ast::Ident),
+    /// A literal number.
+    LitNumber(ast::LitNumber),
 }
 
 /// A field access `<expr>.<field>`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprFieldAccess {
     /// The expr where the field is being accessed.
     pub expr: Box<ast::Expr>,
@@ -23,13 +22,7 @@ pub struct ExprFieldAccess {
     pub expr_field: ExprField,
 }
 
-into_tokens!(ExprFieldAccess {
-    expr,
-    dot,
-    expr_field
-});
-
-impl Spanned for ExprFieldAccess {
+impl crate::Spanned for ExprFieldAccess {
     fn span(&self) -> Span {
         self.expr.span().join(self.expr_field.span())
     }

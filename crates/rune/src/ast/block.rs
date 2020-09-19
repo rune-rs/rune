@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned};
 use runestick::Span;
 
 /// A block of expressions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct Block {
     /// The close brace.
     pub open: ast::OpenBrace,
@@ -12,12 +12,6 @@ pub struct Block {
     /// The close brace.
     pub close: ast::CloseBrace,
 }
-
-into_tokens!(Block {
-    open,
-    statements,
-    close
-});
 
 impl Block {
     /// Test if the block expression doesn't produce a value.

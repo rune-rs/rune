@@ -1,15 +1,13 @@
 use crate::ast;
-use crate::Spanned;
+use crate::{Ast, Spanned};
 use runestick::Span;
 
 /// A tuple pattern.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct PatPath {
     /// The path, if the tuple is typed.
     pub path: ast::Path,
 }
-
-into_tokens!(PatPath { path });
 
 impl Spanned for PatPath {
     fn span(&self) -> Span {

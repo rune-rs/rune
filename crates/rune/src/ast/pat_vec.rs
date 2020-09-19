@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An array pattern.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct PatVec {
     /// The open bracket.
     pub open: ast::OpenBracket,
@@ -14,13 +14,6 @@ pub struct PatVec {
     /// The close bracket.
     pub close: ast::CloseBracket,
 }
-
-into_tokens!(PatVec {
-    open,
-    items,
-    open_pattern,
-    close
-});
 
 impl Spanned for PatVec {
     fn span(&self) -> Span {

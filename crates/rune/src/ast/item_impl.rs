@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An impl declaration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ItemImpl {
     /// The attributes of the `impl` block
     pub attributes: Vec<ast::Attribute>,
@@ -74,15 +74,5 @@ impl Parse for ItemImpl {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
         Self::parse_with_attributes(parser, attributes)
-    }
-}
-
-impl IntoTokens for ItemImpl {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.impl_.into_tokens(context, stream);
-        self.path.into_tokens(context, stream);
-        self.open.into_tokens(context, stream);
-        self.functions.into_tokens(context, stream);
-        self.close.into_tokens(context, stream);
     }
 }

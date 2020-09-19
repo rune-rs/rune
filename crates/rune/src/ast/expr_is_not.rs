@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, Spanned};
 use runestick::Span;
 
 /// An is expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast, Parse)]
 pub struct ExprIsNot {
     /// The left-hand side of a is operation.
     pub lhs: Box<ast::Expr>,
@@ -14,8 +14,6 @@ pub struct ExprIsNot {
     /// The right-hand side of a is operation.
     pub rhs: Box<ast::Expr>,
 }
-
-into_tokens!(ExprIsNot { lhs, is, not, rhs });
 
 impl ExprIsNot {
     /// If the expression is empty.
@@ -32,16 +30,5 @@ impl ExprIsNot {
 impl Spanned for ExprIsNot {
     fn span(&self) -> Span {
         self.lhs.span().join(self.rhs.span())
-    }
-}
-
-impl Parse for ExprIsNot {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(Self {
-            lhs: Box::new(parser.parse()?),
-            is: parser.parse()?,
-            not: parser.parse()?,
-            rhs: Box::new(parser.parse()?),
-        })
     }
 }

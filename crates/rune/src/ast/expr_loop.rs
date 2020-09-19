@@ -1,25 +1,23 @@
-use crate::ast::{Colon, ExprBlock, Label, Loop};
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::ast;
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A let expression `let <name> = <expr>;`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprLoop {
     /// A label followed by a colon.
-    pub label: Option<(Label, Colon)>,
+    pub label: Option<(ast::Label, ast::Colon)>,
     /// The `loop` keyword.
-    pub loop_: Loop,
+    pub loop_: ast::Loop,
     /// The body of the loop.
-    pub body: Box<ExprBlock>,
+    pub body: Box<ast::ExprBlock>,
 }
-
-into_tokens!(ExprLoop { label, loop_, body });
 
 impl ExprLoop {
     /// Parse with the given label.
     pub fn parse_with_label(
         parser: &mut Parser<'_>,
-        label: Option<(Label, Colon)>,
+        label: Option<(ast::Label, ast::Colon)>,
     ) -> Result<Self, ParseError> {
         Ok(ExprLoop {
             label,
@@ -37,7 +35,7 @@ impl Spanned for ExprLoop {
 
 impl Parse for ExprLoop {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let label = if parser.peek::<Label>()? {
+        let label = if parser.peek::<ast::Label>()? {
             Some((parser.parse()?, parser.parse()?))
         } else {
             None

@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A match expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprMatch {
     /// The attributes for the match expression
     pub attributes: Vec<ast::Attribute>,
@@ -18,15 +18,6 @@ pub struct ExprMatch {
     /// The close brace of the match.
     pub close: ast::CloseBrace,
 }
-
-into_tokens!(ExprMatch {
-    attributes,
-    match_,
-    expr,
-    open,
-    branches,
-    close
-});
 
 impl ExprMatch {
     /// Parse the `match` expression attaching the given attributes
@@ -96,7 +87,7 @@ impl Parse for ExprMatch {
 }
 
 /// A match branch.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprMatchBranch {
     /// The pattern to match.
     pub pat: ast::Pat,
@@ -107,13 +98,6 @@ pub struct ExprMatchBranch {
     /// The body of the match.
     pub body: Box<ast::Expr>,
 }
-
-into_tokens!(ExprMatchBranch {
-    pat,
-    condition,
-    rocket,
-    body
-});
 
 impl ExprMatchBranch {
     /// Access the span of the expression.
@@ -138,17 +122,9 @@ impl ExprMatchBranch {
 /// ```
 impl Parse for ExprMatchBranch {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let pat = parser.parse()?;
-
-        let condition = if parser.peek::<ast::If>()? {
-            Some((parser.parse()?, Box::new(parser.parse()?)))
-        } else {
-            None
-        };
-
         Ok(Self {
-            pat,
-            condition,
+            pat: parser.parse()?,
+            condition: parser.parse()?,
             rocket: parser.parse()?,
             body: Box::new(parser.parse()?),
         })

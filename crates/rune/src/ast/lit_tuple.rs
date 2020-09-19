@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An expression to construct a literal tuple.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct LitTuple {
     /// The open bracket.
     pub open: ast::OpenParen,
@@ -12,6 +12,7 @@ pub struct LitTuple {
     /// The close bracket.
     pub close: ast::CloseParen,
     /// If the entire tuple is constant.
+    #[ast(skip)]
     is_const: bool,
 }
 
@@ -115,13 +116,5 @@ impl Parse for LitTuple {
             close,
             is_const,
         })
-    }
-}
-
-impl IntoTokens for LitTuple {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.open.into_tokens(context, stream);
-        self.items.into_tokens(context, stream);
-        self.close.into_tokens(context, stream);
     }
 }

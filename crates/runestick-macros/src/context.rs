@@ -2,9 +2,9 @@ use crate::internals::*;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
+use syn::Lit;
 use syn::Meta::*;
 use syn::NestedMeta::*;
-use syn::{Lit, MetaNameValue};
 
 /// Parsed field attributes.
 #[derive(Default)]
@@ -98,7 +98,7 @@ impl Context {
     }
 
     /// Parse field attributes.
-    pub(crate) fn parse_field_attrs(&mut self, attrs: &[syn::Attribute]) -> Option<FieldAttrs> {
+    pub(crate) fn parse_rune_attrs(&mut self, attrs: &[syn::Attribute]) -> Option<FieldAttrs> {
         let output = FieldAttrs::default();
 
         for attr in attrs {
@@ -125,7 +125,8 @@ impl Context {
         for attr in attrs {
             for meta in self.get_rune_meta_items(attr)? {
                 match meta {
-                    Meta(NameValue(MetaNameValue {
+                    // Parse `#[rune(name = "..")]`.
+                    Meta(NameValue(syn::MetaNameValue {
                         path,
                         lit: Lit::Str(name),
                         ..

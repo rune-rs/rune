@@ -29,7 +29,7 @@ log4rs = "1.0.0-alpha-1"
 ropey = "1.2.0"
 
 rune = {version = "0.6.16", path = "../rune", features = ["modules"]}
-rune-macros = {version = "0.6.16", path = "../rune-macros"}
+rune-experimental = {version = "0.6.16", path = "../rune-experimental"}
 runestick = {version = "0.6.16", path = "../runestick"}
 
 [build-dependencies]

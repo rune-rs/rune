@@ -64,7 +64,7 @@ impl Expander {
         let mut from_values = Vec::new();
 
         for (index, field) in unnamed.unnamed.iter().enumerate() {
-            let _ = self.ctx.parse_field_attrs(&field.attrs)?;
+            let _ = self.ctx.parse_rune_attrs(&field.attrs)?;
 
             let from_value = &self.ctx.from_value;
             let vm_error = &self.ctx.vm_error;
@@ -116,7 +116,7 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.field_ident(&field)?;
-            let _ = self.ctx.parse_field_attrs(&field.attrs)?;
+            let _ = self.ctx.parse_rune_attrs(&field.attrs)?;
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 

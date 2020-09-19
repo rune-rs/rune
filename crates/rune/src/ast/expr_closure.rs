@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A closure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprClosure {
     /// The attributes for the async closure
     pub attributes: Vec<ast::Attribute>,
@@ -14,13 +14,6 @@ pub struct ExprClosure {
     /// The body of the closure.
     pub body: Box<ast::Expr>,
 }
-
-into_tokens!(ExprClosure {
-    attributes,
-    async_,
-    args,
-    body
-});
 
 impl ExprClosure {
     /// Get the identifying span for this closure.
@@ -105,7 +98,7 @@ impl Parse for ExprClosure {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub enum ExprClosureArgs {
     Empty {
         /// The `||` token.
@@ -144,19 +137,6 @@ impl Spanned for ExprClosureArgs {
         match self {
             Self::Empty { token } => token.span(),
             Self::List { open, close, .. } => open.span().join(close.span()),
-        }
-    }
-}
-
-impl IntoTokens for ExprClosureArgs {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        match self {
-            ExprClosureArgs::Empty { token } => token.into_tokens(context, stream),
-            ExprClosureArgs::List { open, args, close } => {
-                open.into_tokens(context, stream);
-                args.into_tokens(context, stream);
-                close.into_tokens(context, stream);
-            }
         }
     }
 }

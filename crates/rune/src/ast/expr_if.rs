@@ -1,9 +1,9 @@
 use crate::ast::{Condition, Else, ExprBlock, ExprElse, ExprElseIf, If};
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An if expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprIf {
     /// The `if` token.
     pub if_: If,
@@ -16,14 +16,6 @@ pub struct ExprIf {
     /// The else part of the if expression.
     pub expr_else: Option<ExprElse>,
 }
-
-into_tokens!(ExprIf {
-    if_,
-    condition,
-    block,
-    expr_else_ifs,
-    expr_else
-});
 
 impl ExprIf {
     /// An if statement evaluates to empty if it does not have an else branch.

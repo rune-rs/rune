@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// An object pattern.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct PatObject {
     /// The identifier of the object pattern.
     pub ident: ast::LitObjectIdent,
@@ -16,14 +16,6 @@ pub struct PatObject {
     /// The close brace.
     pub close: ast::CloseBrace,
 }
-
-into_tokens!(PatObject {
-    ident,
-    open,
-    fields,
-    open_pattern,
-    close
-});
 
 impl PatObject {
     /// Parse the object with an opening path.
@@ -85,15 +77,13 @@ impl Parse for PatObject {
 }
 
 /// An object item.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct PatObjectItem {
     /// The key of an object.
     pub key: ast::LitObjectKey,
     /// The binding used for the pattern object.
     pub binding: Option<(ast::Colon, ast::Pat)>,
 }
-
-into_tokens!(PatObjectItem { key, binding });
 
 impl PatObjectItem {
     /// The span of the expression.

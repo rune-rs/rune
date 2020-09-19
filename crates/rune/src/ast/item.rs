@@ -1,25 +1,24 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek};
+use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek};
 
-impl_enum_ast! {
-    /// A declaration.
-    pub enum Item {
-        /// A use declaration.
-        ItemUse(ast::ItemUse),
-        /// A function declaration.
-        // large variant, so boxed
-        ItemFn(Box<ast::ItemFn>),
-        /// An enum declaration.
-        ItemEnum(ast::ItemEnum),
-        /// A struct declaration.
-        ItemStruct(ast::ItemStruct),
-        /// An impl declaration.
-        ItemImpl(ast::ItemImpl),
-        /// A module declaration.
-        ItemMod(ast::ItemMod),
-        /// A macro call expanding into an item.
-        MacroCall(ast::MacroCall),
-    }
+/// A declaration.
+#[derive(Debug, Clone, Ast)]
+pub enum Item {
+    /// A use declaration.
+    ItemUse(ast::ItemUse),
+    /// A function declaration.
+    // large variant, so boxed
+    ItemFn(Box<ast::ItemFn>),
+    /// An enum declaration.
+    ItemEnum(ast::ItemEnum),
+    /// A struct declaration.
+    ItemStruct(ast::ItemStruct),
+    /// An impl declaration.
+    ItemImpl(ast::ItemImpl),
+    /// A module declaration.
+    ItemMod(ast::ItemMod),
+    /// A macro call expanding into an item.
+    MacroCall(ast::MacroCall),
 }
 
 impl Item {
@@ -31,24 +30,14 @@ impl Item {
     /// Test if declaration is suitable inside of a block.
     pub fn peek_as_stmt(parser: &mut Parser<'_>) -> Result<bool, ParseError> {
         let t1 = parser.token_peek_pair()?;
+        let (t1, t2) = peek!(t1, Ok(false));
 
-        let (t, t2) = match t1 {
-            Some(t1) => t1,
-            None => return Ok(false),
-        };
-
-        Ok(match t.kind {
+        Ok(match t1.kind {
             ast::Kind::Use => true,
             ast::Kind::Enum => true,
             ast::Kind::Struct => true,
             ast::Kind::Impl => true,
-            ast::Kind::Async => {
-                if let Some(ast::Kind::Fn) = t2.map(|t| t.kind) {
-                    true
-                } else {
-                    false
-                }
-            }
+            ast::Kind::Async => matches!(peek!(t2, Ok(false)).kind, ast::Kind::Fn),
             ast::Kind::Fn => true,
             ast::Kind::Mod => true,
             _ => false,
@@ -92,23 +81,12 @@ impl Item {
 
 impl Peek for Item {
     fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        let t = match t1 {
-            Some(t1) => t1,
-            None => return false,
-        };
-
-        match t.kind {
+        match peek!(t1).kind {
             ast::Kind::Use => true,
             ast::Kind::Enum => true,
             ast::Kind::Struct => true,
             ast::Kind::Impl => true,
-            ast::Kind::Async => {
-                if let Some(ast::Kind::Fn) = t2.map(|t| t.kind) {
-                    true
-                } else {
-                    false
-                }
-            }
+            ast::Kind::Async => matches!(peek!(t2).kind, ast::Kind::Fn),
             ast::Kind::Fn => true,
             ast::Kind::Mod => true,
             ast::Kind::Ident(..) => true,

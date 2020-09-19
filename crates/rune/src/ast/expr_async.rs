@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned};
+use crate::{Ast, Parse, ParseError, Parser, Spanned};
 use runestick::Span;
 
 /// A block of expressions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ast)]
 pub struct ExprAsync {
     /// The attributes for the block.
     pub attributes: Vec<ast::Attribute>,
@@ -12,8 +12,6 @@ pub struct ExprAsync {
     /// The close brace.
     pub block: ast::Block,
 }
-
-into_tokens!(ExprAsync { async_, block });
 
 impl Spanned for ExprAsync {
     fn span(&self) -> Span {
