@@ -114,18 +114,18 @@ fn compile_conditional_binop(
 ) -> CompileResult<()> {
     let span = lhs.span().join(rhs.span());
 
-    let then_label = this.asm.new_label("conditional_then");
     let end_label = this.asm.new_label("conditional_end");
 
-    this.compile((&*lhs, needs))?;
-    this.scopes.decl_anon(span)?;
+    this.compile((&*lhs, Needs::Value))?;
 
     match bin_op {
         ast::BinOp::And => {
-            this.asm.jump_if_not(then_label, lhs.span());
+            this.asm.push(Inst::Dup, lhs.span());
+            this.asm.jump_if_not(end_label, lhs.span());
         }
         ast::BinOp::Or => {
-            this.asm.jump_if(then_label, lhs.span());
+            this.asm.push(Inst::Dup, lhs.span());
+            this.asm.jump_if(end_label, lhs.span());
         }
         op => {
             return Err(CompileError::new(
@@ -135,32 +135,14 @@ fn compile_conditional_binop(
         }
     }
 
-    this.compile((&*rhs, needs))?;
-
-    if !needs.value() {
-        this.asm.push(Inst::unit(), span);
-    }
-
-    this.asm.jump(end_label, span);
-    this.asm.label(then_label)?;
-
-    match bin_op {
-        ast::BinOp::And => {
-            this.asm.push(Inst::bool(false), span);
-        }
-        ast::BinOp::Or => {
-            this.asm.push(Inst::bool(true), span);
-        }
-        op => {
-            return Err(CompileError::new(
-                span,
-                CompileErrorKind::UnsupportedBinaryOp { op },
-            ));
-        }
-    }
+    this.asm.push(Inst::Pop, span);
+    this.compile((&*rhs, Needs::Value))?;
 
     this.asm.label(end_label)?;
-    this.scopes.undecl_anon(1, span)?;
+
+    if !needs.value() {
+        this.asm.push(Inst::Pop, span);
+    }
 
     Ok(())
 }
