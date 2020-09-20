@@ -117,6 +117,15 @@ impl BinOp {
         }
     }
 
+    /// Test if operator is a condiational operator.
+    pub fn is_conditional(self) -> bool {
+        match self {
+            Self::And => true,
+            Self::Or => true,
+            _ => false,
+        }
+    }
+
     /// Get the precedence for the current operator.
     pub(super) fn precedence(self) -> usize {
         // NB: Rules from: https://doc.rust-lang.org/reference/expressions.html#expression-precedence
