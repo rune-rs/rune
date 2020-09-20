@@ -1,24 +1,24 @@
 use crate::access::AccessKind;
 use crate::{
-    Any, AnyObj, Bytes, Function, Future, Generator, GeneratorState, Hash, Mut, Object, RawMut,
-    RawRef, Ref, Shared, StaticString, Stream, Tuple, Type, TypeInfo, VmError,
+    Any, AnyObj, Bytes, Function, Future, Generator, GeneratorState, Hash, Item, Mut, Object,
+    RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, Type, TypeInfo, VmError,
 };
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 
 /// A tuple with a well-defined type.
-#[derive(Debug)]
 pub struct TypedTuple {
     /// The type hash of the tuple.
-    pub(crate) hash: Hash,
+    pub(crate) rtti: Arc<Rtti>,
     /// Content of the tuple.
-    pub(crate) tuple: Box<[Value]>,
+    pub(crate) tuple: Tuple,
 }
 
 impl TypedTuple {
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Hash(self.hash)
+        TypeInfo::Typed(self.rtti.clone())
     }
 
     /// Get the value at the given index in the tuple.
@@ -32,48 +32,56 @@ impl TypedTuple {
     }
 }
 
+impl fmt::Debug for TypedTuple {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:?}", self.rtti.item, self.tuple)
+    }
+}
+
 /// A tuple with a well-defined type as a variant of an enum.
-#[derive(Debug)]
 pub struct TupleVariant {
-    /// The type hash of the enum.
-    pub(crate) enum_hash: Hash,
-    /// The variant type hash of the tuple.
-    pub(crate) hash: Hash,
+    /// Type information for object variant.
+    pub rtti: Arc<VariantRtti>,
     /// Content of the tuple.
-    pub(crate) tuple: Box<[Value]>,
+    pub(crate) tuple: Tuple,
 }
 
 impl TupleVariant {
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Hash(self.enum_hash)
+        TypeInfo::Variant(self.rtti.clone())
+    }
+}
+
+impl fmt::Debug for TupleVariant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:?}", self.rtti.item, self.tuple)
     }
 }
 
 /// An object with a well-defined type.
-#[derive(Debug)]
 pub struct TypedObject {
     /// The type hash of the object.
-    hash: Hash,
+    rtti: Arc<Rtti>,
     /// Content of the object.
     pub(crate) object: Object,
 }
 
 impl TypedObject {
     /// Construct a new typed object with the given type hash.
-    pub fn new(hash: Hash, object: Object) -> Self {
-        Self { hash, object }
+    pub fn new(rtti: Arc<Rtti>, object: Object) -> Self {
+        Self { rtti, object }
     }
 
     /// Get type info for the typed object.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Hash(self.hash)
+        TypeInfo::Typed(self.rtti.clone())
     }
 
     /// Get the type hash of the object.
     #[inline]
     pub fn type_hash(&self) -> Hash {
-        self.hash
+        self.rtti.hash
     }
 
     /// Get the given key in the object.
@@ -95,13 +103,16 @@ impl TypedObject {
     }
 }
 
+impl fmt::Debug for TypedObject {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:?}", self.rtti.item, self.object)
+    }
+}
+
 /// An object with a well-defined variant of an enum.
-#[derive(Debug)]
 pub struct ObjectVariant {
-    /// The type hash of the enum.
-    pub enum_hash: Hash,
-    /// The type variant hash.
-    pub hash: Hash,
+    /// Type information for object variant.
+    pub rtti: Arc<VariantRtti>,
     /// Content of the object.
     pub object: Object,
 }
@@ -109,7 +120,7 @@ pub struct ObjectVariant {
 impl ObjectVariant {
     /// Get type info for the typed object.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Hash(self.enum_hash)
+        TypeInfo::Variant(self.rtti.clone())
     }
 
     /// Get the given key in the object.
@@ -129,6 +140,32 @@ impl ObjectVariant {
     {
         self.object.get_mut(k)
     }
+}
+
+impl fmt::Debug for ObjectVariant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{:?}", self.rtti.item, self.object)
+    }
+}
+
+/// Runtime information on variant.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VariantRtti {
+    /// The type hash of the enum.
+    pub enum_hash: Hash,
+    /// The type variant hash.
+    pub hash: Hash,
+    /// The name of the variant.
+    pub item: Item,
+}
+
+/// Runtime information on variant.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Rtti {
+    /// The type hash of the type.
+    pub hash: Hash,
+    /// The item of the type.
+    pub item: Item,
 }
 
 /// An entry on the stack.
@@ -205,19 +242,18 @@ impl Value {
     }
 
     /// Construct a typed tuple.
-    pub fn typed_tuple(hash: Hash, vec: Vec<Value>) -> Self {
+    pub fn typed_tuple(rtti: Arc<Rtti>, vec: Vec<Value>) -> Self {
         Self::TypedTuple(Shared::new(TypedTuple {
-            hash,
-            tuple: vec.into_boxed_slice(),
+            rtti,
+            tuple: Tuple::from(vec),
         }))
     }
 
     /// Construct a typed tuple.
-    pub fn variant_tuple(enum_hash: Hash, hash: Hash, vec: Vec<Value>) -> Self {
+    pub fn variant_tuple(rtti: Arc<VariantRtti>, vec: Vec<Value>) -> Self {
         Self::TupleVariant(Shared::new(TupleVariant {
-            enum_hash,
-            hash,
-            tuple: vec.into_boxed_slice(),
+            rtti,
+            tuple: Tuple::from(vec),
         }))
     }
 
@@ -474,15 +510,15 @@ impl Value {
             Self::Option(..) => Type::from(crate::OPTION_TYPE),
             Self::Function(..) => Type::from(crate::FUNCTION_TYPE),
             Self::Type(hash) => Type::from(*hash),
-            Self::TypedObject(object) => Type::from(object.borrow_ref()?.hash),
+            Self::TypedObject(object) => Type::from(object.borrow_ref()?.rtti.hash),
             Self::ObjectVariant(object) => {
                 let object = object.borrow_ref()?;
-                Type::from(object.enum_hash)
+                Type::from(object.rtti.enum_hash)
             }
-            Self::TypedTuple(tuple) => Type::from(tuple.borrow_ref()?.hash),
+            Self::TypedTuple(tuple) => Type::from(tuple.borrow_ref()?.rtti.hash),
             Self::TupleVariant(tuple) => {
                 let tuple = tuple.borrow_ref()?;
-                Type::from(tuple.enum_hash)
+                Type::from(tuple.rtti.enum_hash)
             }
             Self::Any(any) => Type::from(any.borrow_ref()?.type_hash()),
         })

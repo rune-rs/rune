@@ -4,7 +4,9 @@
 //! metadata like function locations.
 
 use crate::collections::HashMap;
-use crate::{Call, DebugInfo, Hash, Inst, StaticString, Type, VmError, VmErrorKind};
+use crate::{
+    Call, DebugInfo, Hash, Inst, Rtti, StaticString, Type, VariantRtti, VmError, VmErrorKind,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
@@ -29,6 +31,10 @@ pub struct Unit {
     ///
     /// All keys are sorted with the default string sort.
     static_object_keys: Vec<Box<[String]>>,
+    /// Runtime information for types.
+    rtti: HashMap<Hash, Arc<Rtti>>,
+    /// Runtime information for variants.
+    variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
 }
@@ -42,6 +48,8 @@ impl Unit {
         static_strings: Vec<Arc<StaticString>>,
         static_bytes: Vec<Vec<u8>>,
         static_object_keys: Vec<Box<[String]>>,
+        rtti: HashMap<Hash, Arc<Rtti>>,
+        variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
         debug: Option<Box<DebugInfo>>,
     ) -> Self {
         Self {
@@ -51,6 +59,8 @@ impl Unit {
             static_strings,
             static_bytes,
             static_object_keys,
+            rtti,
+            variant_rtti,
             debug,
         }
     }
@@ -123,6 +133,16 @@ impl Unit {
         self.static_object_keys.get(slot).map(|keys| &keys[..])
     }
 
+    /// Lookup runt-time information for the given type hash.
+    pub fn lookup_rtti(&self, hash: Hash) -> Option<&Arc<Rtti>> {
+        self.rtti.get(&hash)
+    }
+
+    /// Lookup variant runt-time information for the given variant hash.
+    pub fn lookup_variant_rtti(&self, hash: Hash) -> Option<&Arc<VariantRtti>> {
+        self.variant_rtti.get(&hash)
+    }
+
     /// Lookup information of a function.
     pub fn lookup(&self, hash: Hash) -> Option<UnitFn> {
         self.functions.get(&hash).copied()
@@ -150,8 +170,6 @@ pub enum UnitFn {
     },
     /// A tuple variant constructor.
     TupleVariant {
-        /// The hash of the enum type.
-        enum_hash: Hash,
         /// The hash of the variant.
         hash: Hash,
         /// The number of arguments the tuple takes.
@@ -168,12 +186,8 @@ impl fmt::Display for UnitFn {
             Self::Tuple { hash, args } => {
                 write!(f, "tuple {}, {}", hash, args)?;
             }
-            Self::TupleVariant {
-                enum_hash,
-                hash,
-                args,
-            } => {
-                write!(f, "tuple-variant {}, {}, {}", enum_hash, hash, args)?;
+            Self::TupleVariant { hash, args } => {
+                write!(f, "tuple-variant {}, {}", hash, args)?;
             }
         }
 

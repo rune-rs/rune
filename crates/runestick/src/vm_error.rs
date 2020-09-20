@@ -246,6 +246,19 @@ pub enum VmErrorKind {
         /// Slot which is missing a static object keys.
         slot: usize,
     },
+    /// Trying to create a variant that doesn't have runtime information
+    /// available in the unit.
+    #[error("missing runtime information for variant with hash `{hash}`")]
+    MissingVariantRtti {
+        /// The type hash of the variant missing runtime information.
+        hash: Hash,
+    },
+    /// Trying to create a typed object with a hash that is not registered.
+    #[error("missing runtime information for type with hash `{hash}`")]
+    MissingRtti {
+        /// The type hash of the type missing runtime information.
+        hash: Hash,
+    },
     /// Wrong number of arguments provided in call.
     #[error("wrong number of arguments `{actual}`, expected `{expected}`")]
     BadArgumentCount {

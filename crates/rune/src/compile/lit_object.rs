@@ -97,9 +97,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         let hash = Hash::type_hash(&object.item);
                         self.asm.push(Inst::TypedObject { hash, slot }, span);
                     }
-                    CompileMetaKind::ObjectVariant {
-                        enum_item, object, ..
-                    } => {
+                    CompileMetaKind::ObjectVariant { object, .. } => {
                         check_object_fields(
                             object.fields.as_ref(),
                             check_keys,
@@ -107,17 +105,8 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                             &object.item,
                         )?;
 
-                        let enum_hash = Hash::type_hash(enum_item);
                         let hash = Hash::type_hash(&object.item);
-
-                        self.asm.push(
-                            Inst::ObjectVariant {
-                                enum_hash,
-                                hash,
-                                slot,
-                            },
-                            span,
-                        );
+                        self.asm.push(Inst::ObjectVariant { hash, slot }, span);
                     }
                     _ => {
                         return Err(CompileError::new(

@@ -19,7 +19,7 @@ use crate::{GeneratorState, Item, StaticType, TypeCheck, Value};
 /// Specialized information on `Option` types.
 pub(crate) struct ModuleUnitType {
     /// Item of the unit type.
-    pub(crate) item: Item,
+    pub(crate) name: Box<str>,
 }
 
 /// Specialized information on `GeneratorState` types.
@@ -85,7 +85,7 @@ pub(crate) struct ModuleInternalVariant {
 
 pub(crate) struct ModuleType {
     /// The item of the installed type.
-    pub(crate) name: Item,
+    pub(crate) name: Box<str>,
     /// Type information for the installed type.
     pub(crate) type_info: TypeInfo,
 }
@@ -217,18 +217,17 @@ impl Module {
     where
         T: Named + TypeOf,
     {
-        let name = Item::of(&[T::NAME]);
         let type_of = T::type_of();
         let type_info = T::type_info();
 
         let ty = ModuleType {
-            name: name.clone(),
+            name: String::from(&*T::NAME).into_boxed_str(),
             type_info,
         };
 
         if let Some(old) = self.types.insert(type_of, ty) {
             return Err(ContextError::ConflictingType {
-                name,
+                item: Item::of(&[T::NAME]),
                 existing: old.type_info,
             });
         }
@@ -248,20 +247,21 @@ impl Module {
     /// ```rust
     /// # fn main() -> runestick::Result<()> {
     /// let mut module = runestick::Module::new(&["nonstd"]);
-    /// module.unit(&["unit"])?;
+    /// module.unit("unit")?;
     /// # Ok(())
     /// # }
     pub fn unit<N>(&mut self, name: N) -> Result<(), ContextError>
     where
-        N: IntoIterator,
-        N::Item: IntoComponent,
+        N: AsRef<str>,
     {
         if self.unit_type.is_some() {
             return Err(ContextError::UnitAlreadyPresent);
         }
 
-        let item = Item::of(name);
-        self.unit_type = Some(ModuleUnitType { item });
+        self.unit_type = Some(ModuleUnitType {
+            name: String::from(name.as_ref()).into_boxed_str(),
+        });
+
         Ok(())
     }
 
