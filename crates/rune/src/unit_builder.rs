@@ -648,7 +648,7 @@ impl UnitBuilder {
 
                 object.item.clone()
             }
-            CompileMetaKind::StructVariant {
+            CompileMetaKind::ObjectVariant {
                 enum_item, object, ..
             } => {
                 let hash = Hash::type_hash(&object.item);

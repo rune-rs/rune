@@ -38,7 +38,7 @@ impl CompileMeta {
             CompileMetaKind::Tuple { tuple, .. } => &tuple.item,
             CompileMetaKind::TupleVariant { tuple, .. } => &tuple.item,
             CompileMetaKind::Struct { object, .. } => &object.item,
-            CompileMetaKind::StructVariant { object, .. } => &object.item,
+            CompileMetaKind::ObjectVariant { object, .. } => &object.item,
             CompileMetaKind::Enum { item, .. } => item,
             CompileMetaKind::Function { item, .. } => item,
             CompileMetaKind::Closure { item, .. } => item,
@@ -53,7 +53,7 @@ impl CompileMeta {
             CompileMetaKind::Tuple { type_of, .. } => Some(*type_of),
             CompileMetaKind::TupleVariant { .. } => None,
             CompileMetaKind::Struct { type_of, .. } => Some(*type_of),
-            CompileMetaKind::StructVariant { .. } => None,
+            CompileMetaKind::ObjectVariant { .. } => None,
             CompileMetaKind::Enum { type_of, .. } => Some(*type_of),
             CompileMetaKind::Function { type_of, .. } => Some(*type_of),
             CompileMetaKind::Closure { type_of, .. } => Some(*type_of),
@@ -75,7 +75,7 @@ impl fmt::Display for CompileMeta {
             CompileMetaKind::Struct { object, .. } => {
                 write!(fmt, "struct {}", object.item)?;
             }
-            CompileMetaKind::StructVariant { object, .. } => {
+            CompileMetaKind::ObjectVariant { object, .. } => {
                 write!(fmt, "variant {}", object.item)?;
             }
             CompileMetaKind::Enum { item, .. } => {
@@ -126,7 +126,7 @@ pub enum CompileMetaKind {
         object: CompileMetaStruct,
     },
     /// Metadata about a variant object.
-    StructVariant {
+    ObjectVariant {
         /// The value type associated with this meta item.
         type_of: Type,
         /// The item of the enum.

@@ -74,7 +74,7 @@ impl ser::Serialize for Value {
             Value::TypedTuple(..) => Err(ser::Error::custom("cannot serialize tuple types")),
             Value::TupleVariant(..) => Err(ser::Error::custom("cannot serialize variant tuples")),
             Value::TypedObject(..) => Err(ser::Error::custom("cannot serialize object types")),
-            Value::VariantObject(..) => Err(ser::Error::custom("cannot serialize variant objects")),
+            Value::ObjectVariant(..) => Err(ser::Error::custom("cannot serialize variant objects")),
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
             Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),

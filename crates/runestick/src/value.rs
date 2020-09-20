@@ -97,7 +97,7 @@ impl TypedObject {
 
 /// An object with a well-defined variant of an enum.
 #[derive(Debug)]
-pub struct VariantObject {
+pub struct ObjectVariant {
     /// The type hash of the enum.
     pub enum_hash: Hash,
     /// The type variant hash.
@@ -106,7 +106,7 @@ pub struct VariantObject {
     pub object: Object,
 }
 
-impl VariantObject {
+impl ObjectVariant {
     /// Get type info for the typed object.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Hash(self.enum_hash)
@@ -186,7 +186,7 @@ pub enum Value {
     /// An object with a well-defined type.
     TypedObject(Shared<TypedObject>),
     /// An object variant with a well-defined type.
-    VariantObject(Shared<VariantObject>),
+    ObjectVariant(Shared<ObjectVariant>),
     /// A stored function pointer.
     Function(Shared<Function>),
     /// An opaque value that can be downcasted.
@@ -475,7 +475,7 @@ impl Value {
             Self::Function(..) => Type::from(crate::FUNCTION_TYPE),
             Self::Type(hash) => Type::from(*hash),
             Self::TypedObject(object) => Type::from(object.borrow_ref()?.hash),
-            Self::VariantObject(object) => {
+            Self::ObjectVariant(object) => {
                 let object = object.borrow_ref()?;
                 Type::from(object.enum_hash)
             }
@@ -512,7 +512,7 @@ impl Value {
             Self::Function(..) => TypeInfo::StaticType(crate::FUNCTION_TYPE),
             Self::Type(hash) => TypeInfo::Hash(*hash),
             Self::TypedObject(object) => object.borrow_ref()?.type_info(),
-            Self::VariantObject(object) => object.borrow_ref()?.type_info(),
+            Self::ObjectVariant(object) => object.borrow_ref()?.type_info(),
             Self::TypedTuple(tuple) => tuple.borrow_ref()?.type_info(),
             Self::TupleVariant(tuple) => tuple.borrow_ref()?.type_info(),
             Self::Any(any) => TypeInfo::Any(any.borrow_ref()?.type_name()),
@@ -659,7 +659,7 @@ impl fmt::Debug for Value {
             Value::TypedObject(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::VariantObject(value) => {
+            Value::ObjectVariant(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::Function(value) => {
@@ -756,7 +756,7 @@ impl_from!(Shared<Result<Value, Value>>, Result);
 impl_from_shared!(Shared<TypedTuple>, TypedTuple);
 impl_from_shared!(Shared<TupleVariant>, TupleVariant);
 impl_from_shared!(Shared<TypedObject>, TypedObject);
-impl_from_shared!(Shared<VariantObject>, VariantObject);
+impl_from_shared!(Shared<ObjectVariant>, ObjectVariant);
 impl_from_shared!(Shared<Function>, Function);
 impl_from_shared!(Shared<AnyObj>, Any);
 
