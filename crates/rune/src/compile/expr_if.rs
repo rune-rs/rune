@@ -35,7 +35,7 @@ impl Compile<(&ast::ExprIf, Needs)> for Compiler<'_> {
         }
 
         self.asm.jump(end_label, span);
-        
+
         self.asm.label(then_label)?;
 
         let expected = self.scopes.push(then_scope);
