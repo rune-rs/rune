@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Ast, Peek, Spanned};
+use crate::{Peek, Spanned, ToTokens};
 use std::fmt;
 
 /// A binary expression.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprBinary {
     /// The left-hand side of a binary operation.
     pub lhs: Box<ast::Expr>,
@@ -14,8 +14,7 @@ pub struct ExprBinary {
     /// The right-hand side of a binary operation.
     pub rhs: Box<ast::Expr>,
     /// The operation to apply.
-    #[ast(skip)]
-    #[spanned(skip)]
+    #[rune(skip)]
     pub op: BinOp,
 }
 

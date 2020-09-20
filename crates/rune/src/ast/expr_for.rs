@@ -1,11 +1,11 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A for loop expression `for i in [1, 2, 3] {}`
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprFor {
     /// The label of the loop.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `for` keyword.
     pub for_: ast::For,

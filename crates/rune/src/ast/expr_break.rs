@@ -1,18 +1,18 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Peek, Spanned};
+use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// A return statement `break [expr]`.
-#[derive(Debug, Clone, Ast, Parse, Spanned)]
+#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprBreak {
     /// The return token.
     pub break_: ast::Break,
     /// An optional expression to break with.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub expr: Option<ExprBreakValue>,
 }
 
 /// Things that we can break on.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum ExprBreakValue {
     /// Breaking a value out of a loop.
     Expr(Box<ast::Expr>),

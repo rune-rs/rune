@@ -11,8 +11,8 @@ pub struct Token {
     pub kind: Kind,
 }
 
-impl crate::IntoTokens for Token {
-    fn into_tokens(&self, _: &mut MacroContext, stream: &mut crate::TokenStream) {
+impl crate::ToTokens for Token {
+    fn to_tokens(&self, _: &mut MacroContext, stream: &mut crate::TokenStream) {
         stream.push(*self);
     }
 }
@@ -478,8 +478,8 @@ impl fmt::Display for Kind {
     }
 }
 
-impl crate::IntoTokens for Kind {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+impl crate::ToTokens for Kind {
+    fn to_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
         stream.push(Token {
             kind: *self,
             span: context.default_span(),

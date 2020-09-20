@@ -180,8 +180,8 @@ macro_rules! decl_tokens {
                 }
             }
 
-            impl crate::IntoTokens for $parser {
-                fn into_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+            impl crate::ToTokens for $parser {
+                fn to_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
                     stream.push(self.token);
                 }
             }

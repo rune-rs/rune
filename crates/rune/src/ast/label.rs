@@ -1,16 +1,15 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage, ToTokens};
 use runestick::Source;
 use std::borrow::Cow;
 
 /// A label, like `'foo`
-#[derive(Debug, Clone, Copy, Ast, Spanned)]
+#[derive(Debug, Clone, Copy, ToTokens, Spanned)]
 pub struct Label {
     /// The token of the label.
     pub token: ast::Token,
     /// The kind of the label.
-    #[ast(skip)]
-    #[spanned(skip)]
+    #[rune(skip)]
     pub kind: ast::StringSource,
 }
 

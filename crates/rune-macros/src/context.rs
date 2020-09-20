@@ -1,34 +1,29 @@
 use crate::internals::*;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
+use quote::quote_spanned;
 use quote::{quote, ToTokens};
+use syn::spanned::Spanned as _;
 use syn::Meta::*;
 use syn::NestedMeta::*;
 
-/// Parsed `#[ast(..)]` attributes.
+/// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]
-pub(crate) struct AstAttrs {
-    pub(crate) skip: bool,
-}
-/// Parsed `#[parse(..)]` attributes.
-#[derive(Default)]
-pub(crate) struct ParseAttrs {}
-
-/// Parsed `#[spanned(..)]` attributes.
-#[derive(Default)]
-pub(crate) struct SpannedAttrs {
+pub(crate) struct FieldAttrs {
     pub(crate) iter: bool,
     pub(crate) skip: bool,
+    pub(crate) optional: bool,
 }
 
 /// Parsed ast derive attributes.
 #[derive(Default)]
-pub(crate) struct AstDerive {}
+pub(crate) struct DeriveAttrs {}
 
 pub(crate) struct Context {
     pub(crate) errors: Vec<syn::Error>,
-    pub(crate) into_tokens: TokenStream,
+    pub(crate) to_tokens: TokenStream,
     pub(crate) spanned: TokenStream,
+    pub(crate) option_spanned: TokenStream,
     pub(crate) span: TokenStream,
     pub(crate) macro_context: TokenStream,
     pub(crate) token_stream: TokenStream,
@@ -50,8 +45,9 @@ impl Context {
     {
         Self {
             errors: Vec::new(),
-            into_tokens: quote!(#module::IntoTokens),
+            to_tokens: quote!(#module::ToTokens),
             spanned: quote!(#module::Spanned),
+            option_spanned: quote!(#module::OptionSpanned),
             span: quote!(runestick::Span),
             macro_context: quote!(#module::MacroContext),
             token_stream: quote!(#module::TokenStream),
@@ -102,90 +98,51 @@ impl Context {
     }
 
     /// Parse field attributes.
-    pub(crate) fn parse_ast_derive(&mut self, input: &[syn::Attribute]) -> Option<AstDerive> {
-        let attrs = AstDerive::default();
-
-        for attr in input {
-            #[allow(clippy::never_loop)] // I guess this is on purpose?
-            for meta in self.get_meta_items(attr, AST)? {
-                match meta {
-                    meta => {
-                        self.errors
-                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
-
-                        return None;
-                    }
-                }
-            }
-        }
-
-        Some(attrs)
-    }
-
-    /// Parse `#[ast(..)]` field attributes.
-    pub(crate) fn parse_ast_fields(&mut self, input: &[syn::Attribute]) -> Option<AstAttrs> {
-        let mut attrs = AstAttrs::default();
-
-        for attr in input {
-            #[allow(clippy::never_loop)] // I guess this is on purpose?
-            for meta in self.get_meta_items(attr, AST)? {
-                match meta {
-                    // Parse `#[ast(skip)]`.
-                    Meta(Path(word)) if word == SKIP => {
-                        attrs.skip = true;
-                    }
-                    meta => {
-                        self.errors
-                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
-
-                        return None;
-                    }
-                }
-            }
-        }
-
-        Some(attrs)
-    }
-
-    /// Parse `#[parse(..)]` field attributes.
-    pub(crate) fn parse_parse_fields(&mut self, input: &[syn::Attribute]) -> Option<ParseAttrs> {
-        let attrs = ParseAttrs::default();
-
-        for attr in input {
-            #[allow(clippy::never_loop)] // I guess this is on purpose?
-            for meta in self.get_meta_items(attr, PARSE)? {
-                match meta {
-                    meta => {
-                        self.errors
-                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
-
-                        return None;
-                    }
-                }
-            }
-        }
-
-        Some(attrs)
-    }
-
-    /// Parse `#[spanned(..)]` field attributes.
-    pub(crate) fn parse_spanned_fields(
+    pub(crate) fn pase_derive_attributes(
         &mut self,
         input: &[syn::Attribute],
-    ) -> Option<SpannedAttrs> {
-        let mut attrs = SpannedAttrs::default();
+    ) -> Option<DeriveAttrs> {
+        let attrs = DeriveAttrs::default();
 
         for attr in input {
             #[allow(clippy::never_loop)] // I guess this is on purpose?
-            for meta in self.get_meta_items(attr, SPANNED)? {
+            for meta in self.get_meta_items(attr, RUNE)? {
                 match meta {
-                    // Parse `#[spanned(iter)]`.
+                    meta => {
+                        self.errors
+                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
+
+                        return None;
+                    }
+                }
+            }
+        }
+
+        Some(attrs)
+    }
+
+    /// Parse `#[rune(..)]` field attributes.
+    pub(crate) fn parse_field_attributes(
+        &mut self,
+        input: &[syn::Attribute],
+    ) -> Option<FieldAttrs> {
+        let mut attrs = FieldAttrs::default();
+
+        for attr in input {
+            #[allow(clippy::never_loop)] // I guess this is on purpose?
+            for meta in self.get_meta_items(attr, RUNE)? {
+                match meta {
+                    // Parse `#[rune(iter)]`.
                     Meta(Path(word)) if word == ITER => {
                         attrs.iter = true;
                     }
-                    // Parse `#[spanned(skip)]`.
+                    // Parse `#[rune(skip)]`.
                     Meta(Path(word)) if word == SKIP => {
                         attrs.skip = true;
+                    }
+                    // Parse `#[rune(optional)]`.
+                    Meta(Path(word)) if word == OPTIONAL => {
+                        attrs.optional = true;
                     }
                     meta => {
                         self.errors
@@ -198,5 +155,83 @@ impl Context {
         }
 
         Some(attrs)
+    }
+
+    /// Build an inner spanned decoder from an iterator.
+    pub(crate) fn build_spanned_iter<'a>(
+        &mut self,
+        back: bool,
+        mut it: impl Iterator<Item = (Option<TokenStream>, &'a syn::Field)>,
+    ) -> Option<(bool, Option<TokenStream>)> {
+        let mut quote = None::<TokenStream>;
+
+        loop {
+            let (var, field) = match it.next() {
+                Some((var, field)) => (var?, field),
+                None => {
+                    return Some((true, quote));
+                }
+            };
+
+            let attrs = self.parse_field_attributes(&field.attrs)?;
+
+            let spanned = &self.spanned;
+
+            if attrs.skip {
+                continue;
+            }
+
+            if attrs.optional {
+                let option_spanned = &self.option_spanned;
+                let next = quote_spanned! {
+                    field.span() => #option_spanned::option_span(#var)
+                };
+
+                if quote.is_some() {
+                    quote = Some(quote_spanned! {
+                        field.span() => #quote.or_else(|| #next)
+                    });
+                } else {
+                    quote = Some(next);
+                }
+
+                continue;
+            }
+
+            if attrs.iter {
+                let next = if back {
+                    quote_spanned!(field.span() => next_back)
+                } else {
+                    quote_spanned!(field.span() => next)
+                };
+
+                let spanned = &self.spanned;
+                let next = quote_spanned! {
+                    field.span() => IntoIterator::into_iter(#var).#next().map(#spanned::span)
+                };
+
+                if quote.is_some() {
+                    quote = Some(quote_spanned! {
+                        field.span() => #quote.or_else(|| #next)
+                    });
+                } else {
+                    quote = Some(next);
+                }
+
+                continue;
+            }
+
+            if quote.is_some() {
+                quote = Some(quote_spanned! {
+                    field.span() => #quote.unwrap_or_else(|| #spanned::span(#var))
+                });
+            } else {
+                quote = Some(quote_spanned! {
+                    field.span() => #spanned::span(#var)
+                });
+            }
+
+            return Some((false, quote));
+        }
     }
 }

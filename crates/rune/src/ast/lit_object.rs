@@ -1,10 +1,10 @@
 use crate::{ast, Peek};
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
 use runestick::Source;
 use std::borrow::Cow;
 
 /// A literal object identifier.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum LitObjectIdent {
     /// An anonymous object.
     Anonymous(ast::Hash),
@@ -24,12 +24,12 @@ impl Parse for LitObjectIdent {
 }
 
 /// A literal object field.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct LitObjectFieldAssign {
     /// The key of the field.
     pub key: LitObjectKey,
     /// The assigned expression of the field.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub assign: Option<(ast::Colon, ast::Expr)>,
 }
 
@@ -71,7 +71,7 @@ impl Parse for LitObjectFieldAssign {
 }
 
 /// Possible literal object keys.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum LitObjectKey {
     /// A literal string (with escapes).
     LitStr(ast::LitStr),
@@ -118,7 +118,7 @@ impl<'a> Resolve<'a> for LitObjectKey {
 }
 
 /// A number literal.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct LitObject {
     /// An object identifier.
     pub ident: LitObjectIdent,
@@ -130,8 +130,7 @@ pub struct LitObject {
     pub close: ast::CloseBrace,
     /// Indicates if the object is completely literal and cannot have side
     /// effects.
-    #[ast(skip)]
-    #[spanned(skip)]
+    #[rune(skip)]
     is_const: bool,
 }
 

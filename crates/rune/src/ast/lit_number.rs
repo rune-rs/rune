@@ -1,15 +1,14 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
 use runestick::{Source, Span};
 
 /// A number literal.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct LitNumber {
     /// The token corresponding to the literal.
     token: ast::Token,
     /// The source of the number.
-    #[ast(skip)]
-    #[spanned(skip)]
+    #[rune(skip)]
     source: ast::NumberSource,
 }
 

@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Spanned};
+use crate::{Spanned, ToTokens};
 
 /// A tuple pattern.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct PatPath {
     /// The path, if the tuple is typed.
     pub path: ast::Path,

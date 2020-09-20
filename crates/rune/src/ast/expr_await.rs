@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A return statement `<expr>.await`.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprAwait {
     /// The expression being awaited.
     pub expr: Box<ast::Expr>,

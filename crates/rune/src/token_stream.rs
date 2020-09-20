@@ -85,69 +85,69 @@ impl IntoIterator for TokenStream {
 }
 
 /// Trait for things that can be turned into tokens.
-pub trait IntoTokens {
+pub trait ToTokens {
     /// Turn the current item into tokens.
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream);
+    fn to_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream);
 }
 
-impl<T> IntoTokens for Box<T>
+impl<T> ToTokens for Box<T>
 where
-    T: IntoTokens,
+    T: ToTokens,
 {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        (**self).into_tokens(context, stream);
+    fn to_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        (**self).to_tokens(context, stream);
     }
 }
 
-impl<T> IntoTokens for Option<T>
+impl<T> ToTokens for Option<T>
 where
-    T: IntoTokens,
+    T: ToTokens,
 {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+    fn to_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         if let Some(this) = self {
-            this.into_tokens(context, stream);
+            this.to_tokens(context, stream);
         }
     }
 }
 
-impl<T> IntoTokens for Vec<T>
+impl<T> ToTokens for Vec<T>
 where
-    T: IntoTokens,
+    T: ToTokens,
 {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+    fn to_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
         for item in self {
-            item.into_tokens(context, stream);
+            item.to_tokens(context, stream);
         }
     }
 }
 
-impl<A, B> IntoTokens for (A, B)
+impl<A, B> ToTokens for (A, B)
 where
-    A: IntoTokens,
-    B: IntoTokens,
+    A: ToTokens,
+    B: ToTokens,
 {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        self.0.into_tokens(context, stream);
-        self.1.into_tokens(context, stream);
+    fn to_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.0.to_tokens(context, stream);
+        self.1.to_tokens(context, stream);
     }
 }
 
-impl<A, B, C> IntoTokens for (A, B, C)
+impl<A, B, C> ToTokens for (A, B, C)
 where
-    A: IntoTokens,
-    B: IntoTokens,
-    C: IntoTokens,
+    A: ToTokens,
+    B: ToTokens,
+    C: ToTokens,
 {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        self.0.into_tokens(context, stream);
-        self.1.into_tokens(context, stream);
-        self.2.into_tokens(context, stream);
+    fn to_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.0.to_tokens(context, stream);
+        self.1.to_tokens(context, stream);
+        self.2.to_tokens(context, stream);
     }
 }
 
-impl IntoTokens for TokenStream {
-    fn into_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
-        self.stream.into_tokens(context, stream);
+impl ToTokens for TokenStream {
+    fn to_tokens(&self, context: &mut MacroContext, stream: &mut TokenStream) {
+        self.stream.to_tokens(context, stream);
     }
 }
 

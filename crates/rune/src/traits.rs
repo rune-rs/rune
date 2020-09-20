@@ -140,3 +140,18 @@ where
         Spanned::span(&**self)
     }
 }
+
+/// Types for which we can optionally get a span.
+pub trait OptionSpanned {
+    /// Get the optional span of the type.
+    fn option_span(&self) -> Option<Span>;
+}
+
+impl<T> OptionSpanned for Box<T>
+where
+    T: OptionSpanned,
+{
+    fn option_span(&self) -> Option<Span> {
+        OptionSpanned::option_span(&**self)
+    }
+}

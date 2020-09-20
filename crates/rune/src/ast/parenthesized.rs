@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{IntoTokens, Parse, ParseError, Parser, Peek, Spanned};
+use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 use runestick::Span;
 
 /// Something parenthesized and comma separated `(<T,>*)`.
@@ -56,14 +56,14 @@ where
     }
 }
 
-impl<T, S> IntoTokens for Parenthesized<T, S>
+impl<T, S> ToTokens for Parenthesized<T, S>
 where
-    T: IntoTokens,
-    S: IntoTokens,
+    T: ToTokens,
+    S: ToTokens,
 {
-    fn into_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
-        self.open.into_tokens(context, stream);
-        self.items.into_tokens(context, stream);
-        self.close.into_tokens(context, stream);
+    fn to_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+        self.open.to_tokens(context, stream);
+        self.items.to_tokens(context, stream);
+        self.close.to_tokens(context, stream);
     }
 }

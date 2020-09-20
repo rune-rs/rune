@@ -232,13 +232,13 @@ pub use crate::scopes::Var;
 pub use crate::source_loader::{FileSourceLoader, SourceLoader};
 pub use crate::sources::Sources;
 pub use crate::storage::Storage;
-pub use crate::token_stream::{IntoTokens, TokenStream, TokenStreamIter};
-pub use crate::traits::{Parse, Peek, Resolve, Spanned};
+pub use crate::token_stream::{ToTokens, TokenStream, TokenStreamIter};
+pub use crate::traits::{OptionSpanned, Parse, Peek, Resolve, Spanned};
 pub use crate::warning::{Warning, WarningKind, Warnings};
 pub use compiler::compile;
 pub use unit_builder::{ImportEntry, ImportKey, LinkerError, UnitBuilder};
 
-pub(crate) use rune_macros::{Ast, Parse, Spanned};
+pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
 #[cfg(feature = "diagnostics")]
 pub use diagnostics::{termcolor, DiagnosticsError, EmitDiagnostics};

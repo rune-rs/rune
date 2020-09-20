@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
 use std::mem::take;
 use std::ops;
 
@@ -28,7 +28,7 @@ impl ops::Deref for ExprChain {
 }
 
 /// A rune expression.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum Expr {
     /// The `self` keyword.
     Self_(ast::Self_),

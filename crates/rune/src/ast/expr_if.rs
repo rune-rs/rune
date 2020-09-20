@@ -1,8 +1,8 @@
 use crate::ast::{Condition, Else, ExprBlock, ExprElse, ExprElseIf, If};
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An if expression.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprIf {
     /// The `if` token.
     pub if_: If,
@@ -11,10 +11,10 @@ pub struct ExprIf {
     /// The body of the if statement.
     pub block: Box<ExprBlock>,
     /// Else if branches.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub expr_else_ifs: Vec<ExprElseIf>,
     /// The else part of the if expression.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub expr_else: Option<ExprElse>,
 }
 

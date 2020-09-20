@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
 
 /// A single argument in a closure.
 ///
@@ -12,7 +12,7 @@ use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned};
 /// parse_all::<ast::FnArg>("_").unwrap();
 /// parse_all::<ast::FnArg>("abc").unwrap();
 /// ```
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum FnArg {
     /// The `self` parameter.
     Self_(ast::Self_),

@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, TokenStream};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens, TokenStream};
 use runestick::Span;
 
 /// Attribute like `#[derive(Debug)]`
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct Attribute {
     /// The `#` character
     pub hash: ast::Hash,
@@ -90,7 +90,7 @@ impl Peek for Attribute {
 }
 
 /// Whether or not the attribute is an outer `#!` or inner `#` attribute
-#[derive(Debug, Copy, Clone, Ast)]
+#[derive(Debug, Copy, Clone, ToTokens)]
 pub enum AttrStyle {
     /// `#`
     Inner,

@@ -1,11 +1,11 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Peek, Spanned};
+use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// A module declaration.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ItemMod {
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
-    #[spanned(iter)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `mod` keyword.
     pub mod_: ast::Mod,
@@ -60,7 +60,7 @@ impl Parse for ItemMod {
 }
 
 /// An item body.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum ItemModBody {
     /// An empty body terminated by a semicolon.
     EmptyBody(ast::SemiColon),
@@ -80,7 +80,7 @@ impl Parse for ItemModBody {
 }
 
 /// A module declaration.
-#[derive(Debug, Clone, Ast, Parse, Spanned)]
+#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ItemInlineBody {
     /// The open brace.
     pub open: ast::OpenBrace,

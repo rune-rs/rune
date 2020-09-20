@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An if condition.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum Condition {
     /// A regular expression.
     Expr(Box<ast::Expr>),

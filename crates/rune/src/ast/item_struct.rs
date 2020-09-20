@@ -1,11 +1,11 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A struct declaration.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ItemStruct {
     /// The attributes for the struct
-    #[spanned(iter)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `struct` keyword.
     pub struct_: ast::Struct,
@@ -51,7 +51,7 @@ impl Parse for ItemStruct {
 }
 
 /// A struct declaration.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum ItemStructBody {
     /// An empty struct declaration.
     EmptyBody(ast::SemiColon),
@@ -102,7 +102,7 @@ impl Parse for ItemStructBody {
 }
 
 /// A variant declaration.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct TupleBody {
     /// The opening paren.
     pub open: ast::OpenParen,
@@ -147,7 +147,7 @@ impl Parse for TupleBody {
 }
 
 /// A variant declaration.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct StructBody {
     /// The opening brace.
     pub open: ast::OpenBrace,
@@ -202,14 +202,14 @@ impl Parse for StructBody {
 /// parse_all::<ast::Field>("a").unwrap();
 /// parse_all::<ast::Field>("#[x] a").unwrap();
 /// ```
-#[derive(Debug, Clone, Ast, Parse, Spanned)]
+#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct Field {
     /// Attributes associated with field.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// Name of the field.
     pub name: ast::Ident,
     /// Trailing comma of the field.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub comma: Option<ast::Comma>,
 }

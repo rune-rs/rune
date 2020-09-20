@@ -1,11 +1,11 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A let expression `let <name> = <expr>;`
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprLoop {
     /// A label followed by a colon.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `loop` keyword.
     pub loop_: ast::Loop,

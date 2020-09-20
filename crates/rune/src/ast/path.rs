@@ -1,18 +1,18 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Peek, Resolve, Spanned, Storage};
+use crate::{Parse, ParseError, Peek, Resolve, Spanned, Storage, ToTokens};
 use runestick::Source;
 use std::borrow::Cow;
 
 /// A path, where each element is separated by a `::`.
-#[derive(Debug, Clone, Ast, Spanned, Parse)]
+#[derive(Debug, Clone, ToTokens, Spanned, Parse)]
 pub struct Path {
     /// The first component in the path.
     pub first: ast::Ident,
     /// The rest of the components in the path.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub rest: Vec<(ast::Scope, ast::Ident)>,
     /// Trailing scope.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub trailing: Option<ast::Scope>,
 }
 

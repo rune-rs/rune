@@ -1,16 +1,15 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage, ToTokens};
 use runestick::Source;
 use std::borrow::Cow;
 
 /// An identifier, like `foo` or `Hello`.".
-#[derive(Debug, Clone, Copy, Ast, Spanned)]
+#[derive(Debug, Clone, Copy, ToTokens, Spanned)]
 pub struct Ident {
     /// The kind of the identifier.
     pub token: ast::Token,
     /// The kind of the identifier.
-    #[ast(skip)]
-    #[spanned(skip)]
+    #[rune(skip)]
     pub kind: ast::StringSource,
 }
 

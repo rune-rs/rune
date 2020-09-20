@@ -1,12 +1,12 @@
 use crate::ast;
-use crate::{Ast, Spanned};
 use crate::{ParseError, Parser};
+use crate::{Spanned, ToTokens};
 
 /// A literal expression.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprLit {
     /// Attributes associated with the literal expression.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The literal in the expression.
     pub lit: ast::Lit,

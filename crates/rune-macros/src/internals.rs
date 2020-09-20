@@ -5,12 +5,10 @@ use std::fmt;
 #[derive(Copy, Clone)]
 pub struct Symbol(&'static str);
 
-pub const AST: Symbol = Symbol("ast");
+pub const RUNE: Symbol = Symbol("rune");
 pub const SKIP: Symbol = Symbol("skip");
-pub const PARSE: Symbol = Symbol("parse");
-
-pub const SPANNED: Symbol = Symbol("spanned");
 pub const ITER: Symbol = Symbol("iter");
+pub const OPTIONAL: Symbol = Symbol("optional");
 
 impl PartialEq<Symbol> for syn::Ident {
     fn eq(&self, word: &Symbol) -> bool {
