@@ -1,11 +1,11 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A tuple pattern.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct PatTuple {
     /// The path, if the tuple is typed.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub path: Option<ast::Path>,
     /// The open bracket.
     pub open: ast::OpenParen,

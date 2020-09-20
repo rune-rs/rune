@@ -1,11 +1,11 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
 
 /// An imported declaration.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ItemUse {
     /// The attributes on use item
-    #[spanned(iter)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The use token.
     pub use_: ast::Use,
@@ -52,7 +52,7 @@ impl Parse for ItemUse {
 }
 
 /// A use component.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum ItemUseComponent {
     /// An identifier import.
     Ident(ast::Ident),

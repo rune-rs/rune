@@ -1,19 +1,18 @@
 use crate::ast;
 use crate::ast::expr::{EagerBrace, ExprChain};
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
 use std::fmt;
 
 /// A unary expression.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprUnary {
-    /// The operation to apply.
-    #[ast(skip)]
-    #[spanned(skip)]
-    pub op: UnaryOp,
     /// Token associated with operator.
     pub token: ast::Token,
     /// The expression of the operation.
     pub expr: Box<ast::Expr>,
+    /// The operation to apply.
+    #[rune(skip)]
+    pub op: UnaryOp,
 }
 
 /// Parse a unary statement.

@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
 
 /// A block of expressions.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct Block {
     /// The close brace.
     pub open: ast::OpenBrace,

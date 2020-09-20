@@ -49,33 +49,42 @@ extern crate proc_macro;
 
 use quote::quote;
 
-mod ast;
 mod context;
 mod internals;
+mod option_spanned;
 mod parse;
 mod spanned;
+mod to_tokens;
 
-/// Helper derive to implement AST nodes in a less error prone manner.
-#[proc_macro_derive(Ast, attributes(ast))]
+/// Helper derive to implement `ToTokens`.
+#[proc_macro_derive(ToTokens, attributes(rune))]
 #[doc(hidden)]
-pub fn ast(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let derive = syn::parse_macro_input!(input as ast::Derive);
+pub fn to_tokens(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let derive = syn::parse_macro_input!(input as to_tokens::Derive);
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
-/// Helper derive to implement AST nodes in a less error prone manner.
-#[proc_macro_derive(Parse, attributes(parse))]
+/// Helper derive to implement `Parse`.
+#[proc_macro_derive(Parse, attributes(rune))]
 #[doc(hidden)]
 pub fn parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as parse::Derive);
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
-/// Helper derive to implement AST nodes in a less error prone manner.
-#[proc_macro_derive(Spanned, attributes(spanned))]
+/// Helper derive to implement `Spanned`.
+#[proc_macro_derive(Spanned, attributes(rune))]
 #[doc(hidden)]
 pub fn spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as spanned::Derive);
+    derive.expand().unwrap_or_else(to_compile_errors).into()
+}
+
+/// Helper derive to implement `OptionSpanned`.
+#[proc_macro_derive(OptionSpanned, attributes(rune))]
+#[doc(hidden)]
+pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let derive = syn::parse_macro_input!(input as option_spanned::Derive);
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 

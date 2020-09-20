@@ -56,7 +56,7 @@ impl Expander {
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
     ) -> Option<TokenStream> {
-        let _ = self.ctx.parse_ast_derive(&input.attrs)?;
+        let _ = self.ctx.pase_derive_attributes(&input.attrs)?;
         let inner = self.expand_struct_fields(input, &st.fields)?;
 
         Some(quote! {
@@ -66,7 +66,7 @@ impl Expander {
 
     /// Expand on a struct.
     fn expand_enum(&mut self, input: &syn::DeriveInput, st: &syn::DataEnum) -> Option<TokenStream> {
-        let _ = self.ctx.parse_ast_derive(&input.attrs)?;
+        let _ = self.ctx.pase_derive_attributes(&input.attrs)?;
 
         let mut impl_into_tokens = Vec::new();
 
@@ -76,13 +76,13 @@ impl Expander {
         }
 
         let ident = &input.ident;
-        let into_tokens = &self.ctx.into_tokens;
+        let to_tokens = &self.ctx.to_tokens;
         let macro_context = &self.ctx.macro_context;
         let token_stream = &self.ctx.token_stream;
 
         Some(quote_spanned! { input.span() =>
-            impl #into_tokens for #ident {
-                fn into_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
+            impl #to_tokens for #ident {
+                fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
                     match self {
                         #(#impl_into_tokens,)*
                     }
@@ -139,24 +139,23 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.ctx.field_ident(&field)?;
-            let output = self.ctx.parse_ast_fields(&field.attrs)?;
+            let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
 
-            if !output.skip {
-                fields.push(
-                    quote_spanned! { field.span() => self.#ident.into_tokens(context, stream) },
-                )
+            if !attrs.skip {
+                fields
+                    .push(quote_spanned! { field.span() => self.#ident.to_tokens(context, stream) })
             }
         }
 
         let ident = &input.ident;
 
-        let into_tokens = &self.ctx.into_tokens;
+        let to_tokens = &self.ctx.to_tokens;
         let macro_context = &self.ctx.macro_context;
         let token_stream = &self.ctx.token_stream;
 
         let into_tokens_impl = quote_spanned! {
-            named.span() => impl #into_tokens for #ident {
-                fn into_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
+            named.span() => impl #to_tokens for #ident {
+                fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
                     #(#fields;)*
                 }
             }
@@ -178,10 +177,10 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.ctx.field_ident(&field)?;
-            let output = self.ctx.parse_ast_fields(&field.attrs)?;
+            let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
 
-            if !output.skip {
-                fields.push(quote_spanned! { field.span() => #ident.into_tokens(context, stream) })
+            if !attrs.skip {
+                fields.push(quote_spanned! { field.span() => #ident.to_tokens(context, stream) })
             }
 
             idents.push(ident);
@@ -205,13 +204,13 @@ impl Expander {
 
         for (n, field) in named.unnamed.iter().enumerate() {
             let ident = syn::Ident::new(&format!("f{}", n), field.span());
-            let output = self.ctx.parse_ast_fields(&field.attrs)?;
+            let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
 
-            if !output.skip {
+            if !attrs.skip {
                 let ident = &ident;
 
                 field_into_tokens
-                    .push(quote_spanned! { field.span() => #ident.into_tokens(context, stream) })
+                    .push(quote_spanned! { field.span() => #ident.to_tokens(context, stream) })
             }
 
             idents.push(ident);

@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A let expression `let <name> = <expr>;`
-#[derive(Debug, Clone, Ast, Parse, Spanned)]
+#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprLet {
     /// The `let` keyword.
     pub let_: ast::Let,

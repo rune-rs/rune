@@ -1,11 +1,11 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A let expression `let <name> = <expr>;`
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprWhile {
     /// A label for the while loop.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `while` keyword.
     pub while_: ast::While,

@@ -1,11 +1,11 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An enum declaration.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ItemEnum {
     /// The attributes for the enum block
-    #[spanned(iter)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `enum` token.
     pub enum_: ast::Enum,
@@ -79,23 +79,23 @@ impl Parse for ItemEnum {
 }
 
 /// An enum variant.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ItemVariant {
     /// The attributes associated with the variant.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The name of the variant.
     pub name: ast::Ident,
     /// The body of the variant.
-    #[spanned(skip)]
+    #[rune(optional)]
     pub body: ItemVariantBody,
     /// Optional trailing comma in variant.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub comma: Option<ast::Comma>,
 }
 
 /// An item body declaration.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, ToTokens, OptionSpanned)]
 pub enum ItemVariantBody {
     /// An empty enum body.
     EmptyBody,

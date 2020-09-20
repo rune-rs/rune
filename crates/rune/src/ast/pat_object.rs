@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An object pattern.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct PatObject {
     /// The identifier of the object pattern.
     pub ident: ast::LitObjectIdent,
@@ -70,11 +70,11 @@ impl Parse for PatObject {
 }
 
 /// An object item.
-#[derive(Debug, Clone, Ast, Spanned, Parse)]
+#[derive(Debug, Clone, ToTokens, Spanned, Parse)]
 pub struct PatObjectItem {
     /// The key of an object.
     pub key: ast::LitObjectKey,
     /// The binding used for the pattern object.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub binding: Option<(ast::Colon, ast::Pat)>,
 }

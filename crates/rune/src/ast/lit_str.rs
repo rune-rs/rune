@@ -1,16 +1,15 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct LitStr {
     /// The token corresponding to the literal.
     token: ast::Token,
     /// The source of the literal string.
-    #[ast(skip)]
-    #[spanned(skip)]
+    #[rune(skip)]
     source: ast::LitStrSource,
 }
 

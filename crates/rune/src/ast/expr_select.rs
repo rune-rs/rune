@@ -1,9 +1,9 @@
 use crate::ast;
 use crate::ast::utils;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A select expression that selects over a collection of futures.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprSelect {
     /// The `select` keyword.
     pub select: ast::Select,
@@ -60,7 +60,7 @@ impl Parse for ExprSelect {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, Ast, Parse, Spanned)]
+#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprSelectBranch {
     /// The identifier to bind the result to.
     pub pat: ast::Pat,
@@ -75,7 +75,7 @@ pub struct ExprSelectBranch {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, Ast, Parse, Spanned)]
+#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprDefaultBranch {
     /// The `default` keyword.
     pub default: ast::Default,

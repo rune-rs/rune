@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Spanned};
+use crate::{Spanned, ToTokens};
 
 /// A function call `<expr>(<args>)`.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprCall {
     /// The name of the function being called.
     pub expr: Box<ast::Expr>,

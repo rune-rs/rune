@@ -1,11 +1,11 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A match expression.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprMatch {
     /// The attributes for the match expression
-    #[spanned(iter)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `match` token.
     pub match_: ast::Match,
@@ -89,7 +89,7 @@ impl Parse for ExprMatch {
 ///
 /// parse_all::<ast::ExprMatchBranch>("1 => { foo }").unwrap();
 /// ```
-#[derive(Debug, Clone, Ast, Parse, Spanned)]
+#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprMatchBranch {
     /// The pattern to match.
     pub pat: ast::Pat,

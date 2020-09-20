@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Ast, Parse, Peek, Spanned};
+use crate::{Parse, Peek, Spanned, ToTokens};
 
 /// The unit literal `()`.
 ///
@@ -10,7 +10,7 @@ use crate::{Ast, Parse, Peek, Spanned};
 ///
 /// parse_all::<ast::LitUnit>("()").unwrap();
 /// ```
-#[derive(Debug, Clone, Ast, Parse, Spanned)]
+#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct LitUnit {
     /// The open parenthesis.
     pub open: ast::OpenParen,

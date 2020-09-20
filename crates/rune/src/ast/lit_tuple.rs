@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An expression to construct a literal tuple.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct LitTuple {
     /// The open bracket.
     pub open: ast::OpenParen,
@@ -11,8 +11,7 @@ pub struct LitTuple {
     /// The close bracket.
     pub close: ast::CloseParen,
     /// If the entire tuple is constant.
-    #[ast(skip)]
-    #[spanned(skip)]
+    #[rune(skip)]
     is_const: bool,
 }
 

@@ -1,15 +1,15 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 use runestick::Span;
 
 /// A closure.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprClosure {
     /// The attributes for the async closure
-    #[spanned(iter)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// If the closure is async or not.
-    #[spanned(iter)]
+    #[rune(iter)]
     pub async_: Option<ast::Async>,
     /// Arguments to the closure.
     pub args: ExprClosureArgs,
@@ -90,7 +90,7 @@ impl Parse for ExprClosure {
     }
 }
 
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, ToTokens)]
 pub enum ExprClosureArgs {
     Empty {
         /// The `||` token.

@@ -3,7 +3,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
-/// Derive implementation of the AST macro.
+/// Derive implementation of `rune::OptionSpanned`.
 pub struct Derive {
     input: syn::DeriveInput,
 }
@@ -59,11 +59,11 @@ impl Expander {
         let inner = self.expand_struct_fields(&st.fields)?;
 
         let ident = &input.ident;
-        let spanned = &self.ctx.spanned;
+        let option_spanned = &self.ctx.option_spanned;
         let span = &self.ctx.span;
 
         Some(quote! {
-            impl #spanned for #ident {
+            impl #option_spanned for #ident {
                 fn span(&self) -> #span {
                     #inner
                 }
@@ -78,16 +78,17 @@ impl Expander {
         let mut impl_spanned = Vec::new();
 
         for variant in &st.variants {
-            impl_spanned.push(self.expand_variant_fields(variant, &variant.fields)?);
+            let expanded = self.expand_variant_fields(variant, &variant.fields)?;
+            impl_spanned.push(expanded);
         }
 
         let ident = &input.ident;
-        let spanned = &self.ctx.spanned;
+        let option_spanned = &self.ctx.option_spanned;
         let span = &self.ctx.span;
 
         Some(quote_spanned! { input.span() =>
-            impl #spanned for #ident {
-                fn span(&self) -> #span {
+            impl #option_spanned for #ident {
+                fn option_span(&self) -> Option<#span> {
                     match self {
                         #(#impl_spanned,)*
                     }
@@ -129,10 +130,10 @@ impl Expander {
             .collect::<Vec<_>>();
 
         let it = it.into_iter();
-        self.build_spanned(named, it)
+        self.build_inner(named, it)
     }
 
-    fn build_spanned<'a>(
+    fn build_inner<'a>(
         &mut self,
         tokens: &(impl quote::ToTokens + syn::spanned::Spanned),
         mut it: impl DoubleEndedIterator<Item = (Option<TokenStream>, &'a syn::Field)>,
@@ -141,12 +142,11 @@ impl Expander {
 
         let begin = match (begin_term, begin) {
             (false, Some(begin)) => begin,
-            _ => {
-                self.ctx.errors.push(syn::Error::new_spanned(
-                    tokens,
-                    "ran out of fields to calculate span",
-                ));
-                return None;
+            (true, Some(begin)) => {
+                return Some(quote_spanned!(tokens.span() => #begin));
+            }
+            (_, None) => {
+                return Some(quote_spanned!(tokens.span() => None));
             }
         };
 
@@ -160,15 +160,15 @@ impl Expander {
                     let end = #end;
 
                     match end {
-                        Some(end) => begin.join(end),
-                        None => begin,
+                        Some(end) => Some(begin.join(end)),
+                        None => Some(begin),
                     }
                 }}
             } else {
-                quote_spanned!(tokens.span() => #begin)
+                quote_spanned!(tokens.span() => Some(#begin))
             }
         } else {
-            quote_spanned!(tokens.span() => #begin.join(#end))
+            quote_spanned!(tokens.span() => Some(#begin.join(#end)))
         })
     }
 
@@ -187,13 +187,7 @@ impl Expander {
                 return None;
             }
             syn::Fields::Unnamed(unnamed) => self.expand_variant_unnamed(variant, unnamed),
-            syn::Fields::Unit => {
-                self.ctx.errors.push(syn::Error::new_spanned(
-                    fields,
-                    "unit variants are not supported",
-                ));
-                return None;
-            }
+            syn::Fields::Unit => self.expand_variant_unit(variant),
         }
     }
 
@@ -214,12 +208,18 @@ impl Expander {
             .collect::<Vec<_>>();
 
         let it = it.into_iter();
-        let body = self.build_spanned(unnamed, it);
+        let body = self.build_inner(unnamed, it);
 
         let ident = &variant.ident;
         let vars =
             (0..unnamed.unnamed.len()).map(|n| syn::Ident::new(&format!("f{}", n), variant.span()));
 
         Some(quote_spanned!(variant.span() => Self::#ident(#(#vars,)*) => #body))
+    }
+
+    /// Expand the implementation for a unit variant.
+    fn expand_variant_unit(&mut self, variant: &syn::Variant) -> Option<TokenStream> {
+        let ident = &variant.ident;
+        Some(quote_spanned!(variant.span() => Self::#ident => None))
     }
 }

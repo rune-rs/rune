@@ -98,7 +98,7 @@ impl Expander {
         let mut fields = Vec::new();
 
         for field in &named.named {
-            let _ = self.ctx.parse_parse_fields(&field.attrs)?;
+            let _ = self.ctx.parse_field_attributes(&field.attrs)?;
             let ident = self.ctx.field_ident(&field)?;
             fields.push(quote_spanned! { field.span() => #ident: parser.parse()? })
         }

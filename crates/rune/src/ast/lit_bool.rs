@@ -1,15 +1,14 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
 
 /// The unit literal `()`.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct LitBool {
-    /// The value of the literal.
-    #[ast(skip)]
-    #[spanned(skip)]
-    pub value: bool,
     /// The token of the literal.
     pub token: ast::Token,
+    /// The value of the literal.
+    #[rune(skip)]
+    pub value: bool,
 }
 
 /// Parsing a unit literal

@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser};
+use crate::{Parse, ParseError, Parser, ToTokens};
 
 /// A parsed file.
-#[derive(Debug, Clone, Ast)]
+#[derive(Debug, Clone, ToTokens)]
 pub struct File {
     /// Top level "Outer" `#![...]` attributes for the file
     pub attributes: Vec<ast::Attribute>,

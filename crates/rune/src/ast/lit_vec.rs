@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, Parser, Spanned};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A number literal.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct LitVec {
     /// The open bracket.
     pub open: ast::OpenBracket,
@@ -11,8 +11,7 @@ pub struct LitVec {
     /// The close bracket.
     pub close: ast::CloseBracket,
     /// If the entire array is constant.
-    #[ast(skip)]
-    #[spanned(skip)]
+    #[rune(skip)]
     is_const: bool,
 }
 

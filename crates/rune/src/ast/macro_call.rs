@@ -1,9 +1,9 @@
 use crate::ast;
-use crate::{Ast, Parse, ParseError, ParseErrorKind, Parser, Spanned, TokenStream};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens, TokenStream};
 use runestick::Span;
 
 /// A function call `<expr>!(<args>)`.
-#[derive(Debug, Clone, Ast, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct MacroCall {
     /// The expression being called over.
     pub path: ast::Path,

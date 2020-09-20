@@ -30,18 +30,18 @@ macro_rules! quote {
     }};
 
     (@wrap $ctx:expr, $s:expr, $variant:ident => $($tt:tt)*) => {{
-        $crate::IntoTokens::into_tokens(&$crate::ast::Kind::Open($crate::ast::Delimiter::$variant), $ctx, $s);
+        $crate::ToTokens::to_tokens(&$crate::ast::Kind::Open($crate::ast::Delimiter::$variant), $ctx, $s);
         $crate::quote!(@push $ctx, $s => $($tt)*);
-        $crate::IntoTokens::into_tokens(&$crate::ast::Kind::Close($crate::ast::Delimiter::$variant), $ctx, $s);
+        $crate::ToTokens::to_tokens(&$crate::ast::Kind::Close($crate::ast::Delimiter::$variant), $ctx, $s);
     }};
 
     (@token $ctx:expr, $s:expr, $variant:ident => $($tt:tt)*) => {{
-        $crate::IntoTokens::into_tokens(&$crate::ast::Kind::$variant, $ctx, $s);
+        $crate::ToTokens::to_tokens(&$crate::ast::Kind::$variant, $ctx, $s);
         $crate::quote!(@push $ctx, $s => $($tt)*);
     }};
 
     (@push $ctx:expr, $s:expr => #$var:ident $($tt:tt)*) => {{
-        $crate::IntoTokens::into_tokens(&$var, $ctx, $s);
+        $crate::ToTokens::to_tokens(&$var, $ctx, $s);
         $crate::quote!(@push $ctx, $s => $($tt)*);
     }};
 
@@ -49,7 +49,7 @@ macro_rules! quote {
         let mut it = std::iter::IntoIterator::into_iter($expr).peekable();
 
         while let Some(v) = it.next() {
-            $crate::IntoTokens::into_tokens(&v, $ctx, $s);
+            $crate::ToTokens::to_tokens(&v, $ctx, $s);
 
             if it.peek().is_some() {
                 $crate::quote!(@push $ctx, $s => $repeat);
@@ -61,7 +61,7 @@ macro_rules! quote {
 
     (@push $ctx:expr, $s:expr => #($expr:expr)* $($tt:tt)*) => {{
         for v in $expr {
-            $crate::IntoTokens::into_tokens(&v, $ctx, $s);
+            $crate::ToTokens::to_tokens(&v, $ctx, $s);
         }
 
         $crate::quote!(@push $ctx, $s => $($tt)*);
@@ -361,13 +361,13 @@ macro_rules! quote {
 
     (@push $ctx:expr, $s:expr => $ident:ident $($tt:tt)*) => {{
         let kind = $ctx.ident(stringify!($ident));
-        $crate::IntoTokens::into_tokens(&kind, $ctx, $s);
+        $crate::ToTokens::to_tokens(&kind, $ctx, $s);
         $crate::quote!(@push $ctx, $s => $($tt)*);
     }};
 
     (@push $ctx:expr, $s:expr => $lit:literal $($tt:tt)*) => {{
         let token = $ctx.lit($lit);
-        $crate::IntoTokens::into_tokens(&token, $ctx, $s);
+        $crate::ToTokens::to_tokens(&token, $ctx, $s);
         $crate::quote!(@push $ctx, $s => $($tt)*);
     }};
 

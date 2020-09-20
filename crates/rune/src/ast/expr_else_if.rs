@@ -1,8 +1,8 @@
 use crate::ast;
-use crate::{Ast, Parse, Spanned};
+use crate::{Parse, Spanned, ToTokens};
 
 /// An else branch of an if expression.
-#[derive(Debug, Clone, Ast, Parse, Spanned)]
+#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprElseIf {
     /// The `else` token.
     pub else_: ast::Else,
