@@ -7,6 +7,9 @@ pub struct ItemEnum {
     /// The attributes for the enum block
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
+    /// The visibility of the `enum` item
+    #[rune(iter)]
+    pub visibility: Option<ast::Visibility>,
     /// The `enum` token.
     pub enum_: ast::Enum,
     /// The name of the enum.
@@ -25,6 +28,7 @@ impl ItemEnum {
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
+        let visibility = parser.parse()?;
         let enum_ = parser.parse()?;
         let name = parser.parse()?;
         let open = parser.parse()?;
@@ -51,6 +55,7 @@ impl ItemEnum {
 
         Ok(Self {
             attributes,
+            visibility,
             enum_,
             name,
             open,
@@ -70,6 +75,7 @@ impl ItemEnum {
 /// parse_all::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), Empty() }").unwrap();
 /// parse_all::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }").unwrap();
 /// parse_all::<ast::ItemEnum>("#[repr(Rune)] enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }").unwrap();
+/// parse_all::<ast::ItemEnum>("pub enum Color { Blue, Red, Green }").unwrap();
 /// ```
 impl Parse for ItemEnum {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

@@ -69,6 +69,8 @@ mod path;
 mod stmt;
 mod token;
 pub(super) mod utils;
+mod vis;
+mod vis_restricted;
 
 pub use self::attribute::Attribute;
 pub use self::block::Block;
@@ -140,6 +142,8 @@ pub use self::token::{
     CopySource, Delimiter, Kind, LitByteStrSource, LitByteStrSourceText, LitStrSource,
     LitStrSourceText, Number, NumberBase, NumberSource, NumberSourceText, StringSource, Token,
 };
+pub use self::vis::Visibility;
+pub use self::vis_restricted::VisRestricted;
 
 macro_rules! decl_tokens {
     ($(($parser:ident, $doc:expr, $($kind:tt)*),)*) => {
@@ -239,6 +243,11 @@ decl_tokens! {
     (Mul, "Multiply `*` operator.", Kind::Star),
     (Mod, "The `mod` keyword.", Kind::Mod),
     (Bang, "The `!` operator.", Kind::Bang),
+    (Pub, "The `pub` keyword.", Kind::Pub),
+    (Priv, "The `priv` keyword.", Kind::Priv),
+    (Crate, "The `crate` keyword.", Kind::Crate),
+    (Super, "The `super` keyword.", Kind::Super),
+    (Extern, "The `extern` keyword.", Kind::Extern),
 }
 
 #[cfg(test)]

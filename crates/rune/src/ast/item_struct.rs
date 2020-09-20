@@ -7,6 +7,9 @@ pub struct ItemStruct {
     /// The attributes for the struct
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
+    /// The visibility of the `struct` item
+    #[rune(iter)]
+    pub visibility: Option<ast::Visibility>,
     /// The `struct` keyword.
     pub struct_: ast::Struct,
     /// The identifier of the struct declaration.
@@ -23,6 +26,7 @@ impl ItemStruct {
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
+            visibility: parser.parse()?,
             struct_: parser.parse()?,
             ident: parser.parse()?,
             body: parser.parse()?,
@@ -121,6 +125,7 @@ pub struct TupleBody {
 ///
 /// parse_all::<ast::TupleBody>("( a, b, c )").unwrap();
 /// parse_all::<ast::TupleBody>("( #[x] a, b, c )").unwrap();
+/// parse_all::<ast::TupleBody>("( #[x] pub a, b, c )").unwrap();
 /// ```
 impl Parse for TupleBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -207,6 +212,9 @@ pub struct Field {
     /// Attributes associated with field.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
+    /// The visibility of the field
+    #[rune(iter)]
+    pub visibility: Option<ast::Visibility>,
     /// Name of the field.
     pub name: ast::Ident,
     /// Trailing comma of the field.

@@ -7,6 +7,9 @@ pub struct ItemUse {
     /// The attributes on use item
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
+    /// The visibility of the `use` item
+    #[rune(iter)]
+    pub visibility: Option<ast::Visibility>,
     /// The use token.
     pub use_: ast::Use,
     /// First component in use.
@@ -25,6 +28,7 @@ impl ItemUse {
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
+            visibility: parser.parse()?,
             use_: parser.parse()?,
             first: parser.parse()?,
             rest: parser.parse()?,
@@ -43,6 +47,8 @@ impl ItemUse {
 /// parse_all::<ast::ItemUse>("use foo;").unwrap();
 /// parse_all::<ast::ItemUse>("use foo::bar;").unwrap();
 /// parse_all::<ast::ItemUse>("use foo::bar::baz;").unwrap();
+/// parse_all::<ast::ItemUse>("#[macro_use] use foo::bar::baz;").unwrap();
+/// parse_all::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz;").unwrap();
 /// ```
 impl Parse for ItemUse {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
