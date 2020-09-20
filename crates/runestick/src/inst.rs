@@ -468,6 +468,32 @@ pub enum Inst {
         /// Offset to jump to.
         offset: isize,
     },
+    /// Jump to `offset` relative to the current instruction pointer if the
+    /// condition is `true`. Will only pop the stack is a jump is not performed.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <boolean>
+    /// => *nothing*
+    /// ```
+    JumpIfOrPop {
+        /// Offset to jump to.
+        offset: isize,
+    },
+    /// Jump to `offset` relative to the current instruction pointer if the
+    /// condition is `false`. Will only pop the stack is a jump is not performed.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <boolean>
+    /// => *nothing*
+    /// ```
+    JumpIfNotOrPop {
+        /// Offset to jump to.
+        offset: isize,
+    },
     /// Compares the `branch` register with the top of the stack, and if they
     /// match pops the top of the stack and performs the jump to offset.
     ///
@@ -990,6 +1016,12 @@ impl fmt::Display for Inst {
             }
             Self::JumpIfNot { offset } => {
                 write!(fmt, "jump-if-not {}", offset)?;
+            }
+            Self::JumpIfOrPop { offset } => {
+                write!(fmt, "jump-if-or-pop {}", offset)?;
+            }
+            Self::JumpIfNotOrPop { offset } => {
+                write!(fmt, "jump-if-not-or-pop {}", offset)?;
             }
             Self::JumpIfBranch { branch, offset } => {
                 write!(fmt, "jump-if-branch {}, {}", branch, offset)?;

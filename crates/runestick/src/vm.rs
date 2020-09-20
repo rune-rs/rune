@@ -573,6 +573,32 @@ impl Vm {
         Ok(())
     }
 
+    /// Perform a conditional jump operation. Pops the stack if the jump is
+    /// not performed.
+    #[inline]
+    fn op_jump_if_or_pop(&mut self, offset: isize) -> Result<(), VmError> {
+        if self.stack.last()?.as_bool()? {
+            self.modify_ip(offset)?;
+        } else {
+            self.stack.pop()?;
+        }
+
+        Ok(())
+    }
+
+    /// Perform a conditional jump operation. Pops the stack if the jump is
+    /// not performed.
+    #[inline]
+    fn op_jump_if_not_or_pop(&mut self, offset: isize) -> Result<(), VmError> {
+        if !self.stack.last()?.as_bool()? {
+            self.modify_ip(offset)?;
+        } else {
+            self.stack.pop()?;
+        }
+
+        Ok(())
+    }
+
     /// Perform a branch-conditional jump operation.
     #[inline]
     fn op_jump_if_branch(&mut self, branch: i64, offset: isize) -> Result<(), VmError> {
@@ -2195,6 +2221,12 @@ impl Vm {
                 }
                 Inst::JumpIfNot { offset } => {
                     self.op_jump_if_not(offset)?;
+                }
+                Inst::JumpIfOrPop { offset } => {
+                    self.op_jump_if_or_pop(offset)?;
+                }
+                Inst::JumpIfNotOrPop { offset } => {
+                    self.op_jump_if_not_or_pop(offset)?;
                 }
                 Inst::JumpIfBranch { branch, offset } => {
                     self.op_jump_if_branch(branch, offset)?;

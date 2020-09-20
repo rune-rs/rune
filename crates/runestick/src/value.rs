@@ -239,6 +239,15 @@ impl Value {
         }
     }
 
+    /// Try to coerce value into a boolean.
+    #[inline]
+    pub fn as_bool(&self) -> Result<bool, VmError> {
+        match self {
+            Self::Bool(b) => Ok(*b),
+            actual => Err(VmError::expected::<bool>(actual.type_info()?)),
+        }
+    }
+
     /// Try to coerce value into a byte.
     #[inline]
     pub fn into_byte(self) -> Result<u8, VmError> {

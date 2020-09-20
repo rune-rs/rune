@@ -803,6 +803,16 @@ impl UnitBuilder {
                     let offset = translate_offset(pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIfNot { offset });
                 }
+                AssemblyInst::JumpIfOrPop { label } => {
+                    comment = Some(format!("label:{}", label));
+                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    self.instructions.push(Inst::JumpIfOrPop { offset });
+                }
+                AssemblyInst::JumpIfNotOrPop { label } => {
+                    comment = Some(format!("label:{}", label));
+                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    self.instructions.push(Inst::JumpIfNotOrPop { offset });
+                }
                 AssemblyInst::JumpIfBranch { branch, label } => {
                     comment = Some(format!("label:{}", label));
                     let offset = translate_offset(pos, label, &assembly.labels)?;
