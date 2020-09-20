@@ -14,6 +14,7 @@ mod vm_function;
 mod vm_general;
 mod vm_generators;
 mod vm_is;
+mod vm_lazy_and_or;
 mod vm_literals;
 mod vm_match;
 mod vm_option;
