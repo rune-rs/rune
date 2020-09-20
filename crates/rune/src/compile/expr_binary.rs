@@ -42,7 +42,7 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
                 needs,
             )?;
 
-            return Ok(())
+            return Ok(());
         }
 
         // NB: need to declare these as anonymous local variables so that they
@@ -52,7 +52,7 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
 
         self.compile((&*expr_binary.rhs, rhs_needs_of(expr_binary.op)))?;
         self.scopes.decl_anon(span)?;
-      
+
         let inst = match expr_binary.op {
             ast::BinOp::Eq => Inst::Eq,
             ast::BinOp::Neq => Inst::Neq,
@@ -106,14 +106,14 @@ fn rhs_needs_of(op: ast::BinOp) -> Needs {
 }
 
 fn compile_conditional_binop(
-   this: &mut Compiler<'_>,
-   lhs: &ast::Expr,
-   rhs: &ast::Expr,
-   bin_op: ast::BinOp,
-   needs: Needs,
+    this: &mut Compiler<'_>,
+    lhs: &ast::Expr,
+    rhs: &ast::Expr,
+    bin_op: ast::BinOp,
+    needs: Needs,
 ) -> CompileResult<()> {
     let span = lhs.span().join(rhs.span());
-    
+
     let then_label = this.asm.new_label("conditional_then");
     let end_label = this.asm.new_label("conditional_end");
 
@@ -122,7 +122,7 @@ fn compile_conditional_binop(
 
     match bin_op {
         ast::BinOp::And => {
-            this.asm.jump_if_not(then_label, lhs.span()); 
+            this.asm.jump_if_not(then_label, lhs.span());
         }
         ast::BinOp::Or => {
             this.asm.jump_if(then_label, lhs.span());
@@ -133,12 +133,12 @@ fn compile_conditional_binop(
                 CompileErrorKind::UnsupportedBinaryOp { op },
             ));
         }
-    } 
+    }
 
     this.compile((&*rhs, needs))?;
 
     if !needs.value() {
-        this.asm.push(Inst::unit(), span); 
+        this.asm.push(Inst::unit(), span);
     }
 
     this.asm.jump(end_label, span);
@@ -161,7 +161,7 @@ fn compile_conditional_binop(
 
     this.asm.label(end_label)?;
     this.scopes.undecl_anon(1, span)?;
-    
+
     Ok(())
 }
 
