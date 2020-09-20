@@ -120,12 +120,10 @@ fn compile_conditional_binop(
 
     match bin_op {
         ast::BinOp::And => {
-            this.asm.push(Inst::Dup, lhs.span());
-            this.asm.jump_if_not(end_label, lhs.span());
+            this.asm.jump_if_not_or_pop(end_label, lhs.span());
         }
         ast::BinOp::Or => {
-            this.asm.push(Inst::Dup, lhs.span());
-            this.asm.jump_if(end_label, lhs.span());
+            this.asm.jump_if_or_pop(end_label, lhs.span());
         }
         op => {
             return Err(CompileError::new(
@@ -135,7 +133,6 @@ fn compile_conditional_binop(
         }
     }
 
-    this.asm.push(Inst::Pop, span);
     this.compile((&*rhs, Needs::Value))?;
 
     this.asm.label(end_label)?;

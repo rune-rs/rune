@@ -9,6 +9,8 @@ pub enum AssemblyInst {
     Jump { label: Label },
     JumpIf { label: Label },
     JumpIfNot { label: Label },
+    JumpIfOrPop { label: Label },
+    JumpIfNotOrPop { label: Label },
     JumpIfBranch { branch: i64, label: Label },
     PopAndJumpIfNot { count: usize, label: Label },
     Raw { raw: Inst },
@@ -81,6 +83,20 @@ impl Assembly {
     pub(crate) fn jump_if_not(&mut self, label: Label, span: Span) {
         self.instructions
             .push((AssemblyInst::JumpIfNot { label }, span));
+    }
+
+    /// Add a conditional jump to the given label. Only pops the top of the
+    /// stack if the jump is not executed.
+    pub(crate) fn jump_if_or_pop(&mut self, label: Label, span: Span) {
+        self.instructions
+            .push((AssemblyInst::JumpIfOrPop { label }, span));
+    }
+
+    /// Add a conditional jump to the given label. Only pops the top of the
+    /// stack if the jump is not executed.
+    pub(crate) fn jump_if_not_or_pop(&mut self, label: Label, span: Span) {
+        self.instructions
+            .push((AssemblyInst::JumpIfNotOrPop { label }, span));
     }
 
     /// Add a conditional jump-if-branch instruction.
