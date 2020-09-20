@@ -807,7 +807,7 @@ impl<'a> Compiler<'a> {
                         let type_check = TypeCheck::Type(**type_of);
                         (object, type_check)
                     }
-                    CompileMetaKind::StructVariant {
+                    CompileMetaKind::ObjectVariant {
                         object, type_of, ..
                     } => {
                         let type_check = TypeCheck::Variant(**type_of);

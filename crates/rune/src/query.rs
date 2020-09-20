@@ -481,7 +481,7 @@ impl Query {
         };
 
         Ok(match enum_item {
-            Some(enum_item) => CompileMetaKind::StructVariant {
+            Some(enum_item) => CompileMetaKind::ObjectVariant {
                 type_of,
                 enum_item,
                 object,

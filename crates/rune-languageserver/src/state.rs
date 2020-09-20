@@ -496,7 +496,7 @@ pub enum DefinitionKind {
     /// A struct.
     Struct,
     /// A struct variant.
-    StructVariant,
+    ObjectVariant,
     /// An enum.
     Enum,
     /// A function.
@@ -533,7 +533,7 @@ impl rune::CompileVisitor for Visitor<'_> {
             CompileMetaKind::Tuple { .. } => DefinitionKind::Tuple,
             CompileMetaKind::TupleVariant { .. } => DefinitionKind::TupleVariant,
             CompileMetaKind::Struct { .. } => DefinitionKind::Struct,
-            CompileMetaKind::StructVariant { .. } => DefinitionKind::StructVariant,
+            CompileMetaKind::ObjectVariant { .. } => DefinitionKind::ObjectVariant,
             CompileMetaKind::Enum { .. } => DefinitionKind::Enum,
             CompileMetaKind::Function { .. } => DefinitionKind::Function,
             _ => return,

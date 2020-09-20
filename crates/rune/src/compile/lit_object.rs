@@ -97,7 +97,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         let hash = Hash::type_hash(&object.item);
                         self.asm.push(Inst::TypedObject { hash, slot }, span);
                     }
-                    CompileMetaKind::StructVariant {
+                    CompileMetaKind::ObjectVariant {
                         enum_item, object, ..
                     } => {
                         check_object_fields(
@@ -111,7 +111,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         let hash = Hash::type_hash(&object.item);
 
                         self.asm.push(
-                            Inst::VariantObject {
+                            Inst::ObjectVariant {
                                 enum_hash,
                                 hash,
                                 slot,

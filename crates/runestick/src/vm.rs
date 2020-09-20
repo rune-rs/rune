@@ -3,9 +3,9 @@ use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Context, FromValue, Function, Future, Generator,
-    GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object, Panic,
-    Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject, Unit, Value, VariantObject,
-    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object,
+    ObjectVariant, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject, Unit,
+    Value, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
 };
 use std::fmt;
 use std::mem;
@@ -873,7 +873,7 @@ impl Vm {
                         target: typed_object.type_info(),
                     }));
                 }
-                Value::VariantObject(variant_object) => {
+                Value::ObjectVariant(variant_object) => {
                     let mut variant_object = variant_object.borrow_mut()?;
 
                     if let Some(v) = variant_object.object.get_mut(field) {
@@ -951,7 +951,7 @@ impl Vm {
         let value = match &target {
             Value::Object(target) => target.borrow_ref()?.get(field).cloned(),
             Value::TypedObject(target) => target.borrow_ref()?.object.get(field).cloned(),
-            Value::VariantObject(target) => target.borrow_ref()?.object.get(field).cloned(),
+            Value::ObjectVariant(target) => target.borrow_ref()?.object.get(field).cloned(),
             _ => return Ok(false),
         };
 
@@ -1112,7 +1112,7 @@ impl Vm {
                 let target = target.borrow_mut()?;
                 BorrowMut::try_map(target, |target| target.get_mut(field))
             }
-            Value::VariantObject(target) => {
+            Value::ObjectVariant(target) => {
                 let target = target.borrow_mut()?;
                 BorrowMut::try_map(target, |target| target.get_mut(field))
             }
@@ -1339,7 +1339,7 @@ impl Vm {
                     }
                 }
             }
-            Value::VariantObject(variant_object) => {
+            Value::ObjectVariant(variant_object) => {
                 let variant_object = variant_object.borrow_ref()?;
 
                 match variant_object.object.get(&***index).cloned() {
@@ -1454,7 +1454,7 @@ impl Vm {
             object.insert(key.clone(), value);
         }
 
-        self.stack.push(VariantObject {
+        self.stack.push(ObjectVariant {
             enum_hash,
             hash,
             object,
@@ -1851,7 +1851,7 @@ impl Vm {
                     return Ok(Some(f(&typed_object.object, keys)));
                 }
             }
-            (TypeCheck::Variant(hash), Value::VariantObject(variant_object)) => {
+            (TypeCheck::Variant(hash), Value::ObjectVariant(variant_object)) => {
                 let variant_object = variant_object.borrow_ref()?;
 
                 if variant_object.hash == hash {
@@ -2246,7 +2246,7 @@ impl Vm {
                 Inst::TypedObject { hash, slot } => {
                     self.op_typed_object(hash, slot)?;
                 }
-                Inst::VariantObject {
+                Inst::ObjectVariant {
                     enum_hash,
                     hash,
                     slot,
