@@ -1,8 +1,8 @@
 use crate::context::Handler;
 use crate::VmErrorKind;
 use crate::{
-    Args, Call, Context, FromValue, Future, Generator, Hash, RawRef, Ref, Shared, Stack, Stream,
-    Tuple, Unit, UnsafeFromValue, Value, Vm, VmCall, VmError, VmHalt,
+    Args, Call, Context, FromValue, Future, Generator, RawRef, Ref, Rtti, Shared, Stack, Stream,
+    Tuple, Unit, UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -32,11 +32,11 @@ impl Function {
                 .call(args, (closure.environment.clone(),))?,
             Inner::FnTuple(tuple) => {
                 Self::check_args(A::count(), tuple.args)?;
-                Value::typed_tuple(tuple.hash, args.into_vec()?)
+                Value::typed_tuple(tuple.rtti.clone(), args.into_vec()?)
             }
             Inner::FnVariantTuple(tuple) => {
                 Self::check_args(A::count(), tuple.args)?;
-                Value::variant_tuple(tuple.enum_hash, tuple.hash, args.into_vec()?)
+                Value::variant_tuple(tuple.rtti.clone(), args.into_vec()?)
             }
         };
 
@@ -76,18 +76,16 @@ impl Function {
             Inner::FnTuple(tuple) => {
                 Self::check_args(args, tuple.args)?;
 
-                let value = Value::typed_tuple(tuple.hash, vm.stack_mut().pop_sequence(args)?);
+                let value =
+                    Value::typed_tuple(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
                 vm.stack_mut().push(value);
                 None
             }
             Inner::FnVariantTuple(tuple) => {
                 Self::check_args(args, tuple.args)?;
 
-                let value = Value::variant_tuple(
-                    tuple.enum_hash,
-                    tuple.hash,
-                    vm.stack_mut().pop_sequence(args)?,
-                );
+                let value =
+                    Value::variant_tuple(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
 
                 vm.stack_mut().push(value);
                 None
@@ -147,20 +145,16 @@ impl Function {
     }
 
     /// Create a function pointer from an offset.
-    pub(crate) fn from_tuple(hash: Hash, args: usize) -> Self {
+    pub(crate) fn from_tuple(rtti: Arc<Rtti>, args: usize) -> Self {
         Self {
-            inner: Inner::FnTuple(FnTuple { hash, args }),
+            inner: Inner::FnTuple(FnTuple { rtti, args }),
         }
     }
 
     /// Create a function pointer that constructs a tuple variant.
-    pub(crate) fn from_variant_tuple(enum_hash: Hash, hash: Hash, args: usize) -> Self {
+    pub(crate) fn from_variant_tuple(rtti: Arc<VariantRtti>, args: usize) -> Self {
         Self {
-            inner: Inner::FnVariantTuple(FnVariantTuple {
-                enum_hash,
-                hash,
-                args,
-            }),
+            inner: Inner::FnVariantTuple(FnVariantTuple { rtti, args }),
         }
     }
 
@@ -194,14 +188,10 @@ impl fmt::Debug for Function {
                 )?;
             }
             Inner::FnTuple(tuple) => {
-                write!(f, "tuple (type: {})", tuple.hash)?;
+                write!(f, "tuple {}", tuple.rtti.item)?;
             }
             Inner::FnVariantTuple(tuple) => {
-                write!(
-                    f,
-                    "variant tuple (enum: {}, type: {})",
-                    tuple.enum_hash, tuple.hash
-                )?;
+                write!(f, "variant tuple {}", tuple.rtti.item)?;
             }
         }
 
@@ -326,17 +316,15 @@ struct FnClosureOffset {
 #[derive(Debug)]
 struct FnTuple {
     /// The type of the tuple.
-    hash: Hash,
+    rtti: Arc<Rtti>,
     /// The number of arguments the tuple takes.
     args: usize,
 }
 
 #[derive(Debug)]
 struct FnVariantTuple {
-    /// The enum the variant belongs to.
-    enum_hash: Hash,
-    /// The type of the tuple.
-    hash: Hash,
+    /// Runtime information fo variant.
+    rtti: Arc<VariantRtti>,
     /// The number of arguments the tuple takes.
     args: usize,
 }

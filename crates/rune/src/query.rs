@@ -26,6 +26,7 @@ pub(crate) enum Indexed {
 }
 
 pub struct Struct {
+    /// The ast of the struct.
     ast: ast::ItemStruct,
 }
 
@@ -297,7 +298,7 @@ impl Query {
             let source_id = entry.source_id;
 
             let meta = self
-                .build_indexed_entry(item, entry, true)
+                .build_indexed_entry(&item, entry, true)
                 .map_err(|error| (source_id, error))?;
 
             visitor.visit_meta(source_id, &meta, span);
@@ -308,14 +309,12 @@ impl Query {
 
     /// Query for the given meta item.
     pub fn query_meta(&mut self, item: &Item) -> Result<Option<CompileMeta>, CompileError> {
-        let item = Item::of(item);
-
-        if let Some(meta) = self.unit.borrow().lookup_meta(&item) {
+        if let Some(meta) = self.unit.borrow().lookup_meta(item) {
             return Ok(Some(meta));
         }
 
         // See if there's an index entry we can construct.
-        let entry = match self.indexed.remove(&item) {
+        let entry = match self.indexed.remove(item) {
             Some(entry) => entry,
             None => return Ok(None),
         };
@@ -326,7 +325,7 @@ impl Query {
     /// Build a single, indexed entry and return its metadata.
     pub(crate) fn build_indexed_entry(
         &mut self,
-        item: Item,
+        item: &Item,
         entry: IndexedEntry,
         unused: bool,
     ) -> Result<CompileMeta, CompileError> {
@@ -341,17 +340,15 @@ impl Query {
 
         let kind = match indexed {
             Indexed::Enum => CompileMetaKind::Enum {
-                type_of: Type::from(Hash::type_hash(&item)),
+                type_of: Type::from(Hash::type_hash(item)),
                 item: item.clone(),
             },
             Indexed::Variant(variant) => {
                 // Assert that everything is built for the enum.
                 self.query_meta(&variant.enum_item)?;
-                self.variant_into_item_decl(&item, variant.ast, Some(variant.enum_item), &*source)?
+                self.variant_into_item_decl(item, variant.ast, Some(variant.enum_item), &*source)?
             }
-            Indexed::Struct(st) => {
-                self.struct_into_item_decl(&item, st.ast.body, None, &*source)?
-            }
+            Indexed::Struct(st) => self.struct_into_item_decl(item, st.ast.body, None, &*source)?,
             Indexed::Function(f) => {
                 self.queue.push_back(BuildEntry {
                     item: item.clone(),
@@ -362,7 +359,7 @@ impl Query {
                 });
 
                 CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(&item)),
+                    type_of: Type::from(Hash::type_hash(item)),
                     item: item.clone(),
                 }
             }
@@ -377,7 +374,7 @@ impl Query {
                 });
 
                 CompileMetaKind::Closure {
-                    type_of: Type::from(Hash::type_hash(&item)),
+                    type_of: Type::from(Hash::type_hash(item)),
                     item: item.clone(),
                     captures,
                 }
@@ -393,7 +390,7 @@ impl Query {
                 });
 
                 CompileMetaKind::AsyncBlock {
-                    type_of: Type::from(Hash::type_hash(&item)),
+                    type_of: Type::from(Hash::type_hash(item)),
                     item: item.clone(),
                     captures,
                 }

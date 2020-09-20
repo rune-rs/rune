@@ -595,9 +595,7 @@ pub enum Inst {
     /// => <object>
     /// ```
     ObjectVariant {
-        /// The enum the variant belongs to.
-        enum_hash: Hash,
-        /// The type of the object to construct.
+        /// The type hash of the object variant to construct.
         hash: Hash,
         /// The static slot of the object keys.
         slot: usize,
@@ -1038,12 +1036,8 @@ impl fmt::Display for Inst {
             Self::TypedObject { hash, slot } => {
                 write!(fmt, "typed-object {}, {}", hash, slot)?;
             }
-            Self::ObjectVariant {
-                enum_hash,
-                hash,
-                slot,
-            } => {
-                write!(fmt, "variant-object {}, {}, {}", enum_hash, hash, slot)?;
+            Self::ObjectVariant { hash, slot } => {
+                write!(fmt, "object-variant {}, {}", hash, slot)?;
             }
             Self::Object { slot } => {
                 write!(fmt, "object {}", slot)?;

@@ -11,8 +11,8 @@ use crate::{Errors, LoadError, Resolve as _, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst,
-    IntoComponent, Item, Label, Names, Source, Span, StaticString, Type, Unit, UnitFn,
-    UnitTypeInfo,
+    IntoComponent, Item, Label, Names, Rtti, Source, Span, StaticString, Type, Unit, UnitFn,
+    UnitTypeInfo, VariantRtti,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -25,6 +25,18 @@ pub enum UnitBuilderError {
     FunctionConflict {
         /// The signature of an already existing function.
         existing: DebugSignature,
+    },
+    /// Trying to insert a conflicting type.
+    #[error("tried to insert rtti for conflicting type with hash `{hash}`")]
+    TypeRttiConflict {
+        /// The hash of the type.
+        hash: Hash,
+    },
+    /// Trying to insert a conflicting variant.
+    #[error("tried to insert rtti for conflicting variant with hash `{hash}`")]
+    VariantRttiConflict {
+        /// The hash of the variant.
+        hash: Hash,
     },
     /// Tried to add an use that conflicts with an existing one.
     #[error("conflicting type already exists `{existing}`")]
@@ -217,6 +229,10 @@ pub struct UnitBuilder {
     static_object_keys: Vec<Box<[String]>>,
     /// Used to detect duplicates in the collection of static object keys.
     static_object_keys_rev: HashMap<Hash, usize>,
+    /// Runtime type information for types.
+    rtti: HashMap<Hash, Arc<Rtti>>,
+    /// Runtime type information for variants.
+    variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
     /// The current label count.
     label_count: usize,
     /// A collection of required function hashes.
@@ -342,6 +358,8 @@ impl UnitBuilder {
             self.static_strings,
             self.static_bytes,
             self.static_object_keys,
+            self.rtti,
+            self.variant_rtti,
             self.debug,
         )
     }
@@ -570,6 +588,15 @@ impl UnitBuilder {
                     args: DebugArgs::TupleArgs(tuple.args),
                 };
 
+                let rtti = Arc::new(Rtti {
+                    hash: tuple.hash,
+                    item: tuple.item.clone(),
+                });
+
+                if self.rtti.insert(tuple.hash, rtti).is_some() {
+                    return Err(UnitBuilderError::TypeRttiConflict { hash: tuple.hash });
+                }
+
                 if self.functions.insert(tuple.hash, info).is_some() {
                     return Err(UnitBuilderError::FunctionConflict {
                         existing: signature,
@@ -598,8 +625,17 @@ impl UnitBuilder {
             } => {
                 let enum_hash = Hash::type_hash(enum_item);
 
-                let info = UnitFn::TupleVariant {
+                let rtti = Arc::new(VariantRtti {
                     enum_hash,
+                    hash: tuple.hash,
+                    item: tuple.item.clone(),
+                });
+
+                if self.variant_rtti.insert(tuple.hash, rtti).is_some() {
+                    return Err(UnitBuilderError::VariantRttiConflict { hash: tuple.hash });
+                }
+
+                let info = UnitFn::TupleVariant {
                     hash: tuple.hash,
                     args: tuple.args,
                 };
@@ -635,6 +671,15 @@ impl UnitBuilder {
             CompileMetaKind::Struct { object, .. } => {
                 let hash = Hash::type_hash(&object.item);
 
+                let rtti = Arc::new(Rtti {
+                    hash,
+                    item: object.item.clone(),
+                });
+
+                if self.rtti.insert(hash, rtti).is_some() {
+                    return Err(UnitBuilderError::TypeRttiConflict { hash });
+                }
+
                 let info = UnitTypeInfo {
                     hash,
                     type_of: Type::from(hash),
@@ -653,6 +698,16 @@ impl UnitBuilder {
             } => {
                 let hash = Hash::type_hash(&object.item);
                 let enum_hash = Hash::type_hash(enum_item);
+
+                let rtti = Arc::new(VariantRtti {
+                    enum_hash,
+                    hash,
+                    item: object.item.clone(),
+                });
+
+                if self.variant_rtti.insert(hash, rtti).is_some() {
+                    return Err(UnitBuilderError::VariantRttiConflict { hash });
+                }
 
                 let info = UnitTypeInfo {
                     hash,

@@ -165,7 +165,9 @@ pub use crate::shared::{Mut, RawMut, RawRef, Ref, Shared, SharedPointerGuard};
 pub use crate::stack::{Stack, StackError};
 pub use crate::type_of::TypeOf;
 pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};
-pub use crate::value::{ObjectVariant, TupleVariant, TypedObject, TypedTuple, Value};
+pub use crate::value::{
+    ObjectVariant, Rtti, TupleVariant, TypedObject, TypedTuple, Value, VariantRtti,
+};
 pub use crate::vec_tuple::VecTuple;
 pub use crate::vm::{CallFrame, Vm};
 pub use crate::vm_call::VmCall;

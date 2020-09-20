@@ -8,7 +8,7 @@ use std::io::Write as _;
 pub fn module(io: bool) -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
-    module.unit(&["unit"])?;
+    module.unit("unit")?;
     module.ty::<bool>()?;
     module.ty::<char>()?;
     module.ty::<u8>()?;

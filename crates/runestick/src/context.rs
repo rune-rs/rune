@@ -57,18 +57,18 @@ pub enum ContextError {
         name: String,
     },
     /// Tried to insert a module that conflicted with an already existing one.
-    #[error("module `{name}` with hash `{hash}` already exists")]
+    #[error("module `{item}` with hash `{hash}` already exists")]
     ConflictingModule {
         /// The name of the module that conflicted.
-        name: Item,
+        item: Item,
         /// The hash of the module that conflicted.
         hash: Hash,
     },
     /// Raised when we try to register a conflicting type.
-    #[error("type with name `{name}` already exists `{existing}`")]
+    #[error("type `{item}` already exists `{existing}`")]
     ConflictingType {
         /// The name we tried to register.
-        name: Item,
+        item: Item,
         /// The type information for the type that already existed.
         existing: TypeInfo,
     },
@@ -83,10 +83,10 @@ pub enum ContextError {
         type_of: Type,
     },
     /// Error raised when attempting to register a conflicting function.
-    #[error("variant with name `{name}` already exists")]
+    #[error("variant with `{item}` already exists")]
     ConflictingVariant {
         /// The name of the conflicting variant.
-        name: Item,
+        item: Item,
     },
     /// Error raised when attempting to register an instance function on an
     /// instance which does not exist.
@@ -112,7 +112,7 @@ pub struct ContextTypeInfo {
     /// If absent, the type cannot be type checked for.
     pub type_check: TypeCheck,
     /// The name of the type.
-    pub name: Item,
+    pub item: Item,
     /// The value type of the type.
     pub type_of: Type,
     /// Information on the type.
@@ -121,7 +121,7 @@ pub struct ContextTypeInfo {
 
 impl fmt::Display for ContextTypeInfo {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{} => {}", self.name, self.type_info)?;
+        write!(fmt, "{} => {}", self.item, self.type_info)?;
         Ok(())
     }
 }
@@ -131,13 +131,13 @@ impl fmt::Display for ContextTypeInfo {
 pub enum ContextSignature {
     Function {
         /// Path to the function.
-        path: Item,
+        item: Item,
         /// Arguments.
         args: Option<usize>,
     },
     Instance {
         /// Path to the instance function.
-        path: Item,
+        item: Item,
         /// Name of the instance function.
         name: String,
         /// Arguments.
@@ -150,8 +150,8 @@ pub enum ContextSignature {
 impl fmt::Display for ContextSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Function { path, args } => {
-                write!(fmt, "{}(", path)?;
+            Self::Function { item, args } => {
+                write!(fmt, "{}(", item)?;
 
                 if let Some(args) = args {
                     let mut it = 0..*args;
@@ -171,12 +171,12 @@ impl fmt::Display for ContextSignature {
                 write!(fmt, ")")?;
             }
             Self::Instance {
-                path,
+                item,
                 name,
                 self_type_info,
                 args,
             } => {
-                write!(fmt, "{}::{}(self: {}", path, name, self_type_info)?;
+                write!(fmt, "{}::{}(self: {}", item, name, self_type_info)?;
 
                 if let Some(args) = args {
                     for n in 0..*args {
@@ -383,28 +383,25 @@ impl Context {
         type_of: Type,
         ty: &ModuleType,
     ) -> Result<(), ContextError> {
-        let name = module.path.join(&ty.name);
-        let hash = Hash::type_hash(&name);
+        let item = module.path.extended(&*ty.name);
+        let hash = Hash::type_hash(&item);
 
         self.install_type_info(
             hash,
             ContextTypeInfo {
                 type_check: TypeCheck::Type(*type_of),
-                name: name.clone(),
+                item: item.clone(),
                 type_of,
-                type_info: ty.type_info,
+                type_info: ty.type_info.clone(),
             },
         )?;
 
         self.install_meta(
-            name.clone(),
+            item.clone(),
             CompileMeta {
                 kind: CompileMetaKind::Struct {
                     type_of,
-                    object: CompileMetaStruct {
-                        item: name,
-                        fields: None,
-                    },
+                    object: CompileMetaStruct { item, fields: None },
                 },
                 source: None,
             },
@@ -414,7 +411,7 @@ impl Context {
     }
 
     fn install_type_info(&mut self, hash: Hash, info: ContextTypeInfo) -> Result<(), ContextError> {
-        self.names.insert(&info.name);
+        self.names.insert(&info.item);
 
         // reverse lookup for types.
         if let Some(existing) = self.types_rev.insert(info.type_of, hash) {
@@ -427,7 +424,7 @@ impl Context {
 
         if let Some(existing) = self.types.insert(hash, info) {
             return Err(ContextError::ConflictingType {
-                name: existing.name,
+                item: existing.item,
                 existing: existing.type_info,
             });
         }
@@ -439,16 +436,16 @@ impl Context {
     fn install_function(
         &mut self,
         module: &Module,
-        name: &Item,
+        item: &Item,
         f: &ModuleFn,
     ) -> Result<(), ContextError> {
-        let name = module.path.join(name);
-        self.names.insert(&name);
+        let item = module.path.join(item);
+        self.names.insert(&item);
 
-        let hash = Hash::type_hash(&name);
+        let hash = Hash::type_hash(&item);
 
         let signature = ContextSignature::Function {
-            path: name.clone(),
+            item: item.clone(),
             args: f.args,
         };
 
@@ -462,11 +459,11 @@ impl Context {
         self.functions.insert(hash, f.handler.clone());
 
         self.meta.insert(
-            name.clone(),
+            item.clone(),
             CompileMeta {
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(hash),
-                    item: name,
+                    item,
                 },
                 source: None,
             },
@@ -516,7 +513,7 @@ impl Context {
             Some(info) => info,
             None => {
                 return Err(ContextError::MissingInstance {
-                    instance_type: assoc.type_info,
+                    instance_type: assoc.type_info.clone(),
                 });
             }
         };
@@ -524,10 +521,10 @@ impl Context {
         let hash = hash_fn(type_of, hash);
 
         let signature = ContextSignature::Instance {
-            path: info.name.clone(),
+            item: info.item.clone(),
             name: assoc.name.clone(),
             args: assoc.args,
-            self_type_info: info.type_info,
+            self_type_info: info.type_info.clone(),
         };
 
         if let Some(old) = self.functions_info.insert(hash, signature) {
@@ -551,7 +548,7 @@ impl Context {
             return Err(ContextError::UnitAlreadyPresent);
         }
 
-        let item = module.path.join(&unit_type.item);
+        let item = module.path.extended(&*unit_type.name);
         let hash = Hash::type_hash(&item);
         self.unit_type = Some(Hash::type_hash(&item));
         self.add_internal_tuple(None, item.clone(), 0, || ())?;
@@ -560,7 +557,7 @@ impl Context {
             hash,
             ContextTypeInfo {
                 type_check: TypeCheck::Unit,
-                name: item,
+                item,
                 type_of: Type::from(crate::UNIT_TYPE),
                 type_info: TypeInfo::StaticType(crate::UNIT_TYPE),
             },
@@ -599,7 +596,7 @@ impl Context {
             enum_hash,
             ContextTypeInfo {
                 type_check: TypeCheck::Type(internal_enum.static_type.hash),
-                name: enum_item.clone(),
+                item: enum_item.clone(),
                 type_of: Type::from(internal_enum.static_type),
                 type_info: TypeInfo::StaticType(internal_enum.static_type),
             },
@@ -613,7 +610,7 @@ impl Context {
                 hash,
                 ContextTypeInfo {
                     type_check: variant.type_check,
-                    name: item.clone(),
+                    item: item.clone(),
                     type_of: Type::from(hash),
                     type_info: TypeInfo::StaticType(internal_enum.static_type),
                 },
@@ -637,7 +634,7 @@ impl Context {
             self.install_meta(item.clone(), meta)?;
 
             let signature = ContextSignature::Function {
-                path: item,
+                item,
                 args: Some(variant.args),
             };
 
@@ -696,7 +693,7 @@ impl Context {
             Arc::new(move |stack, args| constructor.fn_call(stack, args));
 
         let signature = ContextSignature::Function {
-            path: item,
+            item,
             args: Some(args),
         };
 

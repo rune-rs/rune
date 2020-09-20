@@ -1422,6 +1422,11 @@ impl Vm {
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
 
+        let rtti = self
+            .unit
+            .lookup_rtti(hash)
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+
         let mut object = Object::with_capacity(keys.len());
 
         let values = self.stack.drain_stack_top(keys.len())?;
@@ -1430,22 +1435,22 @@ impl Vm {
             object.insert(key.clone(), value);
         }
 
-        self.stack.push(TypedObject::new(hash, object));
+        self.stack.push(TypedObject::new(rtti.clone(), object));
         Ok(())
     }
 
     /// Operation to allocate an object.
     #[inline]
-    fn op_variant_object(
-        &mut self,
-        enum_hash: Hash,
-        hash: Hash,
-        slot: usize,
-    ) -> Result<(), VmError> {
+    fn op_object_variant(&mut self, hash: Hash, slot: usize) -> Result<(), VmError> {
         let keys = self
             .unit
             .lookup_object_keys(slot)
             .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
+
+        let rtti = self
+            .unit
+            .lookup_variant_rtti(hash)
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingVariantRtti { hash }))?;
 
         let mut object = Object::with_capacity(keys.len());
         let values = self.stack.drain_stack_top(keys.len())?;
@@ -1455,8 +1460,7 @@ impl Vm {
         }
 
         self.stack.push(ObjectVariant {
-            enum_hash,
-            hash,
+            rtti: rtti.clone(),
             object,
         });
 
@@ -1802,7 +1806,7 @@ impl Vm {
             (TypeCheck::Type(hash), Value::TypedTuple(typed_tuple)) => {
                 let typed_tuple = typed_tuple.borrow_ref()?;
 
-                if typed_tuple.hash != hash {
+                if typed_tuple.rtti.hash != hash {
                     return Ok(None);
                 }
 
@@ -1811,7 +1815,7 @@ impl Vm {
             (TypeCheck::Variant(hash), Value::TupleVariant(variant_tuple)) => {
                 let variant_tuple = variant_tuple.borrow_ref()?;
 
-                if variant_tuple.hash != hash {
+                if variant_tuple.rtti.hash != hash {
                     return Ok(None);
                 }
 
@@ -1854,7 +1858,7 @@ impl Vm {
             (TypeCheck::Variant(hash), Value::ObjectVariant(variant_object)) => {
                 let variant_object = variant_object.borrow_ref()?;
 
-                if variant_object.hash == hash {
+                if variant_object.rtti.hash == hash {
                     return Ok(Some(f(&variant_object.object, keys)));
                 }
             }
@@ -1920,12 +1924,22 @@ impl Vm {
                     call,
                     args,
                 ),
-                UnitFn::Tuple { hash, args } => Function::from_tuple(hash, args),
-                UnitFn::TupleVariant {
-                    enum_hash,
-                    hash,
-                    args,
-                } => Function::from_variant_tuple(enum_hash, hash, args),
+                UnitFn::Tuple { hash, args } => {
+                    let rtti = self
+                        .unit
+                        .lookup_rtti(hash)
+                        .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+
+                    Function::from_tuple(rtti.clone(), args)
+                }
+                UnitFn::TupleVariant { hash, args } => {
+                    let rtti = self
+                        .unit
+                        .lookup_variant_rtti(hash)
+                        .ok_or_else(|| VmError::from(VmErrorKind::MissingVariantRtti { hash }))?;
+
+                    Function::from_variant_tuple(rtti.clone(), args)
+                }
             },
             None => {
                 let handler = self
@@ -1987,17 +2001,28 @@ impl Vm {
                 } => {
                     Self::check_args(args, expected)?;
                     let tuple = self.stack.pop_sequence(args)?;
-                    let value = Value::typed_tuple(hash, tuple);
+
+                    let rtti = self
+                        .unit
+                        .lookup_rtti(hash)
+                        .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+
+                    let value = Value::typed_tuple(rtti.clone(), tuple);
                     self.stack.push(value);
                 }
                 UnitFn::TupleVariant {
-                    enum_hash,
                     hash,
                     args: expected,
                 } => {
                     Self::check_args(args, expected)?;
+
+                    let rtti = self
+                        .unit
+                        .lookup_variant_rtti(hash)
+                        .ok_or_else(|| VmError::from(VmErrorKind::MissingVariantRtti { hash }))?;
+
                     let tuple = self.stack.pop_sequence(args)?;
-                    let value = Value::variant_tuple(enum_hash, hash, tuple);
+                    let value = Value::variant_tuple(rtti.clone(), tuple);
                     self.stack.push(value);
                 }
             },
@@ -2246,12 +2271,8 @@ impl Vm {
                 Inst::TypedObject { hash, slot } => {
                     self.op_typed_object(hash, slot)?;
                 }
-                Inst::ObjectVariant {
-                    enum_hash,
-                    hash,
-                    slot,
-                } => {
-                    self.op_variant_object(enum_hash, hash, slot)?;
+                Inst::ObjectVariant { hash, slot } => {
+                    self.op_object_variant(hash, slot)?;
                 }
                 Inst::String { slot } => {
                     self.op_string(slot)?;

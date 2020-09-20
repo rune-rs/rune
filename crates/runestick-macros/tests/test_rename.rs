@@ -20,8 +20,8 @@ fn test_rename() {
     let e = context.install(&module).unwrap_err();
 
     match e {
-        ContextError::ConflictingType { name, .. } => {
-            assert_eq!(name, Item::of(&["Bar"]));
+        ContextError::ConflictingType { item, .. } => {
+            assert_eq!(item, Item::of(&["Bar"]));
         }
         actual => {
             panic!("expected conflicting type but got: {:?}", actual);
