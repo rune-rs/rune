@@ -14,4 +14,5 @@ fn test_binary_exprs() {
     assert_parse!(r#"fn main() { 0 < (10 >= 10) }"#);
     assert_parse!(r#"fn main() { 0 < 10 && 10 > 0 }"#);
     assert_parse!(r#"fn main() { 0 < 10 && 10 > 0 || true }"#);
+    assert_parse!(r#"fn main() { false || return }"#);
 }
