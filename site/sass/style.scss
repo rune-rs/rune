@@ -438,10 +438,6 @@ nav.pagination {
         width: 100%;
         font-size: 14px;
 
-        &.big {
-            font-size: 20px;
-        }
-
         .error {
             position: absolute;
             background-color: $error-color;
@@ -454,18 +450,15 @@ nav.pagination {
     }
 
     &-console {
+        position: relative;
         display: block;
         background-color: black;
-        padding: 6px;
         font-size: 14px;
-
-        &.big {
-            font-size: 20px;
-            padding: 10px;
-        }
     }
     
     &-output {
+        padding: 6px;
+        overflow-x: auto;
         font-family: monospace;
         color: $accent2;
         white-space: pre;
@@ -482,6 +475,10 @@ nav.pagination {
         padding: 4px 0px;
         font-size: 0.7em;
         text-align: center;
+    }
+
+    &-run {
+        font-size: 14px;
     }
 
     .hidden {

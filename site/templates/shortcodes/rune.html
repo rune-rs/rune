@@ -1,7 +1,9 @@
-<div class="rune big" rune-update-url="false">
-    <div class="rune-editor {% if classes %}{{classes}}{% endif %}">{{body}}</div>
+<div class="rune big"
+    rune-update-url="false"
+    rune-run-on-change="{% if manually %}false{% else %}true{% endif %}"">
+    <div class="rune-editor {% if classes %}{{classes}}{% endif %}">{{body | safe}}</div>
     <div class="rune-console {% if classes %}{{classes}}{% endif %}">
-        <div class="rune-output"></div>
+        <div class="rune-output"><button class="rune-run">Run</button></div>
     </div>
     {% if footnote %}<div class="rune-footnote">{{footnote}}</div>{% endif %}
 </div>
