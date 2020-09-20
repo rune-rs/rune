@@ -8,6 +8,9 @@ pub struct ItemFn {
     /// The attributes for the fn
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
+    /// The visibility of the `fn` item
+    #[rune(iter)]
+    pub visibility: Option<ast::Visibility>,
     /// The optional `async` keyword.
     #[rune(iter)]
     pub async_: Option<ast::Async>,
@@ -43,6 +46,7 @@ impl ItemFn {
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
+            visibility: parser.parse()?,
             async_: parser.parse()?,
             fn_: parser.parse()?,
             name: parser.parse()?,
@@ -74,7 +78,14 @@ impl Peek for ItemFn {
 /// let item = parse_all::<ast::ItemFn>("fn hello(foo, bar) {}").unwrap();
 /// assert_eq!(item.args.items.len(), 2);
 ///
+/// let item = parse_all::<ast::ItemFn>("pub fn hello(foo, bar) {}").unwrap();
+/// let item = parse_all::<ast::ItemFn>("pub async fn hello(foo, bar) {}").unwrap();
 /// let item = parse_all::<ast::ItemFn>("#[inline] fn hello(foo, bar) {}").unwrap();
+/// let item = parse_all::<ast::ItemFn>("#[inline] pub async fn hello(foo, bar) {}").unwrap();
+///
+/// if let Some(ast::Visibility::Public(_)) = &item.visibility {} else {
+///     panic!("expected `fn` item visibility of `Public` got {:?}", &item.visibility);
+/// }
 /// assert_eq!(item.args.items.len(), 2);
 /// assert_eq!(item.attributes.len(), 1);
 ///

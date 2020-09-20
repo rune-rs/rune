@@ -181,6 +181,12 @@ pub enum ParseErrorKind {
         /// The actual token.
         actual: ast::Kind,
     },
+    /// Expected a visibility specifier.
+    #[error("expected visibility specifier `pub`, `pub (in path)`, `pub(super)`, `pub(crate)`, or `crate` got `{actual}`")]
+    ExpectedVisibility {
+        /// The actual token.
+        actual: ast::Kind,
+    },
     /// Expression group required to break precedence.
     #[error("group required in expression to determine precedence")]
     PrecedenceGroupRequired,

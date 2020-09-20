@@ -63,3 +63,39 @@ impl<'a> Resolve<'a> for Ident {
         }
     }
 }
+
+impl std::convert::From<ast::Super> for Ident {
+    fn from(super_: ast::Super) -> Self {
+        Ident {
+            token: super_.token,
+            kind: ast::StringSource::Text,
+        }
+    }
+}
+
+impl std::convert::From<ast::Crate> for Ident {
+    fn from(crate_: ast::Crate) -> Self {
+        Ident {
+            token: crate_.token,
+            kind: ast::StringSource::Text,
+        }
+    }
+}
+
+impl std::convert::From<ast::Underscore> for Ident {
+    fn from(underscore: ast::Underscore) -> Self {
+        Ident {
+            token: underscore.token,
+            kind: ast::StringSource::Text,
+        }
+    }
+}
+
+impl std::convert::From<ast::Extern> for Ident {
+    fn from(extern_: ast::Extern) -> Self {
+        Ident {
+            token: extern_.token,
+            kind: ast::StringSource::Text,
+        }
+    }
+}

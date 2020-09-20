@@ -7,6 +7,9 @@ pub struct ItemMod {
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
+    /// The visibility of the `mod` item
+    #[rune(iter)]
+    pub visibility: Option<ast::Visibility>,
     /// The `mod` keyword.
     pub mod_: ast::Mod,
     /// The name of the mod.
@@ -23,6 +26,7 @@ impl ItemMod {
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
+            visibility: parser.parse()?,
             mod_: parser.parse()?,
             name: parser.parse()?,
             body: parser.parse()?,
