@@ -13,21 +13,29 @@ Rune prioritized excellent support for `async` with support for async functions,
 [closures], [blocks], and [generators]. And native support for [`select`], a
 popular control flow mechanism for asynchronous code.
 
-```rune
+{% rune(footnote = "Asynchronous programming using select", manually = true) %}
+use std::future;
+
 struct Timeout;
 
 async fn request(timeout) {
-    let request = http::get("https://google.com");
-    let timeout = time::delay_for(time::Duration::from_secs(2));
+    let request = http::get(`http://httpstat.us/200?sleep={timeout}`);
+    let timeout = time::delay_for(time::Duration::from_secs(1));
 
     let result = select {
-        _ = timeout => Err(Timeout),
         res = request => res,
+        _ = timeout => Err(Timeout),
     }?;
 
-    Ok(result)
+    let text = result.text().await?;
+    Ok(text)
 }
-```
+
+async fn main() {
+    let result = future::join((request(0), request(1500))).await;
+    dbg(result);
+}
+{% end %}
 
 [closures]: https://rune-rs.github.io/book/async.html#async-closures
 [blocks]: https://rune-rs.github.io/book/async.html#async-blocks

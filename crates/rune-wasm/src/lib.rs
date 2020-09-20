@@ -48,12 +48,14 @@ use wasm_bindgen::prelude::*;
 
 use rune::{EmitDiagnostics as _, Spanned as _};
 use runestick::budget;
-use runestick::{ContextError, Module, Panic, Stack, Value, VmError};
+use runestick::{ContextError, Value};
 use serde::Serialize;
-use std::cell;
 use std::fmt;
-use std::io;
 use std::sync::Arc;
+
+mod core;
+mod http;
+mod time;
 
 #[derive(Default, Serialize)]
 struct Position {
@@ -107,7 +109,7 @@ impl CompileResult {
             diagnostics_output,
             diagnostics,
             result: Some(format!("{:?}", output)),
-            output: drain_output(),
+            output: core::drain_output(),
         }
     }
 
@@ -125,41 +127,33 @@ impl CompileResult {
             diagnostics_output,
             diagnostics,
             result: None,
-            output: drain_output(),
+            output: core::drain_output(),
         }
     }
 }
 
-fn inner_compile(input: &str, budget: usize) -> CompileResult {
+/// Setup a wasm-compatible context.
+fn setup_context() -> Result<runestick::Context, ContextError> {
+    let mut context = runestick::Context::with_config(false)?;
+    context.install(&core::module()?)?;
+    context.install(&time::module()?)?;
+    context.install(&http::module()?)?;
+    context.install(&rune_modules::json::module()?)?;
+    context.install(&rune_modules::toml::module()?)?;
+    Ok(context)
+}
+
+async fn inner_compile(input: String, budget: usize) -> CompileResult {
     let source = runestick::Source::new("entry", input);
     let mut sources = rune::Sources::new();
     sources.insert(source);
 
-    let mut context = match runestick::Context::with_config(false) {
+    let context = match setup_context() {
         Ok(context) => context,
         Err(error) => {
             return CompileResult::from_error(error, None, Vec::new());
         }
     };
-
-    let module = match wasm_module() {
-        Ok(module) => module,
-        Err(error) => {
-            return CompileResult::from_error(
-                format!("Failed to setup wasm module: {}", error),
-                None,
-                Vec::new(),
-            );
-        }
-    };
-
-    if let Err(error) = context.install(&module) {
-        return CompileResult::from_error(
-            format!("Failed to install WASM module: {}", error),
-            None,
-            Vec::new(),
-        );
-    }
 
     let context = Arc::new(context);
     let options = rune::Options::default();
@@ -281,7 +275,7 @@ fn inner_compile(input: &str, budget: usize) -> CompileResult {
 
     let future = budget::with(budget, execution.async_complete());
 
-    let output = match futures_executor::block_on(future) {
+    let output = match future.await {
         Ok(output) => output,
         Err(error) => {
             if let Ok(vm) = execution.vm() {
@@ -332,62 +326,6 @@ fn diagnostics_output(writer: rune::termcolor::Buffer) -> Option<String> {
 }
 
 #[wasm_bindgen]
-pub fn compile(input: &str, budget: usize) -> JsValue {
-    JsValue::from_serde(&inner_compile(input, budget)).unwrap()
-}
-
-thread_local!(static OUT: cell::RefCell<io::Cursor<Vec<u8>>> = cell::RefCell::new(io::Cursor::new(Vec::new())));
-
-/// Drain all output that has been written to `OUT`. If `OUT` contains non -
-/// UTF-8, will drain but will still return `None`.
-fn drain_output() -> Option<String> {
-    OUT.with(|out| {
-        let mut out = out.borrow_mut();
-        let out = std::mem::take(&mut *out).into_inner();
-        String::from_utf8(out).ok()
-    })
-}
-
-/// Provide a bunch of `std` functions which does something appropriate to the
-/// wasm context.
-pub fn wasm_module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std"]);
-
-    module.function(&["print"], print_impl)?;
-    module.function(&["println"], println_impl)?;
-    module.raw_fn(&["dbg"], dbg_impl)?;
-    Ok(module)
-}
-
-fn print_impl(m: &str) -> Result<(), Panic> {
-    use std::io::Write as _;
-
-    OUT.with(|out| {
-        let mut out = out.borrow_mut();
-        write!(out, "{}", m).map_err(Panic::custom)
-    })
-}
-
-fn println_impl(m: &str) -> Result<(), Panic> {
-    use std::io::Write as _;
-
-    OUT.with(|out| {
-        let mut out = out.borrow_mut();
-        writeln!(out, "{}", m).map_err(Panic::custom)
-    })
-}
-
-fn dbg_impl(stack: &mut Stack, args: usize) -> Result<(), VmError> {
-    use std::io::Write as _;
-
-    OUT.with(|out| {
-        let mut out = out.borrow_mut();
-
-        for value in stack.drain_stack_top(args)? {
-            writeln!(out, "{:?}", value).map_err(VmError::panic)?;
-        }
-
-        stack.push(Value::Unit);
-        Ok(())
-    })
+pub async fn compile(input: String, budget: usize) -> JsValue {
+    JsValue::from_serde(&inner_compile(input, budget).await).unwrap()
 }
