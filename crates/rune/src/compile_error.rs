@@ -60,6 +60,14 @@ impl CompileError {
         CompileError::new(spanned, CompileErrorKind::ConstError { msg })
     }
 
+    /// An error indicating that the given span is not a constant expression.
+    pub fn not_const<S>(spanned: S) -> Self
+    where
+        S: Spanned,
+    {
+        CompileError::new(spanned, CompileErrorKind::NotConst)
+    }
+
     /// Construct an experimental error.
     ///
     /// This should be used when an experimental feature is used which hasn't

@@ -3,6 +3,7 @@
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::const_compiler::{ConstCompiler, Consts};
+use crate::eval::Used;
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, Resolve as _, Spanned as _,
     Storage, UnitBuilder,
@@ -111,7 +112,7 @@ pub(crate) struct BuildEntry {
     /// The source id of the build entry.
     pub(crate) source_id: usize,
     /// If the queued up entry was unused or not.
-    pub(crate) unused: bool,
+    pub(crate) used: Used,
 }
 
 pub(crate) struct IndexedEntry {
@@ -343,7 +344,7 @@ impl Query {
             // NB: recursive queries might remove from `indexed`, so we expect
             // to miss things here.
             if let Some(meta) = self
-                .query_meta_with_use(&item, true)
+                .query_meta_with_use(&item, Used::Unused)
                 .map_err(|e| (source_id, e))?
             {
                 visitor.visit_meta(source_id, &meta, span);
@@ -355,14 +356,14 @@ impl Query {
 
     /// Public query meta which marks things as used.
     pub(crate) fn query_meta(&mut self, item: &Item) -> Result<Option<CompileMeta>, CompileError> {
-        self.query_meta_with_use(item, false)
+        self.query_meta_with_use(item, Used::Used)
     }
 
     /// Internal query meta with control over whether or not to mark things as unused.
     pub(crate) fn query_meta_with_use(
         &mut self,
         item: &Item,
-        unused: bool,
+        used: Used,
     ) -> Result<Option<CompileMeta>, CompileError> {
         if let Some(meta) = self.unit.borrow().lookup_meta(item) {
             return Ok(Some(meta));
@@ -374,7 +375,7 @@ impl Query {
             None => return Ok(None),
         };
 
-        Ok(Some(self.build_indexed_entry(item, entry, unused)?))
+        Ok(Some(self.build_indexed_entry(item, entry, used)?))
     }
 
     /// Build a single, indexed entry and return its metadata.
@@ -382,7 +383,7 @@ impl Query {
         &mut self,
         item: &Item,
         entry: IndexedEntry,
-        unused: bool,
+        used: Used,
     ) -> Result<CompileMeta, CompileError> {
         let IndexedEntry {
             span: entry_span,
@@ -410,7 +411,7 @@ impl Query {
                     build: Build::Function(f),
                     source,
                     source_id,
-                    unused,
+                    used,
                 });
 
                 CompileMetaKind::Function {
@@ -425,7 +426,7 @@ impl Query {
                     build: Build::Closure(c),
                     source,
                     source_id,
-                    unused,
+                    used,
                 });
 
                 CompileMetaKind::Closure {
@@ -442,7 +443,7 @@ impl Query {
                     build: Build::AsyncBlock(async_block),
                     source,
                     source_id,
-                    unused,
+                    used,
                 });
 
                 CompileMetaKind::AsyncBlock {
@@ -458,15 +459,15 @@ impl Query {
                     query: self,
                 };
 
-                let const_value = const_compiler.eval_expr(&c.expr, unused)?;
+                let const_value = const_compiler.eval_expr(&c.expr, used)?;
 
-                if unused {
+                if used.is_unused() {
                     self.queue.push_back(BuildEntry {
                         item: item.clone(),
                         build: Build::UnusedConst(c),
                         source,
                         source_id,
-                        unused,
+                        used,
                     });
                 }
 
