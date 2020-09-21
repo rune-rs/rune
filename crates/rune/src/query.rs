@@ -2,7 +2,7 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::const_compiler::{ConstCompiler, Consts};
+use crate::const_compiler::{ConstBudget, ConstCompiler, Consts};
 use crate::eval::Used;
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, Resolve as _, Spanned as _,
@@ -454,6 +454,8 @@ impl Query {
             }
             Indexed::Const(c) => {
                 let mut const_compiler = ConstCompiler {
+                    budget: ConstBudget::new(1_000),
+                    scopes: Default::default(),
                     item: item.clone(),
                     source: &*source,
                     query: self,

@@ -531,6 +531,9 @@ impl<'a> Compiler<'a> {
                     );
                 }
                 CompileMetaKind::Const { const_value, .. } => match const_value {
+                    ConstValue::Unit => {
+                        self.asm.push(Inst::unit(), span);
+                    }
                     ConstValue::Integer(n) => {
                         self.asm.push(Inst::integer(*n), span);
                     }

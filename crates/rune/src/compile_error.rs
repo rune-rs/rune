@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::unit_builder::UnitBuilderError;
 use crate::{ParseError, ParseErrorKind, Spanned};
-use runestick::{CompileMeta, Item, SourceId, Span};
+use runestick::{CompileMeta, ConstValue, Item, SourceId, Span, TypeInfo, TypeOf};
 use std::error;
 use std::fmt;
 use std::io;
@@ -58,6 +58,21 @@ impl CompileError {
         S: Spanned,
     {
         CompileError::new(spanned, CompileErrorKind::ConstError { msg })
+    }
+
+    /// An error raised when we expect a certain constant value but get another.
+    pub fn const_expected<S, E>(spanned: S, actual: ConstValue) -> Self
+    where
+        S: Spanned,
+        E: TypeOf,
+    {
+        CompileError::new(
+            spanned,
+            CompileErrorKind::ConstExpectedValue {
+                expected: E::type_info(),
+                actual: actual.type_info(),
+            },
+        )
     }
 
     /// An error indicating that the given span is not a constant expression.
@@ -133,6 +148,14 @@ pub enum CompileErrorKind {
     ConstError {
         /// Message describing the error.
         msg: &'static str,
+    },
+    /// A constant evaluation errored.
+    #[error("expected a value of type {expected} but got {actual}")]
+    ConstExpectedValue {
+        /// The expected value.
+        expected: TypeInfo,
+        /// The value we got instead.
+        actual: TypeInfo,
     },
     /// Trying to use an experimental feature which was not enabled.
     #[error("experimental feature: {msg}")]
@@ -397,7 +420,7 @@ pub enum CompileErrorKind {
         number: ast::Number,
     },
     /// Trying to treat a non-constant expression as constant.
-    #[error("unsupported constant expression")]
+    #[error("not a constant expression")]
     NotConst,
     /// Trying to process a cycle of constants.
     #[error("constant cycle detected")]
