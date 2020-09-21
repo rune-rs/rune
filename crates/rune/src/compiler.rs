@@ -182,7 +182,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
         build,
         source,
         source_id,
-        unused,
+        used,
     } = entry;
 
     let mut asm = unit.borrow().new_assembly(source_id);
@@ -215,7 +215,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
             compiler.contexts.push(span);
             compiler.compile((f.ast, false))?;
 
-            if unused {
+            if used.is_unused() {
                 compiler.warnings.not_used(source_id, span, None);
             } else {
                 unit.borrow_mut()
@@ -252,7 +252,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
 
             compiler.compile((f.ast, true))?;
 
-            if unused {
+            if used.is_unused() {
                 compiler.warnings.not_used(source_id, span, None);
             } else {
                 unit.borrow_mut().new_instance_function(
@@ -279,7 +279,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
             compiler.contexts.push(span);
             compiler.compile((c.ast, &c.captures[..]))?;
 
-            if unused {
+            if used.is_unused() {
                 compiler.warnings.not_used(source_id, span, None);
             } else {
                 unit.borrow_mut()
@@ -292,7 +292,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
             compiler.contexts.push(span);
             compiler.compile((&async_block.ast, &async_block.captures[..]))?;
 
-            if unused {
+            if used.is_unused() {
                 compiler.warnings.not_used(source_id, span, None);
             } else {
                 unit.borrow_mut().new_function(
@@ -534,11 +534,15 @@ impl<'a> Compiler<'a> {
                     ConstValue::Integer(n) => {
                         self.asm.push(Inst::integer(*n), span);
                     }
+                    ConstValue::Float(n) => {
+                        self.asm.push(Inst::float(*n), span);
+                    }
                     ConstValue::Bool(b) => {
                         self.asm.push(Inst::bool(*b), span);
                     }
-                    ConstValue::String(slot) => {
-                        self.asm.push(Inst::String { slot: *slot }, span);
+                    ConstValue::String(s) => {
+                        let slot = self.unit.borrow_mut().new_static_string(&s)?;
+                        self.asm.push(Inst::String { slot }, span);
                     }
                 },
                 _ => {

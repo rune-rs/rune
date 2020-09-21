@@ -181,6 +181,7 @@ mod const_compiler;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;
 mod errors;
+mod eval;
 mod index;
 mod index_scopes;
 mod items;

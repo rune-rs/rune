@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::collections::HashMap;
+use crate::eval::Used;
 use crate::index_scopes::IndexScopes;
 use crate::items::Items;
 use crate::query::{Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query};
@@ -183,7 +184,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 build: Build::InstanceFunction(f),
                 source: self.source.clone(),
                 source_id: self.source_id,
-                unused: false,
+                used: Used::Used,
             });
 
             let meta = CompileMeta {
@@ -206,7 +207,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 build: Build::Function(fun),
                 source: self.source.clone(),
                 source_id: self.source_id,
-                unused: false,
+                used: Used::Used,
             });
 
             self.query.unit.borrow_mut().insert_meta(CompileMeta {
@@ -756,6 +757,13 @@ impl Index<ast::Item> for Indexer<'_> {
                 }
             }
             ast::Item::ItemConst(item_const) => {
+                if let Some(first) = item_const.attributes.first() {
+                    return Err(CompileError::internal(
+                        first,
+                        "attributes on constants are not supported",
+                    ));
+                }
+
                 let span = item_const.span();
                 let name = item_const.name.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(name.as_ref());
