@@ -2,8 +2,8 @@ use crate::budget;
 use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
-    Args, Awaited, BorrowMut, Bytes, Call, ConstValue, Context, FromValue, Function, Future,
-    Generator, GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object,
+    Args, Awaited, BorrowMut, Bytes, Call, Context, FromValue, Function, Future, Generator,
+    GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object,
     ObjectVariant, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject, Unit,
     Value, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
 };
@@ -1914,22 +1914,6 @@ impl Vm {
         Ok(())
     }
 
-    /// Load a constant onto the stack.
-    fn op_const(&mut self, hash: Hash) -> Result<(), VmError> {
-        let const_value = self.unit.lookup_const(hash)?;
-
-        let value = match const_value {
-            ConstValue::Bool(b) => Value::Bool(*b),
-            ConstValue::String(slot) => {
-                let string = self.unit.lookup_string(*slot)?;
-                Value::StaticString(string.clone())
-            }
-        };
-
-        self.stack.push(value);
-        Ok(())
-    }
-
     /// Load a function as a value onto the stack.
     fn op_load_fn(&mut self, hash: Hash) -> Result<(), VmError> {
         let function = match self.unit.lookup(hash) {
@@ -2206,9 +2190,6 @@ impl Vm {
                         // NB: the future itself will advance the virtual machine.
                         return Ok(VmHalt::Awaited(Awaited::Select(select)));
                     }
-                }
-                Inst::Const { hash } => {
-                    self.op_const(hash)?;
                 }
                 Inst::LoadFn { hash } => {
                     self.op_load_fn(hash)?;

@@ -117,6 +117,7 @@ pub use self::compile_meta::{
     CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
     CompileSource,
 };
+pub use self::const_value::ConstValue;
 pub use self::from_value::{FromValue, UnsafeFromValue};
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
@@ -147,7 +148,6 @@ pub use crate::any::Any;
 pub use crate::awaited::Awaited;
 pub use crate::bytes::Bytes;
 pub use crate::call::Call;
-pub use crate::const_value::ConstValue;
 pub use crate::context::{Context, ContextError};
 pub use crate::debug::{DebugInfo, DebugInst};
 pub use crate::function::Function;

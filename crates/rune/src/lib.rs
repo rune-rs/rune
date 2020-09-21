@@ -204,6 +204,7 @@ mod traits;
 mod unit_builder;
 mod warning;
 mod worker;
+
 // NB: this has to be defined before the `tests` module, because it's used in
 // there.
 #[cfg(any(test, feature = "testing"))]

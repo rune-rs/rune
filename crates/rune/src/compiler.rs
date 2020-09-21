@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compile_visitor::NoopCompileVisitor;
-use crate::const_compiler::ConstCompiler;
+use crate::const_compiler::Consts;
 use crate::items::Items;
 use crate::loops::Loops;
 use crate::query::{Build, BuildEntry, Query};
@@ -14,7 +14,8 @@ use crate::{
     Options, Resolve as _, SourceLoader, Sources, Spanned as _, Storage, UnitBuilder, Warnings,
 };
 use runestick::{
-    CompileMeta, CompileMetaKind, Context, Inst, InstValue, Item, Label, Source, Span, TypeCheck,
+    CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label, Source, Span,
+    TypeCheck,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -78,6 +79,8 @@ pub fn compile_with_options(
     let storage = Storage::new();
     // Worker queue.
     let mut queue = VecDeque::new();
+    // Constants storage.
+    let consts = Rc::new(RefCell::new(Consts::default()));
 
     // Queue up the initial sources to be loaded.
     for source_id in sources.source_ids() {
@@ -95,6 +98,7 @@ pub fn compile_with_options(
         sources,
         options,
         unit.clone(),
+        consts.clone(),
         errors,
         warnings,
         visitor,
@@ -301,21 +305,8 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
                 )?;
             }
         }
-        Build::Const(c) => {
-            let mut const_compiler = ConstCompiler {
-                source: &*source,
-                storage: &storage,
-                unit,
-            };
-
-            let const_value = const_compiler.eval_expr(&c.expr)?;
-
-            if unused {
-                compiler.warnings.not_used(source_id, c.expr.span(), None);
-                return Ok(());
-            }
-
-            unit.borrow_mut().insert_const(&item, const_value)?;
+        Build::UnusedConst(c) => {
+            warnings.not_used(source_id, c.expr.span(), None);
         }
     }
 
@@ -539,13 +530,17 @@ impl<'a> Compiler<'a> {
                         format!("fn `{}`", item),
                     );
                 }
-                CompileMetaKind::Const { item, hash } => {
-                    self.asm.push_with_comment(
-                        Inst::Const { hash: *hash },
-                        span,
-                        format!("const `{}`", item),
-                    );
-                }
+                CompileMetaKind::Const { const_value, .. } => match const_value {
+                    ConstValue::Integer(n) => {
+                        self.asm.push(Inst::integer(*n), span);
+                    }
+                    ConstValue::Bool(b) => {
+                        self.asm.push(Inst::bool(*b), span);
+                    }
+                    ConstValue::String(slot) => {
+                        self.asm.push(Inst::String { slot: *slot }, span);
+                    }
+                },
                 _ => {
                     return Err(CompileError::new(
                         span,

@@ -52,6 +52,14 @@ impl CompileError {
         CompileError::new(spanned, CompileErrorKind::Internal { msg })
     }
 
+    /// An error raised during constant computation.
+    pub fn const_error<S>(spanned: S, msg: &'static str) -> Self
+    where
+        S: Spanned,
+    {
+        CompileError::new(spanned, CompileErrorKind::ConstError { msg })
+    }
+
     /// Construct an experimental error.
     ///
     /// This should be used when an experimental feature is used which hasn't
@@ -109,7 +117,13 @@ pub enum CompileErrorKind {
     /// An internal encoder invariant was broken.
     #[error("internal compiler error: {msg}")]
     Internal {
-        /// The message of the variant.
+        /// The message of the internal error.
+        msg: &'static str,
+    },
+    /// A constant evaluation errored.
+    #[error("error during constant evaluation: {msg}")]
+    ConstError {
+        /// Message describing the error.
         msg: &'static str,
     },
     /// Trying to use an experimental feature which was not enabled.
@@ -308,6 +322,12 @@ pub enum CompileErrorKind {
         /// The actual number of arguments.
         actual: usize,
     },
+    /// A meta item that can't be used as a constant.
+    #[error("`{meta}` cannot be used as a const")]
+    UnsupportedMetaConst {
+        /// The meta item we tried to use as a const.
+        meta: CompileMeta,
+    },
     /// A meta item that is not supported in the given pattern position.
     #[error("`{meta}` is not supported in a pattern like this")]
     UnsupportedMetaPattern {
@@ -371,4 +391,7 @@ pub enum CompileErrorKind {
     /// Trying to treat a non-constant expression as constant.
     #[error("unsupported constant expression")]
     NotConst,
+    /// Trying to process a cycle of constants.
+    #[error("constant cycle detected")]
+    ConstCycle,
 }
