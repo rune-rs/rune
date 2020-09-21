@@ -1,10 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::loops::Loop;
-use crate::traits::{Compile, Resolve as _};
-use crate::CompileResult;
-use crate::Spanned as _;
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile a for loop.
 impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {

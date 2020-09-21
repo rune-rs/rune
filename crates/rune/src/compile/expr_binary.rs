@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::{Compile, Resolve as _};
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Spanned as _};
-use runestick::{Inst, InstOp, InstTarget};
+use crate::compile::prelude::*;
 
 /// Compile a binary expression.
 impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {

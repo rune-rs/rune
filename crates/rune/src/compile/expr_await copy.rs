@@ -1,8 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::error::CompileResult;
-use crate::traits::Compile;
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile an `.await` expression.
 impl Compile<(&ast::ExprAwait, Needs)> for Compiler<'_>{

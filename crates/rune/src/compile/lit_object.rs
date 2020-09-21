@@ -1,10 +1,5 @@
-use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
-use runestick::{CompileMetaKind, Hash, Inst, Item, Span};
+use crate::compile::prelude::*;
 
 /// Compile a literal object.
 impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {

@@ -54,11 +54,22 @@ impl<'a> ConstCompiler<'a> {
             return Err(CompileError::new(expr, CompileErrorKind::ConstCycle));
         }
 
-        let const_value = match self.eval(expr, used)? {
-            Some(const_value) => const_value,
-            None => {
-                return Err(CompileError::new(expr, CompileErrorKind::NotConst));
-            }
+        let const_value = match self.eval(expr, used) {
+            Ok(const_value) => const_value,
+            Err(outcome) => match outcome {
+                crate::eval::EvalOutcome::Error(error) => {
+                    return Err(error);
+                }
+                crate::eval::EvalOutcome::NotConst(span) => {
+                    return Err(CompileError::new(span, CompileErrorKind::NotConst))
+                }
+                crate::eval::EvalOutcome::Break(span, _) => {
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::BreakOutsideOfLoop,
+                    ))
+                }
+            },
         };
 
         if self

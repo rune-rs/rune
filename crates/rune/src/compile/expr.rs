@@ -1,10 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::worker::Expanded;
-use crate::CompileResult;
-use crate::{CompileError, Spanned as _};
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile an expression.
 impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {

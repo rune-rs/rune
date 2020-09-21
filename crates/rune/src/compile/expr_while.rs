@@ -1,10 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::loops::Loop;
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::Spanned as _;
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile a while loop.
 impl Compile<(&ast::ExprWhile, Needs)> for Compiler<'_> {

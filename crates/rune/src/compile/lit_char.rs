@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{Resolve as _, Spanned as _};
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile a literal character.
 impl Compile<(&ast::LitChar, Needs)> for Compiler<'_> {

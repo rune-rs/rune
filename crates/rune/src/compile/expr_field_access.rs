@@ -1,10 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
-use runestick::{Inst, Span};
-use std::convert::TryFrom as _;
+use crate::compile::prelude::*;
 
 /// Compile an expr field access, like `<value>.<field>`.
 impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {

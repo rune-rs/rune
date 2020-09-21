@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::Spanned as _;
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// An expr index set operation.
 impl Compile<(&ast::ExprIndexSet, Needs)> for Compiler<'_> {

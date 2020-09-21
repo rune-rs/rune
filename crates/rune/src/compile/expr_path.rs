@@ -1,8 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Spanned as _};
+use crate::compile::prelude::*;
 
 /// Compile `self`.
 impl Compile<(&ast::Path, Needs)> for Compiler<'_> {

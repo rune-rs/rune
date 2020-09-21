@@ -6,26 +6,23 @@ impl Eval<&ast::LitTemplate> for ConstCompiler<'_> {
         &mut self,
         lit_template: &ast::LitTemplate,
         used: Used,
-    ) -> Result<Option<ConstValue>, crate::CompileError> {
-        self.budget.take(lit_template)?;
-
+    ) -> Result<ConstValue, EvalOutcome> {
+        let span = lit_template.span();
+        self.budget.take(span)?;
         let template = self.resolve(lit_template)?;
 
         let mut buf = String::new();
 
-        for component in template.components {
+        for component in &template.components {
             match component {
                 ast::TemplateComponent::String(string) => {
+                    self.budget.take(lit_template)?;
                     buf.push_str(&string);
                 }
                 ast::TemplateComponent::Expr(expr) => {
-                    let span = expr.span();
-                    let const_value = self
-                        .eval(&*expr, used)?
-                        .ok_or_else(|| CompileError::not_const(span))?;
+                    let const_value = self.eval(&**expr, used)?;
 
                     match const_value {
-                        ConstValue::Unit => {}
                         ConstValue::String(s) => {
                             buf.push_str(&s);
                         }
@@ -40,11 +37,14 @@ impl Eval<&ast::LitTemplate> for ConstCompiler<'_> {
                         ConstValue::Bool(b) => {
                             write!(buf, "{}", b).unwrap();
                         }
+                        _ => {
+                            return Err(EvalOutcome::not_const(lit_template));
+                        }
                     }
                 }
             }
         }
 
-        Ok(Some(ConstValue::String(buf.into_boxed_str())))
+        Ok(ConstValue::String(buf.into_boxed_str()))
     }
 }

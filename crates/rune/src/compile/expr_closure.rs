@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
-use runestick::{CompileMetaCapture, CompileMetaKind, Hash, Inst};
+use crate::compile::prelude::*;
 
 /// Compile the body of a closure function.
 impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
