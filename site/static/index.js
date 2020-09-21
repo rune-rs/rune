@@ -71,9 +71,9 @@ function setupEditor(element, options) {
     let markers = [];
 
     let editor = ace.edit(runeEditor, {
-        mode: "ace/mode/rust",
+        mode: "ace/mode/rune",
         theme: "ace/theme/nord_dark",
-        tabSize: 2,
+        tabSize: 4,
         useSoftTabs: false,
         maxLines: Infinity,
     });

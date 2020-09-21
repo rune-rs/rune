@@ -29,3 +29,19 @@ Now you can run the Zola site:
 cd site
 zola serve
 ```
+
+#### Custom Ace Mode
+
+We maintain a branch of the Ace Editor which has a special mode for rune. It can
+be found in the [`rune` branch of `rune-rs/ace`](https://github.com/rune-rs/ace/tree/rune).
+
+You can build the mode by doing the following in the ace repo:
+
+```
+$> npm i
+$> node Makefile.dryice.js normal
+$> cp .\build\src-min\mode-rune.js ..\rune\site\static\ace\
+```
+
+> Note: You'll need to adjust `..\rune\site\static\ace\` to point to your actual
+> checkout of rune if that differs.
