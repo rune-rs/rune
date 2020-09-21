@@ -755,6 +755,19 @@ impl Index<ast::Item> for Indexer<'_> {
                     }
                 }
             }
+            ast::Item::ItemConst(item_const) => {
+                let span = item_const.span();
+                let name = item_const.name.resolve(&self.storage, &*self.source)?;
+                let _guard = self.items.push_name(name.as_ref());
+
+                self.query.index_const(
+                    self.items.item(),
+                    self.source.clone(),
+                    self.source_id,
+                    *item_const.expr.clone(),
+                    span,
+                )?;
+            }
             ast::Item::MacroCall(macro_call) => {
                 let _guard = self.items.push_macro();
 
@@ -839,7 +852,7 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
         for (arg, _) in expr_closure.args.as_slice() {
             match arg {
                 ast::FnArg::Self_(s) => {
-                    return Err(CompileError::new(*s, CompileErrorKind::UnsupportedSelf));
+                    return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
                 }
                 ast::FnArg::Ident(ident) => {
                     let ident = ident.resolve(&self.storage, &*self.source)?;

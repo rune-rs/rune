@@ -177,6 +177,12 @@ pub enum VmErrorKind {
     /// The virtual machine encountered a divide-by-zero.
     #[error("division by zero")]
     DivideByZero,
+    /// Raised when we're missing a constant by hash.
+    #[error("missing constant with hash `{hash}`")]
+    MissingConst {
+        /// The hash of the missing constant.
+        hash: Hash,
+    },
     /// Failure to lookup function.
     #[error("missing entry `{item}` with hash `{hash}`")]
     MissingEntry {

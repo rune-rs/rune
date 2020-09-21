@@ -44,6 +44,7 @@ impl CompileMeta {
             CompileMetaKind::Closure { item, .. } => item,
             CompileMetaKind::AsyncBlock { item, .. } => item,
             CompileMetaKind::Macro { item, .. } => item,
+            CompileMetaKind::Const { item, .. } => item,
         }
     }
 
@@ -59,6 +60,7 @@ impl CompileMeta {
             CompileMetaKind::Closure { type_of, .. } => Some(*type_of),
             CompileMetaKind::AsyncBlock { type_of, .. } => Some(*type_of),
             CompileMetaKind::Macro { .. } => None,
+            CompileMetaKind::Const { .. } => None,
         }
     }
 }
@@ -92,6 +94,9 @@ impl fmt::Display for CompileMeta {
             }
             CompileMetaKind::Macro { item, .. } => {
                 write!(fmt, "macro {}", item)?;
+            }
+            CompileMetaKind::Const { item, .. } => {
+                write!(fmt, "const {}", item)?;
             }
         }
 
@@ -165,6 +170,13 @@ pub enum CompileMetaKind {
         item: Item,
         /// Sequence of captured variables.
         captures: Arc<Vec<CompileMetaCapture>>,
+    },
+    /// The constant expression.
+    Const {
+        /// The item for the constant expression.
+        item: Item,
+        /// The type hash of the constant.
+        hash: Hash,
     },
     /// A macro.
     Macro {

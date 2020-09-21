@@ -23,6 +23,7 @@ pub(crate) enum Indexed {
     Function(Function),
     Closure(Closure),
     AsyncBlock(AsyncBlock),
+    Const(Const),
 }
 
 pub struct Struct {
@@ -85,19 +86,29 @@ pub(crate) struct AsyncBlock {
     pub(crate) call: Call,
 }
 
+pub(crate) struct Const {
+    /// The expression to store in the constant.
+    pub(crate) expr: ast::Expr,
+}
+
 /// An entry in the build queue.
 pub(crate) enum Build {
     Function(Function),
     InstanceFunction(InstanceFunction),
     Closure(Closure),
     AsyncBlock(AsyncBlock),
+    Const(Const),
 }
 
 /// An entry in the build queue.
 pub(crate) struct BuildEntry {
+    /// The item of the build entry.
     pub(crate) item: Item,
+    /// The build entry.
     pub(crate) build: Build,
+    /// The source of the build entry.
     pub(crate) source: Arc<Source>,
+    /// The source id of the build entry.
     pub(crate) source_id: usize,
     /// If the queued up entry was unused or not.
     pub(crate) unused: bool,
@@ -130,6 +141,30 @@ impl Query {
             queue: VecDeque::new(),
             indexed: HashMap::new(),
         }
+    }
+
+    /// Index a constant expression.
+    pub fn index_const(
+        &mut self,
+        item: Item,
+        source: Arc<Source>,
+        source_id: usize,
+        expr: ast::Expr,
+        span: Span,
+    ) -> Result<(), CompileError> {
+        log::trace!("new enum: {}", item);
+
+        self.index(
+            item,
+            IndexedEntry {
+                span,
+                source,
+                source_id,
+                indexed: Indexed::Const(Const { expr }),
+            },
+        )?;
+
+        Ok(())
     }
 
     /// Add a new enum item.
@@ -272,7 +307,7 @@ impl Query {
 
         if let Some(old) = self.indexed.insert(item.clone(), entry) {
             return Err(CompileError::new(
-                old.span,
+                &old.span,
                 CompileErrorKind::ItemConflict { existing: item },
             ));
         }
@@ -381,6 +416,7 @@ impl Query {
             }
             Indexed::AsyncBlock(async_block) => {
                 let captures = async_block.captures.clone();
+
                 self.queue.push_back(BuildEntry {
                     item: item.clone(),
                     build: Build::AsyncBlock(async_block),
@@ -393,6 +429,20 @@ impl Query {
                     type_of: Type::from(Hash::type_hash(item)),
                     item: item.clone(),
                     captures,
+                }
+            }
+            Indexed::Const(c) => {
+                self.queue.push_back(BuildEntry {
+                    item: item.clone(),
+                    build: Build::Const(c),
+                    source,
+                    source_id,
+                    unused,
+                });
+
+                CompileMetaKind::Const {
+                    item: item.clone(),
+                    hash: Hash::type_hash(item),
                 }
             }
         };

@@ -70,7 +70,7 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
                 }
 
                 return Err(CompileError::new(
-                    branch.span(),
+                    branch,
                     CompileErrorKind::UnsupportedSelectPattern,
                 ));
             }

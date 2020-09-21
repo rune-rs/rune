@@ -10,8 +10,8 @@ use crate::CompileResult;
 use crate::{Errors, LoadError, Resolve as _, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
-    Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst,
-    IntoComponent, Item, Label, Names, Rtti, Source, Span, StaticString, Type, Unit, UnitFn,
+    Call, CompileMeta, CompileMetaKind, Component, ConstValue, Context, DebugInfo, DebugInst, Hash,
+    Inst, IntoComponent, Item, Label, Names, Rtti, Source, Span, StaticString, Type, Unit, UnitFn,
     UnitTypeInfo, VariantRtti,
 };
 use std::sync::Arc;
@@ -25,6 +25,14 @@ pub enum UnitBuilderError {
     FunctionConflict {
         /// The signature of an already existing function.
         existing: DebugSignature,
+    },
+    /// Tried to register a conflicting constant.
+    #[error("conflicting constant registered for `{item}` on hash `{hash}`")]
+    ConstantConflict {
+        /// The item that was conflicting.
+        item: Item,
+        /// The conflicting hash.
+        hash: Hash,
     },
     /// Trying to insert a conflicting type.
     #[error("tried to insert rtti for conflicting type with hash `{hash}`")]
@@ -237,6 +245,8 @@ pub struct UnitBuilder {
     label_count: usize,
     /// A collection of required function hashes.
     required_functions: HashMap<Hash, Vec<(Span, usize)>>,
+    /// Constant values by hash.
+    constants: HashMap<Hash, ConstValue>,
     /// All available names in the context.
     names: Names,
     /// Debug info if available for unit.
@@ -358,6 +368,7 @@ impl UnitBuilder {
             self.static_strings,
             self.static_bytes,
             self.static_object_keys,
+            self.constants,
             self.rtti,
             self.variant_rtti,
             self.debug,
@@ -742,6 +753,7 @@ impl UnitBuilder {
             CompileMetaKind::Closure { item, .. } => item.clone(),
             CompileMetaKind::AsyncBlock { item, .. } => item.clone(),
             CompileMetaKind::Macro { item, .. } => item.clone(),
+            CompileMetaKind::Const { item, .. } => item.clone(),
         };
 
         if let Some(existing) = self.meta.insert(item, meta.clone()) {
@@ -784,6 +796,24 @@ impl UnitBuilder {
 
         self.debug_info_mut().functions.insert(hash, signature);
         self.add_assembly(source_id, assembly)?;
+        Ok(())
+    }
+
+    /// Insert a constant.
+    pub(crate) fn insert_const(
+        &mut self,
+        item: &Item,
+        const_value: ConstValue,
+    ) -> Result<(), UnitBuilderError> {
+        let hash = Hash::type_hash(item);
+
+        if self.constants.insert(hash, const_value).is_some() {
+            return Err(UnitBuilderError::ConstantConflict {
+                item: item.clone(),
+                hash,
+            });
+        }
+
         Ok(())
     }
 

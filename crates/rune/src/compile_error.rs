@@ -45,19 +45,22 @@ impl CompileError {
     ///
     /// This should be used for programming invariants of the encoder which are
     /// broken for some reason.
-    pub fn internal<S>(spanned: &S, msg: &'static str) -> Self
+    pub fn internal<S>(spanned: S, msg: &'static str) -> Self
     where
         S: Spanned,
     {
-        CompileError::new(spanned.span(), CompileErrorKind::Internal { msg })
+        CompileError::new(spanned, CompileErrorKind::Internal { msg })
     }
 
     /// Construct an experimental error.
     ///
     /// This should be used when an experimental feature is used which hasn't
     /// been enabled.
-    pub fn experimental(span: Span, msg: &'static str) -> Self {
-        Self::new(span, CompileErrorKind::Experimental { msg })
+    pub fn experimental<S>(spanned: S, msg: &'static str) -> Self
+    where
+        S: Spanned,
+    {
+        Self::new(spanned, CompileErrorKind::Experimental { msg })
     }
 }
 
@@ -365,4 +368,7 @@ pub enum CompileErrorKind {
         /// The number that was an unsupported tuple index.
         number: ast::Number,
     },
+    /// Trying to treat a non-constant expression as constant.
+    #[error("unsupported constant expression")]
+    NotConst,
 }
