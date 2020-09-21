@@ -2,6 +2,7 @@
 
 use crate::ast;
 use crate::collections::HashMap;
+use crate::const_compiler::Consts;
 use crate::index::{Index as _, Indexer};
 use crate::index_scopes::IndexScopes;
 use crate::items::Items;
@@ -81,6 +82,7 @@ impl<'a> Worker<'a> {
         sources: &'a mut Sources,
         options: &'a Options,
         unit: Rc<RefCell<UnitBuilder>>,
+        consts: Rc<RefCell<Consts>>,
         errors: &'a mut Errors,
         warnings: &'a mut Warnings,
         visitor: &'a mut dyn CompileVisitor,
@@ -96,7 +98,7 @@ impl<'a> Worker<'a> {
             warnings,
             visitor,
             source_loader,
-            query: Query::new(storage, unit),
+            query: Query::new(storage, unit, consts),
             loaded: HashMap::new(),
             expanded: HashMap::new(),
         }

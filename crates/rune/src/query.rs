@@ -2,10 +2,10 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::CompileResult;
+use crate::const_compiler::{ConstCompiler, Consts};
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, Resolve as _, Spanned as _, Storage,
-    UnitBuilder,
+    CompileError, CompileErrorKind, CompileResult, CompileVisitor, Resolve as _, Spanned as _,
+    Storage, UnitBuilder,
 };
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
@@ -97,7 +97,7 @@ pub(crate) enum Build {
     InstanceFunction(InstanceFunction),
     Closure(Closure),
     AsyncBlock(AsyncBlock),
-    Const(Const),
+    UnusedConst(Const),
 }
 
 /// An entry in the build queue.
@@ -128,16 +128,23 @@ pub(crate) struct IndexedEntry {
 pub(crate) struct Query {
     pub(crate) storage: Storage,
     pub(crate) unit: Rc<RefCell<UnitBuilder>>,
+    /// Const expression that have been resolved.
+    pub(crate) consts: Rc<RefCell<Consts>>,
     pub(crate) queue: VecDeque<BuildEntry>,
     pub(crate) indexed: HashMap<Item, IndexedEntry>,
 }
 
 impl Query {
     /// Construct a new compilation context.
-    pub fn new(storage: Storage, unit: Rc<RefCell<UnitBuilder>>) -> Self {
+    pub fn new(
+        storage: Storage,
+        unit: Rc<RefCell<UnitBuilder>>,
+        consts: Rc<RefCell<Consts>>,
+    ) -> Self {
         Self {
             storage,
             unit,
+            consts,
             queue: VecDeque::new(),
             indexed: HashMap::new(),
         }
@@ -322,28 +329,41 @@ impl Query {
         &mut self,
         visitor: &mut dyn CompileVisitor,
     ) -> Result<bool, (SourceId, CompileError)> {
-        let unused = std::mem::take(&mut self.indexed);
+        let unused = self
+            .indexed
+            .iter()
+            .map(|(item, e)| (item.clone(), (e.span, e.source_id)))
+            .collect::<Vec<_>>();
 
         if unused.is_empty() {
             return Ok(false);
         }
 
-        for (item, entry) in unused {
-            let span = entry.span;
-            let source_id = entry.source_id;
-
-            let meta = self
-                .build_indexed_entry(&item, entry, true)
-                .map_err(|error| (source_id, error))?;
-
-            visitor.visit_meta(source_id, &meta, span);
+        for (item, (span, source_id)) in unused {
+            // NB: recursive queries might remove from `indexed`, so we expect
+            // to miss things here.
+            if let Some(meta) = self
+                .query_meta_with_use(&item, true)
+                .map_err(|e| (source_id, e))?
+            {
+                visitor.visit_meta(source_id, &meta, span);
+            }
         }
 
         Ok(true)
     }
 
-    /// Query for the given meta item.
-    pub fn query_meta(&mut self, item: &Item) -> Result<Option<CompileMeta>, CompileError> {
+    /// Public query meta which marks things as used.
+    pub(crate) fn query_meta(&mut self, item: &Item) -> Result<Option<CompileMeta>, CompileError> {
+        self.query_meta_with_use(item, false)
+    }
+
+    /// Internal query meta with control over whether or not to mark things as unused.
+    pub(crate) fn query_meta_with_use(
+        &mut self,
+        item: &Item,
+        unused: bool,
+    ) -> Result<Option<CompileMeta>, CompileError> {
         if let Some(meta) = self.unit.borrow().lookup_meta(item) {
             return Ok(Some(meta));
         }
@@ -354,7 +374,7 @@ impl Query {
             None => return Ok(None),
         };
 
-        Ok(Some(self.build_indexed_entry(item, entry, false)?))
+        Ok(Some(self.build_indexed_entry(item, entry, unused)?))
     }
 
     /// Build a single, indexed entry and return its metadata.
@@ -432,17 +452,27 @@ impl Query {
                 }
             }
             Indexed::Const(c) => {
-                self.queue.push_back(BuildEntry {
+                let mut const_compiler = ConstCompiler {
                     item: item.clone(),
-                    build: Build::Const(c),
-                    source,
-                    source_id,
-                    unused,
-                });
+                    source: &*source,
+                    query: self,
+                };
+
+                let const_value = const_compiler.eval_expr(&c.expr, unused)?;
+
+                if unused {
+                    self.queue.push_back(BuildEntry {
+                        item: item.clone(),
+                        build: Build::UnusedConst(c),
+                        source,
+                        source_id,
+                        unused,
+                    });
+                }
 
                 CompileMetaKind::Const {
+                    const_value,
                     item: item.clone(),
-                    hash: Hash::type_hash(item),
                 }
             }
         };

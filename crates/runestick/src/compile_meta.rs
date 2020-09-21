@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use crate::{Hash, Item, SourceId, Span, Type};
+use crate::{ConstValue, Hash, Item, SourceId, Span, Type};
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -173,10 +173,10 @@ pub enum CompileMetaKind {
     },
     /// The constant expression.
     Const {
+        /// The evaluated constant value.
+        const_value: ConstValue,
         /// The item for the constant expression.
         item: Item,
-        /// The type hash of the constant.
-        hash: Hash,
     },
     /// A macro.
     Macro {

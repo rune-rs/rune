@@ -1,0 +1,5 @@
+const VALUE = 0b001 << 3;
+
+fn main() {
+    VALUE == 8
+}
