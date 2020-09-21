@@ -111,7 +111,7 @@ impl Peek for Item {
             ast::Kind::Mod => true,
             ast::Kind::Const => true,
             ast::Kind::Ident(..) => true,
-            _ => ast::Attribute::peek(t1, t2) || ast::Visibility::peek(t1, t2),
+            _ => false,
         }
     }
 }

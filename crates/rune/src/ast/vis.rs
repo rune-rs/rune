@@ -1,14 +1,23 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
+use crate::{OptionSpanned, Parse, ParseError, ParseErrorKind, Parser, ToTokens};
 
 /// Visibility level restricted to some path: pub(self) or pub(super) or pub(crate) or pub(in some::module).
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, ToTokens, OptionSpanned)]
 pub enum Visibility {
     /// An unrestricted public visibility level: `pub`.
     Public(ast::Pub),
     /// A visibility level restricted to some path: `pub(self)` or
     /// `pub(super)` or `pub(crate)` or `pub(in some::module)`.
     Restricted(ast::VisRestricted),
+    /// An inherited visibility level, this usually means private.
+    Inherited,
+}
+
+impl Visibility {
+    /// Return `true` if it is the `Inherited` variant
+    pub const fn is_inherited(&self) -> bool {
+        matches!(self, Visibility::Inherited)
+    }
 }
 
 /// Parsing Visibility specifiers
@@ -65,16 +74,7 @@ impl Parse for Visibility {
                 _ => Ok(Visibility::Public(pub_)),
             }
         } else {
-            Err(ParseError::new(
-                token,
-                ParseErrorKind::ExpectedVisibility { actual: token.kind },
-            ))
+            Ok(Visibility::Inherited)
         }
-    }
-}
-
-impl Peek for Visibility {
-    fn peek(t1: Option<ast::Token>, _t2: Option<ast::Token>) -> bool {
-        matches!(peek!(t1).kind, ast::Kind::Pub)
     }
 }

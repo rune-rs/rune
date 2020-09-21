@@ -9,8 +9,8 @@ pub struct ItemFn {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `fn` item
-    #[rune(iter)]
-    pub visibility: Option<ast::Visibility>,
+    #[rune(optional)]
+    pub visibility: ast::Visibility,
     /// The optional `async` keyword.
     #[rune(iter)]
     pub async_: Option<ast::Async>,

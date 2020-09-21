@@ -8,8 +8,8 @@ pub struct ItemUse {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `use` item
-    #[rune(iter)]
-    pub visibility: Option<ast::Visibility>,
+    #[rune(optional)]
+    pub visibility: ast::Visibility,
     /// The use token.
     pub use_: ast::Use,
     /// First component in use.
