@@ -78,7 +78,7 @@ function setupEditor(element, options) {
         maxLines: Infinity,
     });
 
-    editor.renderer.setPadding(8)
+    editor.renderer.setScrollMargin(6, 6, 6, 6);
 
     let content = editor.getValue();
     let [prelude, newContent] = filterPrelude(content);

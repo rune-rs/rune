@@ -43,3 +43,27 @@ async fn main() {
 [blocks]: https://rune-rs.github.io/book/async.html#async-blocks
 [generators]: https://rune-rs.github.io/book/streams.html
 [`select`]: https://rune-rs.github.io/book/async.html#select-blocks
+
+#### `const` evaluation
+
+Rune has support for constant evaluation using the `const` keyword. Which
+can perform complex work at compile time.
+
+{% rune(footnote = "VALUE and LIMIT is calculated once, reducing the work needed at runtime") %}
+const BASE = 10;
+const LIMIT = 0b1 << 10;
+
+const VALUE = {
+    let timeout = BASE;
+
+    while timeout < LIMIT {
+        timeout = timeout * 2;
+    }
+
+    `https://httpstat.us?timeout={timeout}`
+};
+
+fn main() {
+    dbg(VALUE, LIMIT);
+}
+{% end %}

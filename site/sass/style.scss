@@ -7,11 +7,37 @@
 @import "https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200;0,300;0,400;0,600;0,700;0,800;0,900;1,200;1,300;1,400;1,600;1,700;1,800;1,900&display=swap";
 
 $font-stack: "Nunito", sans-serif;
+$monospace-font-stack: "Monaco", "Menlo", "Ubuntu Mono", "Consolas", "source-code-pro", monospace;
+$editor-font-size: 14px;
+$editor-border-radius: 0.25em;
+$editor-padding: 6px;
 
 html, body {
     background-color: $background;
     font-family: $font-stack;
     z-index: 50;
+}
+
+code {
+    font-family: $font-stack;
+    color: $accent;
+    font-weight: bold;
+}
+
+pre {
+    border-radius: $editor-border-radius;
+    padding: $editor-padding;
+    white-space: pre-wrap;
+    white-space: -moz-pre-wrap;
+    white-space: -pre-wrap;
+    white-space: -o-pre-wrap;
+    word-wrap: break-word;
+
+    & > code {
+        font-family: $monospace-font-stack;
+        font-weight: normal;
+        font-size: $editor-font-size;
+    }
 }
 
 ul {
@@ -58,16 +84,6 @@ p, li, ul {
     font-size: 1em;
     color: $text;
     line-height: 1.7;
-}
-
-pre {
-    border-radius: 0.25em;
-    padding: 0.65em;
-    white-space: pre-wrap;
-    white-space: -moz-pre-wrap;
-    white-space: -pre-wrap;
-    white-space: -o-pre-wrap;
-    word-wrap: break-word;
 }
 
 blockquote {
@@ -441,7 +457,9 @@ nav.pagination {
     &-editor {
         display: block;
         width: 100%;
-        font-size: 14px;
+        font-size: $editor-font-size;
+        border-top-left-radius: $editor-border-radius;
+        border-top-right-radius: $editor-border-radius;
 
         .error {
             position: absolute;
@@ -459,6 +477,9 @@ nav.pagination {
         display: block;
         background-color: black;
         font-size: 14px;
+        
+        border-bottom-left-radius: $editor-border-radius;
+        border-bottom-right-radius: $editor-border-radius;
     }
     
     &-output {
