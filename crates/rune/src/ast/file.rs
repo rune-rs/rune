@@ -78,7 +78,7 @@ impl Parse for File {
 
         let mut items = Vec::new();
 
-        while parser.peek::<ast::Item>()? {
+        while ast::Item::peek_as_stmt(parser)? {
             let item: ast::Item = parser.parse()?;
 
             let semi_colon = if item.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {

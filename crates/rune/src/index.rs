@@ -7,8 +7,8 @@ use crate::query::{Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceF
 use crate::worker::{Import, LoadFileKind, Macro, MacroKind, Task};
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, Resolve as _, SourceLoader, Sources,
-    Spanned as _, Storage, Warnings,
+    CompileError, CompileErrorKind, CompileVisitor, OptionSpanned as _, Resolve as _, SourceLoader,
+    Sources, Spanned as _, Storage, Warnings,
 };
 use runestick::{
     Call, CompileMeta, CompileMetaKind, CompileSource, Hash, Item, Source, SourceId, Span, Type,
@@ -136,9 +136,9 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 first,
                 "function attributes are not supported",
             ));
-        } else if let Some(vis) = &decl_fn.visibility {
+        } else if !decl_fn.visibility.is_inherited() {
             return Err(CompileError::internal(
-                vis,
+                &decl_fn.visibility.option_span().unwrap(),
                 "function visibility levels are not supported",
             ));
         }
@@ -622,9 +622,9 @@ impl Index<ast::Item> for Indexer<'_> {
                         first,
                         "use attributes are not supported",
                     ));
-                } else if let Some(vis) = &import.visibility {
+                } else if !import.visibility.is_inherited() {
                     return Err(CompileError::internal(
-                        vis,
+                        &import.visibility.option_span().unwrap(),
                         "use visibility levels are not supported",
                     ));
                 }
@@ -642,9 +642,9 @@ impl Index<ast::Item> for Indexer<'_> {
                         first,
                         "enum attributes are not supported",
                     ));
-                } else if let Some(vis) = &item_enum.visibility {
+                } else if !item_enum.visibility.is_inherited() {
                     return Err(CompileError::internal(
-                        vis,
+                        &item_enum.visibility.option_span().unwrap(),
                         "enum visibility levels are not supported",
                     ));
                 }
@@ -705,9 +705,9 @@ impl Index<ast::Item> for Indexer<'_> {
                         first,
                         "struct attributes are not supported",
                     ));
-                } else if let Some(vis) = &item_struct.visibility {
+                } else if !item_struct.visibility.is_inherited() {
                     return Err(CompileError::internal(
-                        vis,
+                        &item_struct.visibility.option_span().unwrap(),
                         "struct visibility levels are not supported",
                     ));
                 }
@@ -718,9 +718,9 @@ impl Index<ast::Item> for Indexer<'_> {
                             first,
                             "field attributes are not supported",
                         ));
-                    } else if let Some(vis) = &field.visibility {
+                    } else if !field.visibility.is_inherited() {
                         return Err(CompileError::internal(
-                            vis,
+                            &field.visibility.option_span().unwrap(),
                             "field visibility levels are not supported",
                         ));
                     }
@@ -768,9 +768,9 @@ impl Index<ast::Item> for Indexer<'_> {
                         first,
                         "module attributes are not supported",
                     ));
-                } else if let Some(vis) = &item_mod.visibility {
+                } else if !item_mod.visibility.is_inherited() {
                     return Err(CompileError::internal(
-                        vis,
+                        &item_mod.visibility.option_span().unwrap(),
                         "module visibility levels are not supported",
                     ));
                 }
