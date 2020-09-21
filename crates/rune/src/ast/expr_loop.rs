@@ -1,9 +1,23 @@
 use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
-/// A let expression `let <name> = <expr>;`
+/// A `loop` expression: `loop { ... }`.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::ExprLoop>("loop {}").unwrap();
+/// parse_all::<ast::ExprLoop>("loop { 1; }").unwrap();
+/// parse_all::<ast::ExprLoop>("'label: loop {1;}").unwrap();
+/// parse_all::<ast::ExprLoop>("#[attr] 'label: loop {x();}").unwrap();
+/// ```
 #[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprLoop {
+    /// The attributes for the `loop`
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// A label followed by a colon.
     #[rune(iter)]
     pub label: Option<(ast::Label, ast::Colon)>,
@@ -14,22 +28,33 @@ pub struct ExprLoop {
 }
 
 impl ExprLoop {
-    /// Parse with the given label.
-    pub fn parse_with_label(
+    /// Parse the `loop` the given attributes and label.
+    pub fn parse_with_attributes_and_label(
         parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
         label: Option<(ast::Label, ast::Colon)>,
     ) -> Result<Self, ParseError> {
-        Ok(ExprLoop {
+        Ok(Self {
+            attributes,
             label,
             loop_: parser.parse()?,
             body: Box::new(parser.parse()?),
         })
     }
+
+    /// Parse the `loop` with the given attributes.
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
+        let label = parser.parse()?;
+        Self::parse_with_attributes_and_label(parser, attributes, label)
+    }
 }
 
 impl Parse for ExprLoop {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let label = parser.parse()?;
-        Self::parse_with_label(parser, label)
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }

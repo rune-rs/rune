@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
 
 /// A declaration.
 #[derive(Debug, Clone, ToTokens, Spanned)]
@@ -29,12 +29,32 @@ impl Item {
         matches!(self, Self::MacroCall(..))
     }
 
+    /// Test if the item has any attributes
+    pub fn has_attributes(&self) -> bool {
+        match self {
+            Item::ItemUse(item) => !item.attributes.is_empty(),
+            Item::ItemFn(item) => !item.attributes.is_empty(),
+            Item::ItemEnum(item) => !item.attributes.is_empty(),
+            Item::ItemStruct(item) => !item.attributes.is_empty(),
+            Item::ItemImpl(item) => !item.attributes.is_empty(),
+            Item::ItemMod(item) => !item.attributes.is_empty(),
+            Item::ItemConst(item) => !item.attributes.is_empty(),
+            Item::MacroCall(_) => false,
+        }
+    }
+
     /// Test if declaration is suitable inside of a block.
     pub fn peek_as_stmt(parser: &mut Parser<'_>) -> Result<bool, ParseError> {
-        let t1 = parser.token_peek_pair()?;
-        let (t1, t2) = peek!(t1, Ok(false));
+        let tokens = parser.token_peek_pair()?;
+        let (t1, t2) = peek!(tokens, Ok(false));
 
-        Ok(match t1.kind {
+        let kind = if matches!(t1.kind, ast::Kind::Pub) {
+            peek!(t2, Ok(false)).kind
+        } else {
+            t1.kind
+        };
+
+        Ok(match kind {
             ast::Kind::Use => true,
             ast::Kind::Enum => true,
             ast::Kind::Struct => true,
@@ -47,9 +67,11 @@ impl Item {
         })
     }
 
-    /// Parse an item within a nested block
-    pub fn parse_in_nested_block(parser: &mut Parser) -> Result<Self, ParseError> {
-        let attributes: Vec<ast::Attribute> = parser.parse()?;
+    /// Parse an Item attaching the given Attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
         let t = parser.token_peek_eof()?;
 
         let kind = if t.kind == ast::Kind::Pub {
@@ -92,71 +114,9 @@ impl Item {
     }
 }
 
-impl Peek for Item {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        let t = peek!(t1);
-        let kind = if matches!(t.kind, ast::Kind::Pub) {
-            peek!(t2).kind
-        } else {
-            t.kind
-        };
-
-        match kind {
-            ast::Kind::Use => true,
-            ast::Kind::Enum => true,
-            ast::Kind::Struct => true,
-            ast::Kind::Impl => true,
-            ast::Kind::Async => matches!(peek!(t2).kind, ast::Kind::Fn),
-            ast::Kind::Fn => true,
-            ast::Kind::Mod => true,
-            ast::Kind::Const => true,
-            ast::Kind::Ident(..) => true,
-            _ => false,
-        }
-    }
-}
-
 impl Parse for Item {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let attributes: Vec<ast::Attribute> = parser.parse()?;
-        let t = parser.token_peek_eof()?;
-
-        let kind = if t.kind == ast::Kind::Pub {
-            let t2 = parser.token_peek2_eof()?;
-            t2.kind
-        } else {
-            t.kind
-        };
-
-        Ok(match kind {
-            ast::Kind::Use => {
-                Self::ItemUse(ast::ItemUse::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Enum => {
-                Self::ItemEnum(ast::ItemEnum::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Struct => {
-                Self::ItemStruct(ast::ItemStruct::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Impl => {
-                Self::ItemImpl(ast::ItemImpl::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Async | ast::Kind::Fn => Self::ItemFn(Box::new(
-                ast::ItemFn::parse_with_attributes(parser, attributes)?,
-            )),
-            ast::Kind::Mod => {
-                Self::ItemMod(ast::ItemMod::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Const => {
-                Self::ItemConst(ast::ItemConst::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
-            _ => {
-                return Err(ParseError::new(
-                    t,
-                    ParseErrorKind::ExpectedItem { actual: t.kind },
-                ))
-            }
-        })
+        Self::parse_with_attributes(parser, attributes)
     }
 }

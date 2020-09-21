@@ -1,9 +1,22 @@
 use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
-/// A for loop expression `for i in [1, 2, 3] {}`
+/// A `for` loop over an iterator: `for i in [1, 2, 3] {}`.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::ExprFor>("for i in x {}").unwrap();
+/// parse_all::<ast::ExprFor>("'label: for i in x {}").unwrap();
+/// parse_all::<ast::ExprFor>("#[attr] 'label: for i in x {}").unwrap();
+/// ```
 #[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprFor {
+    /// The attributes of the `for` loop
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// The label of the loop.
     #[rune(iter)]
     pub label: Option<(ast::Label, ast::Colon)>,
@@ -21,12 +34,14 @@ pub struct ExprFor {
 }
 
 impl ExprFor {
-    /// Parse with the given label.
-    pub fn parse_with_label(
+    /// Parse with the given attributes and label.
+    pub fn parse_with_attributes_and_label(
         parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
         label: Option<(ast::Label, ast::Colon)>,
     ) -> Result<Self, ParseError> {
         Ok(Self {
+            attributes,
             label,
             for_: parser.parse()?,
             var: parser.parse()?,
@@ -35,16 +50,24 @@ impl ExprFor {
             body: Box::new(parser.parse()?),
         })
     }
-}
 
-impl Parse for ExprFor {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    /// Parse the `for` loop with the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
         let label = if parser.peek::<ast::Label>()? {
             Some((parser.parse()?, parser.parse()?))
         } else {
             None
         };
+        Self::parse_with_attributes_and_label(parser, attributes, label)
+    }
+}
 
-        Self::parse_with_label(parser, label)
+impl Parse for ExprFor {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }

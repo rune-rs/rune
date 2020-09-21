@@ -95,28 +95,60 @@ impl Expander {
         input: &syn::DeriveInput,
         named: &syn::FieldsNamed,
     ) -> Option<TokenStream> {
+        let ast_attributes_ident: syn::Ident = syn::parse2(quote! {attributes})
+            .expect("Parse proc_macro could not create needed resource Ident(\"attributes\")");
+
+        let mut has_ast_attributes = false;
         let mut fields = Vec::new();
 
         for field in &named.named {
             let _ = self.ctx.parse_field_attributes(&field.attrs)?;
             let ident = self.ctx.field_ident(&field)?;
+            if ident.eq(&ast_attributes_ident) {
+                has_ast_attributes = true;
+                continue;
+            }
             fields.push(quote_spanned! { field.span() => #ident: parser.parse()? })
         }
 
         let ident = &input.ident;
-
         let parse = &self.ctx.parse;
         let parser = &self.ctx.parser;
         let parse_error = &self.ctx.parse_error;
 
-        Some(quote_spanned! {
-            named.span() => impl #parse for #ident {
-                fn parse(parser: &mut #parser<'_>) -> Result<Self, #parse_error> {
-                    Ok(Self {
-                        #(#fields,)*
-                    })
-                }
-            }
-        })
+        if has_ast_attributes {
+            Some(quote_spanned! {
+                named.span() =>
+                    impl #ident {
+                        #[doc = "Parse #ident and attach the given attributes"]
+                        pub fn parse_with_attributes(parser: &mut #parser<'_>,
+                                                     attributes: ::std::vec::Vec<crate::ast::Attribute>
+                        ) -> Result<Self, #parse_error> {
+                            Ok(Self {
+                                attributes,
+                                #(#fields,)*
+                            })
+                        }
+                    }
+
+                    impl #parse for #ident {
+                        fn parse(parser: &mut #parser<'_>) -> Result<Self, #parse_error> {
+                            let attributes: ::std::vec::Vec<crate::ast::Attribute> = parser.parse()?;
+                            Self::parse_with_attributes(parser, attributes)
+                         }
+                    }
+            })
+        } else {
+            Some(quote_spanned! {
+                named.span() =>
+                    impl #parse for #ident {
+                        fn parse(parser: &mut #parser<'_>) -> Result<Self, #parse_error> {
+                           Ok(Self {
+                                #(#fields,)*
+                            })
+                         }
+                    }
+            })
+        }
     }
 }

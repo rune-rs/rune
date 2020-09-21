@@ -2,9 +2,13 @@ use crate::ast;
 use crate::ast::utils;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
-/// A select expression that selects over a collection of futures.
+/// A `select` expression that selects over a collection of futures.
+///
 #[derive(Debug, Clone, ToTokens, Spanned)]
 pub struct ExprSelect {
+    /// The attributes of the `select`
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// The `select` keyword.
     pub select: ast::Select,
     /// The opening brace of the select.
@@ -17,8 +21,12 @@ pub struct ExprSelect {
     pub close: ast::CloseBrace,
 }
 
-impl Parse for ExprSelect {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+impl ExprSelect {
+    /// Parse the `select` expression and attach the given attributes
+    pub fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
         let select = parser.parse()?;
         let open = parser.parse()?;
 
@@ -50,12 +58,20 @@ impl Parse for ExprSelect {
         let close = parser.parse()?;
 
         Ok(Self {
+            attributes,
             select,
             open,
             branches,
             default_branch,
             close,
         })
+    }
+}
+
+impl Parse for ExprSelect {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let attributes = parser.parse()?;
+        Self::parse_with_attributes(parser, attributes)
     }
 }
 

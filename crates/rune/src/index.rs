@@ -107,7 +107,7 @@ impl Index<ast::File> for Indexer<'_> {
         if let Some(first) = file.attributes.first() {
             return Err(CompileError::internal(
                 first,
-                "file attributes are not supported yet",
+                "file attributes are not supported",
             ));
         }
 
@@ -436,6 +436,12 @@ impl Index<ast::Expr> for Indexer<'_> {
     fn index(&mut self, expr: &ast::Expr) -> CompileResult<()> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span));
+        if expr.has_attributes() {
+            return Err(CompileError::internal(
+                expr,
+                "expression attributes are not supported",
+            ));
+        }
 
         match expr {
             ast::Expr::Self_(..) => {

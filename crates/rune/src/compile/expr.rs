@@ -5,6 +5,12 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr, needs): (&ast::Expr, Needs)) -> CompileResult<()> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span));
+        if expr.has_attributes() {
+            return Err(CompileError::internal(
+                expr,
+                "expression attributes are not supported",
+            ));
+        }
 
         match expr {
             ast::Expr::Self_(self_) => {

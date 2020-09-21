@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::{Parse, Spanned, ToTokens};
 
-/// A return statement `break [expr]`.
+/// A `yield` statement to return a value from a generator: `yield [expr]`.
 ///
 /// # Examples
 ///
@@ -10,9 +10,13 @@ use crate::{Parse, Spanned, ToTokens};
 ///
 /// parse_all::<ast::ExprYield>("yield").unwrap();
 /// parse_all::<ast::ExprYield>("yield 42").unwrap();
+/// parse_all::<ast::ExprYield>("#[attr] yield 42").unwrap();
 /// ```
 #[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprYield {
+    /// The attributes of the `yield`
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// The return token.
     pub yield_: ast::Yield,
     /// An optional expression to yield.

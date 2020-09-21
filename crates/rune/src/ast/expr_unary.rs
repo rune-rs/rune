@@ -38,6 +38,7 @@ impl Parse for ExprUnary {
                 parser,
                 EagerBrace(true),
                 ExprChain(true),
+                vec![],
             )?),
         })
     }

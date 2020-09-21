@@ -83,8 +83,8 @@ impl Peek for ItemFn {
 /// let item = parse_all::<ast::ItemFn>("#[inline] fn hello(foo, bar) {}").unwrap();
 /// let item = parse_all::<ast::ItemFn>("#[inline] pub async fn hello(foo, bar) {}").unwrap();
 ///
-/// if let Some(ast::Visibility::Public(_)) = &item.visibility {} else {
-///     panic!("expected `fn` item visibility of `Public` got {:?}", &item.visibility);
+/// if let ast::Visibility::Public(_) = &item.visibility {} else {
+///     panic!("expected `fn` item visibility of `Public(` got {:?}", &item.visibility);
 /// }
 /// assert_eq!(item.args.items.len(), 2);
 /// assert_eq!(item.attributes.len(), 1);
