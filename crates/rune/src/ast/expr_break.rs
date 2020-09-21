@@ -1,9 +1,20 @@
 use crate::ast;
 use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
-/// A return statement `break [expr]`.
+/// A `break` statement: `break [expr]`.
+///
+/// ```rust
+/// use rune::{parse_all, ast};
+///
+/// parse_all::<ast::ExprBreak>("break").unwrap();
+/// parse_all::<ast::ExprBreak>("break 42").unwrap();
+/// parse_all::<ast::ExprBreak>("#[attr] break 42").unwrap();
+/// ```
 #[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprBreak {
+    /// The attributes of the `break` expression
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// The return token.
     pub break_: ast::Break,
     /// An optional expression to break with.

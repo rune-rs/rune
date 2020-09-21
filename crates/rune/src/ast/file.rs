@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::{Parse, ParseError, Parser, ToTokens};
+use std::mem::take;
 
 /// A parsed file.
 #[derive(Debug, Clone, ToTokens)]
@@ -54,7 +55,7 @@ pub struct File {
 /// use rune::{parse_all, ast};
 ///
 /// parse_all::<ast::File>(r#"
-/// // NB: Attributes are currently ignored by the compiler
+/// // NB: Attributes are currently rejected by the compiler
 /// #![feature(attributes)]
 ///
 /// fn main() {
@@ -78,8 +79,10 @@ impl Parse for File {
 
         let mut items = Vec::new();
 
+        let mut item_attributes = parser.parse()?;
         while ast::Item::peek_as_stmt(parser)? {
-            let item: ast::Item = parser.parse()?;
+            let item: ast::Item =
+                ast::Item::parse_with_attributes(parser, take(&mut item_attributes))?;
 
             let semi_colon = if item.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {
                 Some(parser.parse::<ast::SemiColon>()?)
@@ -88,6 +91,7 @@ impl Parse for File {
             };
 
             items.push((item, semi_colon));
+            item_attributes = parser.parse()?;
         }
 
         Ok(Self { attributes, items })

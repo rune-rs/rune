@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
+use std::mem::take;
 
 /// A block of expressions.
 #[derive(Debug, Clone, ToTokens, Spanned)]
@@ -68,6 +69,7 @@ impl Block {
 ///         baz
 ///     }
 /// "#).unwrap();
+///
 /// assert_eq!(block.statements.len(), 3);
 /// ```
 impl Parse for Block {
@@ -78,8 +80,10 @@ impl Parse for Block {
         let mut must_be_last = None;
 
         while !parser.peek::<ast::CloseBrace>()? {
+            let mut attributes = parser.parse()?;
             if ast::Item::peek_as_stmt(parser)? {
-                let decl: ast::Item = ast::Item::parse_in_nested_block(parser)?;
+                let decl: ast::Item =
+                    ast::Item::parse_with_attributes(parser, take(&mut attributes))?;
 
                 if let Some(span) = must_be_last {
                     return Err(ParseError::new(
@@ -94,7 +98,7 @@ impl Parse for Block {
                 continue;
             }
 
-            let expr: ast::Expr = parser.parse()?;
+            let expr: ast::Expr = ast::Expr::parse_primary_with_attributes(parser, attributes)?;
 
             if let Some(span) = must_be_last {
                 return Err(ParseError::new(
