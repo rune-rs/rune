@@ -95,28 +95,45 @@ impl Expander {
         input: &syn::DeriveInput,
         named: &syn::FieldsNamed,
     ) -> Option<TokenStream> {
-        let ast_attributes_ident: syn::Ident = syn::parse2(quote! {attributes})
-            .expect("Parse proc_macro could not create needed resource Ident(\"attributes\")");
-
-        let mut has_ast_attributes = false;
+        let ident = &input.ident;
+        let mut attrs_field: Option<(usize, &syn::Field)> = None;
         let mut fields = Vec::new();
 
-        for field in &named.named {
-            let _ = self.ctx.parse_field_attributes(&field.attrs)?;
-            let ident = self.ctx.field_ident(&field)?;
-            if ident.eq(&ast_attributes_ident) {
-                has_ast_attributes = true;
-                continue;
+        for (i, field) in named.named.iter().enumerate() {
+            let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
+            if attrs.attributes {
+                if let Some((idx, attrs_field)) = &attrs_field {
+                    let attrs_ident = self.ctx.field_ident(attrs_field)?;
+
+                    self.ctx.errors.push(syn::Error::new_spanned(
+                        field,
+                        format!(
+                            "only one field may have `#[rune({})]`, \
+                            but field is second occurrence within this struct. The first \
+                            occurrence was at field #{} `{}`.",
+                            crate::internals::ATTRIBUTES,
+                            idx,
+                            quote! { #attrs_ident }
+                        ),
+                    ));
+                    return None;
+                } else {
+                    attrs_field = Some((i + 1, field));
+                    continue;
+                }
             }
+
+            let ident = self.ctx.field_ident(&field)?;
             fields.push(quote_spanned! { field.span() => #ident: parser.parse()? })
         }
 
-        let ident = &input.ident;
+        let attrs_ident: Option<syn::Ident> =
+            attrs_field.and_then(|(_, f)| self.ctx.field_ident(f).cloned());
         let parse = &self.ctx.parse;
         let parser = &self.ctx.parser;
         let parse_error = &self.ctx.parse_error;
 
-        if has_ast_attributes {
+        if let Some(attrs_ident) = attrs_ident {
             Some(quote_spanned! {
                 named.span() =>
                     impl #ident {
@@ -125,7 +142,7 @@ impl Expander {
                                                      attributes: ::std::vec::Vec<crate::ast::Attribute>
                         ) -> Result<Self, #parse_error> {
                             Ok(Self {
-                                attributes,
+                                #attrs_ident: attributes,
                                 #(#fields,)*
                             })
                         }

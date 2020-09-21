@@ -13,6 +13,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) iter: bool,
     pub(crate) skip: bool,
     pub(crate) optional: bool,
+    pub(crate) attributes: bool,
 }
 
 /// Parsed ast derive attributes.
@@ -143,6 +144,10 @@ impl Context {
                     // Parse `#[rune(optional)]`.
                     Meta(Path(word)) if word == OPTIONAL => {
                         attrs.optional = true;
+                    }
+                    // Parse `#[rune(attributes)]`
+                    Meta(Path(word)) if word == ATTRIBUTES => {
+                        attrs.attributes = true;
                     }
                     meta => {
                         self.errors

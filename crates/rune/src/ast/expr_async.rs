@@ -24,7 +24,7 @@ use crate::{Parse, Spanned, ToTokens};
 #[derive(Debug, Clone, Parse, ToTokens, Spanned)]
 pub struct ExprAsync {
     /// The attributes for the block.
-    #[rune(iter)]
+    #[rune(iter, attributes)]
     pub attributes: Vec<ast::Attribute>,
     /// The `async` keyword.
     pub async_: ast::Async,
