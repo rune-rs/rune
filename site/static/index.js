@@ -62,6 +62,11 @@ function setupEditor(element, options) {
     let runeEditor = element.querySelector(".rune-editor");
     let runeOutput = element.querySelector(".rune-output");
     let runButton = element.querySelector(".rune-run");
+    let runeControl = element.querySelector(".rune-control");
+
+    if (runOnChange && !!runeControl) {
+        runeControl.classList.add("hidden");
+    }
 
     let markers = [];
 
@@ -88,9 +93,13 @@ function setupEditor(element, options) {
         editor.setValue(newContent);
     }
 
-    let recompile = () => {
+    let recompile = async () => {
         if (!rune.module) {
             return;
+        }
+
+        if (!!runButton) {
+            runButton.disabled = true;
         }
 
         runeOutput.textContent = "Running...";
@@ -110,58 +119,66 @@ function setupEditor(element, options) {
             content = `${content}\n${prelude}`;
         }
 
-        return rune.module.compile(content, budget).then(result => {
-            let text = "";
+        let result = null;
         
-            if (!!result.diagnostics_output) {
-                text += result.diagnostics_output + "\n";
+        try {
+            result = await rune.module.compile(content, budget);
+        } finally {
+            if (!!runButton) {
+                runButton.disabled = false;
             }
-            
-            if (!!result.output) {
-                let parts = result.output.split("\n").map(part => {
-                    if (part.length > outputLineTrim) {
-                        let trimmed = part.length - outputLineTrim;
-                        return part.slice(0, outputLineTrim) + ` ... (${trimmed} trimmed)`;
-                    } else {
-                        return part;
-                    }
-                });
-                
-                if (parts.length > outputTrim) {
-                    text += parts.slice(0, outputTrim).join("\n") + "\n";
-                    text += `${parts.length - outputTrim} more lines trimmed...\n`;
+        }
+
+        let text = "";
+    
+        if (!!result.diagnostics_output) {
+            text += result.diagnostics_output + "\n";
+        }
+
+        if (!!result.output) {
+            let parts = result.output.split("\n").map(part => {
+                if (part.length > outputLineTrim) {
+                    let trimmed = part.length - outputLineTrim;
+                    return part.slice(0, outputLineTrim) + ` ... (${trimmed} trimmed)`;
                 } else {
-                    text += parts.join("\n");
+                    return part;
                 }
-            }
+            });
             
-            if (!result.error) {
-                text +=  "== " + result.result;
+            if (parts.length > outputTrim) {
+                text += parts.slice(0, outputTrim).join("\n") + "\n";
+                text += `${parts.length - outputTrim} more lines trimmed...\n`;
+            } else {
+                text += parts.join("\n");
             }
-    
-            runeOutput.textContent = text;
-            
-            let annotations = [];
-            
-            for (let d of result.diagnostics) {
-                let r = new ace.Range(
-                    d.start.line, d.start.character,
-                    d.end.line, d.end.character,
-                );
-                    
-                markers.push(editor.getSession().addMarker(r, d.kind, "text"));
-    
-                annotations.push({
-                    row: d.start.line,
-                    column: d.start.character,
-                    text: d.message, // Or the Json reply from the parser 
-                    type: d.kind,
-                });
-            }
-    
-            editor.getSession().clearAnnotations();
-            editor.getSession().setAnnotations(annotations);
-        });
+        }
+        
+        if (!result.error) {
+            text +=  "== " + result.result;
+        }
+
+        runeOutput.textContent = text;
+        
+        let annotations = [];
+        
+        for (let d of result.diagnostics) {
+            let r = new ace.Range(
+                d.start.line, d.start.character,
+                d.end.line, d.end.character,
+            );
+                
+            markers.push(editor.getSession().addMarker(r, d.kind, "text"));
+
+            annotations.push({
+                row: d.start.line,
+                column: d.start.character,
+                text: d.message, // Or the Json reply from the parser 
+                type: d.kind,
+            });
+        }
+
+        editor.getSession().clearAnnotations();
+        editor.getSession().setAnnotations(annotations);
     };
 
     if (runOnChange || !runButton) {
@@ -173,12 +190,8 @@ function setupEditor(element, options) {
 
         return { recompile };
     } else {
+        runeOutput.classList.add("hidden");
         runButton.classList.remove("hidden");
-
-        editor.session.on('change', function(delta) {
-            runeOutput.textContent = "";
-            runeOutput.appendChild(runButton);
-        });
 
         runButton.addEventListener("click", (e) => {
             runeOutput.classList.remove("hidden");

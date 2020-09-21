@@ -433,6 +433,11 @@ nav.pagination {
     margin-top: 10px;
     margin-bottom: 10px;
 
+    &-control {
+        padding: 6px;
+        border-bottom: 1px solid $accent;
+    }
+
     &-editor {
         display: block;
         width: 100%;
