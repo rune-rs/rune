@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Spanned as _};
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile a select expression.
 impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {

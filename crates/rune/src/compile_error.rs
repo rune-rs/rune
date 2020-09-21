@@ -75,14 +75,6 @@ impl CompileError {
         )
     }
 
-    /// An error indicating that the given span is not a constant expression.
-    pub fn not_const<S>(spanned: S) -> Self
-    where
-        S: Spanned,
-    {
-        CompileError::new(spanned, CompileErrorKind::NotConst)
-    }
-
     /// Construct an experimental error.
     ///
     /// This should be used when an experimental feature is used which hasn't
@@ -378,7 +370,7 @@ pub enum CompileErrorKind {
     #[error("not a valid binding")]
     UnsupportedBinding,
     /// Error raised when trying to use a break outside of a loop.
-    #[error("break expressions cannot be used as a value")]
+    #[error("break outside of supported loop")]
     BreakOutsideOfLoop,
     /// Attempting to use a float in a match pattern.
     #[error("floating point numbers cannot be used in patterns")]

@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{Resolve as _, Spanned as _};
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile a literal byte such as `b'a'`.
 impl Compile<(&ast::LitByte, Needs)> for Compiler<'_> {

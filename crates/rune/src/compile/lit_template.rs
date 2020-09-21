@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::{Compile, Resolve as _};
-use crate::CompileResult;
-use crate::Spanned as _;
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile a literal template string.
 impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {

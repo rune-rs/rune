@@ -1116,7 +1116,7 @@ impl Index<ast::LitVec> for Indexer<'_> {
         let span = lit_vec.span();
         log::trace!("LitVec => {:?}", self.source.source(span));
 
-        for expr in &lit_vec.items {
+        for (expr, _) in &lit_vec.items {
             self.index(expr)?;
         }
 

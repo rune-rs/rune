@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Spanned as _};
-use runestick::{CompileMetaKind, Hash, Inst};
+use crate::compile::prelude::*;
 
 /// Call an async block.
 impl Compile<(&ast::ExprAsync, Needs)> for Compiler<'_> {

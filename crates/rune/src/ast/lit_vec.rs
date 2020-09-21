@@ -7,7 +7,7 @@ pub struct LitVec {
     /// The open bracket.
     pub open: ast::OpenBracket,
     /// Items in the array.
-    pub items: Vec<ast::Expr>,
+    pub items: Vec<(ast::Expr, Option<ast::Comma>)>,
     /// The close bracket.
     pub close: ast::CloseBracket,
     /// If the entire array is constant.
@@ -47,11 +47,11 @@ impl Parse for LitVec {
                 is_const = false;
             }
 
-            items.push(expr);
+            let comma = parser.parse::<Option<ast::Comma>>()?;
+            let end = comma.is_none();
+            items.push((expr, comma));
 
-            if parser.peek::<ast::Comma>()? {
-                parser.parse::<ast::Comma>()?;
-            } else {
+            if end {
                 break;
             }
         }

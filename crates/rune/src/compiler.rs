@@ -14,8 +14,7 @@ use crate::{
     Options, Resolve as _, SourceLoader, Sources, Spanned as _, Storage, UnitBuilder, Warnings,
 };
 use runestick::{
-    CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label, Source, Span,
-    TypeCheck,
+    CompileMeta, CompileMetaKind, Context, Inst, InstValue, Item, Label, Source, Span, TypeCheck,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -530,24 +529,9 @@ impl<'a> Compiler<'a> {
                         format!("fn `{}`", item),
                     );
                 }
-                CompileMetaKind::Const { const_value, .. } => match const_value {
-                    ConstValue::Unit => {
-                        self.asm.push(Inst::unit(), span);
-                    }
-                    ConstValue::Integer(n) => {
-                        self.asm.push(Inst::integer(*n), span);
-                    }
-                    ConstValue::Float(n) => {
-                        self.asm.push(Inst::float(*n), span);
-                    }
-                    ConstValue::Bool(b) => {
-                        self.asm.push(Inst::bool(*b), span);
-                    }
-                    ConstValue::String(s) => {
-                        let slot = self.unit.borrow_mut().new_static_string(&s)?;
-                        self.asm.push(Inst::String { slot }, span);
-                    }
-                },
+                CompileMetaKind::Const { const_value, .. } => {
+                    self.compile((const_value, span))?;
+                }
                 _ => {
                     return Err(CompileError::new(
                         span,

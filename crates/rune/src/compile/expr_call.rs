@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
-use runestick::{CompileMetaKind, Hash, Inst};
+use crate::compile::prelude::*;
 
 /// Compile a call expression.
 impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {

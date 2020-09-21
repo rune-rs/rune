@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::Spanned as _;
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile a literal vector.
 impl Compile<(&ast::LitVec, Needs)> for Compiler<'_> {
@@ -18,7 +13,7 @@ impl Compile<(&ast::LitVec, Needs)> for Compiler<'_> {
 
         let count = lit_vec.items.len();
 
-        for expr in lit_vec.items.iter() {
+        for (expr, _) in lit_vec.items.iter() {
             self.compile((expr, Needs::Value))?;
 
             // Evaluate the expressions one by one, then pop them to cause any

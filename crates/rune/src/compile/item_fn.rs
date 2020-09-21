@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::{Compiler, Needs};
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Resolve as _, Spanned as _};
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
     fn compile(&mut self, (fn_decl, instance_fn): (ast::ItemFn, bool)) -> CompileResult<()> {

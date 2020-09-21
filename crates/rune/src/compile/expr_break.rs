@@ -1,9 +1,4 @@
-use crate::ast;
-use crate::compiler::Compiler;
-use crate::traits::Compile;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Spanned as _};
-use runestick::Inst;
+use crate::compile::prelude::*;
 
 /// Compile a break expression.
 ///

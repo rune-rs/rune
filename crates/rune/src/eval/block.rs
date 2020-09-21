@@ -1,13 +1,9 @@
 use crate::eval::prelude::*;
 
 impl Eval<&ast::Block> for ConstCompiler<'_> {
-    fn eval(
-        &mut self,
-        block: &ast::Block,
-        used: Used,
-    ) -> Result<Option<ConstValue>, crate::CompileError> {
+    fn eval(&mut self, block: &ast::Block, used: Used) -> Result<ConstValue, EvalOutcome> {
+        self.budget.take(block)?;
         let _guard = self.scopes.push();
-
         let mut last = None::<(&ast::Expr, bool)>;
 
         for stmt in &block.statements {
@@ -18,22 +14,18 @@ impl Eval<&ast::Block> for ConstCompiler<'_> {
             };
 
             if let Some((expr, _)) = std::mem::replace(&mut last, Some((expr, term))) {
-                let _ = self
-                    .eval(expr, used)?
-                    .ok_or_else(|| CompileError::not_const(expr))?;
+                let _ = self.eval(expr, used)?;
             }
         }
 
         if let Some((expr, term)) = last {
-            let const_value = self
-                .eval(expr, used)?
-                .ok_or_else(|| CompileError::not_const(expr))?;
+            let const_value = self.eval(expr, used)?;
 
             if !term {
-                return Ok(Some(const_value));
+                return Ok(const_value);
             }
         }
 
-        Ok(Some(ConstValue::Unit))
+        Ok(ConstValue::Unit)
     }
 }

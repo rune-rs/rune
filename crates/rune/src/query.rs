@@ -454,7 +454,7 @@ impl Query {
             }
             Indexed::Const(c) => {
                 let mut const_compiler = ConstCompiler {
-                    budget: ConstBudget::new(1_000),
+                    budget: ConstBudget::new(1_000_000),
                     scopes: Default::default(),
                     item: item.clone(),
                     source: &*source,
