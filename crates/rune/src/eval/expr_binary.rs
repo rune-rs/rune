@@ -6,6 +6,12 @@ impl Eval<&ast::ExprBinary> for ConstCompiler<'_> {
         binary: &ast::ExprBinary,
         used: Used,
     ) -> Result<Option<ConstValue>, crate::CompileError> {
+        self.budget.take(binary.span())?;
+
+        if binary.op.is_assign() {
+            return op_assign(self, binary, used);
+        }
+
         let lhs = self
             .eval(&*binary.lhs, used)?
             .ok_or_else(|| CompileError::not_const(&binary.lhs))?;
@@ -121,4 +127,31 @@ fn checked_int(
 ) -> Result<ConstValue, CompileError> {
     let n = op(a, b).ok_or_else(|| CompileError::const_error(span, msg))?;
     Ok(ConstValue::Integer(n))
+}
+
+fn op_assign(
+    this: &mut ConstCompiler<'_>,
+    binary: &ast::ExprBinary,
+    used: Used,
+) -> Result<Option<ConstValue>, crate::CompileError> {
+    match binary.op {
+        ast::BinOp::Assign => match &*binary.lhs {
+            ast::Expr::Path(path) => {
+                if let Some(name) = path.try_as_ident() {
+                    let name = this.resolve(name)?;
+
+                    let value = this
+                        .eval(&*binary.rhs, used)?
+                        .ok_or_else(|| CompileError::not_const(&*binary.rhs))?;
+
+                    this.scopes.replace(name.as_ref(), value, binary.span())?;
+                    return Ok(Some(ConstValue::Unit));
+                }
+            }
+            _ => (),
+        },
+        _ => (),
+    }
+
+    Ok(None)
 }

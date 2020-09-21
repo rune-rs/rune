@@ -6,6 +6,8 @@ impl Eval<&ast::ExprLit> for ConstCompiler<'_> {
         expr_lit: &ast::ExprLit,
         used: Used,
     ) -> Result<Option<ConstValue>, crate::CompileError> {
+        self.budget.take(expr_lit)?;
+
         match &expr_lit.lit {
             ast::Lit::Bool(b) => {
                 return Ok(Some(ConstValue::Bool(b.value)));

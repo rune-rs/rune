@@ -7,6 +7,8 @@ impl Eval<&ast::LitTemplate> for ConstCompiler<'_> {
         lit_template: &ast::LitTemplate,
         used: Used,
     ) -> Result<Option<ConstValue>, crate::CompileError> {
+        self.budget.take(lit_template)?;
+
         let template = self.resolve(lit_template)?;
 
         let mut buf = String::new();
@@ -23,6 +25,7 @@ impl Eval<&ast::LitTemplate> for ConstCompiler<'_> {
                         .ok_or_else(|| CompileError::not_const(span))?;
 
                     match const_value {
+                        ConstValue::Unit => {}
                         ConstValue::String(s) => {
                             buf.push_str(&s);
                         }
