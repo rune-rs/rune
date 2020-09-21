@@ -38,6 +38,7 @@ mod file;
 mod fn_arg;
 mod ident;
 mod item;
+mod item_const;
 mod item_enum;
 mod item_fn;
 mod item_impl;
@@ -104,6 +105,7 @@ pub use self::file::File;
 pub use self::fn_arg::FnArg;
 pub use self::ident::Ident;
 pub use self::item::Item;
+pub use self::item_const::ItemConst;
 pub use self::item_enum::{ItemEnum, ItemVariant, ItemVariantBody};
 pub use self::item_fn::ItemFn;
 pub use self::item_impl::ItemImpl;
@@ -206,6 +208,7 @@ decl_tokens! {
     (Match, "The `match` keyword.", Kind::Match),
     (Else, "The `else` keyword.", Kind::Else),
     (Let, "The `let` keyword.", Kind::Let),
+    (Const, "The `const` keyword.", Kind::Const),
     (Underscore, "The underscore `_`.", Kind::Underscore),
     (Comma, "A comma `,`.", Kind::Comma),
     (Colon, "A colon `:`.", Kind::Colon),

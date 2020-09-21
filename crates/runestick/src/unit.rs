@@ -5,7 +5,8 @@
 
 use crate::collections::HashMap;
 use crate::{
-    Call, DebugInfo, Hash, Inst, Rtti, StaticString, Type, VariantRtti, VmError, VmErrorKind,
+    Call, ConstValue, DebugInfo, Hash, Inst, Rtti, StaticString, Type, VariantRtti, VmError,
+    VmErrorKind,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -31,6 +32,8 @@ pub struct Unit {
     ///
     /// All keys are sorted with the default string sort.
     static_object_keys: Vec<Box<[String]>>,
+    /// Compiled constant values.
+    constants: HashMap<Hash, ConstValue>,
     /// Runtime information for types.
     rtti: HashMap<Hash, Arc<Rtti>>,
     /// Runtime information for variants.
@@ -48,6 +51,7 @@ impl Unit {
         static_strings: Vec<Arc<StaticString>>,
         static_bytes: Vec<Vec<u8>>,
         static_object_keys: Vec<Box<[String]>>,
+        constants: HashMap<Hash, ConstValue>,
         rtti: HashMap<Hash, Arc<Rtti>>,
         variant_rtti: HashMap<Hash, Arc<VariantRtti>>,
         debug: Option<Box<DebugInfo>>,
@@ -59,6 +63,7 @@ impl Unit {
             static_strings,
             static_bytes,
             static_object_keys,
+            constants,
             rtti,
             variant_rtti,
             debug,
@@ -109,6 +114,14 @@ impl Unit {
     /// Iterate over dynamic types.
     pub fn iter_types(&self) -> impl Iterator<Item = (Hash, &UnitTypeInfo)> + '_ {
         self.types.iter().map(|(h, v)| (*h, v))
+    }
+
+    /// Load a constant value.
+    pub fn lookup_const(&self, hash: Hash) -> Result<&ConstValue, VmError> {
+        Ok(self
+            .constants
+            .get(&hash)
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingConst { hash }))?)
     }
 
     /// Lookup the static string by slot, if it exists.

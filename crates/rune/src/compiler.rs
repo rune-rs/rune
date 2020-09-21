@@ -1,6 +1,7 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compile_visitor::NoopCompileVisitor;
+use crate::const_compiler::ConstCompiler;
 use crate::items::Items;
 use crate::loops::Loops;
 use crate::query::{Build, BuildEntry, Query};
@@ -231,7 +232,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
                 .lookup_meta(&f.impl_item, f.instance_span)?
                 .ok_or_else(|| {
                     CompileError::new(
-                        f.instance_span,
+                        &f.instance_span,
                         CompileErrorKind::MissingType {
                             item: f.impl_item.clone(),
                         },
@@ -300,6 +301,22 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
                 )?;
             }
         }
+        Build::Const(c) => {
+            let mut const_compiler = ConstCompiler {
+                source: &*source,
+                storage: &storage,
+                unit,
+            };
+
+            let const_value = const_compiler.eval_expr(&c.expr)?;
+
+            if unused {
+                compiler.warnings.not_used(source_id, c.expr.span(), None);
+                return Ok(());
+            }
+
+            unit.borrow_mut().insert_const(&item, const_value)?;
+        }
     }
 
     Ok(())
@@ -358,7 +375,7 @@ fn verify_imports(
             errors.push(LoadError::new(
                 0,
                 CompileError::new(
-                    Span::empty(),
+                    &Span::empty(),
                     CompileErrorKind::MissingPreludeModule {
                         item: entry.item.clone(),
                     },
@@ -520,6 +537,13 @@ impl<'a> Compiler<'a> {
                         Inst::LoadFn { hash },
                         span,
                         format!("fn `{}`", item),
+                    );
+                }
+                CompileMetaKind::Const { item, hash } => {
+                    self.asm.push_with_comment(
+                        Inst::Const { hash: *hash },
+                        span,
+                        format!("const `{}`", item),
                     );
                 }
                 _ => {

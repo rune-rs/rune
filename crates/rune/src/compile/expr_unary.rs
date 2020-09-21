@@ -14,7 +14,7 @@ impl Compile<(&ast::ExprUnary, Needs)> for Compiler<'_> {
         // NB: special unary expressions.
         if let ast::UnaryOp::BorrowRef { .. } = expr_unary.op {
             return Err(CompileError::new(
-                expr_unary.span(),
+                expr_unary,
                 CompileErrorKind::UnsupportedRef,
             ));
         }

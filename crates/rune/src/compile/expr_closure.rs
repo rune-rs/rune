@@ -20,7 +20,7 @@ impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
 
                 match arg {
                     ast::FnArg::Self_(s) => {
-                        return Err(CompileError::new(*s, CompileErrorKind::UnsupportedSelf))
+                        return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf))
                     }
                     ast::FnArg::Ident(ident) => {
                         let ident = ident.resolve(&self.storage, &*self.source)?;

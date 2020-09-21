@@ -17,6 +17,8 @@ pub enum Item {
     ItemImpl(ast::ItemImpl),
     /// A module declaration.
     ItemMod(ast::ItemMod),
+    /// A const declaration.
+    ItemConst(ast::ItemConst),
     /// A macro call expanding into an item.
     MacroCall(ast::MacroCall),
 }
@@ -40,6 +42,7 @@ impl Item {
             ast::Kind::Async => matches!(peek!(t2, Ok(false)).kind, ast::Kind::Fn),
             ast::Kind::Fn => true,
             ast::Kind::Mod => true,
+            ast::Kind::Const => true,
             _ => false,
         })
     }
@@ -68,6 +71,9 @@ impl Item {
             ast::Kind::Mod => {
                 Self::ItemMod(ast::ItemMod::parse_with_attributes(parser, attributes)?)
             }
+            ast::Kind::Const => {
+                Self::ItemConst(ast::ItemConst::parse_with_attributes(parser, attributes)?)
+            }
             ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
             _ => {
                 return Err(ParseError::new(
@@ -89,6 +95,7 @@ impl Peek for Item {
             ast::Kind::Async => matches!(peek!(t2).kind, ast::Kind::Fn),
             ast::Kind::Fn => true,
             ast::Kind::Mod => true,
+            ast::Kind::Const => true,
             ast::Kind::Ident(..) => true,
             _ => ast::Attribute::peek(t1, t2),
         }
@@ -118,6 +125,9 @@ impl Parse for Item {
             )),
             ast::Kind::Mod => {
                 Self::ItemMod(ast::ItemMod::parse_with_attributes(parser, attributes)?)
+            }
+            ast::Kind::Const => {
+                Self::ItemConst(ast::ItemConst::parse_with_attributes(parser, attributes)?)
             }
             ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
             _ => {

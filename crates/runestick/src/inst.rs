@@ -279,6 +279,17 @@ pub enum Inst {
         /// The number of futures to poll.
         len: usize,
     },
+    /// Load the constant corresponding to the hash as a value on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <value>
+    /// ```
+    Const {
+        /// The hash of the constant to load.
+        hash: Hash,
+    },
     /// Load the given function by hash and push onto the stack.
     ///
     /// # Operation
@@ -954,6 +965,9 @@ impl fmt::Display for Inst {
             }
             Self::Select { len } => {
                 write!(fmt, "select {}", len)?;
+            }
+            Self::Const { hash } => {
+                write!(fmt, "const {}", hash)?;
             }
             Self::LoadFn { hash } => {
                 write!(fmt, "load-fn {}", hash)?;

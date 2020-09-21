@@ -380,10 +380,7 @@ impl Import {
         for (_, c) in it {
             match c {
                 ast::ItemUseComponent::Wildcard(t) => {
-                    return Err(CompileError::new(
-                        t.span(),
-                        CompileErrorKind::UnsupportedWildcard,
-                    ));
+                    return Err(CompileError::new(t, CompileErrorKind::UnsupportedWildcard));
                 }
                 ast::ItemUseComponent::Ident(ident) => {
                     name.push(ident.resolve(storage, &*source)?.as_ref());
