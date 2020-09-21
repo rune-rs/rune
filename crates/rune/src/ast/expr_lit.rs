@@ -5,7 +5,7 @@ use crate::{Parse, Spanned, ToTokens};
 #[derive(Debug, Clone, Parse, ToTokens, Spanned)]
 pub struct ExprLit {
     /// Attributes associated with the literal expression.
-    #[rune(iter)]
+    #[rune(iter, attributes)]
     pub attributes: Vec<ast::Attribute>,
     /// The literal in the expression.
     pub lit: ast::Lit,

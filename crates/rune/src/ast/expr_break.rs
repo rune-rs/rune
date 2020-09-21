@@ -13,7 +13,7 @@ use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 #[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprBreak {
     /// The attributes of the `break` expression
-    #[rune(iter)]
+    #[rune(iter, attributes)]
     pub attributes: Vec<ast::Attribute>,
     /// The return token.
     pub break_: ast::Break,

@@ -15,7 +15,7 @@ use crate::{Parse, Spanned, ToTokens};
 #[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprYield {
     /// The attributes of the `yield`
-    #[rune(iter)]
+    #[rune(iter, attributes)]
     pub attributes: Vec<ast::Attribute>,
     /// The return token.
     pub yield_: ast::Yield,

@@ -13,7 +13,7 @@ use crate::{Parse, Spanned, ToTokens};
 #[derive(Debug, Clone, Parse, ToTokens, Spanned)]
 pub struct ItemConst {
     /// The *inner* attributes that are applied to the const declaration.
-    #[rune(iter)]
+    #[rune(iter, attributes)]
     pub attributes: Vec<ast::Attribute>,
     /// The `const` keyword.
     pub const_token: ast::Const,

@@ -12,7 +12,7 @@ use crate::{Parse, Spanned, ToTokens};
 #[derive(Debug, Clone, ToTokens, Parse, Spanned)]
 pub struct ExprReturn {
     /// The attributes of the `return` statement.
-    #[rune(iter)]
+    #[rune(iter, attributes)]
     pub attributes: Vec<ast::Attribute>,
     /// The return token.
     pub return_: ast::Return,
