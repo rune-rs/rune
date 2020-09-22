@@ -3,6 +3,8 @@ use crate::eval::prelude::*;
 /// Eval the interior expression.
 impl Eval<&ast::Expr> for ConstCompiler<'_> {
     fn eval(&mut self, expr: &ast::Expr, used: Used) -> Result<ConstValue, EvalOutcome> {
+        self.budget.take(expr.span())?;
+
         match expr {
             ast::Expr::ExprLet(expr_let) => {
                 return self.eval(expr_let, used);

@@ -3,6 +3,7 @@ use crate::eval::prelude::*;
 impl Eval<&ast::ExprIf> for ConstCompiler<'_> {
     fn eval(&mut self, expr_if: &ast::ExprIf, used: Used) -> Result<ConstValue, EvalOutcome> {
         self.budget.take(expr_if)?;
+
         let value = expr_if.condition.as_bool(self, used)?;
 
         if value {

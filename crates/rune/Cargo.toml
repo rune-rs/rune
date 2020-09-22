@@ -36,7 +36,7 @@ rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["full"
 rune-macros = {version = "0.6.16", path = "../rune-macros"}
 
 [dev-dependencies]
-tokio = {version = "0.2.12", features = ["macros"]}
+tokio = {version = "0.2.22", features = ["macros"]}
 futures-executor = "0.3.5"
 
 [package.metadata.docs.rs]

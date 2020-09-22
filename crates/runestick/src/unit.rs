@@ -203,3 +203,19 @@ pub struct UnitTypeInfo {
     /// value type of the given type.
     pub type_of: Type,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Unit;
+
+    fn assert_send_sync<T>()
+    where
+        T: Send + Sync,
+    {
+    }
+
+    #[test]
+    fn assert_thread_safe_unit() {
+        assert_send_sync::<Unit>();
+    }
+}
