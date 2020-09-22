@@ -20,6 +20,13 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
                 let slot = self.unit.borrow_mut().new_static_string(&s)?;
                 self.asm.push(Inst::String { slot }, span);
             }
+            ConstValue::Vec(vec) => {
+                for value in vec.iter() {
+                    self.compile((value, span))?;
+                }
+
+                self.asm.push(Inst::Vec { count: vec.len() }, span);
+            }
             ConstValue::Tuple(tuple) => {
                 for value in tuple.iter() {
                     self.compile((value, span))?;

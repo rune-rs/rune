@@ -34,6 +34,7 @@ ryu = "1.0"
 runestick = {version = "0.6.16", path = "../runestick"}
 rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["full"], optional = true}
 rune-macros = {version = "0.6.16", path = "../rune-macros"}
+rune-ir = {version = "0.6.16", path = "../rune-ir"}
 
 [dev-dependencies]
 tokio = {version = "0.2.22", features = ["macros"]}

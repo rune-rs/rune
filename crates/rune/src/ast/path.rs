@@ -23,7 +23,7 @@ impl Path {
     /// This is only allowed if there are no other path components
     /// and the PathSegment is not `Crate` or `Super`.
     pub fn try_as_ident(&self) -> Option<&ast::Ident> {
-        if self.rest.is_empty() && self.trailing.is_none() {
+        if self.rest.is_empty() && self.trailing.is_none() && self.leading_colon.is_none() {
             self.first.try_as_ident()
         } else {
             None

@@ -2,8 +2,9 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::const_compiler::{ConstBudget, ConstCompiler, Consts};
 use crate::eval::Used;
+use crate::ir_compiler::{Compile as _, IrCompiler};
+use crate::ir_interpreter::{Consts, IrBudget, IrInterpreter};
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, Resolve as _, Spanned as _,
     Storage, UnitBuilder,
@@ -88,8 +89,8 @@ pub(crate) struct AsyncBlock {
 }
 
 pub(crate) struct Const {
-    /// The expression to store in the constant.
-    pub(crate) expr: ast::Expr,
+    /// The intermediate representation of the constant expression.
+    pub(crate) ir: rune_ir::Ir,
 }
 
 /// An entry in the build queue.
@@ -162,13 +163,20 @@ impl Query {
     ) -> Result<(), CompileError> {
         log::trace!("new enum: {}", item);
 
+        let mut ir_compiler = IrCompiler {
+            source: &*source,
+            storage: &self.storage,
+        };
+
+        let ir = ir_compiler.compile(&expr)?;
+
         self.index(
             item,
             IndexedEntry {
                 span,
                 source,
                 source_id,
-                indexed: Indexed::Const(Const { expr }),
+                indexed: Indexed::Const(Const { ir }),
             },
         )?;
 
@@ -453,15 +461,14 @@ impl Query {
                 }
             }
             Indexed::Const(c) => {
-                let mut const_compiler = ConstCompiler {
-                    budget: ConstBudget::new(1_000_000),
+                let mut const_compiler = IrInterpreter {
+                    budget: IrBudget::new(1_000_000),
                     scopes: Default::default(),
                     item: item.clone(),
-                    source: &*source,
                     query: self,
                 };
 
-                let const_value = const_compiler.eval_expr(&c.expr, used)?;
+                let const_value = const_compiler.eval_expr(&c.ir, used)?;
 
                 if used.is_unused() {
                     self.queue.push_back(BuildEntry {

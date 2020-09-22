@@ -1,21 +1,18 @@
-use crate::const_compiler::ConstCompiler;
+use crate::ir_interpreter::IrInterpreter;
 use crate::{CompileError, ParseError, Spanned};
 use runestick::{ConstValue, Span};
 
-mod block;
-mod condition;
-mod expr;
-mod expr_binary;
-mod expr_block;
-mod expr_break;
-mod expr_if;
-mod expr_let;
-mod expr_lit;
-mod expr_loop;
-mod expr_while;
-mod lit_template;
-mod lit_tuple;
-mod lit_vec;
+mod ir;
+mod ir_binary;
+mod ir_branches;
+mod ir_break;
+mod ir_decl;
+mod ir_loop;
+mod ir_scope;
+mod ir_set;
+mod ir_template;
+mod ir_tuple;
+mod ir_vec;
 mod prelude;
 
 /// Indication whether a value is being evaluated because it's being used or not.
@@ -41,15 +38,15 @@ pub(crate) trait Eval<T> {
 
 pub(crate) trait ConstAs {
     /// Process constant value as a boolean.
-    fn as_bool(self, compiler: &mut ConstCompiler<'_>, used: Used) -> Result<bool, EvalOutcome>;
+    fn as_bool(self, compiler: &mut IrInterpreter<'_>, used: Used) -> Result<bool, EvalOutcome>;
 }
 
 impl<T> ConstAs for T
 where
-    for<'a> ConstCompiler<'a>: Eval<T>,
+    for<'a> IrInterpreter<'a>: Eval<T>,
     T: Spanned,
 {
-    fn as_bool(self, compiler: &mut ConstCompiler<'_>, used: Used) -> Result<bool, EvalOutcome> {
+    fn as_bool(self, compiler: &mut IrInterpreter<'_>, used: Used) -> Result<bool, EvalOutcome> {
         let span = self.span();
 
         let value = compiler
@@ -94,8 +91,8 @@ impl From<ParseError> for EvalOutcome {
 
 /// The value of a break.
 pub(crate) enum EvalBreak {
-    /// The break was empty, and will apply to the next loop.
-    Empty,
+    /// Break the next nested loop.
+    Inherent,
     /// The break had a value.
     Value(ConstValue),
     /// The break had a label.

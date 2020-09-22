@@ -1,41 +1,29 @@
-use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::eval::{Eval as _, Used};
 use crate::query::Query;
-use crate::Resolve;
 use crate::{CompileError, CompileErrorKind, Spanned};
-use runestick::{CompileMetaKind, ConstValue, Item, Source, Span};
+use runestick::{CompileMetaKind, ConstValue, Item, Span};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 /// The compiler phase which evaluates constants.
-pub(crate) struct ConstCompiler<'a> {
+pub(crate) struct IrInterpreter<'a> {
     /// A budget associated with the compiler, for how many expressions it's
     /// allowed to evaluate.
-    pub(crate) budget: ConstBudget,
+    pub(crate) budget: IrBudget,
     /// The item where the constant expression is located.
     pub(crate) item: Item,
-    /// Source file used in processing.
-    pub(crate) source: &'a Source,
     /// Query engine to look for constant expressions.
     pub(crate) query: &'a mut Query,
     /// Constant scopes.
-    pub(crate) scopes: ConstScopes,
+    pub(crate) scopes: IrScopes,
 }
 
-impl<'a> ConstCompiler<'a> {
-    /// Resolve the given resolvable value.
-    pub(crate) fn resolve<T>(&self, value: &T) -> Result<T::Output, CompileError>
-    where
-        T: Resolve<'a>,
-    {
-        Ok(value.resolve(&self.query.storage, self.source)?)
-    }
-
+impl<'a> IrInterpreter<'a> {
     /// Outer evaluation for an expression which performs caching into `consts`.
     pub(crate) fn eval_expr(
         &mut self,
-        expr: &ast::Expr,
+        ir: &rune_ir::Ir,
         used: Used,
     ) -> Result<ConstValue, CompileError> {
         log::trace!("processing constant: {}", self.item);
@@ -51,10 +39,10 @@ impl<'a> ConstCompiler<'a> {
             .processing
             .insert(self.item.clone())
         {
-            return Err(CompileError::new(expr, CompileErrorKind::ConstCycle));
+            return Err(CompileError::new(ir, CompileErrorKind::ConstCycle));
         }
 
-        let const_value = match self.eval(expr, used) {
+        let const_value = match self.eval(ir, used) {
             Ok(const_value) => const_value,
             Err(outcome) => match outcome {
                 crate::eval::EvalOutcome::Error(error) => {
@@ -80,7 +68,7 @@ impl<'a> ConstCompiler<'a> {
             .insert(self.item.clone(), const_value.clone())
             .is_some()
         {
-            return Err(CompileError::new(expr, CompileErrorKind::ConstCycle));
+            return Err(CompileError::new(ir, CompileErrorKind::ConstCycle));
         }
 
         Ok(const_value)
@@ -141,14 +129,14 @@ pub(crate) struct Consts {
 
 pub(crate) struct ConstScopeGuard {
     length: usize,
-    scopes: Rc<RefCell<Vec<ConstScope>>>,
+    scopes: Rc<RefCell<Vec<IrScope>>>,
 }
 
 impl Drop for ConstScopeGuard {
     fn drop(&mut self) {
         // Note on panic: it shouldn't be possible for this to panic except for
         // grievous internal errors. Scope guards can only be created in
-        // `ConstScopes::push`, and it guarantees that there are a certain
+        // `IrScopes::push`, and it guarantees that there are a certain
         // number of scopes.
         let mut scopes = self.scopes.borrow_mut();
         assert!(scopes.pop().is_some(), "expected at least one scope");
@@ -160,17 +148,17 @@ impl Drop for ConstScopeGuard {
 }
 
 #[derive(Default)]
-pub(crate) struct ConstScope {
+pub(crate) struct IrScope {
     /// Locals in the current scope.
     locals: HashMap<String, ConstValue>,
 }
 
 /// A hierarchy of constant scopes.
-pub(crate) struct ConstScopes {
-    scopes: Rc<RefCell<Vec<ConstScope>>>,
+pub(crate) struct IrScopes {
+    scopes: Rc<RefCell<Vec<IrScope>>>,
 }
 
-impl ConstScopes {
+impl IrScopes {
     /// Get a value out of the scope.
     pub(crate) fn get(&self, name: &str) -> Option<ConstValue> {
         let scopes = self.scopes.borrow();
@@ -185,16 +173,19 @@ impl ConstScopes {
     }
 
     /// Declare a value in the scope.
-    pub(crate) fn decl(
+    pub(crate) fn decl<S>(
         &self,
         name: &str,
         value: ConstValue,
-        span: Span,
-    ) -> Result<(), CompileError> {
+        spanned: S,
+    ) -> Result<(), CompileError>
+    where
+        S: Spanned,
+    {
         let mut scopes = self.scopes.borrow_mut();
         let last = scopes
             .last_mut()
-            .ok_or_else(|| CompileError::internal(span, "expected at least one scope"))?;
+            .ok_or_else(|| CompileError::internal(spanned, "expected at least one scope"))?;
         last.locals.insert(name.to_owned(), value);
         Ok(())
     }
@@ -202,12 +193,15 @@ impl ConstScopes {
     /// Replace the value of a variable in the scope
     ///
     /// The variable must have been declared in a scope beforehand.
-    pub(crate) fn replace(
+    pub(crate) fn replace<S>(
         &self,
         name: &str,
         value: ConstValue,
-        span: Span,
-    ) -> Result<(), CompileError> {
+        spanned: S,
+    ) -> Result<(), CompileError>
+    where
+        S: Spanned,
+    {
         let mut scopes = self.scopes.borrow_mut();
 
         for scope in scopes.iter_mut().rev() {
@@ -218,7 +212,7 @@ impl ConstScopes {
         }
 
         Err(CompileError::new(
-            span,
+            spanned,
             CompileErrorKind::MissingLocal {
                 name: name.to_owned(),
             },
@@ -230,7 +224,7 @@ impl ConstScopes {
         let length = {
             let mut scopes = self.scopes.borrow_mut();
             let length = scopes.len();
-            scopes.push(ConstScope::default());
+            scopes.push(IrScope::default());
             length
         };
 
@@ -241,20 +235,20 @@ impl ConstScopes {
     }
 }
 
-impl Default for ConstScopes {
+impl Default for IrScopes {
     fn default() -> Self {
         Self {
-            scopes: Rc::new(RefCell::new(vec![ConstScope::default()])),
+            scopes: Rc::new(RefCell::new(vec![IrScope::default()])),
         }
     }
 }
 
 /// A budget dictating the number of evaluations the compiler is allowed to do.
-pub(crate) struct ConstBudget {
+pub(crate) struct IrBudget {
     budget: usize,
 }
 
-impl ConstBudget {
+impl IrBudget {
     /// Construct a new constant evaluation budget with the given constraint.
     pub(crate) fn new(budget: usize) -> Self {
         Self { budget }

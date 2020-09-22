@@ -1,3 +1,4 @@
+use crate::Spanned;
 use runestick::{SourceId, Span};
 use std::error;
 use std::fmt;
@@ -138,11 +139,17 @@ impl Warnings {
     }
 
     /// Indicate that a value is produced but never used.
-    pub fn not_used(&mut self, source_id: usize, span: Span, context: Option<Span>) {
+    pub fn not_used<S>(&mut self, source_id: usize, spanned: S, context: Option<Span>)
+    where
+        S: Spanned,
+    {
         if let Some(w) = &mut self.warnings {
             w.push(Warning {
                 source_id,
-                kind: WarningKind::NotUsed { span, context },
+                kind: WarningKind::NotUsed {
+                    span: spanned.span(),
+                    context,
+                },
             });
         }
     }
