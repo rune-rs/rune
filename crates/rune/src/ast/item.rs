@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
+use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
 
 /// A declaration.
 #[derive(Debug, Clone, ToTokens, Spanned)]
@@ -45,16 +45,9 @@ impl Item {
 
     /// Test if declaration is suitable inside of a block.
     pub fn peek_as_stmt(parser: &mut Parser<'_>) -> Result<bool, ParseError> {
-        let tokens = parser.token_peek_pair()?;
-        let (t1, t2) = peek!(tokens, Ok(false));
+        let (t1, t2) = peek!(parser.token_peek_pair()?, Ok(false));
 
-        let kind = if matches!(t1.kind, ast::Kind::Pub) {
-            peek!(t2, Ok(false)).kind
-        } else {
-            t1.kind
-        };
-
-        Ok(match kind {
+        Ok(match t1.kind {
             ast::Kind::Use => true,
             ast::Kind::Enum => true,
             ast::Kind::Struct => true,
@@ -67,56 +60,80 @@ impl Item {
         })
     }
 
-    /// Parse an Item attaching the given Attributes
-    pub fn parse_with_attributes(
+    /// Parse an Item attaching the given meta.
+    pub fn parse_with_meta(
         parser: &mut Parser,
-        attributes: Vec<ast::Attribute>,
+        mut attributes: Vec<ast::Attribute>,
+        mut visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
+        use std::mem::take;
+
         let t = parser.token_peek_eof()?;
 
-        let kind = if t.kind == ast::Kind::Pub {
-            let t2 = parser.token_peek2_eof()?;
-            t2.kind
-        } else {
-            t.kind
-        };
-
-        Ok(match kind {
-            ast::Kind::Use => {
-                Self::ItemUse(ast::ItemUse::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Enum => {
-                Self::ItemEnum(ast::ItemEnum::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Struct => {
-                Self::ItemStruct(ast::ItemStruct::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Impl => {
-                Self::ItemImpl(ast::ItemImpl::parse_with_attributes(parser, attributes)?)
-            }
+        let item = match t.kind {
+            ast::Kind::Use => Self::ItemUse(ast::ItemUse::parse_with_meta(
+                parser,
+                take(&mut attributes),
+                take(&mut visibility),
+            )?),
+            ast::Kind::Enum => Self::ItemEnum(ast::ItemEnum::parse_with_meta(
+                parser,
+                take(&mut attributes),
+                take(&mut visibility),
+            )?),
+            ast::Kind::Struct => Self::ItemStruct(ast::ItemStruct::parse_with_meta(
+                parser,
+                take(&mut attributes),
+                take(&mut visibility),
+            )?),
+            ast::Kind::Impl => Self::ItemImpl(ast::ItemImpl::parse_with_attributes(
+                parser,
+                take(&mut attributes),
+            )?),
             ast::Kind::Async | ast::Kind::Fn => Self::ItemFn(Box::new(
-                ast::ItemFn::parse_with_attributes(parser, attributes)?,
+                ast::ItemFn::parse_with_meta(parser, take(&mut attributes), take(&mut visibility))?,
             )),
-            ast::Kind::Mod => {
-                Self::ItemMod(ast::ItemMod::parse_with_attributes(parser, attributes)?)
-            }
-            ast::Kind::Const => {
-                Self::ItemConst(ast::ItemConst::parse_with_attributes(parser, attributes)?)
-            }
+            ast::Kind::Mod => Self::ItemMod(ast::ItemMod::parse_with_meta(
+                parser,
+                take(&mut attributes),
+                take(&mut visibility),
+            )?),
+            ast::Kind::Const => Self::ItemConst(ast::ItemConst::parse_with_meta(
+                parser,
+                take(&mut attributes),
+                take(&mut visibility),
+            )?),
             ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
-            _ => {
+            kind => {
                 return Err(ParseError::new(
                     t,
                     ParseErrorKind::ExpectedItem { actual: kind },
                 ))
             }
-        })
+        };
+
+        if let Some(span) = attributes.option_span() {
+            return Err(ParseError::new(
+                span,
+                ParseErrorKind::UnsupportedItemAttributes,
+            ));
+        }
+
+        if let Some(span) = visibility.option_span() {
+            return Err(ParseError::new(
+                span,
+                ParseErrorKind::UnsupportedItemVisibility,
+            ));
+        }
+
+        Ok(item)
     }
 }
 
 impl Parse for Item {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let attributes: Vec<ast::Attribute> = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
+        let attributes = parser.parse()?;
+        let visibility = parser.parse()?;
+        Self::parse_with_meta(parser, attributes, visibility)
     }
 }

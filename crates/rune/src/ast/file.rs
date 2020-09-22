@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, ToTokens};
-use std::mem::take;
+use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, ToTokens};
 
 /// A parsed file.
 #[derive(Debug, Clone, ToTokens)]
@@ -80,9 +79,11 @@ impl Parse for File {
         let mut items = Vec::new();
 
         let mut item_attributes = parser.parse()?;
+        let mut item_visibility = parser.parse()?;
+
         while ast::Item::peek_as_stmt(parser)? {
             let item: ast::Item =
-                ast::Item::parse_with_attributes(parser, take(&mut item_attributes))?;
+                ast::Item::parse_with_meta(parser, item_attributes, item_visibility)?;
 
             let semi_colon = if item.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {
                 Some(parser.parse::<ast::SemiColon>()?)
@@ -92,6 +93,22 @@ impl Parse for File {
 
             items.push((item, semi_colon));
             item_attributes = parser.parse()?;
+            item_visibility = parser.parse()?;
+        }
+
+        // meta without items. maybe use different error kind?
+        if let Some(span) = item_attributes.option_span() {
+            return Err(ParseError::new(
+                span,
+                ParseErrorKind::UnsupportedItemAttributes,
+            ));
+        }
+
+        if let Some(span) = item_visibility.option_span() {
+            return Err(ParseError::new(
+                span,
+                ParseErrorKind::UnsupportedItemVisibility,
+            ));
         }
 
         Ok(Self { attributes, items })

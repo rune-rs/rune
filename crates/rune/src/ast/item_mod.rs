@@ -20,13 +20,14 @@ pub struct ItemMod {
 
 impl ItemMod {
     /// Parse a `mod` item with the given attributes
-    pub fn parse_with_attributes(
+    pub fn parse_with_meta(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
+        visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
-            visibility: parser.parse()?,
+            visibility,
             mod_: parser.parse()?,
             name: parser.parse()?,
             body: parser.parse()?,
@@ -59,7 +60,8 @@ impl ItemMod {
 impl Parse for ItemMod {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
+        let visibility = parser.parse()?;
+        Self::parse_with_meta(parser, attributes, visibility)
     }
 }
 

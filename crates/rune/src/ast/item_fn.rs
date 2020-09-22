@@ -40,13 +40,14 @@ impl ItemFn {
     }
 
     /// Parse a `fn` item with the given attributes
-    pub fn parse_with_attributes(
+    pub fn parse_with_meta(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
+        visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
-            visibility: parser.parse()?,
+            visibility,
             async_: parser.parse()?,
             fn_: parser.parse()?,
             name: parser.parse()?,
@@ -93,6 +94,7 @@ impl Peek for ItemFn {
 impl Parse for ItemFn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
+        let visibility = parser.parse()?;
+        Self::parse_with_meta(parser, attributes, visibility)
     }
 }

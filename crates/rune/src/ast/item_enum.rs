@@ -24,11 +24,11 @@ pub struct ItemEnum {
 
 impl ItemEnum {
     /// Parse a `enum` item with the given attributes
-    pub fn parse_with_attributes(
+    pub fn parse_with_meta(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
+        visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
-        let visibility = parser.parse()?;
         let enum_ = parser.parse()?;
         let name = parser.parse()?;
         let open = parser.parse()?;
@@ -80,7 +80,8 @@ impl ItemEnum {
 impl Parse for ItemEnum {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
+        let visibility = parser.parse()?;
+        Self::parse_with_meta(parser, attributes, visibility)
     }
 }
 
