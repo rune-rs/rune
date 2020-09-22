@@ -87,6 +87,44 @@ where
     block_on(run_async(function, args, source))
 }
 
+/// Helper function to construct a context and unit from a Rune source for
+/// testing purposes.
+///
+/// This is primarily used in examples.
+pub fn build(source: &str) -> runestick::Result<(Arc<runestick::Context>, Arc<runestick::Unit>)> {
+    let context = std::sync::Arc::new(crate::default_context()?);
+    let options = crate::Options::default();
+    let mut sources = crate::Sources::new();
+    sources.insert(runestick::Source::new("source", source));
+
+    let mut warnings = crate::Warnings::new();
+    let mut errors = crate::Errors::new();
+
+    let unit = match crate::load_sources(
+        &*context,
+        &options,
+        &mut sources,
+        &mut errors,
+        &mut warnings,
+    ) {
+        Ok(unit) => unit,
+        Err(error) => {
+            let mut writer =
+                crate::termcolor::StandardStream::stderr(crate::termcolor::ColorChoice::Always);
+            crate::EmitDiagnostics::emit_diagnostics(&errors, &mut writer, &sources)?;
+            return Err(error.into());
+        }
+    };
+
+    if !warnings.is_empty() {
+        let mut writer =
+            crate::termcolor::StandardStream::stderr(crate::termcolor::ColorChoice::Always);
+        crate::EmitDiagnostics::emit_diagnostics(&warnings, &mut writer, &sources)?;
+    }
+
+    Ok((context, std::sync::Arc::new(unit)))
+}
+
 /// Run the given program and return the expected type from it.
 ///
 /// # Examples

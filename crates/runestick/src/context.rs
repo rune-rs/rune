@@ -98,11 +98,12 @@ pub enum ContextError {
 }
 
 /// A function handler.
-pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Sync;
+pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync;
 
 /// A (type erased) macro handler.
-pub(crate) type Macro =
-    dyn Fn(&mut dyn any::Any, &dyn any::Any) -> Result<Box<dyn any::Any>, crate::Error> + Sync;
+pub(crate) type Macro = dyn Fn(&mut dyn any::Any, &dyn any::Any) -> Result<Box<dyn any::Any>, crate::Error>
+    + Send
+    + Sync;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
@@ -712,5 +713,21 @@ impl Context {
 impl fmt::Debug for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Context")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Context;
+
+    fn assert_send_sync<T>()
+    where
+        T: Send + Sync,
+    {
+    }
+
+    #[test]
+    fn assert_thread_safe_context() {
+        assert_send_sync::<Context>();
     }
 }
