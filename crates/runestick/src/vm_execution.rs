@@ -1,5 +1,7 @@
 use crate::budget;
+use crate::internal;
 use crate::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmHalt, VmHaltInfo};
+use std::future::Future;
 
 /// The execution environment for a virtual machine.
 pub struct VmExecution {
@@ -213,5 +215,45 @@ impl VmExecution {
             Ok(reason) => Ok(reason),
             Err(error) => Err(error.into_unwinded(vm.unit(), vm.ip())),
         }
+    }
+}
+
+/// A wrapper that makes [`VmExecution`] [`Send`].
+///
+/// This is accomplished by preventing any [`Value`] from escaping the [`Vm`].
+/// As long as this is maintained, it is safe to send the execution across,
+/// threads, and therefore schedule the future associated with the execution on
+/// a thread pool like Tokio's through [tokio::spawn].
+///
+/// [tokio::spawn]: https://docs.rs/tokio/0/tokio/runtime/struct.Runtime.html#method.spawn
+pub struct VmSendExecution(pub(crate) VmExecution);
+
+// Safety: we wrap all APIs around the [VmExecution], preventing values from
+// escaping from contained virtual machine.
+unsafe impl Send for VmSendExecution {}
+
+impl VmSendExecution {
+    /// Complete the current execution with support for async instructions.
+    ///
+    /// This requires that the result of the Vm is converted into a
+    /// [`FromValue`] that also implements [`Send`],  which prevents non-Send
+    /// values from escaping from the virtual machine.
+    pub fn async_complete(
+        mut self,
+    ) -> impl Future<Output = Result<Value, VmError>> + Send + 'static {
+        let future = async move {
+            let result = self.0.async_resume().await?;
+
+            match result {
+                GeneratorState::Complete(value) => Ok(value),
+                GeneratorState::Yielded(..) => Err(VmError::from(VmErrorKind::Halted {
+                    halt: VmHaltInfo::Yielded,
+                })),
+            }
+        };
+
+        // Safety: we wrap all APIs around the [VmExecution], preventing values
+        // from escaping from contained virtual machine.
+        unsafe { internal::AssertSend::new(future) }
     }
 }
