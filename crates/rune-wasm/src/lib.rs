@@ -140,6 +140,7 @@ fn setup_context() -> Result<runestick::Context, ContextError> {
     context.install(&http::module()?)?;
     context.install(&rune_modules::json::module()?)?;
     context.install(&rune_modules::toml::module()?)?;
+    context.install(&rune_modules::rand::module()?)?;
     Ok(context)
 }
 

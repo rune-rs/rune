@@ -22,7 +22,7 @@ js-sys = "0.3.45"
 
 rune = {version = "0.6.16", path = "../rune", features = []}
 rune-macros = {version = "0.6.16", path = "../rune-macros"}
-rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["json", "toml"]}
+rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["json", "toml", "rand"]}
 runestick = {version = "0.6.16", path = "../runestick"}
 
 [dependencies.web-sys]

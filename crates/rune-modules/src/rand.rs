@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! The native `rand` module for the [Rune Language].
 //!
 //! [Rune Language]: https://rune-rs.github.io
@@ -27,36 +28,56 @@
 //!     let rng = rand::WyRand::new();
 //!     let rand_int = rng.int();
 //!     println(`Random int: {rand_int}`);
-//!     let rand_int_range = rng.int_range(1, 100);
-//!     println(`Random int between 1 and 100: {rand_int_range}`);
-//!     let rand_byte = rng.byte();
-//!     println(`Random byte: {rand_byte}`);
-//!     let rand_byte_range = rng.byte_range(1, 64);
-//!     println(`Random byte between 1 and 64: {rand_byte_range}`);
+//!     let rand_int_range = rng.int_range(-100, 100);
+//!     println(`Random int between -100 and 100: {rand_int_range}`);
 //! }
 //! ```
 
-use nanorand::{RandomGen, RandomRange, RNG};
-use runestick::{Bytes, ContextError, Module, Value};
+use nanorand::RNG;
+use runestick::{Any, ContextError, Module, Value};
 
 /// Construct the `rand` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["rand"]);
-    module.ty::<WyRand>();
-    module.ty::<Pcg64>();
+
+    module.ty::<WyRand>()?;
+    module.function(&["WyRand", "new"], WyRand::new)?;
+    module.function(&["WyRand", "new_seed"], WyRand::new_seed)?;
+    module.inst_fn("int", WyRand::int)?;
+    module.inst_fn("int_range", WyRand::int_range)?;
+
+    module.ty::<Pcg64>()?;
+    module.function(&["Pcg64", "new"], Pcg64::new)?;
+    module.function(&["Pcg64", "new_seed"], Pcg64::new_seed)?;
+    module.inst_fn("int", Pcg64::int)?;
+    module.inst_fn("int_range", Pcg64::int_range)?;
+
     module.function(&["int"], int)?;
     module.function(&["int_range"], int_range)?;
-    module.function(&["byte"], byte)?;
-    module.function(&["byte_range"], byte_range)?;
+
     Ok(module)
 }
 
-#[derive(Debug, Any)]
+#[derive(Any)]
 struct WyRand {
     inner: nanorand::WyRand,
 }
 
 impl WyRand {
+    /// Create a new RNG instance.
+    fn new() -> Self {
+        Self {
+            inner: nanorand::WyRand::new(),
+        }
+    }
+
+    /// Create a new RNG instance, using a custom seed.
+    fn new_seed(seed: i64) -> Self {
+        Self {
+            inner: nanorand::WyRand::new_seed(seed as u64),
+        }
+    }
+
     /// Generate a random integer
     fn int(&mut self) -> Value {
         Value::Integer(self.inner.generate::<i64>())
@@ -66,24 +87,28 @@ impl WyRand {
     fn int_range(&mut self, lower: i64, upper: i64) -> Value {
         Value::Integer(self.inner.generate_range::<i64>(lower, upper))
     }
-
-    /// Generate a random byte
-    fn byte(&mut self) -> Value {
-        Value::Byte(self.inner.generate::<u8>())
-    }
-
-    /// Generate a random byte within the specified range
-    fn byte_range(&mut self, lower: u8, upper: u8) -> Value {
-        Value::Byte(self.inner.generate_range::<u8>(lower, upper))
-    }
 }
 
-#[derive(Debug, Any)]
+#[derive(Any)]
 struct Pcg64 {
     inner: nanorand::Pcg64,
 }
 
 impl Pcg64 {
+    /// Create a new RNG instance.
+    fn new() -> Self {
+        Self {
+            inner: nanorand::Pcg64::new(),
+        }
+    }
+
+    /// Create a new RNG instance, using a custom seed.
+    fn new_seed(seed: i64) -> Self {
+        Self {
+            inner: nanorand::Pcg64::new_seed(seed as u128),
+        }
+    }
+
     /// Generate a random integer
     fn int(&mut self) -> Value {
         Value::Integer(self.inner.generate::<i64>())
@@ -93,34 +118,14 @@ impl Pcg64 {
     fn int_range(&mut self, lower: i64, upper: i64) -> Value {
         Value::Integer(self.inner.generate_range::<i64>(lower, upper))
     }
-
-    /// Generate a random byte
-    fn byte(&mut self) -> Value {
-        Value::Byte(self.inner.generate::<u8>())
-    }
-
-    /// Generate a random byte within the specified range
-    fn byte_range(&mut self, lower: u8, upper: u8) -> Value {
-        Value::Byte(self.inner.generate_range::<u8>(lower, upper))
-    }
-}
-
-fn byte() -> runestick::Result<Value> {
-    Ok(Value::Byte(WyRand::new().generate::<u8>()))
-}
-
-fn byte_range(lower: u8, upper: u8) -> runestick::Result<Value> {
-    Ok(Value::Byte(
-        WyRand::new().generate_range::<u8>(lower, upper),
-    ))
 }
 
 fn int() -> runestick::Result<Value> {
-    Ok(Value::Integer(WyRand::new().generate::<i64>()))
+    Ok(Value::Integer(nanorand::WyRand::new().generate::<i64>()))
 }
 
 fn int_range(lower: i64, upper: i64) -> runestick::Result<Value> {
     Ok(Value::Integer(
-        WyRand::new().generate_range::<i64>(lower, upper),
+        nanorand::WyRand::new().generate_range::<i64>(lower, upper),
     ))
 }
