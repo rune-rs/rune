@@ -52,6 +52,20 @@ impl CompileError {
         CompileError::new(spanned, CompileErrorKind::Internal { msg })
     }
 
+    /// Construct an "unsupported path" internal error for the
+    /// paths containing unsupported path keywords like super and crate.
+    pub fn internal_unsupported_path<S>(spanned: S) -> Self
+    where
+        S: Spanned,
+    {
+        CompileError::new(
+            spanned,
+            CompileErrorKind::Internal {
+                msg: "paths containing `crate` or `super` are not supported",
+            },
+        )
+    }
+
     /// An error raised during constant computation.
     pub fn const_error<S>(spanned: S, msg: &'static str) -> Self
     where

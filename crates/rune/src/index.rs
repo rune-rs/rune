@@ -756,12 +756,9 @@ impl Index<ast::Item> for Indexer<'_> {
                 let mut guards = Vec::new();
 
                 for path_segment in item_impl.path.into_components() {
-                    let ident_segment = path_segment.try_as_ident().ok_or_else(|| {
-                        CompileError::internal(
-                            path_segment,
-                            "paths containing `crate` or `super` are not supported",
-                        )
-                    })?;
+                    let ident_segment = path_segment
+                        .try_as_ident()
+                        .ok_or_else(|| CompileError::internal_unsupported_path(path_segment))?;
                     let ident = ident_segment.resolve(&self.storage, &*self.source)?;
                     guards.push(self.items.push_name(ident.as_ref()));
                 }
