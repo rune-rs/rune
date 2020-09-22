@@ -1,26 +1,19 @@
 use crate::eval::prelude::*;
 use std::fmt::Write as _;
 
-impl Eval<&ast::LitTemplate> for ConstCompiler<'_> {
-    fn eval(
-        &mut self,
-        lit_template: &ast::LitTemplate,
-        used: Used,
-    ) -> Result<ConstValue, EvalOutcome> {
-        let span = lit_template.span();
-        self.budget.take(span)?;
-        let template = self.resolve(lit_template)?;
+impl Eval<&IrTemplate> for IrInterpreter<'_> {
+    fn eval(&mut self, ir_template: &IrTemplate, used: Used) -> Result<ConstValue, EvalOutcome> {
+        self.budget.take(ir_template)?;
 
         let mut buf = String::new();
 
-        for component in &template.components {
+        for component in &ir_template.components {
             match component {
-                ast::TemplateComponent::String(string) => {
-                    self.budget.take(lit_template)?;
+                IrTemplateComponent::String(string) => {
                     buf.push_str(&string);
                 }
-                ast::TemplateComponent::Expr(expr) => {
-                    let const_value = self.eval(&**expr, used)?;
+                IrTemplateComponent::Ir(ir) => {
+                    let const_value = self.eval(ir, used)?;
 
                     match const_value {
                         ConstValue::String(s) => {
@@ -38,7 +31,7 @@ impl Eval<&ast::LitTemplate> for ConstCompiler<'_> {
                             write!(buf, "{}", b).unwrap();
                         }
                         _ => {
-                            return Err(EvalOutcome::not_const(lit_template));
+                            return Err(EvalOutcome::not_const(ir_template));
                         }
                     }
                 }

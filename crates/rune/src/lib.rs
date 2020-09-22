@@ -177,13 +177,14 @@ mod compile;
 mod compile_error;
 mod compile_visitor;
 mod compiler;
-mod const_compiler;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;
 mod errors;
 mod eval;
 mod index;
 mod index_scopes;
+mod ir_compiler;
+mod ir_interpreter;
 mod items;
 mod lexer;
 mod load;

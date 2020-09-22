@@ -13,6 +13,8 @@ pub enum ConstValue {
     Integer(i64),
     /// An float constant.
     Float(f64),
+    /// A vector of values.
+    Vec(Box<[ConstValue]>),
     /// An anonymous tuple.
     Tuple(Box<[ConstValue]>),
 }
@@ -34,6 +36,7 @@ impl ConstValue {
             Self::String(..) => TypeInfo::StaticType(crate::STRING_TYPE),
             Self::Integer(..) => TypeInfo::StaticType(crate::INTEGER_TYPE),
             Self::Float(..) => TypeInfo::StaticType(crate::FLOAT_TYPE),
+            Self::Vec(..) => TypeInfo::StaticType(crate::VEC_TYPE),
             Self::Tuple(..) => TypeInfo::StaticType(crate::TUPLE_TYPE),
         }
     }

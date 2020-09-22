@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compile_visitor::NoopCompileVisitor;
-use crate::const_compiler::Consts;
+use crate::ir_interpreter::Consts;
 use crate::items::Items;
 use crate::loops::Loops;
 use crate::query::{Build, BuildEntry, Query};
@@ -305,7 +305,7 @@ fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
             }
         }
         Build::UnusedConst(c) => {
-            warnings.not_used(source_id, c.expr.span(), None);
+            warnings.not_used(source_id, &c.ir, None);
         }
     }
 

@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::{Peek, Spanned, ToTokens};
+use runestick::Span;
 use std::fmt;
 
 /// A binary expression.
@@ -28,6 +29,15 @@ impl ExprBinary {
     /// Test if the expression is a constant expression.
     pub fn is_const(&self) -> bool {
         self.lhs.is_const() && self.rhs.is_const()
+    }
+
+    /// Get the span of the op.
+    pub fn op_span(&self) -> Span {
+        if let Some(t2) = self.t2 {
+            self.t1.span().join(t2.span())
+        } else {
+            self.t1.span()
+        }
     }
 }
 

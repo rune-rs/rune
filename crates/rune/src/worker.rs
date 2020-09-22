@@ -2,9 +2,9 @@
 
 use crate::ast;
 use crate::collections::HashMap;
-use crate::const_compiler::Consts;
 use crate::index::{Index as _, Indexer};
 use crate::index_scopes::IndexScopes;
+use crate::ir_interpreter::Consts;
 use crate::items::Items;
 use crate::macros::MacroCompiler;
 use crate::query::Query;
