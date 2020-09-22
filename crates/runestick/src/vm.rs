@@ -5,7 +5,7 @@ use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Context, FromValue, Function, Future, Generator,
     GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object,
     ObjectVariant, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject, Unit,
-    Value, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    Value, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmSendExecution,
 };
 use std::fmt;
 use std::mem;
@@ -196,6 +196,25 @@ impl Vm {
         self.set_entrypoint(name, A::count())?;
         args.into_stack(&mut self.stack)?;
         Ok(VmExecution::new(self))
+    }
+
+    /// An `execute` variant that returns an execution which implements
+    /// [`Send`], allowing it to be sent and executed on a different thread.
+    ///
+    /// This is accomplished by preventing values escaping from being
+    /// non-exclusively sent with the execution or escaping the execution. We
+    /// only support encoding arguments which themselves are `Send`.
+    pub fn send_execute<A, N>(mut self, name: N, args: A) -> Result<VmSendExecution, VmError>
+    where
+        N: IntoTypeHash,
+        A: Send + Args,
+    {
+        // Safety: make sure the stack is clear, preventing any values from
+        // being sent along with the virtual machine.
+        self.stack.clear();
+
+        let execution = self.execute(name, args)?;
+        Ok(VmSendExecution(execution))
     }
 
     /// Call the given function immediately, returning the produced value.

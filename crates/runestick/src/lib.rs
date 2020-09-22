@@ -174,7 +174,7 @@ pub use crate::vec_tuple::VecTuple;
 pub use crate::vm::{CallFrame, Vm};
 pub use crate::vm_call::VmCall;
 pub use crate::vm_error::{VmError, VmErrorKind, VmIntegerRepr};
-pub use crate::vm_execution::VmExecution;
+pub use crate::vm_execution::{VmExecution, VmSendExecution};
 pub use crate::vm_halt::{VmHalt, VmHaltInfo};
 pub(crate) use runestick_macros::__internal_impl_any;
 pub use runestick_macros::{Any, FromValue};
