@@ -52,6 +52,7 @@
 //! * [fs]
 //! * [process]
 //! * [signal]
+//! * [rand]
 //!
 //! ## Features
 //!
@@ -60,9 +61,10 @@
 //! * `json` for the [json module][json]
 //! * `toml` for the [toml module][toml]
 //! * `time` for the [time module][time]
-//! * `fs` for the [fs module]][fs]
-//! * `process` for the [process module]][process]
-//! * `signal` for the [process module]][signal]
+//! * `fs` for the [fs module][fs]
+//! * `process` for the [process module][process]
+//! * `signal` for the [signal module][signal]
+//! * `rand` for the [rand module][rand]
 //!
 //! [http]: https://docs.rs/rune-modules/0/rune_modules/http/
 //! [json]: https://docs.rs/rune-modules/0/rune_modules/json/
@@ -71,6 +73,7 @@
 //! [fs]: https://docs.rs/rune-modules/0/rune_modules/fs/
 //! [process]: https://docs.rs/rune-modules/0/rune_modules/process/
 //! [signal]: https://docs.rs/rune-modules/0/rune_modules/signal/
+//! [rand]: https://docs.rs/rune-modules/0/rune_modules/rand/
 
 #[cfg(feature = "http")]
 pub mod http;
@@ -92,3 +95,6 @@ pub mod process;
 
 #[cfg(feature = "signal")]
 pub mod signal;
+
+#[cfg(feature = "rand")]
+pub mod rand;
