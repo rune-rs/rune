@@ -1,10 +1,12 @@
 use crate::context::Handler;
+use crate::internal::AssertSend;
 use crate::VmErrorKind;
 use crate::{
     Args, Call, ConstValue, Context, FromValue, RawRef, Ref, Rtti, Shared, Stack, Tuple, Unit,
     UnsafeFromValue, Value, VariantRtti, Vm, VmCall, VmError, VmHalt,
 };
 use std::fmt;
+use std::future::Future;
 use std::sync::Arc;
 
 /// A callable non-sync function.
@@ -65,6 +67,37 @@ where
         };
 
         Ok(T::from_value(value)?)
+    }
+
+    /// Perform an asynchronous call over the function which also implements
+    /// `Send`.
+    pub fn async_send_call<'a, A, T>(
+        &'a self,
+        args: A,
+    ) -> impl Future<Output = Result<T, VmError>> + Send + 'a
+    where
+        A: 'a + Send + Args,
+        T: 'a + Send + FromValue,
+    {
+        let future = async move {
+            let value = self.call(args)?;
+
+            let value = match value {
+                Value::Future(future) => {
+                    let future = future.take()?;
+                    future.await?
+                }
+                other => other,
+            };
+
+            Ok(T::from_value(value)?)
+        };
+
+        // Safety: Future is send because there is no way to call this
+        // function in a manner which allows any values from the future
+        // to escape outside of this future, hence it can only be
+        // scheduled by one thread at a time.
+        unsafe { AssertSend::new(future) }
     }
 
     /// Call with the given virtual machine. This allows for certain
