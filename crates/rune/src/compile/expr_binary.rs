@@ -160,12 +160,10 @@ fn compile_assign_binop(
             ast::Expr::Path(path) if path.rest.is_empty() => {
                 this.compile((rhs, Needs::Value))?;
 
-                let segment = path.first.try_as_ident().ok_or_else(|| {
-                    CompileError::internal(
-                        path,
-                        "paths containing `crate` or `super` are not supported",
-                    )
-                })?;
+                let segment = path
+                    .first
+                    .try_as_ident()
+                    .ok_or_else(|| CompileError::internal_unsupported_path(path))?;
                 let ident = segment.resolve(this.storage, &*this.source)?;
                 let var = this
                     .scopes
@@ -232,12 +230,10 @@ fn compile_assign_binop(
             ast::Expr::Path(path) if path.rest.is_empty() => {
                 this.compile((rhs, Needs::Value))?;
 
-                let segment = path.first.try_as_ident().ok_or_else(|| {
-                    CompileError::internal(
-                        path,
-                        "paths containing `crate` or `super` are not supported",
-                    )
-                })?;
+                let segment = path
+                    .first
+                    .try_as_ident()
+                    .ok_or_else(|| CompileError::internal_unsupported_path(path))?;
                 let ident = segment.resolve(this.storage, &*this.source)?;
                 let var = this
                     .scopes

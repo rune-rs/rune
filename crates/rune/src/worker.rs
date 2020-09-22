@@ -377,12 +377,7 @@ impl Import {
         let first = decl_use
             .first
             .try_as_ident()
-            .ok_or_else(|| {
-                CompileError::internal(
-                    &decl_use.first,
-                    "paths containing `crate` or `super` are not supported",
-                )
-            })?
+            .ok_or_else(|| CompileError::internal_unsupported_path(&decl_use.first))?
             .resolve(storage, &*source)?;
         name.push(first.as_ref());
 
@@ -395,12 +390,9 @@ impl Import {
                     return Err(CompileError::new(t, CompileErrorKind::UnsupportedWildcard));
                 }
                 ast::ItemUseComponent::PathSegment(segment) => {
-                    let ident = segment.try_as_ident().ok_or_else(|| {
-                        CompileError::internal(
-                            segment,
-                            "paths containing `crate` or `super` are not supported",
-                        )
-                    })?;
+                    let ident = segment
+                        .try_as_ident()
+                        .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
                     name.push(ident.resolve(storage, &*source)?.as_ref());
                 }
             }
@@ -433,12 +425,9 @@ impl Import {
                     }
                 }
                 ast::ItemUseComponent::PathSegment(segment) => {
-                    let ident = segment.try_as_ident().ok_or_else(|| {
-                        CompileError::internal(
-                            segment,
-                            "paths containing `crate` or `super` are not supported",
-                        )
-                    })?;
+                    let ident = segment
+                        .try_as_ident()
+                        .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
                     name.push(ident.resolve(storage, &*source)?.as_ref());
                     unit.new_import(item, &name, span, source_id)?;
                 }

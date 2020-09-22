@@ -531,12 +531,10 @@ impl UnitBuilder {
         storage: &Storage,
         source: &Source,
     ) -> CompileResult<Item> {
-        let ident = path.first.try_as_ident().ok_or_else(|| {
-            crate::CompileError::internal(
-                path,
-                "paths containing `crate` or `super` are not supported",
-            )
-        })?;
+        let ident = path
+            .first
+            .try_as_ident()
+            .ok_or_else(|| crate::CompileError::internal_unsupported_path(path))?;
 
         let local = ident.resolve(storage, source)?;
 
@@ -546,12 +544,9 @@ impl UnitBuilder {
         };
 
         for (_, segment) in &path.rest {
-            let part = segment.try_as_ident().ok_or_else(|| {
-                crate::CompileError::internal(
-                    segment,
-                    "paths containing `crate` or `super` are not supported",
-                )
-            })?;
+            let part = segment
+                .try_as_ident()
+                .ok_or_else(|| crate::CompileError::internal_unsupported_path(segment))?;
 
             imported.push(part.resolve(storage, source)?.as_ref());
         }
