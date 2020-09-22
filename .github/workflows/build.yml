@@ -8,6 +8,7 @@ on:
 
 jobs:
   build:
+    name: Linux Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -29,3 +30,25 @@ jobs:
         run: cargo test --all
       - name: Run example scripts
         run: cargo run --release --bin rune -- --recursive --test --experimental -O macros=true scripts
+  wasm:
+    name: Wasm Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        id: rust_toolchain
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+      - name: Caching
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            target
+          key: ${{ runner.os }}-cargo-${{ steps.rust_toolchain.outputs.rustc_hash }}
+      - name: Build WASM component
+        run: cargo build --manifest-path=crates/rune-wasm/Cargo.toml --target wasm32-unknown-unknown
