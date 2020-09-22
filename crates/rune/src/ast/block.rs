@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
-use std::mem::take;
+use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
 
 /// A block of expressions.
 #[derive(Debug, Clone, ToTokens, Spanned)]
@@ -80,10 +79,11 @@ impl Parse for Block {
         let mut must_be_last = None;
 
         while !parser.peek::<ast::CloseBrace>()? {
-            let mut attributes = parser.parse()?;
+            let attributes = parser.parse()?;
+            let visibility = parser.parse()?;
+
             if ast::Item::peek_as_stmt(parser)? {
-                let decl: ast::Item =
-                    ast::Item::parse_with_attributes(parser, take(&mut attributes))?;
+                let decl: ast::Item = ast::Item::parse_with_meta(parser, attributes, visibility)?;
 
                 if let Some(span) = must_be_last {
                     return Err(ParseError::new(
@@ -96,6 +96,13 @@ impl Parse for Block {
 
                 statements.push(ast::Stmt::Item(decl));
                 continue;
+            }
+
+            if let Some(span) = visibility.option_span() {
+                return Err(ParseError::new(
+                    span,
+                    ParseErrorKind::UnsupportedExprVisibility,
+                ));
             }
 
             let expr: ast::Expr = ast::Expr::parse_primary_with_attributes(parser, attributes)?;

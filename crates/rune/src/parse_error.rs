@@ -79,6 +79,15 @@ pub enum ParseErrorKind {
         /// The actual token kind.
         actual: ast::Kind,
     },
+    /// The given item does not support an attribute, like `#[foo]`.
+    #[error("item does not support attributes")]
+    UnsupportedItemAttributes,
+    /// The given item does not support a visibility modifier, like `pub`.
+    #[error("item does not support visibility")]
+    UnsupportedItemVisibility,
+    /// When we try to use a visibility modifer for an expression.
+    #[error("visibility modifier is not supported for expressions")]
+    UnsupportedExprVisibility,
     /// Error encountered when we see a string escape sequence without a
     /// character being escaped.
     #[error("expected escape")]

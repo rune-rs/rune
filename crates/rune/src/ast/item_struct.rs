@@ -20,13 +20,14 @@ pub struct ItemStruct {
 
 impl ItemStruct {
     /// Parse a `struct` item with the given attributes
-    pub fn parse_with_attributes(
+    pub fn parse_with_meta(
         parser: &mut Parser,
         attributes: Vec<ast::Attribute>,
+        visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
-            visibility: parser.parse()?,
+            visibility,
             struct_: parser.parse()?,
             ident: parser.parse()?,
             body: parser.parse()?,
@@ -50,7 +51,8 @@ impl ItemStruct {
 impl Parse for ItemStruct {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
+        let visibility = parser.parse()?;
+        Self::parse_with_meta(parser, attributes, visibility)
     }
 }
 

@@ -20,7 +20,7 @@ pub struct ItemImpl {
 }
 
 impl ItemImpl {
-    /// Parse an `impl` item with the given attributes
+    /// Parse an `impl` item with the given attributes.
     pub fn parse_with_attributes(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
@@ -32,8 +32,7 @@ impl ItemImpl {
         let mut functions = vec![];
 
         while !parser.peek::<ast::CloseBrace>()? {
-            let attributes = parser.parse()?;
-            functions.push(ast::ItemFn::parse_with_attributes(parser, attributes)?);
+            functions.push(ast::ItemFn::parse(parser)?);
         }
 
         let close = parser.parse()?;

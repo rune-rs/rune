@@ -20,6 +20,12 @@ impl Visibility {
     }
 }
 
+impl Default for Visibility {
+    fn default() -> Self {
+        Self::Inherited
+    }
+}
+
 /// Parsing Visibility specifiers
 ///
 /// # Examples
@@ -56,7 +62,10 @@ impl Visibility {
 /// ```
 impl Parse for Visibility {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_peek_eof()?;
+        let token = match parser.token_peek()? {
+            Some(token) => token,
+            None => return Ok(Self::Inherited),
+        };
 
         if token.kind == ast::Kind::Pub {
             let pub_ = parser.parse()?;

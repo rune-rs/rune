@@ -164,3 +164,24 @@ where
         OptionSpanned::option_span(&**self)
     }
 }
+
+/// Take the span of a vector of spanned.
+/// Provides the span between the first and the last element.
+impl<T> OptionSpanned for Vec<T>
+where
+    T: Spanned,
+{
+    fn option_span(&self) -> Option<Span> {
+        let first = if let Some(first) = self.first() {
+            first.span()
+        } else {
+            return self.last().map(Spanned::span);
+        };
+
+        if let Some(last) = self.last() {
+            Some(first.join(last.span()))
+        } else {
+            Some(first)
+        }
+    }
+}

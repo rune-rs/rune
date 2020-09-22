@@ -25,14 +25,15 @@ pub struct ItemUse {
 
 impl ItemUse {
     /// Parse a `use` item with the given attributes
-    pub fn parse_with_attributes(
+    pub fn parse_with_meta(
         parser: &mut Parser,
         attributes: Vec<ast::Attribute>,
+        visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
+            visibility,
             leading_colon: parser.parse()?,
-            visibility: parser.parse()?,
             use_: parser.parse()?,
             first: parser.parse()?,
             rest: parser.parse()?,
@@ -57,7 +58,8 @@ impl ItemUse {
 impl Parse for ItemUse {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
+        let visibility = parser.parse()?;
+        Self::parse_with_meta(parser, attributes, visibility)
     }
 }
 
