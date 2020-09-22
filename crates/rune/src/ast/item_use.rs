@@ -10,10 +10,13 @@ pub struct ItemUse {
     /// The visibility of the `use` item
     #[rune(optional)]
     pub visibility: ast::Visibility,
+    /// The optional leading `::`
+    #[rune(iter)]
+    pub leading_colon: Option<ast::Scope>,
     /// The use token.
     pub use_: ast::Use,
     /// First component in use.
-    pub first: ast::Ident,
+    pub first: ast::PathSegment,
     /// The rest of the import.
     pub rest: Vec<(ast::Scope, ItemUseComponent)>,
     /// Use items are always terminated by a semi-colon.
@@ -28,6 +31,7 @@ impl ItemUse {
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
+            leading_colon: parser.parse()?,
             visibility: parser.parse()?,
             use_: parser.parse()?,
             first: parser.parse()?,
@@ -61,30 +65,29 @@ impl Parse for ItemUse {
 #[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum ItemUseComponent {
     /// An identifier import.
-    Ident(ast::Ident),
+    PathSegment(ast::PathSegment),
     /// A wildcard import.
     Wildcard(ast::Mul),
 }
 
 impl Parse for ItemUseComponent {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let t = parser.token_peek_eof()?;
-
-        Ok(match t.kind {
-            ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
-            ast::Kind::Star => Self::Wildcard(parser.parse()?),
-            actual => {
-                return Err(ParseError::new(
-                    t,
-                    ParseErrorKind::ExpectedItemUseImportComponent { actual },
-                ));
-            }
-        })
+        if parser.peek::<ast::PathSegment>()? {
+            Ok(Self::PathSegment(parser.parse()?))
+        } else if parser.peek::<ast::Mul>()? {
+            Ok(Self::Wildcard(parser.parse()?))
+        } else {
+            let token = parser.token_peek_eof()?;
+            Err(ParseError::new(
+                token,
+                ParseErrorKind::ExpectedItemUseImportComponent { actual: token.kind },
+            ))
+        }
     }
 }
 
 impl Peek for ItemUseComponent {
-    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        matches!(peek!(t1).kind, ast::Kind::Ident(..) | ast::Kind::Star)
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
+        ast::PathSegment::peek(t1, t2) || ast::Mul::peek(t1, t2)
     }
 }

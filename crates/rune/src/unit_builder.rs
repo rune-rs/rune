@@ -531,14 +531,28 @@ impl UnitBuilder {
         storage: &Storage,
         source: &Source,
     ) -> CompileResult<Item> {
-        let local = path.first.resolve(storage, source)?;
+        let ident = path.first.try_as_ident().ok_or_else(|| {
+            crate::CompileError::internal(
+                path,
+                "paths containing `crate` or `super` are not supported",
+            )
+        })?;
+
+        let local = ident.resolve(storage, source)?;
 
         let mut imported = match self.lookup_import_by_name(base, local.as_ref()) {
             Some(path) => path,
             None => Item::of(&[local.as_ref()]),
         };
 
-        for (_, part) in &path.rest {
+        for (_, segment) in &path.rest {
+            let part = segment.try_as_ident().ok_or_else(|| {
+                crate::CompileError::internal(
+                    segment,
+                    "paths containing `crate` or `super` are not supported",
+                )
+            })?;
+
             imported.push(part.resolve(storage, source)?.as_ref());
         }
 

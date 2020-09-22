@@ -136,7 +136,7 @@ pub use self::pat_object::{PatObject, PatObjectItem};
 pub use self::pat_path::PatPath;
 pub use self::pat_tuple::PatTuple;
 pub use self::pat_vec::PatVec;
-pub use self::path::Path;
+pub use self::path::{Path, PathSegment};
 pub use self::stmt::Stmt;
 pub use self::token::{
     CopySource, Delimiter, Kind, LitByteStrSource, LitByteStrSourceText, LitStrSource,

@@ -436,7 +436,7 @@ impl Index<ast::Expr> for Indexer<'_> {
     fn index(&mut self, expr: &ast::Expr) -> CompileResult<()> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span));
-        if expr.has_attributes() {
+        if expr.has_unsupported_attributes() {
             return Err(CompileError::internal(
                 expr,
                 "expression attributes are not supported",
@@ -755,8 +755,14 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 let mut guards = Vec::new();
 
-                for ident in item_impl.path.into_components() {
-                    let ident = ident.resolve(&self.storage, &*self.source)?;
+                for path_segment in item_impl.path.into_components() {
+                    let ident_segment = path_segment.try_as_ident().ok_or_else(|| {
+                        CompileError::internal(
+                            path_segment,
+                            "paths containing `crate` or `super` are not supported",
+                        )
+                    })?;
+                    let ident = ident_segment.resolve(&self.storage, &*self.source)?;
                     guards.push(self.items.push_name(ident.as_ref()));
                 }
 

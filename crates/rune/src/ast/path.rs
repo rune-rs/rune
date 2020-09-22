@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage, ToTokens};
-use runestick::Source;
-use std::borrow::Cow;
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone, Parse, ToTokens, Spanned)]
@@ -53,30 +51,15 @@ impl Peek for Path {
     }
 }
 
-impl<'a> Resolve<'a> for Path {
-    type Output = Vec<Cow<'a, str>>;
-
-    fn resolve(
-        &self,
-        storage: &Storage,
-        source: &'a Source,
-    ) -> Result<Vec<Cow<'a, str>>, ParseError> {
-        let mut output = Vec::new();
-
-        output.push(self.first.resolve(storage, source)?);
-
-        for (_, ident) in &self.rest {
-            output.push(ident.resolve(storage, source)?);
-        }
-
-        Ok(output)
-    }
-}
-
+/// Part of a `::` separated path.
+///
 #[derive(Debug, Clone, ToTokens, Spanned)]
 pub enum PathSegment {
+    /// A path segment that is an identifier.
     Ident(ast::Ident),
+    /// The `crate` keyword used as a path segment.
     Crate(ast::Crate),
+    /// The `super` keyword use as a path segment.
     Super(ast::Super),
 }
 
@@ -117,23 +100,5 @@ impl Parse for PathSegment {
 impl Peek for PathSegment {
     fn peek(t1: Option<ast::Token>, _t2: Option<ast::Token>) -> bool {
         matches!(peek!(t1).kind, ast::Kind::Ident(_) | ast::Kind::Crate | ast::Kind::Super)
-    }
-}
-
-impl<'a> Resolve<'a> for PathSegment {
-    type Output = Cow<'a, str>;
-
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
-        let ident_span = match self {
-            Self::Ident(ident) => return ident.resolve(storage, source),
-            Self::Super(super_) => super_.span(),
-            Self::Crate(crate_) => crate_.span(),
-        };
-
-        let ident = source
-            .source(ident_span)
-            .ok_or_else(|| ParseError::new(ident_span, ParseErrorKind::BadSlice))?;
-
-        Ok(Cow::Borrowed(ident))
     }
 }
