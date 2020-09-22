@@ -29,7 +29,7 @@ reqwest = {version = "0.10.7", optional = true, default-features = false, featur
 tokio = {version = "0.2.22", optional = true}
 serde_json = {version = "1.0.57", optional = true}
 toml = {version = "0.5.6", optional = true}
-nanorand = {version = "0.4.0", optional = true}
+nanorand = {version = "0.4.2", optional = true, features = ["getrandom"]}
 
 runestick = {version = "0.6.16", path = "../runestick"}
 
