@@ -30,7 +30,7 @@ impl Item {
     }
 
     /// Test if the item has any attributes
-    pub fn has_attributes(&self) -> bool {
+    pub fn has_unsupported_attributes(&self) -> bool {
         match self {
             Item::ItemUse(item) => !item.attributes.is_empty(),
             Item::ItemFn(item) => !item.attributes.is_empty(),

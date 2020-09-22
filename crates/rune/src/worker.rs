@@ -373,7 +373,17 @@ impl Import {
         let span = decl_use.span();
 
         let mut name = Item::new();
-        let first = decl_use.first.resolve(storage, &*source)?;
+
+        let first = decl_use
+            .first
+            .try_as_ident()
+            .ok_or_else(|| {
+                CompileError::internal(
+                    &decl_use.first,
+                    "paths containing `crate` or `super` are not supported",
+                )
+            })?
+            .resolve(storage, &*source)?;
         name.push(first.as_ref());
 
         let mut it = decl_use.rest.iter();
@@ -384,7 +394,13 @@ impl Import {
                 ast::ItemUseComponent::Wildcard(t) => {
                     return Err(CompileError::new(t, CompileErrorKind::UnsupportedWildcard));
                 }
-                ast::ItemUseComponent::Ident(ident) => {
+                ast::ItemUseComponent::PathSegment(segment) => {
+                    let ident = segment.try_as_ident().ok_or_else(|| {
+                        CompileError::internal(
+                            segment,
+                            "paths containing `crate` or `super` are not supported",
+                        )
+                    })?;
                     name.push(ident.resolve(storage, &*source)?.as_ref());
                 }
             }
@@ -416,7 +432,13 @@ impl Import {
                         unit.new_import(item.clone(), &name, span, source_id)?;
                     }
                 }
-                ast::ItemUseComponent::Ident(ident) => {
+                ast::ItemUseComponent::PathSegment(segment) => {
+                    let ident = segment.try_as_ident().ok_or_else(|| {
+                        CompileError::internal(
+                            segment,
+                            "paths containing `crate` or `super` are not supported",
+                        )
+                    })?;
                     name.push(ident.resolve(storage, &*source)?.as_ref());
                     unit.new_import(item, &name, span, source_id)?;
                 }

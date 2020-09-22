@@ -145,7 +145,7 @@ impl Expr {
     }
 
     /// Test if the expression has any attributes
-    pub fn has_attributes(&self) -> bool {
+    pub fn has_unsupported_attributes(&self) -> bool {
         match self {
             Expr::ExprBreak(expr) => !expr.attributes.is_empty(),
             Expr::ExprYield(expr) => !expr.attributes.is_empty(),
@@ -153,7 +153,7 @@ impl Expr {
             Expr::ExprAsync(expr) => !expr.attributes.is_empty(),
             Expr::ExprReturn(expr) => !expr.attributes.is_empty(),
             Expr::ExprClosure(expr) => !expr.attributes.is_empty(),
-            Expr::Item(expr) => expr.has_attributes(),
+            Expr::Item(expr) => expr.has_unsupported_attributes(),
             Expr::ExprMatch(expr) => !expr.attributes.is_empty(),
             Expr::ExprWhile(expr) => !expr.attributes.is_empty(),
             Expr::ExprLoop(expr) => !expr.attributes.is_empty(),

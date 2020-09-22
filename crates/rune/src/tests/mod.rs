@@ -3,6 +3,7 @@ mod compiler_expr_assign;
 mod compiler_expr_binary;
 mod compiler_general;
 mod compiler_literals;
+mod compiler_paths;
 mod compiler_visibility;
 mod compiler_warnings;
 mod vm_arithmetic;
