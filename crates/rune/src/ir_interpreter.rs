@@ -1,4 +1,4 @@
-use crate::collections::{HashMap, HashSet};
+use crate::collections::HashMap;
 use crate::eval::{Eval as _, Used};
 use crate::query::Query;
 use crate::{CompileError, CompileErrorKind, Spanned};
@@ -28,17 +28,11 @@ impl<'a> IrInterpreter<'a> {
     ) -> Result<ConstValue, CompileError> {
         log::trace!("processing constant: {}", self.item);
 
-        if let Some(const_value) = self.query.consts.borrow().resolved.get(&self.item).cloned() {
+        if let Some(const_value) = self.query.consts.get(&self.item) {
             return Ok(const_value);
         }
 
-        if !self
-            .query
-            .consts
-            .borrow_mut()
-            .processing
-            .insert(self.item.clone())
-        {
+        if !self.query.consts.mark(&self.item) {
             return Err(CompileError::new(ir, CompileErrorKind::ConstCycle));
         }
 
@@ -63,8 +57,6 @@ impl<'a> IrInterpreter<'a> {
         if self
             .query
             .consts
-            .borrow_mut()
-            .resolved
             .insert(self.item.clone(), const_value.clone())
             .is_some()
         {
@@ -94,7 +86,7 @@ impl<'a> IrInterpreter<'a> {
             base.pop();
             let item = base.extended(ident);
 
-            if let Some(const_value) = self.query.consts.borrow().resolved.get(&item).cloned() {
+            if let Some(const_value) = self.query.consts.get(&item) {
                 return Ok(const_value);
             }
 
@@ -118,21 +110,12 @@ impl<'a> IrInterpreter<'a> {
     }
 }
 
-/// State for constants processing.
-#[derive(Default)]
-pub(crate) struct Consts {
-    /// Const expression that have been resolved.
-    pub(crate) resolved: HashMap<Item, ConstValue>,
-    /// Constant expressions being processed.
-    pub(crate) processing: HashSet<Item>,
-}
-
-pub(crate) struct ConstScopeGuard {
+pub(crate) struct IrScopeGuard {
     length: usize,
     scopes: Rc<RefCell<Vec<IrScope>>>,
 }
 
-impl Drop for ConstScopeGuard {
+impl Drop for IrScopeGuard {
     fn drop(&mut self) {
         // Note on panic: it shouldn't be possible for this to panic except for
         // grievous internal errors. Scope guards can only be created in
@@ -220,7 +203,7 @@ impl IrScopes {
     }
 
     /// Push a scope and return the guard associated with the scope.
-    pub(crate) fn push(&self) -> ConstScopeGuard {
+    pub(crate) fn push(&self) -> IrScopeGuard {
         let length = {
             let mut scopes = self.scopes.borrow_mut();
             let length = scopes.len();
@@ -228,7 +211,7 @@ impl IrScopes {
             length
         };
 
-        ConstScopeGuard {
+        IrScopeGuard {
             length,
             scopes: self.scopes.clone(),
         }

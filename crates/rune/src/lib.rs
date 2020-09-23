@@ -177,6 +177,7 @@ mod compile;
 mod compile_error;
 mod compile_visitor;
 mod compiler;
+mod consts;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;
 mod errors;

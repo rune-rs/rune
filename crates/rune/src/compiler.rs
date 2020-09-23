@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compile_visitor::NoopCompileVisitor;
-use crate::ir_interpreter::Consts;
+use crate::consts::Consts;
 use crate::items::Items;
 use crate::loops::Loops;
 use crate::query::{Build, BuildEntry, Query};
@@ -79,7 +79,7 @@ pub fn compile_with_options(
     // Worker queue.
     let mut queue = VecDeque::new();
     // Constants storage.
-    let consts = Rc::new(RefCell::new(Consts::default()));
+    let consts = Consts::default();
 
     // Queue up the initial sources to be loaded.
     for source_id in sources.source_ids() {
@@ -97,7 +97,7 @@ pub fn compile_with_options(
         sources,
         options,
         unit.clone(),
-        consts.clone(),
+        consts,
         errors,
         warnings,
         visitor,

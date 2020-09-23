@@ -2,9 +2,10 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
+use crate::consts::Consts;
 use crate::eval::Used;
 use crate::ir_compiler::{Compile as _, IrCompiler};
-use crate::ir_interpreter::{Consts, IrBudget, IrInterpreter};
+use crate::ir_interpreter::{IrBudget, IrInterpreter};
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, Resolve as _, Spanned as _,
     Storage, UnitBuilder,
@@ -131,18 +132,14 @@ pub(crate) struct Query {
     pub(crate) storage: Storage,
     pub(crate) unit: Rc<RefCell<UnitBuilder>>,
     /// Const expression that have been resolved.
-    pub(crate) consts: Rc<RefCell<Consts>>,
+    pub(crate) consts: Consts,
     pub(crate) queue: VecDeque<BuildEntry>,
     pub(crate) indexed: HashMap<Item, IndexedEntry>,
 }
 
 impl Query {
     /// Construct a new compilation context.
-    pub fn new(
-        storage: Storage,
-        unit: Rc<RefCell<UnitBuilder>>,
-        consts: Rc<RefCell<Consts>>,
-    ) -> Self {
+    pub fn new(storage: Storage, unit: Rc<RefCell<UnitBuilder>>, consts: Consts) -> Self {
         Self {
             storage,
             unit,

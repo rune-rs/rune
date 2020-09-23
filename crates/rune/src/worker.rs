@@ -2,9 +2,9 @@
 
 use crate::ast;
 use crate::collections::HashMap;
+use crate::consts::Consts;
 use crate::index::{Index as _, Indexer};
 use crate::index_scopes::IndexScopes;
-use crate::ir_interpreter::Consts;
 use crate::items::Items;
 use crate::macros::MacroCompiler;
 use crate::query::Query;
@@ -82,7 +82,7 @@ impl<'a> Worker<'a> {
         sources: &'a mut Sources,
         options: &'a Options,
         unit: Rc<RefCell<UnitBuilder>>,
-        consts: Rc<RefCell<Consts>>,
+        consts: Consts,
         errors: &'a mut Errors,
         warnings: &'a mut Warnings,
         visitor: &'a mut dyn CompileVisitor,
