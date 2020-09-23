@@ -15,7 +15,7 @@ Native modules for Rune, an embeddable dynamic programming language for Rust.
 """
 
 [features]
-full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand"]
+full = ["time", "http", "json", "toml", "fs", "process", "signal"]
 time = ["tokio", "tokio/time"]
 fs = ["tokio", "tokio/fs"]
 http = ["reqwest"]

@@ -20,6 +20,7 @@ diagnostics = ["codespan-reporting"]
 # include all native modules in the default context.
 modules = ["rune-modules"]
 testing = ["futures-executor"]
+rand = ["rune-modules/rand"]
 
 [dependencies]
 thiserror = "1.0.20"
