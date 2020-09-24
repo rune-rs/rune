@@ -1,6 +1,7 @@
 use crate::collections::HashMap;
 use crate::eval::{Eval as _, Used};
 use crate::ir;
+use crate::ir_value::IrValue;
 use crate::query::Query;
 use crate::{CompileError, CompileErrorKind, Spanned};
 use runestick::{CompileMetaKind, ConstValue, Item, Span};
@@ -35,8 +36,8 @@ impl<'a> IrInterpreter<'a> {
             return Err(CompileError::new(ir, CompileErrorKind::ConstCycle));
         }
 
-        let const_value = match self.eval(ir, used) {
-            Ok(const_value) => const_value,
+        let ir_value = match self.eval(ir, used) {
+            Ok(ir_value) => ir_value,
             Err(outcome) => match outcome {
                 crate::eval::EvalOutcome::Error(error) => {
                     return Err(error);
@@ -52,6 +53,8 @@ impl<'a> IrInterpreter<'a> {
                 }
             },
         };
+
+        let const_value = ir_value.into_const(ir)?;
 
         if self
             .query
@@ -74,7 +77,7 @@ impl<'a> IrInterpreter<'a> {
         ident: &str,
         span: Span,
         used: Used,
-    ) -> Result<ConstValue, CompileError> {
+    ) -> Result<IrValue, CompileError> {
         if let Some(const_value) = self.scopes.get(ident) {
             return Ok(const_value);
         }
@@ -86,7 +89,7 @@ impl<'a> IrInterpreter<'a> {
             let item = base.extended(ident);
 
             if let Some(const_value) = self.query.consts.get(&item) {
-                return Ok(const_value);
+                return Ok(IrValue::from_const(const_value));
             }
 
             let meta = match self.query.query_meta_with_use(&item, used)? {
@@ -95,7 +98,9 @@ impl<'a> IrInterpreter<'a> {
             };
 
             match &meta.kind {
-                CompileMetaKind::Const { const_value, .. } => return Ok(const_value.clone()),
+                CompileMetaKind::Const { const_value, .. } => {
+                    return Ok(IrValue::from_const(const_value.clone()));
+                }
                 _ => {
                     return Err(CompileError::new(
                         span,
@@ -117,7 +122,7 @@ pub(crate) struct IrScopeGuard {
 #[derive(Default)]
 pub(crate) struct IrScope {
     /// Locals in the current scope.
-    locals: HashMap<String, ConstValue>,
+    locals: HashMap<String, IrValue>,
 }
 
 /// A hierarchy of constant scopes.
@@ -127,7 +132,7 @@ pub(crate) struct IrScopes {
 
 impl IrScopes {
     /// Get a value out of the scope.
-    pub(crate) fn get(&self, name: &str) -> Option<ConstValue> {
+    pub(crate) fn get(&self, name: &str) -> Option<IrValue> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Some(current.clone());
@@ -141,7 +146,7 @@ impl IrScopes {
     pub(crate) fn decl<S>(
         &mut self,
         name: &str,
-        value: ConstValue,
+        value: IrValue,
         spanned: S,
     ) -> Result<(), CompileError>
     where
@@ -156,17 +161,13 @@ impl IrScopes {
     }
 
     /// Get the given variable as mutable.
-    pub(crate) fn get_mut<S>(
-        &mut self,
-        name: &str,
-        spanned: S,
-    ) -> Result<&mut ConstValue, CompileError>
+    pub(crate) fn get_name<S>(&self, name: &str, spanned: S) -> Result<IrValue, CompileError>
     where
         S: Spanned,
     {
-        for scope in self.scopes.iter_mut().rev() {
-            if let Some(current) = scope.locals.get_mut(name) {
-                return Ok(current);
+        for scope in self.scopes.iter().rev() {
+            if let Some(current) = scope.locals.get(name) {
+                return Ok(current.clone());
             }
         }
 
@@ -204,56 +205,63 @@ impl IrScopes {
     }
 
     /// Get the given target as mut.
-    pub(crate) fn get_target_mut(
-        &mut self,
-        ir_target: &ir::IrTarget,
-    ) -> Result<&mut ConstValue, CompileError> {
+    pub(crate) fn get_target(&mut self, ir_target: &ir::IrTarget) -> Result<IrValue, CompileError> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                return self.get_mut(name, ir_target);
+                return self.get_name(name, ir_target);
             }
-            ir::IrTargetKind::Field(target, field) => {
-                let value = self.get_target_mut(target)?;
+            ir::IrTargetKind::Field(ir_target, field) => {
+                let value = self.get_target(ir_target)?;
 
-                let value = match value {
-                    ConstValue::Object(object) => object.get_mut(field.as_ref()),
+                match value {
+                    IrValue::Object(object) => {
+                        let object = object
+                            .borrow_ref()
+                            .map_err(|e| CompileError::access(ir_target, e))?;
+
+                        if let Some(value) = object.get(field.as_ref()).cloned() {
+                            return Ok(value);
+                        }
+                    }
                     actual => {
                         return Err(CompileError::const_expected::<_, runestick::Tuple>(
-                            ir_target, actual,
+                            ir_target, &actual,
                         ))
                     }
                 };
 
-                let value = match value {
-                    Some(value) => value,
-                    None => {
-                        return Err(CompileError::const_error(ir_target, "missing field"));
-                    }
-                };
-
-                Ok(value)
+                Err(CompileError::const_error(ir_target, "missing field"))
             }
             ir::IrTargetKind::Index(target, index) => {
-                let value = self.get_target_mut(target)?;
+                let value = self.get_target(target)?;
 
-                let value = match value {
-                    ConstValue::Vec(vec) => vec.get_mut(*index),
-                    ConstValue::Tuple(tuple) => tuple.get_mut(*index),
+                match value {
+                    IrValue::Vec(vec) => {
+                        let vec = vec
+                            .borrow_ref()
+                            .map_err(|e| CompileError::access(ir_target, e))?;
+
+                        if let Some(value) = vec.get(*index).cloned() {
+                            return Ok(value);
+                        }
+                    }
+                    IrValue::Tuple(tuple) => {
+                        let tuple = tuple
+                            .borrow_ref()
+                            .map_err(|e| CompileError::access(ir_target, e))?;
+
+                        if let Some(value) = tuple.get(*index).cloned() {
+                            return Ok(value);
+                        }
+                    }
                     actual => {
                         return Err(CompileError::const_expected::<_, runestick::Tuple>(
-                            ir_target, actual,
+                            ir_target, &actual,
                         ))
                     }
                 };
 
-                let value = match value {
-                    Some(value) => value,
-                    None => {
-                        return Err(CompileError::const_error(ir_target, "missing index"));
-                    }
-                };
-
-                Ok(value)
+                Err(CompileError::const_error(ir_target, "missing index"))
             }
         }
     }
@@ -262,7 +270,7 @@ impl IrScopes {
     pub(crate) fn set_target(
         &mut self,
         ir_target: &ir::IrTarget,
-        value: ConstValue,
+        value: IrValue,
     ) -> Result<(), CompileError> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
@@ -272,46 +280,61 @@ impl IrScopes {
                     .ok_or_else(|| CompileError::const_error(ir_target, "no scopes"))?;
 
                 scope.locals.insert(name.as_ref().to_owned(), value);
+                Ok(())
             }
             ir::IrTargetKind::Field(target, field) => {
-                let current = self.get_target_mut(target)?;
+                let current = self.get_target(target)?;
 
                 match current {
-                    ConstValue::Object(object) => {
+                    IrValue::Object(object) => {
+                        let mut object = object
+                            .borrow_mut()
+                            .map_err(|e| CompileError::access(ir_target, e))?;
                         object.insert(field.as_ref().to_owned(), value);
                     }
                     actual => {
                         return Err(CompileError::const_expected::<_, runestick::Object>(
-                            ir_target, actual,
+                            ir_target, &actual,
                         ));
                     }
                 }
+
+                Ok(())
             }
             ir::IrTargetKind::Index(target, index) => {
-                let current = self.get_target_mut(target)?;
+                let current = self.get_target(target)?;
 
-                let current = match current {
-                    ConstValue::Vec(vec) => vec.get_mut(*index),
-                    ConstValue::Tuple(tuple) => tuple.get_mut(*index),
+                match current {
+                    IrValue::Vec(vec) => {
+                        let mut vec = vec
+                            .borrow_mut()
+                            .map_err(|e| CompileError::access(ir_target, e))?;
+
+                        if let Some(current) = vec.get_mut(*index) {
+                            *current = value;
+                            return Ok(());
+                        }
+                    }
+                    IrValue::Tuple(tuple) => {
+                        let mut tuple = tuple
+                            .borrow_mut()
+                            .map_err(|e| CompileError::access(ir_target, e))?;
+
+                        if let Some(current) = tuple.get_mut(*index) {
+                            *current = value;
+                            return Ok(());
+                        }
+                    }
                     actual => {
                         return Err(CompileError::const_expected::<_, runestick::Tuple>(
-                            ir_target, actual,
+                            ir_target, &actual,
                         ));
                     }
                 };
 
-                let current = match current {
-                    Some(current) => current,
-                    None => {
-                        return Err(CompileError::const_error(ir_target, "missing index"));
-                    }
-                };
-
-                *current = value;
+                Err(CompileError::const_error(ir_target, "missing index"))
             }
         }
-
-        Ok(())
     }
 }
 

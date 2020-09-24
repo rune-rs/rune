@@ -1,7 +1,7 @@
 use crate::eval::prelude::*;
 
 impl Eval<&IrBranches> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_branches: &IrBranches, used: Used) -> Result<ConstValue, EvalOutcome> {
+    fn eval(&mut self, ir_branches: &IrBranches, used: Used) -> Result<IrValue, EvalOutcome> {
         for (ir, branch) in &ir_branches.branches {
             if ir.as_bool(self, used)? {
                 return self.eval(branch, used);
@@ -12,6 +12,6 @@ impl Eval<&IrBranches> for IrInterpreter<'_> {
             return self.eval(branch, used);
         }
 
-        Ok(ConstValue::Unit)
+        Ok(IrValue::Unit)
     }
 }

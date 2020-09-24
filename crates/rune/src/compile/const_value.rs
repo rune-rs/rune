@@ -48,14 +48,14 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
                 let mut entries = object.iter().collect::<Vec<_>>();
                 entries.sort_by_key(|k| k.0);
 
+                for (_, value) in &entries {
+                    self.compile((*value, span))?;
+                }
+
                 let slot = self
                     .unit
                     .borrow_mut()
                     .new_static_object_keys(entries.iter().map(|e| e.0))?;
-
-                for (_, value) in entries {
-                    self.compile((value, span))?;
-                }
 
                 self.asm.push(Inst::Object { slot }, span);
             }

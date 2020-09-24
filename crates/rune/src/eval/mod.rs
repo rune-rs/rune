@@ -1,6 +1,7 @@
 use crate::ir_interpreter::IrInterpreter;
+use crate::ir_value::IrValue;
 use crate::{CompileError, ParseError, Spanned};
-use runestick::{ConstValue, Span};
+use runestick::Span;
 
 mod ir;
 mod ir_binary;
@@ -34,7 +35,7 @@ impl Used {
 
 pub(crate) trait Eval<T> {
     /// Evaluate the given type.
-    fn eval(&mut self, value: T, used: Used) -> Result<ConstValue, EvalOutcome>;
+    fn eval(&mut self, value: T, used: Used) -> Result<IrValue, EvalOutcome>;
 }
 
 pub(crate) trait ConstAs {
@@ -95,7 +96,7 @@ pub(crate) enum EvalBreak {
     /// Break the next nested loop.
     Inherent,
     /// The break had a value.
-    Value(ConstValue),
+    Value(IrValue),
     /// The break had a label.
     Label(Box<str>),
 }

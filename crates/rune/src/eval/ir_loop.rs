@@ -1,7 +1,7 @@
 use crate::eval::prelude::*;
 
 impl Eval<&IrLoop> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_loop: &IrLoop, used: Used) -> Result<ConstValue, EvalOutcome> {
+    fn eval(&mut self, ir_loop: &IrLoop, used: Used) -> Result<IrValue, EvalOutcome> {
         let span = ir_loop.span();
         self.budget.take(span)?;
 
@@ -40,6 +40,6 @@ impl Eval<&IrLoop> for IrInterpreter<'_> {
             };
         }
 
-        Ok(ConstValue::Unit)
+        Ok(IrValue::Unit)
     }
 }

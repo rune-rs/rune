@@ -2,7 +2,7 @@ use crate::eval::prelude::*;
 use std::fmt::Write as _;
 
 impl Eval<&IrTemplate> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_template: &IrTemplate, used: Used) -> Result<ConstValue, EvalOutcome> {
+    fn eval(&mut self, ir_template: &IrTemplate, used: Used) -> Result<IrValue, EvalOutcome> {
         self.budget.take(ir_template)?;
 
         let mut buf = String::new();
@@ -16,19 +16,22 @@ impl Eval<&IrTemplate> for IrInterpreter<'_> {
                     let const_value = self.eval(ir, used)?;
 
                     match const_value {
-                        ConstValue::Integer(integer) => {
+                        IrValue::Integer(integer) => {
                             let mut buffer = itoa::Buffer::new();
                             buf.push_str(buffer.format(integer));
                         }
-                        ConstValue::Float(float) => {
+                        IrValue::Float(float) => {
                             let mut buffer = ryu::Buffer::new();
                             buf.push_str(buffer.format(float));
                         }
-                        ConstValue::Bool(b) => {
+                        IrValue::Bool(b) => {
                             write!(buf, "{}", b).unwrap();
                         }
-                        ConstValue::String(s) => {
-                            buf.push_str(&s);
+                        IrValue::String(s) => {
+                            let s = s
+                                .borrow_ref()
+                                .map_err(|e| CompileError::access(ir_template, e))?;
+                            buf.push_str(&*s);
                         }
                         _ => {
                             return Err(EvalOutcome::not_const(ir_template));
@@ -38,6 +41,6 @@ impl Eval<&IrTemplate> for IrInterpreter<'_> {
             }
         }
 
-        Ok(ConstValue::String(buf))
+        Ok(IrValue::String(Shared::new(buf)))
     }
 }

@@ -2,7 +2,7 @@ use crate::eval::prelude::*;
 
 /// Eval the interior expression.
 impl Eval<&Ir> for IrInterpreter<'_> {
-    fn eval(&mut self, ir: &Ir, used: Used) -> Result<ConstValue, EvalOutcome> {
+    fn eval(&mut self, ir: &Ir, used: Used) -> Result<IrValue, EvalOutcome> {
         self.budget.take(ir)?;
 
         match &ir.kind {
@@ -12,8 +12,8 @@ impl Eval<&Ir> for IrInterpreter<'_> {
             IrKind::Set(ir_set) => self.eval(ir_set, used),
             IrKind::Template(ir_template) => self.eval(ir_template, used),
             IrKind::Name(name) => Ok(self.resolve_var(name.as_ref(), ir.span(), used)?),
-            IrKind::Target(ir_target) => Ok(self.scopes.get_target_mut(ir_target)?.clone()),
-            IrKind::Value(const_value) => Ok(const_value.clone()),
+            IrKind::Target(ir_target) => Ok(self.scopes.get_target(ir_target)?),
+            IrKind::Value(const_value) => Ok(IrValue::from_const(const_value.clone())),
             IrKind::Branches(branches) => self.eval(branches, used),
             IrKind::Loop(ir_loop) => self.eval(ir_loop, used),
             IrKind::Break(ir_break) => self.eval(ir_break, used),
