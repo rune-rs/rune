@@ -141,7 +141,7 @@ impl Expander {
             let ident = self.ctx.field_ident(&field)?;
             let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
 
-            if !attrs.skip {
+            if attrs.skip.is_none() {
                 fields
                     .push(quote_spanned! { field.span() => self.#ident.to_tokens(context, stream) })
             }
@@ -179,7 +179,7 @@ impl Expander {
             let ident = self.ctx.field_ident(&field)?;
             let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
 
-            if !attrs.skip {
+            if attrs.skip.is_none() {
                 fields.push(quote_spanned! { field.span() => #ident.to_tokens(context, stream) })
             }
 
@@ -206,7 +206,7 @@ impl Expander {
             let ident = syn::Ident::new(&format!("f{}", n), field.span());
             let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
 
-            if !attrs.skip {
+            if attrs.skip.is_none() {
                 let ident = &ident;
 
                 field_into_tokens

@@ -1,9 +1,9 @@
-use crate::{Resolve, Spanned, Storage};
-use rune_ir::{
+use crate::ir::{
     Ir, IrBinary, IrBinaryOp, IrBranches, IrBreak, IrBreakKind, IrDecl, IrLoop, IrScope, IrSet,
     IrTemplate, IrTemplateComponent, IrTuple, IrVec,
 };
-use runestick::{ConstValue, Source, Span};
+use crate::{Resolve, Spanned, Storage};
+use runestick::{ConstValue, Source};
 
 use crate::ast;
 use crate::CompileError;
@@ -406,25 +406,4 @@ impl Compile<&ast::ExprLoop> for IrCompiler<'_> {
             body: self.compile(&*expr_loop.body)?,
         })
     }
-}
-
-macro_rules! impl_spanned {
-    ($($ty:ty),* $(,)?) => {
-        $(impl Spanned for $ty {
-            fn span(&self) -> Span {
-                self.span
-            }
-        })*
-    };
-}
-
-impl_spanned! {
-    rune_ir::Ir,
-    rune_ir::IrScope,
-    rune_ir::IrSet,
-    rune_ir::IrDecl,
-    rune_ir::IrBinary,
-    rune_ir::IrTemplate,
-    rune_ir::IrBreak,
-    rune_ir::IrLoop,
 }

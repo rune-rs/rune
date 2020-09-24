@@ -6,7 +6,6 @@ members = [
     "crates/rune-modules",
     "crates/rune-wasm",
     "crates/rune",
-    "crates/rune-ir",
     "crates/rune-macros",
     "crates/runestick-macros",
     "crates/runestick",
@@ -22,7 +21,6 @@ default-members = [
     "crates/rune-modules",
     "crates/rune-wasm",
     "crates/rune",
-    "crates/rune-ir",
     "crates/runestick-macros",
     "crates/runestick",
 ]

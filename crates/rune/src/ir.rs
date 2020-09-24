@@ -1,70 +1,11 @@
-//! <div align="center">
-//!     <img alt="Rune Logo" src="https://raw.githubusercontent.com/rune-rs/rune/master/assets/icon.png" />
-//! </div>
-//!
-//! <br>
-//!
-//! <div align="center">
-//! <a href="https://rune-rs.github.io">
-//!     <b>Visit the site 🌐</b>
-//! </a>
-//! -
-//! <a href="https://rune-rs.github.io/book/">
-//!     <b>Read the book 📖</b>
-//! </a>
-//! </div>
-//!
-//! <br>
-//!
-//! <div align="center">
-//! <a href="https://github.com/rune-rs/rune/actions">
-//!     <img alt="Build Status" src="https://github.com/rune-rs/rune/workflows/Build/badge.svg">
-//! </a>
-//!
-//! <a href="https://github.com/rune-rs/rune/actions">
-//!     <img alt="Site Status" src="https://github.com/rune-rs/rune/workflows/Site/badge.svg">
-//! </a>
-//!
-//! <a href="https://crates.io/crates/rune">
-//!     <img alt="crates.io" src="https://img.shields.io/crates/v/rune.svg">
-//! </a>
-//!
-//! <a href="https://docs.rs/rune">
-//!     <img alt="docs.rs" src="https://docs.rs/rune/badge.svg">
-//! </a>
-//!
-//! <a href="https://discord.gg/v5AeNkT">
-//!     <img alt="Chat on Discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square">
-//! </a>
-//! </div>
-//!
 //! Intermediate representation of Rune that can be evaluated in constant
 //! contexts.
 //!
 //! This is part of the [Rune Language].
 //! [Rune Language]: https://rune-rs.github.io
 
+use crate::Spanned;
 use runestick::{ConstValue, Span};
-
-/// A single operation in the Rune intermediate language.
-#[derive(Debug, Clone)]
-pub struct Ir {
-    pub span: Span,
-    pub kind: IrKind,
-}
-
-impl Ir {
-    /// Construct a new intermediate instruction.
-    pub fn new<K>(span: Span, kind: K) -> Self
-    where
-        IrKind: From<K>,
-    {
-        Self {
-            span,
-            kind: IrKind::from(kind),
-        }
-    }
-}
 
 macro_rules! decl_kind {
     (
@@ -85,6 +26,27 @@ macro_rules! decl_kind {
                 }
             }
         )*
+    }
+}
+
+/// A single operation in the Rune intermediate language.
+#[derive(Debug, Clone, Spanned)]
+pub struct Ir {
+    #[rune(span)]
+    pub span: Span,
+    pub kind: IrKind,
+}
+
+impl Ir {
+    /// Construct a new intermediate instruction.
+    pub fn new<K>(span: Span, kind: K) -> Self
+    where
+        IrKind: From<K>,
+    {
+        Self {
+            span,
+            kind: IrKind::from(kind),
+        }
     }
 }
 
@@ -121,9 +83,10 @@ decl_kind! {
 }
 
 /// Definition of a new variable scope.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrScope {
     /// The span of the scope.
+    #[rune(span)]
     pub span: Span,
     /// Instructions in the scope.
     pub instructions: Vec<Ir>,
@@ -132,9 +95,10 @@ pub struct IrScope {
 }
 
 /// A binary operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrBinary {
     /// The span of the binary op.
+    #[rune(span)]
     pub span: Span,
     /// The binary operation.
     pub op: IrBinaryOp,
@@ -145,9 +109,10 @@ pub struct IrBinary {
 }
 
 /// A local variable declaration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrDecl {
     /// The span of the declaration.
+    #[rune(span)]
     pub span: Span,
     /// The name of the variable.
     pub name: Box<str>,
@@ -156,9 +121,10 @@ pub struct IrDecl {
 }
 
 /// Update a local variable.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrSet {
     /// The span of the set operation.
+    #[rune(span)]
     pub span: Span,
     /// The name of the local variable to set.
     pub name: Box<str>,
@@ -167,9 +133,10 @@ pub struct IrSet {
 }
 
 /// A string template.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrTemplate {
     /// The span of the template.
+    #[rune(span)]
     pub span: Span,
     /// Template components.
     pub components: Vec<IrTemplateComponent>,
@@ -194,9 +161,10 @@ pub struct IrBranches {
 }
 
 /// A loop with an optional condition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrLoop {
     /// The span of the loop.
+    #[rune(span)]
     pub span: Span,
     /// The label of the loop.
     pub label: Option<Box<str>>,
@@ -207,9 +175,10 @@ pub struct IrLoop {
 }
 
 /// A break operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrBreak {
     /// The span of the break.
+    #[rune(span)]
     pub span: Span,
     /// The kind of the break.
     pub kind: IrBreakKind,
@@ -227,18 +196,20 @@ pub enum IrBreakKind {
 }
 
 /// Tuple expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrTuple {
     /// Span of the tuple.
+    #[rune(span)]
     pub span: Span,
     /// Arguments to construct the tuple.
     pub items: Box<[Ir]>,
 }
 
 /// Vector expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct IrVec {
     /// Span of the vector.
+    #[rune(span)]
     pub span: Span,
     /// Arguments to construct the vector.
     pub items: Box<[Ir]>,

@@ -119,6 +119,10 @@ impl Expander {
 
     /// Expand named fields.
     fn expand_struct_named(&mut self, named: &syn::FieldsNamed) -> Option<TokenStream> {
+        if let Some(span_impl) = self.ctx.explicit_span(named)? {
+            return Some(span_impl);
+        }
+
         let it = named
             .named
             .iter()

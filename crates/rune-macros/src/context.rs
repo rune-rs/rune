@@ -10,10 +10,16 @@ use syn::NestedMeta::*;
 /// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]
 pub(crate) struct FieldAttrs {
-    pub(crate) iter: bool,
-    pub(crate) skip: bool,
-    pub(crate) optional: bool,
-    pub(crate) attributes: bool,
+    /// `#[rune(iter)]`
+    pub(crate) iter: Option<Span>,
+    /// `#[rune(skip)]`
+    pub(crate) skip: Option<Span>,
+    /// `#[rune(optional)]`
+    pub(crate) optional: Option<Span>,
+    /// `#[rune(attributes)]`
+    pub(crate) attributes: Option<Span>,
+    /// A single field marked with `#[rune(span)]`.
+    pub(crate) span: Option<Span>,
 }
 
 /// Parsed ast derive attributes.
@@ -132,22 +138,26 @@ impl Context {
         for attr in input {
             #[allow(clippy::never_loop)] // I guess this is on purpose?
             for meta in self.get_meta_items(attr, RUNE)? {
-                match meta {
+                match &meta {
                     // Parse `#[rune(iter)]`.
-                    Meta(Path(word)) if word == ITER => {
-                        attrs.iter = true;
+                    Meta(Path(word)) if *word == ITER => {
+                        attrs.iter = Some(meta.span());
                     }
                     // Parse `#[rune(skip)]`.
-                    Meta(Path(word)) if word == SKIP => {
-                        attrs.skip = true;
+                    Meta(Path(word)) if *word == SKIP => {
+                        attrs.skip = Some(meta.span());
                     }
                     // Parse `#[rune(optional)]`.
-                    Meta(Path(word)) if word == OPTIONAL => {
-                        attrs.optional = true;
+                    Meta(Path(word)) if *word == OPTIONAL => {
+                        attrs.optional = Some(meta.span());
                     }
                     // Parse `#[rune(attributes)]`
-                    Meta(Path(word)) if word == ATTRIBUTES => {
-                        attrs.attributes = true;
+                    Meta(Path(word)) if *word == ATTRIBUTES => {
+                        attrs.attributes = Some(meta.span());
+                    }
+                    // Parse `#[rune(span)]`
+                    Meta(Path(word)) if *word == SPAN => {
+                        attrs.span = Some(meta.span());
                     }
                     meta => {
                         self.errors
@@ -182,11 +192,11 @@ impl Context {
 
             let spanned = &self.spanned;
 
-            if attrs.skip {
+            if attrs.skip.is_some() {
                 continue;
             }
 
-            if attrs.optional {
+            if attrs.optional.is_some() {
                 let option_spanned = &self.option_spanned;
                 let next = quote_spanned! {
                     field.span() => #option_spanned::option_span(#var)
@@ -203,7 +213,7 @@ impl Context {
                 continue;
             }
 
-            if attrs.iter {
+            if attrs.iter.is_some() {
                 let next = if back {
                     quote_spanned!(field.span() => next_back)
                 } else {
@@ -238,5 +248,35 @@ impl Context {
 
             return Some((false, quote));
         }
+    }
+
+    /// Explicit span for fields.
+    pub(crate) fn explicit_span(
+        &mut self,
+        named: &syn::FieldsNamed,
+    ) -> Option<Option<TokenStream>> {
+        let mut explicit_span = None;
+
+        for field in &named.named {
+            let attrs = self.parse_field_attributes(&field.attrs)?;
+
+            if let Some(span) = attrs.span {
+                if explicit_span.is_some() {
+                    self.errors.push(syn::Error::new(
+                        span,
+                        "only one field can be marked `#[rune(span)]`",
+                    ));
+                    return None;
+                }
+
+                let ident = &field.ident;
+
+                explicit_span = Some(quote_spanned! {
+                    field.span() => self.#ident
+                })
+            }
+        }
+
+        Some(explicit_span)
     }
 }

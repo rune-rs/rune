@@ -184,6 +184,7 @@ mod errors;
 mod eval;
 mod index;
 mod index_scopes;
+mod ir;
 mod ir_compiler;
 mod ir_interpreter;
 mod items;
