@@ -4,6 +4,7 @@ use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::consts::Consts;
 use crate::eval::Used;
+use crate::ir;
 use crate::ir_compiler::{Compile as _, IrCompiler};
 use crate::ir_interpreter::{IrBudget, IrInterpreter};
 use crate::{
@@ -91,7 +92,7 @@ pub(crate) struct AsyncBlock {
 
 pub(crate) struct Const {
     /// The intermediate representation of the constant expression.
-    pub(crate) ir: rune_ir::Ir,
+    pub(crate) ir: ir::Ir,
 }
 
 /// An entry in the build queue.

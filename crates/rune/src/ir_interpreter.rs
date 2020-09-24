@@ -1,5 +1,6 @@
 use crate::collections::HashMap;
 use crate::eval::{Eval as _, Used};
+use crate::ir;
 use crate::query::Query;
 use crate::{CompileError, CompileErrorKind, Spanned};
 use runestick::{CompileMetaKind, ConstValue, Item, Span};
@@ -23,7 +24,7 @@ impl<'a> IrInterpreter<'a> {
     /// Outer evaluation for an expression which performs caching into `consts`.
     pub(crate) fn eval_expr(
         &mut self,
-        ir: &rune_ir::Ir,
+        ir: &ir::Ir,
         used: Used,
     ) -> Result<ConstValue, CompileError> {
         log::trace!("processing constant: {}", self.item);

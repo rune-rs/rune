@@ -101,7 +101,7 @@ impl Expander {
 
         for (i, field) in named.named.iter().enumerate() {
             let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
-            if attrs.attributes {
+            if attrs.attributes.is_some() {
                 if let Some((idx, attrs_field)) = &attrs_field {
                     let attrs_ident = self.ctx.field_ident(attrs_field)?;
 
