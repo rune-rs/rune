@@ -19,6 +19,49 @@ impl<'a> IrCompiler<'a> {
     {
         Ok(value.resolve(&self.storage, self.source)?)
     }
+
+    /// Resolve an ir target from an expression.
+    fn ir_target(&self, expr: &ast::Expr) -> Result<ir::IrTarget, CompileError> {
+        match expr {
+            ast::Expr::Path(path) => {
+                if let Some(ident) = path.try_as_ident() {
+                    let name = self.resolve(ident)?;
+
+                    return Ok(ir::IrTarget {
+                        span: expr.span(),
+                        kind: ir::IrTargetKind::Name(name.into()),
+                    });
+                }
+            }
+            ast::Expr::ExprFieldAccess(expr_field_access) => {
+                let target = self.ir_target(&expr_field_access.expr)?;
+
+                match &expr_field_access.expr_field {
+                    ast::ExprField::Ident(field) => {
+                        let field = self.resolve(field)?;
+
+                        return Ok(ir::IrTarget {
+                            span: expr.span(),
+                            kind: ir::IrTargetKind::Field(Box::new(target), field.into()),
+                        });
+                    }
+                    ast::ExprField::LitNumber(number) => {
+                        let number = self.resolve(number)?;
+
+                        if let Some(index) = number.into_tuple_index() {
+                            return Ok(ir::IrTarget {
+                                span: expr.span(),
+                                kind: ir::IrTargetKind::Index(Box::new(target), index),
+                            });
+                        }
+                    }
+                }
+            }
+            _ => (),
+        }
+
+        Err(CompileError::const_error(expr, "not supported as a target"))
+    }
 }
 
 pub(crate) trait Compile<T> {
@@ -42,6 +85,7 @@ impl Compile<&ast::Expr> for IrCompiler<'_> {
                 ir::Ir::new(expr.span(), self.compile(&expr_block.block)?)
             }
             ast::Expr::Path(path) => self.compile(path)?,
+            ast::Expr::ExprFieldAccess(..) => ir::Ir::new(expr, self.ir_target(expr)?),
             ast::Expr::ExprBreak(expr_break) => ir::Ir::new(expr.span(), self.compile(expr_break)?),
             ast::Expr::ExprLet(expr_let) => {
                 let decl = match self.compile(expr_let)? {
@@ -64,24 +108,18 @@ impl Compile<&ast::ExprBinary> for IrCompiler<'_> {
 
         if expr_binary.op.is_assign() {
             match expr_binary.op {
-                ast::BinOp::Assign => match &*expr_binary.lhs {
-                    ast::Expr::Path(path) => {
-                        if let Some(ident) = path.try_as_ident() {
-                            let name = self.resolve(ident)?;
-                            let value = self.compile(&*expr_binary.rhs)?;
+                ast::BinOp::Assign => {
+                    let target = self.ir_target(&*expr_binary.lhs)?;
 
-                            return Ok(ir::Ir::new(
-                                span,
-                                ir::IrSet {
-                                    span,
-                                    name: name.into(),
-                                    value: Box::new(value),
-                                },
-                            ));
-                        }
-                    }
-                    _ => (),
-                },
+                    return Ok(ir::Ir::new(
+                        span,
+                        ir::IrSet {
+                            span,
+                            target,
+                            value: Box::new(self.compile(&*expr_binary.rhs)?),
+                        },
+                    ));
+                }
                 _ => (),
             }
 
@@ -137,7 +175,7 @@ impl Compile<&ast::ExprLit> for IrCompiler<'_> {
             ast::Lit::Bool(b) => ir::Ir::new(span, ConstValue::Bool(b.value)),
             ast::Lit::Str(s) => {
                 let s = self.resolve(s)?;
-                ir::Ir::new(span, ConstValue::String(s.into()))
+                ir::Ir::new(span, ConstValue::String(s.as_ref().to_owned()))
             }
             ast::Lit::Number(n) => {
                 let n = self.resolve(n)?;
@@ -206,7 +244,13 @@ impl Compile<&ast::LitObject> for IrCompiler<'_> {
             let ir = if let Some((_, expr)) = &assign.assign {
                 self.compile(expr)?
             } else {
-                ir::Ir::new(assign, ir::IrKind::Name(key.clone().into()))
+                ir::Ir::new(
+                    assign,
+                    ir::IrKind::Target(ir::IrTarget {
+                        span: assign.span(),
+                        kind: ir::IrTargetKind::Name(key.clone().into()),
+                    }),
+                )
             };
 
             assignments.push((key.into(), ir))
@@ -224,7 +268,7 @@ impl Compile<&ast::LitByteStr> for IrCompiler<'_> {
 
     fn compile(&mut self, lit_byte_str: &ast::LitByteStr) -> Result<Self::Output, CompileError> {
         let byte_str = self.resolve(lit_byte_str)?;
-        Ok(ConstValue::Bytes(byte_str.into()))
+        Ok(ConstValue::Bytes(byte_str.as_ref().to_vec()))
     }
 }
 

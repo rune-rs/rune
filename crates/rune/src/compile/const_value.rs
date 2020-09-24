@@ -27,7 +27,7 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
                 self.asm.push(Inst::String { slot }, span);
             }
             ConstValue::Bytes(b) => {
-                let slot = self.unit.borrow_mut().new_static_bytes(b)?;
+                let slot = self.unit.borrow_mut().new_static_bytes(&*b)?;
                 self.asm.push(Inst::Bytes { slot }, span);
             }
             ConstValue::Vec(vec) => {
@@ -45,12 +45,15 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
                 self.asm.push(Inst::Tuple { count: tuple.len() }, span);
             }
             ConstValue::Object(object) => {
+                let mut entries = object.iter().collect::<Vec<_>>();
+                entries.sort_by_key(|k| k.0);
+
                 let slot = self
                     .unit
                     .borrow_mut()
-                    .new_static_object_keys(&*object.keys)?;
+                    .new_static_object_keys(entries.iter().map(|e| e.0))?;
 
-                for value in object.values.iter() {
+                for (_, value) in entries {
                     self.compile((value, span))?;
                 }
 

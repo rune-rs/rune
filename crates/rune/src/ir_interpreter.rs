@@ -4,8 +4,6 @@ use crate::ir;
 use crate::query::Query;
 use crate::{CompileError, CompileErrorKind, Spanned};
 use runestick::{CompileMetaKind, ConstValue, Item, Span};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// The compiler phase which evaluates constants.
 pub(crate) struct IrInterpreter<'a> {
@@ -111,24 +109,9 @@ impl<'a> IrInterpreter<'a> {
     }
 }
 
+#[repr(transparent)]
 pub(crate) struct IrScopeGuard {
     length: usize,
-    scopes: Rc<RefCell<Vec<IrScope>>>,
-}
-
-impl Drop for IrScopeGuard {
-    fn drop(&mut self) {
-        // Note on panic: it shouldn't be possible for this to panic except for
-        // grievous internal errors. Scope guards can only be created in
-        // `IrScopes::push`, and it guarantees that there are a certain
-        // number of scopes.
-        let mut scopes = self.scopes.borrow_mut();
-        assert!(scopes.pop().is_some(), "expected at least one scope");
-
-        if scopes.len() != self.length {
-            panic!("scope length mismatch");
-        }
-    }
 }
 
 #[derive(Default)]
@@ -139,15 +122,13 @@ pub(crate) struct IrScope {
 
 /// A hierarchy of constant scopes.
 pub(crate) struct IrScopes {
-    scopes: Rc<RefCell<Vec<IrScope>>>,
+    scopes: Vec<IrScope>,
 }
 
 impl IrScopes {
     /// Get a value out of the scope.
     pub(crate) fn get(&self, name: &str) -> Option<ConstValue> {
-        let scopes = self.scopes.borrow();
-
-        for scope in scopes.iter().rev() {
+        for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Some(current.clone());
             }
@@ -158,7 +139,7 @@ impl IrScopes {
 
     /// Declare a value in the scope.
     pub(crate) fn decl<S>(
-        &self,
+        &mut self,
         name: &str,
         value: ConstValue,
         spanned: S,
@@ -166,32 +147,26 @@ impl IrScopes {
     where
         S: Spanned,
     {
-        let mut scopes = self.scopes.borrow_mut();
-        let last = scopes
+        let last = self
+            .scopes
             .last_mut()
             .ok_or_else(|| CompileError::internal(spanned, "expected at least one scope"))?;
         last.locals.insert(name.to_owned(), value);
         Ok(())
     }
 
-    /// Replace the value of a variable in the scope
-    ///
-    /// The variable must have been declared in a scope beforehand.
-    pub(crate) fn replace<S>(
-        &self,
+    /// Get the given variable as mutable.
+    pub(crate) fn get_mut<S>(
+        &mut self,
         name: &str,
-        value: ConstValue,
         spanned: S,
-    ) -> Result<(), CompileError>
+    ) -> Result<&mut ConstValue, CompileError>
     where
         S: Spanned,
     {
-        let mut scopes = self.scopes.borrow_mut();
-
-        for scope in scopes.iter_mut().rev() {
+        for scope in self.scopes.iter_mut().rev() {
             if let Some(current) = scope.locals.get_mut(name) {
-                *current = value;
-                return Ok(());
+                return Ok(current);
             }
         }
 
@@ -204,25 +179,146 @@ impl IrScopes {
     }
 
     /// Push a scope and return the guard associated with the scope.
-    pub(crate) fn push(&self) -> IrScopeGuard {
-        let length = {
-            let mut scopes = self.scopes.borrow_mut();
-            let length = scopes.len();
-            scopes.push(IrScope::default());
-            length
-        };
+    pub(crate) fn push(&mut self) -> IrScopeGuard {
+        let length = self.scopes.len();
+        self.scopes.push(IrScope::default());
+        IrScopeGuard { length }
+    }
 
-        IrScopeGuard {
-            length,
-            scopes: self.scopes.clone(),
+    pub(crate) fn pop<S>(&mut self, spanned: S, guard: IrScopeGuard) -> Result<(), CompileError>
+    where
+        S: Spanned,
+    {
+        if self.scopes.pop().is_none() {
+            return Err(CompileError::const_error(
+                spanned,
+                "expected at least one scope to pop",
+            ));
         }
+
+        if self.scopes.len() != guard.length {
+            return Err(CompileError::const_error(spanned, "scope length mismatch"));
+        }
+
+        Ok(())
+    }
+
+    /// Get the given target as mut.
+    pub(crate) fn get_target_mut(
+        &mut self,
+        ir_target: &ir::IrTarget,
+    ) -> Result<&mut ConstValue, CompileError> {
+        match &ir_target.kind {
+            ir::IrTargetKind::Name(name) => {
+                return self.get_mut(name, ir_target);
+            }
+            ir::IrTargetKind::Field(target, field) => {
+                let value = self.get_target_mut(target)?;
+
+                let value = match value {
+                    ConstValue::Object(object) => object.get_mut(field.as_ref()),
+                    actual => {
+                        return Err(CompileError::const_expected::<_, runestick::Tuple>(
+                            ir_target, actual,
+                        ))
+                    }
+                };
+
+                let value = match value {
+                    Some(value) => value,
+                    None => {
+                        return Err(CompileError::const_error(ir_target, "missing field"));
+                    }
+                };
+
+                Ok(value)
+            }
+            ir::IrTargetKind::Index(target, index) => {
+                let value = self.get_target_mut(target)?;
+
+                let value = match value {
+                    ConstValue::Vec(vec) => vec.get_mut(*index),
+                    ConstValue::Tuple(tuple) => tuple.get_mut(*index),
+                    actual => {
+                        return Err(CompileError::const_expected::<_, runestick::Tuple>(
+                            ir_target, actual,
+                        ))
+                    }
+                };
+
+                let value = match value {
+                    Some(value) => value,
+                    None => {
+                        return Err(CompileError::const_error(ir_target, "missing index"));
+                    }
+                };
+
+                Ok(value)
+            }
+        }
+    }
+
+    /// Update the given target with the given constant value.
+    pub(crate) fn set_target(
+        &mut self,
+        ir_target: &ir::IrTarget,
+        value: ConstValue,
+    ) -> Result<(), CompileError> {
+        match &ir_target.kind {
+            ir::IrTargetKind::Name(name) => {
+                let scope = self
+                    .scopes
+                    .last_mut()
+                    .ok_or_else(|| CompileError::const_error(ir_target, "no scopes"))?;
+
+                scope.locals.insert(name.as_ref().to_owned(), value);
+            }
+            ir::IrTargetKind::Field(target, field) => {
+                let current = self.get_target_mut(target)?;
+
+                match current {
+                    ConstValue::Object(object) => {
+                        object.insert(field.as_ref().to_owned(), value);
+                    }
+                    actual => {
+                        return Err(CompileError::const_expected::<_, runestick::Object>(
+                            ir_target, actual,
+                        ));
+                    }
+                }
+            }
+            ir::IrTargetKind::Index(target, index) => {
+                let current = self.get_target_mut(target)?;
+
+                let current = match current {
+                    ConstValue::Vec(vec) => vec.get_mut(*index),
+                    ConstValue::Tuple(tuple) => tuple.get_mut(*index),
+                    actual => {
+                        return Err(CompileError::const_expected::<_, runestick::Tuple>(
+                            ir_target, actual,
+                        ));
+                    }
+                };
+
+                let current = match current {
+                    Some(current) => current,
+                    None => {
+                        return Err(CompileError::const_error(ir_target, "missing index"));
+                    }
+                };
+
+                *current = value;
+            }
+        }
+
+        Ok(())
     }
 }
 
 impl Default for IrScopes {
     fn default() -> Self {
         Self {
-            scopes: Rc::new(RefCell::new(vec![IrScope::default()])),
+            scopes: vec![IrScope::default()],
         }
     }
 }

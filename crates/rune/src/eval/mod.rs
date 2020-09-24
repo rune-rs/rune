@@ -53,7 +53,7 @@ where
         let value = compiler
             .eval(self, used)?
             .into_bool()
-            .map_err(|actual| CompileError::const_expected::<_, bool>(span, actual))?;
+            .map_err(|actual| CompileError::const_expected::<_, bool>(span, &actual))?;
 
         Ok(value)
     }

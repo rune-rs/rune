@@ -16,9 +16,6 @@ impl Eval<&IrTemplate> for IrInterpreter<'_> {
                     let const_value = self.eval(ir, used)?;
 
                     match const_value {
-                        ConstValue::String(s) => {
-                            buf.push_str(&s);
-                        }
                         ConstValue::Integer(integer) => {
                             let mut buffer = itoa::Buffer::new();
                             buf.push_str(buffer.format(integer));
@@ -30,6 +27,9 @@ impl Eval<&IrTemplate> for IrInterpreter<'_> {
                         ConstValue::Bool(b) => {
                             write!(buf, "{}", b).unwrap();
                         }
+                        ConstValue::String(s) => {
+                            buf.push_str(&s);
+                        }
                         _ => {
                             return Err(EvalOutcome::not_const(ir_template));
                         }
@@ -38,6 +38,6 @@ impl Eval<&IrTemplate> for IrInterpreter<'_> {
             }
         }
 
-        Ok(ConstValue::String(buf.into_boxed_str()))
+        Ok(ConstValue::String(buf))
     }
 }
