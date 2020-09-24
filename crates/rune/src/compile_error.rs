@@ -1,7 +1,8 @@
 use crate::ast;
+use crate::ir_value::IrValue;
 use crate::unit_builder::UnitBuilderError;
 use crate::{ParseError, ParseErrorKind, Spanned};
-use runestick::{AccessError, CompileMeta, ConstValue, Item, SourceId, Span, TypeInfo, TypeOf};
+use runestick::{AccessError, CompileMeta, Item, SourceId, Span, TypeInfo, TypeOf};
 use std::error;
 use std::fmt;
 use std::io;
@@ -75,7 +76,7 @@ impl CompileError {
     }
 
     /// An error raised when we expect a certain constant value but get another.
-    pub fn const_expected<S, E>(spanned: S, actual: &ConstValue) -> Self
+    pub fn const_expected<S, E>(spanned: S, actual: &IrValue) -> Self
     where
         S: Spanned,
         E: TypeOf,

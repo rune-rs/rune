@@ -1,7 +1,7 @@
 use crate::eval::prelude::*;
 
 impl Eval<&IrBinary> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_binary: &IrBinary, used: Used) -> Result<ConstValue, EvalOutcome> {
+    fn eval(&mut self, ir_binary: &IrBinary, used: Used) -> Result<IrValue, EvalOutcome> {
         let span = ir_binary.span();
         self.budget.take(span)?;
 
@@ -9,7 +9,7 @@ impl Eval<&IrBinary> for IrInterpreter<'_> {
         let b = self.eval(&*ir_binary.rhs, used)?;
 
         match (a, b) {
-            (ConstValue::Integer(a), ConstValue::Integer(b)) => match ir_binary.op {
+            (IrValue::Integer(a), IrValue::Integer(b)) => match ir_binary.op {
                 IrBinaryOp::Add => {
                     return Ok(checked_int(
                         a,
@@ -58,7 +58,7 @@ impl Eval<&IrBinary> for IrInterpreter<'_> {
                         .checked_shl(b)
                         .ok_or_else(|| CompileError::const_error(span, "integer shift overflow"))?;
 
-                    return Ok(ConstValue::Integer(n));
+                    return Ok(IrValue::Integer(n));
                 }
                 IrBinaryOp::Shr => {
                     let b = u32::try_from(b).map_err(|_| {
@@ -72,25 +72,25 @@ impl Eval<&IrBinary> for IrInterpreter<'_> {
                         CompileError::const_error(span, "integer shift underflow")
                     })?;
 
-                    return Ok(ConstValue::Integer(n));
+                    return Ok(IrValue::Integer(n));
                 }
-                IrBinaryOp::Lt => return Ok(ConstValue::Bool(a < b)),
-                IrBinaryOp::Lte => return Ok(ConstValue::Bool(a <= b)),
-                IrBinaryOp::Eq => return Ok(ConstValue::Bool(a == b)),
-                IrBinaryOp::Gt => return Ok(ConstValue::Bool(a > b)),
-                IrBinaryOp::Gte => return Ok(ConstValue::Bool(a >= b)),
+                IrBinaryOp::Lt => return Ok(IrValue::Bool(a < b)),
+                IrBinaryOp::Lte => return Ok(IrValue::Bool(a <= b)),
+                IrBinaryOp::Eq => return Ok(IrValue::Bool(a == b)),
+                IrBinaryOp::Gt => return Ok(IrValue::Bool(a > b)),
+                IrBinaryOp::Gte => return Ok(IrValue::Bool(a >= b)),
             },
-            (ConstValue::Float(a), ConstValue::Float(b)) => {
+            (IrValue::Float(a), IrValue::Float(b)) => {
                 match ir_binary.op {
-                    IrBinaryOp::Add => return Ok(ConstValue::Float(a + b)),
-                    IrBinaryOp::Sub => return Ok(ConstValue::Float(a - b)),
-                    IrBinaryOp::Mul => return Ok(ConstValue::Float(a * b)),
-                    IrBinaryOp::Div => return Ok(ConstValue::Float(a / b)),
-                    IrBinaryOp::Lt => return Ok(ConstValue::Bool(a < b)),
-                    IrBinaryOp::Lte => return Ok(ConstValue::Bool(a <= b)),
-                    IrBinaryOp::Eq => return Ok(ConstValue::Bool(a == b)),
-                    IrBinaryOp::Gt => return Ok(ConstValue::Bool(a > b)),
-                    IrBinaryOp::Gte => return Ok(ConstValue::Bool(a >= b)),
+                    IrBinaryOp::Add => return Ok(IrValue::Float(a + b)),
+                    IrBinaryOp::Sub => return Ok(IrValue::Float(a - b)),
+                    IrBinaryOp::Mul => return Ok(IrValue::Float(a * b)),
+                    IrBinaryOp::Div => return Ok(IrValue::Float(a / b)),
+                    IrBinaryOp::Lt => return Ok(IrValue::Bool(a < b)),
+                    IrBinaryOp::Lte => return Ok(IrValue::Bool(a <= b)),
+                    IrBinaryOp::Eq => return Ok(IrValue::Bool(a == b)),
+                    IrBinaryOp::Gt => return Ok(IrValue::Bool(a > b)),
+                    IrBinaryOp::Gte => return Ok(IrValue::Bool(a >= b)),
                     _ => (),
                 };
             }
@@ -107,7 +107,7 @@ fn checked_int(
     op: impl FnOnce(i64, i64) -> Option<i64>,
     msg: &'static str,
     span: Span,
-) -> Result<ConstValue, CompileError> {
+) -> Result<IrValue, CompileError> {
     let n = op(a, b).ok_or_else(|| CompileError::const_error(span, msg))?;
-    Ok(ConstValue::Integer(n))
+    Ok(IrValue::Integer(n))
 }

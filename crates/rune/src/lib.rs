@@ -187,6 +187,7 @@ mod index_scopes;
 mod ir;
 mod ir_compiler;
 mod ir_interpreter;
+mod ir_value;
 mod items;
 mod lexer;
 mod load;

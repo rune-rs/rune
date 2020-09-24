@@ -1,7 +1,7 @@
 use crate::eval::prelude::*;
 
 impl Eval<&IrScope> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_scope: &IrScope, used: Used) -> Result<ConstValue, EvalOutcome> {
+    fn eval(&mut self, ir_scope: &IrScope, used: Used) -> Result<IrValue, EvalOutcome> {
         self.budget.take(ir_scope)?;
         let guard = self.scopes.push();
 
@@ -12,7 +12,7 @@ impl Eval<&IrScope> for IrInterpreter<'_> {
         let value = if let Some(last) = &ir_scope.last {
             self.eval(&**last, used)?
         } else {
-            ConstValue::Unit
+            IrValue::Unit
         };
 
         self.scopes.pop(ir_scope, guard)?;
