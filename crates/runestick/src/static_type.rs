@@ -2,6 +2,7 @@ use crate::Hash;
 use crate::RawStr;
 use std::cmp;
 use std::hash;
+use std::vec;
 
 /// Static type information.
 #[derive(Debug)]
@@ -108,7 +109,8 @@ pub static VEC_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x6c129752545b4223),
 };
 
-impl_static_type!(impl<T> Vec<T> => VEC_TYPE);
+impl_static_type!(crate::Vec => VEC_TYPE);
+impl_static_type!(impl<T> vec::Vec<T> => VEC_TYPE);
 impl_static_type!([crate::Value] => VEC_TYPE);
 impl_static_type!(impl<T> crate::VecTuple<T> => VEC_TYPE);
 

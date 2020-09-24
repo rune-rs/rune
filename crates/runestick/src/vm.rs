@@ -5,11 +5,12 @@ use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Context, FromValue, Function, Future, Generator,
     GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object,
     ObjectVariant, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject, Unit,
-    Value, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
 };
 use std::fmt;
 use std::mem;
 use std::sync::Arc;
+use std::vec;
 
 macro_rules! target_value {
     ($vm:ident, $target:expr, $guard:ident, $lhs:ident) => {{
@@ -60,7 +61,7 @@ pub struct Vm {
     /// The current stack.
     stack: Stack,
     /// Frames relative to the stack.
-    call_frames: Vec<CallFrame>,
+    call_frames: vec::Vec<CallFrame>,
 }
 
 impl Vm {
@@ -76,7 +77,7 @@ impl Vm {
             unit,
             ip: 0,
             stack,
-            call_frames: Vec::new(),
+            call_frames: vec::Vec::new(),
         }
     }
 
@@ -315,7 +316,7 @@ impl Vm {
     fn op_select(&mut self, len: usize) -> Result<Option<Select>, VmError> {
         let futures = futures_util::stream::FuturesUnordered::new();
 
-        let arguments = self.stack.drain_stack_top(len)?.collect::<Vec<_>>();
+        let arguments = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
 
         for (branch, value) in arguments.into_iter().enumerate() {
             let future = match self.try_into_future(value)? {
@@ -615,7 +616,7 @@ impl Vm {
     /// Construct a new vec.
     #[inline]
     fn op_vec(&mut self, count: usize) -> Result<(), VmError> {
-        let vec = self.stack.pop_sequence(count)?;
+        let vec = Vec::from(self.stack.pop_sequence(count)?);
         self.stack.push(Shared::new(vec));
         Ok(())
     }
@@ -1485,7 +1486,7 @@ impl Vm {
     #[inline]
     fn op_string_concat(&mut self, len: usize, size_hint: usize) -> Result<(), VmError> {
         let mut buf = String::with_capacity(size_hint);
-        let values = self.stack.drain_stack_top(len)?.collect::<Vec<_>>();
+        let values = self.stack.drain_stack_top(len)?.collect::<vec::Vec<_>>();
 
         for value in values {
             match value {

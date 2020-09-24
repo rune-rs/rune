@@ -7,6 +7,12 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
             ConstValue::Unit => {
                 self.asm.push(Inst::unit(), span);
             }
+            ConstValue::Byte(b) => {
+                self.asm.push(Inst::byte(*b), span);
+            }
+            ConstValue::Char(c) => {
+                self.asm.push(Inst::char(*c), span);
+            }
             ConstValue::Integer(n) => {
                 self.asm.push(Inst::integer(*n), span);
             }
@@ -19,6 +25,10 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
             ConstValue::String(s) => {
                 let slot = self.unit.borrow_mut().new_static_string(&s)?;
                 self.asm.push(Inst::String { slot }, span);
+            }
+            ConstValue::Bytes(b) => {
+                let slot = self.unit.borrow_mut().new_static_bytes(b)?;
+                self.asm.push(Inst::Bytes { slot }, span);
             }
             ConstValue::Vec(vec) => {
                 for value in vec.iter() {
@@ -33,6 +43,18 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
                 }
 
                 self.asm.push(Inst::Tuple { count: tuple.len() }, span);
+            }
+            ConstValue::Object(object) => {
+                let slot = self
+                    .unit
+                    .borrow_mut()
+                    .new_static_object_keys(&*object.keys)?;
+
+                for value in object.values.iter() {
+                    self.compile((value, span))?;
+                }
+
+                self.asm.push(Inst::Object { slot }, span);
             }
         }
 

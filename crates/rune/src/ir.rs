@@ -39,12 +39,13 @@ pub struct Ir {
 
 impl Ir {
     /// Construct a new intermediate instruction.
-    pub fn new<K>(span: Span, kind: K) -> Self
+    pub fn new<S, K>(spanned: S, kind: K) -> Self
     where
+        S: Spanned,
         IrKind: From<K>,
     {
         Self {
-            span,
+            span: spanned.span(),
             kind: IrKind::from(kind),
         }
     }
@@ -79,6 +80,8 @@ decl_kind! {
         Vec(IrVec),
         /// Constructing a tuple.
         Tuple(IrTuple),
+        /// Constructing an object.
+        Object(IrObject),
     }
 }
 
@@ -203,6 +206,16 @@ pub struct IrTuple {
     pub span: Span,
     /// Arguments to construct the tuple.
     pub items: Box<[Ir]>,
+}
+
+/// Object expression.
+#[derive(Debug, Clone, Spanned)]
+pub struct IrObject {
+    /// Span of the object.
+    #[rune(span)]
+    pub span: Span,
+    /// Field initializations.
+    pub assignments: Box<[(Box<str>, Ir)]>,
 }
 
 /// Vector expression.

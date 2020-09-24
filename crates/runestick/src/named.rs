@@ -1,4 +1,4 @@
-use crate::{RawStr, Value};
+use crate::RawStr;
 
 /// Something that is named.
 pub trait Named {
@@ -8,10 +8,6 @@ pub trait Named {
 
 impl Named for String {
     const NAME: RawStr = RawStr::from_str("String");
-}
-
-impl Named for Vec<Value> {
-    const NAME: RawStr = RawStr::from_str("Vec");
 }
 
 impl Named for i64 {

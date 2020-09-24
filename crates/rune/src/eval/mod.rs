@@ -8,6 +8,7 @@ mod ir_branches;
 mod ir_break;
 mod ir_decl;
 mod ir_loop;
+mod ir_object;
 mod ir_scope;
 mod ir_set;
 mod ir_template;

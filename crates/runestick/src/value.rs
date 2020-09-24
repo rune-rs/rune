@@ -1,11 +1,12 @@
 use crate::access::AccessKind;
 use crate::{
     Any, AnyObj, Bytes, Function, Future, Generator, GeneratorState, Hash, Item, Mut, Object,
-    RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, Type, TypeInfo, VmError,
+    RawMut, RawRef, Ref, Shared, StaticString, Stream, Tuple, Type, TypeInfo, Vec, VmError,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
+use std::vec;
 
 /// A tuple with a well-defined type.
 pub struct TypedTuple {
@@ -199,7 +200,7 @@ pub enum Value {
     /// A byte string.
     Bytes(Shared<Bytes>),
     /// A vector containing any values.
-    Vec(Shared<Vec<Value>>),
+    Vec(Shared<Vec>),
     /// A tuple.
     Tuple(Shared<Tuple>),
     /// An object.
@@ -232,17 +233,17 @@ pub enum Value {
 
 impl Value {
     /// Construct a vector.
-    pub fn vec(vec: Vec<Value>) -> Self {
-        Self::Vec(Shared::new(vec))
+    pub fn vec(vec: vec::Vec<Value>) -> Self {
+        Self::Vec(Shared::new(Vec::from(vec)))
     }
 
     /// Construct a tuple.
-    pub fn tuple(vec: Vec<Value>) -> Self {
+    pub fn tuple(vec: vec::Vec<Value>) -> Self {
         Self::Tuple(Shared::new(Tuple::from(vec)))
     }
 
     /// Construct a typed tuple.
-    pub fn typed_tuple(rtti: Arc<Rtti>, vec: Vec<Value>) -> Self {
+    pub fn typed_tuple(rtti: Arc<Rtti>, vec: vec::Vec<Value>) -> Self {
         Self::TypedTuple(Shared::new(TypedTuple {
             rtti,
             tuple: Tuple::from(vec),
@@ -250,7 +251,7 @@ impl Value {
     }
 
     /// Construct a typed tuple.
-    pub fn variant_tuple(rtti: Arc<VariantRtti>, vec: Vec<Value>) -> Self {
+    pub fn variant_tuple(rtti: Arc<VariantRtti>, vec: vec::Vec<Value>) -> Self {
         Self::TupleVariant(Shared::new(TupleVariant {
             rtti,
             tuple: Tuple::from(vec),
@@ -396,10 +397,10 @@ impl Value {
 
     /// Try to coerce value into a vector.
     #[inline]
-    pub fn into_vec(self) -> Result<Shared<Vec<Value>>, VmError> {
+    pub fn into_vec(self) -> Result<Shared<Vec>, VmError> {
         match self {
             Self::Vec(vec) => Ok(vec),
-            actual => Err(VmError::expected::<Vec<Value>>(actual.type_info()?)),
+            actual => Err(VmError::expected::<Vec>(actual.type_info()?)),
         }
     }
 
@@ -780,7 +781,7 @@ macro_rules! impl_from_shared {
 
 impl_from_shared!(Shared<Bytes>, Bytes);
 impl_from_shared!(Shared<String>, String);
-impl_from!(Shared<Vec<Value>>, Vec);
+impl_from_shared!(Shared<Vec>, Vec);
 impl_from_shared!(Shared<Tuple>, Tuple);
 impl_from_shared!(Shared<Object>, Object);
 impl_from_shared!(Shared<Future>, Future);

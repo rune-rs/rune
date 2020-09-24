@@ -1,22 +1,22 @@
 //! The `std::vec` module.
 
-use crate::{ContextError, Module, Value};
+use crate::{ContextError, Module, Value, Vec};
 use std::iter::Rev;
 
 /// Construct the `std::vec` module.
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std", "vec"]);
 
-    module.ty::<Vec<Value>>()?;
+    module.ty::<Vec>()?;
     module.ty::<Iter>()?;
     module.ty::<Rev<Iter>>()?;
 
-    module.function(&["Vec", "new"], Vec::<Value>::new)?;
+    module.function(&["Vec", "new"], Vec::new)?;
     module.inst_fn("iter", vec_iter)?;
-    module.inst_fn("len", Vec::<Value>::len)?;
-    module.inst_fn("push", Vec::<Value>::push)?;
-    module.inst_fn("clear", Vec::<Value>::clear)?;
-    module.inst_fn("pop", Vec::<Value>::pop)?;
+    module.inst_fn("len", Vec::len)?;
+    module.inst_fn("push", Vec::push)?;
+    module.inst_fn("clear", Vec::clear)?;
+    module.inst_fn("pop", Vec::pop)?;
 
     module.inst_fn(crate::INTO_ITER, vec_iter)?;
     module.inst_fn("next", Iter::next)?;

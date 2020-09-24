@@ -111,23 +111,6 @@ where
     }
 }
 
-// Vec impls
-
-impl<T> ToValue for Vec<T>
-where
-    T: ToValue,
-{
-    fn to_value(self) -> Result<Value, VmError> {
-        let mut vec = Vec::with_capacity(self.len());
-
-        for value in self {
-            vec.push(value.to_value()?);
-        }
-
-        Ok(Value::from(Shared::new(vec)))
-    }
-}
-
 // number impls
 
 macro_rules! number_value_trait {

@@ -10,14 +10,44 @@ pub struct Tuple {
 }
 
 impl Tuple {
-    /// Convert into inner.
+    fn empty() -> Self {
+        Self {
+            inner: Vec::new().into_boxed_slice(),
+        }
+    }
+
+    /// Convert into inner std boxed slice.
     pub fn into_inner(self) -> Box<[Value]> {
         self.inner
+    }
+
+    /// Returns `true` if the dynamic tuple contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Returns the number of elements in the dynamic tuple, also referred to
+    /// as its 'length'.
+    pub fn len(&self) -> usize {
+        self.inner.len()
     }
 
     /// Get the value at the given index.
     pub fn get(&self, index: usize) -> Option<&Value> {
         self.inner.get(index)
+    }
+
+    /// Get the given value at the given index.
+    pub fn get_value<T>(&self, index: usize) -> Result<Option<T>, VmError>
+    where
+        T: FromValue,
+    {
+        let value = match self.inner.get(index) {
+            Some(value) => value.clone(),
+            None => return Ok(None),
+        };
+
+        Ok(Some(T::from_value(value)?))
     }
 
     /// Get the mutable value at the given index.
@@ -83,6 +113,16 @@ impl FromValue for Mut<Tuple> {
 impl FromValue for Ref<Tuple> {
     fn from_value(value: Value) -> Result<Self, VmError> {
         Ok(value.into_tuple()?.into_ref()?)
+    }
+}
+
+impl FromValue for Tuple {
+    fn from_value(value: Value) -> Result<Self, VmError> {
+        match value {
+            Value::Unit => Ok(Self::empty()),
+            Value::Tuple(tuple) => Ok(tuple.take()?),
+            actual => Err(VmError::expected::<Self>(actual.type_info()?)),
+        }
     }
 }
 
