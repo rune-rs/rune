@@ -15,7 +15,7 @@ Native modules for Rune, an embeddable dynamic programming language for Rust.
 """
 
 [features]
-full = ["time", "http", "json", "toml", "fs", "process", "signal"]
+full = ["time", "http", "json", "toml", "fs", "process", "signal", "rand"]
 time = ["tokio", "tokio/time"]
 fs = ["tokio", "tokio/fs"]
 http = ["reqwest"]
@@ -29,7 +29,7 @@ reqwest = {version = "0.10.7", optional = true, default-features = false, featur
 tokio = {version = "0.2.22", optional = true}
 serde_json = {version = "1.0.57", optional = true}
 toml = {version = "0.5.6", optional = true}
-nanorand = {version = "0.4.2", optional = true, features = ["getrandom"]}
+nanorand = {version = "0.4.4", optional = true, features = ["getrandom"]}
 
 runestick = {version = "0.6.16", path = "../runestick"}
 

@@ -267,11 +267,7 @@ pub fn default_context() -> Result<runestick::Context, runestick::ContextError> 
         context.install(&rune_modules::process::module()?)?;
         context.install(&rune_modules::fs::module()?)?;
         context.install(&rune_modules::signal::module()?)?;
-
-        #[cfg(feature = "rand")]
-        {
-            context.install(&rune_modules::rand::module()?)?;
-        }
+        context.install(&rune_modules::rand::module()?)?;
     }
 
     Ok(context)
