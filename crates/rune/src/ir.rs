@@ -51,6 +51,27 @@ impl Ir {
     }
 }
 
+/// The target of a set operation.
+#[derive(Debug, Clone, Spanned)]
+pub struct IrTarget {
+    /// Span of the target.
+    #[rune(span)]
+    pub span: Span,
+    /// Kind of the target.
+    pub kind: IrTargetKind,
+}
+
+/// The kind of the target.
+#[derive(Debug, Clone)]
+pub enum IrTargetKind {
+    /// A variable.
+    Name(Box<str>),
+    /// A field target.
+    Field(Box<IrTarget>, Box<str>),
+    /// An index target.
+    Index(Box<IrTarget>, usize),
+}
+
 decl_kind! {
     /// The kind of an intermediate operation.
     #[derive(Debug, Clone)]
@@ -65,9 +86,11 @@ decl_kind! {
         Set(IrSet),
         /// A template.
         Template(IrTemplate),
+        /// A named value.
+        Name(Box<str>),
         /// A local name. Could either be a local variable or a reference to
         /// something else, like another const declaration.
-        Name(Box<str>),
+        Target(IrTarget),
         /// A constant value.
         Value(ConstValue),
         /// A sequence of conditional branches.
@@ -130,7 +153,7 @@ pub struct IrSet {
     #[rune(span)]
     pub span: Span,
     /// The name of the local variable to set.
-    pub name: Box<str>,
+    pub target: IrTarget,
     /// The value of the variable.
     pub value: Box<Ir>,
 }

@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::unit_builder::UnitBuilderError;
 use crate::{ParseError, ParseErrorKind, Spanned};
-use runestick::{CompileMeta, ConstValue, Item, SourceId, Span, TypeInfo, TypeOf};
+use runestick::{AccessError, CompileMeta, ConstValue, Item, SourceId, Span, TypeInfo, TypeOf};
 use std::error;
 use std::fmt;
 use std::io;
@@ -75,7 +75,7 @@ impl CompileError {
     }
 
     /// An error raised when we expect a certain constant value but get another.
-    pub fn const_expected<S, E>(spanned: S, actual: ConstValue) -> Self
+    pub fn const_expected<S, E>(spanned: S, actual: &ConstValue) -> Self
     where
         S: Spanned,
         E: TypeOf,
@@ -87,6 +87,14 @@ impl CompileError {
                 actual: actual.type_info(),
             },
         )
+    }
+
+    /// Construct an access error.
+    pub fn access<S>(spanned: S, error: AccessError) -> Self
+    where
+        S: Spanned,
+    {
+        Self::new(spanned, CompileErrorKind::AccessError { error })
     }
 
     /// Construct an experimental error.
@@ -143,6 +151,14 @@ impl From<UnitBuilderError> for CompileError {
 /// Error when encoding AST.
 #[derive(Debug, Error)]
 pub enum CompileErrorKind {
+    /// An access error raised during compilation, usually happens during
+    /// constant evaluation.
+    #[error("access error: {error}")]
+    AccessError {
+        /// The source error.
+        #[source]
+        error: AccessError,
+    },
     /// An internal encoder invariant was broken.
     #[error("internal compiler error: {msg}")]
     Internal {

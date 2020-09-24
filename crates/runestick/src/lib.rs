@@ -118,7 +118,7 @@ pub use self::compile_meta::{
     CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
     CompileSource,
 };
-pub use self::const_value::{ConstObject, ConstValue};
+pub use self::const_value::ConstValue;
 pub use self::from_value::{FromValue, UnsafeFromValue};
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
