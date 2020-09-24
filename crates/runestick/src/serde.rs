@@ -1,6 +1,7 @@
-use crate::{Bytes, Object, Shared, Value};
+use crate::{Bytes, Object, Shared, Value, Vec};
 use serde::{de, ser};
 use std::fmt;
+use std::vec;
 
 /// Deserialize implementation for value pointers.
 impl<'de> de::Deserialize<'de> for Value {
@@ -123,7 +124,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     }
 
     #[inline]
-    fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
+    fn visit_byte_buf<E>(self, v: vec::Vec<u8>) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
@@ -239,13 +240,17 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     where
         V: de::SeqAccess<'de>,
     {
-        let mut vec = Vec::new();
+        let mut vec = if let Some(hint) = visitor.size_hint() {
+            vec::Vec::with_capacity(hint)
+        } else {
+            vec::Vec::new()
+        };
 
         while let Some(elem) = visitor.next_element()? {
             vec.push(elem);
         }
 
-        Ok(Value::Vec(Shared::new(vec)))
+        Ok(Value::Vec(Shared::new(Vec::from(vec))))
     }
 
     #[inline]

@@ -96,6 +96,7 @@ mod type_;
 mod type_info;
 mod type_of;
 mod unit;
+mod vec;
 mod vec_tuple;
 mod vm_call;
 mod vm_error;
@@ -117,7 +118,7 @@ pub use self::compile_meta::{
     CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
     CompileSource,
 };
-pub use self::const_value::ConstValue;
+pub use self::const_value::{ConstObject, ConstValue};
 pub use self::from_value::{FromValue, UnsafeFromValue};
 pub use self::generator::Generator;
 pub use self::generator_state::GeneratorState;
@@ -140,6 +141,7 @@ pub use self::to_value::{ToValue, UnsafeToValue};
 pub use self::tuple::Tuple;
 pub use self::type_::Type;
 pub use self::type_info::TypeInfo;
+pub use self::vec::Vec;
 pub use crate::access::{
     AccessError, BorrowMut, BorrowRef, NotAccessibleMut, NotAccessibleRef, RawExclusiveGuard,
     RawSharedGuard,

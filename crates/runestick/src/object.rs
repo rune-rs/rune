@@ -1,5 +1,7 @@
 use crate::collections::HashMap;
-use crate::{FromValue, Mut, Named, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmError};
+use crate::{
+    FromValue, Mut, Named, RawMut, RawRef, RawStr, Ref, ToValue, UnsafeFromValue, Value, VmError,
+};
 use std::borrow;
 use std::cmp;
 use std::fmt;
@@ -33,6 +35,23 @@ pub type IterMut<'a> = crate::collections::hash_map::IterMut<'a, String, Value>;
 pub type Iter<'a> = crate::collections::hash_map::Iter<'a, String, Value>;
 
 /// Struct representing a dynamic anonymous object.
+///
+/// # Examples
+///
+/// ```rust
+/// # fn main() -> runestick::Result<()> {
+/// let mut object = runestick::Object::new();
+/// assert!(object.is_empty());
+///
+/// object.insert_value(String::from("foo"), 42)?;
+/// object.insert_value(String::from("bar"), true)?;
+/// assert_eq!(2, object.len());
+///
+/// assert_eq!(Some(42), object.get_value("foo")?);
+/// assert_eq!(Some(true), object.get_value("bar")?);
+/// assert_eq!(None::<bool>, object.get_value("baz")?);
+/// # Ok(()) }
+/// ```
 #[derive(Default, Clone)]
 #[repr(transparent)]
 pub struct Object {
@@ -67,6 +86,21 @@ impl Object {
         self.inner.get(k)
     }
 
+    /// Get the given value at the given index.
+    pub fn get_value<Q: ?Sized, T>(&self, k: &Q) -> Result<Option<T>, VmError>
+    where
+        String: borrow::Borrow<Q>,
+        Q: hash::Hash + cmp::Eq,
+        T: FromValue,
+    {
+        let value = match self.inner.get(k) {
+            Some(value) => value.clone(),
+            None => return Ok(None),
+        };
+
+        Ok(Some(T::from_value(value)?))
+    }
+
     /// Returns a mutable reference to the value corresponding to the key.
     pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut Value>
     where
@@ -95,7 +129,17 @@ impl Object {
         self.inner.remove(k)
     }
 
-    /// Inserts a key-value pair into the object.
+    /// Inserts a key-value pair into the dynamic object, converting it as
+    /// necessary through the [`ToValue`] trait.
+    pub fn insert_value<T>(&mut self, k: String, v: T) -> Result<(), VmError>
+    where
+        T: ToValue,
+    {
+        self.inner.insert(k, v.to_value()?);
+        Ok(())
+    }
+
+    /// Inserts a key-value pair into the dynamic object.
     pub fn insert(&mut self, k: String, v: Value) -> Option<Value> {
         self.inner.insert(k, v)
     }

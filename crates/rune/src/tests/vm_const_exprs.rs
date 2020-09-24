@@ -88,3 +88,27 @@ fn test_float_ops() {
     test_float_op!(bool => 1 >= 1 = true);
     test_float_op!(bool => 0 >= 2 = false);
 }
+
+#[test]
+fn test_const_collections() {
+    let object = rune!(runestick::Object => "fn main() { VALUE } const VALUE = #{};");
+    assert!(object.is_empty());
+
+    let tuple = rune!(runestick::Tuple => "fn main() { VALUE } const VALUE = ();");
+    assert!(tuple.is_empty());
+
+    let tuple = rune!(runestick::Tuple => r#"fn main() { VALUE } const VALUE = ("Hello World",);"#);
+    assert_eq!(
+        Some("Hello World"),
+        tuple.get_value::<String>(0).unwrap().as_deref()
+    );
+
+    let vec = rune!(runestick::Vec => "fn main() { VALUE } const VALUE = [];");
+    assert!(vec.is_empty());
+
+    let vec = rune!(runestick::Vec => r#"fn main() { VALUE } const VALUE = ["Hello World"];"#);
+    assert_eq!(
+        Some("Hello World"),
+        vec.get_value::<String>(0).unwrap().as_deref()
+    );
+}

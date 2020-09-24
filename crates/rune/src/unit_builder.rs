@@ -473,11 +473,19 @@ impl UnitBuilder {
 
     /// Insert a new collection of static object keys, or return one already
     /// existing.
-    pub(crate) fn new_static_object_keys(
+    pub(crate) fn new_static_object_keys<I>(
         &mut self,
-        current: &[String],
-    ) -> Result<usize, UnitBuilderError> {
-        let current = current.to_vec().into_boxed_slice();
+        current: I,
+    ) -> Result<usize, UnitBuilderError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<str>,
+    {
+        let current = current
+            .into_iter()
+            .map(|s| s.as_ref().to_owned())
+            .collect::<Box<_>>();
+
         let hash = Hash::object_keys(&current[..]);
 
         if let Some(existing_slot) = self.static_object_keys_rev.get(&hash).copied() {

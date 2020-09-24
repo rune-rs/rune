@@ -87,12 +87,12 @@ impl Unit {
     }
 
     /// Iterate over all static object keys in the unit.
-    pub fn iter_static_object_keys(&self) -> impl Iterator<Item = (Hash, &[String])> + '_ {
-        let mut it = self.static_object_keys.iter();
+    pub fn iter_static_object_keys(&self) -> impl Iterator<Item = (usize, &[String])> + '_ {
+        let mut it = self.static_object_keys.iter().enumerate();
 
         std::iter::from_fn(move || {
-            let s = it.next()?;
-            Some((Hash::object_keys(&s[..]), &s[..]))
+            let (n, s) = it.next()?;
+            Some((n, &s[..]))
         })
     }
 

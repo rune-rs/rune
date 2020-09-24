@@ -18,6 +18,7 @@ impl Eval<&Ir> for IrInterpreter<'_> {
             IrKind::Break(ir_break) => self.eval(ir_break, used),
             IrKind::Vec(ir_vec) => self.eval(ir_vec, used),
             IrKind::Tuple(ir_tuple) => self.eval(ir_tuple, used),
+            IrKind::Object(ir_object) => self.eval(ir_object, used),
         }
     }
 }
