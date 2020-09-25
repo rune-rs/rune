@@ -199,7 +199,7 @@ async fn inner_compile(input: String, budget: usize) -> CompileResult {
             for error in &errors {
                 if let Some(source) = sources.get(error.source_id()) {
                     match error.kind() {
-                        rune::LoadErrorKind::ParseError(error) => {
+                        rune::ErrorKind::ParseError(error) => {
                             let span = error.span();
 
                             let start =
@@ -214,7 +214,7 @@ async fn inner_compile(input: String, budget: usize) -> CompileResult {
                                 message: error.to_string(),
                             });
                         }
-                        rune::LoadErrorKind::CompileError(error) => {
+                        rune::ErrorKind::CompileError(error) => {
                             let span = error.span();
 
                             let start =
@@ -229,7 +229,7 @@ async fn inner_compile(input: String, budget: usize) -> CompileResult {
                                 message: error.to_string(),
                             });
                         }
-                        rune::LoadErrorKind::QueryError(error) => {
+                        rune::ErrorKind::QueryError(error) => {
                             let span = error.span();
 
                             let start =
@@ -244,7 +244,7 @@ async fn inner_compile(input: String, budget: usize) -> CompileResult {
                                 message: error.to_string(),
                             });
                         }
-                        rune::LoadErrorKind::LinkError(error) => match error {
+                        rune::ErrorKind::LinkError(error) => match error {
                             rune::LinkerError::MissingFunction { hash, spans } => {
                                 for (span, _) in spans {
                                     let start = Position::from(
@@ -263,7 +263,7 @@ async fn inner_compile(input: String, budget: usize) -> CompileResult {
                                 }
                             }
                         },
-                        rune::LoadErrorKind::Internal(_) => {}
+                        rune::ErrorKind::Internal(_) => {}
                     }
                 }
             }

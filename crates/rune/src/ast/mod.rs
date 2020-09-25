@@ -3,6 +3,20 @@
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek};
 use runestick::Span;
 
+/// A helper macro to implement [`Peek`].
+macro_rules! peek {
+    ($expr:expr) => {
+        peek!($expr, false)
+    };
+
+    ($expr:expr, $default:expr) => {
+        match $expr {
+            Some(value) => value,
+            None => return $default,
+        }
+    };
+}
+
 mod attribute;
 mod block;
 mod condition;

@@ -2,12 +2,11 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
+use crate::compiler::UnitBuilderError;
 use crate::consts::Consts;
-use crate::eval::Used;
-use crate::ir;
-use crate::ir_compiler::{Compile as _, IrCompiler};
-use crate::ir_interpreter::{IrBudget, IrInterpreter};
-use crate::unit_builder::UnitBuilderError;
+use crate::ir::ir;
+use crate::ir::{IrBudget, IrInterpreter};
+use crate::ir::{IrCompile as _, IrCompiler};
 use crate::{
     CompileError, CompileErrorKind, CompileVisitor, IrError, IrErrorKind, ParseError,
     ParseErrorKind, Resolve as _, Spanned, Storage, UnitBuilder,
@@ -21,6 +20,22 @@ use std::error;
 use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
+
+/// Indication whether a value is being evaluated because it's being used or not.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Used {
+    /// The value is not being used.
+    Unused,
+    /// The value is being used.
+    Used,
+}
+
+impl Used {
+    /// Test if this used indicates unuse.
+    pub(crate) fn is_unused(self) -> bool {
+        matches!(self, Self::Unused)
+    }
+}
 
 /// An error raised during querying.
 #[derive(Debug)]

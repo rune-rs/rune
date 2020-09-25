@@ -1,3 +1,8 @@
+//! Constants storage.
+//!
+//! This maps the item of a global constant to its value. It's also used to
+//! detect resolution cycles during constant evaluation.
+
 use crate::collections::{HashMap, HashSet};
 use runestick::{ConstValue, Item};
 use std::cell::RefCell;

@@ -5,8 +5,7 @@
 pub use crate::CompileErrorKind::*;
 pub use crate::ParseErrorKind::*;
 pub use crate::WarningKind::*;
-use crate::{Errors, Warnings};
-use crate::{LoadError, Sources, UnitBuilder};
+use crate::{Error, Errors, Sources, UnitBuilder, Warnings};
 pub use futures_executor::block_on;
 pub use runestick::VmErrorKind::*;
 pub use runestick::{
@@ -49,10 +48,7 @@ pub fn compile_source(
     let unit = match unit.build() {
         Some(unit) => unit,
         None => {
-            errors.push(LoadError::internal(
-                0,
-                "unit builder is not exclusively held",
-            ));
+            errors.push(Error::internal(0, "unit builder is not exclusively held"));
             return Err(errors);
         }
     };
@@ -178,7 +174,7 @@ macro_rules! assert_parse_error {
         let err = errors.into_iter().next().expect("expected one error");
 
         let e = match err.into_kind() {
-            $crate::LoadErrorKind::ParseError(e) => (e),
+            $crate::ErrorKind::ParseError(e) => (e),
             kind => {
                 panic!(
                     "expected parse error `{}` but was `{:?}`",
@@ -287,7 +283,7 @@ macro_rules! assert_compile_error {
         let e = e.into_iter().next().expect("expected one error");
 
         let e = match e.into_kind() {
-            $crate::LoadErrorKind::CompileError(e) => (e),
+            $crate::ErrorKind::CompileError(e) => (e),
             kind => {
                 panic!(
                     "expected parse error `{}` but was `{:?}`",

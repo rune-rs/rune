@@ -151,7 +151,7 @@ impl State {
                     let source_id = error.source_id();
 
                     match error.kind() {
-                        rune::LoadErrorKind::ParseError(error) => {
+                        rune::ErrorKind::ParseError(error) => {
                             report(
                                 &sources,
                                 &mut by_url,
@@ -161,7 +161,7 @@ impl State {
                                 display_to_error,
                             );
                         }
-                        rune::LoadErrorKind::CompileError(error) => {
+                        rune::ErrorKind::CompileError(error) => {
                             report(
                                 &sources,
                                 &mut by_url,
@@ -171,7 +171,7 @@ impl State {
                                 display_to_error,
                             );
                         }
-                        rune::LoadErrorKind::QueryError(error) => {
+                        rune::ErrorKind::QueryError(error) => {
                             report(
                                 &sources,
                                 &mut by_url,
@@ -181,7 +181,7 @@ impl State {
                                 display_to_error,
                             );
                         }
-                        rune::LoadErrorKind::LinkError(error) => match error {
+                        rune::ErrorKind::LinkError(error) => match error {
                             rune::LinkerError::MissingFunction { hash, spans } => {
                                 for (span, _) in spans {
                                     let diagnostics = by_url.entry(url.clone()).or_default();
@@ -195,7 +195,7 @@ impl State {
                                 }
                             }
                         },
-                        rune::LoadErrorKind::Internal(message) => {
+                        rune::ErrorKind::Internal(message) => {
                             let diagnostics = by_url.entry(url.clone()).or_default();
 
                             let range = lsp::Range::default();

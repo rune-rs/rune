@@ -169,46 +169,22 @@
 
 #![deny(missing_docs)]
 
-#[macro_use]
-mod util_macros;
-mod assembly;
 pub mod ast;
-mod compile;
-mod compile_error;
-mod compile_visitor;
 mod compiler;
 mod consts;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;
-mod errors;
-mod eval;
-mod index;
-mod index_scopes;
+mod indexing;
 mod ir;
-mod ir_compiler;
-mod ir_error;
-mod ir_interpreter;
-mod ir_value;
 mod items;
-mod lexer;
 mod load;
-mod load_error;
-mod loops;
-mod macro_context;
 mod macros;
 mod options;
-mod parse_error;
-mod parser;
+mod parsing;
 mod query;
-mod quote;
-mod scopes;
 mod source_loader;
 mod sources;
-mod storage;
-mod token_stream;
-mod traits;
-mod unit_builder;
-mod warning;
+mod spanned;
 mod worker;
 
 // NB: this has to be defined before the `tests` module, because it's used in
@@ -225,28 +201,23 @@ mod collections {
     pub use hashbrown::{hash_set, HashSet};
 }
 
-pub use crate::assembly::Assembly;
-pub use crate::compile_error::{CompileError, CompileErrorKind, CompileResult};
-pub use crate::compile_visitor::{CompileVisitor, NoopCompileVisitor};
-pub use crate::errors::Errors;
-pub use crate::ir_error::{IrError, IrErrorKind};
-pub use crate::lexer::Lexer;
-pub use crate::load::{load_sources, load_sources_with_visitor, LoadSourcesError};
-pub use crate::load_error::{LoadError, LoadErrorKind};
-pub use crate::macro_context::MacroContext;
-pub use crate::options::Options;
-pub use crate::parse_error::{ParseError, ParseErrorKind};
-pub use crate::parser::Parser;
-pub use crate::query::{QueryError, QueryErrorKind};
-pub use crate::scopes::Var;
-pub use crate::source_loader::{FileSourceLoader, SourceLoader};
-pub use crate::sources::Sources;
-pub use crate::storage::Storage;
-pub use crate::token_stream::{ToTokens, TokenStream, TokenStreamIter};
-pub use crate::traits::{OptionSpanned, Parse, Peek, Resolve, Spanned};
-pub use crate::warning::{Warning, WarningKind, Warnings};
+pub use self::compiler::{
+    CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntry, ImportKey,
+    LinkerError, NoopCompileVisitor, UnitBuilder, Var,
+};
+pub use self::ir::{IrError, IrErrorKind};
+pub use self::load::{
+    load_sources, load_sources_with_visitor, Error, ErrorKind, Errors, LoadSourcesError, Warning,
+    WarningKind, Warnings,
+};
+pub use self::macros::{MacroContext, Storage, ToTokens, TokenStream, TokenStreamIter};
+pub use self::options::Options;
+pub use self::parsing::{Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve};
+pub use self::query::{QueryError, QueryErrorKind};
+pub use self::source_loader::{FileSourceLoader, SourceLoader};
+pub use self::sources::Sources;
+pub use self::spanned::{OptionSpanned, Spanned};
 pub use compiler::compile;
-pub use unit_builder::{ImportEntry, ImportKey, LinkerError, UnitBuilder};
 
 pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
@@ -282,7 +253,7 @@ pub fn default_context() -> Result<runestick::Context, runestick::ContextError> 
 /// [Parse][crate::traits::Parse].
 pub fn parse_all<T>(source: &str) -> Result<T, ParseError>
 where
-    T: crate::traits::Parse,
+    T: crate::parsing::Parse,
 {
     let mut parser = Parser::new(source);
     let ast = parser.parse::<T>()?;
