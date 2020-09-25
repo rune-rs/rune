@@ -175,7 +175,7 @@ fn compile_assign_binop(
                         let span = index.span();
 
                         let index = index.resolve(this.storage, &*this.source)?;
-                        let index = this.unit.borrow_mut().new_static_string(index.as_ref())?;
+                        let index = this.unit.new_static_string(index.as_ref())?;
 
                         this.compile((rhs, Needs::Value))?;
                         this.scopes.decl_anon(rhs.span())?;
@@ -245,7 +245,7 @@ fn compile_assign_binop(
                 match &field_access.expr_field {
                     ast::ExprField::Ident(index) => {
                         let index = index.resolve(this.storage, &*this.source)?;
-                        let index = this.unit.borrow_mut().new_static_string(index.as_ref())?;
+                        let index = this.unit.new_static_string(index.as_ref())?;
 
                         Some(InstTarget::Field(index))
                     }

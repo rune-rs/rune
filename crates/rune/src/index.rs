@@ -211,7 +211,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 }),
             };
 
-            self.query.unit.borrow_mut().insert_meta(meta)?;
+            self.query.unit.insert_meta(meta)?;
         } else if is_toplevel {
             // NB: immediately compile all toplevel functions.
             self.query.queue.push_back(BuildEntry {
@@ -222,7 +222,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 used: Used::Used,
             });
 
-            self.query.unit.borrow_mut().insert_meta(CompileMeta {
+            self.query.unit.insert_meta(CompileMeta {
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&item)),
                     item,

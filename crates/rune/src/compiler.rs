@@ -16,9 +16,7 @@ use crate::{
 use runestick::{
     CompileMeta, CompileMetaKind, Context, Inst, InstValue, Item, Label, Source, Span, TypeCheck,
 };
-use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// A needs hint for an expression.
@@ -42,7 +40,7 @@ impl Needs {
 pub fn compile(
     context: &Context,
     sources: &mut Sources,
-    unit: &Rc<RefCell<UnitBuilder>>,
+    unit: &UnitBuilder,
     errors: &mut Errors,
     warnings: &mut Warnings,
 ) -> Result<(), ()> {
@@ -67,7 +65,7 @@ pub fn compile(
 pub fn compile_with_options(
     context: &Context,
     sources: &mut Sources,
-    unit: &Rc<RefCell<UnitBuilder>>,
+    unit: &UnitBuilder,
     errors: &mut Errors,
     warnings: &mut Warnings,
     options: &Options,
@@ -111,7 +109,7 @@ pub fn compile_with_options(
         return Err(());
     }
 
-    verify_imports(worker.errors, context, &mut *unit.borrow_mut())?;
+    verify_imports(worker.errors, context, unit)?;
 
     loop {
         while let Some(entry) = worker.query.queue.pop_front() {
@@ -171,7 +169,7 @@ pub(crate) struct Compiler<'a> {
     /// Item builder.
     pub(crate) items: Items,
     /// The compilation unit we are compiling for.
-    pub(crate) unit: Rc<RefCell<UnitBuilder>>,
+    pub(crate) unit: UnitBuilder,
     /// Scopes defined in the compiler.
     pub(crate) scopes: Scopes,
     /// Context for which to emit warnings.
@@ -338,7 +336,6 @@ impl<'a> Compiler<'a> {
     pub(crate) fn convert_path_to_item(&self, path: &ast::Path) -> CompileResult<Item> {
         let base = self.items.item();
         self.unit
-            .borrow()
             .convert_path(&base, path, &self.storage, &*self.source)
     }
 
@@ -553,7 +550,7 @@ impl<'a> Compiler<'a> {
 
             let source = self.source.clone();
             let key = item.key.resolve(&self.storage, &*source)?;
-            string_slots.push(self.unit.borrow_mut().new_static_string(&*key)?);
+            string_slots.push(self.unit.new_static_string(&*key)?);
             keys.push(key.to_string());
 
             if let Some(existing) = keys_dup.insert(key.to_string(), span) {
@@ -567,7 +564,7 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        let keys = self.unit.borrow_mut().new_static_object_keys(&keys[..])?;
+        let keys = self.unit.new_static_object_keys(&keys[..])?;
 
         let type_check = match &pat_object.ident {
             ast::LitObjectIdent::Named(path) => {
@@ -808,7 +805,7 @@ impl<'a> Compiler<'a> {
             ast::Pat::PatString(pat_string) => {
                 let span = pat_string.span();
                 let string = pat_string.resolve(&self.storage, &*self.source)?;
-                let slot = self.unit.borrow_mut().new_static_string(&*string)?;
+                let slot = self.unit.new_static_string(&*string)?;
                 load(self, Needs::Value)?;
                 self.asm.push(Inst::EqStaticString { slot }, span);
             }
@@ -859,7 +856,7 @@ struct CompileBuildEntry<'a> {
     context: &'a Context,
     options: &'a Options,
     storage: &'a Storage,
-    unit: &'a Rc<RefCell<UnitBuilder>>,
+    unit: &'a UnitBuilder,
     errors: &'a mut Errors,
     warnings: &'a mut Warnings,
     query: &'a mut Query,
@@ -878,7 +875,7 @@ impl CompileBuildEntry<'_> {
             used,
         } = self.entry;
 
-        let mut asm = self.unit.borrow().new_assembly(source_id);
+        let mut asm = self.unit.new_assembly(source_id);
 
         let mut compiler = Compiler {
             storage: self.storage,
@@ -916,7 +913,6 @@ impl CompileBuildEntry<'_> {
                     compiler.warnings.not_used(source_id, span, None);
                 } else {
                     self.unit
-                        .borrow_mut()
                         .new_function(source_id, item, count, asm, f.call, args)?;
                 }
             }
@@ -957,7 +953,7 @@ impl CompileBuildEntry<'_> {
                 if used.is_unused() {
                     compiler.warnings.not_used(source_id, span, None);
                 } else {
-                    self.unit.borrow_mut().new_instance_function(
+                    self.unit.new_instance_function(
                         source_id,
                         item,
                         type_of,
@@ -985,7 +981,6 @@ impl CompileBuildEntry<'_> {
                     compiler.warnings.not_used(source_id, span, None);
                 } else {
                     self.unit
-                        .borrow_mut()
                         .new_function(source_id, item, count, asm, c.call, args)?;
                 }
             }
@@ -998,14 +993,8 @@ impl CompileBuildEntry<'_> {
                 if used.is_unused() {
                     compiler.warnings.not_used(source_id, span, None);
                 } else {
-                    self.unit.borrow_mut().new_function(
-                        source_id,
-                        item,
-                        args,
-                        asm,
-                        b.call,
-                        Vec::new(),
-                    )?;
+                    self.unit
+                        .new_function(source_id, item, args, asm, b.call, Vec::new())?;
                 }
             }
             Build::UnusedConst(c) => {
@@ -1044,12 +1033,8 @@ where
     Ok(args)
 }
 
-fn verify_imports(
-    errors: &mut Errors,
-    context: &Context,
-    unit: &mut UnitBuilder,
-) -> Result<(), ()> {
-    for (_, entry) in unit.iter_imports() {
+fn verify_imports(errors: &mut Errors, context: &Context, unit: &UnitBuilder) -> Result<(), ()> {
+    for (_, entry) in &*unit.imports() {
         if context.contains_prefix(&entry.item) || unit.contains_prefix(&entry.item) {
             continue;
         }

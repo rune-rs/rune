@@ -5,8 +5,6 @@ use crate::{
     Warnings,
 };
 use runestick::{Context, Unit};
-use std::cell::RefCell;
-use std::rc::Rc;
 use thiserror::Error;
 
 /// Error raised when we failed to load sources.
@@ -104,8 +102,6 @@ pub fn load_sources_with_visitor(
         UnitBuilder::default()
     };
 
-    let unit = Rc::new(RefCell::new(unit));
-
     let result = compiler::compile_with_options(
         &*context,
         sources,
@@ -121,15 +117,6 @@ pub fn load_sources_with_visitor(
         return Err(LoadSourcesError);
     }
 
-    let unit = match Rc::try_unwrap(unit) {
-        Ok(unit) => unit.into_inner(),
-        Err(..) => {
-            errors.push(LoadError::internal(0, "unit is not exlusively held"));
-
-            return Err(LoadSourcesError);
-        }
-    };
-
     if options.link_checks {
         unit.link(&*context, errors);
 
@@ -138,5 +125,14 @@ pub fn load_sources_with_visitor(
         }
     }
 
-    Ok(unit.into_unit())
+    match unit.build() {
+        Some(unit) => Ok(unit),
+        None => {
+            errors.push(LoadError::internal(
+                0,
+                "unit builder is not exclusively held",
+            ));
+            return Err(LoadSourcesError);
+        }
+    }
 }
