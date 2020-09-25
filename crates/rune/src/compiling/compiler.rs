@@ -1,8 +1,8 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, Compile as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
-use crate::items::Items;
 use crate::query::Query;
+use crate::shared::Items;
 use crate::worker::Expanded;
 use crate::CompileResult;
 use crate::{

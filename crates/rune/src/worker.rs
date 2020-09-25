@@ -2,11 +2,10 @@
 
 use crate::ast;
 use crate::collections::HashMap;
-use crate::consts::Consts;
 use crate::indexing::{Index as _, IndexScopes, Indexer};
-use crate::items::Items;
 use crate::macros::MacroCompiler;
 use crate::query::Query;
+use crate::shared::{Consts, Items};
 use crate::CompileResult;
 use crate::{
     CompileError, CompileErrorKind, CompileVisitor, Error, Errors, MacroContext, Options,

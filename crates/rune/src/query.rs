@@ -3,10 +3,10 @@
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::compiling::UnitBuilderError;
-use crate::consts::Consts;
 use crate::ir::ir;
 use crate::ir::{IrBudget, IrInterpreter};
 use crate::ir::{IrCompile as _, IrCompiler};
+use crate::shared::Consts;
 use crate::{
     CompileError, CompileErrorKind, CompileVisitor, IrError, IrErrorKind, ParseError,
     ParseErrorKind, Resolve as _, Spanned, Storage, UnitBuilder,
@@ -16,8 +16,6 @@ use runestick::{
     CompileSource, Hash, Item, Source, SourceId, Span, Type,
 };
 use std::collections::VecDeque;
-use std::error;
-use std::fmt;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -37,64 +35,16 @@ impl Used {
     }
 }
 
-/// An error raised during querying.
-#[derive(Debug)]
-pub struct QueryError {
-    span: Span,
-    kind: QueryErrorKind,
-}
-
-impl QueryError {
-    /// Construct a new query error.
-    pub fn new<S, E>(spanned: S, err: E) -> Self
-    where
-        S: Spanned,
-        QueryErrorKind: From<E>,
-    {
-        Self {
-            span: spanned.span(),
-            kind: QueryErrorKind::from(err),
-        }
+error! {
+    /// An error raised during querying.
+    #[derive(Debug)]
+    pub struct QueryError {
+        span: Span,
+        kind: QueryErrorKind,
     }
 
-    /// Get the kind of the query error.
-    pub fn kind(&self) -> &QueryErrorKind {
-        &self.kind
-    }
-
-    /// Convert into the kind of the query error.
-    pub fn into_kind(self) -> QueryErrorKind {
-        self.kind
-    }
-}
-
-impl error::Error for QueryError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        self.kind.source()
-    }
-}
-
-impl fmt::Display for QueryError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.kind, f)
-    }
-}
-
-impl Spanned for QueryError {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
-
-impl From<IrError> for QueryError {
-    fn from(error: IrError) -> Self {
-        QueryError {
-            span: error.span(),
-            kind: QueryErrorKind::IrError {
-                error: error.into_kind(),
-            },
-        }
-    }
+    impl From<IrError>;
+    impl From<ParseError>;
 }
 
 impl From<UnitBuilderError> for QueryError {
@@ -102,17 +52,6 @@ impl From<UnitBuilderError> for QueryError {
         QueryError {
             span: Span::empty(),
             kind: QueryErrorKind::UnitBuilderError { error },
-        }
-    }
-}
-
-impl From<ParseError> for QueryError {
-    fn from(error: ParseError) -> Self {
-        QueryError {
-            span: error.span(),
-            kind: QueryErrorKind::ParseError {
-                error: error.into_kind(),
-            },
         }
     }
 }
@@ -132,14 +71,14 @@ pub enum QueryErrorKind {
     IrError {
         /// The source error.
         #[source]
-        error: IrErrorKind,
+        error: Box<IrErrorKind>,
     },
     /// Error for resolving values from source files.
     #[error("parse error: {error}")]
     ParseError {
         /// Source error.
         #[from]
-        error: ParseErrorKind,
+        error: Box<ParseErrorKind>,
     },
 }
 

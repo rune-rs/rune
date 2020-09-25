@@ -1,57 +1,14 @@
 use crate::ast;
 use crate::Spanned;
 use runestick::Span;
-use std::error;
-use std::fmt;
 use thiserror::Error;
 
-/// An error raised during parsing.
-#[derive(Debug, Clone, Copy)]
-pub struct ParseError {
-    span: Span,
-    kind: ParseErrorKind,
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-impl error::Error for ParseError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        self.kind.source()
-    }
-}
-
-impl ParseError {
-    /// Construct a new parse error.
-    pub(crate) fn new<S, E>(spanned: S, err: E) -> Self
-    where
-        S: Spanned,
-        ParseErrorKind: From<E>,
-    {
-        Self {
-            span: spanned.span(),
-            kind: ParseErrorKind::from(err),
-        }
-    }
-
-    /// Get kind of the parse error.
-    pub fn kind(&self) -> ParseErrorKind {
-        self.kind
-    }
-
-    /// Get kind of the parse error.
-    pub fn into_kind(self) -> ParseErrorKind {
-        self.kind
-    }
-}
-
-impl Spanned for ParseError {
-    /// Get the span for the parse error.
-    fn span(&self) -> Span {
-        self.span
+error! {
+    /// An error raised during parsing.
+    #[derive(Debug, Clone, Copy)]
+    pub struct ParseError {
+        span: Span,
+        kind: ParseErrorKind,
     }
 }
 

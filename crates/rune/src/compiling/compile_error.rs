@@ -4,8 +4,6 @@ use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
 };
 use runestick::{CompileMeta, Item, SourceId, Span};
-use std::error;
-use std::fmt;
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -13,36 +11,20 @@ use thiserror::Error;
 /// A compile result.
 pub type CompileResult<T> = std::result::Result<T, CompileError>;
 
-/// An error raised during compiling.
-#[derive(Debug)]
-pub struct CompileError {
-    span: Span,
-    kind: CompileErrorKind,
+error! {
+    /// An error raised during compiling.
+    #[derive(Debug)]
+    pub struct CompileError {
+        span: Span,
+        kind: CompileErrorKind,
+    }
+
+    impl From<ParseError>;
+    impl From<IrError>;
+    impl From<QueryError>;
 }
 
 impl CompileError {
-    /// Construct a new compile error.
-    pub fn new<S, E>(spanned: S, err: E) -> Self
-    where
-        S: Spanned,
-        CompileErrorKind: From<E>,
-    {
-        Self {
-            span: spanned.span(),
-            kind: CompileErrorKind::from(err),
-        }
-    }
-
-    /// Get the kind of the compile error.
-    pub fn kind(&self) -> &CompileErrorKind {
-        &self.kind
-    }
-
-    /// Convert into the kind of the compile error.
-    pub fn into_kind(self) -> CompileErrorKind {
-        self.kind
-    }
-
     /// Construct an internal error.
     ///
     /// This should be used for programming invariants of the encoder which are
@@ -88,63 +70,11 @@ impl CompileError {
     }
 }
 
-impl fmt::Display for CompileError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-impl error::Error for CompileError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        self.kind.source()
-    }
-}
-
-impl Spanned for CompileError {
-    /// Get the span for the parse error.
-    fn span(&self) -> Span {
-        self.span
-    }
-}
-
-impl From<ParseError> for CompileError {
-    fn from(error: ParseError) -> Self {
-        CompileError {
-            span: error.span(),
-            kind: CompileErrorKind::ParseError {
-                error: error.into_kind(),
-            },
-        }
-    }
-}
-
 impl From<UnitBuilderError> for CompileError {
     fn from(error: UnitBuilderError) -> Self {
         CompileError {
             span: Span::empty(),
             kind: CompileErrorKind::UnitBuilderError { error },
-        }
-    }
-}
-
-impl From<IrError> for CompileError {
-    fn from(error: IrError) -> Self {
-        CompileError {
-            span: error.span(),
-            kind: CompileErrorKind::IrError {
-                error: error.into_kind(),
-            },
-        }
-    }
-}
-
-impl From<QueryError> for CompileError {
-    fn from(error: QueryError) -> Self {
-        CompileError {
-            span: error.span(),
-            kind: CompileErrorKind::QueryError {
-                error: error.into_kind(),
-            },
         }
     }
 }
@@ -163,14 +93,14 @@ pub enum CompileErrorKind {
     IrError {
         /// The source error.
         #[source]
-        error: IrErrorKind,
+        error: Box<IrErrorKind>,
     },
     /// Encountered a query error.
     #[error("query error: {error}")]
     QueryError {
         /// The source error.
         #[source]
-        error: QueryErrorKind,
+        error: Box<QueryErrorKind>,
     },
     /// A constant evaluation errored.
     #[error("error during constant evaluation: {msg}")]
@@ -219,7 +149,7 @@ pub enum CompileErrorKind {
     ParseError {
         /// Source error.
         #[from]
-        error: ParseErrorKind,
+        error: Box<ParseErrorKind>,
     },
     /// Error when trying to index a duplicate item.
     #[error("found conflicting item `{existing}`")]

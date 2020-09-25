@@ -1,4 +1,3 @@
-use crate::collections::HashMap;
 use crate::ir::eval::{Eval as _, EvalOutcome};
 use crate::ir::ir;
 use crate::ir::IrValue;
@@ -6,6 +5,9 @@ use crate::query::Query;
 use crate::query::Used;
 use crate::{IrError, IrErrorKind, Spanned};
 use runestick::{CompileMetaKind, ConstValue, Item, Span};
+
+/// Ir Scopes.
+pub(crate) type IrScopes = crate::shared::Scopes<IrValue>;
 
 /// The compiler phase which evaluates constants.
 pub(crate) struct IrInterpreter<'a> {
@@ -75,8 +77,8 @@ impl<'a> IrInterpreter<'a> {
         span: Span,
         used: Used,
     ) -> Result<IrValue, IrError> {
-        if let Some(const_value) = self.scopes.get(ident) {
-            return Ok(const_value);
+        if let Some(ir_value) = self.scopes.get(ident) {
+            return Ok(ir_value.clone());
         }
 
         let mut base = self.item.clone();
@@ -108,108 +110,12 @@ impl<'a> IrInterpreter<'a> {
     }
 }
 
-#[repr(transparent)]
-pub(crate) struct IrScopeGuard {
-    length: usize,
-}
-
-#[derive(Default)]
-pub(crate) struct IrScope {
-    /// Locals in the current scope.
-    locals: HashMap<String, IrValue>,
-}
-
-/// A hierarchy of constant scopes.
-pub(crate) struct IrScopes {
-    scopes: Vec<IrScope>,
-}
-
 impl IrScopes {
-    /// Get a value out of the scope.
-    pub(crate) fn get(&self, name: &str) -> Option<IrValue> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(current) = scope.locals.get(name) {
-                return Some(current.clone());
-            }
-        }
-
-        None
-    }
-
-    /// Clear the current scope.
-    pub(crate) fn clear_current<S>(&mut self, spanned: S) -> Result<(), IrError>
-    where
-        S: Spanned,
-    {
-        let last = self
-            .scopes
-            .last_mut()
-            .ok_or_else(|| IrError::custom(spanned, "expected at least one scope"))?;
-
-        last.locals.clear();
-        Ok(())
-    }
-
-    /// Declare a value in the scope.
-    pub(crate) fn decl<S>(&mut self, name: &str, value: IrValue, spanned: S) -> Result<(), IrError>
-    where
-        S: Spanned,
-    {
-        let last = self
-            .scopes
-            .last_mut()
-            .ok_or_else(|| IrError::custom(spanned, "expected at least one scope"))?;
-        last.locals.insert(name.to_owned(), value);
-        Ok(())
-    }
-
-    /// Get the given variable as mutable.
-    pub(crate) fn get_name<S>(&self, name: &str, spanned: S) -> Result<IrValue, IrError>
-    where
-        S: Spanned,
-    {
-        for scope in self.scopes.iter().rev() {
-            if let Some(current) = scope.locals.get(name) {
-                return Ok(current.clone());
-            }
-        }
-
-        Err(IrError::new(
-            spanned,
-            IrErrorKind::MissingLocal { name: name.into() },
-        ))
-    }
-
-    /// Push a scope and return the guard associated with the scope.
-    pub(crate) fn push(&mut self) -> IrScopeGuard {
-        let length = self.scopes.len();
-        self.scopes.push(IrScope::default());
-        IrScopeGuard { length }
-    }
-
-    pub(crate) fn pop<S>(&mut self, spanned: S, guard: IrScopeGuard) -> Result<(), IrError>
-    where
-        S: Spanned,
-    {
-        if self.scopes.pop().is_none() {
-            return Err(IrError::custom(
-                spanned,
-                "expected at least one scope to pop",
-            ));
-        }
-
-        if self.scopes.len() != guard.length {
-            return Err(IrError::custom(spanned, "scope length mismatch"));
-        }
-
-        Ok(())
-    }
-
     /// Get the given target as mut.
     pub(crate) fn get_target(&mut self, ir_target: &ir::IrTarget) -> Result<IrValue, IrError> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                return self.get_name(name, ir_target);
+                return Ok(self.get_name(name, ir_target)?.clone());
             }
             ir::IrTargetKind::Field(ir_target, field) => {
                 let value = self.get_target(ir_target)?;
@@ -274,11 +180,10 @@ impl IrScopes {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
                 let scope = self
-                    .scopes
                     .last_mut()
                     .ok_or_else(|| IrError::custom(ir_target, "no scopes"))?;
 
-                scope.locals.insert(name.as_ref().to_owned(), value);
+                scope.insert(name.as_ref().to_owned(), value);
                 Ok(())
             }
             ir::IrTargetKind::Field(target, field) => {
@@ -337,12 +242,10 @@ impl IrScopes {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
                 let scope = self
-                    .scopes
                     .last_mut()
                     .ok_or_else(|| IrError::custom(ir_target, "no scopes"))?;
 
                 let value = scope
-                    .locals
                     .get_mut(name.as_ref())
                     .ok_or_else(|| IrError::custom(ir_target, "not such variable"))?;
 
@@ -396,14 +299,6 @@ impl IrScopes {
                     actual => Err(IrError::expected::<_, runestick::Tuple>(ir_target, &actual)),
                 }
             }
-        }
-    }
-}
-
-impl Default for IrScopes {
-    fn default() -> Self {
-        Self {
-            scopes: vec![IrScope::default()],
         }
     }
 }

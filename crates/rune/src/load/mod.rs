@@ -1,15 +1,19 @@
 use crate::compiling;
-use crate::{FileSourceLoader, Options, SourceLoader, Sources};
+use crate::Options;
 use runestick::{Context, Unit};
 use thiserror::Error;
 
 mod error;
 mod errors;
+mod source_loader;
+mod sources;
 mod warning;
 mod warnings;
 
 pub use self::error::{Error, ErrorKind};
 pub use self::errors::Errors;
+pub use self::source_loader::{FileSourceLoader, SourceLoader};
+pub use self::sources::Sources;
 pub use self::warning::{Warning, WarningKind};
 pub use self::warnings::Warnings;
 
