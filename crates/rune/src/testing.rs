@@ -4,10 +4,9 @@
 
 pub use crate::CompileErrorKind::*;
 pub use crate::ParseErrorKind::*;
-use crate::Sources;
-use crate::UnitBuilder;
 pub use crate::WarningKind::*;
 use crate::{Errors, Warnings};
+use crate::{LoadError, Sources, UnitBuilder};
 pub use futures_executor::block_on;
 pub use runestick::VmErrorKind::*;
 pub use runestick::{
@@ -15,8 +14,6 @@ pub use runestick::{
     Value, VecTuple, VmError,
 };
 use runestick::{Item, Source, Unit};
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -43,14 +40,24 @@ pub fn compile_source(
     let mut warnings = Warnings::new();
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source.to_owned()));
-    let unit = Rc::new(RefCell::new(UnitBuilder::with_default_prelude()));
+    let unit = UnitBuilder::with_default_prelude();
 
     if let Err(()) = crate::compile(context, &mut sources, &unit, &mut errors, &mut warnings) {
         return Err(errors);
     }
 
-    let unit = Rc::try_unwrap(unit).unwrap().into_inner();
-    Ok((unit.into_unit(), warnings))
+    let unit = match unit.build() {
+        Some(unit) => unit,
+        None => {
+            errors.push(LoadError::internal(
+                0,
+                "unit builder is not exclusively held",
+            ));
+            return Err(errors);
+        }
+    };
+
+    Ok((unit, warnings))
 }
 
 /// Call the specified function in the given script.

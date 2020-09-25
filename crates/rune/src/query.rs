@@ -16,11 +16,9 @@ use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
     CompileSource, Hash, Item, Source, SourceId, Span, Type,
 };
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::error;
 use std::fmt;
-use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -241,7 +239,7 @@ pub(crate) struct IndexedEntry {
 
 pub(crate) struct Query {
     pub(crate) storage: Storage,
-    pub(crate) unit: Rc<RefCell<UnitBuilder>>,
+    pub(crate) unit: UnitBuilder,
     /// Const expression that have been resolved.
     pub(crate) consts: Consts,
     pub(crate) queue: VecDeque<BuildEntry>,
@@ -250,7 +248,7 @@ pub(crate) struct Query {
 
 impl Query {
     /// Construct a new compilation context.
-    pub fn new(storage: Storage, unit: Rc<RefCell<UnitBuilder>>, consts: Consts) -> Self {
+    pub fn new(storage: Storage, unit: UnitBuilder, consts: Consts) -> Self {
         Self {
             storage,
             unit,
@@ -427,7 +425,7 @@ impl Query {
     pub fn index(&mut self, item: Item, entry: IndexedEntry) -> Result<(), CompileError> {
         log::trace!("indexed: {}", item);
 
-        self.unit.borrow_mut().insert_name(&item);
+        self.unit.insert_name(&item);
 
         if let Some(old) = self.indexed.insert(item.clone(), entry) {
             return Err(CompileError::new(
@@ -481,7 +479,7 @@ impl Query {
         item: &Item,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        if let Some(meta) = self.unit.borrow().lookup_meta(item) {
+        if let Some(meta) = self.unit.lookup_meta(item) {
             return Ok(Some(meta));
         }
 
@@ -604,7 +602,7 @@ impl Query {
             }),
         };
 
-        self.unit.borrow_mut().insert_meta(meta.clone())?;
+        self.unit.insert_meta(meta.clone())?;
         Ok(meta)
     }
 

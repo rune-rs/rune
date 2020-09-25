@@ -14,10 +14,8 @@ use crate::{
     Resolve as _, SourceLoader, Sources, Spanned as _, Storage, UnitBuilder, Warnings,
 };
 use runestick::{Component, Context, Item, Source, SourceId, Span};
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// A single task that can be fed to the worker.
@@ -81,7 +79,7 @@ impl<'a> Worker<'a> {
         context: &'a Context,
         sources: &'a mut Sources,
         options: &'a Options,
-        unit: Rc<RefCell<UnitBuilder>>,
+        unit: UnitBuilder,
         consts: Consts,
         errors: &'a mut Errors,
         warnings: &'a mut Warnings,
@@ -216,11 +214,8 @@ impl<'a> Worker<'a> {
 
                     let source_id = import.source_id;
 
-                    let result = import.process(
-                        self.context,
-                        &self.query.storage,
-                        &mut *self.query.unit.borrow_mut(),
-                    );
+                    let result =
+                        import.process(self.context, &self.query.storage, &self.query.unit);
 
                     if let Err(error) = result {
                         self.errors.push(LoadError::new(source_id, error));
@@ -361,7 +356,7 @@ impl Import {
         self,
         context: &Context,
         storage: &Storage,
-        unit: &mut UnitBuilder,
+        unit: &UnitBuilder,
     ) -> CompileResult<()> {
         let Self {
             item,

@@ -6,8 +6,6 @@ use crate::{
     Spanned as _, Storage, TokenStream, UnitBuilder,
 };
 use runestick::{Context, Hash, Item, Source, Span};
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
@@ -16,7 +14,7 @@ pub(crate) struct MacroCompiler<'a> {
     pub(crate) macro_context: &'a mut MacroContext,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
-    pub(crate) unit: Rc<RefCell<UnitBuilder>>,
+    pub(crate) unit: UnitBuilder,
     pub(crate) source: Arc<Source>,
 }
 
@@ -35,7 +33,7 @@ impl MacroCompiler<'_> {
             ));
         }
 
-        let item = self.unit.borrow().convert_path(
+        let item = self.unit.convert_path(
             &self.item,
             &expr_call_macro.path,
             &self.storage,

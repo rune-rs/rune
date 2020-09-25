@@ -24,7 +24,7 @@ impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {
         for c in template.components.iter() {
             match c {
                 ast::TemplateComponent::String(string) => {
-                    let slot = self.unit.borrow_mut().new_static_string(&string)?;
+                    let slot = self.unit.new_static_string(&string)?;
                     self.asm.push(Inst::String { slot }, span);
                     self.scopes.decl_anon(span)?;
                 }

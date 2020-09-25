@@ -13,7 +13,7 @@ impl Compile<(&ast::LitStr, Needs)> for Compiler<'_> {
         }
 
         let string = lit_str.resolve(&self.storage, &*self.source)?;
-        let slot = self.unit.borrow_mut().new_static_string(&*string)?;
+        let slot = self.unit.new_static_string(&*string)?;
         self.asm.push(Inst::String { slot }, span);
         Ok(())
     }
