@@ -1,8 +1,7 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
-use crate::unit_builder::LinkerError;
 use crate::{
-    CompileErrorKind, Errors, LoadError, LoadErrorKind, ParseErrorKind, Sources, Spanned as _,
+    CompileErrorKind, Error, ErrorKind, Errors, LinkerError, ParseErrorKind, Sources, Spanned as _,
     WarningKind, Warnings,
 };
 use runestick::{Span, VmError};
@@ -232,7 +231,7 @@ impl EmitDiagnostics for VmError {
     }
 }
 
-impl EmitDiagnostics for LoadError {
+impl EmitDiagnostics for Error {
     fn emit_diagnostics<O>(&self, out: &mut O, sources: &Sources) -> Result<(), DiagnosticsError>
     where
         O: WriteColor,
@@ -249,11 +248,11 @@ impl EmitDiagnostics for LoadError {
         let mut notes = Vec::new();
 
         let span = match self.kind() {
-            LoadErrorKind::Internal(message) => {
+            ErrorKind::Internal(message) => {
                 writeln!(out, "internal error: {}", message)?;
                 return Ok(());
             }
-            LoadErrorKind::LinkError(error) => {
+            ErrorKind::LinkError(error) => {
                 match error {
                     LinkerError::MissingFunction { hash, spans } => {
                         let mut labels = Vec::new();
@@ -278,7 +277,7 @@ impl EmitDiagnostics for LoadError {
 
                 return Ok(());
             }
-            LoadErrorKind::ParseError(error) => {
+            ErrorKind::ParseError(error) => {
                 // we allow here single match, since it is hard to use `if let` with pattern destruction.
                 #[allow(clippy::single_match)]
                 match error.kind() {
@@ -306,7 +305,7 @@ impl EmitDiagnostics for LoadError {
 
                 error.span()
             }
-            LoadErrorKind::CompileError(error) => {
+            ErrorKind::CompileError(error) => {
                 match error.kind() {
                     CompileErrorKind::DuplicateObjectKey { existing, object } => {
                         labels.push(
@@ -335,7 +334,7 @@ impl EmitDiagnostics for LoadError {
 
                 error.span()
             }
-            LoadErrorKind::QueryError(error) => error.span(),
+            ErrorKind::QueryError(error) => error.span(),
         };
 
         if let Some(e) = self.kind().source() {

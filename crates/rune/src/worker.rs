@@ -3,14 +3,13 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::consts::Consts;
-use crate::index::{Index as _, Indexer};
-use crate::index_scopes::IndexScopes;
+use crate::indexing::{Index as _, IndexScopes, Indexer};
 use crate::items::Items;
 use crate::macros::MacroCompiler;
 use crate::query::Query;
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, Errors, LoadError, MacroContext, Options,
+    CompileError, CompileErrorKind, CompileVisitor, Error, Errors, MacroContext, Options,
     Resolve as _, SourceLoader, Sources, Spanned as _, Storage, UnitBuilder, Warnings,
 };
 use runestick::{Component, Context, Item, Source, SourceId, Span};
@@ -116,10 +115,8 @@ impl<'a> Worker<'a> {
                     let source = match self.sources.get(source_id).cloned() {
                         Some(source) => source,
                         None => {
-                            self.errors.push(LoadError::internal(
-                                source_id,
-                                "missing queued source by id",
-                            ));
+                            self.errors
+                                .push(Error::internal(source_id, "missing queued source by id"));
 
                             continue;
                         }
@@ -128,7 +125,7 @@ impl<'a> Worker<'a> {
                     let file = match crate::parse_all::<ast::File>(source.as_str()) {
                         Ok(file) => file,
                         Err(error) => {
-                            self.errors.push(LoadError::new(source_id, error));
+                            self.errors.push(Error::new(source_id, error));
 
                             continue;
                         }
@@ -205,7 +202,7 @@ impl<'a> Worker<'a> {
                             }
                         }
                         Err(error) => {
-                            self.errors.push(LoadError::new(source_id, error));
+                            self.errors.push(Error::new(source_id, error));
                         }
                     }
                 }
@@ -218,7 +215,7 @@ impl<'a> Worker<'a> {
                         import.process(self.context, &self.query.storage, &self.query.unit);
 
                     if let Err(error) = result {
-                        self.errors.push(LoadError::new(source_id, error));
+                        self.errors.push(Error::new(source_id, error));
                     }
                 }
                 Task::ExpandMacro(m) => {
@@ -249,7 +246,7 @@ impl<'a> Worker<'a> {
                                 Some(Component::Macro(..)) => (),
                                 _ => {
                                     self.errors.push(
-                                        LoadError::new(source_id, CompileError::internal(
+                                        Error::new(source_id, CompileError::internal(
                                             &span,
                                             "expected macro item as last component of macro expansion",
                                         ))
@@ -279,7 +276,7 @@ impl<'a> Worker<'a> {
                             let ast = match compiler.eval_macro::<ast::Expr>(ast) {
                                 Ok(ast) => ast,
                                 Err(error) => {
-                                    self.errors.push(LoadError::new(source_id, error));
+                                    self.errors.push(Error::new(source_id, error));
 
                                     continue;
                                 }
@@ -291,7 +288,7 @@ impl<'a> Worker<'a> {
                             let ast = match compiler.eval_macro::<ast::Item>(ast) {
                                 Ok(ast) => ast,
                                 Err(error) => {
-                                    self.errors.push(LoadError::new(source_id, error));
+                                    self.errors.push(Error::new(source_id, error));
 
                                     continue;
                                 }
