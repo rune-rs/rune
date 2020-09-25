@@ -170,7 +170,7 @@
 #![deny(missing_docs)]
 
 pub mod ast;
-mod compiler;
+mod compiling;
 mod consts;
 #[cfg(feature = "diagnostics")]
 pub mod diagnostics;
@@ -201,7 +201,7 @@ mod collections {
     pub use hashbrown::{hash_set, HashSet};
 }
 
-pub use self::compiler::{
+pub use self::compiling::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntry, ImportKey,
     LinkerError, NoopCompileVisitor, UnitBuilder, Var,
 };
@@ -217,7 +217,7 @@ pub use self::query::{QueryError, QueryErrorKind};
 pub use self::source_loader::{FileSourceLoader, SourceLoader};
 pub use self::sources::Sources;
 pub use self::spanned::{OptionSpanned, Spanned};
-pub use compiler::compile;
+pub use compiling::compile;
 
 pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
