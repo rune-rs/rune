@@ -12,6 +12,7 @@ impl Eval<&Ir> for IrInterpreter<'_> {
             IrKind::Binary(ir_binary) => self.eval(ir_binary, used),
             IrKind::Decl(ir_decl) => self.eval(ir_decl, used),
             IrKind::Set(ir_set) => self.eval(ir_set, used),
+            IrKind::Assign(ir_assign) => self.eval(ir_assign, used),
             IrKind::Template(ir_template) => self.eval(ir_template, used),
             IrKind::Name(name) => Ok(self.resolve_var(name.as_ref(), ir.span(), used)?),
             IrKind::Target(ir_target) => Ok(self.scopes.get_target(ir_target)?),

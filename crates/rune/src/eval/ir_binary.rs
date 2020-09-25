@@ -50,29 +50,23 @@ impl Eval<&IrBinary> for IrInterpreter<'_> {
                 }
                 IrBinaryOp::Shl => {
                     let b = u32::try_from(b).map_err(|_| {
-                        CompileError::const_error(
-                            &ir_binary.rhs,
-                            "cannot be converted to shift operand",
-                        )
+                        IrError::custom(&ir_binary.rhs, "cannot be converted to shift operand")
                     })?;
 
                     let n = a
                         .checked_shl(b)
-                        .ok_or_else(|| CompileError::const_error(span, "integer shift overflow"))?;
+                        .ok_or_else(|| IrError::custom(span, "integer shift overflow"))?;
 
                     return Ok(IrValue::Integer(n));
                 }
                 IrBinaryOp::Shr => {
                     let b = u32::try_from(b).map_err(|_| {
-                        CompileError::const_error(
-                            &ir_binary.rhs,
-                            "cannot be converted to shift operand",
-                        )
+                        IrError::custom(&ir_binary.rhs, "cannot be converted to shift operand")
                     })?;
 
-                    let n = a.checked_shr(b).ok_or_else(|| {
-                        CompileError::const_error(span, "integer shift underflow")
-                    })?;
+                    let n = a
+                        .checked_shr(b)
+                        .ok_or_else(|| IrError::custom(span, "integer shift underflow"))?;
 
                     return Ok(IrValue::Integer(n));
                 }
@@ -109,7 +103,7 @@ fn checked_int(
     op: impl FnOnce(i64, i64) -> Option<i64>,
     msg: &'static str,
     span: Span,
-) -> Result<IrValue, CompileError> {
-    let n = op(a, b).ok_or_else(|| CompileError::const_error(span, msg))?;
+) -> Result<IrValue, IrError> {
+    let n = op(a, b).ok_or_else(|| IrError::custom(span, msg))?;
     Ok(IrValue::Integer(n))
 }

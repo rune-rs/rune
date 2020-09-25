@@ -1,8 +1,9 @@
 use crate::ast;
-use crate::ir_value::IrValue;
 use crate::unit_builder::UnitBuilderError;
-use crate::{ParseError, ParseErrorKind, Spanned};
-use runestick::{AccessError, CompileMeta, Item, SourceId, Span, TypeInfo, TypeOf};
+use crate::{
+    IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
+};
+use runestick::{CompileMeta, Item, SourceId, Span};
 use std::error;
 use std::fmt;
 use std::io;
@@ -10,7 +11,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 /// A compile result.
-pub type CompileResult<T, E = CompileError> = std::result::Result<T, E>;
+pub type CompileResult<T> = std::result::Result<T, CompileError>;
 
 /// An error raised during compiling.
 #[derive(Debug)]
@@ -32,7 +33,7 @@ impl CompileError {
         }
     }
 
-    /// Get the kind of the cmopile error.
+    /// Get the kind of the compile error.
     pub fn kind(&self) -> &CompileErrorKind {
         &self.kind
     }
@@ -73,29 +74,6 @@ impl CompileError {
         S: Spanned,
     {
         CompileError::new(spanned, CompileErrorKind::ConstError { msg })
-    }
-
-    /// An error raised when we expect a certain constant value but get another.
-    pub fn const_expected<S, E>(spanned: S, actual: &IrValue) -> Self
-    where
-        S: Spanned,
-        E: TypeOf,
-    {
-        CompileError::new(
-            spanned,
-            CompileErrorKind::ConstExpectedValue {
-                expected: E::type_info(),
-                actual: actual.type_info(),
-            },
-        )
-    }
-
-    /// Construct an access error.
-    pub fn access<S>(spanned: S, error: AccessError) -> Self
-    where
-        S: Spanned,
-    {
-        Self::new(spanned, CompileErrorKind::AccessError { error })
     }
 
     /// Construct an experimental error.
@@ -149,36 +127,56 @@ impl From<UnitBuilderError> for CompileError {
     }
 }
 
+impl From<IrError> for CompileError {
+    fn from(error: IrError) -> Self {
+        CompileError {
+            span: error.span(),
+            kind: CompileErrorKind::IrError {
+                error: error.into_kind(),
+            },
+        }
+    }
+}
+
+impl From<QueryError> for CompileError {
+    fn from(error: QueryError) -> Self {
+        CompileError {
+            span: error.span(),
+            kind: CompileErrorKind::QueryError {
+                error: error.into_kind(),
+            },
+        }
+    }
+}
+
 /// Error when encoding AST.
 #[derive(Debug, Error)]
 pub enum CompileErrorKind {
-    /// An access error raised during compilation, usually happens during
-    /// constant evaluation.
-    #[error("access error: {error}")]
-    AccessError {
-        /// The source error.
-        #[source]
-        error: AccessError,
-    },
     /// An internal encoder invariant was broken.
     #[error("internal compiler error: {msg}")]
     Internal {
         /// The message of the internal error.
         msg: &'static str,
     },
+    /// Encountered an ir error.
+    #[error("ir error: {error}")]
+    IrError {
+        /// The source error.
+        #[source]
+        error: IrErrorKind,
+    },
+    /// Encountered a query error.
+    #[error("query error: {error}")]
+    QueryError {
+        /// The source error.
+        #[source]
+        error: QueryErrorKind,
+    },
     /// A constant evaluation errored.
     #[error("error during constant evaluation: {msg}")]
     ConstError {
         /// Message describing the error.
         msg: &'static str,
-    },
-    /// A constant evaluation errored.
-    #[error("expected a value of type {expected} but got {actual}")]
-    ConstExpectedValue {
-        /// The expected value.
-        expected: TypeInfo,
-        /// The value we got instead.
-        actual: TypeInfo,
     },
     /// Trying to use an experimental feature which was not enabled.
     #[error("experimental feature: {msg}")]
@@ -400,9 +398,6 @@ pub enum CompileErrorKind {
     /// The pattern is not supported as a binding.
     #[error("not a valid binding")]
     UnsupportedBinding,
-    /// Error raised when trying to use a break outside of a loop.
-    #[error("break outside of supported loop")]
-    BreakOutsideOfLoop,
     /// Attempting to use a float in a match pattern.
     #[error("floating point numbers cannot be used in patterns")]
     MatchFloatInPattern,
@@ -442,10 +437,7 @@ pub enum CompileErrorKind {
         /// The number that was an unsupported tuple index.
         number: ast::Number,
     },
-    /// Trying to treat a non-constant expression as constant.
-    #[error("not a constant expression")]
-    NotConst,
-    /// Trying to process a cycle of constants.
-    #[error("constant cycle detected")]
-    ConstCycle,
+    /// Error raised when trying to use a break outside of a loop.
+    #[error("break outside of loop")]
+    BreakOutsideOfLoop,
 }

@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::{CompileError, Spanned};
+use crate::{IrError, Spanned};
 use runestick::{ConstValue, Shared, TypeInfo};
 
 /// A constant value.
@@ -71,7 +71,7 @@ impl IrValue {
     }
 
     /// Convert into constant value.
-    pub fn into_const<S>(self, spanned: S) -> Result<ConstValue, CompileError>
+    pub fn into_const<S>(self, spanned: S) -> Result<ConstValue, IrError>
     where
         S: Copy + Spanned,
     {
@@ -83,15 +83,15 @@ impl IrValue {
             IrValue::Integer(n) => ConstValue::Integer(n),
             IrValue::Float(f) => ConstValue::Float(f),
             IrValue::String(s) => {
-                let s = s.take().map_err(|e| CompileError::access(spanned, e))?;
+                let s = s.take().map_err(IrError::access(spanned))?;
                 ConstValue::String(s)
             }
             IrValue::Bytes(b) => {
-                let b = b.take().map_err(|e| CompileError::access(spanned, e))?;
+                let b = b.take().map_err(IrError::access(spanned))?;
                 ConstValue::Bytes(b)
             }
             IrValue::Vec(vec) => {
-                let vec = vec.take().map_err(|e| CompileError::access(spanned, e))?;
+                let vec = vec.take().map_err(IrError::access(spanned))?;
                 let mut const_vec = Vec::with_capacity(vec.len());
 
                 for value in vec {
@@ -101,7 +101,7 @@ impl IrValue {
                 ConstValue::Vec(const_vec)
             }
             IrValue::Tuple(tuple) => {
-                let tuple = tuple.take().map_err(|e| CompileError::access(spanned, e))?;
+                let tuple = tuple.take().map_err(IrError::access(spanned))?;
                 let mut const_tuple = Vec::with_capacity(tuple.len());
 
                 for value in Vec::from(tuple) {
@@ -111,9 +111,7 @@ impl IrValue {
                 ConstValue::Tuple(const_tuple.into_boxed_slice())
             }
             IrValue::Object(object) => {
-                let object = object
-                    .take()
-                    .map_err(|e| CompileError::access(spanned, e))?;
+                let object = object.take().map_err(IrError::access(spanned))?;
                 let mut const_object = HashMap::with_capacity(object.len());
 
                 for (key, value) in object {

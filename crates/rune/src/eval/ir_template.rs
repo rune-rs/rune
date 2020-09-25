@@ -30,9 +30,7 @@ impl Eval<&IrTemplate> for IrInterpreter<'_> {
                             write!(buf, "{}", b).unwrap();
                         }
                         IrValue::String(s) => {
-                            let s = s
-                                .borrow_ref()
-                                .map_err(|e| CompileError::access(ir_template, e))?;
+                            let s = s.borrow_ref().map_err(IrError::access(ir_template))?;
                             buf.push_str(&*s);
                         }
                         _ => {

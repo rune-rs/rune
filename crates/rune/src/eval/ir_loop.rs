@@ -35,7 +35,7 @@ impl Eval<&IrLoop> for IrInterpreter<'_> {
                                 return Ok(value);
                             }
 
-                            return Err(EvalOutcome::from(CompileError::const_error(
+                            return Err(EvalOutcome::from(IrError::custom(
                                 span,
                                 "break with value is not supported for unconditional loops",
                             )));

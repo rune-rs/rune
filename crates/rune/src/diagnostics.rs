@@ -335,6 +335,7 @@ impl EmitDiagnostics for LoadError {
 
                 error.span()
             }
+            LoadErrorKind::QueryError(error) => error.span(),
         };
 
         if let Some(e) = self.kind().source() {

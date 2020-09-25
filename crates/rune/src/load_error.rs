@@ -1,5 +1,5 @@
 use crate::unit_builder::LinkerError;
-use crate::{CompileError, ParseError};
+use crate::{CompileError, ParseError, QueryError};
 use runestick::SourceId;
 use std::error;
 use std::fmt;
@@ -81,6 +81,13 @@ pub enum LoadErrorKind {
         #[from]
         #[source]
         CompileError,
+    ),
+    /// Query error.
+    #[error("query error")]
+    QueryError(
+        #[from]
+        #[source]
+        QueryError,
     ),
     /// A linker error occured.
     #[error("linker error")]

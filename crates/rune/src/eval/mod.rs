@@ -1,10 +1,11 @@
 use crate::ir::IrPat;
 use crate::ir_interpreter::IrInterpreter;
 use crate::ir_value::IrValue;
-use crate::{CompileError, ParseError, Spanned};
+use crate::{IrError, QueryError, Spanned};
 use runestick::Span;
 
 mod ir;
+mod ir_assign;
 mod ir_binary;
 mod ir_branches;
 mod ir_break;
@@ -71,7 +72,7 @@ where
         let value = compiler
             .eval(self, used)?
             .into_bool()
-            .map_err(|actual| CompileError::const_expected::<_, bool>(span, &actual))?;
+            .map_err(|actual| IrError::expected::<_, bool>(span, &actual))?;
 
         Ok(value)
     }
@@ -82,7 +83,7 @@ impl Matches for IrPat {
         &self,
         compiler: &mut IrInterpreter<'_>,
         value: IrValue,
-        used: Used,
+        _used: Used,
         spanned: S,
     ) -> Result<bool, EvalOutcome>
     where
@@ -102,7 +103,7 @@ pub(crate) enum EvalOutcome {
     /// Encountered ast that is not a constant expression.
     NotConst(Span),
     /// A compile error.
-    Error(CompileError),
+    Error(IrError),
     /// Break until the next loop, or the optional label.
     Break(Span, EvalBreak),
 }
@@ -117,14 +118,14 @@ impl EvalOutcome {
     }
 }
 
-impl From<CompileError> for EvalOutcome {
-    fn from(error: CompileError) -> Self {
+impl From<IrError> for EvalOutcome {
+    fn from(error: IrError) -> Self {
         Self::Error(error)
     }
 }
 
-impl From<ParseError> for EvalOutcome {
-    fn from(error: ParseError) -> Self {
+impl From<QueryError> for EvalOutcome {
+    fn from(error: QueryError) -> Self {
         Self::Error(error.into())
     }
 }

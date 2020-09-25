@@ -4,7 +4,8 @@
 //! This is part of the [Rune Language].
 //! [Rune Language]: https://rune-rs.github.io
 
-use crate::Spanned;
+use crate::ir_value::IrValue;
+use crate::{IrError, Spanned};
 use runestick::{ConstValue, Span};
 
 macro_rules! decl_kind {
@@ -82,8 +83,10 @@ decl_kind! {
         Binary(IrBinary),
         /// Declare a local variable with the value of the operand.
         Decl(IrDecl),
-        /// Update a local variable with the value of the operand.
+        /// Set the given target.
         Set(IrSet),
+        /// Assign the given target.
+        Assign(IrAssign),
         /// A template.
         Template(IrTemplate),
         /// A named value.
@@ -146,16 +149,30 @@ pub struct IrDecl {
     pub value: Box<Ir>,
 }
 
-/// Update a local variable.
+/// Set a target.
 #[derive(Debug, Clone, Spanned)]
 pub struct IrSet {
     /// The span of the set operation.
     #[rune(span)]
     pub span: Span,
-    /// The name of the local variable to set.
+    /// The target to set.
     pub target: IrTarget,
-    /// The value of the variable.
+    /// The value to set the target.
     pub value: Box<Ir>,
+}
+
+/// Assign a target.
+#[derive(Debug, Clone, Spanned)]
+pub struct IrAssign {
+    /// The span of the set operation.
+    #[rune(span)]
+    pub span: Span,
+    /// The name of the target to assign.
+    pub target: IrTarget,
+    /// The value to assign.
+    pub value: Box<Ir>,
+    /// The assign operation.
+    pub op: IrAssignOp,
 }
 
 /// A string template.
@@ -292,6 +309,10 @@ pub enum IrBinaryOp {
     Mul,
     /// Division `/`.
     Div,
+    /// `<<`.
+    Shl,
+    /// `>>`.
+    Shr,
     /// `<`,
     Lt,
     /// `<=`,
@@ -302,8 +323,97 @@ pub enum IrBinaryOp {
     Gt,
     /// `>=`,
     Gte,
-    /// `<<`.
+}
+
+/// An assign operation.
+#[derive(Debug, Clone, Copy)]
+pub enum IrAssignOp {
+    /// `+=`.
+    Add,
+    /// `-=`.
+    Sub,
+    /// `*=`.
+    Mul,
+    /// `/=`.
+    Div,
+    /// `<<=`.
     Shl,
-    /// `>>`.
+    /// `>>=`.
     Shr,
+}
+
+impl IrAssignOp {
+    /// Perform the given assign operation.
+    pub(crate) fn assign<S>(
+        self,
+        spanned: S,
+        target: &mut IrValue,
+        operand: IrValue,
+    ) -> Result<(), IrError>
+    where
+        S: Copy + Spanned,
+    {
+        match (target, operand) {
+            (IrValue::Integer(target), IrValue::Integer(operand)) => {
+                self.assign_int(spanned, target, operand)?;
+            }
+            _ => return Err(IrError::custom(spanned, "unsupported operands")),
+        }
+
+        Ok(())
+    }
+
+    /// Perform the given assign operation.
+    pub(crate) fn assign_int<S>(
+        self,
+        spanned: S,
+        target: &mut i64,
+        operand: i64,
+    ) -> Result<(), IrError>
+    where
+        S: Copy + Spanned,
+    {
+        use std::convert::TryFrom;
+
+        match self {
+            IrAssignOp::Add => {
+                *target = target
+                    .checked_add(operand)
+                    .ok_or_else(|| IrError::custom(spanned, "integer overflow"))?;
+            }
+            IrAssignOp::Sub => {
+                *target = target
+                    .checked_sub(operand)
+                    .ok_or_else(|| IrError::custom(spanned, "integer underflow"))?;
+            }
+            IrAssignOp::Mul => {
+                *target = target
+                    .checked_mul(operand)
+                    .ok_or_else(|| IrError::custom(spanned, "integer overflow"))?;
+            }
+            IrAssignOp::Div => {
+                *target = target
+                    .checked_div(operand)
+                    .ok_or_else(|| IrError::custom(spanned, "division by zero"))?;
+            }
+            IrAssignOp::Shl => {
+                let operand =
+                    u32::try_from(operand).map_err(|_| IrError::custom(spanned, "bad operand"))?;
+
+                *target = target
+                    .checked_shl(operand)
+                    .ok_or_else(|| IrError::custom(spanned, "integer shift overflow"))?;
+            }
+            IrAssignOp::Shr => {
+                let operand =
+                    u32::try_from(operand).map_err(|_| IrError::custom(spanned, "bad operand"))?;
+
+                *target = target
+                    .checked_shr(operand)
+                    .ok_or_else(|| IrError::custom(spanned, "integer shift underflow"))?;
+            }
+        }
+
+        Ok(())
+    }
 }

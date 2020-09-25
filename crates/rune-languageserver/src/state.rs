@@ -161,8 +161,17 @@ impl State {
                                 display_to_error,
                             );
                         }
-                        // TODO: match the source id with the document that has the error.
                         rune::LoadErrorKind::CompileError(error) => {
+                            report(
+                                &sources,
+                                &mut by_url,
+                                error.span(),
+                                source_id,
+                                error,
+                                display_to_error,
+                            );
+                        }
+                        rune::LoadErrorKind::QueryError(error) => {
                             report(
                                 &sources,
                                 &mut by_url,
