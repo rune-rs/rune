@@ -1,3 +1,4 @@
+use crate::ir::IrPat;
 use crate::ir_interpreter::IrInterpreter;
 use crate::ir_value::IrValue;
 use crate::{CompileError, ParseError, Spanned};
@@ -7,6 +8,7 @@ mod ir;
 mod ir_binary;
 mod ir_branches;
 mod ir_break;
+mod ir_condition;
 mod ir_decl;
 mod ir_loop;
 mod ir_object;
@@ -34,8 +36,10 @@ impl Used {
 }
 
 pub(crate) trait Eval<T> {
+    type Output;
+
     /// Evaluate the given type.
-    fn eval(&mut self, value: T, used: Used) -> Result<IrValue, EvalOutcome>;
+    fn eval(&mut self, value: T, used: Used) -> Result<Self::Output, EvalOutcome>;
 }
 
 pub(crate) trait ConstAs {
@@ -43,9 +47,22 @@ pub(crate) trait ConstAs {
     fn as_bool(self, compiler: &mut IrInterpreter<'_>, used: Used) -> Result<bool, EvalOutcome>;
 }
 
+pub(crate) trait Matches {
+    /// Test if the current trait matches the given value.
+    fn matches<S>(
+        &self,
+        compiler: &mut IrInterpreter<'_>,
+        value: IrValue,
+        used: Used,
+        spanned: S,
+    ) -> Result<bool, EvalOutcome>
+    where
+        S: Spanned;
+}
+
 impl<T> ConstAs for T
 where
-    for<'a> IrInterpreter<'a>: Eval<T>,
+    for<'a> IrInterpreter<'a>: Eval<T, Output = IrValue>,
     T: Spanned,
 {
     fn as_bool(self, compiler: &mut IrInterpreter<'_>, used: Used) -> Result<bool, EvalOutcome> {
@@ -57,6 +74,27 @@ where
             .map_err(|actual| CompileError::const_expected::<_, bool>(span, &actual))?;
 
         Ok(value)
+    }
+}
+
+impl Matches for IrPat {
+    fn matches<S>(
+        &self,
+        compiler: &mut IrInterpreter<'_>,
+        value: IrValue,
+        used: Used,
+        spanned: S,
+    ) -> Result<bool, EvalOutcome>
+    where
+        S: Spanned,
+    {
+        match self {
+            IrPat::Ignore => Ok(true),
+            IrPat::Binding(name) => {
+                compiler.scopes.decl(name, value, spanned)?;
+                Ok(true)
+            }
+        }
     }
 }
 

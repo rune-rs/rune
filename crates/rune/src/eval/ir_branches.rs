@@ -1,10 +1,22 @@
 use crate::eval::prelude::*;
 
 impl Eval<&IrBranches> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_branches: &IrBranches, used: Used) -> Result<IrValue, EvalOutcome> {
-        for (ir, branch) in &ir_branches.branches {
-            if ir.as_bool(self, used)? {
-                return self.eval(branch, used);
+    type Output = IrValue;
+
+    fn eval(&mut self, ir_branches: &IrBranches, used: Used) -> Result<Self::Output, EvalOutcome> {
+        for (ir_condition, branch) in &ir_branches.branches {
+            let guard = self.scopes.push();
+
+            let output = if self.eval(ir_condition, used)? {
+                Some(self.eval(branch, used)?)
+            } else {
+                None
+            };
+
+            self.scopes.pop(branch, guard)?;
+
+            if let Some(output) = output {
+                return Ok(output);
             }
         }
 

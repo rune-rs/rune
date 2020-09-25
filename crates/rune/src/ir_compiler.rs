@@ -430,17 +430,41 @@ impl Compile<&ast::ExprLet> for IrCompiler<'_> {
 }
 
 impl Compile<&ast::Condition> for IrCompiler<'_> {
-    type Output = ir::Ir;
+    type Output = ir::IrCondition;
 
     fn compile(&mut self, condition: &ast::Condition) -> Result<Self::Output, CompileError> {
         match condition {
-            ast::Condition::Expr(expr) => {
-                return self.compile(&**expr);
+            ast::Condition::Expr(expr) => Ok(ir::IrCondition::Ir(self.compile(&**expr)?)),
+            ast::Condition::ExprLet(expr_let) => {
+                let pat = self.compile(&expr_let.pat)?;
+                let ir = self.compile(&*expr_let.expr)?;
+
+                Ok(ir::IrCondition::Let(ir::IrLet {
+                    span: expr_let.span(),
+                    pat,
+                    ir,
+                }))
+            }
+        }
+    }
+}
+
+impl Compile<&ast::Pat> for IrCompiler<'_> {
+    type Output = ir::IrPat;
+
+    fn compile(&mut self, pat: &ast::Pat) -> Result<Self::Output, CompileError> {
+        match pat {
+            ast::Pat::PatIgnore(..) => return Ok(ir::IrPat::Ignore),
+            ast::Pat::PatPath(path) => {
+                if let Some(ident) = path.path.try_as_ident() {
+                    let name = self.resolve(ident)?;
+                    return Ok(ir::IrPat::Binding(name.into()));
+                }
             }
             _ => (),
         }
 
-        Err(CompileError::const_error(condition, "not supported yet"))
+        Err(CompileError::const_error(pat, "pattern not supported yet"))
     }
 }
 

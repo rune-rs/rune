@@ -142,6 +142,20 @@ impl IrScopes {
         None
     }
 
+    /// Clear the current scope.
+    pub(crate) fn clear_current<S>(&mut self, spanned: S) -> Result<(), CompileError>
+    where
+        S: Spanned,
+    {
+        let last = self
+            .scopes
+            .last_mut()
+            .ok_or_else(|| CompileError::internal(spanned, "expected at least one scope"))?;
+
+        last.locals.clear();
+        Ok(())
+    }
+
     /// Declare a value in the scope.
     pub(crate) fn decl<S>(
         &mut self,
