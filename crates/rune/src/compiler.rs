@@ -117,7 +117,7 @@ pub fn compile_with_options(
         while let Some(entry) = worker.query.queue.pop_front() {
             let source_id = entry.source_id;
 
-            if let Err(error) = compile_entry(CompileEntryArgs {
+            let task = CompileBuildEntry {
                 context,
                 options,
                 storage: &storage,
@@ -128,7 +128,9 @@ pub fn compile_with_options(
                 entry,
                 expanded: &worker.expanded,
                 visitor: worker.visitor,
-            }) {
+            };
+
+            if let Err(error) = task.compile() {
                 worker.errors.push(LoadError::new(source_id, error));
             }
         }
@@ -146,236 +148,6 @@ pub fn compile_with_options(
 
     if !worker.errors.is_empty() {
         return Err(());
-    }
-
-    Ok(())
-}
-
-struct CompileEntryArgs<'a> {
-    context: &'a Context,
-    options: &'a Options,
-    storage: &'a Storage,
-    unit: &'a Rc<RefCell<UnitBuilder>>,
-    errors: &'a mut Errors,
-    warnings: &'a mut Warnings,
-    query: &'a mut Query,
-    entry: BuildEntry,
-    expanded: &'a HashMap<Item, Expanded>,
-    visitor: &'a mut dyn CompileVisitor,
-}
-
-fn compile_entry(args: CompileEntryArgs<'_>) -> Result<(), CompileError> {
-    let CompileEntryArgs {
-        context,
-        options,
-        storage,
-        unit,
-        errors,
-        warnings,
-        query,
-        entry,
-        expanded,
-        visitor,
-    } = args;
-
-    let BuildEntry {
-        item,
-        build,
-        source,
-        source_id,
-        used,
-    } = entry;
-
-    let mut asm = unit.borrow().new_assembly(source_id);
-
-    let mut compiler = Compiler {
-        storage,
-        source_id,
-        source: source.clone(),
-        context,
-        query,
-        asm: &mut asm,
-        items: Items::new(item.as_vec()),
-        unit: unit.clone(),
-        scopes: Scopes::new(),
-        contexts: vec![],
-        loops: Loops::new(),
-        options,
-        errors,
-        warnings,
-        expanded,
-        visitor,
-    };
-
-    match build {
-        Build::Function(f) => {
-            let args = format_fn_args(storage, &*source, f.ast.args.items.iter().map(|(a, _)| a))?;
-
-            let span = f.ast.span();
-            let count = f.ast.args.items.len();
-            compiler.contexts.push(span);
-            compiler.compile((f.ast, false))?;
-
-            if used.is_unused() {
-                compiler.warnings.not_used(source_id, span, None);
-            } else {
-                unit.borrow_mut()
-                    .new_function(source_id, item, count, asm, f.call, args)?;
-            }
-        }
-        Build::InstanceFunction(f) => {
-            let args = format_fn_args(storage, &*source, f.ast.args.items.iter().map(|(a, _)| a))?;
-
-            let span = f.ast.span();
-            let count = f.ast.args.items.len();
-            compiler.contexts.push(span);
-
-            let source = compiler.source.clone();
-            let name = f.ast.name.resolve(storage, &*source)?;
-
-            let meta = compiler
-                .lookup_meta(&f.impl_item, f.instance_span)?
-                .ok_or_else(|| {
-                    CompileError::new(
-                        &f.instance_span,
-                        CompileErrorKind::MissingType {
-                            item: f.impl_item.clone(),
-                        },
-                    )
-                })?;
-
-            let type_of = meta.type_of().ok_or_else(|| {
-                CompileError::new(
-                    span,
-                    CompileErrorKind::UnsupportedInstanceFunction { meta: meta.clone() },
-                )
-            })?;
-
-            compiler.compile((f.ast, true))?;
-
-            if used.is_unused() {
-                compiler.warnings.not_used(source_id, span, None);
-            } else {
-                unit.borrow_mut().new_instance_function(
-                    source_id,
-                    item,
-                    type_of,
-                    name.as_ref(),
-                    count,
-                    asm,
-                    f.call,
-                    args,
-                )?;
-            }
-        }
-        Build::Closure(c) => {
-            let args = format_fn_args(
-                storage,
-                &*source,
-                c.ast.args.as_slice().iter().map(|(a, _)| a),
-            )?;
-
-            let span = c.ast.span();
-            let count = c.ast.args.len();
-            compiler.contexts.push(span);
-            compiler.compile((c.ast, &c.captures[..]))?;
-
-            if used.is_unused() {
-                compiler.warnings.not_used(source_id, span, None);
-            } else {
-                unit.borrow_mut()
-                    .new_function(source_id, item, count, asm, c.call, args)?;
-            }
-        }
-        Build::AsyncBlock(async_block) => {
-            let span = async_block.ast.span();
-            let args = async_block.captures.len();
-            compiler.contexts.push(span);
-            compiler.compile((&async_block.ast, &async_block.captures[..]))?;
-
-            if used.is_unused() {
-                compiler.warnings.not_used(source_id, span, None);
-            } else {
-                unit.borrow_mut().new_function(
-                    source_id,
-                    item,
-                    args,
-                    asm,
-                    async_block.call,
-                    Vec::new(),
-                )?;
-            }
-        }
-        Build::UnusedConst(c) => {
-            warnings.not_used(source_id, &c.ir, None);
-        }
-    }
-
-    Ok(())
-}
-
-fn format_fn_args<'a, I>(
-    storage: &Storage,
-    source: &Source,
-    arguments: I,
-) -> Result<Vec<String>, CompileError>
-where
-    I: IntoIterator<Item = &'a ast::FnArg>,
-{
-    let mut args = Vec::new();
-
-    for arg in arguments {
-        match arg {
-            ast::FnArg::Self_(..) => {
-                args.push(String::from("self"));
-            }
-            ast::FnArg::Ignore(..) => {
-                args.push(String::from("_"));
-            }
-            ast::FnArg::Ident(ident) => {
-                args.push(ident.resolve(storage, source)?.to_string());
-            }
-        }
-    }
-
-    Ok(args)
-}
-
-fn verify_imports(
-    errors: &mut Errors,
-    context: &Context,
-    unit: &mut UnitBuilder,
-) -> Result<(), ()> {
-    for (_, entry) in unit.iter_imports() {
-        if context.contains_prefix(&entry.item) || unit.contains_prefix(&entry.item) {
-            continue;
-        }
-
-        if let Some((span, source_id)) = entry.span {
-            errors.push(LoadError::new(
-                source_id,
-                CompileError::new(
-                    span,
-                    CompileErrorKind::MissingModule {
-                        item: entry.item.clone(),
-                    },
-                ),
-            ));
-
-            return Err(());
-        } else {
-            errors.push(LoadError::new(
-                0,
-                CompileError::new(
-                    &Span::empty(),
-                    CompileErrorKind::MissingPreludeModule {
-                        item: entry.item.clone(),
-                    },
-                ),
-            ));
-
-            return Err(());
-        }
     }
 
     Ok(())
@@ -1081,4 +853,233 @@ impl<'a> Compiler<'a> {
     pub(crate) fn context(&self) -> Option<Span> {
         self.contexts.last().copied()
     }
+}
+
+struct CompileBuildEntry<'a> {
+    context: &'a Context,
+    options: &'a Options,
+    storage: &'a Storage,
+    unit: &'a Rc<RefCell<UnitBuilder>>,
+    errors: &'a mut Errors,
+    warnings: &'a mut Warnings,
+    query: &'a mut Query,
+    entry: BuildEntry,
+    expanded: &'a HashMap<Item, Expanded>,
+    visitor: &'a mut dyn CompileVisitor,
+}
+
+impl CompileBuildEntry<'_> {
+    fn compile(self) -> Result<(), CompileError> {
+        let BuildEntry {
+            item,
+            build,
+            source,
+            source_id,
+            used,
+        } = self.entry;
+
+        let mut asm = self.unit.borrow().new_assembly(source_id);
+
+        let mut compiler = Compiler {
+            storage: self.storage,
+            source_id,
+            source: source.clone(),
+            context: self.context,
+            query: self.query,
+            asm: &mut asm,
+            items: Items::new(item.as_vec()),
+            unit: self.unit.clone(),
+            scopes: Scopes::new(),
+            contexts: vec![],
+            loops: Loops::new(),
+            options: self.options,
+            errors: self.errors,
+            warnings: self.warnings,
+            expanded: self.expanded,
+            visitor: self.visitor,
+        };
+
+        match build {
+            Build::Function(f) => {
+                let args = format_fn_args(
+                    self.storage,
+                    &*source,
+                    f.ast.args.items.iter().map(|(a, _)| a),
+                )?;
+
+                let span = f.ast.span();
+                let count = f.ast.args.items.len();
+                compiler.contexts.push(span);
+                compiler.compile((f.ast, false))?;
+
+                if used.is_unused() {
+                    compiler.warnings.not_used(source_id, span, None);
+                } else {
+                    self.unit
+                        .borrow_mut()
+                        .new_function(source_id, item, count, asm, f.call, args)?;
+                }
+            }
+            Build::InstanceFunction(f) => {
+                let args = format_fn_args(
+                    self.storage,
+                    &*source,
+                    f.ast.args.items.iter().map(|(a, _)| a),
+                )?;
+
+                let span = f.ast.span();
+                let count = f.ast.args.items.len();
+                compiler.contexts.push(span);
+
+                let source = compiler.source.clone();
+                let name = f.ast.name.resolve(self.storage, &*source)?;
+
+                let meta = compiler
+                    .lookup_meta(&f.impl_item, f.instance_span)?
+                    .ok_or_else(|| {
+                        CompileError::new(
+                            &f.instance_span,
+                            CompileErrorKind::MissingType {
+                                item: f.impl_item.clone(),
+                            },
+                        )
+                    })?;
+
+                let type_of = meta.type_of().ok_or_else(|| {
+                    CompileError::new(
+                        span,
+                        CompileErrorKind::UnsupportedInstanceFunction { meta: meta.clone() },
+                    )
+                })?;
+
+                compiler.compile((f.ast, true))?;
+
+                if used.is_unused() {
+                    compiler.warnings.not_used(source_id, span, None);
+                } else {
+                    self.unit.borrow_mut().new_instance_function(
+                        source_id,
+                        item,
+                        type_of,
+                        name.as_ref(),
+                        count,
+                        asm,
+                        f.call,
+                        args,
+                    )?;
+                }
+            }
+            Build::Closure(c) => {
+                let args = format_fn_args(
+                    self.storage,
+                    &*source,
+                    c.ast.args.as_slice().iter().map(|(a, _)| a),
+                )?;
+
+                let count = c.ast.args.len();
+                let span = c.ast.span();
+                compiler.contexts.push(span);
+                compiler.compile((c.ast, &c.captures[..]))?;
+
+                if used.is_unused() {
+                    compiler.warnings.not_used(source_id, span, None);
+                } else {
+                    self.unit
+                        .borrow_mut()
+                        .new_function(source_id, item, count, asm, c.call, args)?;
+                }
+            }
+            Build::AsyncBlock(b) => {
+                let args = b.captures.len();
+                let span = b.ast.span();
+                compiler.contexts.push(span);
+                compiler.compile((&b.ast, &b.captures[..]))?;
+
+                if used.is_unused() {
+                    compiler.warnings.not_used(source_id, span, None);
+                } else {
+                    self.unit.borrow_mut().new_function(
+                        source_id,
+                        item,
+                        args,
+                        asm,
+                        b.call,
+                        Vec::new(),
+                    )?;
+                }
+            }
+            Build::UnusedConst(c) => {
+                self.warnings.not_used(source_id, &c.ir, None);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn format_fn_args<'a, I>(
+    storage: &Storage,
+    source: &Source,
+    arguments: I,
+) -> Result<Vec<String>, CompileError>
+where
+    I: IntoIterator<Item = &'a ast::FnArg>,
+{
+    let mut args = Vec::new();
+
+    for arg in arguments {
+        match arg {
+            ast::FnArg::Self_(..) => {
+                args.push(String::from("self"));
+            }
+            ast::FnArg::Ignore(..) => {
+                args.push(String::from("_"));
+            }
+            ast::FnArg::Ident(ident) => {
+                args.push(ident.resolve(storage, source)?.to_string());
+            }
+        }
+    }
+
+    Ok(args)
+}
+
+fn verify_imports(
+    errors: &mut Errors,
+    context: &Context,
+    unit: &mut UnitBuilder,
+) -> Result<(), ()> {
+    for (_, entry) in unit.iter_imports() {
+        if context.contains_prefix(&entry.item) || unit.contains_prefix(&entry.item) {
+            continue;
+        }
+
+        if let Some((span, source_id)) = entry.span {
+            errors.push(LoadError::new(
+                source_id,
+                CompileError::new(
+                    span,
+                    CompileErrorKind::MissingModule {
+                        item: entry.item.clone(),
+                    },
+                ),
+            ));
+
+            return Err(());
+        } else {
+            errors.push(LoadError::new(
+                0,
+                CompileError::new(
+                    &Span::empty(),
+                    CompileErrorKind::MissingPreludeModule {
+                        item: entry.item.clone(),
+                    },
+                ),
+            ));
+
+            return Err(());
+        }
+    }
+
+    Ok(())
 }
