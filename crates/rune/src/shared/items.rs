@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::mem;
 use std::rc::Rc;
 
-pub(super) struct Guard {
+pub(crate) struct Guard {
     path: Rc<RefCell<Vec<Node>>>,
 }
 
@@ -31,13 +31,13 @@ impl From<Component> for Node {
 
 /// Manage item paths.
 #[derive(Debug)]
-pub(super) struct Items {
+pub(crate) struct Items {
     path: Rc<RefCell<Vec<Node>>>,
 }
 
 impl Items {
     /// Construct a new items manager.
-    pub fn new(base: Vec<Component>) -> Self {
+    pub(crate) fn new(base: Vec<Component>) -> Self {
         let path = base
             .into_iter()
             .map(|component| Node {
@@ -52,14 +52,14 @@ impl Items {
     }
 
     /// Take a snapshot of the existing items.
-    pub fn snapshot(&self) -> Self {
+    pub(crate) fn snapshot(&self) -> Self {
         Self {
             path: Rc::new(RefCell::new(self.path.borrow().clone())),
         }
     }
 
     /// Check if the current path is empty.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.path.borrow().is_empty()
     }
 
@@ -76,7 +76,7 @@ impl Items {
     }
 
     /// Push a component and return a guard to it.
-    pub fn push_block(&mut self) -> Guard {
+    pub(crate) fn push_block(&mut self) -> Guard {
         let index = self.next_child();
 
         self.path
@@ -89,7 +89,7 @@ impl Items {
     }
 
     /// Push a closure component and return guard associated with it.
-    pub fn push_closure(&mut self) -> Guard {
+    pub(crate) fn push_closure(&mut self) -> Guard {
         let index = self.next_child();
 
         self.path
@@ -102,7 +102,7 @@ impl Items {
     }
 
     /// Push a component and return a guard to it.
-    pub fn push_async_block(&mut self) -> Guard {
+    pub(crate) fn push_async_block(&mut self) -> Guard {
         let index = self.next_child();
 
         self.path
@@ -115,7 +115,7 @@ impl Items {
     }
 
     /// Push a component and return a guard to it.
-    pub fn push_name(&mut self, name: &str) -> Guard {
+    pub(crate) fn push_name(&mut self, name: &str) -> Guard {
         self.path.borrow_mut().push(Node::from(Component::String(
             name.to_owned().into_boxed_str(),
         )));
@@ -126,7 +126,7 @@ impl Items {
     }
 
     /// Push a component and return a guard to it.
-    pub fn push_macro(&mut self) -> Guard {
+    pub(crate) fn push_macro(&mut self) -> Guard {
         let index = self.next_child();
 
         self.path
@@ -139,13 +139,13 @@ impl Items {
     }
 
     /// Get the item for the current state of the path.
-    pub fn item(&self) -> Item {
+    pub(crate) fn item(&self) -> Item {
         let path = self.path.borrow();
         Item::of(path.iter().map(|n| &n.component))
     }
 
     /// Pop the last component.
-    pub fn pop(&self) -> Option<Component> {
+    pub(crate) fn pop(&self) -> Option<Component> {
         let mut path = self.path.borrow_mut();
         Some(path.pop()?.component)
     }

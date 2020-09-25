@@ -1,14 +1,15 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::indexing::IndexScopes;
-use crate::items::Items;
+use crate::load::{SourceLoader, Sources};
 use crate::query::{
     Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query, Used,
 };
+use crate::shared::Items;
 use crate::worker::{Import, LoadFileKind, Macro, MacroKind, Task};
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, OptionSpanned as _,
-    Resolve as _, SourceLoader, Sources, Spanned as _, Storage, Warnings,
+    Resolve as _, Spanned as _, Storage, Warnings,
 };
 use runestick::{
     Call, CompileMeta, CompileMetaKind, CompileSource, Hash, Item, Source, SourceId, Span, Type,

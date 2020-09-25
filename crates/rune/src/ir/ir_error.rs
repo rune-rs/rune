@@ -1,40 +1,33 @@
 use crate::ir::IrValue;
+use crate::shared::{Internal, ScopeError, ScopeErrorKind};
 use crate::{QueryError, QueryErrorKind, Spanned};
 use runestick::{AccessError, CompileMeta, Span, TypeInfo, TypeOf};
-use std::error;
-use std::fmt;
 use thiserror::Error;
 
-/// An error raised during compiling.
-#[derive(Debug)]
-pub struct IrError {
-    span: Span,
-    kind: IrErrorKind,
+error! {
+    /// An error raised during compiling.
+    #[derive(Debug)]
+    pub struct IrError {
+        span: Span,
+        kind: IrErrorKind,
+    }
+
+    impl From<QueryError>;
+    impl From<ScopeError>;
+}
+
+impl From<Internal> for IrError {
+    fn from(error: Internal) -> Self {
+        Self {
+            span: error.span(),
+            kind: IrErrorKind::Internal {
+                message: error.message(),
+            },
+        }
+    }
 }
 
 impl IrError {
-    /// Construct a new error.
-    pub fn new<S, E>(spanned: S, err: E) -> Self
-    where
-        S: Spanned,
-        IrErrorKind: From<E>,
-    {
-        Self {
-            span: spanned.span(),
-            kind: IrErrorKind::from(err),
-        }
-    }
-
-    /// Get the kind of the error.
-    pub fn kind(&self) -> &IrErrorKind {
-        &self.kind
-    }
-
-    /// Convert into the kind of the error.
-    pub fn into_kind(self) -> IrErrorKind {
-        self.kind
-    }
-
     /// Construct a custom error.
     pub fn custom<S>(spanned: S, message: &'static str) -> Self
     where
@@ -67,42 +60,18 @@ impl IrError {
     }
 }
 
-impl fmt::Display for IrError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-impl error::Error for IrError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        self.kind.source()
-    }
-}
-
-impl Spanned for IrError {
-    /// Get the span for the parse error.
-    fn span(&self) -> Span {
-        self.span
-    }
-}
-
-impl From<QueryError> for IrError {
-    fn from(error: QueryError) -> Self {
-        Self {
-            span: error.span(),
-            kind: IrErrorKind::QueryError {
-                error: Box::new(error.into_kind()),
-            },
-        }
-    }
-}
-
 /// Error when encoding AST.
 #[derive(Debug, Error)]
 pub enum IrErrorKind {
     /// A custom error.
     #[error("{0}")]
     Custom(&'static str),
+    /// Internal compiler error.
+    #[error("internal error: {message}")]
+    Internal {
+        /// Message of the error.
+        message: &'static str,
+    },
     /// Encountered an expression that is not supported as a constant
     /// expression.
     #[error("not a supported constant expression")]
@@ -115,6 +84,13 @@ pub enum IrErrorKind {
     UnsupportedMeta {
         /// Unsupported compile meta.
         meta: CompileMeta,
+    },
+    /// A scope error.
+    #[error("scope error: {error}")]
+    ScopeError {
+        /// The kind of the scope error.
+        #[source]
+        error: Box<ScopeErrorKind>,
     },
     /// An access error raised during compilation.
     #[error("access error: {error}")]

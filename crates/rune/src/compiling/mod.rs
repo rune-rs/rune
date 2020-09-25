@@ -1,13 +1,10 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::consts::Consts;
-use crate::items::Items;
+use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
+use crate::shared::{Consts, Items};
 use crate::worker::{Expanded, LoadFileKind, Task, Worker};
-use crate::{
-    Error, Errors, FileSourceLoader, Options, SourceLoader, Sources, Spanned as _, Storage,
-    Warnings,
-};
+use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
 use runestick::{Context, Item, Source, Span};
 use std::collections::VecDeque;
 

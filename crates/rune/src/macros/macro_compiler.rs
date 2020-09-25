@@ -67,12 +67,7 @@ impl MacroCompiler<'_> {
             Ok(output) => output,
             Err(error) => {
                 return match error.downcast::<ParseError>() {
-                    Ok(error) => Err(CompileError::new(
-                        &error,
-                        CompileErrorKind::ParseError {
-                            error: error.into_kind(),
-                        },
-                    )),
+                    Ok(error) => Err(CompileError::from(error)),
                     Err(error) => Err(CompileError::new(
                         span,
                         CompileErrorKind::CallMacroError { error },

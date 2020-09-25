@@ -1,7 +1,7 @@
 use crate::ir::ir::IrPat;
 use crate::ir::{IrInterpreter, IrValue};
 use crate::query::Used;
-use crate::{IrError, QueryError, Spanned};
+use crate::{IrError, Spanned};
 use runestick::Span;
 
 mod ir;
@@ -102,15 +102,12 @@ impl EvalOutcome {
     }
 }
 
-impl From<IrError> for EvalOutcome {
-    fn from(error: IrError) -> Self {
-        Self::Error(error)
-    }
-}
-
-impl From<QueryError> for EvalOutcome {
-    fn from(error: QueryError) -> Self {
-        Self::Error(error.into())
+impl<T> From<T> for EvalOutcome
+where
+    IrError: From<T>,
+{
+    fn from(error: T) -> Self {
+        Self::Error(IrError::from(error))
     }
 }
 
