@@ -2,7 +2,7 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::compiler::UnitBuilderError;
+use crate::compiling::UnitBuilderError;
 use crate::consts::Consts;
 use crate::ir::ir;
 use crate::ir::{IrBudget, IrInterpreter};

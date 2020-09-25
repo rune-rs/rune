@@ -1,4 +1,4 @@
-use crate::compiler::LinkerError;
+use crate::compiling::LinkerError;
 use crate::{CompileError, ParseError, QueryError};
 use runestick::SourceId;
 use std::error;
