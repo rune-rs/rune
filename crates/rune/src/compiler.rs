@@ -137,7 +137,9 @@ pub fn compile_with_options(
             Ok(true) => (),
             Ok(false) => break,
             Err((source_id, error)) => {
-                worker.errors.push(LoadError::new(source_id, error));
+                worker
+                    .errors
+                    .push(LoadError::new(source_id, CompileError::from(error)));
             }
         }
     }

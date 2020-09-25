@@ -229,6 +229,21 @@ async fn inner_compile(input: String, budget: usize) -> CompileResult {
                                 message: error.to_string(),
                             });
                         }
+                        rune::LoadErrorKind::QueryError(error) => {
+                            let span = error.span();
+
+                            let start =
+                                Position::from(source.position_to_unicode_line_char(span.start));
+                            let end =
+                                Position::from(source.position_to_unicode_line_char(span.end));
+
+                            diagnostics.push(Diagnostic {
+                                kind: DiagnosticKind::Error,
+                                start,
+                                end,
+                                message: error.to_string(),
+                            });
+                        }
                         rune::LoadErrorKind::LinkError(error) => match error {
                             rune::LinkerError::MissingFunction { hash, spans } => {
                                 for (span, _) in spans {

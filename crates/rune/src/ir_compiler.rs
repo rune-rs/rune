@@ -107,7 +107,7 @@ impl Compile<&ast::ExprBinary> for IrCompiler<'_> {
         let span = expr_binary.span();
 
         if expr_binary.op.is_assign() {
-            match expr_binary.op {
+            let op = match expr_binary.op {
                 ast::BinOp::Assign => {
                     let target = self.ir_target(&*expr_binary.lhs)?;
 
@@ -120,12 +120,30 @@ impl Compile<&ast::ExprBinary> for IrCompiler<'_> {
                         },
                     ));
                 }
-                _ => (),
-            }
+                ast::BinOp::AddAssign => ir::IrAssignOp::Add,
+                ast::BinOp::SubAssign => ir::IrAssignOp::Sub,
+                ast::BinOp::MulAssign => ir::IrAssignOp::Mul,
+                ast::BinOp::DivAssign => ir::IrAssignOp::Div,
+                ast::BinOp::ShlAssign => ir::IrAssignOp::Shl,
+                ast::BinOp::ShrAssign => ir::IrAssignOp::Shr,
+                _ => {
+                    return Err(CompileError::const_error(
+                        expr_binary.op_span(),
+                        "op not supported yet",
+                    ))
+                }
+            };
 
-            return Err(CompileError::const_error(
-                expr_binary.op_span(),
-                "op not supported yet",
+            let target = self.ir_target(&*expr_binary.lhs)?;
+
+            return Ok(ir::Ir::new(
+                span,
+                ir::IrAssign {
+                    span,
+                    target,
+                    value: Box::new(self.compile(&*expr_binary.rhs)?),
+                    op,
+                },
             ));
         }
 

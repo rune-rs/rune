@@ -7,9 +7,10 @@ use crate::eval::Used;
 use crate::ir;
 use crate::ir_compiler::{Compile as _, IrCompiler};
 use crate::ir_interpreter::{IrBudget, IrInterpreter};
+use crate::unit_builder::UnitBuilderError;
 use crate::{
-    CompileError, CompileErrorKind, CompileResult, CompileVisitor, Resolve as _, Spanned as _,
-    Storage, UnitBuilder,
+    CompileError, CompileErrorKind, CompileVisitor, IrError, IrErrorKind, ParseError,
+    ParseErrorKind, Resolve as _, Spanned, Storage, UnitBuilder,
 };
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
@@ -17,8 +18,117 @@ use runestick::{
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::error;
+use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
+use thiserror::Error;
+
+/// An error raised during querying.
+#[derive(Debug)]
+pub struct QueryError {
+    span: Span,
+    kind: QueryErrorKind,
+}
+
+impl QueryError {
+    /// Construct a new query error.
+    pub fn new<S, E>(spanned: S, err: E) -> Self
+    where
+        S: Spanned,
+        QueryErrorKind: From<E>,
+    {
+        Self {
+            span: spanned.span(),
+            kind: QueryErrorKind::from(err),
+        }
+    }
+
+    /// Get the kind of the query error.
+    pub fn kind(&self) -> &QueryErrorKind {
+        &self.kind
+    }
+
+    /// Convert into the kind of the query error.
+    pub fn into_kind(self) -> QueryErrorKind {
+        self.kind
+    }
+}
+
+impl error::Error for QueryError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        self.kind.source()
+    }
+}
+
+impl fmt::Display for QueryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.kind, f)
+    }
+}
+
+impl Spanned for QueryError {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
+
+impl From<IrError> for QueryError {
+    fn from(error: IrError) -> Self {
+        QueryError {
+            span: error.span(),
+            kind: QueryErrorKind::IrError {
+                error: error.into_kind(),
+            },
+        }
+    }
+}
+
+impl From<UnitBuilderError> for QueryError {
+    fn from(error: UnitBuilderError) -> Self {
+        QueryError {
+            span: Span::empty(),
+            kind: QueryErrorKind::UnitBuilderError { error },
+        }
+    }
+}
+
+impl From<ParseError> for QueryError {
+    fn from(error: ParseError) -> Self {
+        QueryError {
+            span: error.span(),
+            kind: QueryErrorKind::ParseError {
+                error: error.into_kind(),
+            },
+        }
+    }
+}
+
+/// Error when encoding AST.
+#[derive(Debug, Error)]
+pub enum QueryErrorKind {
+    /// Unit error from runestick encoding.
+    #[error("unit construction error: {error}")]
+    UnitBuilderError {
+        /// Source error.
+        #[from]
+        error: UnitBuilderError,
+    },
+    /// An interpreter error occured.
+    #[error("interpreter error: {error}")]
+    IrError {
+        /// The source error.
+        #[source]
+        error: IrErrorKind,
+    },
+    /// Error for resolving values from source files.
+    #[error("parse error: {error}")]
+    ParseError {
+        /// Source error.
+        #[from]
+        error: ParseErrorKind,
+    },
+}
 
 pub(crate) enum Indexed {
     Enum,
@@ -335,7 +445,7 @@ impl Query {
     pub(crate) fn queue_unused_entries(
         &mut self,
         visitor: &mut dyn CompileVisitor,
-    ) -> Result<bool, (SourceId, CompileError)> {
+    ) -> Result<bool, (SourceId, QueryError)> {
         let unused = self
             .indexed
             .iter()
@@ -361,7 +471,7 @@ impl Query {
     }
 
     /// Public query meta which marks things as used.
-    pub(crate) fn query_meta(&mut self, item: &Item) -> Result<Option<CompileMeta>, CompileError> {
+    pub(crate) fn query_meta(&mut self, item: &Item) -> Result<Option<CompileMeta>, QueryError> {
         self.query_meta_with_use(item, Used::Used)
     }
 
@@ -370,7 +480,7 @@ impl Query {
         &mut self,
         item: &Item,
         used: Used,
-    ) -> Result<Option<CompileMeta>, CompileError> {
+    ) -> Result<Option<CompileMeta>, QueryError> {
         if let Some(meta) = self.unit.borrow().lookup_meta(item) {
             return Ok(Some(meta));
         }
@@ -390,7 +500,7 @@ impl Query {
         item: &Item,
         entry: IndexedEntry,
         used: Used,
-    ) -> Result<CompileMeta, CompileError> {
+    ) -> Result<CompileMeta, QueryError> {
         let IndexedEntry {
             span: entry_span,
             indexed,
@@ -550,7 +660,7 @@ impl Query {
         enum_item: Option<Item>,
         source: &Source,
         st: ast::StructBody,
-    ) -> CompileResult<CompileMetaKind> {
+    ) -> Result<CompileMetaKind, QueryError> {
         let type_of = Type::from(Hash::type_hash(item));
 
         let mut fields = HashSet::new();
@@ -582,7 +692,7 @@ impl Query {
         body: ast::ItemVariantBody,
         enum_item: Option<Item>,
         source: &Source,
-    ) -> Result<CompileMetaKind, CompileError> {
+    ) -> Result<CompileMetaKind, QueryError> {
         Ok(match body {
             ast::ItemVariantBody::EmptyBody => self.empty_body_meta(item, enum_item),
             ast::ItemVariantBody::TupleBody(tuple) => self.tuple_body_meta(item, enum_item, tuple),
@@ -599,7 +709,7 @@ impl Query {
         body: ast::ItemStructBody,
         enum_item: Option<Item>,
         source: &Source,
-    ) -> Result<CompileMetaKind, CompileError> {
+    ) -> Result<CompileMetaKind, QueryError> {
         Ok(match body {
             ast::ItemStructBody::EmptyBody(_) => self.empty_body_meta(item, enum_item),
             ast::ItemStructBody::TupleBody(tuple, _) => {
