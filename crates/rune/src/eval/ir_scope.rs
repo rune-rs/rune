@@ -1,7 +1,9 @@
 use crate::eval::prelude::*;
 
 impl Eval<&IrScope> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_scope: &IrScope, used: Used) -> Result<IrValue, EvalOutcome> {
+    type Output = IrValue;
+
+    fn eval(&mut self, ir_scope: &IrScope, used: Used) -> Result<Self::Output, EvalOutcome> {
         self.budget.take(ir_scope)?;
         let guard = self.scopes.push();
 

@@ -1,7 +1,9 @@
 use crate::eval::prelude::*;
 
 impl Eval<&IrBinary> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_binary: &IrBinary, used: Used) -> Result<IrValue, EvalOutcome> {
+    type Output = IrValue;
+
+    fn eval(&mut self, ir_binary: &IrBinary, used: Used) -> Result<Self::Output, EvalOutcome> {
         let span = ir_binary.span();
         self.budget.take(span)?;
 

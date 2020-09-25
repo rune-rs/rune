@@ -1,13 +1,19 @@
 use crate::eval::prelude::*;
 
 impl Eval<&IrLoop> for IrInterpreter<'_> {
+    type Output = IrValue;
+
     fn eval(&mut self, ir_loop: &IrLoop, used: Used) -> Result<IrValue, EvalOutcome> {
         let span = ir_loop.span();
         self.budget.take(span)?;
 
+        let guard = self.scopes.push();
+
         loop {
             if let Some(condition) = &ir_loop.condition {
-                if !condition.as_bool(self, used)? {
+                self.scopes.clear_current(&*condition)?;
+
+                if !self.eval(&**condition, used)? {
                     break;
                 }
             }
@@ -40,6 +46,7 @@ impl Eval<&IrLoop> for IrInterpreter<'_> {
             };
         }
 
+        self.scopes.pop(ir_loop, guard)?;
         Ok(IrValue::Unit)
     }
 }

@@ -2,7 +2,9 @@ use crate::eval::prelude::*;
 use std::fmt::Write as _;
 
 impl Eval<&IrTemplate> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_template: &IrTemplate, used: Used) -> Result<IrValue, EvalOutcome> {
+    type Output = IrValue;
+
+    fn eval(&mut self, ir_template: &IrTemplate, used: Used) -> Result<Self::Output, EvalOutcome> {
         self.budget.take(ir_template)?;
 
         let mut buf = String::new();

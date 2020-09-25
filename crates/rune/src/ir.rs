@@ -181,9 +181,39 @@ pub enum IrTemplateComponent {
 #[derive(Debug, Clone)]
 pub struct IrBranches {
     /// branches and their associated conditions.
-    pub branches: Vec<(Ir, IrScope)>,
+    pub branches: Vec<(IrCondition, IrScope)>,
     /// The default fallback branch.
     pub default_branch: Option<IrScope>,
+}
+
+/// The condition for a branch.
+#[derive(Debug, Clone, Spanned)]
+pub enum IrCondition {
+    /// A simple conditiona ir expression.
+    Ir(Ir),
+    /// A pattern match.
+    Let(IrLet),
+}
+
+/// A pattern match.
+#[derive(Debug, Clone, Spanned)]
+pub struct IrLet {
+    /// The span of the let condition.
+    #[rune(span)]
+    pub span: Span,
+    /// The pattern.
+    pub pat: IrPat,
+    /// The expression the pattern is evaluated on.
+    pub ir: Ir,
+}
+
+/// A pattern.
+#[derive(Debug, Clone)]
+pub enum IrPat {
+    /// An ignore pattern `_`.
+    Ignore,
+    /// A named binding.
+    Binding(Box<str>),
 }
 
 /// A loop with an optional condition.
@@ -195,7 +225,7 @@ pub struct IrLoop {
     /// The label of the loop.
     pub label: Option<Box<str>>,
     /// The condition of the loop.
-    pub condition: Option<Box<Ir>>,
+    pub condition: Option<Box<IrCondition>>,
     /// The body of the loop.
     pub body: IrScope,
 }

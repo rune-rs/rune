@@ -1,7 +1,9 @@
 use crate::eval::prelude::*;
 
 impl Eval<&IrTuple> for IrInterpreter<'_> {
-    fn eval(&mut self, ir_tuple: &IrTuple, used: Used) -> Result<IrValue, EvalOutcome> {
+    type Output = IrValue;
+
+    fn eval(&mut self, ir_tuple: &IrTuple, used: Used) -> Result<Self::Output, EvalOutcome> {
         let mut items = Vec::with_capacity(ir_tuple.items.len());
 
         for item in ir_tuple.items.iter() {
