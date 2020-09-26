@@ -34,13 +34,7 @@ impl ExprMatch {
 
         while !parser.peek::<ast::CloseBrace>()? {
             let branch = parser.parse::<ExprMatchBranch>()?;
-
-            let comma = if parser.peek::<ast::Comma>()? {
-                Some(parser.parse()?)
-            } else {
-                None
-            };
-
+            let comma = parser.parse::<Option<ast::Comma>>()?;
             let is_end = ast::utils::is_block_end(&*branch.body, comma.as_ref());
             branches.push((branch, comma));
 

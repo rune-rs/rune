@@ -62,8 +62,10 @@ impl Expander {
         let spanned = &self.ctx.spanned;
         let span = &self.ctx.span;
 
+        let generics = &input.generics;
+
         Some(quote! {
-            impl #spanned for #ident {
+            impl #generics #spanned for #ident #generics {
                 fn span(&self) -> #span {
                     #inner
                 }

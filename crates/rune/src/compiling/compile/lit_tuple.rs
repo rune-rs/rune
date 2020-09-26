@@ -6,13 +6,7 @@ impl Compile<(&ast::LitTuple, Needs)> for Compiler<'_> {
         let span = lit_tuple.span();
         log::trace!("LitTuple => {:?}", self.source.source(span));
 
-        // If the value is not needed, no need to encode it.
-        if !needs.value() && lit_tuple.is_const() {
-            self.warnings.not_used(self.source_id, span, self.context());
-            return Ok(());
-        }
-
-        for (expr, _) in lit_tuple.items.iter() {
+        for (expr, _) in &lit_tuple.items {
             self.compile((expr, Needs::Value))?;
         }
 
@@ -22,6 +16,12 @@ impl Compile<(&ast::LitTuple, Needs)> for Compiler<'_> {
             },
             span,
         );
+
+        if !needs.value() {
+            self.warnings.not_used(self.source_id, span, self.context());
+            self.asm.push(Inst::Pop, span);
+            return Ok(());
+        }
 
         Ok(())
     }

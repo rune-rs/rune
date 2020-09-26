@@ -8,14 +8,29 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
         let len = expr_select.branches.len();
         self.contexts.push(span);
 
+        let mut default_branch = None;
         let mut branches = Vec::new();
 
         let end_label = self.asm.new_label("select_end");
-        let default_branch = self.asm.new_label("select_default");
 
         for (branch, _) in &expr_select.branches {
-            let label = self.asm.new_label("select_branch");
-            branches.push((label, branch));
+            match branch {
+                ast::ExprSelectBranch::Pat(pat) => {
+                    let label = self.asm.new_label("select_branch");
+                    branches.push((label, pat));
+                }
+                ast::ExprSelectBranch::Default(def) => {
+                    if default_branch.is_some() {
+                        return Err(CompileError::new(
+                            span,
+                            CompileErrorKind::SelectMultipleDefaults,
+                        ));
+                    }
+
+                    let label = self.asm.new_label("select_default");
+                    default_branch = Some((def, label));
+                }
+            }
         }
 
         for (_, branch) in &branches {
@@ -28,9 +43,9 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
             self.asm.jump_if_branch(branch as i64, *label, span);
         }
 
-        if expr_select.default_branch.is_some() {
+        if let Some((_, label)) = &default_branch {
             self.asm.push(Inst::Pop, span);
-            self.asm.jump(default_branch, span);
+            self.asm.jump(*label, span);
         }
 
         if !needs.value() {
@@ -76,8 +91,8 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
             self.asm.jump(end_label, span);
         }
 
-        if let Some((branch, _)) = &expr_select.default_branch {
-            self.asm.label(default_branch)?;
+        if let Some((branch, label)) = default_branch {
+            self.asm.label(label)?;
             self.compile((&*branch.body, needs))?;
         }
 

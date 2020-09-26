@@ -7,16 +7,11 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
         let span = lit_object.span();
         log::trace!("LitObject => {:?} {:?}", self.source.source(span), needs);
 
-        if !needs.value() && lit_object.is_const() {
-            // Don't encode unecessary literals.
-            return Ok(());
-        }
-
         let mut keys = Vec::new();
         let mut check_keys = Vec::new();
         let mut keys_dup = HashMap::new();
 
-        for assign in &lit_object.assignments {
+        for (assign, _) in &lit_object.assignments {
             let span = assign.span();
             let key = assign
                 .key
@@ -36,7 +31,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
             }
         }
 
-        for assign in lit_object.assignments.iter() {
+        for (assign, _) in &lit_object.assignments {
             let span = assign.span();
 
             if let Some((_, expr)) = &assign.assign {
@@ -56,12 +51,6 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                     var.copy(&mut self.asm, span, format!("name `{}`", key));
                 }
             }
-        }
-
-        // No need to encode an object since the value is not needed.
-        if !needs.value() {
-            self.warnings.not_used(self.source_id, span, self.context());
-            return Ok(());
         }
 
         let slot = self.unit.new_static_object_keys(span, &keys)?;
@@ -116,6 +105,12 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
             ast::LitObjectIdent::Anonymous(..) => {
                 self.asm.push(Inst::Object { slot }, span);
             }
+        }
+
+        // No need to encode an object since the value is not needed.
+        if !needs.value() {
+            self.warnings.not_used(self.source_id, span, self.context());
+            self.asm.push(Inst::Pop, span);
         }
 
         Ok(())

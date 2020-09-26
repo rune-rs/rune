@@ -153,8 +153,12 @@ impl Expander {
         let macro_context = &self.ctx.macro_context;
         let token_stream = &self.ctx.token_stream;
 
+        let generics = &input.generics;
+
+        let bounds = generic_bounds(generics, to_tokens);
+
         let into_tokens_impl = quote_spanned! {
-            named.span() => impl #to_tokens for #ident {
+            named.span() => impl #generics #to_tokens for #ident #generics #bounds {
                 fn to_tokens(&self, context: &mut #macro_context, stream: &mut #token_stream) {
                     #(#fields;)*
                 }
@@ -231,4 +235,20 @@ impl Expander {
             Self::#ident => ()
         })
     }
+}
+
+fn generic_bounds(generics: &syn::Generics, to_tokens: &TokenStream) -> Option<TokenStream> {
+    if generics.params.is_empty() {
+        return None;
+    }
+
+    let mut bound = Vec::new();
+
+    for param in &generics.params {
+        bound.push(quote_spanned!(param.span() => #param: #to_tokens))
+    }
+
+    Some(quote_spanned! { generics.span() => where
+        #(#bound,)*
+    })
 }

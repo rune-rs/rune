@@ -191,14 +191,11 @@ impl CompileBuildEntry<'_> {
 
         match build {
             Build::Function(f) => {
-                let args = format_fn_args(
-                    self.storage,
-                    &*source,
-                    f.ast.args.items.iter().map(|(a, _)| a),
-                )?;
+                let args =
+                    format_fn_args(self.storage, &*source, f.ast.args.iter().map(|(a, _)| a))?;
 
                 let span = f.ast.span();
-                let count = f.ast.args.items.len();
+                let count = f.ast.args.len();
                 compiler.contexts.push(span);
                 compiler.compile((f.ast, false))?;
 
@@ -210,14 +207,11 @@ impl CompileBuildEntry<'_> {
                 }
             }
             Build::InstanceFunction(f) => {
-                let args = format_fn_args(
-                    self.storage,
-                    &*source,
-                    f.ast.args.items.iter().map(|(a, _)| a),
-                )?;
+                let args =
+                    format_fn_args(self.storage, &*source, f.ast.args.iter().map(|(a, _)| a))?;
 
                 let span = f.ast.span();
-                let count = f.ast.args.items.len();
+                let count = f.ast.args.len();
                 compiler.contexts.push(span);
 
                 let source = compiler.source.clone();

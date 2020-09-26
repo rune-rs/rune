@@ -56,24 +56,24 @@ impl Parse for ItemStruct {
     }
 }
 
-/// A struct declaration.
+/// AST for a struct body.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum ItemStructBody {
     /// An empty struct declaration.
     EmptyBody(ast::SemiColon),
     /// A tuple struct body.
-    TupleBody(TupleBody, ast::SemiColon),
+    TupleBody(ast::Parenthesized<Field, ast::Comma>, ast::SemiColon),
     /// A regular struct body.
-    StructBody(StructBody),
+    StructBody(ast::Braced<Field, ast::Comma>),
 }
 
 impl ItemStructBody {
     /// Iterate over the fields of the body.
-    pub fn fields(&self) -> impl Iterator<Item = &'_ Field> {
+    pub fn fields(&self) -> impl Iterator<Item = &'_ (Field, Option<ast::Comma>)> {
         match self {
             ItemStructBody::EmptyBody(..) => IntoIterator::into_iter(&[]),
-            ItemStructBody::TupleBody(body, ..) => body.fields.iter(),
-            ItemStructBody::StructBody(body) => body.fields.iter(),
+            ItemStructBody::TupleBody(body, ..) => body.iter(),
+            ItemStructBody::StructBody(body) => body.iter(),
         }
     }
 }
@@ -86,10 +86,16 @@ impl ItemStructBody {
 /// use rune::{testing, ast};
 ///
 /// testing::roundtrip::<ast::ItemStructBody>(";");
-/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c );");
-/// testing::roundtrip::<ast::ItemStructBody>("();");
+///
 /// testing::roundtrip::<ast::ItemStructBody>("{ a, b, c }");
 /// testing::roundtrip::<ast::ItemStructBody>("{ #[x] a, #[y] b, #[z] #[w] #[f32] c }");
+/// testing::roundtrip::<ast::ItemStructBody>("{ a, #[attribute] b, c }");
+///
+/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c );");
+/// testing::roundtrip::<ast::ItemStructBody>("( #[x] a, b, c );");
+/// testing::roundtrip::<ast::ItemStructBody>("( #[x] pub a, b, c );");
+/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c );");
+/// testing::roundtrip::<ast::ItemStructBody>("();");
 /// ```
 impl Parse for ItemStructBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -104,98 +110,6 @@ impl Parse for ItemStructBody {
         };
 
         Ok(body)
-    }
-}
-
-/// A variant declaration.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub struct TupleBody {
-    /// The opening paren.
-    pub open: ast::OpenParen,
-    /// Fields in the variant.
-    pub fields: Vec<Field>,
-    /// The close paren.
-    pub close: ast::CloseParen,
-}
-
-/// Parse implementation for a struct body.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::TupleBody>("( a, b, c )");
-/// testing::roundtrip::<ast::TupleBody>("( #[x] a, b, c )");
-/// testing::roundtrip::<ast::TupleBody>("( #[x] pub a, b, c )");
-/// ```
-impl Parse for TupleBody {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let open = parser.parse()?;
-
-        let mut fields = Vec::new();
-
-        while !parser.peek::<ast::CloseParen>()? {
-            let field = parser.parse::<Field>()?;
-            let done = field.comma.is_none();
-            fields.push(field);
-
-            if done {
-                break;
-            }
-        }
-
-        Ok(Self {
-            open,
-            fields,
-            close: parser.parse()?,
-        })
-    }
-}
-
-/// A variant declaration.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub struct StructBody {
-    /// The opening brace.
-    pub open: ast::OpenBrace,
-    /// Fields in the variant.
-    pub fields: Vec<Field>,
-    /// The close brace.
-    pub close: ast::CloseBrace,
-}
-
-/// Parse implementation for a struct body.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::StructBody>("{ a, #[attribute] b, c }");
-/// ```
-impl Parse for StructBody {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let open = parser.parse()?;
-
-        let mut fields = Vec::new();
-
-        while !parser.peek::<ast::CloseBrace>()? {
-            let field = parser.parse::<Field>()?;
-            let done = field.comma.is_none();
-            fields.push(field);
-
-            if done {
-                break;
-            }
-        }
-
-        let close = parser.parse()?;
-
-        Ok(Self {
-            open,
-            fields,
-            close,
-        })
     }
 }
 
@@ -219,7 +133,4 @@ pub struct Field {
     pub visibility: ast::Visibility,
     /// Name of the field.
     pub name: ast::Ident,
-    /// Trailing comma of the field.
-    #[rune(iter)]
-    pub comma: Option<ast::Comma>,
 }

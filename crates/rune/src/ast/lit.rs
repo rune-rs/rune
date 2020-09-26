@@ -29,23 +29,6 @@ pub enum Lit {
 }
 
 impl Lit {
-    /// Test if this literal is constant.
-    pub fn is_const(&self) -> bool {
-        match self {
-            Self::Template(..) => false,
-            Self::Unit(..) => true,
-            Self::Bool(..) => true,
-            Self::Byte(..) => true,
-            Self::Char(..) => true,
-            Self::Number(..) => true,
-            Self::Str(..) => true,
-            Self::ByteStr(..) => true,
-            Self::Vec(vec) => vec.is_const(),
-            Self::Object(object) => object.is_const(),
-            Self::Tuple(tuple) => tuple.is_const(),
-        }
-    }
-
     /// Test if this is an immediate literal in an expression.
     ///
     /// Here we only test for unambiguous literals which will not be caused by

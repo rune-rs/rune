@@ -7,7 +7,7 @@ impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
 
         let mut first = true;
 
-        for (arg, _) in fn_decl.args.items.iter() {
+        for (arg, _) in &fn_decl.args {
             let span = arg.span();
 
             match arg {

@@ -19,9 +19,4 @@ impl ExprIsNot {
     pub fn produces_nothing(&self) -> bool {
         false
     }
-
-    /// Test if the expression is a constant expression.
-    pub fn is_const(&self) -> bool {
-        self.lhs.is_const() && self.rhs.is_const()
-    }
 }
