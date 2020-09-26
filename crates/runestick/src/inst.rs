@@ -564,6 +564,18 @@ pub enum Inst {
         /// The static slot of the object keys.
         slot: usize,
     },
+    /// Construct a push an object of the given type onto the stack. The type is
+    /// an empty struct.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <object>
+    /// ```
+    UnitStruct {
+        /// The type of the object to construct.
+        hash: Hash,
+    },
     /// Construct a push an object of the given type onto the stack. The number
     /// of elements in the object are determined the slot of the object keys
     /// `slot` and are popped from the stack.
@@ -576,15 +588,27 @@ pub enum Inst {
     /// <value..>
     /// => <object>
     /// ```
-    TypedObject {
+    Struct {
         /// The type of the object to construct.
         hash: Hash,
         /// The static slot of the object keys.
         slot: usize,
     },
-    /// Construct a push an object of the given type onto the stack. The number
-    /// of elements in the object are determined the slot of the object keys
-    /// `slot` and are popped from the stack.
+    /// Construct a push an object variant of the given type onto the stack. The
+    /// type is an empty struct.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <object>
+    /// ```
+    UnitVariant {
+        /// The type hash of the object variant to construct.
+        hash: Hash,
+    },
+    /// Construct a push an object variant of the given type onto the stack. The
+    /// number of elements in the object are determined the slot of the object
+    /// keys `slot` and are popped from the stack.
     ///
     /// For each element, a value is popped corresponding to the object key.
     ///
@@ -1033,8 +1057,14 @@ impl fmt::Display for Inst {
             Self::PushTuple => {
                 write!(fmt, "push-tuple")?;
             }
-            Self::TypedObject { hash, slot } => {
-                write!(fmt, "typed-object {}, {}", hash, slot)?;
+            Self::UnitStruct { hash } => {
+                write!(fmt, "empty-struct {}", hash)?;
+            }
+            Self::Struct { hash, slot } => {
+                write!(fmt, "struct {}, {}", hash, slot)?;
+            }
+            Self::UnitVariant { hash } => {
+                write!(fmt, "empty-variant {}", hash)?;
             }
             Self::ObjectVariant { hash, slot } => {
                 write!(fmt, "object-variant {}, {}", hash, slot)?;

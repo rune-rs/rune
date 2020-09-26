@@ -70,6 +70,12 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                 };
 
                 match &meta.kind {
+                    CompileMetaKind::UnitStruct { empty, .. } => {
+                        check_object_fields(Some(&HashSet::new()), check_keys, span, &empty.item)?;
+
+                        let hash = Hash::type_hash(&empty.item);
+                        self.asm.push(Inst::UnitStruct { hash }, span);
+                    }
                     CompileMetaKind::Struct { object, .. } => {
                         check_object_fields(
                             object.fields.as_ref(),
@@ -79,9 +85,9 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         )?;
 
                         let hash = Hash::type_hash(&object.item);
-                        self.asm.push(Inst::TypedObject { hash, slot }, span);
+                        self.asm.push(Inst::Struct { hash, slot }, span);
                     }
-                    CompileMetaKind::ObjectVariant { object, .. } => {
+                    CompileMetaKind::StructVariant { object, .. } => {
                         check_object_fields(
                             object.fields.as_ref(),
                             check_keys,

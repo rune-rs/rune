@@ -4,8 +4,8 @@ use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Context, FromValue, Function, Future, Generator,
     GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object,
-    ObjectVariant, Panic, Select, Shared, Stack, Stream, Tuple, TypeCheck, TypedObject, Unit,
-    Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    ObjectVariant, Panic, Select, Shared, Stack, Stream, Struct, Tuple, TypeCheck, Unit,
+    UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
 };
 use std::fmt;
 use std::mem;
@@ -861,7 +861,7 @@ impl Vm {
                     object.insert(field.to_owned(), value);
                     return Ok(());
                 }
-                Value::TypedObject(typed_object) => {
+                Value::Struct(typed_object) => {
                     let mut typed_object = typed_object.borrow_mut()?;
 
                     if let Some(v) = typed_object.object.get_mut(field) {
@@ -951,7 +951,7 @@ impl Vm {
     fn try_object_like_index_get(&mut self, target: &Value, field: &str) -> Result<bool, VmError> {
         let value = match &target {
             Value::Object(target) => target.borrow_ref()?.get(field).cloned(),
-            Value::TypedObject(target) => target.borrow_ref()?.object.get(field).cloned(),
+            Value::Struct(target) => target.borrow_ref()?.object.get(field).cloned(),
             Value::ObjectVariant(target) => target.borrow_ref()?.object.get(field).cloned(),
             _ => return Ok(false),
         };
@@ -1003,9 +1003,9 @@ impl Vm {
                     _ => None,
                 }
             }
-            Value::TypedTuple(typed_tuple) => {
-                let typed_tuple = typed_tuple.borrow_ref()?;
-                typed_tuple.tuple.get(index).cloned()
+            Value::TupleStruct(tuple_struct) => {
+                let tuple_struct = tuple_struct.borrow_ref()?;
+                tuple_struct.tuple.get(index).cloned()
             }
             Value::TupleVariant(variant_tuple) => {
                 let variant_tuple = variant_tuple.borrow_ref()?;
@@ -1071,10 +1071,10 @@ impl Vm {
                     _ => None,
                 })
             }
-            Value::TypedTuple(typed_tuple) => {
-                let typed_tuple = typed_tuple.borrow_mut()?;
+            Value::TupleStruct(tuple_struct) => {
+                let tuple_struct = tuple_struct.borrow_mut()?;
 
-                BorrowMut::try_map(typed_tuple, |typed_tuple| typed_tuple.get_mut(index))
+                BorrowMut::try_map(tuple_struct, |tuple_struct| tuple_struct.get_mut(index))
             }
             Value::TupleVariant(variant_tuple) => {
                 let variant_tuple = variant_tuple.borrow_mut()?;
@@ -1109,7 +1109,7 @@ impl Vm {
                 let target = target.borrow_mut()?;
                 BorrowMut::try_map(target, |target| target.get_mut(field))
             }
-            Value::TypedObject(target) => {
+            Value::Struct(target) => {
                 let target = target.borrow_mut()?;
                 BorrowMut::try_map(target, |target| target.get_mut(field))
             }
@@ -1184,10 +1184,10 @@ impl Vm {
                 *target = value;
                 Ok(true)
             }
-            Value::TypedTuple(typed_tuple) => {
-                let mut typed_tuple = typed_tuple.borrow_mut()?;
+            Value::TupleStruct(tuple_struct) => {
+                let mut tuple_struct = tuple_struct.borrow_mut()?;
 
-                if let Some(target) = typed_tuple.tuple.get_mut(index) {
+                if let Some(target) = tuple_struct.tuple.get_mut(index) {
                     *target = value;
                     return Ok(true);
                 }
@@ -1328,7 +1328,7 @@ impl Vm {
                     }
                 }
             }
-            Value::TypedObject(typed_object) => {
+            Value::Struct(typed_object) => {
                 let typed_object = typed_object.borrow_ref()?;
 
                 match typed_object.get(&***index).cloned() {
@@ -1415,9 +1415,21 @@ impl Vm {
         Ok(())
     }
 
-    /// Operation to allocate an object.
+    /// Operation to allocate an empty struct.
     #[inline]
-    fn op_typed_object(&mut self, hash: Hash, slot: usize) -> Result<(), VmError> {
+    fn op_empty_struct(&mut self, hash: Hash) -> Result<(), VmError> {
+        let rtti = self
+            .unit
+            .lookup_rtti(hash)
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+
+        self.stack.push(UnitStruct { rtti: rtti.clone() });
+        Ok(())
+    }
+
+    /// Operation to allocate an object struct.
+    #[inline]
+    fn op_struct(&mut self, hash: Hash, slot: usize) -> Result<(), VmError> {
         let keys = self
             .unit
             .lookup_object_keys(slot)
@@ -1436,11 +1448,23 @@ impl Vm {
             object.insert(key.clone(), value);
         }
 
-        self.stack.push(TypedObject::new(rtti.clone(), object));
+        self.stack.push(Struct::new(rtti.clone(), object));
         Ok(())
     }
 
     /// Operation to allocate an object.
+    #[inline]
+    fn op_empty_variant(&mut self, hash: Hash) -> Result<(), VmError> {
+        let rtti = self
+            .unit
+            .lookup_variant_rtti(hash)
+            .ok_or_else(|| VmError::from(VmErrorKind::MissingVariantRtti { hash }))?;
+
+        self.stack.push(UnitVariant { rtti: rtti.clone() });
+        Ok(())
+    }
+
+    /// Operation to allocate an object variant.
     #[inline]
     fn op_object_variant(&mut self, hash: Hash, slot: usize) -> Result<(), VmError> {
         let keys = self
@@ -1804,24 +1828,44 @@ impl Vm {
                     _ => return Ok(None),
                 })
             }
-            (TypeCheck::Type(hash), Value::TypedTuple(typed_tuple)) => {
-                let typed_tuple = typed_tuple.borrow_ref()?;
+            (TypeCheck::Type(hash), value) => match value {
+                Value::UnitStruct(empty) => {
+                    if empty.borrow_ref()?.rtti.hash != hash {
+                        return Ok(None);
+                    }
 
-                if typed_tuple.rtti.hash != hash {
-                    return Ok(None);
+                    Some(f(&[]))
                 }
+                Value::TupleStruct(tuple_struct) => {
+                    let tuple_struct = tuple_struct.borrow_ref()?;
 
-                Some(f(&*typed_tuple.tuple))
-            }
-            (TypeCheck::Variant(hash), Value::TupleVariant(variant_tuple)) => {
-                let variant_tuple = variant_tuple.borrow_ref()?;
+                    if tuple_struct.rtti.hash != hash {
+                        return Ok(None);
+                    }
 
-                if variant_tuple.rtti.hash != hash {
-                    return Ok(None);
+                    Some(f(&*tuple_struct.tuple))
                 }
+                _ => None,
+            },
+            (TypeCheck::Variant(hash), value) => match value {
+                Value::TupleVariant(variant_tuple) => {
+                    let variant_tuple = variant_tuple.borrow_ref()?;
 
-                Some(f(&*variant_tuple.tuple))
-            }
+                    if variant_tuple.rtti.hash != hash {
+                        return Ok(None);
+                    }
+
+                    Some(f(&*variant_tuple.tuple))
+                }
+                Value::UnitVariant(empty) => {
+                    if empty.borrow_ref()?.rtti.hash != hash {
+                        return Ok(None);
+                    }
+
+                    Some(f(&[]))
+                }
+                _ => None,
+            },
             (TypeCheck::Unit, Value::Unit) => Some(f(&[])),
             _ => None,
         })
@@ -1849,7 +1893,7 @@ impl Vm {
                 let object = object.borrow_ref()?;
                 return Ok(Some(f(&*object, keys)));
             }
-            (TypeCheck::Type(hash), Value::TypedObject(typed_object)) => {
+            (TypeCheck::Type(hash), Value::Struct(typed_object)) => {
                 let typed_object = typed_object.borrow_ref()?;
 
                 if typed_object.type_hash() == hash {
@@ -1917,41 +1961,56 @@ impl Vm {
 
     /// Load a function as a value onto the stack.
     fn op_load_fn(&mut self, hash: Hash) -> Result<(), VmError> {
-        let function = match self.unit.lookup(hash) {
-            Some(info) => match info {
-                UnitFn::Offset { offset, call, args } => Function::from_offset(
-                    self.context.clone(),
-                    self.unit.clone(),
-                    offset,
-                    call,
-                    args,
-                ),
-                UnitFn::Tuple { hash, args } => {
-                    let rtti = self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+        let function =
+            match self.unit.lookup(hash) {
+                Some(info) => match info {
+                    UnitFn::Offset { offset, call, args } => Function::from_offset(
+                        self.context.clone(),
+                        self.unit.clone(),
+                        offset,
+                        call,
+                        args,
+                    ),
+                    UnitFn::UnitStruct { hash } => {
+                        let rtti = self
+                            .unit
+                            .lookup_rtti(hash)
+                            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
 
-                    Function::from_tuple(rtti.clone(), args)
+                        Function::from_unit_struct(rtti.clone())
+                    }
+                    UnitFn::TupleStruct { hash, args } => {
+                        let rtti = self
+                            .unit
+                            .lookup_rtti(hash)
+                            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+
+                        Function::from_tuple_struct(rtti.clone(), args)
+                    }
+                    UnitFn::UnitVariant { hash } => {
+                        let rtti = self.unit.lookup_variant_rtti(hash).ok_or_else(|| {
+                            VmError::from(VmErrorKind::MissingVariantRtti { hash })
+                        })?;
+
+                        Function::from_empty_variant(rtti.clone())
+                    }
+                    UnitFn::TupleVariant { hash, args } => {
+                        let rtti = self.unit.lookup_variant_rtti(hash).ok_or_else(|| {
+                            VmError::from(VmErrorKind::MissingVariantRtti { hash })
+                        })?;
+
+                        Function::from_tuple_variant(rtti.clone(), args)
+                    }
+                },
+                None => {
+                    let handler = self
+                        .context
+                        .lookup(hash)
+                        .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
+
+                    Function::from_handler(handler.clone())
                 }
-                UnitFn::TupleVariant { hash, args } => {
-                    let rtti = self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmError::from(VmErrorKind::MissingVariantRtti { hash }))?;
-
-                    Function::from_variant_tuple(rtti.clone(), args)
-                }
-            },
-            None => {
-                let handler = self
-                    .context
-                    .lookup(hash)
-                    .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
-
-                Function::from_handler(handler.clone())
-            }
-        };
+            };
 
         self.stack.push(Value::Function(Shared::new(function)));
         Ok(())
@@ -1988,46 +2047,64 @@ impl Vm {
     /// Implementation of a function call.
     fn op_call(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
         match self.unit.lookup(hash) {
-            Some(info) => match info {
-                UnitFn::Offset {
-                    offset,
-                    call,
-                    args: expected,
-                } => {
-                    Self::check_args(args, expected)?;
-                    self.call_offset_fn(offset, call, args)?;
+            Some(info) => {
+                match info {
+                    UnitFn::Offset {
+                        offset,
+                        call,
+                        args: expected,
+                    } => {
+                        Self::check_args(args, expected)?;
+                        self.call_offset_fn(offset, call, args)?;
+                    }
+                    UnitFn::UnitStruct { hash } => {
+                        Self::check_args(args, 0)?;
+
+                        let rtti = self
+                            .unit
+                            .lookup_rtti(hash)
+                            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+
+                        self.stack.push(Value::unit_struct(rtti.clone()));
+                    }
+                    UnitFn::TupleStruct {
+                        hash,
+                        args: expected,
+                    } => {
+                        Self::check_args(args, expected)?;
+                        let tuple = self.stack.pop_sequence(args)?;
+
+                        let rtti = self
+                            .unit
+                            .lookup_rtti(hash)
+                            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+
+                        self.stack.push(Value::tuple_struct(rtti.clone(), tuple));
+                    }
+                    UnitFn::TupleVariant {
+                        hash,
+                        args: expected,
+                    } => {
+                        Self::check_args(args, expected)?;
+
+                        let rtti = self.unit.lookup_variant_rtti(hash).ok_or_else(|| {
+                            VmError::from(VmErrorKind::MissingVariantRtti { hash })
+                        })?;
+
+                        let tuple = self.stack.pop_sequence(args)?;
+                        self.stack.push(Value::tuple_variant(rtti.clone(), tuple));
+                    }
+                    UnitFn::UnitVariant { hash } => {
+                        Self::check_args(args, 0)?;
+
+                        let rtti = self.unit.lookup_variant_rtti(hash).ok_or_else(|| {
+                            VmError::from(VmErrorKind::MissingVariantRtti { hash })
+                        })?;
+
+                        self.stack.push(Value::empty_variant(rtti.clone()));
+                    }
                 }
-                UnitFn::Tuple {
-                    hash,
-                    args: expected,
-                } => {
-                    Self::check_args(args, expected)?;
-                    let tuple = self.stack.pop_sequence(args)?;
-
-                    let rtti = self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
-
-                    let value = Value::typed_tuple(rtti.clone(), tuple);
-                    self.stack.push(value);
-                }
-                UnitFn::TupleVariant {
-                    hash,
-                    args: expected,
-                } => {
-                    Self::check_args(args, expected)?;
-
-                    let rtti = self
-                        .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or_else(|| VmError::from(VmErrorKind::MissingVariantRtti { hash }))?;
-
-                    let tuple = self.stack.pop_sequence(args)?;
-                    let value = Value::variant_tuple(rtti.clone(), tuple);
-                    self.stack.push(value);
-                }
-            },
+            }
             None => {
                 let handler = self
                     .context
@@ -2270,8 +2347,14 @@ impl Vm {
                 Inst::Object { slot } => {
                     self.op_object(slot)?;
                 }
-                Inst::TypedObject { hash, slot } => {
-                    self.op_typed_object(hash, slot)?;
+                Inst::UnitStruct { hash } => {
+                    self.op_empty_struct(hash)?;
+                }
+                Inst::Struct { hash, slot } => {
+                    self.op_struct(hash, slot)?;
+                }
+                Inst::UnitVariant { hash } => {
+                    self.op_empty_variant(hash)?;
                 }
                 Inst::ObjectVariant { hash, slot } => {
                     self.op_object_variant(hash, slot)?;

@@ -161,16 +161,26 @@ pub enum UnitFn {
         /// The number of arguments the function takes.
         args: usize,
     },
+    /// An empty constructor.
+    UnitStruct {
+        /// The type hash of the empty.
+        hash: Hash,
+    },
     /// A tuple constructor.
-    Tuple {
-        /// The type of the tuple.
+    TupleStruct {
+        /// The type hash of the tuple.
         hash: Hash,
         /// The number of arguments the tuple takes.
         args: usize,
     },
+    /// A empty variant constructor.
+    UnitVariant {
+        /// The type hash of the empty variant.
+        hash: Hash,
+    },
     /// A tuple variant constructor.
     TupleVariant {
-        /// The hash of the variant.
+        /// The type hash of the variant.
         hash: Hash,
         /// The number of arguments the tuple takes.
         args: usize,
@@ -183,8 +193,14 @@ impl fmt::Display for UnitFn {
             Self::Offset { offset, call, args } => {
                 write!(f, "offset {}, {}, {}", offset, call, args)?;
             }
-            Self::Tuple { hash, args } => {
+            Self::UnitStruct { hash } => {
+                write!(f, "unit {}", hash)?;
+            }
+            Self::TupleStruct { hash, args } => {
                 write!(f, "tuple {}, {}", hash, args)?;
+            }
+            Self::UnitVariant { hash } => {
+                write!(f, "empty-variant {}", hash)?;
             }
             Self::TupleVariant { hash, args } => {
                 write!(f, "tuple-variant {}, {}", hash, args)?;

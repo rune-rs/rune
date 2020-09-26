@@ -96,7 +96,23 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         };
 
         let item = match &meta.kind {
-            CompileMetaKind::Tuple { tuple, .. } | CompileMetaKind::TupleVariant { tuple, .. } => {
+            CompileMetaKind::UnitStruct { empty, .. }
+            | CompileMetaKind::UnitVariant { empty, .. } => {
+                if 0 != expr_call.args.len() {
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::UnsupportedArgumentCount {
+                            meta: meta.clone(),
+                            expected: 0,
+                            actual: expr_call.args.len(),
+                        },
+                    ));
+                }
+
+                empty.item.clone()
+            }
+            CompileMetaKind::TupleStruct { tuple, .. }
+            | CompileMetaKind::TupleVariant { tuple, .. } => {
                 if tuple.args != expr_call.args.len() {
                     return Err(CompileError::new(
                         span,

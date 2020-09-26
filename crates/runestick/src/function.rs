@@ -30,13 +30,21 @@ impl Function {
             Inner::FnClosureOffset(closure) => closure
                 .fn_offset
                 .call(args, (closure.environment.clone(),))?,
-            Inner::FnTuple(tuple) => {
-                Self::check_args(A::count(), tuple.args)?;
-                Value::typed_tuple(tuple.rtti.clone(), args.into_vec()?)
+            Inner::FnUnitStruct(empty) => {
+                Self::check_args(A::count(), 0)?;
+                Value::unit_struct(empty.rtti.clone())
             }
-            Inner::FnVariantTuple(tuple) => {
+            Inner::FnTupleStruct(tuple) => {
                 Self::check_args(A::count(), tuple.args)?;
-                Value::variant_tuple(tuple.rtti.clone(), args.into_vec()?)
+                Value::tuple_struct(tuple.rtti.clone(), args.into_vec()?)
+            }
+            Inner::FnUnitVariant(empty) => {
+                Self::check_args(A::count(), 0)?;
+                Value::empty_variant(empty.rtti.clone())
+            }
+            Inner::FnTupleVariant(tuple) => {
+                Self::check_args(A::count(), tuple.args)?;
+                Value::tuple_variant(tuple.rtti.clone(), args.into_vec()?)
             }
         };
 
@@ -73,20 +81,31 @@ impl Function {
 
                 None
             }
-            Inner::FnTuple(tuple) => {
+            Inner::FnUnitStruct(empty) => {
+                Self::check_args(args, 0)?;
+                vm.stack_mut().push(Value::unit_struct(empty.rtti.clone()));
+                None
+            }
+            Inner::FnTupleStruct(tuple) => {
                 Self::check_args(args, tuple.args)?;
 
                 let value =
-                    Value::typed_tuple(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
+                    Value::tuple_struct(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
                 vm.stack_mut().push(value);
                 None
             }
-            Inner::FnVariantTuple(tuple) => {
+            Inner::FnUnitVariant(tuple) => {
+                Self::check_args(args, 0)?;
+
+                let value = Value::empty_variant(tuple.rtti.clone());
+                vm.stack_mut().push(value);
+                None
+            }
+            Inner::FnTupleVariant(tuple) => {
                 Self::check_args(args, tuple.args)?;
 
                 let value =
-                    Value::variant_tuple(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
-
+                    Value::tuple_variant(tuple.rtti.clone(), vm.stack_mut().pop_sequence(args)?);
                 vm.stack_mut().push(value);
                 None
             }
@@ -145,16 +164,30 @@ impl Function {
     }
 
     /// Create a function pointer from an offset.
-    pub(crate) fn from_tuple(rtti: Arc<Rtti>, args: usize) -> Self {
+    pub(crate) fn from_unit_struct(rtti: Arc<Rtti>) -> Self {
         Self {
-            inner: Inner::FnTuple(FnTuple { rtti, args }),
+            inner: Inner::FnUnitStruct(FnUnitStruct { rtti }),
+        }
+    }
+
+    /// Create a function pointer from an offset.
+    pub(crate) fn from_tuple_struct(rtti: Arc<Rtti>, args: usize) -> Self {
+        Self {
+            inner: Inner::FnTupleStruct(FnTupleStruct { rtti, args }),
+        }
+    }
+
+    /// Create a function pointer that constructs a empty variant.
+    pub(crate) fn from_empty_variant(rtti: Arc<VariantRtti>) -> Self {
+        Self {
+            inner: Inner::FnUnitVariant(FnUnitVariant { rtti }),
         }
     }
 
     /// Create a function pointer that constructs a tuple variant.
-    pub(crate) fn from_variant_tuple(rtti: Arc<VariantRtti>, args: usize) -> Self {
+    pub(crate) fn from_tuple_variant(rtti: Arc<VariantRtti>, args: usize) -> Self {
         Self {
-            inner: Inner::FnVariantTuple(FnVariantTuple { rtti, args }),
+            inner: Inner::FnTupleVariant(FnTupleVariant { rtti, args }),
         }
     }
 
@@ -187,10 +220,16 @@ impl fmt::Debug for Function {
                     closure.fn_offset.offset, closure.environment
                 )?;
             }
-            Inner::FnTuple(tuple) => {
+            Inner::FnUnitStruct(empty) => {
+                write!(f, "empty {}", empty.rtti.item)?;
+            }
+            Inner::FnTupleStruct(tuple) => {
                 write!(f, "tuple {}", tuple.rtti.item)?;
             }
-            Inner::FnVariantTuple(tuple) => {
+            Inner::FnUnitVariant(empty) => {
+                write!(f, "variant empty {}", empty.rtti.item)?;
+            }
+            Inner::FnTupleVariant(tuple) => {
                 write!(f, "variant tuple {}", tuple.rtti.item)?;
             }
         }
@@ -214,10 +253,14 @@ enum Inner {
     /// This also captures the context and unit it belongs to allow for external
     /// calls.
     FnClosureOffset(FnClosureOffset),
+    /// Constructor for a unit struct.
+    FnUnitStruct(FnUnitStruct),
     /// Constructor for a tuple.
-    FnTuple(FnTuple),
+    FnTupleStruct(FnTupleStruct),
+    /// Constructor for an empty variant.
+    FnUnitVariant(FnUnitVariant),
     /// Constructor for a tuple variant.
-    FnVariantTuple(FnVariantTuple),
+    FnTupleVariant(FnTupleVariant),
 }
 
 struct FnHandler {
@@ -314,7 +357,13 @@ struct FnClosureOffset {
 }
 
 #[derive(Debug)]
-struct FnTuple {
+struct FnUnitStruct {
+    /// The type of the empty.
+    rtti: Arc<Rtti>,
+}
+
+#[derive(Debug)]
+struct FnTupleStruct {
     /// The type of the tuple.
     rtti: Arc<Rtti>,
     /// The number of arguments the tuple takes.
@@ -322,7 +371,13 @@ struct FnTuple {
 }
 
 #[derive(Debug)]
-struct FnVariantTuple {
+struct FnUnitVariant {
+    /// Runtime information fo variant.
+    rtti: Arc<VariantRtti>,
+}
+
+#[derive(Debug)]
+struct FnTupleVariant {
     /// Runtime information fo variant.
     rtti: Arc<VariantRtti>,
     /// The number of arguments the tuple takes.

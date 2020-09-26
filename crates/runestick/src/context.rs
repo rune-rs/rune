@@ -683,7 +683,7 @@ impl Context {
                 source: None,
             },
             None => CompileMeta {
-                kind: CompileMetaKind::Tuple { type_of, tuple },
+                kind: CompileMetaKind::TupleStruct { type_of, tuple },
                 source: None,
             },
         };

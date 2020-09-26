@@ -72,7 +72,7 @@ pub struct ItemVariant {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
 pub enum ItemVariantBody {
     /// An empty enum body.
-    EmptyBody,
+    UnitBody,
     /// A tuple struct body.
     TupleBody(ast::Parenthesized<ast::Field, ast::Comma>),
     /// A regular struct body.
@@ -83,7 +83,7 @@ impl ItemVariantBody {
     /// Iterate over the fields of the body.
     pub fn fields(&self) -> impl Iterator<Item = &'_ (ast::Field, Option<ast::Comma>)> {
         match self {
-            ItemVariantBody::EmptyBody => IntoIterator::into_iter(&[]),
+            ItemVariantBody::UnitBody => IntoIterator::into_iter(&[]),
             ItemVariantBody::TupleBody(body) => body.iter(),
             ItemVariantBody::StructBody(body) => body.iter(),
         }
@@ -109,7 +109,7 @@ impl Parse for ItemVariantBody {
         Ok(match token.map(|t| t.kind) {
             Some(ast::Kind::Open(ast::Delimiter::Parenthesis)) => Self::TupleBody(parser.parse()?),
             Some(ast::Kind::Open(ast::Delimiter::Brace)) => Self::StructBody(parser.parse()?),
-            _ => Self::EmptyBody,
+            _ => Self::UnitBody,
         })
     }
 }

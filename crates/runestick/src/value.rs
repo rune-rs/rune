@@ -8,15 +8,34 @@ use std::fmt;
 use std::sync::Arc;
 use std::vec;
 
+/// A empty with a well-defined type.
+pub struct UnitStruct {
+    /// The type hash of the empty.
+    pub(crate) rtti: Arc<Rtti>,
+}
+
+impl UnitStruct {
+    /// Get type info for the typed tuple.
+    pub fn type_info(&self) -> TypeInfo {
+        TypeInfo::Typed(self.rtti.clone())
+    }
+}
+
+impl fmt::Debug for UnitStruct {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.rtti.item)
+    }
+}
+
 /// A tuple with a well-defined type.
-pub struct TypedTuple {
+pub struct TupleStruct {
     /// The type hash of the tuple.
     pub(crate) rtti: Arc<Rtti>,
     /// Content of the tuple.
     pub(crate) tuple: Tuple,
 }
 
-impl TypedTuple {
+impl TupleStruct {
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Typed(self.rtti.clone())
@@ -33,7 +52,7 @@ impl TypedTuple {
     }
 }
 
-impl fmt::Debug for TypedTuple {
+impl fmt::Debug for TupleStruct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{:?}", self.rtti.item, self.tuple)
     }
@@ -61,14 +80,14 @@ impl fmt::Debug for TupleVariant {
 }
 
 /// An object with a well-defined type.
-pub struct TypedObject {
+pub struct Struct {
     /// The type hash of the object.
     rtti: Arc<Rtti>,
     /// Content of the object.
     pub(crate) object: Object,
 }
 
-impl TypedObject {
+impl Struct {
     /// Construct a new typed object with the given type hash.
     pub fn new(rtti: Arc<Rtti>, object: Object) -> Self {
         Self { rtti, object }
@@ -104,7 +123,7 @@ impl TypedObject {
     }
 }
 
-impl fmt::Debug for TypedObject {
+impl fmt::Debug for Struct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{:?}", self.rtti.item, self.object)
     }
@@ -146,6 +165,25 @@ impl ObjectVariant {
 impl fmt::Debug for ObjectVariant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{:?}", self.rtti.item, self.object)
+    }
+}
+
+/// An object with a well-defined variant of an enum.
+pub struct UnitVariant {
+    /// Type information for object variant.
+    pub rtti: Arc<VariantRtti>,
+}
+
+impl UnitVariant {
+    /// Get type info for the typed object.
+    pub fn type_info(&self) -> TypeInfo {
+        TypeInfo::Variant(self.rtti.clone())
+    }
+}
+
+impl fmt::Debug for UnitVariant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.rtti.item)
     }
 }
 
@@ -217,13 +255,17 @@ pub enum Value {
     Option(Shared<Option<Value>>),
     /// A stored result in a slot.
     Result(Shared<Result<Value, Value>>),
+    /// An struct with a well-defined type.
+    UnitStruct(Shared<UnitStruct>),
     /// A tuple with a well-defined type.
-    TypedTuple(Shared<TypedTuple>),
+    TupleStruct(Shared<TupleStruct>),
+    /// An struct with a well-defined type.
+    Struct(Shared<Struct>),
+    /// An struct variant with a well-defined type.
+    UnitVariant(Shared<UnitVariant>),
     /// A tuple variant with a well-defined type.
     TupleVariant(Shared<TupleVariant>),
-    /// An object with a well-defined type.
-    TypedObject(Shared<TypedObject>),
-    /// An object variant with a well-defined type.
+    /// An struct variant with a well-defined type.
     ObjectVariant(Shared<ObjectVariant>),
     /// A stored function pointer.
     Function(Shared<Function>),
@@ -242,16 +284,26 @@ impl Value {
         Self::Tuple(Shared::new(Tuple::from(vec)))
     }
 
+    /// Construct an empty.
+    pub fn unit_struct(rtti: Arc<Rtti>) -> Self {
+        Self::UnitStruct(Shared::new(UnitStruct { rtti }))
+    }
+
     /// Construct a typed tuple.
-    pub fn typed_tuple(rtti: Arc<Rtti>, vec: vec::Vec<Value>) -> Self {
-        Self::TypedTuple(Shared::new(TypedTuple {
+    pub fn tuple_struct(rtti: Arc<Rtti>, vec: vec::Vec<Value>) -> Self {
+        Self::TupleStruct(Shared::new(TupleStruct {
             rtti,
             tuple: Tuple::from(vec),
         }))
     }
 
-    /// Construct a typed tuple.
-    pub fn variant_tuple(rtti: Arc<VariantRtti>, vec: vec::Vec<Value>) -> Self {
+    /// Construct an empty variant.
+    pub fn empty_variant(rtti: Arc<VariantRtti>) -> Self {
+        Self::UnitVariant(Shared::new(UnitVariant { rtti }))
+    }
+
+    /// Construct a tuple variant.
+    pub fn tuple_variant(rtti: Arc<VariantRtti>, vec: vec::Vec<Value>) -> Self {
         Self::TupleVariant(Shared::new(TupleVariant {
             rtti,
             tuple: Tuple::from(vec),
@@ -511,16 +563,12 @@ impl Value {
             Self::Option(..) => Type::from(crate::OPTION_TYPE),
             Self::Function(..) => Type::from(crate::FUNCTION_TYPE),
             Self::Type(hash) => Type::from(*hash),
-            Self::TypedObject(object) => Type::from(object.borrow_ref()?.rtti.hash),
-            Self::ObjectVariant(object) => {
-                let object = object.borrow_ref()?;
-                Type::from(object.rtti.enum_hash)
-            }
-            Self::TypedTuple(tuple) => Type::from(tuple.borrow_ref()?.rtti.hash),
-            Self::TupleVariant(tuple) => {
-                let tuple = tuple.borrow_ref()?;
-                Type::from(tuple.rtti.enum_hash)
-            }
+            Self::UnitStruct(empty) => Type::from(empty.borrow_ref()?.rtti.hash),
+            Self::TupleStruct(tuple) => Type::from(tuple.borrow_ref()?.rtti.hash),
+            Self::Struct(object) => Type::from(object.borrow_ref()?.rtti.hash),
+            Self::UnitVariant(empty) => Type::from(empty.borrow_ref()?.rtti.enum_hash),
+            Self::TupleVariant(tuple) => Type::from(tuple.borrow_ref()?.rtti.enum_hash),
+            Self::ObjectVariant(object) => Type::from(object.borrow_ref()?.rtti.enum_hash),
             Self::Any(any) => Type::from(any.borrow_ref()?.type_hash()),
         })
     }
@@ -548,10 +596,12 @@ impl Value {
             Self::Result(..) => TypeInfo::StaticType(crate::RESULT_TYPE),
             Self::Function(..) => TypeInfo::StaticType(crate::FUNCTION_TYPE),
             Self::Type(hash) => TypeInfo::Hash(*hash),
-            Self::TypedObject(object) => object.borrow_ref()?.type_info(),
-            Self::ObjectVariant(object) => object.borrow_ref()?.type_info(),
-            Self::TypedTuple(tuple) => tuple.borrow_ref()?.type_info(),
+            Self::UnitStruct(empty) => empty.borrow_ref()?.type_info(),
+            Self::TupleStruct(tuple) => tuple.borrow_ref()?.type_info(),
+            Self::Struct(object) => object.borrow_ref()?.type_info(),
+            Self::UnitVariant(empty) => empty.borrow_ref()?.type_info(),
             Self::TupleVariant(tuple) => tuple.borrow_ref()?.type_info(),
+            Self::ObjectVariant(object) => object.borrow_ref()?.type_info(),
             Self::Any(any) => TypeInfo::Any(any.borrow_ref()?.type_name()),
         })
     }
@@ -687,13 +737,19 @@ impl fmt::Debug for Value {
             Value::Result(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::TypedTuple(value) => {
+            Value::UnitStruct(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::TupleStruct(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::Struct(value) => {
+                write!(f, "{:?}", value)?;
+            }
+            Value::UnitVariant(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::TupleVariant(value) => {
-                write!(f, "{:?}", value)?;
-            }
-            Value::TypedObject(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::ObjectVariant(value) => {
@@ -790,9 +846,11 @@ impl_from_shared!(Shared<Generator>, Generator);
 impl_from_shared!(Shared<GeneratorState>, GeneratorState);
 impl_from!(Shared<Option<Value>>, Option);
 impl_from!(Shared<Result<Value, Value>>, Result);
-impl_from_shared!(Shared<TypedTuple>, TypedTuple);
+impl_from_shared!(Shared<UnitStruct>, UnitStruct);
+impl_from_shared!(Shared<TupleStruct>, TupleStruct);
+impl_from_shared!(Shared<Struct>, Struct);
+impl_from_shared!(Shared<UnitVariant>, UnitVariant);
 impl_from_shared!(Shared<TupleVariant>, TupleVariant);
-impl_from_shared!(Shared<TypedObject>, TypedObject);
 impl_from_shared!(Shared<ObjectVariant>, ObjectVariant);
 impl_from_shared!(Shared<Function>, Function);
 impl_from_shared!(Shared<AnyObj>, Any);
