@@ -2,7 +2,7 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::compiling::UnitBuilderError;
+use crate::compiling::InsertMetaError;
 use crate::ir::ir;
 use crate::ir::{IrBudget, IrInterpreter};
 use crate::ir::{IrCompile as _, IrCompiler};
@@ -39,7 +39,6 @@ error! {
     /// An error raised during querying.
     #[derive(Debug)]
     pub struct QueryError {
-        span: Span,
         kind: QueryErrorKind,
     }
 
@@ -47,38 +46,27 @@ error! {
     impl From<ParseError>;
 }
 
-impl From<UnitBuilderError> for QueryError {
-    fn from(error: UnitBuilderError) -> Self {
-        QueryError {
-            span: Span::empty(),
-            kind: QueryErrorKind::UnitBuilderError { error },
-        }
-    }
-}
-
-/// Error when encoding AST.
+/// Error raised during queries.
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum QueryErrorKind {
-    /// Unit error from runestick encoding.
-    #[error("unit construction error: {error}")]
-    UnitBuilderError {
-        /// Source error.
+    #[error("failed to insert meta: {error}")]
+    InsertMetaError {
+        #[source]
         #[from]
-        error: UnitBuilderError,
+        error: InsertMetaError,
     },
-    /// An interpreter error occured.
     #[error("interpreter error: {error}")]
     IrError {
-        /// The source error.
         #[source]
+        #[from]
         error: Box<IrErrorKind>,
     },
-    /// Error for resolving values from source files.
     #[error("parse error: {error}")]
     ParseError {
-        /// Source error.
+        #[source]
         #[from]
-        error: Box<ParseErrorKind>,
+        error: ParseErrorKind,
     },
 }
 
@@ -168,6 +156,8 @@ pub(crate) enum Build {
 
 /// An entry in the build queue.
 pub(crate) struct BuildEntry {
+    /// The span of the build entry.
+    pub(crate) span: Span,
     /// The item of the build entry.
     pub(crate) item: Item,
     /// The build entry.
@@ -475,6 +465,7 @@ impl Query {
             Indexed::Struct(st) => self.struct_into_item_decl(item, st.ast.body, None, &*source)?,
             Indexed::Function(f) => {
                 self.queue.push_back(BuildEntry {
+                    span: f.ast.span(),
                     item: item.clone(),
                     build: Build::Function(f),
                     source,
@@ -489,7 +480,9 @@ impl Query {
             }
             Indexed::Closure(c) => {
                 let captures = c.captures.clone();
+
                 self.queue.push_back(BuildEntry {
+                    span: c.ast.span(),
                     item: item.clone(),
                     build: Build::Closure(c),
                     source,
@@ -503,12 +496,13 @@ impl Query {
                     captures,
                 }
             }
-            Indexed::AsyncBlock(async_block) => {
-                let captures = async_block.captures.clone();
+            Indexed::AsyncBlock(b) => {
+                let captures = b.captures.clone();
 
                 self.queue.push_back(BuildEntry {
+                    span: b.ast.span(),
                     item: item.clone(),
-                    build: Build::AsyncBlock(async_block),
+                    build: Build::AsyncBlock(b),
                     source,
                     source_id,
                     used,
@@ -532,6 +526,7 @@ impl Query {
 
                 if used.is_unused() {
                     self.queue.push_back(BuildEntry {
+                        span: c.ir.span(),
                         item: item.clone(),
                         build: Build::UnusedConst(c),
                         source,
@@ -556,7 +551,10 @@ impl Query {
             }),
         };
 
-        self.unit.insert_meta(meta.clone())?;
+        self.unit
+            .insert_meta(meta.clone())
+            .map_err(|error| QueryError::new(entry_span, error))?;
+
         Ok(meta)
     }
 

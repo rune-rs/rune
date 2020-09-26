@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// The unit literal `()`.
 #[derive(Debug, Clone, ToTokens, Spanned)]
@@ -29,9 +29,9 @@ impl Parse for LitBool {
             ast::Kind::True => true,
             ast::Kind::False => false,
             _ => {
-                return Err(ParseError::new(
+                return Err(ParseError::expected(
                     token,
-                    ParseErrorKind::ExpectedBool { actual: token.kind },
+                    "boolean literal `true` or `false`",
                 ));
             }
         };

@@ -83,10 +83,7 @@ impl Parse for LitStr {
 
         match token.kind {
             ast::Kind::LitStr(source) => Ok(Self { token, source }),
-            _ => Err(ParseError::new(
-                token,
-                ParseErrorKind::ExpectedString { actual: token.kind },
-            )),
+            _ => Err(ParseError::expected(token, "string literal")),
         }
     }
 }

@@ -104,10 +104,10 @@ impl Item {
                 take(&mut visibility),
             )?),
             ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
-            kind => {
-                return Err(ParseError::new(
+            _ => {
+                return Err(ParseError::expected(
                     t,
-                    ParseErrorKind::ExpectedItem { actual: kind },
+                    "`fn`, `mod`, `struct`, `enum`, or `use`",
                 ))
             }
         };

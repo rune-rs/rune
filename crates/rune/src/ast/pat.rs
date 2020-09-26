@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// A pattern match.
 #[derive(Debug, Clone, ToTokens, Spanned)]
@@ -86,10 +86,7 @@ impl Parse for Pat {
             ast::Kind::Underscore => Self::PatIgnore(parser.parse()?),
             ast::Kind::Ident(..) => Self::parse_ident(parser)?,
             _ => {
-                return Err(ParseError::new(
-                    token,
-                    ParseErrorKind::ExpectedPatError { actual: token.kind },
-                ));
+                return Err(ParseError::expected(token, "pattern"));
             }
         })
     }

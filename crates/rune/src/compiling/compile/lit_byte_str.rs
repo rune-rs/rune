@@ -13,7 +13,7 @@ impl Compile<(&ast::LitByteStr, Needs)> for Compiler<'_> {
         }
 
         let bytes = lit_byte_str.resolve(&self.storage, &*self.source)?;
-        let slot = self.unit.new_static_bytes(&*bytes)?;
+        let slot = self.unit.new_static_bytes(span, &*bytes)?;
         self.asm.push(Inst::Bytes { slot }, span);
         Ok(())
     }

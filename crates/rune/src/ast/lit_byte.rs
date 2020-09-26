@@ -32,10 +32,7 @@ impl Parse for LitByte {
         Ok(match token.kind {
             ast::Kind::LitByte(source) => LitByte { token, source },
             _ => {
-                return Err(ParseError::new(
-                    token,
-                    ParseErrorKind::ExpectedByte { actual: token.kind },
-                ));
+                return Err(ParseError::expected(token, "byte"));
             }
         })
     }

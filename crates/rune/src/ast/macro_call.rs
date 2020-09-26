@@ -20,17 +20,17 @@ pub struct MacroCall {
 impl MacroCall {
     /// Parse with an expression.
     pub fn parse_with_path(parser: &mut Parser, path: ast::Path) -> Result<Self, ParseError> {
-        let bang: ast::Bang = parser.parse()?;
+        let bang = parser.parse()?;
 
         let mut level = 1;
         let open = parser.token_next()?;
 
         let delim = match open.kind {
             ast::Kind::Open(delim) => delim,
-            kind => {
-                return Err(ParseError::new(
+            _ => {
+                return Err(ParseError::expected(
                     open,
-                    ParseErrorKind::ExpectedMacroDelimiter { actual: kind },
+                    "macro call delimiter `(`, `[`, or `{`",
                 ));
             }
         };

@@ -135,7 +135,6 @@ error! {
     /// An error cause by issues with scoping.
     #[derive(Debug)]
     pub struct ScopeError {
-        span: Span,
         kind: ScopeErrorKind,
     }
 }

@@ -133,10 +133,7 @@ impl Parse for LitTemplate {
 
         match token.kind {
             ast::Kind::LitTemplate(source) => Ok(LitTemplate { token, source }),
-            _ => Err(ParseError::new(
-                token,
-                ParseErrorKind::ExpectedString { actual: token.kind },
-            )),
+            _ => Err(ParseError::expected(token, "template literal")),
         }
     }
 }

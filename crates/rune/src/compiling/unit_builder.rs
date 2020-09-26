@@ -7,7 +7,7 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
 use crate::CompileResult;
-use crate::{CompileError, Error, Errors, Resolve as _, Storage};
+use crate::{CompileError, Error, Errors, Resolve as _, Spanned, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst,
@@ -18,135 +18,6 @@ use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
-
-/// Errors raised when building a new unit.
-#[derive(Debug, Error)]
-pub enum UnitBuilderError {
-    /// Trying to register a conflicting function.
-    #[error("conflicting function signature already exists `{existing}`")]
-    FunctionConflict {
-        /// The signature of an already existing function.
-        existing: DebugSignature,
-    },
-    /// Tried to register a conflicting constant.
-    #[error("conflicting constant registered for `{item}` on hash `{hash}`")]
-    ConstantConflict {
-        /// The item that was conflicting.
-        item: Item,
-        /// The conflicting hash.
-        hash: Hash,
-    },
-    /// Trying to insert a conflicting type.
-    #[error("tried to insert rtti for conflicting type with hash `{hash}`")]
-    TypeRttiConflict {
-        /// The hash of the type.
-        hash: Hash,
-    },
-    /// Trying to insert a conflicting variant.
-    #[error("tried to insert rtti for conflicting variant with hash `{hash}`")]
-    VariantRttiConflict {
-        /// The hash of the variant.
-        hash: Hash,
-    },
-    /// Tried to add an use that conflicts with an existing one.
-    #[error("conflicting type already exists `{existing}`")]
-    TypeConflict {
-        /// The path to the existing type.
-        existing: Item,
-    },
-    /// Tried to add an unsupported meta item to a unit.
-    #[error("unsupported meta type for item `{existing}`")]
-    UnsupportedMeta {
-        /// The item used.
-        existing: Item,
-    },
-    /// Tried to add an item that already exists.
-    #[error("trying to insert `{current}` but conflicting meta `{existing}` already exists")]
-    MetaConflict {
-        /// The meta we tried to insert.
-        current: CompileMeta,
-        /// The existing item.
-        existing: CompileMeta,
-    },
-    /// A static string was missing for the given hash and slot.
-    #[error("missing static string for hash `{hash}` and slot `{slot}`")]
-    StaticStringMissing {
-        /// The hash of the string.
-        hash: Hash,
-        /// The slot of the string.
-        slot: usize,
-    },
-    /// A static byte string was missing for the given hash and slot.
-    #[error("missing static byte string for hash `{hash}` and slot `{slot}`")]
-    StaticBytesMissing {
-        /// The hash of the byte string.
-        hash: Hash,
-        /// The slot of the byte string.
-        slot: usize,
-    },
-    /// A static string was missing for the given hash and slot.
-    #[error(
-        "conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`"
-    )]
-    StaticStringHashConflict {
-        /// The hash of the string.
-        hash: Hash,
-        /// The static string that was inserted.
-        current: String,
-        /// The existing static string that conflicted.
-        existing: String,
-    },
-    /// A static byte string was missing for the given hash and slot.
-    #[error(
-        "conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`"
-    )]
-    StaticBytesHashConflict {
-        /// The hash of the byte string.
-        hash: Hash,
-        /// The static byte string that was inserted.
-        current: Vec<u8>,
-        /// The existing static byte string that conflicted.
-        existing: Vec<u8>,
-    },
-    /// A static object keys was missing for the given hash and slot.
-    #[error("missing static object keys for hash `{hash}` and slot `{slot}`")]
-    StaticObjectKeysMissing {
-        /// The hash of the object keys.
-        hash: Hash,
-        /// The slot of the object keys.
-        slot: usize,
-    },
-    /// A static object keys was missing for the given hash and slot.
-    #[error(
-        "conflicting static object keys for hash `{hash}` between `{existing:?}` and `{current:?}`"
-    )]
-    StaticObjectKeysHashConflict {
-        /// The hash of the object keys.
-        hash: Hash,
-        /// The static object keys that was inserted.
-        current: Box<[String]>,
-        /// The existing static object keys that conflicted.
-        existing: Box<[String]>,
-    },
-    /// Tried to add a duplicate label.
-    #[error("duplicate label `{label}`")]
-    DuplicateLabel {
-        /// The duplicate label.
-        label: Label,
-    },
-    /// The specified label is missing.
-    #[error("missing label `{label}`")]
-    MissingLabel {
-        /// The missing label.
-        label: Label,
-    },
-    /// Overflow error.
-    #[error("base offset overflow")]
-    BaseOverflow,
-    /// Overflow error.
-    #[error("offset overflow")]
-    OffsetOverflow,
-}
 
 /// The key of an import.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -363,7 +234,14 @@ impl UnitBuilder {
     /// looked up through [lookup_string][Self::lookup_string].
     ///
     /// Only uses up space if the static string is unique.
-    pub(crate) fn new_static_string(&self, current: &str) -> Result<usize, UnitBuilderError> {
+    pub(crate) fn new_static_string<S>(
+        &self,
+        spanned: S,
+        current: &str,
+    ) -> Result<usize, UnitBuilderError>
+    where
+        S: Copy + Spanned,
+    {
         let mut inner = self.inner.borrow_mut();
 
         let current = StaticString::new(current);
@@ -371,18 +249,24 @@ impl UnitBuilder {
 
         if let Some(existing_slot) = inner.static_string_rev.get(&hash).copied() {
             let existing = inner.static_strings.get(existing_slot).ok_or_else(|| {
-                UnitBuilderError::StaticStringMissing {
-                    hash,
-                    slot: existing_slot,
-                }
+                UnitBuilderError::new(
+                    spanned,
+                    UnitBuilderErrorKind::StaticStringMissing {
+                        hash,
+                        slot: existing_slot,
+                    },
+                )
             })?;
 
             if ***existing != *current {
-                return Err(UnitBuilderError::StaticStringHashConflict {
-                    hash,
-                    current: (*current).clone(),
-                    existing: (***existing).clone(),
-                });
+                return Err(UnitBuilderError::new(
+                    spanned,
+                    UnitBuilderErrorKind::StaticStringHashConflict {
+                        hash,
+                        current: (*current).clone(),
+                        existing: (***existing).clone(),
+                    },
+                ));
             }
 
             return Ok(existing_slot);
@@ -398,25 +282,38 @@ impl UnitBuilder {
     /// later be looked up through [lookup_bytes][Self::lookup_bytes].
     ///
     /// Only uses up space if the static byte string is unique.
-    pub(crate) fn new_static_bytes(&self, current: &[u8]) -> Result<usize, UnitBuilderError> {
+    pub(crate) fn new_static_bytes<S>(
+        &self,
+        spanned: S,
+        current: &[u8],
+    ) -> Result<usize, UnitBuilderError>
+    where
+        S: Copy + Spanned,
+    {
         let mut inner = self.inner.borrow_mut();
 
         let hash = Hash::static_bytes(&current);
 
         if let Some(existing_slot) = inner.static_bytes_rev.get(&hash).copied() {
             let existing = inner.static_bytes.get(existing_slot).ok_or_else(|| {
-                UnitBuilderError::StaticBytesMissing {
-                    hash,
-                    slot: existing_slot,
-                }
+                UnitBuilderError::new(
+                    spanned,
+                    UnitBuilderErrorKind::StaticBytesMissing {
+                        hash,
+                        slot: existing_slot,
+                    },
+                )
             })?;
 
             if &**existing != current {
-                return Err(UnitBuilderError::StaticBytesHashConflict {
-                    hash,
-                    current: current.to_owned(),
-                    existing: existing.clone(),
-                });
+                return Err(UnitBuilderError::new(
+                    spanned,
+                    UnitBuilderErrorKind::StaticBytesHashConflict {
+                        hash,
+                        current: current.to_owned(),
+                        existing: existing.clone(),
+                    },
+                ));
             }
 
             return Ok(existing_slot);
@@ -430,8 +327,13 @@ impl UnitBuilder {
 
     /// Insert a new collection of static object keys, or return one already
     /// existing.
-    pub(crate) fn new_static_object_keys<I>(&self, current: I) -> Result<usize, UnitBuilderError>
+    pub(crate) fn new_static_object_keys<S, I>(
+        &self,
+        spanned: S,
+        current: I,
+    ) -> Result<usize, UnitBuilderError>
     where
+        S: Copy + Spanned,
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
@@ -446,18 +348,24 @@ impl UnitBuilder {
 
         if let Some(existing_slot) = inner.static_object_keys_rev.get(&hash).copied() {
             let existing = inner.static_object_keys.get(existing_slot).ok_or_else(|| {
-                UnitBuilderError::StaticObjectKeysMissing {
-                    hash,
-                    slot: existing_slot,
-                }
+                UnitBuilderError::new(
+                    spanned,
+                    UnitBuilderErrorKind::StaticObjectKeysMissing {
+                        hash,
+                        slot: existing_slot,
+                    },
+                )
             })?;
 
             if *existing != current {
-                return Err(UnitBuilderError::StaticObjectKeysHashConflict {
-                    hash,
-                    current,
-                    existing: existing.clone(),
-                });
+                return Err(UnitBuilderError::new(
+                    spanned,
+                    UnitBuilderErrorKind::StaticObjectKeysHashConflict {
+                        hash,
+                        current,
+                        existing: existing.clone(),
+                    },
+                ));
             }
 
             return Ok(existing_slot);
@@ -538,7 +446,7 @@ impl UnitBuilder {
     }
 
     /// Declare a new struct.
-    pub(crate) fn insert_meta(&self, meta: CompileMeta) -> Result<(), UnitBuilderError> {
+    pub(crate) fn insert_meta(&self, meta: CompileMeta) -> Result<(), InsertMetaError> {
         let mut inner = self.inner.borrow_mut();
 
         let item = match &meta.kind {
@@ -559,11 +467,11 @@ impl UnitBuilder {
                 });
 
                 if inner.rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(UnitBuilderError::TypeRttiConflict { hash: tuple.hash });
+                    return Err(InsertMetaError::TypeRttiConflict { hash: tuple.hash });
                 }
 
                 if inner.functions.insert(tuple.hash, info).is_some() {
-                    return Err(UnitBuilderError::FunctionConflict {
+                    return Err(InsertMetaError::FunctionConflict {
                         existing: signature,
                     });
                 }
@@ -574,7 +482,7 @@ impl UnitBuilder {
                 };
 
                 if inner.types.insert(tuple.hash, info).is_some() {
-                    return Err(UnitBuilderError::TypeConflict {
+                    return Err(InsertMetaError::TypeConflict {
                         existing: tuple.item.clone(),
                     });
                 }
@@ -598,7 +506,7 @@ impl UnitBuilder {
                 });
 
                 if inner.variant_rtti.insert(tuple.hash, rtti).is_some() {
-                    return Err(UnitBuilderError::VariantRttiConflict { hash: tuple.hash });
+                    return Err(InsertMetaError::VariantRttiConflict { hash: tuple.hash });
                 }
 
                 let info = UnitFn::TupleVariant {
@@ -612,7 +520,7 @@ impl UnitBuilder {
                 };
 
                 if inner.functions.insert(tuple.hash, info).is_some() {
-                    return Err(UnitBuilderError::FunctionConflict {
+                    return Err(InsertMetaError::FunctionConflict {
                         existing: signature,
                     });
                 }
@@ -623,7 +531,7 @@ impl UnitBuilder {
                 };
 
                 if inner.types.insert(tuple.hash, info).is_some() {
-                    return Err(UnitBuilderError::TypeConflict {
+                    return Err(InsertMetaError::TypeConflict {
                         existing: tuple.item.clone(),
                     });
                 }
@@ -644,7 +552,7 @@ impl UnitBuilder {
                 });
 
                 if inner.rtti.insert(hash, rtti).is_some() {
-                    return Err(UnitBuilderError::TypeRttiConflict { hash });
+                    return Err(InsertMetaError::TypeRttiConflict { hash });
                 }
 
                 let info = UnitTypeInfo {
@@ -653,7 +561,7 @@ impl UnitBuilder {
                 };
 
                 if inner.types.insert(hash, info).is_some() {
-                    return Err(UnitBuilderError::TypeConflict {
+                    return Err(InsertMetaError::TypeConflict {
                         existing: object.item.clone(),
                     });
                 }
@@ -673,7 +581,7 @@ impl UnitBuilder {
                 });
 
                 if inner.variant_rtti.insert(hash, rtti).is_some() {
-                    return Err(UnitBuilderError::VariantRttiConflict { hash });
+                    return Err(InsertMetaError::VariantRttiConflict { hash });
                 }
 
                 let info = UnitTypeInfo {
@@ -682,7 +590,7 @@ impl UnitBuilder {
                 };
 
                 if inner.types.insert(hash, info).is_some() {
-                    return Err(UnitBuilderError::TypeConflict {
+                    return Err(InsertMetaError::TypeConflict {
                         existing: object.item.clone(),
                     });
                 }
@@ -698,7 +606,7 @@ impl UnitBuilder {
                 };
 
                 if inner.types.insert(hash, info).is_some() {
-                    return Err(UnitBuilderError::TypeConflict {
+                    return Err(InsertMetaError::TypeConflict {
                         existing: item.clone(),
                     });
                 }
@@ -713,7 +621,7 @@ impl UnitBuilder {
         };
 
         if let Some(existing) = inner.meta.insert(item, meta.clone()) {
-            return Err(UnitBuilderError::MetaConflict {
+            return Err(InsertMetaError::MetaConflict {
                 current: meta,
                 existing,
             });
@@ -723,21 +631,28 @@ impl UnitBuilder {
     }
 
     /// Construct a new empty assembly associated with the current unit.
-    pub(crate) fn new_assembly(&self, source_id: usize) -> Assembly {
+    pub(crate) fn new_assembly<S>(&self, spanned: S, source_id: usize) -> Assembly
+    where
+        S: Spanned,
+    {
         let label_count = self.inner.borrow().label_count;
-        Assembly::new(source_id, label_count)
+        Assembly::new(source_id, spanned, label_count)
     }
 
     /// Declare a new function at the current instruction pointer.
-    pub(crate) fn new_function(
+    pub(crate) fn new_function<S>(
         &self,
+        spanned: S,
         source_id: usize,
         path: Item,
         args: usize,
         assembly: Assembly,
         call: Call,
         debug_args: Vec<String>,
-    ) -> Result<(), UnitBuilderError> {
+    ) -> Result<(), UnitBuilderError>
+    where
+        S: Spanned,
+    {
         let mut inner = self.inner.borrow_mut();
 
         let offset = inner.instructions.len();
@@ -748,9 +663,12 @@ impl UnitBuilder {
         let signature = DebugSignature::new(path, debug_args);
 
         if inner.functions.insert(hash, info).is_some() {
-            return Err(UnitBuilderError::FunctionConflict {
-                existing: signature,
-            });
+            return Err(UnitBuilderError::new(
+                spanned,
+                UnitBuilderErrorKind::FunctionConflict {
+                    existing: signature,
+                },
+            ));
         }
 
         inner.debug_info_mut().functions.insert(hash, signature);
@@ -759,8 +677,9 @@ impl UnitBuilder {
     }
 
     /// Declare a new instance function at the current instruction pointer.
-    pub(crate) fn new_instance_function(
+    pub(crate) fn new_instance_function<S>(
         &self,
+        spanned: S,
         source_id: usize,
         path: Item,
         type_of: Type,
@@ -769,7 +688,10 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Vec<String>,
-    ) -> Result<(), UnitBuilderError> {
+    ) -> Result<(), UnitBuilderError>
+    where
+        S: Spanned,
+    {
         log::trace!("instance fn: {}", path);
 
         let mut inner = self.inner.borrow_mut();
@@ -782,15 +704,21 @@ impl UnitBuilder {
         let signature = DebugSignature::new(path, debug_args);
 
         if inner.functions.insert(instance_fn, info).is_some() {
-            return Err(UnitBuilderError::FunctionConflict {
-                existing: signature,
-            });
+            return Err(UnitBuilderError::new(
+                spanned,
+                UnitBuilderErrorKind::FunctionConflict {
+                    existing: signature,
+                },
+            ));
         }
 
         if inner.functions.insert(hash, info).is_some() {
-            return Err(UnitBuilderError::FunctionConflict {
-                existing: signature,
-            });
+            return Err(UnitBuilderError::new(
+                spanned,
+                UnitBuilderErrorKind::FunctionConflict {
+                    existing: signature,
+                },
+            ));
         }
 
         inner
@@ -925,38 +853,38 @@ impl Inner {
             match inst {
                 AssemblyInst::Jump { label } => {
                     comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::Jump { offset });
                 }
                 AssemblyInst::JumpIf { label } => {
                     comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIf { offset });
                 }
                 AssemblyInst::JumpIfNot { label } => {
                     comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIfNot { offset });
                 }
                 AssemblyInst::JumpIfOrPop { label } => {
                     comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIfOrPop { offset });
                 }
                 AssemblyInst::JumpIfNotOrPop { label } => {
                     comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions.push(Inst::JumpIfNotOrPop { offset });
                 }
                 AssemblyInst::JumpIfBranch { branch, label } => {
                     comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions
                         .push(Inst::JumpIfBranch { branch, offset });
                 }
                 AssemblyInst::PopAndJumpIfNot { count, label } => {
                     comment = Some(format!("label:{}", label));
-                    let offset = translate_offset(pos, label, &assembly.labels)?;
+                    let offset = translate_offset(span, pos, label, &assembly.labels)?;
                     self.instructions
                         .push(Inst::PopAndJumpIfNot { count, offset });
                 }
@@ -988,23 +916,173 @@ impl Inner {
         return Ok(());
 
         fn translate_offset(
+            span: Span,
             base: usize,
             label: Label,
             labels: &HashMap<Label, usize>,
         ) -> Result<isize, UnitBuilderError> {
             use std::convert::TryFrom as _;
 
-            let offset = labels
-                .get(&label)
-                .copied()
-                .ok_or_else(|| UnitBuilderError::MissingLabel { label })?;
+            let offset = labels.get(&label).copied().ok_or_else(|| {
+                UnitBuilderError::new(span, UnitBuilderErrorKind::MissingLabel { label })
+            })?;
 
-            let base = isize::try_from(base).map_err(|_| UnitBuilderError::BaseOverflow)?;
-            let offset = isize::try_from(offset).map_err(|_| UnitBuilderError::OffsetOverflow)?;
+            let base = isize::try_from(base)
+                .map_err(|_| UnitBuilderError::new(span, UnitBuilderErrorKind::BaseOverflow))?;
+            let offset = isize::try_from(offset)
+                .map_err(|_| UnitBuilderError::new(span, UnitBuilderErrorKind::OffsetOverflow))?;
 
             let (base, _) = base.overflowing_add(1);
             let (offset, _) = offset.overflowing_sub(base);
             Ok(offset)
         }
     }
+}
+
+error! {
+    /// Error when building unit.
+    #[derive(Debug)]
+    pub struct UnitBuilderError {
+        kind: UnitBuilderErrorKind,
+    }
+}
+
+/// Errors raised when building a new unit.
+#[derive(Debug, Error)]
+pub enum UnitBuilderErrorKind {
+    /// Trying to register a conflicting function.
+    #[error("conflicting function signature already exists `{existing}`")]
+    FunctionConflict {
+        /// The signature of an already existing function.
+        existing: DebugSignature,
+    },
+    /// Tried to register a conflicting constant.
+    #[error("conflicting constant registered for `{item}` on hash `{hash}`")]
+    ConstantConflict {
+        /// The item that was conflicting.
+        item: Item,
+        /// The conflicting hash.
+        hash: Hash,
+    },
+    /// Tried to add an unsupported meta item to a unit.
+    #[error("unsupported meta type for item `{existing}`")]
+    UnsupportedMeta {
+        /// The item used.
+        existing: Item,
+    },
+    /// A static string was missing for the given hash and slot.
+    #[error("missing static string for hash `{hash}` and slot `{slot}`")]
+    StaticStringMissing {
+        /// The hash of the string.
+        hash: Hash,
+        /// The slot of the string.
+        slot: usize,
+    },
+    /// A static byte string was missing for the given hash and slot.
+    #[error("missing static byte string for hash `{hash}` and slot `{slot}`")]
+    StaticBytesMissing {
+        /// The hash of the byte string.
+        hash: Hash,
+        /// The slot of the byte string.
+        slot: usize,
+    },
+    /// A static string was missing for the given hash and slot.
+    #[error(
+        "conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`"
+    )]
+    StaticStringHashConflict {
+        /// The hash of the string.
+        hash: Hash,
+        /// The static string that was inserted.
+        current: String,
+        /// The existing static string that conflicted.
+        existing: String,
+    },
+    /// A static byte string was missing for the given hash and slot.
+    #[error(
+        "conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`"
+    )]
+    StaticBytesHashConflict {
+        /// The hash of the byte string.
+        hash: Hash,
+        /// The static byte string that was inserted.
+        current: Vec<u8>,
+        /// The existing static byte string that conflicted.
+        existing: Vec<u8>,
+    },
+    /// A static object keys was missing for the given hash and slot.
+    #[error("missing static object keys for hash `{hash}` and slot `{slot}`")]
+    StaticObjectKeysMissing {
+        /// The hash of the object keys.
+        hash: Hash,
+        /// The slot of the object keys.
+        slot: usize,
+    },
+    /// A static object keys was missing for the given hash and slot.
+    #[error(
+        "conflicting static object keys for hash `{hash}` between `{existing:?}` and `{current:?}`"
+    )]
+    StaticObjectKeysHashConflict {
+        /// The hash of the object keys.
+        hash: Hash,
+        /// The static object keys that was inserted.
+        current: Box<[String]>,
+        /// The existing static object keys that conflicted.
+        existing: Box<[String]>,
+    },
+    /// Tried to add a duplicate label.
+    #[error("duplicate label `{label}`")]
+    DuplicateLabel {
+        /// The duplicate label.
+        label: Label,
+    },
+    /// The specified label is missing.
+    #[error("missing label `{label}`")]
+    MissingLabel {
+        /// The missing label.
+        label: Label,
+    },
+    /// Overflow error.
+    #[error("base offset overflow")]
+    BaseOverflow,
+    /// Overflow error.
+    #[error("offset overflow")]
+    OffsetOverflow,
+}
+
+/// Errors raised when building a new unit.
+#[derive(Debug, Error)]
+pub enum InsertMetaError {
+    /// Trying to register a conflicting function.
+    #[error("conflicting function signature already exists `{existing}`")]
+    FunctionConflict {
+        /// The signature of an already existing function.
+        existing: DebugSignature,
+    },
+    /// Trying to insert a conflicting variant.
+    #[error("tried to insert rtti for conflicting variant with hash `{hash}`")]
+    VariantRttiConflict {
+        /// The hash of the variant.
+        hash: Hash,
+    },
+    /// Trying to insert a conflicting type.
+    #[error("tried to insert rtti for conflicting type with hash `{hash}`")]
+    TypeRttiConflict {
+        /// The hash of the type.
+        hash: Hash,
+    },
+    /// Tried to add an use that conflicts with an existing one.
+    #[error("conflicting type already exists `{existing}`")]
+    TypeConflict {
+        /// The path to the existing type.
+        existing: Item,
+    },
+    /// Tried to add an item that already exists.
+    #[error("trying to insert `{current}` but conflicting meta `{existing}` already exists")]
+    MetaConflict {
+        /// The meta we tried to insert.
+        current: CompileMeta,
+        /// The existing item.
+        existing: CompileMeta,
+    },
 }

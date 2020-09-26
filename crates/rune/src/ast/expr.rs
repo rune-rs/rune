@@ -341,10 +341,7 @@ impl Expr {
                             )?)
                         }
                         _ => {
-                            return Err(ParseError::new(
-                                token,
-                                ParseErrorKind::ExpectedLoop { actual: token.kind },
-                            ));
+                            return Err(ParseError::expected(token, "loop"));
                         }
                     });
                 }
@@ -397,10 +394,7 @@ impl Expr {
                     take(&mut attributes),
                 )?),
                 _ => {
-                    return Err(ParseError::new(
-                        token,
-                        ParseErrorKind::ExpectedExpr { actual: token.kind },
-                    ));
+                    return Err(ParseError::expected(token, "expression"));
                 }
             }
         };

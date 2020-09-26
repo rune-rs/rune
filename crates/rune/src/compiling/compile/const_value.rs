@@ -23,11 +23,11 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
                 self.asm.push(Inst::bool(*b), span);
             }
             ConstValue::String(s) => {
-                let slot = self.unit.new_static_string(&s)?;
+                let slot = self.unit.new_static_string(span, &s)?;
                 self.asm.push(Inst::String { slot }, span);
             }
             ConstValue::Bytes(b) => {
-                let slot = self.unit.new_static_bytes(&*b)?;
+                let slot = self.unit.new_static_bytes(span, &*b)?;
                 self.asm.push(Inst::Bytes { slot }, span);
             }
             ConstValue::Vec(vec) => {
@@ -54,7 +54,7 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
 
                 let slot = self
                     .unit
-                    .new_static_object_keys(entries.iter().map(|e| e.0))?;
+                    .new_static_object_keys(span, entries.iter().map(|e| e.0))?;
 
                 self.asm.push(Inst::Object { slot }, span);
             }

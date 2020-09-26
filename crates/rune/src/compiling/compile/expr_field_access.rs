@@ -49,7 +49,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
                 }
                 ast::ExprField::Ident(ident) => {
                     let field = ident.resolve(&self.storage, &*self.source)?;
-                    let slot = self.unit.new_static_string(field.as_ref())?;
+                    let slot = self.unit.new_static_string(span, field.as_ref())?;
 
                     self.asm.push(Inst::ObjectIndexGet { slot }, span);
 

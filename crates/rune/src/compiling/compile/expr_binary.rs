@@ -174,8 +174,8 @@ fn compile_assign_binop(
                     ast::ExprField::Ident(index) => {
                         let span = index.span();
 
-                        let index = index.resolve(this.storage, &*this.source)?;
-                        let index = this.unit.new_static_string(index.as_ref())?;
+                        let slot = index.resolve(this.storage, &*this.source)?;
+                        let slot = this.unit.new_static_string(index, slot.as_ref())?;
 
                         this.compile((rhs, Needs::Value))?;
                         this.scopes.decl_anon(rhs.span())?;
@@ -183,7 +183,7 @@ fn compile_assign_binop(
                         this.compile((&*field_access.expr, Needs::Value))?;
                         this.scopes.decl_anon(span)?;
 
-                        this.asm.push(Inst::String { slot: index }, span);
+                        this.asm.push(Inst::String { slot }, span);
                         this.scopes.decl_anon(span)?;
 
                         this.asm.push(Inst::IndexSet, span);
@@ -244,10 +244,10 @@ fn compile_assign_binop(
                 // field assignment
                 match &field_access.expr_field {
                     ast::ExprField::Ident(index) => {
-                        let index = index.resolve(this.storage, &*this.source)?;
-                        let index = this.unit.new_static_string(index.as_ref())?;
+                        let n = index.resolve(this.storage, &*this.source)?;
+                        let n = this.unit.new_static_string(index, n.as_ref())?;
 
-                        Some(InstTarget::Field(index))
+                        Some(InstTarget::Field(n))
                     }
                     ast::ExprField::LitNumber(field) => {
                         let span = field.span();

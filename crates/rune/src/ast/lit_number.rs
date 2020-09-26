@@ -28,15 +28,10 @@ impl Parse for LitNumber {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let token = parser.token_next()?;
 
-        Ok(match token.kind {
-            ast::Kind::LitNumber(source) => LitNumber { source, token },
-            _ => {
-                return Err(ParseError::new(
-                    token,
-                    ParseErrorKind::ExpectedNumber { actual: token.kind },
-                ));
-            }
-        })
+        match token.kind {
+            ast::Kind::LitNumber(source) => Ok(LitNumber { source, token }),
+            _ => Err(ParseError::expected(token, "number")),
+        }
     }
 }
 

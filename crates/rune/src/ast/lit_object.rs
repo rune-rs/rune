@@ -1,5 +1,5 @@
 use crate::{ast, Peek};
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::{Parse, ParseError, Parser, Resolve, Spanned, Storage, ToTokens};
 use runestick::Source;
 use std::borrow::Cow;
 
@@ -97,10 +97,7 @@ impl Parse for LitObjectKey {
             ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
             ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
             _ => {
-                return Err(ParseError::new(
-                    token,
-                    ParseErrorKind::ExpectedLitObjectKey { actual: token.kind },
-                ));
+                return Err(ParseError::expected(token, "literal object key"));
             }
         })
     }

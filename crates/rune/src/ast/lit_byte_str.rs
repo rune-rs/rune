@@ -85,10 +85,7 @@ impl Parse for LitByteStr {
 
         match token.kind {
             ast::Kind::LitByteStr(source) => Ok(Self { token, source }),
-            _ => Err(ParseError::new(
-                token,
-                ParseErrorKind::ExpectedString { actual: token.kind },
-            )),
+            _ => Err(ParseError::expected(token, "literal byte string")),
         }
     }
 }
