@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An enum declaration.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemEnum {
     /// The attributes for the enum block
     #[rune(iter)]
@@ -70,12 +70,12 @@ impl ItemEnum {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), Empty() }").unwrap();
-/// parse_all::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }").unwrap();
-/// parse_all::<ast::ItemEnum>("#[repr(Rune)] enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }").unwrap();
-/// parse_all::<ast::ItemEnum>("pub enum Color { Blue, Red, Green }").unwrap();
+/// testing::roundtrip::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), Empty() }");
+/// testing::roundtrip::<ast::ItemEnum>("enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }");
+/// testing::roundtrip::<ast::ItemEnum>("#[repr(Rune)] enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }");
+/// testing::roundtrip::<ast::ItemEnum>("pub enum Color { Blue, Red, Green }");
 /// ```
 impl Parse for ItemEnum {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -86,7 +86,7 @@ impl Parse for ItemEnum {
 }
 
 /// An enum variant.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemVariant {
     /// The attributes associated with the variant.
     #[rune(iter)]
@@ -102,7 +102,7 @@ pub struct ItemVariant {
 }
 
 /// An item body declaration.
-#[derive(Debug, Clone, ToTokens, OptionSpanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
 pub enum ItemVariantBody {
     /// An empty enum body.
     EmptyBody,
@@ -128,12 +128,12 @@ impl ItemVariantBody {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ItemVariantBody>("( a, b, c )").unwrap();
-/// parse_all::<ast::ItemVariantBody>("{ a, b, c }").unwrap();
-/// parse_all::<ast::ItemVariantBody>("( #[serde(default)] a, b, c )").unwrap();
-/// parse_all::<ast::ItemVariantBody>("{ a, #[debug(skip)] b, c }").unwrap();
+/// testing::roundtrip::<ast::ItemVariantBody>("( a, b, c )");
+/// testing::roundtrip::<ast::ItemVariantBody>("{ a, b, c }");
+/// testing::roundtrip::<ast::ItemVariantBody>("( #[serde(default)] a, b, c )");
+/// testing::roundtrip::<ast::ItemVariantBody>("{ a, #[debug(skip)] b, c }");
 /// ```
 impl Parse for ItemVariantBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

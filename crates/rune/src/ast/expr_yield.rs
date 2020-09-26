@@ -6,13 +6,13 @@ use crate::{Parse, Spanned, ToTokens};
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprYield>("yield").unwrap();
-/// parse_all::<ast::ExprYield>("yield 42").unwrap();
-/// parse_all::<ast::ExprYield>("#[attr] yield 42").unwrap();
+/// testing::roundtrip::<ast::ExprYield>("yield");
+/// testing::roundtrip::<ast::ExprYield>("yield 42");
+/// testing::roundtrip::<ast::ExprYield>("#[attr] yield 42");
 /// ```
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprYield {
     /// The attributes of the `yield`
     #[rune(iter, attributes)]

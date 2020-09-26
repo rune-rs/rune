@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// A pattern match.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Pat {
     /// An ignored binding `_`.
     PatIgnore(ast::Underscore),
@@ -55,15 +55,15 @@ impl Pat {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::Pat>("()").unwrap();
-/// parse_all::<ast::Pat>("1").unwrap();
-/// parse_all::<ast::Pat>("'a'").unwrap();
-/// parse_all::<ast::Pat>("\"hello world\"").unwrap();
-/// parse_all::<ast::Pat>("var").unwrap();
-/// parse_all::<ast::Pat>("_").unwrap();
-/// parse_all::<ast::Pat>("Foo(n)").unwrap();
+/// testing::roundtrip::<ast::Pat>("()");
+/// testing::roundtrip::<ast::Pat>("1");
+/// testing::roundtrip::<ast::Pat>("'a'");
+/// testing::roundtrip::<ast::Pat>("\"hello world\"");
+/// testing::roundtrip::<ast::Pat>("var");
+/// testing::roundtrip::<ast::Pat>("_");
+/// testing::roundtrip::<ast::Pat>("Foo(n)");
 /// ```
 impl Parse for Pat {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

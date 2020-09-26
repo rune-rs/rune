@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
 
 /// A path, where each element is separated by a `::`.
-#[derive(Debug, Clone, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct Path {
     /// The optional leading colon `::`
     #[rune(iter)]
@@ -53,7 +53,7 @@ impl Peek for Path {
 
 /// Part of a `::` separated path.
 ///
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum PathSegment {
     /// A path segment that is an identifier.
     Ident(ast::Ident),

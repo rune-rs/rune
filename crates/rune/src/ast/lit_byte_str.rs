@@ -4,7 +4,7 @@ use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitByteStr {
     /// The token corresponding to the literal.
     token: ast::Token,
@@ -74,10 +74,10 @@ impl<'a> Resolve<'a> for LitByteStr {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// let s = parse_all::<ast::LitByteStr>("b\"hello world\"").unwrap();
-/// let s = parse_all::<ast::LitByteStr>("b\"hello\\nworld\"").unwrap();
+/// testing::roundtrip::<ast::LitByteStr>("b\"hello world\"");
+/// testing::roundtrip::<ast::LitByteStr>("b\"hello\\nworld\"");
 /// ```
 impl Parse for LitByteStr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

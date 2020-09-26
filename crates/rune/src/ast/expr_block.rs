@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, Spanned, ToTokens};
 
 /// A block of expressions.
-#[derive(Debug, Clone, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct ExprBlock {
     /// The attributes for the block.
     #[rune(iter, attributes)]

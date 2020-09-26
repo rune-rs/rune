@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A literal value
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Lit {
     /// A unit literal
     Unit(ast::LitUnit),
@@ -85,20 +85,20 @@ impl Lit {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::Lit>("true").unwrap();
-/// parse_all::<ast::Lit>("'🔥'").unwrap();
-/// parse_all::<ast::Lit>("b'4'").unwrap();
-/// parse_all::<ast::Lit>("b\"bytes\"").unwrap();
-/// parse_all::<ast::Lit>("1.2").unwrap();
-/// parse_all::<ast::Lit>("#{\"foo\": b\"bar\"}").unwrap();
-/// parse_all::<ast::Lit>("Disco {\"never_died\": true }").unwrap();
-/// parse_all::<ast::Lit>("\"mary had a little lamb\"").unwrap();
-/// parse_all::<ast::Lit>("`{taco_tuesday}`").unwrap();
-/// parse_all::<ast::Lit>("(false, 1, 'n')").unwrap();
-/// parse_all::<ast::Lit>("()").unwrap();
-/// parse_all::<ast::Lit>("[false, 1, 'b']").unwrap();
+/// testing::roundtrip::<ast::Lit>("true");
+/// testing::roundtrip::<ast::Lit>("'🔥'");
+/// testing::roundtrip::<ast::Lit>("b'4'");
+/// testing::roundtrip::<ast::Lit>("b\"bytes\"");
+/// testing::roundtrip::<ast::Lit>("1.2");
+/// testing::roundtrip::<ast::Lit>("#{\"foo\": b\"bar\"}");
+/// testing::roundtrip::<ast::Lit>("Disco {\"never_died\": true }");
+/// testing::roundtrip::<ast::Lit>("\"mary had a little lamb\"");
+/// testing::roundtrip::<ast::Lit>("`{taco_tuesday}`");
+/// testing::roundtrip::<ast::Lit>("(false, 1, 'n')");
+/// testing::roundtrip::<ast::Lit>("()");
+/// testing::roundtrip::<ast::Lit>("[false, 1, 'b']");
 /// ```
 impl Parse for Lit {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

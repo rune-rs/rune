@@ -4,7 +4,7 @@ use runestick::Source;
 use std::borrow::Cow;
 
 /// A literal object identifier.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum LitObjectIdent {
     /// An anonymous object.
     Anonymous(ast::Hash),
@@ -24,7 +24,7 @@ impl Parse for LitObjectIdent {
 }
 
 /// A literal object field.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitObjectFieldAssign {
     /// The key of the field.
     pub key: LitObjectKey,
@@ -48,11 +48,11 @@ impl LitObjectFieldAssign {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitObjectFieldAssign>("\"foo\": 42").unwrap();
-/// parse_all::<ast::LitObjectFieldAssign>("\"foo\": 42").unwrap();
-/// parse_all::<ast::LitObjectFieldAssign>("\"foo\": 42").unwrap();
+/// testing::roundtrip::<ast::LitObjectFieldAssign>("\"foo\": 42");
+/// testing::roundtrip::<ast::LitObjectFieldAssign>("\"foo\": 42");
+/// testing::roundtrip::<ast::LitObjectFieldAssign>("\"foo\": 42");
 /// ```
 impl Parse for LitObjectFieldAssign {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
@@ -71,7 +71,7 @@ impl Parse for LitObjectFieldAssign {
 }
 
 /// Possible literal object keys.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum LitObjectKey {
     /// A literal string (with escapes).
     LitStr(ast::LitStr),
@@ -84,10 +84,10 @@ pub enum LitObjectKey {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitObjectKey>("foo").unwrap();
-/// parse_all::<ast::LitObjectKey>("\"foo \\n bar\"").unwrap();
+/// testing::roundtrip::<ast::LitObjectKey>("foo");
+/// testing::roundtrip::<ast::LitObjectKey>("\"foo \\n bar\"");
 /// ```
 impl Parse for LitObjectKey {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
@@ -115,7 +115,7 @@ impl<'a> Resolve<'a> for LitObjectKey {
 }
 
 /// A number literal.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitObject {
     /// An object identifier.
     pub ident: LitObjectIdent,
@@ -181,11 +181,11 @@ impl LitObject {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitObject>("Foo {\"foo\": 42}").unwrap();
-/// parse_all::<ast::LitObject>("#{\"foo\": 42}").unwrap();
-/// parse_all::<ast::LitObject>("#{\"foo\": 42,}").unwrap();
+/// testing::roundtrip::<ast::LitObject>("Foo {\"foo\": 42}");
+/// testing::roundtrip::<ast::LitObject>("#{\"foo\": 42}");
+/// testing::roundtrip::<ast::LitObject>("#{\"foo\": 42,}");
 /// ```
 impl Parse for LitObject {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

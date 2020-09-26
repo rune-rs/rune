@@ -3,7 +3,7 @@ use crate::{Parse, Spanned, ToTokens};
 
 /// A visibility level restricted to some path: pub(self)
 /// or pub(super) or pub(crate) or pub(in some::module).
-#[derive(Debug, Clone, ToTokens, Spanned, Parse)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Parse)]
 pub struct VisRestricted {
     /// The `pub` keyword.
     pub pub_: ast::Pub,

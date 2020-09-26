@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, ToTokens};
 
 /// A parsed file.
-#[derive(Debug, Clone, ToTokens)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
 pub struct File {
     /// Top level "Outer" `#![...]` attributes for the file
     pub attributes: Vec<ast::Attribute>,
@@ -15,9 +15,9 @@ pub struct File {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::File>(r#"
+/// testing::roundtrip::<ast::File>(r#"
 /// use foo;
 ///
 /// fn foo() {
@@ -29,15 +29,15 @@ pub struct File {
 /// fn bar(a, b) {
 ///     a
 /// }
-/// "#).unwrap();
+/// "#);
 /// ```
 ///
 /// # Realistic Example
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::File>(r#"
+/// testing::roundtrip::<ast::File>(r#"
 /// use http;
 ///
 /// fn main() {
@@ -45,15 +45,15 @@ pub struct File {
 ///     let response = client.get("https://google.com");
 ///     let text = response.text();
 /// }
-/// "#).unwrap();
+/// "#);
 ///```
 ///
 /// # File Attributes Example
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::File>(r#"
+/// testing::roundtrip::<ast::File>(r#"
 /// // NB: Attributes are currently rejected by the compiler
 /// #![feature(attributes)]
 ///
@@ -62,7 +62,7 @@ pub struct File {
 ///         println(`{x}`)
 ///     }
 /// }
-/// "#).unwrap();
+/// "#);
 /// ```
 ///
 // TODO: this is a false positive: https://github.com/rust-lang/rust-clippy/issues/5879

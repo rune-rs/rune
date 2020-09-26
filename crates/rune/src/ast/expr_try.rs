@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Spanned, ToTokens};
 
 /// A try expression `<expr>?`.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprTry {
     /// The expression being awaited.
     pub expr: Box<ast::Expr>,

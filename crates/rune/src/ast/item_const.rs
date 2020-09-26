@@ -6,11 +6,11 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ItemConst>("const value = #{};").unwrap();
+/// testing::roundtrip::<ast::ItemConst>("const value = #{};");
 /// ```
-#[derive(Debug, Clone, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct ItemConst {
     /// The *inner* attributes that are applied to the const declaration.
     #[rune(iter)]

@@ -3,7 +3,7 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 use runestick::Span;
 
 /// A closure.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprClosure {
     /// The attributes for the async closure
     #[rune(iter)]
@@ -71,16 +71,16 @@ impl ExprClosure {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprClosure>("async || 42").unwrap();
-/// parse_all::<ast::ExprClosure>("|| 42").unwrap();
-/// parse_all::<ast::ExprClosure>("|| { 42 }").unwrap();
+/// testing::roundtrip::<ast::ExprClosure>("async || 42");
+/// testing::roundtrip::<ast::ExprClosure>("|| 42");
+/// testing::roundtrip::<ast::ExprClosure>("|| { 42 }");
 ///
-/// let expr = parse_all::<ast::ExprClosure>("#[retry(n=3)]  || 43").unwrap();
+/// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)]  || 43");
 /// assert_eq!(expr.attributes.len(), 1);
 ///
-/// let expr = parse_all::<ast::ExprClosure>("#[retry(n=3)] async || 43").unwrap();
+/// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)] async || 43");
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
 impl Parse for ExprClosure {
@@ -90,7 +90,7 @@ impl Parse for ExprClosure {
     }
 }
 
-#[derive(Debug, Clone, ToTokens)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
 pub enum ExprClosureArgs {
     Empty {
         /// The `||` token.

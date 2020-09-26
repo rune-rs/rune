@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A struct declaration.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemStruct {
     /// The attributes for the struct
     #[rune(iter)]
@@ -40,13 +40,13 @@ impl ItemStruct {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ItemStruct>("struct Foo;").unwrap();
-/// parse_all::<ast::ItemStruct>("struct Foo ( a, b, c );").unwrap();
-/// parse_all::<ast::ItemStruct>("struct Foo { a, b, c }").unwrap();
-/// parse_all::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }").unwrap();
-/// parse_all::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c );").unwrap();
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo;");
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo ( a, b, c );");
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo { a, b, c }");
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }");
+/// testing::roundtrip::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c );");
 /// ```
 impl Parse for ItemStruct {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -57,7 +57,7 @@ impl Parse for ItemStruct {
 }
 
 /// A struct declaration.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum ItemStructBody {
     /// An empty struct declaration.
     EmptyBody(ast::SemiColon),
@@ -83,13 +83,13 @@ impl ItemStructBody {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ItemStructBody>(";").unwrap();
-/// parse_all::<ast::ItemStructBody>("( a, b, c );").unwrap();
-/// parse_all::<ast::ItemStructBody>("();").unwrap();
-/// parse_all::<ast::ItemStructBody>("{ a, b, c }").unwrap();
-/// parse_all::<ast::ItemStructBody>("{ #[x] a, #[y] b, #[z] #[w] #[f32] c }").unwrap();
+/// testing::roundtrip::<ast::ItemStructBody>(";");
+/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c );");
+/// testing::roundtrip::<ast::ItemStructBody>("();");
+/// testing::roundtrip::<ast::ItemStructBody>("{ a, b, c }");
+/// testing::roundtrip::<ast::ItemStructBody>("{ #[x] a, #[y] b, #[z] #[w] #[f32] c }");
 /// ```
 impl Parse for ItemStructBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -108,7 +108,7 @@ impl Parse for ItemStructBody {
 }
 
 /// A variant declaration.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct TupleBody {
     /// The opening paren.
     pub open: ast::OpenParen,
@@ -123,11 +123,11 @@ pub struct TupleBody {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::TupleBody>("( a, b, c )").unwrap();
-/// parse_all::<ast::TupleBody>("( #[x] a, b, c )").unwrap();
-/// parse_all::<ast::TupleBody>("( #[x] pub a, b, c )").unwrap();
+/// testing::roundtrip::<ast::TupleBody>("( a, b, c )");
+/// testing::roundtrip::<ast::TupleBody>("( #[x] a, b, c )");
+/// testing::roundtrip::<ast::TupleBody>("( #[x] pub a, b, c )");
 /// ```
 impl Parse for TupleBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -154,7 +154,7 @@ impl Parse for TupleBody {
 }
 
 /// A variant declaration.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct StructBody {
     /// The opening brace.
     pub open: ast::OpenBrace,
@@ -169,9 +169,9 @@ pub struct StructBody {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::StructBody>("{ a, #[attribute] b, c }").unwrap();
+/// testing::roundtrip::<ast::StructBody>("{ a, #[attribute] b, c }");
 /// ```
 impl Parse for StructBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -204,12 +204,12 @@ impl Parse for StructBody {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::Field>("a").unwrap();
-/// parse_all::<ast::Field>("#[x] a").unwrap();
+/// testing::roundtrip::<ast::Field>("a");
+/// testing::roundtrip::<ast::Field>("#[x] a");
 /// ```
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct Field {
     /// Attributes associated with field.
     #[rune(iter, attributes)]

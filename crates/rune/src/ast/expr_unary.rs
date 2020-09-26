@@ -4,7 +4,7 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 use std::fmt;
 
 /// A unary expression.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprUnary {
     /// Token associated with operator.
     pub token: ast::Token,
@@ -20,11 +20,11 @@ pub struct ExprUnary {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprUnary>("!0").unwrap();
-/// parse_all::<ast::ExprUnary>("*foo").unwrap();
-/// parse_all::<ast::ExprUnary>("&foo").unwrap();
+/// testing::roundtrip::<ast::ExprUnary>("!0");
+/// testing::roundtrip::<ast::ExprUnary>("*foo");
+/// testing::roundtrip::<ast::ExprUnary>("&foo");
 /// ```
 impl Parse for ExprUnary {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
@@ -45,7 +45,7 @@ impl Parse for ExprUnary {
 }
 
 /// A unary operation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOp {
     /// Not `!<thing>`.
     Not,

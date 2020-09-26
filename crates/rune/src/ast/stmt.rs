@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Spanned, ToTokens};
 
 /// A statement within a block.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Stmt {
     /// A declaration.
     Item(ast::Item),

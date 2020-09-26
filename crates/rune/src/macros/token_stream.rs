@@ -5,7 +5,7 @@ use std::fmt;
 use std::slice;
 
 /// A token stream.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenStream {
     stream: Vec<Token>,
     end: Span,

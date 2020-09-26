@@ -4,7 +4,7 @@ use runestick::Span;
 use std::fmt;
 
 /// A single token encountered during parsing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Token {
     /// The span of the token.
     pub span: Span,

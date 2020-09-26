@@ -3,7 +3,7 @@ use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens, TokenS
 use runestick::Span;
 
 /// A function call `<expr>!(<args>)`.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct MacroCall {
     /// The expression being called over.
     pub path: ast::Path,

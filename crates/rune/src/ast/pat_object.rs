@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An object pattern.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct PatObject {
     /// The identifier of the object pattern.
     pub ident: ast::LitObjectIdent,
@@ -70,7 +70,7 @@ impl Parse for PatObject {
 }
 
 /// An object item.
-#[derive(Debug, Clone, ToTokens, Spanned, Parse)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Parse)]
 pub struct PatObjectItem {
     /// The key of an object.
     pub key: ast::LitObjectKey,

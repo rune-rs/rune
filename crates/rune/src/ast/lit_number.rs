@@ -3,7 +3,7 @@ use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage
 use runestick::{Source, Span};
 
 /// A number literal.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitNumber {
     /// The token corresponding to the literal.
     token: ast::Token,
@@ -17,12 +17,12 @@ pub struct LitNumber {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitNumber>("42").unwrap();
-/// parse_all::<ast::LitNumber>("42.42").unwrap();
-/// parse_all::<ast::LitNumber>("0.42").unwrap();
-/// parse_all::<ast::LitNumber>("0.42e10").unwrap();
+/// testing::roundtrip::<ast::LitNumber>("42");
+/// testing::roundtrip::<ast::LitNumber>("42.42");
+/// testing::roundtrip::<ast::LitNumber>("0.42");
+/// testing::roundtrip::<ast::LitNumber>("0.42e10");
 /// ```
 impl Parse for LitNumber {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

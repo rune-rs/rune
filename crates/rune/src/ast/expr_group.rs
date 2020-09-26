@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, Spanned, ToTokens};
 
 /// A prioritized expression group `(<expr>)`.
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprGroup {
     /// The open parenthesis.
     pub open: ast::OpenParen,

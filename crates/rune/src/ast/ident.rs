@@ -4,7 +4,7 @@ use runestick::Source;
 use std::borrow::Cow;
 
 /// An identifier, like `foo` or `Hello`.".
-#[derive(Debug, Clone, Copy, ToTokens, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
 pub struct Ident {
     /// The kind of the identifier.
     pub token: ast::Token,

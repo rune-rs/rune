@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// A module declaration.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemMod {
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
     #[rune(iter)]
@@ -40,22 +40,16 @@ impl ItemMod {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast, ParseError};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ItemMod>("mod ruins {}").unwrap();
+/// testing::roundtrip::<ast::ItemMod>("mod ruins {}");
 ///
-/// let item = parse_all::<ast::ItemMod>("#[cfg(test)] mod tests {}").unwrap();
+/// let item = testing::roundtrip::<ast::ItemMod>("#[cfg(test)] mod tests {}");
 /// assert_eq!(item.attributes.len(), 1);
 ///
-/// let item = parse_all::<ast::ItemMod>("mod whiskey_bravo { #![allow(dead_code)] fn x() {} }").unwrap();
+/// let item = testing::roundtrip::<ast::ItemMod>("mod whiskey_bravo { #![allow(dead_code)] fn x() {} }");
 /// assert_eq!(item.attributes.len(), 0);
-///
-/// if let ast::ItemModBody::InlineBody(body) = &item.body {
-///     assert_eq!(body.file.attributes.len(), 1);
-/// } else {
-///     panic!("module body was not the ItemModBody::InlineBody variant");
-/// }
-///
+/// assert!(matches!(item.body, ast::ItemModBody::InlineBody(..)));
 /// ```
 impl Parse for ItemMod {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
@@ -66,7 +60,7 @@ impl Parse for ItemMod {
 }
 
 /// An item body.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum ItemModBody {
     /// An empty body terminated by a semicolon.
     EmptyBody(ast::SemiColon),
@@ -86,7 +80,7 @@ impl Parse for ItemModBody {
 }
 
 /// A module declaration.
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ItemInlineBody {
     /// The open brace.
     pub open: ast::OpenBrace,

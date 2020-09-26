@@ -28,7 +28,7 @@ impl ops::Deref for ExprChain {
 }
 
 /// A rune expression.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, ToTokens, Spanned, PartialEq, Eq)]
 pub enum Expr {
     /// The `self` keyword.
     Self_(ast::Self_),
@@ -584,45 +584,36 @@ impl Expr {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::Expr>("foo[\"foo\"]").unwrap();
-/// parse_all::<ast::Expr>("foo.bar()").unwrap();
-/// parse_all::<ast::Expr>("var()").unwrap();
-/// parse_all::<ast::Expr>("var").unwrap();
-/// parse_all::<ast::Expr>("42").unwrap();
-/// parse_all::<ast::Expr>("1 + 2 / 3 - 4 * 1").unwrap();
-/// parse_all::<ast::Expr>("foo[\"bar\"]").unwrap();
-/// parse_all::<ast::Expr>("let var = 42").unwrap();
-/// parse_all::<ast::Expr>("let var = \"foo bar\"").unwrap();
-/// parse_all::<ast::Expr>("var[\"foo\"] = \"bar\"").unwrap();
-/// parse_all::<ast::Expr>("let var = objects[\"foo\"] + 1").unwrap();
-/// parse_all::<ast::Expr>("var = 42").unwrap();
+/// testing::roundtrip::<ast::Expr>("foo[\"foo\"]");
+/// testing::roundtrip::<ast::Expr>("foo.bar()");
+/// testing::roundtrip::<ast::Expr>("var()");
+/// testing::roundtrip::<ast::Expr>("var");
+/// testing::roundtrip::<ast::Expr>("42");
+/// testing::roundtrip::<ast::Expr>("1 + 2 / 3 - 4 * 1");
+/// testing::roundtrip::<ast::Expr>("foo[\"bar\"]");
+/// testing::roundtrip::<ast::Expr>("let var = 42");
+/// testing::roundtrip::<ast::Expr>("let var = \"foo bar\"");
+/// testing::roundtrip::<ast::Expr>("var[\"foo\"] = \"bar\"");
+/// testing::roundtrip::<ast::Expr>("let var = objects[\"foo\"] + 1");
+/// testing::roundtrip::<ast::Expr>("var = 42");
 ///
-/// let expr = parse_all::<ast::Expr>(r#"
+/// let expr = testing::roundtrip::<ast::Expr>(r#"
 ///     if 1 { } else { if 2 { } else { } }
-/// "#).unwrap();
-///
-/// if let ast::Expr::ExprIf(..) = expr {
-/// } else {
-///     panic!("not an if statement");
-/// }
+/// "#);
+/// assert!(matches!(expr, ast::Expr::ExprIf(..)));
 ///
 /// // Chained function calls.
-/// parse_all::<ast::Expr>("foo.bar.baz()").unwrap();
-/// parse_all::<ast::Expr>("foo[0][1][2]").unwrap();
-/// parse_all::<ast::Expr>("foo.bar()[0].baz()[1]").unwrap();
+/// testing::roundtrip::<ast::Expr>("foo.bar.baz()");
+/// testing::roundtrip::<ast::Expr>("foo[0][1][2]");
+/// testing::roundtrip::<ast::Expr>("foo.bar()[0].baz()[1]");
 ///
-/// parse_all::<ast::Expr>("42 is int::int").unwrap();
-/// parse_all::<ast::Expr>("{ let x = 1; x }").unwrap();
+/// testing::roundtrip::<ast::Expr>("42 is int::int");
+/// testing::roundtrip::<ast::Expr>("{ let x = 1; x }");
 ///
-/// let expr = parse_all::<ast::Expr>("#[cfg(debug_assertions)] { assert_eq(x, 32); }").unwrap();
-/// if let ast::Expr::ExprBlock(block_expr) = expr {
-///     assert_eq!(block_expr.attributes.len(), 1);
-///     assert_eq!(block_expr.block.statements.len(), 1);
-/// } else {
-///     panic!("not a block statement")
-/// }
+/// let expr = testing::roundtrip::<ast::Expr>("#[cfg(debug_assertions)] { assert_eq(x, 32); }");
+/// assert!(matches!(expr, ast::Expr::ExprBlock(b) if b.attributes.len() == 1 && b.block.statements.len() == 1));
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

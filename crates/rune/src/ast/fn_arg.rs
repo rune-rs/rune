@@ -6,13 +6,13 @@ use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::FnArg>("self").unwrap();
-/// parse_all::<ast::FnArg>("_").unwrap();
-/// parse_all::<ast::FnArg>("abc").unwrap();
+/// testing::roundtrip::<ast::FnArg>("self");
+/// testing::roundtrip::<ast::FnArg>("_");
+/// testing::roundtrip::<ast::FnArg>("abc");
 /// ```
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum FnArg {
     /// The `self` parameter.
     Self_(ast::Self_),

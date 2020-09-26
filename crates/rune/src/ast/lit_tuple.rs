@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An expression to construct a literal tuple.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitTuple {
     /// The open bracket.
     pub open: ast::OpenParen,
@@ -67,11 +67,11 @@ impl LitTuple {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitTuple>("(1, \"two\")").unwrap();
-/// parse_all::<ast::LitTuple>("(1, 2,)").unwrap();
-/// parse_all::<ast::LitTuple>("(1, 2, foo())").unwrap();
+/// testing::roundtrip::<ast::LitTuple>("(1, \"two\")");
+/// testing::roundtrip::<ast::LitTuple>("(1, 2,)");
+/// testing::roundtrip::<ast::LitTuple>("(1, 2, foo())");
 /// ```
 impl Parse for LitTuple {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

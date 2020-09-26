@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An if condition.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Condition {
     /// A regular expression.
     Expr(Box<ast::Expr>),
@@ -15,10 +15,10 @@ pub enum Condition {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::Condition>("true").unwrap();
-/// parse_all::<ast::Condition>("let [a, ..] = v").unwrap();
+/// testing::roundtrip::<ast::Condition>("true");
+/// testing::roundtrip::<ast::Condition>("let [a, ..] = v");
 /// ```
 impl Parse for Condition {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

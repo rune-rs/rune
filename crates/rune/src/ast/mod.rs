@@ -163,7 +163,7 @@ macro_rules! decl_tokens {
     ($(($parser:ident, $doc:expr, $($kind:tt)*),)*) => {
         $(
             #[doc = $doc]
-            #[derive(Debug, Clone, Copy)]
+            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub struct $parser {
                 /// Associated token.
                 pub token: Token,

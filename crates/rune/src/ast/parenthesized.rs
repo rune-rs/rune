@@ -3,7 +3,7 @@ use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 use runestick::Span;
 
 /// Something parenthesized and comma separated `(<T,>*)`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Parenthesized<T, S> {
     /// The open parenthesis.
     pub open: ast::OpenParen,
@@ -24,11 +24,11 @@ impl<T, S> Spanned for Parenthesized<T, S> {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, \"two\")").unwrap();
-/// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2,)").unwrap();
-/// parse_all::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2, foo())").unwrap();
+/// testing::roundtrip::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, \"two\")");
+/// testing::roundtrip::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2,)");
+/// testing::roundtrip::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2, foo())");
 /// ```
 impl<T, S> Parse for Parenthesized<T, S>
 where

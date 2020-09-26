@@ -4,13 +4,13 @@ use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 /// A `break` statement: `break [expr]`.
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprBreak>("break").unwrap();
-/// parse_all::<ast::ExprBreak>("break 42").unwrap();
-/// parse_all::<ast::ExprBreak>("#[attr] break 42").unwrap();
+/// testing::roundtrip::<ast::ExprBreak>("break");
+/// testing::roundtrip::<ast::ExprBreak>("break 42");
+/// testing::roundtrip::<ast::ExprBreak>("#[attr] break 42");
 /// ```
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprBreak {
     /// The attributes of the `break` expression
     #[rune(iter, attributes)]
@@ -23,7 +23,7 @@ pub struct ExprBreak {
 }
 
 /// Things that we can break on.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum ExprBreakValue {
     /// Breaking a value out of a loop.
     Expr(Box<ast::Expr>),

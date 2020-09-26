@@ -344,3 +344,28 @@ macro_rules! assert_warnings {
         assert!(it.next().is_none(), "there should be no more warnings");
     }};
 }
+
+/// Function used during parse testing to take the source, parse it as the given
+/// type, tokenize it using [ToTokens][crate::macros::ToTokens], and parse the
+/// token stream.
+///
+/// The results should be identical.
+pub fn roundtrip<T>(source: &str) -> T
+where
+    T: crate::parsing::Parse + crate::macros::ToTokens + PartialEq + Eq + std::fmt::Debug,
+{
+    let mut parser = crate::parsing::Parser::new(source);
+    let ast = parser.parse::<T>().expect("first parse");
+    parser.parse_eof().expect("first parse eof");
+
+    let mut ctx = crate::macros::MacroContext::empty();
+    let mut token_stream = crate::macros::TokenStream::empty();
+
+    ast.to_tokens(&mut ctx, &mut token_stream);
+    let mut parser = crate::parsing::Parser::from_token_stream(&token_stream);
+    let ast2 = parser.parse::<T>().expect("second parse");
+    parser.parse_eof().expect("second parse eof");
+
+    assert_eq!(ast, ast2);
+    ast
+}
