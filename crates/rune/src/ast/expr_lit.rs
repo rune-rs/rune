@@ -10,10 +10,3 @@ pub struct ExprLit {
     /// The literal in the expression.
     pub lit: ast::Lit,
 }
-
-impl ExprLit {
-    /// Test if the literal expression is constant.
-    pub fn is_const(&self) -> bool {
-        self.lit.is_const()
-    }
-}

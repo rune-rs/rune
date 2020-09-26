@@ -16,9 +16,4 @@ impl ExprBlock {
     pub fn produces_nothing(&self) -> bool {
         self.block.produces_nothing()
     }
-
-    /// Test if the block is a constant expression.
-    pub fn is_const(&self) -> bool {
-        self.block.is_const()
-    }
 }

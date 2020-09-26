@@ -8,7 +8,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
 
         let guard = self.scopes.push_child(span)?;
 
-        let args = expr_call.args.items.len();
+        let args = expr_call.args.len();
 
         // NB: either handle a proper function call by resolving it's meta hash,
         // or expand the expression.
@@ -31,7 +31,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
 
                     self.compile((&**expr, Needs::Value))?;
 
-                    for (expr, _) in expr_call.args.items.iter() {
+                    for (expr, _) in &expr_call.args {
                         self.compile((expr, Needs::Value))?;
                         self.scopes.decl_anon(span)?;
                     }
@@ -43,7 +43,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                 expr => {
                     log::trace!("ExprCall(Other) => {:?}", self.source.source(span));
 
-                    for (expr, _) in expr_call.args.items.iter() {
+                    for (expr, _) in &expr_call.args {
                         self.compile((expr, Needs::Value))?;
                         self.scopes.decl_anon(span)?;
                     }
@@ -61,7 +61,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             return Ok(());
         };
 
-        for (expr, _) in &expr_call.args.items {
+        for (expr, _) in &expr_call.args {
             self.compile((expr, Needs::Value))?;
             self.scopes.decl_anon(span)?;
         }
@@ -97,13 +97,13 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
 
         let item = match &meta.kind {
             CompileMetaKind::Tuple { tuple, .. } | CompileMetaKind::TupleVariant { tuple, .. } => {
-                if tuple.args != expr_call.args.items.len() {
+                if tuple.args != expr_call.args.len() {
                     return Err(CompileError::new(
                         span,
                         CompileErrorKind::UnsupportedArgumentCount {
                             meta: meta.clone(),
                             expected: tuple.args,
-                            actual: expr_call.args.items.len(),
+                            actual: expr_call.args.len(),
                         },
                     ));
                 }

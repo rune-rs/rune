@@ -11,15 +11,11 @@ pub struct ItemEnum {
     #[rune(optional)]
     pub visibility: ast::Visibility,
     /// The `enum` token.
-    pub enum_: ast::Enum,
+    pub enum_token: ast::Enum,
     /// The name of the enum.
     pub name: ast::Ident,
-    /// The open brace of the declaration.
-    pub open: ast::OpenBrace,
-    /// Variants in the declaration.
-    pub variants: Vec<ItemVariant>,
-    /// The close brace in the declaration.
-    pub close: ast::CloseBrace,
+    /// Variants in the enum.
+    pub variants: ast::Braced<ItemVariant, ast::Comma>,
 }
 
 impl ItemEnum {
@@ -29,38 +25,12 @@ impl ItemEnum {
         attributes: Vec<ast::Attribute>,
         visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
-        let enum_ = parser.parse()?;
-        let name = parser.parse()?;
-        let open = parser.parse()?;
-
-        let mut variants = Vec::new();
-
-        while !parser.peek::<ast::CloseBrace>()? {
-            let variant = ItemVariant {
-                attributes: parser.parse()?,
-                name: parser.parse()?,
-                body: parser.parse()?,
-                comma: parser.parse()?,
-            };
-
-            let done = variant.comma.is_none();
-            variants.push(variant);
-
-            if done {
-                break;
-            }
-        }
-
-        let close = parser.parse()?;
-
         Ok(Self {
             attributes,
             visibility,
-            enum_,
-            name,
-            open,
-            variants,
-            close,
+            enum_token: parser.parse()?,
+            name: parser.parse()?,
+            variants: parser.parse()?,
         })
     }
 }
@@ -86,7 +56,7 @@ impl Parse for ItemEnum {
 }
 
 /// An enum variant.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct ItemVariant {
     /// The attributes associated with the variant.
     #[rune(iter)]
@@ -96,9 +66,6 @@ pub struct ItemVariant {
     /// The body of the variant.
     #[rune(optional)]
     pub body: ItemVariantBody,
-    /// Optional trailing comma in variant.
-    #[rune(iter)]
-    pub comma: Option<ast::Comma>,
 }
 
 /// An item body declaration.
@@ -107,18 +74,18 @@ pub enum ItemVariantBody {
     /// An empty enum body.
     EmptyBody,
     /// A tuple struct body.
-    TupleBody(ast::TupleBody),
+    TupleBody(ast::Parenthesized<ast::Field, ast::Comma>),
     /// A regular struct body.
-    StructBody(ast::StructBody),
+    StructBody(ast::Braced<ast::Field, ast::Comma>),
 }
 
 impl ItemVariantBody {
     /// Iterate over the fields of the body.
-    pub fn fields(&self) -> impl Iterator<Item = &'_ ast::Field> {
+    pub fn fields(&self) -> impl Iterator<Item = &'_ (ast::Field, Option<ast::Comma>)> {
         match self {
             ItemVariantBody::EmptyBody => IntoIterator::into_iter(&[]),
-            ItemVariantBody::TupleBody(body) => body.fields.iter(),
-            ItemVariantBody::StructBody(body) => body.fields.iter(),
+            ItemVariantBody::TupleBody(body) => body.iter(),
+            ItemVariantBody::StructBody(body) => body.iter(),
         }
     }
 }

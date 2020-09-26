@@ -152,7 +152,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
         let guard = self.scopes.push_function(decl_fn.async_.is_some());
 
-        for (arg, _) in &decl_fn.args.items {
+        for (arg, _) in &decl_fn.args {
             match arg {
                 ast::FnArg::Self_(s) => {
                     let span = s.span();
@@ -679,12 +679,15 @@ impl Index<ast::Item> for Indexer<'_> {
                     span,
                 )?;
 
-                for ast::ItemVariant {
-                    attributes,
-                    name,
-                    body,
-                    ..
-                } in &item_enum.variants
+                for (
+                    ast::ItemVariant {
+                        attributes,
+                        name,
+                        body,
+                        ..
+                    },
+                    _,
+                ) in &item_enum.variants
                 {
                     if let Some(first) = attributes.first() {
                         return Err(CompileError::internal(
@@ -693,7 +696,7 @@ impl Index<ast::Item> for Indexer<'_> {
                         ));
                     }
 
-                    for field in body.fields() {
+                    for (field, _) in body.fields() {
                         if let Some(first) = field.attributes.first() {
                             return Err(CompileError::internal(
                                 first,
@@ -729,7 +732,7 @@ impl Index<ast::Item> for Indexer<'_> {
                     ));
                 }
 
-                for field in item_struct.body.fields() {
+                for (field, _) in item_struct.body.fields() {
                     if let Some(first) = field.attributes.first() {
                         return Err(CompileError::internal(
                             first,
@@ -1059,18 +1062,27 @@ impl Index<ast::ExprSelect> for Indexer<'_> {
 
         self.scopes.mark_await(expr_select.span())?;
 
-        for (branch, _) in &expr_select.branches {
-            // NB: expression to evaluate future is evaled in parent scope.
-            self.index(&*branch.expr)?;
+        let mut default_branch = None;
 
-            let _guard = self.scopes.push_scope();
-            self.index(&branch.pat)?;
-            self.index(&*branch.body)?;
+        for (branch, _) in &expr_select.branches {
+            match branch {
+                ast::ExprSelectBranch::Pat(pat) => {
+                    // NB: expression to evaluate future is evaled in parent scope.
+                    self.index(&*pat.expr)?;
+
+                    let _guard = self.scopes.push_scope();
+                    self.index(&pat.pat)?;
+                    self.index(&*pat.body)?;
+                }
+                ast::ExprSelectBranch::Default(def) => {
+                    default_branch = Some(def);
+                }
+            }
         }
 
-        if let Some((branch, _)) = &expr_select.default_branch {
+        if let Some(def) = default_branch {
             let _guard = self.scopes.push_scope();
-            self.index(&*branch.body)?;
+            self.index(&*def.body)?;
         }
 
         Ok(())
@@ -1082,7 +1094,7 @@ impl Index<ast::ExprCall> for Indexer<'_> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span));
 
-        for (expr, _) in expr_call.args.items.iter() {
+        for (expr, _) in &expr_call.args {
             self.index(expr)?;
         }
 
@@ -1179,7 +1191,7 @@ impl Index<ast::LitObject> for Indexer<'_> {
         let span = lit_object.span();
         log::trace!("LitObject => {:?}", self.source.source(span));
 
-        for assign in &lit_object.assignments {
+        for (assign, _) in &lit_object.assignments {
             if let Some((_, expr)) = &assign.assign {
                 self.index(expr)?;
             }

@@ -3,7 +3,6 @@ use crate::ast::utils;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A `select` expression that selects over a collection of futures.
-///
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprSelect {
     /// The attributes of the `select`
@@ -11,13 +10,11 @@ pub struct ExprSelect {
     pub attributes: Vec<ast::Attribute>,
     /// The `select` keyword.
     pub select: ast::Select,
-    /// The opening brace of the select.
+    /// The open brace.
     pub open: ast::OpenBrace,
     /// The branches of the select.
     pub branches: Vec<(ExprSelectBranch, Option<ast::Comma>)>,
-    /// The default branch.
-    pub default_branch: Option<(ExprDefaultBranch, Option<ast::Comma>)>,
-    /// The closing brace of the select.
+    /// The close brace.
     pub close: ast::CloseBrace,
 }
 
@@ -31,24 +28,12 @@ impl ExprSelect {
         let open = parser.parse()?;
 
         let mut branches = Vec::new();
-        let mut default_branch = None;
 
         while !parser.peek::<ast::CloseBrace>()? {
-            let is_end;
-
-            if parser.peek::<ast::Default>()? {
-                let branch = parser.parse::<ExprDefaultBranch>()?;
-                let comma = parser.parse::<Option<ast::Comma>>()?;
-
-                is_end = utils::is_block_end(&*branch.body, comma.as_ref());
-                default_branch = Some((branch, comma));
-            } else {
-                let branch = parser.parse::<ExprSelectBranch>()?;
-                let comma = parser.parse::<Option<ast::Comma>>()?;
-
-                is_end = utils::is_block_end(&*branch.body, comma.as_ref());
-                branches.push((branch, comma));
-            };
+            let branch = ExprSelectBranch::parse(parser)?;
+            let comma = parser.parse::<Option<ast::Comma>>()?;
+            let is_end = utils::is_block_end(branch.expr(), comma.as_ref());
+            branches.push((branch, comma));
 
             if is_end {
                 break;
@@ -62,12 +47,32 @@ impl ExprSelect {
             select,
             open,
             branches,
-            default_branch,
             close,
         })
     }
 }
 
+/// Parse a `select`.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// let select = testing::roundtrip::<ast::ExprSelect>(r#"
+/// select {
+///     _ = a => 0,
+///     _ = b => {},
+///     _ = c => {}
+///     default => ()
+/// }
+/// "#);
+///
+/// assert_eq!(4, select.branches.len());
+/// assert!(matches!(select.branches.get(1), Some(&(ast::ExprSelectBranch::Pat(..), Some(..)))));
+/// assert!(matches!(select.branches.get(2), Some(&(ast::ExprSelectBranch::Pat(..), None))));
+/// assert!(matches!(select.branches.get(3), Some(&(ast::ExprSelectBranch::Default(..), None))));
+/// ```
 impl Parse for ExprSelect {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
@@ -76,8 +81,37 @@ impl Parse for ExprSelect {
 }
 
 /// A single selection branch.
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+pub enum ExprSelectBranch {
+    /// A patterned branch.
+    Pat(ExprSelectPatBranch),
+    /// A default branch.
+    Default(ExprDefaultBranch),
+}
+
+impl ExprSelectBranch {
+    /// Access the expression body.
+    pub fn expr(&self) -> &ast::Expr {
+        match self {
+            ExprSelectBranch::Pat(pat) => &pat.body,
+            ExprSelectBranch::Default(def) => &def.body,
+        }
+    }
+}
+
+impl Parse for ExprSelectBranch {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        Ok(if parser.peek::<ast::Default>()? {
+            Self::Default(parser.parse()?)
+        } else {
+            Self::Pat(parser.parse()?)
+        })
+    }
+}
+
+/// A single selection branch.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
-pub struct ExprSelectBranch {
+pub struct ExprSelectPatBranch {
     /// The identifier to bind the result to.
     pub pat: ast::Pat,
     /// `=`.

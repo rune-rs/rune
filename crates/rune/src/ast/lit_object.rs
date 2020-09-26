@@ -3,6 +3,56 @@ use crate::{Parse, ParseError, Parser, Resolve, Spanned, Storage, ToTokens};
 use runestick::Source;
 use std::borrow::Cow;
 
+/// A number literal.
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+pub struct LitObject {
+    /// An object identifier.
+    pub ident: LitObjectIdent,
+    /// Assignments in the object.
+    pub assignments: ast::Braced<LitObjectFieldAssign, ast::Comma>,
+}
+
+impl LitObject {
+    /// Parse a literal object with the given path.
+    pub fn parse_with_ident(
+        parser: &mut Parser<'_>,
+        ident: ast::LitObjectIdent,
+    ) -> Result<Self, ParseError> {
+        Ok(Self {
+            ident,
+            assignments: parser.parse()?,
+        })
+    }
+}
+
+/// Parse an object literal.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::LitObject>("Foo {\"foo\": 42}");
+/// testing::roundtrip::<ast::LitObject>("#{\"foo\": 42}");
+/// testing::roundtrip::<ast::LitObject>("#{\"foo\": 42,}");
+/// ```
+impl Parse for LitObject {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let ident = parser.parse()?;
+        Self::parse_with_ident(parser, ident)
+    }
+}
+
+impl Peek for LitObject {
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
+        match (peek!(t1).kind, peek!(t2).kind) {
+            (ast::Kind::Ident(_), ast::Kind::Open(ast::Delimiter::Brace))
+            | (ast::Kind::Pound, ast::Kind::Open(ast::Delimiter::Brace)) => true,
+            _ => false,
+        }
+    }
+}
+
 /// A literal object identifier.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum LitObjectIdent {
@@ -31,16 +81,6 @@ pub struct LitObjectFieldAssign {
     /// The assigned expression of the field.
     #[rune(iter)]
     pub assign: Option<(ast::Colon, ast::Expr)>,
-}
-
-impl LitObjectFieldAssign {
-    /// Check if assignment is constant or not.
-    pub fn is_const(&self) -> bool {
-        match &self.assign {
-            Some((_, expr)) => expr.is_const(),
-            None => false,
-        }
-    }
 }
 
 /// Parse an object literal.
@@ -111,100 +151,6 @@ impl<'a> Resolve<'a> for LitObjectKey {
             Self::LitStr(lit_str) => lit_str.resolve(storage, source)?,
             Self::Ident(ident) => ident.resolve(storage, source)?,
         })
-    }
-}
-
-/// A number literal.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub struct LitObject {
-    /// An object identifier.
-    pub ident: LitObjectIdent,
-    /// The open bracket.
-    pub open: ast::OpenBrace,
-    /// Items in the object declaration.
-    pub assignments: Vec<LitObjectFieldAssign>,
-    /// The close bracket.
-    pub close: ast::CloseBrace,
-    /// Indicates if the object is completely literal and cannot have side
-    /// effects.
-    #[rune(skip)]
-    is_const: bool,
-}
-
-impl LitObject {
-    /// Test if the entire expression is constant.
-    pub fn is_const(&self) -> bool {
-        self.is_const
-    }
-
-    /// Parse a literal object with the given path.
-    pub fn parse_with_ident(
-        parser: &mut Parser<'_>,
-        ident: ast::LitObjectIdent,
-    ) -> Result<Self, ParseError> {
-        let open = parser.parse()?;
-
-        let mut assignments = Vec::new();
-
-        let mut is_const = true;
-
-        while !parser.peek::<ast::CloseBrace>()? {
-            let assign = parser.parse::<LitObjectFieldAssign>()?;
-
-            if !assign.is_const() {
-                is_const = false;
-            }
-
-            assignments.push(assign);
-
-            if parser.peek::<ast::Comma>()? {
-                parser.parse::<ast::Comma>()?;
-            } else {
-                break;
-            }
-        }
-
-        let close = parser.parse()?;
-
-        Ok(Self {
-            ident,
-            open,
-            assignments,
-            close,
-            is_const,
-        })
-    }
-}
-
-/// Parse an object literal.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::LitObject>("Foo {\"foo\": 42}");
-/// testing::roundtrip::<ast::LitObject>("#{\"foo\": 42}");
-/// testing::roundtrip::<ast::LitObject>("#{\"foo\": 42,}");
-/// ```
-impl Parse for LitObject {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let ident = parser.parse()?;
-        Self::parse_with_ident(parser, ident)
-    }
-}
-
-impl Peek for LitObject {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        let (t1, t2) = match (t1, t2) {
-            (Some(t1), Some(t2)) => (t1, t2),
-            _ => return false,
-        };
-        match (t1.kind, t2.kind) {
-            (ast::Kind::Ident(_), ast::Kind::Open(ast::Delimiter::Brace))
-            | (ast::Kind::Pound, ast::Kind::Open(ast::Delimiter::Brace)) => true,
-            _ => false,
-        }
     }
 }
 

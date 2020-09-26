@@ -6,14 +6,9 @@ impl Compile<(&ast::LitVec, Needs)> for Compiler<'_> {
         let span = lit_vec.span();
         log::trace!("LitVec => {:?}", self.source.source(span));
 
-        if !needs.value() && lit_vec.is_const() {
-            // Don't encode unecessary literals.
-            return Ok(());
-        }
-
         let count = lit_vec.items.len();
 
-        for (expr, _) in lit_vec.items.iter() {
+        for (expr, _) in &lit_vec.items {
             self.compile((expr, Needs::Value))?;
 
             // Evaluate the expressions one by one, then pop them to cause any

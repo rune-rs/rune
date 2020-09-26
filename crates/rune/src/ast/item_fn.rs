@@ -36,7 +36,7 @@ impl ItemFn {
 
     /// Test if function is an instance fn.
     pub fn is_instance(&self) -> bool {
-        matches!(self.args.items.first(), Some((ast::FnArg::Self_(..), _)))
+        matches!(self.args.first(), Some((ast::FnArg::Self_(..), _)))
     }
 
     /// Parse a `fn` item with the given attributes
@@ -74,10 +74,10 @@ impl Peek for ItemFn {
 /// assert!(parse_all::<ast::ItemFn>("fn async hello() {}").is_err());
 ///
 /// let item = testing::roundtrip::<ast::ItemFn>("fn hello() {}");
-/// assert_eq!(item.args.items.len(), 0);
+/// assert_eq!(item.args.len(), 0);
 ///
 /// let item = testing::roundtrip::<ast::ItemFn>("fn hello(foo, bar) {}");
-/// assert_eq!(item.args.items.len(), 2);
+/// assert_eq!(item.args.len(), 2);
 ///
 /// testing::roundtrip::<ast::ItemFn>("pub fn hello(foo, bar) {}");
 /// testing::roundtrip::<ast::ItemFn>("pub async fn hello(foo, bar) {}");
@@ -86,7 +86,7 @@ impl Peek for ItemFn {
 /// let item = testing::roundtrip::<ast::ItemFn>("#[inline] pub async fn hello(foo, bar) {}");
 /// assert!(matches!(item.visibility, ast::Visibility::Public(..)));
 ///
-/// assert_eq!(item.args.items.len(), 2);
+/// assert_eq!(item.args.len(), 2);
 /// assert_eq!(item.attributes.len(), 1);
 ///
 /// ```

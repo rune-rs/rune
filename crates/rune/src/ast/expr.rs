@@ -134,16 +134,6 @@ impl Expr {
         }
     }
 
-    /// Test if the entire expression is constant.
-    pub fn is_const(&self) -> bool {
-        match self {
-            Expr::ExprBinary(binary) => binary.is_const(),
-            Expr::ExprLit(lit) => lit.is_const(),
-            Expr::ExprBlock(b) => b.is_const(),
-            _ => false,
-        }
-    }
-
     /// Test if the expression has any attributes
     pub fn has_unsupported_attributes(&self) -> bool {
         match self {

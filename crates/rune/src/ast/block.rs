@@ -27,19 +27,6 @@ impl Block {
 
         true
     }
-
-    /// Test if the block is a constant expression.
-    pub fn is_const(&self) -> bool {
-        for stmt in &self.statements {
-            match stmt {
-                ast::Stmt::Expr(expr) if !expr.is_const() => return false,
-                ast::Stmt::Semi(expr, _) if !expr.is_const() => return false,
-                _ => (),
-            }
-        }
-
-        true
-    }
 }
 
 /// Parse implementation for a block.

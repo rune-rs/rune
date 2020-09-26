@@ -583,13 +583,13 @@ impl Query {
         &self,
         item: &Item,
         enum_item: Option<Item>,
-        tuple: ast::TupleBody,
+        tuple: ast::Parenthesized<ast::Field, ast::Comma>,
     ) -> CompileMetaKind {
         let type_of = Type::from(Hash::type_hash(item));
 
         let tuple = CompileMetaTuple {
             item: item.clone(),
-            args: tuple.fields.len(),
+            args: tuple.len(),
             hash: Hash::type_hash(item),
         };
 
@@ -609,13 +609,13 @@ impl Query {
         item: &Item,
         enum_item: Option<Item>,
         source: &Source,
-        st: ast::StructBody,
+        st: ast::Braced<ast::Field, ast::Comma>,
     ) -> Result<CompileMetaKind, QueryError> {
         let type_of = Type::from(Hash::type_hash(item));
 
         let mut fields = HashSet::new();
 
-        for ast::Field { name, .. } in &st.fields {
+        for (ast::Field { name, .. }, _) in st {
             let name = name.resolve(&self.storage, &*source)?;
             fields.insert(name.to_string());
         }

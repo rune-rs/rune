@@ -256,7 +256,7 @@ impl IrCompile<&ast::LitObject> for IrCompiler<'_> {
     fn compile(&mut self, lit_object: &ast::LitObject) -> Result<Self::Output, CompileError> {
         let mut assignments = Vec::new();
 
-        for assign in &lit_object.assignments {
+        for (assign, _) in &lit_object.assignments {
             let key = self.resolve(&assign.key)?;
 
             let ir = if let Some((_, expr)) = &assign.assign {
