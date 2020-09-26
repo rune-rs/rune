@@ -96,7 +96,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                         )?;
 
                         let hash = Hash::type_hash(&object.item);
-                        self.asm.push(Inst::ObjectVariant { hash, slot }, span);
+                        self.asm.push(Inst::StructVariant { hash, slot }, span);
                     }
                     _ => {
                         return Err(CompileError::new(

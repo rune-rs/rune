@@ -34,7 +34,9 @@ pub static UNIT_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x9de148b05752dbb3),
 };
 
-impl_static_type!(() => crate::UNIT_TYPE);
+impl_static_type!(() => UNIT_TYPE);
+impl_static_type!(crate::UnitVariant => UNIT_TYPE);
+impl_static_type!(crate::UnitStruct => UNIT_TYPE);
 
 /// The specialized type information for a byte type.
 pub static BYTE_TYPE: &StaticType = &StaticType {
@@ -42,7 +44,7 @@ pub static BYTE_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x190cacf7c7187189),
 };
 
-impl_static_type!(u8 => crate::BYTE_TYPE);
+impl_static_type!(u8 => BYTE_TYPE);
 
 /// The specialized type information for a bool type.
 pub static BOOL_TYPE: &StaticType = &StaticType {
@@ -50,7 +52,7 @@ pub static BOOL_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0xbe6bff4422d0c759),
 };
 
-impl_static_type!(bool => crate::BOOL_TYPE);
+impl_static_type!(bool => BOOL_TYPE);
 
 /// The specialized type information for a char type.
 pub static CHAR_TYPE: &StaticType = &StaticType {
@@ -58,7 +60,7 @@ pub static CHAR_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0xc56a31d061187c8b),
 };
 
-impl_static_type!(char => crate::CHAR_TYPE);
+impl_static_type!(char => CHAR_TYPE);
 
 /// The specialized type information for a integer type.
 pub static INTEGER_TYPE: &StaticType = &StaticType {
@@ -66,15 +68,15 @@ pub static INTEGER_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0xbb378867da3981e2),
 };
 
-impl_static_type!(i8 => crate::INTEGER_TYPE);
-impl_static_type!(u16 => crate::INTEGER_TYPE);
-impl_static_type!(i16 => crate::INTEGER_TYPE);
-impl_static_type!(u32 => crate::INTEGER_TYPE);
-impl_static_type!(i32 => crate::INTEGER_TYPE);
-impl_static_type!(u64 => crate::INTEGER_TYPE);
-impl_static_type!(i64 => crate::INTEGER_TYPE);
-impl_static_type!(u128 => crate::INTEGER_TYPE);
-impl_static_type!(i128 => crate::INTEGER_TYPE);
+impl_static_type!(i8 => INTEGER_TYPE);
+impl_static_type!(u16 => INTEGER_TYPE);
+impl_static_type!(i16 => INTEGER_TYPE);
+impl_static_type!(u32 => INTEGER_TYPE);
+impl_static_type!(i32 => INTEGER_TYPE);
+impl_static_type!(u64 => INTEGER_TYPE);
+impl_static_type!(i64 => INTEGER_TYPE);
+impl_static_type!(u128 => INTEGER_TYPE);
+impl_static_type!(i128 => INTEGER_TYPE);
 
 /// The specialized type information for a float type.
 pub static FLOAT_TYPE: &StaticType = &StaticType {
@@ -82,8 +84,8 @@ pub static FLOAT_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x13e40c27462ed8fc),
 };
 
-impl_static_type!(f32 => crate::FLOAT_TYPE);
-impl_static_type!(f64 => crate::FLOAT_TYPE);
+impl_static_type!(f32 => FLOAT_TYPE);
+impl_static_type!(f64 => FLOAT_TYPE);
 
 /// The specialized type information for a string type.
 pub static STRING_TYPE: &StaticType = &StaticType {
@@ -121,6 +123,7 @@ pub static TUPLE_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(crate::Tuple => TUPLE_TYPE);
+impl_static_type!(crate::TupleVariant => TUPLE_TYPE);
 
 /// The specialized type information for an anonymous object type.
 pub static OBJECT_TYPE: &StaticType = &StaticType {
@@ -129,6 +132,8 @@ pub static OBJECT_TYPE: &StaticType = &StaticType {
 };
 
 impl_static_type!(crate::Object => OBJECT_TYPE);
+impl_static_type!(crate::Struct => OBJECT_TYPE);
+impl_static_type!(crate::StructVariant => OBJECT_TYPE);
 
 /// The specialized type information for a future type.
 pub static FUTURE_TYPE: &StaticType = &StaticType {
@@ -168,7 +173,7 @@ pub static RESULT_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0xecec15e1363240ac),
 };
 
-impl_static_type!(impl<T, E> Result<T, E> => crate::RESULT_TYPE);
+impl_static_type!(impl<T, E> Result<T, E> => RESULT_TYPE);
 
 /// The specialized type information for a option type.
 pub static OPTION_TYPE: &StaticType = &StaticType {
@@ -176,7 +181,7 @@ pub static OPTION_TYPE: &StaticType = &StaticType {
     hash: Hash::new(0x5e08dc3f663c72db),
 };
 
-impl_static_type!(impl<T> Option<T> => crate::OPTION_TYPE);
+impl_static_type!(impl<T> Option<T> => OPTION_TYPE);
 
 /// The specialized type information for a function pointer type.
 pub static FUNCTION_TYPE: &StaticType = &StaticType {
@@ -187,4 +192,4 @@ pub static FUNCTION_TYPE: &StaticType = &StaticType {
 impl_static_type!(crate::Function => FUNCTION_TYPE);
 impl_static_type!(crate::Shared<crate::Function> => FUNCTION_TYPE);
 impl_static_type!(crate::Ref<crate::Function> => FUNCTION_TYPE);
-impl_static_type!(impl<T> std::collections::HashMap<String, T> => crate::OBJECT_TYPE);
+impl_static_type!(impl<T> std::collections::HashMap<String, T> => OBJECT_TYPE);

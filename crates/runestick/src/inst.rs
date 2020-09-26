@@ -618,7 +618,7 @@ pub enum Inst {
     /// <value..>
     /// => <object>
     /// ```
-    ObjectVariant {
+    StructVariant {
         /// The type hash of the object variant to construct.
         hash: Hash,
         /// The static slot of the object keys.
@@ -1058,16 +1058,16 @@ impl fmt::Display for Inst {
                 write!(fmt, "push-tuple")?;
             }
             Self::UnitStruct { hash } => {
-                write!(fmt, "empty-struct {}", hash)?;
+                write!(fmt, "unit-struct {}", hash)?;
             }
             Self::Struct { hash, slot } => {
                 write!(fmt, "struct {}, {}", hash, slot)?;
             }
             Self::UnitVariant { hash } => {
-                write!(fmt, "empty-variant {}", hash)?;
+                write!(fmt, "unit-variant {}", hash)?;
             }
-            Self::ObjectVariant { hash, slot } => {
-                write!(fmt, "object-variant {}, {}", hash, slot)?;
+            Self::StructVariant { hash, slot } => {
+                write!(fmt, "struct-variant {}, {}", hash, slot)?;
             }
             Self::Object { slot } => {
                 write!(fmt, "object {}", slot)?;

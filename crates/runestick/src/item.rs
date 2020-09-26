@@ -30,7 +30,7 @@ const MACRO: u8 = 4;
 /// * A single byte prefix identifying the type of the component.
 /// * The payload of the component, specific to its type.
 /// * The offset to the start of the last component.
-#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Item {
     content: Vec<u8>,
 }
@@ -163,6 +163,12 @@ impl fmt::Display for Item {
         } else {
             write!(f, "{{empty}}")
         }
+    }
+}
+
+impl fmt::Debug for Item {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Item({})", self)
     }
 }
 

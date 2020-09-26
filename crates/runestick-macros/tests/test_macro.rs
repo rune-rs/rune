@@ -7,6 +7,9 @@ use runestick_macros::{Any, FromValue, ToValue};
 struct Custom {}
 
 #[derive(FromValue)]
+struct TestUnit;
+
+#[derive(FromValue)]
 struct TestNamed {
     a: Mut<String>,
     b: Mut<Tuple>,
@@ -29,6 +32,25 @@ struct Test2 {
 
 #[derive(ToValue)]
 struct Test2Unnamed(String, Custom);
+
+#[derive(FromValue)]
+enum TestEnum {
+    TestUnit,
+    TestNamed {
+        a: Mut<String>,
+        b: Mut<Tuple>,
+        c: Mut<Object>,
+        d: Ref<Custom>,
+        e: Mut<Custom>,
+    },
+    TestUnnamed(
+        Mut<String>,
+        Mut<Tuple>,
+        Mut<Object>,
+        Ref<Custom>,
+        Mut<Custom>,
+    ),
+}
 
 #[test]
 fn test_macro() {}

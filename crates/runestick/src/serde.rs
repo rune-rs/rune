@@ -77,7 +77,7 @@ impl ser::Serialize for Value {
             Value::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
             Value::UnitVariant(..) => Err(ser::Error::custom("cannot serialize unit variants")),
             Value::TupleVariant(..) => Err(ser::Error::custom("cannot serialize tuple variants")),
-            Value::ObjectVariant(..) => Err(ser::Error::custom("cannot serialize object variants")),
+            Value::StructVariant(..) => Err(ser::Error::custom("cannot serialize object variants")),
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
             Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
