@@ -130,9 +130,9 @@ impl ItemVariantBody {
 /// ```rust
 /// use rune::{parse_all, ast};
 ///
-/// parse_all::<ast::ItemVariantBody>("( a, b, c );").unwrap();
+/// parse_all::<ast::ItemVariantBody>("( a, b, c )").unwrap();
 /// parse_all::<ast::ItemVariantBody>("{ a, b, c }").unwrap();
-/// parse_all::<ast::ItemVariantBody>("( #[serde(default)] a, b, c );").unwrap();
+/// parse_all::<ast::ItemVariantBody>("( #[serde(default)] a, b, c )").unwrap();
 /// parse_all::<ast::ItemVariantBody>("{ a, #[debug(skip)] b, c }").unwrap();
 /// ```
 impl Parse for ItemVariantBody {
