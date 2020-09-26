@@ -115,8 +115,8 @@ pub type Error = anyhow::Error;
 pub use self::any_obj::{AnyObj, AnyObjVtable};
 pub use self::args::Args;
 pub use self::compile_meta::{
-    CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
-    CompileSource,
+    CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
+    CompileMetaTuple, CompileSource,
 };
 pub use self::const_value::ConstValue;
 pub use self::from_value::{FromValue, UnsafeFromValue};
@@ -170,7 +170,8 @@ pub use crate::stack::{Stack, StackError};
 pub use crate::type_of::TypeOf;
 pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};
 pub use crate::value::{
-    ObjectVariant, Rtti, TupleVariant, TypedObject, TypedTuple, Value, VariantRtti,
+    ObjectVariant, Rtti, Struct, TupleStruct, TupleVariant, UnitStruct, UnitVariant, Value,
+    VariantRtti,
 };
 pub use crate::vec_tuple::VecTuple;
 pub use crate::vm::{CallFrame, Vm};

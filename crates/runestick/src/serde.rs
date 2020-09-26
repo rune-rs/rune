@@ -72,10 +72,12 @@ impl ser::Serialize for Value {
                 let option = option.borrow_ref().map_err(ser::Error::custom)?;
                 <Option<Value>>::serialize(&*option, serializer)
             }
-            Value::TypedTuple(..) => Err(ser::Error::custom("cannot serialize tuple types")),
-            Value::TupleVariant(..) => Err(ser::Error::custom("cannot serialize variant tuples")),
-            Value::TypedObject(..) => Err(ser::Error::custom("cannot serialize object types")),
-            Value::ObjectVariant(..) => Err(ser::Error::custom("cannot serialize variant objects")),
+            Value::UnitStruct(..) => serializer.serialize_unit(),
+            Value::TupleStruct(..) => Err(ser::Error::custom("cannot serialize tuple structs")),
+            Value::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
+            Value::UnitVariant(..) => Err(ser::Error::custom("cannot serialize unit variants")),
+            Value::TupleVariant(..) => Err(ser::Error::custom("cannot serialize tuple variants")),
+            Value::ObjectVariant(..) => Err(ser::Error::custom("cannot serialize object variants")),
             Value::Result(..) => Err(ser::Error::custom("cannot serialize results")),
             Value::Type(..) => Err(ser::Error::custom("cannot serialize types")),
             Value::Future(..) => Err(ser::Error::custom("cannot serialize futures")),

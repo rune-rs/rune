@@ -12,8 +12,8 @@ use crate::{
     ParseErrorKind, Resolve as _, Spanned, Storage, UnitBuilder,
 };
 use runestick::{
-    Call, CompileMeta, CompileMetaCapture, CompileMetaKind, CompileMetaStruct, CompileMetaTuple,
-    CompileSource, Hash, Item, Source, SourceId, Span, Type,
+    Call, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
+    CompileMetaTuple, CompileSource, Hash, Item, Source, SourceId, Span, Type,
 };
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -559,22 +559,21 @@ impl Query {
     }
 
     /// Construct metadata for an empty body.
-    fn empty_body_meta(&self, item: &Item, enum_item: Option<Item>) -> CompileMetaKind {
+    fn unit_body_meta(&self, item: &Item, enum_item: Option<Item>) -> CompileMetaKind {
         let type_of = Type::from(Hash::type_hash(item));
 
-        let tuple = CompileMetaTuple {
+        let empty = CompileMetaEmpty {
             item: item.clone(),
-            args: 0,
             hash: Hash::type_hash(item),
         };
 
         match enum_item {
-            Some(enum_item) => CompileMetaKind::TupleVariant {
+            Some(enum_item) => CompileMetaKind::UnitVariant {
                 type_of,
                 enum_item,
-                tuple,
+                empty,
             },
-            None => CompileMetaKind::Tuple { type_of, tuple },
+            None => CompileMetaKind::UnitStruct { type_of, empty },
         }
     }
 
@@ -599,7 +598,7 @@ impl Query {
                 enum_item,
                 tuple,
             },
-            None => CompileMetaKind::Tuple { type_of, tuple },
+            None => CompileMetaKind::TupleStruct { type_of, tuple },
         }
     }
 
@@ -626,7 +625,7 @@ impl Query {
         };
 
         Ok(match enum_item {
-            Some(enum_item) => CompileMetaKind::ObjectVariant {
+            Some(enum_item) => CompileMetaKind::StructVariant {
                 type_of,
                 enum_item,
                 object,
@@ -644,7 +643,7 @@ impl Query {
         source: &Source,
     ) -> Result<CompileMetaKind, QueryError> {
         Ok(match body {
-            ast::ItemVariantBody::EmptyBody => self.empty_body_meta(item, enum_item),
+            ast::ItemVariantBody::UnitBody => self.unit_body_meta(item, enum_item),
             ast::ItemVariantBody::TupleBody(tuple) => self.tuple_body_meta(item, enum_item, tuple),
             ast::ItemVariantBody::StructBody(st) => {
                 self.struct_body_meta(item, enum_item, source, st)?
@@ -661,7 +660,7 @@ impl Query {
         source: &Source,
     ) -> Result<CompileMetaKind, QueryError> {
         Ok(match body {
-            ast::ItemStructBody::EmptyBody(_) => self.empty_body_meta(item, enum_item),
+            ast::ItemStructBody::UnitBody(_) => self.unit_body_meta(item, enum_item),
             ast::ItemStructBody::TupleBody(tuple, _) => {
                 self.tuple_body_meta(item, enum_item, tuple)
             }

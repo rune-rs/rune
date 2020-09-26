@@ -46,6 +46,8 @@ pub struct DebugInst {
 /// Debug information on function arguments.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum DebugArgs {
+    /// An empty, with not arguments.
+    EmptyArgs,
     /// A tuple, with the given number of arguments.
     TupleArgs(usize),
     /// A collection of named arguments.
@@ -74,6 +76,9 @@ impl DebugSignature {
 impl fmt::Display for DebugSignature {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.args {
+            DebugArgs::EmptyArgs => {
+                write!(fmt, "{}", self.path)?;
+            }
             DebugArgs::TupleArgs(args) if *args > 0 => {
                 write!(fmt, "{}(", self.path)?;
 

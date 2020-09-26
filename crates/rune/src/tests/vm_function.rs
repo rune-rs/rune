@@ -48,7 +48,7 @@ fn test_function() {
 
     assert!(function.call::<_, Value>(()).is_err());
     let value: Value = function.call((1i64,)).unwrap();
-    assert!(matches!(value, Value::TypedTuple(..)));
+    assert!(matches!(value, Value::TupleStruct(..)));
 
     // non-capturing closure == free function
     let function = rune! {

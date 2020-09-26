@@ -498,14 +498,18 @@ pub struct Definition {
 
 #[derive(Debug, Clone, Copy)]
 pub enum DefinitionKind {
-    /// A tuple.
-    Tuple,
-    /// A tuple variant.
-    TupleVariant,
+    /// A unit struct.
+    UnitStruct,
+    /// A tuple struct.
+    TupleStruct,
     /// A struct.
     Struct,
+    /// A unit variant.
+    UnitVariant,
+    /// A tuple variant.
+    TupleVariant,
     /// A struct variant.
-    ObjectVariant,
+    StructVariant,
     /// An enum.
     Enum,
     /// A function.
@@ -539,10 +543,12 @@ impl rune::CompileVisitor for Visitor<'_> {
         };
 
         let kind = match &meta.kind {
-            CompileMetaKind::Tuple { .. } => DefinitionKind::Tuple,
-            CompileMetaKind::TupleVariant { .. } => DefinitionKind::TupleVariant,
+            CompileMetaKind::UnitStruct { .. } => DefinitionKind::UnitStruct,
+            CompileMetaKind::TupleStruct { .. } => DefinitionKind::TupleStruct,
             CompileMetaKind::Struct { .. } => DefinitionKind::Struct,
-            CompileMetaKind::ObjectVariant { .. } => DefinitionKind::ObjectVariant,
+            CompileMetaKind::UnitVariant { .. } => DefinitionKind::UnitVariant,
+            CompileMetaKind::TupleVariant { .. } => DefinitionKind::TupleVariant,
+            CompileMetaKind::StructVariant { .. } => DefinitionKind::StructVariant,
             CompileMetaKind::Enum { .. } => DefinitionKind::Enum,
             CompileMetaKind::Function { .. } => DefinitionKind::Function,
             _ => return,

@@ -60,7 +60,7 @@ impl Parse for ItemStruct {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum ItemStructBody {
     /// An empty struct declaration.
-    EmptyBody(ast::SemiColon),
+    UnitBody(ast::SemiColon),
     /// A tuple struct body.
     TupleBody(ast::Parenthesized<Field, ast::Comma>, ast::SemiColon),
     /// A regular struct body.
@@ -71,7 +71,7 @@ impl ItemStructBody {
     /// Iterate over the fields of the body.
     pub fn fields(&self) -> impl Iterator<Item = &'_ (Field, Option<ast::Comma>)> {
         match self {
-            ItemStructBody::EmptyBody(..) => IntoIterator::into_iter(&[]),
+            ItemStructBody::UnitBody(..) => IntoIterator::into_iter(&[]),
             ItemStructBody::TupleBody(body, ..) => body.iter(),
             ItemStructBody::StructBody(body) => body.iter(),
         }
@@ -106,7 +106,7 @@ impl Parse for ItemStructBody {
                 Self::TupleBody(parser.parse()?, parser.parse()?)
             }
             ast::Kind::Open(ast::Delimiter::Brace) => Self::StructBody(parser.parse()?),
-            _ => Self::EmptyBody(parser.parse()?),
+            _ => Self::UnitBody(parser.parse()?),
         };
 
         Ok(body)

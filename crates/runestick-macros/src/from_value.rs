@@ -99,7 +99,7 @@ impl Expander {
                     let tuple = tuple.borrow_ref()?;
                     Ok(Self(#(#from_values),*))
                 }
-                #value::TypedTuple(tuple) => {
+                #value::TupleStruct(tuple) => {
                     let tuple = tuple.borrow_ref()?;
                     Ok(Self(#(#from_values),*))
                 }
@@ -156,7 +156,7 @@ impl Expander {
                         #(#from_values),*
                     })
                 }
-                #value::TypedObject(object) => {
+                #value::Struct(object) => {
                     let object = object.borrow_ref()?;
 
                     Ok(Self {

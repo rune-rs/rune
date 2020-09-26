@@ -35,10 +35,12 @@ impl CompileMeta {
     /// Get the item of the meta.
     pub fn item(&self) -> &Item {
         match &self.kind {
-            CompileMetaKind::Tuple { tuple, .. } => &tuple.item,
-            CompileMetaKind::TupleVariant { tuple, .. } => &tuple.item,
+            CompileMetaKind::UnitStruct { empty, .. } => &empty.item,
+            CompileMetaKind::TupleStruct { tuple, .. } => &tuple.item,
             CompileMetaKind::Struct { object, .. } => &object.item,
-            CompileMetaKind::ObjectVariant { object, .. } => &object.item,
+            CompileMetaKind::UnitVariant { empty, .. } => &empty.item,
+            CompileMetaKind::TupleVariant { tuple, .. } => &tuple.item,
+            CompileMetaKind::StructVariant { object, .. } => &object.item,
             CompileMetaKind::Enum { item, .. } => item,
             CompileMetaKind::Function { item, .. } => item,
             CompileMetaKind::Closure { item, .. } => item,
@@ -51,10 +53,12 @@ impl CompileMeta {
     /// Get the value type of the meta item.
     pub fn type_of(&self) -> Option<Type> {
         match &self.kind {
-            CompileMetaKind::Tuple { type_of, .. } => Some(*type_of),
-            CompileMetaKind::TupleVariant { .. } => None,
+            CompileMetaKind::UnitStruct { type_of, .. } => Some(*type_of),
+            CompileMetaKind::TupleStruct { type_of, .. } => Some(*type_of),
             CompileMetaKind::Struct { type_of, .. } => Some(*type_of),
-            CompileMetaKind::ObjectVariant { .. } => None,
+            CompileMetaKind::UnitVariant { .. } => None,
+            CompileMetaKind::TupleVariant { .. } => None,
+            CompileMetaKind::StructVariant { .. } => None,
             CompileMetaKind::Enum { type_of, .. } => Some(*type_of),
             CompileMetaKind::Function { type_of, .. } => Some(*type_of),
             CompileMetaKind::Closure { type_of, .. } => Some(*type_of),
@@ -68,16 +72,22 @@ impl CompileMeta {
 impl fmt::Display for CompileMeta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            CompileMetaKind::Tuple { tuple, .. } => {
-                write!(fmt, "struct {}", tuple.item)?;
+            CompileMetaKind::UnitStruct { empty, .. } => {
+                write!(fmt, "struct {}", empty.item)?;
             }
-            CompileMetaKind::TupleVariant { tuple, .. } => {
-                write!(fmt, "variant {}", tuple.item)?;
+            CompileMetaKind::TupleStruct { tuple, .. } => {
+                write!(fmt, "struct {}", tuple.item)?;
             }
             CompileMetaKind::Struct { object, .. } => {
                 write!(fmt, "struct {}", object.item)?;
             }
-            CompileMetaKind::ObjectVariant { object, .. } => {
+            CompileMetaKind::UnitVariant { empty, .. } => {
+                write!(fmt, "variant {}", empty.item)?;
+            }
+            CompileMetaKind::TupleVariant { tuple, .. } => {
+                write!(fmt, "variant {}", tuple.item)?;
+            }
+            CompileMetaKind::StructVariant { object, .. } => {
                 write!(fmt, "variant {}", object.item)?;
             }
             CompileMetaKind::Enum { item, .. } => {
@@ -107,19 +117,17 @@ impl fmt::Display for CompileMeta {
 /// Compile-time metadata kind about a unit.
 #[derive(Debug, Clone)]
 pub enum CompileMetaKind {
-    /// Metadata about a tuple.
-    Tuple {
+    /// Metadata about an object.
+    UnitStruct {
         /// The value type associated with this meta item.
         type_of: Type,
-        /// The underlying tuple.
-        tuple: CompileMetaTuple,
+        /// The underlying object.
+        empty: CompileMetaEmpty,
     },
-    /// Metadata about a tuple variant.
-    TupleVariant {
+    /// Metadata about a tuple.
+    TupleStruct {
         /// The value type associated with this meta item.
         type_of: Type,
-        /// The item of the enum.
-        enum_item: Item,
         /// The underlying tuple.
         tuple: CompileMetaTuple,
     },
@@ -130,8 +138,26 @@ pub enum CompileMetaKind {
         /// The underlying object.
         object: CompileMetaStruct,
     },
+    /// Metadata about an empty variant.
+    UnitVariant {
+        /// The value type associated with this meta item.
+        type_of: Type,
+        /// The item of the enum.
+        enum_item: Item,
+        /// The underlying empty.
+        empty: CompileMetaEmpty,
+    },
+    /// Metadata about a tuple variant.
+    TupleVariant {
+        /// The value type associated with this meta item.
+        type_of: Type,
+        /// The item of the enum.
+        enum_item: Item,
+        /// The underlying tuple.
+        tuple: CompileMetaTuple,
+    },
     /// Metadata about a variant object.
-    ObjectVariant {
+    StructVariant {
         /// The value type associated with this meta item.
         type_of: Type,
         /// The item of the enum.
@@ -183,6 +209,15 @@ pub enum CompileMetaKind {
         /// The item of the macro.
         item: Item,
     },
+}
+
+/// The metadata about a type.
+#[derive(Debug, Clone)]
+pub struct CompileMetaEmpty {
+    /// The path to the object.
+    pub item: Item,
+    /// Hash of the constructor function.
+    pub hash: Hash,
 }
 
 /// The metadata about a type.
