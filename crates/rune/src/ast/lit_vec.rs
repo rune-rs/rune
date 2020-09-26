@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A number literal.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitVec {
     /// The open bracket.
     pub open: ast::OpenBracket,
@@ -27,11 +27,11 @@ impl LitVec {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitVec>("[1, \"two\"]").unwrap();
-/// parse_all::<ast::LitVec>("[1, 2,]").unwrap();
-/// parse_all::<ast::LitVec>("[1, 2, foo()]").unwrap();
+/// testing::roundtrip::<ast::LitVec>("[1, \"two\"]");
+/// testing::roundtrip::<ast::LitVec>("[1, 2,]");
+/// testing::roundtrip::<ast::LitVec>("[1, 2, foo()]");
 /// ```
 impl Parse for LitVec {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

@@ -6,15 +6,15 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprIf>("if 0 {  }").unwrap();
-/// parse_all::<ast::ExprIf>("if 0 {  } else {  }").unwrap();
-/// parse_all::<ast::ExprIf>("if 0 {  } else if 0 {  } else {  }").unwrap();
-/// parse_all::<ast::ExprIf>("if let v = v {  }").unwrap();
-/// parse_all::<ast::ExprIf>("#[attr] if 1 {} else {}").unwrap();
+/// testing::roundtrip::<ast::ExprIf>("if 0 {  }");
+/// testing::roundtrip::<ast::ExprIf>("if 0 {  } else {  }");
+/// testing::roundtrip::<ast::ExprIf>("if 0 {  } else if 0 {  } else {  }");
+/// testing::roundtrip::<ast::ExprIf>("if let v = v {  }");
+/// testing::roundtrip::<ast::ExprIf>("#[attr] if 1 {} else {}");
 /// ```
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprIf {
     /// The `attributes` of the if statement
     #[rune(iter)]

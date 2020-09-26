@@ -3,7 +3,7 @@ use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens, 
 use runestick::Span;
 
 /// Attribute like `#[derive(Debug)]`
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct Attribute {
     /// The `#` character
     pub hash: ast::Hash,
@@ -24,13 +24,13 @@ pub struct Attribute {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast, ParseError};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::Attribute>("#[foo = \"foo\"]").unwrap();
-/// parse_all::<ast::Attribute>("#[foo()]").unwrap();
-/// parse_all::<ast::Attribute>("#![foo]").unwrap();
-/// parse_all::<ast::Attribute>("#![cfg(all(feature = \"potato\"))]").unwrap();
-/// parse_all::<ast::Attribute>("#[x+1]").unwrap();
+/// testing::roundtrip::<ast::Attribute>("#[foo = \"foo\"]");
+/// testing::roundtrip::<ast::Attribute>("#[foo()]");
+/// testing::roundtrip::<ast::Attribute>("#![foo]");
+/// testing::roundtrip::<ast::Attribute>("#![cfg(all(feature = \"potato\"))]");
+/// testing::roundtrip::<ast::Attribute>("#[x+1]");
 /// ```
 impl Parse for Attribute {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -90,7 +90,7 @@ impl Peek for Attribute {
 }
 
 /// Whether or not the attribute is an outer `#!` or inner `#` attribute
-#[derive(Debug, Copy, Clone, ToTokens)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens)]
 pub enum AttrStyle {
     /// `#`
     Inner,

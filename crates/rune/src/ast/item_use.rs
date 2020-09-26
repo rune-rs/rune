@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// An imported declaration.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemUse {
     /// The attributes on use item
     #[rune(iter)]
@@ -47,13 +47,13 @@ impl ItemUse {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ItemUse>("use foo;").unwrap();
-/// parse_all::<ast::ItemUse>("use foo::bar;").unwrap();
-/// parse_all::<ast::ItemUse>("use foo::bar::baz;").unwrap();
-/// parse_all::<ast::ItemUse>("#[macro_use] use foo::bar::baz;").unwrap();
-/// parse_all::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz;").unwrap();
+/// testing::roundtrip::<ast::ItemUse>("use foo;");
+/// testing::roundtrip::<ast::ItemUse>("use foo::bar;");
+/// testing::roundtrip::<ast::ItemUse>("use foo::bar::baz;");
+/// testing::roundtrip::<ast::ItemUse>("#[macro_use] use foo::bar::baz;");
+/// testing::roundtrip::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz;");
 /// ```
 impl Parse for ItemUse {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
@@ -64,7 +64,7 @@ impl Parse for ItemUse {
 }
 
 /// A use component.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum ItemUseComponent {
     /// An identifier import.
     PathSegment(ast::PathSegment),

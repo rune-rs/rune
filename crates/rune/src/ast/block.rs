@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
 
 /// A block of expressions.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct Block {
     /// The close brace.
     pub open: ast::OpenBrace,
@@ -47,27 +47,27 @@ impl Block {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// let block = parse_all::<ast::Block>("{}").unwrap();
+/// let block = testing::roundtrip::<ast::Block>("{}");
 /// assert_eq!(block.statements.len(), 0);
 /// assert!(block.produces_nothing());
 ///
-/// let block = parse_all::<ast::Block>("{ foo }").unwrap();
+/// let block = testing::roundtrip::<ast::Block>("{ foo }");
 /// assert_eq!(block.statements.len(), 1);
 /// assert!(!block.produces_nothing());
 ///
-/// let block = parse_all::<ast::Block>("{ foo; }").unwrap();
+/// let block = testing::roundtrip::<ast::Block>("{ foo; }");
 /// assert_eq!(block.statements.len(), 1);
 /// assert!(block.produces_nothing());
 ///
-/// let block = parse_all::<ast::Block>(r#"
+/// let block = testing::roundtrip::<ast::Block>(r#"
 ///     {
 ///         let foo = 42;
 ///         let bar = "string";
 ///         baz
 ///     }
-/// "#).unwrap();
+/// "#);
 ///
 /// assert_eq!(block.statements.len(), 3);
 /// ```

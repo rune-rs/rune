@@ -4,7 +4,7 @@ use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A string literal.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitTemplate {
     /// The token corresponding to the literal.
     token: ast::Token,
@@ -122,10 +122,10 @@ impl<'a> Resolve<'a> for LitTemplate {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitTemplate>("`hello world`").unwrap();
-/// parse_all::<ast::LitTemplate>("`hello\\n world`").unwrap();
+/// testing::roundtrip::<ast::LitTemplate>("`hello world`");
+/// testing::roundtrip::<ast::LitTemplate>("`hello\\n world`");
 /// ```
 impl Parse for LitTemplate {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An impl declaration.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemImpl {
     /// The attributes of the `impl` block
     #[rune(iter)]
@@ -53,12 +53,12 @@ impl ItemImpl {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ItemImpl>("impl Foo {}").unwrap();
-/// parse_all::<ast::ItemImpl>("impl Foo { fn test(self) { } }").unwrap();
-/// parse_all::<ast::ItemImpl>("#[variant(enum_= \"SuperHero\", x = \"1\")] impl Foo { fn test(self) { } }").unwrap();
-/// parse_all::<ast::ItemImpl>("#[xyz] impl Foo { #[jit] fn test(self) { } }").unwrap();
+/// testing::roundtrip::<ast::ItemImpl>("impl Foo {}");
+/// testing::roundtrip::<ast::ItemImpl>("impl Foo { fn test(self) { } }");
+/// testing::roundtrip::<ast::ItemImpl>("#[variant(enum_= \"SuperHero\", x = \"1\")] impl Foo { fn test(self) { } }");
+/// testing::roundtrip::<ast::ItemImpl>("#[xyz] impl Foo { #[jit] fn test(self) { } }");
 /// ```
 impl Parse for ItemImpl {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

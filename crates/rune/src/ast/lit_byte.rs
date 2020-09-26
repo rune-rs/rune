@@ -3,7 +3,7 @@ use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage
 use runestick::Source;
 
 /// A byte literal.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitByte {
     /// The token corresponding to the literal.
     pub token: ast::Token,
@@ -17,13 +17,13 @@ pub struct LitByte {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitByte>("b'a'").unwrap();
-/// parse_all::<ast::LitByte>("b'\\0'").unwrap();
-/// parse_all::<ast::LitByte>("b'\\n'").unwrap();
-/// parse_all::<ast::LitByte>("b'\\r'").unwrap();
-/// parse_all::<ast::LitByte>("b'\\\\''").unwrap();
+/// testing::roundtrip::<ast::LitByte>("b'a'");
+/// testing::roundtrip::<ast::LitByte>("b'\\0'");
+/// testing::roundtrip::<ast::LitByte>("b'\\n'");
+/// testing::roundtrip::<ast::LitByte>("b'\\r'");
+/// testing::roundtrip::<ast::LitByte>("b'\\\\''");
 /// ```
 impl Parse for LitByte {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

@@ -6,13 +6,13 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprFor>("for i in x {}").unwrap();
-/// parse_all::<ast::ExprFor>("'label: for i in x {}").unwrap();
-/// parse_all::<ast::ExprFor>("#[attr] 'label: for i in x {}").unwrap();
+/// testing::roundtrip::<ast::ExprFor>("for i in x {}");
+/// testing::roundtrip::<ast::ExprFor>("'label: for i in x {}");
+/// testing::roundtrip::<ast::ExprFor>("#[attr] 'label: for i in x {}");
 /// ```
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprFor {
     /// The attributes of the `for` loop
     #[rune(iter)]

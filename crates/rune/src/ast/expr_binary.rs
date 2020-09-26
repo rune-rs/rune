@@ -4,7 +4,7 @@ use runestick::Span;
 use std::fmt;
 
 /// A binary expression.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprBinary {
     /// The left-hand side of a binary operation.
     pub lhs: Box<ast::Expr>,

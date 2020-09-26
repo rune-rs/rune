@@ -6,12 +6,12 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprLet>("let x = 1").unwrap();
-/// parse_all::<ast::ExprLet>("#[attr] let a = f()").unwrap();
+/// testing::roundtrip::<ast::ExprLet>("let x = 1");
+/// testing::roundtrip::<ast::ExprLet>("#[attr] let a = f()");
 /// ```
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprLet {
     /// The attributes for the let expression
     #[rune(iter, attributes)]

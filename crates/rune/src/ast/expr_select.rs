@@ -4,7 +4,7 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A `select` expression that selects over a collection of futures.
 ///
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprSelect {
     /// The attributes of the `select`
     #[rune(iter)]
@@ -76,7 +76,7 @@ impl Parse for ExprSelect {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprSelectBranch {
     /// The identifier to bind the result to.
     pub pat: ast::Pat,
@@ -91,7 +91,7 @@ pub struct ExprSelectBranch {
 }
 
 /// A single selection branch.
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprDefaultBranch {
     /// The `default` keyword.
     pub default: ast::Default,

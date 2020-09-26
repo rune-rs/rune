@@ -6,14 +6,14 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprLoop>("loop {}").unwrap();
-/// parse_all::<ast::ExprLoop>("loop { 1; }").unwrap();
-/// parse_all::<ast::ExprLoop>("'label: loop {1;}").unwrap();
-/// parse_all::<ast::ExprLoop>("#[attr] 'label: loop {x();}").unwrap();
+/// testing::roundtrip::<ast::ExprLoop>("loop {}");
+/// testing::roundtrip::<ast::ExprLoop>("loop { 1; }");
+/// testing::roundtrip::<ast::ExprLoop>("'label: loop {1;}");
+/// testing::roundtrip::<ast::ExprLoop>("#[attr] 'label: loop {x();}");
 /// ```
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprLoop {
     /// The attributes for the `loop`
     #[rune(iter)]

@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Spanned, ToTokens};
 
 /// An index set operation `<target>[<index>] = <value>`.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprIndexSet {
     /// The target of the index set.
     pub target: Box<ast::Expr>,

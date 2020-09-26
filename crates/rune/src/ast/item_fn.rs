@@ -3,7 +3,7 @@ use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 use runestick::Span;
 
 /// A function.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemFn {
     /// The attributes for the fn
     #[rune(iter)]
@@ -68,25 +68,24 @@ impl Peek for ItemFn {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast, parse_all};
 ///
-/// parse_all::<ast::ItemFn>("async fn hello() {}").unwrap();
+/// testing::roundtrip::<ast::ItemFn>("async fn hello() {}");
 /// assert!(parse_all::<ast::ItemFn>("fn async hello() {}").is_err());
 ///
-/// let item = parse_all::<ast::ItemFn>("fn hello() {}").unwrap();
+/// let item = testing::roundtrip::<ast::ItemFn>("fn hello() {}");
 /// assert_eq!(item.args.items.len(), 0);
 ///
-/// let item = parse_all::<ast::ItemFn>("fn hello(foo, bar) {}").unwrap();
+/// let item = testing::roundtrip::<ast::ItemFn>("fn hello(foo, bar) {}");
 /// assert_eq!(item.args.items.len(), 2);
 ///
-/// let item = parse_all::<ast::ItemFn>("pub fn hello(foo, bar) {}").unwrap();
-/// let item = parse_all::<ast::ItemFn>("pub async fn hello(foo, bar) {}").unwrap();
-/// let item = parse_all::<ast::ItemFn>("#[inline] fn hello(foo, bar) {}").unwrap();
-/// let item = parse_all::<ast::ItemFn>("#[inline] pub async fn hello(foo, bar) {}").unwrap();
+/// testing::roundtrip::<ast::ItemFn>("pub fn hello(foo, bar) {}");
+/// testing::roundtrip::<ast::ItemFn>("pub async fn hello(foo, bar) {}");
+/// testing::roundtrip::<ast::ItemFn>("#[inline] fn hello(foo, bar) {}");
 ///
-/// if let ast::Visibility::Public(_) = &item.visibility {} else {
-///     panic!("expected `fn` item visibility of `Public(` got {:?}", &item.visibility);
-/// }
+/// let item = testing::roundtrip::<ast::ItemFn>("#[inline] pub async fn hello(foo, bar) {}");
+/// assert!(matches!(item.visibility, ast::Visibility::Public(..)));
+///
 /// assert_eq!(item.args.items.len(), 2);
 /// assert_eq!(item.attributes.len(), 1);
 ///

@@ -4,7 +4,7 @@ use runestick::Source;
 use std::borrow::Cow;
 
 /// A label, like `'foo`
-#[derive(Debug, Clone, Copy, ToTokens, Spanned)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens, Spanned)]
 pub struct Label {
     /// The token of the label.
     pub token: ast::Token,

@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Spanned, ToTokens};
 
 /// The field being accessed.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum ExprField {
     /// An identifier.
     Ident(ast::Ident),
@@ -11,7 +11,7 @@ pub enum ExprField {
 }
 
 /// A field access `<expr>.<field>`.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprFieldAccess {
     /// The expr where the field is being accessed.
     pub expr: Box<ast::Expr>,

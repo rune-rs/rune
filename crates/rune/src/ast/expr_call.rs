@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Spanned, ToTokens};
 
 /// A function call `<expr>(<args>)`.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprCall {
     /// The name of the function being called.
     pub expr: Box<ast::Expr>,

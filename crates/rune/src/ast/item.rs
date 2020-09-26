@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
 
 /// A declaration.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Item {
     /// A use declaration.
     ItemUse(ast::ItemUse),

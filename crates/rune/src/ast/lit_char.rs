@@ -3,7 +3,7 @@ use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage
 use runestick::Source;
 
 /// A character literal.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitChar {
     /// The token corresponding to the literal.
     pub token: ast::Token,
@@ -17,13 +17,13 @@ pub struct LitChar {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitChar>("'a'").unwrap();
-/// parse_all::<ast::LitChar>("'\\0'").unwrap();
-/// parse_all::<ast::LitChar>("'\\n'").unwrap();
-/// parse_all::<ast::LitChar>("'\\r'").unwrap();
-/// parse_all::<ast::LitChar>("'\\''").unwrap();
+/// testing::roundtrip::<ast::LitChar>("'a'");
+/// testing::roundtrip::<ast::LitChar>("'\\0'");
+/// testing::roundtrip::<ast::LitChar>("'\\n'");
+/// testing::roundtrip::<ast::LitChar>("'\\r'");
+/// testing::roundtrip::<ast::LitChar>("'\\''");
 /// ```
 impl Parse for LitChar {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {

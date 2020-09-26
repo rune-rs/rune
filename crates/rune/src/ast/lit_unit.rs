@@ -6,11 +6,11 @@ use crate::{Parse, Peek, Spanned, ToTokens};
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitUnit>("()").unwrap();
+/// testing::roundtrip::<ast::LitUnit>("()");
 /// ```
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct LitUnit {
     /// The open parenthesis.
     pub open: ast::OpenParen,

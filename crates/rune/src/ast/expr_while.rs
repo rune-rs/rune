@@ -6,13 +6,13 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprWhile>("while x {}").unwrap();
-/// parse_all::<ast::ExprWhile>("'label: while x {}").unwrap();
-/// parse_all::<ast::ExprWhile>("#[attr] 'label: while x {}").unwrap();
+/// testing::roundtrip::<ast::ExprWhile>("while x {}");
+/// testing::roundtrip::<ast::ExprWhile>("'label: while x {}");
+/// testing::roundtrip::<ast::ExprWhile>("#[attr] 'label: while x {}");
 /// ```
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprWhile {
     /// The attributes for the `while` loop
     #[rune(iter)]

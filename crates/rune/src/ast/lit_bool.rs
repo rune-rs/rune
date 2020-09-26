@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// The unit literal `()`.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitBool {
     /// The token of the literal.
     pub token: ast::Token,
@@ -16,10 +16,10 @@ pub struct LitBool {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::LitBool>("true").unwrap();
-/// parse_all::<ast::LitBool>("false").unwrap();
+/// testing::roundtrip::<ast::LitBool>("true");
+/// testing::roundtrip::<ast::LitBool>("false");
 /// ```
 impl Parse for LitBool {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {

@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A match expression.
-#[derive(Debug, Clone, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprMatch {
     /// The attributes for the match expression
     #[rune(iter)]
@@ -67,10 +67,10 @@ impl ExprMatch {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprMatch>("match 0 { _ => 1, }").unwrap();
-/// let expr = parse_all::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }").unwrap();
+/// testing::roundtrip::<ast::ExprMatch>("match 0 { _ => 1, }");
+/// let expr = testing::roundtrip::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }");
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
 impl Parse for ExprMatch {
@@ -85,11 +85,11 @@ impl Parse for ExprMatch {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast};
+/// use rune::{testing, ast};
 ///
-/// parse_all::<ast::ExprMatchBranch>("1 => { foo }").unwrap();
+/// testing::roundtrip::<ast::ExprMatchBranch>("1 => { foo }");
 /// ```
-#[derive(Debug, Clone, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprMatchBranch {
     /// The pattern to match.
     pub pat: ast::Pat,
