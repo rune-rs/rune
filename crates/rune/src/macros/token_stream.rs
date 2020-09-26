@@ -1,6 +1,7 @@
-use crate::ast::Token;
+use crate::ast::{Kind, Token};
 use crate::MacroContext;
 use runestick::Span;
+use std::fmt;
 use std::slice;
 
 /// A token stream.
@@ -11,6 +12,14 @@ pub struct TokenStream {
 }
 
 impl TokenStream {
+    /// Construct an empty token stream for testing.
+    pub fn empty() -> Self {
+        Self {
+            stream: Vec::new(),
+            end: Span::empty(),
+        }
+    }
+
     /// Construct a new token stream with the specified end span.
     pub fn new(stream: Vec<Token>, end: Span) -> Self {
         Self { stream, end }
@@ -40,6 +49,13 @@ impl TokenStream {
         TokenStreamIter {
             iter: self.stream.iter(),
             end: self.end,
+        }
+    }
+
+    /// Return something that once formatted will produce a stream of kinds.
+    pub fn kinds(&self) -> Kinds<'_> {
+        Kinds {
+            stream: &self.stream,
         }
     }
 }
@@ -160,5 +176,36 @@ impl PartialEq<Vec<Token>> for TokenStream {
 impl PartialEq<TokenStream> for Vec<Token> {
     fn eq(&self, other: &TokenStream) -> bool {
         *self == other.stream
+    }
+}
+
+pub struct Kinds<'a> {
+    stream: &'a [Token],
+}
+
+impl Iterator for Kinds<'_> {
+    type Item = Kind;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (first, rest) = self.stream.split_first()?;
+        self.stream = rest;
+        Some(first.kind)
+    }
+}
+
+impl fmt::Debug for Kinds<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.stream.iter();
+        let last = it.next_back();
+
+        for t in it {
+            write!(f, "{} ", t.kind)?;
+        }
+
+        if let Some(t) = last {
+            write!(f, "{}", t.kind)?;
+        }
+
+        Ok(())
     }
 }
