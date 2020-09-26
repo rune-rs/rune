@@ -20,7 +20,10 @@ mod unit_builder;
 pub use self::compile_error::{CompileError, CompileErrorKind, CompileResult};
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
 pub use self::scopes::Var;
-pub use self::unit_builder::{ImportEntry, ImportKey, LinkerError, UnitBuilder, UnitBuilderError};
+pub use self::unit_builder::{
+    ImportEntry, ImportKey, InsertMetaError, LinkerError, UnitBuilder, UnitBuilderError,
+    UnitBuilderErrorKind,
+};
 use crate::parsing::Resolve as _;
 
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
@@ -160,12 +163,13 @@ impl CompileBuildEntry<'_> {
         let BuildEntry {
             item,
             build,
+            span,
             source,
             source_id,
             used,
         } = self.entry;
 
-        let mut asm = self.unit.new_assembly(source_id);
+        let mut asm = self.unit.new_assembly(span, source_id);
 
         let mut compiler = Compiler {
             storage: self.storage,
@@ -202,7 +206,7 @@ impl CompileBuildEntry<'_> {
                     compiler.warnings.not_used(source_id, span, None);
                 } else {
                     self.unit
-                        .new_function(source_id, item, count, asm, f.call, args)?;
+                        .new_function(span, source_id, item, count, asm, f.call, args)?;
                 }
             }
             Build::InstanceFunction(f) => {
@@ -243,6 +247,7 @@ impl CompileBuildEntry<'_> {
                     compiler.warnings.not_used(source_id, span, None);
                 } else {
                     self.unit.new_instance_function(
+                        span,
                         source_id,
                         item,
                         type_of,
@@ -270,7 +275,7 @@ impl CompileBuildEntry<'_> {
                     compiler.warnings.not_used(source_id, span, None);
                 } else {
                     self.unit
-                        .new_function(source_id, item, count, asm, c.call, args)?;
+                        .new_function(span, source_id, item, count, asm, c.call, args)?;
                 }
             }
             Build::AsyncBlock(b) => {
@@ -283,7 +288,7 @@ impl CompileBuildEntry<'_> {
                     compiler.warnings.not_used(source_id, span, None);
                 } else {
                     self.unit
-                        .new_function(source_id, item, args, asm, b.call, Vec::new())?;
+                        .new_function(span, source_id, item, args, asm, b.call, Vec::new())?;
                 }
             }
             Build::UnusedConst(c) => {

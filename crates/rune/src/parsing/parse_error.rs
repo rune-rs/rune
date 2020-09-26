@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::shared::Description;
 use crate::Spanned;
 use runestick::Span;
 use thiserror::Error;
@@ -7,33 +8,46 @@ error! {
     /// An error raised during parsing.
     #[derive(Debug, Clone, Copy)]
     pub struct ParseError {
-        span: Span,
         kind: ParseErrorKind,
+    }
+}
+
+impl ParseError {
+    /// Construct an expectation error.
+    pub(crate) fn expected<T, E>(actual: T, expected: E) -> Self
+    where
+        T: Spanned,
+        ast::Kind: From<T>,
+        E: Description,
+    {
+        Self {
+            span: actual.span(),
+            kind: ParseErrorKind::Expected {
+                expected: expected.description(),
+                actual: ast::Kind::from(actual),
+            },
+        }
     }
 }
 
 /// Error when parsing.
 #[derive(Debug, Clone, Copy, Error)]
 pub enum ParseErrorKind {
-    /// Error raised when we encounter end-of-file but we didn't expect it.
-    #[error("unexpected end-of-file")]
-    UnexpectedEof,
     /// Error raised when we expect and end-of-file but it didn't happen.
-    #[error("expected end of input, but encountered `{actual}`")]
+    #[error("expected end-of-file, but got token `{actual}`")]
     ExpectedEof {
         /// Kind of the token encountered instead of end-of-file.
         actual: ast::Kind,
     },
-    /// Error raised when we expect a declaration.
-    #[error("expected declaration `fn`, `mod`, `struct`, `enum`, or `use`. got `{actual}`.")]
-    ExpectedItem {
-        /// Kind of the token encountered instead of a declaration.
-        actual: ast::Kind,
-    },
-    /// Expected use import but found something else.
-    #[error("expected import component but found `{actual}`")]
-    ExpectedItemUseImportComponent {
-        /// The actual token kind.
+    /// Error raised when we encounter end-of-file but we didn't expect it.
+    #[error("unexpected end-of-file")]
+    UnexpectedEof,
+    /// An expectation error.
+    #[error("expected {expected}, but got `{actual}`")]
+    Expected {
+        /// Description of what we expected.
+        expected: &'static str,
+        /// The actual kind seen.
         actual: ast::Kind,
     },
     /// The given item does not support an attribute, like `#[foo]`.
@@ -75,83 +89,11 @@ pub enum ParseErrorKind {
         /// The kind of the actual token we saw.
         actual: ast::Kind,
     },
-    /// Expected a pattern but got something else.
-    #[error("expected start of pattern but got `{actual}`")]
-    ExpectedPatError {
-        /// The kind of the actual token we saw.
-        actual: ast::Kind,
-    },
-    /// Expected an expression but got something else.
-    #[error("expected start of expression but got `{actual}`")]
-    ExpectedExpr {
-        /// The kind of the actual token we saw.
-        actual: ast::Kind,
-    },
-    /// When we expect to see a loop (typically after a label).
-    #[error("expected loop but got `{actual}")]
-    ExpectedLoop {
-        /// The kind of the actual token we saw.
-        actual: ast::Kind,
-    },
     /// Encountered an unexpected character.
     #[error("unexpected character `{c}`")]
     UnexpectedChar {
         /// Character encountered.
         c: char,
-    },
-    /// Expected a number, but got something else.
-    #[error("expected number but got `{actual}`")]
-    ExpectedNumber {
-        /// The kind of the actual token we saw.
-        actual: ast::Kind,
-    },
-    /// Expected a byte, but got something else.
-    #[error("expected byte but got `{actual}`")]
-    ExpectedByte {
-        /// The kind of the actual token we saw.
-        actual: ast::Kind,
-    },
-    /// Expected a char, but got something else.
-    #[error("expected char but got `{actual}`")]
-    ExpectedChar {
-        /// The kind of the actual token we saw.
-        actual: ast::Kind,
-    },
-    /// Expected a string, but got something else.
-    #[error("expected string but got `{actual}`")]
-    ExpectedString {
-        /// The actual token kind which was not a string.
-        actual: ast::Kind,
-    },
-    /// Expected a boolean literal.
-    #[error("expected `true` or `false` but got `{actual}`")]
-    ExpectedBool {
-        /// The actual token that was encountered.
-        actual: ast::Kind,
-    },
-    /// Expected a literal.
-    #[error("expected a literal value but got `{actual}`")]
-    ExpectedLit {
-        /// The actual token that was encountered.
-        actual: ast::Kind,
-    },
-    /// Expected a valid object key.
-    #[error("expected an object key (string or identifier) but got `{actual}`")]
-    ExpectedLitObjectKey {
-        /// The actual token that was encountered.
-        actual: ast::Kind,
-    },
-    /// Expected a unary operator.
-    #[error("expected unary operator (`!`) but got `{actual}`")]
-    ExpectedUnaryOperator {
-        /// The actual token.
-        actual: ast::Kind,
-    },
-    /// Expected a visibility specifier.
-    #[error("expected visibility specifier `pub`, `pub (in path)`, `pub(super)`, `pub(crate)`, or `crate` got `{actual}`")]
-    ExpectedVisibility {
-        /// The actual token.
-        actual: ast::Kind,
     },
     /// Expression group required to break precedence.
     #[error("group required in expression to determine precedence")]
@@ -216,12 +158,6 @@ pub enum ParseErrorKind {
     /// Trying to use an expression as async when it's not supported.
     #[error("not supported as an async expression")]
     UnsupportedAsyncExpr,
-    /// Expected a macro delimiter.
-    #[error("expected delimiter, `(`, `[`, or `{{`, but got `{actual}`")]
-    ExpectedMacroDelimiter {
-        /// What we actually saw.
-        actual: ast::Kind,
-    },
     /// Expected a macro close delimiter.
     #[error("expected close delimiter `{expected}`, but got `{actual}`")]
     ExpectedMacroCloseDelimiter {

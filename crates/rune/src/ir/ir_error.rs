@@ -8,7 +8,6 @@ error! {
     /// An error raised during compiling.
     #[derive(Debug)]
     pub struct IrError {
-        span: Span,
         kind: IrErrorKind,
     }
 
@@ -72,25 +71,12 @@ pub enum IrErrorKind {
         /// Message of the error.
         message: &'static str,
     },
-    /// Encountered an expression that is not supported as a constant
-    /// expression.
-    #[error("not a supported constant expression")]
-    NotConst,
-    /// Trying to process a cycle of constants.
-    #[error("constant cycle detected")]
-    ConstCycle,
-    /// Encountered a compile meta used in an inappropriate position.
-    #[error("{meta} is not supported here")]
-    UnsupportedMeta {
-        /// Unsupported compile meta.
-        meta: CompileMeta,
-    },
     /// A scope error.
     #[error("scope error: {error}")]
     ScopeError {
         /// The kind of the scope error.
         #[source]
-        error: Box<ScopeErrorKind>,
+        error: ScopeErrorKind,
     },
     /// An access error raised during compilation.
     #[error("access error: {error}")]
@@ -104,7 +90,20 @@ pub enum IrErrorKind {
     QueryError {
         /// The source error.
         #[source]
-        error: Box<QueryErrorKind>,
+        error: QueryErrorKind,
+    },
+    /// Encountered an expression that is not supported as a constant
+    /// expression.
+    #[error("not a supported constant expression")]
+    NotConst,
+    /// Trying to process a cycle of constants.
+    #[error("constant cycle detected")]
+    ConstCycle,
+    /// Encountered a compile meta used in an inappropriate position.
+    #[error("{meta} is not supported here")]
+    UnsupportedMeta {
+        /// Unsupported compile meta.
+        meta: CompileMeta,
     },
     /// A constant evaluation errored.
     #[error("expected a value of type {expected} but got {actual}")]

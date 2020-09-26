@@ -193,6 +193,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             // because statically we don't know if they will be used or
             // not.
             self.query.queue.push_back(BuildEntry {
+                span: f.ast.span(),
                 item: item.clone(),
                 build: Build::InstanceFunction(f),
                 source: self.source.clone(),
@@ -212,10 +213,14 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 }),
             };
 
-            self.query.unit.insert_meta(meta)?;
+            self.query
+                .unit
+                .insert_meta(meta)
+                .map_err(|e| CompileError::new(span, e))?;
         } else if is_toplevel {
             // NB: immediately compile all toplevel functions.
             self.query.queue.push_back(BuildEntry {
+                span: fun.ast.span(),
                 item: item.clone(),
                 build: Build::Function(fun),
                 source: self.source.clone(),
@@ -223,7 +228,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 used: Used::Used,
             });
 
-            self.query.unit.insert_meta(CompileMeta {
+            let meta = CompileMeta {
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&item)),
                     item,
@@ -233,7 +238,12 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                     path: self.source.path().map(ToOwned::to_owned),
                     source_id: self.source_id,
                 }),
-            })?;
+            };
+
+            self.query
+                .unit
+                .insert_meta(meta)
+                .map_err(|e| CompileError::new(span, e))?;
         } else {
             // NB: non toplevel functions can be indexed for later construction.
             self.query.index(

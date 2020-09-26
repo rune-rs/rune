@@ -64,7 +64,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
             return Ok(());
         }
 
-        let slot = self.unit.new_static_object_keys(&keys)?;
+        let slot = self.unit.new_static_object_keys(span, &keys)?;
 
         match &lit_object.ident {
             ast::LitObjectIdent::Named(path) => {

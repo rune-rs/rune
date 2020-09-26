@@ -173,7 +173,6 @@ macro_rules! error {
     (
         $(#[$meta:meta])*
         $vis:vis struct $error:ident {
-            span: Span,
             kind: $kind:ident,
         }
 
@@ -189,11 +188,11 @@ macro_rules! error {
             /// Construct a new scope error.
             pub fn new<S, K>(spanned: S, kind: K) -> Self
             where
-                S: Spanned,
+                S: crate::Spanned,
                 $kind: From<K>,
             {
                 Self {
-                    span: spanned.span(),
+                    span: crate::Spanned::span(&spanned),
                     kind: $kind::from(kind),
                 }
             }

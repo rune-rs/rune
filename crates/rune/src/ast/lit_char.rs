@@ -31,10 +31,7 @@ impl Parse for LitChar {
 
         match token.kind {
             ast::Kind::LitChar(source) => Ok(LitChar { token, source }),
-            _ => Err(ParseError::new(
-                token,
-                ParseErrorKind::ExpectedChar { actual: token.kind },
-            )),
+            _ => Err(ParseError::expected(token, "char")),
         }
     }
 }

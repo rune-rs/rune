@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::ast::expr::{EagerBrace, ExprChain};
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 use std::fmt;
 
 /// A unary expression.
@@ -58,17 +58,12 @@ pub enum UnaryOp {
 impl UnaryOp {
     /// Convert a unary operator from a token.
     pub fn from_token(token: ast::Token) -> Result<Self, ParseError> {
-        Ok(match token.kind {
-            ast::Kind::Bang => Self::Not,
-            ast::Kind::Amp => Self::BorrowRef,
-            ast::Kind::Star => Self::Deref,
-            actual => {
-                return Err(ParseError::new(
-                    token,
-                    ParseErrorKind::ExpectedUnaryOperator { actual },
-                ))
-            }
-        })
+        match token.kind {
+            ast::Kind::Bang => Ok(Self::Not),
+            ast::Kind::Amp => Ok(Self::BorrowRef),
+            ast::Kind::Star => Ok(Self::Deref),
+            _ => Err(ParseError::expected(token, "unary operator `!`")),
+        }
     }
 }
 

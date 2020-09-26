@@ -1,7 +1,8 @@
 //! Helpers for building assembly.
 
 use crate::collections::HashMap;
-use crate::compiling::UnitBuilderError;
+use crate::compiling::{UnitBuilderError, UnitBuilderErrorKind};
+use crate::Spanned;
 use runestick::{Hash, Inst, Label, Span};
 
 #[derive(Debug, Clone)]
@@ -19,6 +20,8 @@ pub enum AssemblyInst {
 /// Helper structure to build instructions and maintain certain invariants.
 #[derive(Debug, Clone, Default)]
 pub struct Assembly {
+    /// The span that caused the assembly.
+    pub(crate) span: Span,
     /// The source id of the assembly.
     pub(crate) source_id: usize,
     /// Label to offset.
@@ -37,8 +40,12 @@ pub struct Assembly {
 
 impl Assembly {
     /// Construct a new assembly.
-    pub(crate) fn new(source_id: usize, label_count: usize) -> Self {
+    pub(crate) fn new<S>(source_id: usize, spanned: S, label_count: usize) -> Self
+    where
+        S: Spanned,
+    {
         Self {
+            span: spanned.span(),
             source_id,
             labels: Default::default(),
             labels_rev: Default::default(),
@@ -61,7 +68,10 @@ impl Assembly {
         let offset = self.instructions.len();
 
         if self.labels.insert(label, offset).is_some() {
-            return Err(UnitBuilderError::DuplicateLabel { label });
+            return Err(UnitBuilderError::new(
+                self.span,
+                UnitBuilderErrorKind::DuplicateLabel { label },
+            ));
         }
 
         self.labels_rev.insert(offset, label);

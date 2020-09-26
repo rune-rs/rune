@@ -1,3 +1,4 @@
+use crate::shared::Description;
 use crate::{MacroContext, Spanned};
 use runestick::Span;
 use std::fmt;
@@ -177,20 +178,20 @@ pub enum Delimiter {
 
 impl Delimiter {
     /// The character used as an open delimiter.
-    pub fn open(self) -> char {
+    pub fn open(self) -> &'static str {
         match self {
-            Self::Parenthesis => '(',
-            Self::Brace => '{',
-            Self::Bracket => '[',
+            Self::Parenthesis => "(",
+            Self::Brace => "{",
+            Self::Bracket => "[",
         }
     }
 
     /// The character used as a close delimiter.
-    pub fn close(self) -> char {
+    pub fn close(self) -> &'static str {
         match self {
-            Self::Parenthesis => ')',
-            Self::Brace => '}',
-            Self::Bracket => ']',
+            Self::Parenthesis => ")",
+            Self::Brace => "}",
+            Self::Bracket => "]",
         }
     }
 }
@@ -312,6 +313,12 @@ kinds! {
     Yield, "The `yield` keyword.",
 }
 
+impl From<Token> for Kind {
+    fn from(token: Token) -> Self {
+        token.kind
+    }
+}
+
 impl Kind {
     /// Try to convert an identifier into a keyword.
     pub fn from_keyword(ident: &str) -> Option<Self> {
@@ -371,116 +378,121 @@ impl Kind {
     }
 }
 
+impl Kind {
+    /// Get the kind as a descriptive string.
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Abstract => "abstract",
+            Self::AlignOf => "alignof",
+            Self::Amp => "&",
+            Self::AmpAmp => "&&",
+            Self::AmpEq => "&=",
+            Self::Arrow => "->",
+            Self::As => "as",
+            Self::Async => "async",
+            Self::At => "@",
+            Self::Await => "await",
+            Self::Bang => "!",
+            Self::BangEq => "!=",
+            Self::Become => "become",
+            Self::Break => "break",
+            Self::Caret => "^",
+            Self::CaretEq => "^=",
+            Self::Close(delimiter) => delimiter.close(),
+            Self::Colon => ":",
+            Self::ColonColon => "::",
+            Self::Comma => ",",
+            Self::Const => "const",
+            Self::Crate => "crate",
+            Self::Dash => "-",
+            Self::DashEq => "-=",
+            Self::Default => "default",
+            Self::Div => "/",
+            Self::Do => "do",
+            Self::Dollar => "$",
+            Self::Dot => ".",
+            Self::DotDot => "..",
+            Self::Else => "else",
+            Self::Enum => "enum",
+            Self::Eq => "=",
+            Self::EqEq => "==",
+            Self::Extern => "extern",
+            Self::False => "false",
+            Self::Final => "final",
+            Self::Fn => "fn",
+            Self::For => "for",
+            Self::Gt => ">",
+            Self::GtEq => ">=",
+            Self::GtGt => ">>",
+            Self::GtGtEq => ">>=",
+            Self::Ident(..) => "ident",
+            Self::If => "if",
+            Self::Impl => "impl",
+            Self::In => "in",
+            Self::Is => "is",
+            Self::Label(..) => "label",
+            Self::Let => "let",
+            Self::LitByte { .. } => "byte",
+            Self::LitByteStr { .. } => "byte string",
+            Self::LitChar { .. } => "char",
+            Self::LitNumber { .. } => "number",
+            Self::LitStr { .. } => "string",
+            Self::LitTemplate { .. } => "template",
+            Self::Loop => "loop",
+            Self::Lt => "<",
+            Self::LtEq => "<=",
+            Self::LtLt => "<<",
+            Self::LtLtEq => "<<=",
+            Self::Macro => "macro",
+            Self::Match => "match",
+            Self::Mod => "mod",
+            Self::Move => "move",
+            Self::Not => "not",
+            Self::OffsetOf => "offsetof",
+            Self::Open(delimiter) => delimiter.open(),
+            Self::Override => "override",
+            Self::Perc => "%",
+            Self::PercEq => "%=",
+            Self::Pipe => "|",
+            Self::PipeEq => "|=",
+            Self::PipePipe => "||",
+            Self::Plus => "+",
+            Self::PlusEq => "+=",
+            Self::Pound => "#",
+            Self::Priv => "priv",
+            Self::Proc => "proc",
+            Self::Pub => "pub",
+            Self::Pure => "pure",
+            Self::QuestionMark => "?",
+            Self::Ref => "ref",
+            Self::Return => "return",
+            Self::Rocket => "=>",
+            Self::Select => "select",
+            Self::Self_ => "self",
+            Self::SemiColon => ";",
+            Self::SizeOf => "sizeof",
+            Self::SlashEq => "/=",
+            Self::Star => "*",
+            Self::StarEq => "*=",
+            Self::Static => "static",
+            Self::Struct => "struct",
+            Self::Super => "super",
+            Self::Tilde => "~",
+            Self::True => "true",
+            Self::TypeOf => "typeof",
+            Self::Underscore => "_",
+            Self::Unsafe => "unsafe",
+            Self::Use => "use",
+            Self::Virtual => "virtual",
+            Self::While => "while",
+            Self::Yield => "yield",
+        }
+    }
+}
+
 impl fmt::Display for Kind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::Abstract => write!(f, "abstract")?,
-            Self::AlignOf => write!(f, "alignof")?,
-            Self::Amp => write!(f, "&")?,
-            Self::AmpAmp => write!(f, "&&")?,
-            Self::AmpEq => write!(f, "&=")?,
-            Self::Arrow => write!(f, "->")?,
-            Self::As => write!(f, "as")?,
-            Self::Async => write!(f, "async")?,
-            Self::At => write!(f, "@")?,
-            Self::Await => write!(f, "await")?,
-            Self::Bang => write!(f, "!")?,
-            Self::BangEq => write!(f, "!=")?,
-            Self::Become => write!(f, "become")?,
-            Self::Break => write!(f, "break")?,
-            Self::Caret => write!(f, "^")?,
-            Self::CaretEq => write!(f, "^=")?,
-            Self::Close(delimiter) => write!(f, "{}", delimiter.close())?,
-            Self::Colon => write!(f, ":")?,
-            Self::ColonColon => write!(f, "::")?,
-            Self::Comma => write!(f, ",")?,
-            Self::Const => write!(f, "const")?,
-            Self::Crate => write!(f, "crate")?,
-            Self::Dash => write!(f, "-")?,
-            Self::DashEq => write!(f, "-=")?,
-            Self::Default => write!(f, "default")?,
-            Self::Div => write!(f, "/")?,
-            Self::Do => write!(f, "do")?,
-            Self::Dollar => write!(f, "$")?,
-            Self::Dot => write!(f, ".")?,
-            Self::DotDot => write!(f, "..")?,
-            Self::Else => write!(f, "else")?,
-            Self::Enum => write!(f, "enum")?,
-            Self::Eq => write!(f, "=")?,
-            Self::EqEq => write!(f, "==")?,
-            Self::Extern => write!(f, "extern")?,
-            Self::False => write!(f, "false")?,
-            Self::Final => write!(f, "final")?,
-            Self::Fn => write!(f, "fn")?,
-            Self::For => write!(f, "for")?,
-            Self::Gt => write!(f, ">")?,
-            Self::GtEq => write!(f, ">=")?,
-            Self::GtGt => write!(f, ">>")?,
-            Self::GtGtEq => write!(f, ">>=")?,
-            Self::Ident(..) => write!(f, "ident")?,
-            Self::If => write!(f, "if")?,
-            Self::Impl => write!(f, "impl")?,
-            Self::In => write!(f, "in")?,
-            Self::Is => write!(f, "is")?,
-            Self::Label(..) => write!(f, "label")?,
-            Self::Let => write!(f, "let")?,
-            Self::LitByte { .. } => write!(f, "byte")?,
-            Self::LitByteStr { .. } => write!(f, "byte string")?,
-            Self::LitChar { .. } => write!(f, "char")?,
-            Self::LitNumber { .. } => write!(f, "number")?,
-            Self::LitStr { .. } => write!(f, "string")?,
-            Self::LitTemplate { .. } => write!(f, "template")?,
-            Self::Loop => write!(f, "loop")?,
-            Self::Lt => write!(f, "<")?,
-            Self::LtEq => write!(f, "<=")?,
-            Self::LtLt => write!(f, "<<")?,
-            Self::LtLtEq => write!(f, "<<=")?,
-            Self::Macro => write!(f, "macro")?,
-            Self::Match => write!(f, "match")?,
-            Self::Mod => write!(f, "mod")?,
-            Self::Move => write!(f, "move")?,
-            Self::Not => write!(f, "not")?,
-            Self::OffsetOf => write!(f, "offsetof")?,
-            Self::Open(delimiter) => write!(f, "{}", delimiter.open())?,
-            Self::Override => write!(f, "override")?,
-            Self::Perc => write!(f, "%")?,
-            Self::PercEq => write!(f, "%=")?,
-            Self::Pipe => write!(f, "|")?,
-            Self::PipeEq => write!(f, "|=")?,
-            Self::PipePipe => write!(f, "||")?,
-            Self::Plus => write!(f, "+")?,
-            Self::PlusEq => write!(f, "+=")?,
-            Self::Pound => write!(f, "#")?,
-            Self::Priv => write!(f, "priv")?,
-            Self::Proc => write!(f, "proc")?,
-            Self::Pub => write!(f, "pub")?,
-            Self::Pure => write!(f, "pure")?,
-            Self::QuestionMark => write!(f, "?")?,
-            Self::Ref => write!(f, "ref")?,
-            Self::Return => write!(f, "return")?,
-            Self::Rocket => write!(f, "=>")?,
-            Self::Select => write!(f, "select")?,
-            Self::Self_ => write!(f, "self")?,
-            Self::SemiColon => write!(f, ";")?,
-            Self::SizeOf => write!(f, "sizeof")?,
-            Self::SlashEq => write!(f, "/=")?,
-            Self::Star => write!(f, "*")?,
-            Self::StarEq => write!(f, "*=")?,
-            Self::Static => write!(f, "static")?,
-            Self::Struct => write!(f, "struct")?,
-            Self::Super => write!(f, "super")?,
-            Self::Tilde => write!(f, "~")?,
-            Self::True => write!(f, "true")?,
-            Self::TypeOf => write!(f, "typeof")?,
-            Self::Underscore => write!(f, "_")?,
-            Self::Unsafe => write!(f, "unsafe")?,
-            Self::Use => write!(f, "use")?,
-            Self::Virtual => write!(f, "virtual")?,
-            Self::While => write!(f, "while")?,
-            Self::Yield => write!(f, "yield")?,
-        }
-
-        Ok(())
+        f.write_str(self.as_str())
     }
 }
 
@@ -490,5 +502,11 @@ impl crate::ToTokens for Kind {
             kind: *self,
             span: context.default_span(),
         });
+    }
+}
+
+impl Description for Kind {
+    fn description(self) -> &'static str {
+        self.as_str()
     }
 }

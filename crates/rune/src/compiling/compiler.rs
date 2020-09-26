@@ -427,7 +427,7 @@ impl<'a> Compiler<'a> {
 
             let source = self.source.clone();
             let key = item.key.resolve(&self.storage, &*source)?;
-            string_slots.push(self.unit.new_static_string(&*key)?);
+            string_slots.push(self.unit.new_static_string(span, &*key)?);
             keys.push(key.to_string());
 
             if let Some(existing) = keys_dup.insert(key.to_string(), span) {
@@ -441,7 +441,7 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        let keys = self.unit.new_static_object_keys(&keys[..])?;
+        let keys = self.unit.new_static_object_keys(span, &keys[..])?;
 
         let type_check = match &pat_object.ident {
             ast::LitObjectIdent::Named(path) => {
@@ -682,7 +682,7 @@ impl<'a> Compiler<'a> {
             ast::Pat::PatString(pat_string) => {
                 let span = pat_string.span();
                 let string = pat_string.resolve(&self.storage, &*self.source)?;
-                let slot = self.unit.new_static_string(&*string)?;
+                let slot = self.unit.new_static_string(span, &*string)?;
                 load(self, Needs::Value)?;
                 self.asm.push(Inst::EqStaticString { slot }, span);
             }

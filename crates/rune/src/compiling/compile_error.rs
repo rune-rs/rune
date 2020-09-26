@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::compiling::UnitBuilderError;
+use crate::compiling::{InsertMetaError, UnitBuilderError, UnitBuilderErrorKind};
 use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
 };
@@ -15,13 +15,13 @@ error! {
     /// An error raised during compiling.
     #[derive(Debug)]
     pub struct CompileError {
-        span: Span,
         kind: CompileErrorKind,
     }
 
     impl From<ParseError>;
     impl From<IrError>;
     impl From<QueryError>;
+    impl From<UnitBuilderError>;
 }
 
 impl CompileError {
@@ -70,304 +70,142 @@ impl CompileError {
     }
 }
 
-impl From<UnitBuilderError> for CompileError {
-    fn from(error: UnitBuilderError) -> Self {
-        CompileError {
-            span: Span::empty(),
-            kind: CompileErrorKind::UnitBuilderError { error },
-        }
-    }
-}
-
-/// Error when encoding AST.
+/// Compiler error.
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum CompileErrorKind {
-    /// An internal encoder invariant was broken.
     #[error("internal compiler error: {msg}")]
-    Internal {
-        /// The message of the internal error.
-        msg: &'static str,
-    },
-    /// Encountered an ir error.
+    Internal { msg: &'static str },
     #[error("ir error: {error}")]
     IrError {
-        /// The source error.
         #[source]
         error: Box<IrErrorKind>,
     },
-    /// Encountered a query error.
     #[error("query error: {error}")]
     QueryError {
-        /// The source error.
         #[source]
         error: Box<QueryErrorKind>,
     },
-    /// A constant evaluation errored.
+    #[error("unit construction error: {error}")]
+    UnitBuilderError {
+        #[source]
+        #[from]
+        error: UnitBuilderErrorKind,
+    },
+    #[error("{error}")]
+    ParseError {
+        #[source]
+        error: ParseErrorKind,
+    },
+    #[error("failed to insert meta: {error}")]
+    InsertMetaError {
+        #[source]
+        #[from]
+        error: InsertMetaError,
+    },
     #[error("error during constant evaluation: {msg}")]
-    ConstError {
-        /// Message describing the error.
-        msg: &'static str,
-    },
-    /// Trying to use an experimental feature which was not enabled.
+    ConstError { msg: &'static str },
     #[error("experimental feature: {msg}")]
-    Experimental {
-        /// The message of the variant.
-        msg: &'static str,
-    },
-    /// Cannot find a file corresponding to a module.
+    Experimental { msg: &'static str },
     #[error("file not found, expected a module file like `{path}.rn`")]
-    ModNotFound {
-        /// Path where file failed to be loaded from.
-        path: PathBuf,
-    },
-    /// Failed to load file from the given path.
+    ModNotFound { path: PathBuf },
     #[error("failed to load `{path}`: {error}")]
     ModFileError {
-        /// Path where file failed to be loaded from.
         path: PathBuf,
-        /// The underlying error.
         #[source]
         error: io::Error,
     },
-    /// A module that has already been loaded.
     #[error("module `{item}` has already been loaded")]
     ModAlreadyLoaded {
-        /// Base path of a module that has already been loaded.
         item: Item,
-        /// The existing location of the module.
         existing: (SourceId, Span),
     },
-    /// Unit error from runestick encoding.
-    #[error("unit construction error: {error}")]
-    UnitBuilderError {
-        /// Source error.
-        #[from]
-        error: UnitBuilderError,
-    },
-    /// Error for resolving values from source files.
-    #[error("{error}")]
-    ParseError {
-        /// Source error.
-        #[from]
-        error: Box<ParseErrorKind>,
-    },
-    /// Error when trying to index a duplicate item.
     #[error("found conflicting item `{existing}`")]
-    ItemConflict {
-        /// The name of the conflicting item.
-        existing: Item,
-    },
-    /// Error for variable conflicts.
+    ItemConflict { existing: Item },
     #[error("variable `{name}` conflicts")]
-    VariableConflict {
-        /// Name of the conflicting variable.
-        name: String,
-        /// The span where the variable was already present.
-        existing_span: Span,
-    },
-    /// Error missing a macro.
+    VariableConflict { name: String, existing_span: Span },
     #[error("missing macro `{item}`")]
-    MissingMacro {
-        /// Name of the missing macro.
-        item: Item,
-    },
-    /// Error while calling macro.
+    MissingMacro { item: Item },
     #[error("error while calling macro: {error}")]
-    CallMacroError {
-        /// Source error.
-        error: runestick::Error,
-    },
-    /// Error for missing local variables.
+    CallMacroError { error: runestick::Error },
     #[error("no local variable `{name}`")]
-    MissingLocal {
-        /// Name of the missing variable.
-        name: String,
-    },
-    /// Error for missing types.
+    MissingLocal { name: String },
     #[error("no such type `{item}`")]
-    MissingType {
-        /// Name of the missing type.
-        item: Item,
-    },
-    /// Tried to use a module that was missing.
+    MissingType { item: Item },
     #[error("missing module `{item}`")]
-    MissingModule {
-        /// The name of the missing module.
-        item: Item,
-    },
-    /// A specific label is missing.
+    MissingModule { item: Item },
     #[error("label not found in scope")]
     MissingLabel,
-    /// Tried to load module in a source where it wasn't supported.
     #[error("cannot load modules using a source without an associated URL")]
     UnsupportedModuleSource,
-    /// Encountered an unsupported URL when loading a module.
     #[error("cannot load modules relative to `{root}`")]
-    UnsupportedModuleRoot {
-        /// The Path that was unsupported.
-        root: PathBuf,
-    },
-    /// Encountered an unsupported Item when loading a module.
+    UnsupportedModuleRoot { root: PathBuf },
     #[error("cannot load module for `{item}`")]
-    UnsupportedModuleItem {
-        /// The item that cannot be used as a module.
-        item: Item,
-    },
-    /// Unsupported wildcard component in use.
+    UnsupportedModuleItem { item: Item },
     #[error("wildcard support not supported in this position")]
     UnsupportedWildcard,
-    /// Tried to use a meta as an async block for which it is not supported.
     #[error("`{meta}` is not a supported async block")]
-    UnsupportedAsyncBlock {
-        /// The meta we tried to use as an async block.
-        meta: CompileMeta,
-    },
-    /// Tried to declare an instance function on a type for which it is not
-    /// supported.
+    UnsupportedAsyncBlock { meta: CompileMeta },
     #[error("cannot declare instance functions for type `{meta}`")]
-    UnsupportedInstanceFunction {
-        /// The meta we tried to declare an instance function for.
-        meta: CompileMeta,
-    },
-    /// Tried to treat something as a value which is not supported.
+    UnsupportedInstanceFunction { meta: CompileMeta },
     #[error("`{meta}` cannot be used as a value")]
-    UnsupportedValue {
-        /// The meta we tried to treat as a value.
-        meta: CompileMeta,
-    },
-    /// Tried to treat something as a type which is not supported.
+    UnsupportedValue { meta: CompileMeta },
     #[error("`{meta}` cannot be used as a type")]
-    UnsupportedType {
-        /// The meta we tried to treat as a type.
-        meta: CompileMeta,
-    },
-    /// `self` occured in an unsupported position.
+    UnsupportedType { meta: CompileMeta },
     #[error("`self` not supported here")]
     UnsupportedSelf,
-    /// Encountered a unary operator we can't encode.
     #[error("unsupported unary operator `{op}`")]
-    UnsupportedUnaryOp {
-        /// The operator.
-        op: ast::UnaryOp,
-    },
-    /// Encountered a binary operator we can't encode.
+    UnsupportedUnaryOp { op: ast::UnaryOp },
     #[error("unsupported binary operator `{op}`")]
-    UnsupportedBinaryOp {
-        /// The operator.
-        op: ast::BinOp,
-    },
-    /// Cannot crate object literal of the given type.
+    UnsupportedBinaryOp { op: ast::BinOp },
     #[error("type `{item}` is not an object")]
-    UnsupportedLitObject {
-        /// The path to the unsupported object.
-        item: Item,
-    },
-    /// Key is not present in the given type literal.
+    UnsupportedLitObject { item: Item },
     #[error("missing field `{field}` in declaration of `{item}`")]
-    LitObjectMissingField {
-        /// They key that didn't exist.
-        field: String,
-        /// The related item.
-        item: Item,
-    },
-    /// Key is not present in the given type literal.
+    LitObjectMissingField { field: String, item: Item },
     #[error("`{field}` is not a field in `{item}`")]
-    LitObjectNotField {
-        /// They key that is not a field.
-        field: String,
-        /// The related item.
-        item: Item,
-    },
-    /// When we encounter an expression that cannot be assigned to.
+    LitObjectNotField { field: String, item: Item },
     #[error("cannot assign to expression")]
     UnsupportedAssignExpr,
-    /// When we encounter an expression that cannot be assigned to.
     #[error("unsupported binary expression")]
     UnsupportedBinaryExpr,
-    /// When we encounter an expression that doesn't have a stack location and
-    /// can't be referenced.
     #[error("cannot take reference of expression")]
     UnsupportedRef,
-    /// Using a pattern that is not supported in a select.
     #[error("unsupported select pattern")]
     UnsupportedSelectPattern,
-    /// Unsupported field access.
     #[error("unsupported field access")]
     UnsupportedFieldAccess,
-    /// A meta item that is not supported in the given pattern position.
     #[error("wrong number of arguments, expected `{expected}` but got `{actual}`")]
     UnsupportedArgumentCount {
-        /// The meta item we tried to use as a pattern.
         meta: CompileMeta,
-        /// The expected number of arguments.
         expected: usize,
-        /// The actual number of arguments.
         actual: usize,
     },
-    /// A meta item that can't be used as a constant.
     #[error("`{meta}` cannot be used as a const")]
-    UnsupportedMetaConst {
-        /// The meta item we tried to use as a const.
-        meta: CompileMeta,
-    },
-    /// A meta item that is not supported in the given pattern position.
+    UnsupportedMetaConst { meta: CompileMeta },
     #[error("`{meta}` is not supported in a pattern like this")]
-    UnsupportedMetaPattern {
-        /// The meta item we tried to use as a pattern.
-        meta: CompileMeta,
-    },
-    /// A meta item that is not supported in the given closure position.
+    UnsupportedMetaPattern { meta: CompileMeta },
     #[error("`{meta}` is not supported as a closure")]
-    UnsupportedMetaClosure {
-        /// The meta item we tried to use as a pattern.
-        meta: CompileMeta,
-    },
-    /// The pattern is not supported.
+    UnsupportedMetaClosure { meta: CompileMeta },
     #[error("item is not supported in a pattern")]
     UnsupportedPattern,
-    /// The pattern is not supported as a binding.
     #[error("not a valid binding")]
     UnsupportedBinding,
-    /// Attempting to use a float in a match pattern.
     #[error("floating point numbers cannot be used in patterns")]
     MatchFloatInPattern,
-    /// Attempting to create an object with a duplicate object key.
     #[error("duplicate key in literal object")]
-    DuplicateObjectKey {
-        /// Where the object key exists previously.
-        existing: Span,
-        /// The object being defined.
-        object: Span,
-    },
-    /// Attempt to call something that is not a function.
+    DuplicateObjectKey { existing: Span, object: Span },
     #[error("`{item}` is not a function")]
-    MissingFunction {
-        /// The item we're trying to call.
-        item: Item,
-    },
-    /// Attempt to yield outside of a function or a closure.
+    MissingFunction { item: Item },
     #[error("`yield` must be used in function or closure")]
     YieldOutsideFunction,
-    /// Attempt to await outside of a function or a closure.
     #[error("`await` must be used inside an async function or closure")]
     AwaitOutsideFunction,
-    /// Attempt to declare a function which takes `self` outside of an `impl`
-    /// block.
     #[error("instance function declared outside of `impl` block")]
     InstanceFunctionOutsideImpl,
-    /// Import doesn't exist.
     #[error("import `{item}` (imported in prelude) does not exist")]
-    MissingPreludeModule {
-        /// The item that didn't exist.
-        item: Item,
-    },
-    /// Trying to use a number as a tuple index for which it is not suported.
+    MissingPreludeModule { item: Item },
     #[error("unsupported tuple index `{number}`")]
-    UnsupportedTupleIndex {
-        /// The number that was an unsupported tuple index.
-        number: ast::Number,
-    },
-    /// Error raised when trying to use a break outside of a loop.
+    UnsupportedTupleIndex { number: ast::Number },
     #[error("break outside of loop")]
     BreakOutsideOfLoop,
 }

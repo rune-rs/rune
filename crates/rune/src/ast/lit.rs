@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A literal value
 #[derive(Debug, Clone, ToTokens, Spanned)]
@@ -130,9 +130,9 @@ impl Parse for Lit {
             });
         }
 
-        Err(ParseError::new(
+        Err(ParseError::expected(
             token,
-            ParseErrorKind::ExpectedLit { actual: token.kind },
+            r#"expected literal like `"Hello World"` or 42"#,
         ))
     }
 }

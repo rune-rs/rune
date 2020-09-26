@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// An imported declaration.
 #[derive(Debug, Clone, ToTokens, Spanned)]
@@ -80,10 +80,7 @@ impl Parse for ItemUseComponent {
             Ok(Self::Wildcard(parser.parse()?))
         } else {
             let token = parser.token_peek_eof()?;
-            Err(ParseError::new(
-                token,
-                ParseErrorKind::ExpectedItemUseImportComponent { actual: token.kind },
-            ))
+            Err(ParseError::expected(token, "import component"))
         }
     }
 }
