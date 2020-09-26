@@ -61,7 +61,7 @@ fn drop_impl(value: Value) -> Result<(), VmError> {
         Value::TupleVariant(tuple) => {
             tuple.take()?;
         }
-        Value::ObjectVariant(object) => {
+        Value::StructVariant(object) => {
             object.take()?;
         }
         _ => (),
@@ -111,7 +111,7 @@ fn is_readable(value: Value) -> bool {
         Value::Struct(object) => object.is_readable(),
         Value::UnitVariant(empty) => empty.is_readable(),
         Value::TupleVariant(tuple) => tuple.is_readable(),
-        Value::ObjectVariant(object) => object.is_readable(),
+        Value::StructVariant(object) => object.is_readable(),
         _ => true,
     }
 }
@@ -129,7 +129,7 @@ fn is_writable(value: Value) -> bool {
         Value::Struct(object) => object.is_writable(),
         Value::UnitVariant(empty) => empty.is_writable(),
         Value::TupleVariant(tuple) => tuple.is_writable(),
-        Value::ObjectVariant(object) => object.is_writable(),
+        Value::StructVariant(object) => object.is_writable(),
         _ => true,
     }
 }

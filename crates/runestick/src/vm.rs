@@ -3,9 +3,9 @@ use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Context, FromValue, Function, Future, Generator,
-    GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object,
-    ObjectVariant, Panic, Select, Shared, Stack, Stream, Struct, Tuple, TypeCheck, Unit,
-    UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object, Panic,
+    Select, Shared, Stack, Stream, Struct, StructVariant, Tuple, TypeCheck, Unit, UnitStruct,
+    UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
 };
 use std::fmt;
 use std::mem;
@@ -864,7 +864,7 @@ impl Vm {
                 Value::Struct(typed_object) => {
                     let mut typed_object = typed_object.borrow_mut()?;
 
-                    if let Some(v) = typed_object.object.get_mut(field) {
+                    if let Some(v) = typed_object.get_mut(field) {
                         *v = value;
                         return Ok(());
                     }
@@ -874,10 +874,10 @@ impl Vm {
                         target: typed_object.type_info(),
                     }));
                 }
-                Value::ObjectVariant(variant_object) => {
+                Value::StructVariant(variant_object) => {
                     let mut variant_object = variant_object.borrow_mut()?;
 
-                    if let Some(v) = variant_object.object.get_mut(field) {
+                    if let Some(v) = variant_object.get_mut(field) {
                         *v = value;
                         return Ok(());
                     }
@@ -951,8 +951,8 @@ impl Vm {
     fn try_object_like_index_get(&mut self, target: &Value, field: &str) -> Result<bool, VmError> {
         let value = match &target {
             Value::Object(target) => target.borrow_ref()?.get(field).cloned(),
-            Value::Struct(target) => target.borrow_ref()?.object.get(field).cloned(),
-            Value::ObjectVariant(target) => target.borrow_ref()?.object.get(field).cloned(),
+            Value::Struct(target) => target.borrow_ref()?.get(field).cloned(),
+            Value::StructVariant(target) => target.borrow_ref()?.get(field).cloned(),
             _ => return Ok(false),
         };
 
@@ -1005,11 +1005,11 @@ impl Vm {
             }
             Value::TupleStruct(tuple_struct) => {
                 let tuple_struct = tuple_struct.borrow_ref()?;
-                tuple_struct.tuple.get(index).cloned()
+                tuple_struct.data().get(index).cloned()
             }
             Value::TupleVariant(variant_tuple) => {
                 let variant_tuple = variant_tuple.borrow_ref()?;
-                variant_tuple.tuple.get(index).cloned()
+                variant_tuple.data().get(index).cloned()
             }
             _ => return Ok(None),
         };
@@ -1079,9 +1079,7 @@ impl Vm {
             Value::TupleVariant(variant_tuple) => {
                 let variant_tuple = variant_tuple.borrow_mut()?;
 
-                BorrowMut::try_map(variant_tuple, |variant_tuple| {
-                    variant_tuple.tuple.get_mut(index)
-                })
+                BorrowMut::try_map(variant_tuple, |variant_tuple| variant_tuple.get_mut(index))
             }
             _ => return Ok(None),
         };
@@ -1113,7 +1111,7 @@ impl Vm {
                 let target = target.borrow_mut()?;
                 BorrowMut::try_map(target, |target| target.get_mut(field))
             }
-            Value::ObjectVariant(target) => {
+            Value::StructVariant(target) => {
                 let target = target.borrow_mut()?;
                 BorrowMut::try_map(target, |target| target.get_mut(field))
             }
@@ -1187,7 +1185,7 @@ impl Vm {
             Value::TupleStruct(tuple_struct) => {
                 let mut tuple_struct = tuple_struct.borrow_mut()?;
 
-                if let Some(target) = tuple_struct.tuple.get_mut(index) {
+                if let Some(target) = tuple_struct.get_mut(index) {
                     *target = value;
                     return Ok(true);
                 }
@@ -1197,7 +1195,7 @@ impl Vm {
             Value::TupleVariant(variant_tuple) => {
                 let mut variant_tuple = variant_tuple.borrow_mut()?;
 
-                if let Some(target) = variant_tuple.tuple.get_mut(index) {
+                if let Some(target) = variant_tuple.get_mut(index) {
                     *target = value;
                     return Ok(true);
                 }
@@ -1340,10 +1338,10 @@ impl Vm {
                     }
                 }
             }
-            Value::ObjectVariant(variant_object) => {
+            Value::StructVariant(variant_object) => {
                 let variant_object = variant_object.borrow_ref()?;
 
-                match variant_object.object.get(&***index).cloned() {
+                match variant_object.data.get(&***index).cloned() {
                     Some(value) => Some(value),
                     None => {
                         return Err(VmError::from(VmErrorKind::ObjectIndexMissing {
@@ -1440,15 +1438,18 @@ impl Vm {
             .lookup_rtti(hash)
             .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
 
-        let mut object = Object::with_capacity(keys.len());
-
         let values = self.stack.drain_stack_top(keys.len())?;
+        let mut data = Object::with_capacity(keys.len());
 
         for (key, value) in keys.iter().zip(values) {
-            object.insert(key.clone(), value);
+            data.insert(key.clone(), value);
         }
 
-        self.stack.push(Struct::new(rtti.clone(), object));
+        self.stack.push(Struct {
+            rtti: rtti.clone(),
+            data,
+        });
+
         Ok(())
     }
 
@@ -1477,16 +1478,16 @@ impl Vm {
             .lookup_variant_rtti(hash)
             .ok_or_else(|| VmError::from(VmErrorKind::MissingVariantRtti { hash }))?;
 
-        let mut object = Object::with_capacity(keys.len());
+        let mut data = Object::with_capacity(keys.len());
         let values = self.stack.drain_stack_top(keys.len())?;
 
         for (key, value) in keys.iter().zip(values) {
-            object.insert(key.clone(), value);
+            data.insert(key.clone(), value);
         }
 
-        self.stack.push(ObjectVariant {
+        self.stack.push(StructVariant {
             rtti: rtti.clone(),
-            object,
+            data,
         });
 
         Ok(())
@@ -1843,7 +1844,7 @@ impl Vm {
                         return Ok(None);
                     }
 
-                    Some(f(&*tuple_struct.tuple))
+                    Some(f(&tuple_struct.data()))
                 }
                 _ => None,
             },
@@ -1855,7 +1856,7 @@ impl Vm {
                         return Ok(None);
                     }
 
-                    Some(f(&*variant_tuple.tuple))
+                    Some(f(&variant_tuple.data()))
                 }
                 Value::UnitVariant(empty) => {
                     if empty.borrow_ref()?.rtti.hash != hash {
@@ -1897,14 +1898,14 @@ impl Vm {
                 let typed_object = typed_object.borrow_ref()?;
 
                 if typed_object.type_hash() == hash {
-                    return Ok(Some(f(&typed_object.object, keys)));
+                    return Ok(Some(f(typed_object.data(), keys)));
                 }
             }
-            (TypeCheck::Variant(hash), Value::ObjectVariant(variant_object)) => {
+            (TypeCheck::Variant(hash), Value::StructVariant(variant_object)) => {
                 let variant_object = variant_object.borrow_ref()?;
 
                 if variant_object.rtti.hash == hash {
-                    return Ok(Some(f(&variant_object.object, keys)));
+                    return Ok(Some(f(variant_object.data(), keys)));
                 }
             }
             _ => (),
@@ -2356,7 +2357,7 @@ impl Vm {
                 Inst::UnitVariant { hash } => {
                     self.op_empty_variant(hash)?;
                 }
-                Inst::ObjectVariant { hash, slot } => {
+                Inst::StructVariant { hash, slot } => {
                     self.op_object_variant(hash, slot)?;
                 }
                 Inst::String { slot } => {

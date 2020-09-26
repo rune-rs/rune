@@ -170,7 +170,7 @@ pub use crate::stack::{Stack, StackError};
 pub use crate::type_of::TypeOf;
 pub use crate::unit::{Unit, UnitFn, UnitTypeInfo};
 pub use crate::value::{
-    ObjectVariant, Rtti, Struct, TupleStruct, TupleVariant, UnitStruct, UnitVariant, Value,
+    Rtti, Struct, StructVariant, TupleStruct, TupleVariant, UnitStruct, UnitVariant, Value,
     VariantRtti,
 };
 pub use crate::vec_tuple::VecTuple;

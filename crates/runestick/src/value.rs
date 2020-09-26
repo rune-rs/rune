@@ -15,6 +15,11 @@ pub struct UnitStruct {
 }
 
 impl UnitStruct {
+    /// Access runtime type information.
+    pub fn rtti(&self) -> &Arc<Rtti> {
+        &self.rtti
+    }
+
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Typed(self.rtti.clone())
@@ -32,10 +37,25 @@ pub struct TupleStruct {
     /// The type hash of the tuple.
     pub(crate) rtti: Arc<Rtti>,
     /// Content of the tuple.
-    pub(crate) tuple: Tuple,
+    pub(crate) data: Tuple,
 }
 
 impl TupleStruct {
+    /// Access runtime type information.
+    pub fn rtti(&self) -> &Arc<Rtti> {
+        &self.rtti
+    }
+
+    /// Access underlying data.
+    pub fn data(&self) -> &Tuple {
+        &self.data
+    }
+
+    /// Access underlying data mutably.
+    pub fn data_mut(&mut self) -> &mut Tuple {
+        &mut self.data
+    }
+
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Typed(self.rtti.clone())
@@ -43,54 +63,89 @@ impl TupleStruct {
 
     /// Get the value at the given index in the tuple.
     pub fn get(&self, index: usize) -> Option<&Value> {
-        self.tuple.get(index)
+        self.data.get(index)
     }
 
     /// Get the mutable value at the given index in the tuple.
     pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
-        self.tuple.get_mut(index)
+        self.data.get_mut(index)
     }
 }
 
 impl fmt::Debug for TupleStruct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:?}", self.rtti.item, self.tuple)
+        write!(f, "{}{:?}", self.rtti.item, self.data)
     }
 }
 
 /// A tuple with a well-defined type as a variant of an enum.
 pub struct TupleVariant {
     /// Type information for object variant.
-    pub rtti: Arc<VariantRtti>,
+    pub(crate) rtti: Arc<VariantRtti>,
     /// Content of the tuple.
-    pub(crate) tuple: Tuple,
+    pub(crate) data: Tuple,
 }
 
 impl TupleVariant {
+    /// Access runtime type information.
+    pub fn rtti(&self) -> &Arc<VariantRtti> {
+        &self.rtti
+    }
+
+    /// Access underlying data.
+    pub fn data(&self) -> &Tuple {
+        &self.data
+    }
+
+    /// Access underlying data mutably.
+    pub fn data_mut(&mut self) -> &mut Tuple {
+        &mut self.data
+    }
+
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Variant(self.rtti.clone())
+    }
+
+    /// Get the value at the given index in the tuple.
+    pub fn get(&self, index: usize) -> Option<&Value> {
+        self.data.get(index)
+    }
+
+    /// Get the mutable value at the given index in the tuple.
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
+        self.data.get_mut(index)
     }
 }
 
 impl fmt::Debug for TupleVariant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:?}", self.rtti.item, self.tuple)
+        write!(f, "{}{:?}", self.rtti.item, self.data)
     }
 }
 
 /// An object with a well-defined type.
 pub struct Struct {
     /// The type hash of the object.
-    rtti: Arc<Rtti>,
+    pub(crate) rtti: Arc<Rtti>,
     /// Content of the object.
-    pub(crate) object: Object,
+    pub(crate) data: Object,
 }
 
 impl Struct {
-    /// Construct a new typed object with the given type hash.
-    pub fn new(rtti: Arc<Rtti>, object: Object) -> Self {
-        Self { rtti, object }
+    /// Access runtime type information.
+    pub fn rtti(&self) -> &Arc<Rtti> {
+        &self.rtti
+    }
+
+    /// Access underlying data.
+    pub fn data(&self) -> &Object {
+        &self.data
+    }
+
+    /// Access underlying data mutably.
+    pub fn data_mut(&mut self) -> &mut Object {
+        &mut self.data
     }
 
     /// Get type info for the typed object.
@@ -110,7 +165,7 @@ impl Struct {
         String: std::borrow::Borrow<Q>,
         Q: std::hash::Hash + std::cmp::Eq,
     {
-        self.object.get(k)
+        self.data.get(k)
     }
 
     /// Get the given mutable value by key in the object.
@@ -119,25 +174,40 @@ impl Struct {
         String: std::borrow::Borrow<Q>,
         Q: std::hash::Hash + std::cmp::Eq,
     {
-        self.object.get_mut(k)
+        self.data.get_mut(k)
     }
 }
 
 impl fmt::Debug for Struct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:?}", self.rtti.item, self.object)
+        write!(f, "{}{:?}", self.rtti.item, self.data)
     }
 }
 
 /// An object with a well-defined variant of an enum.
-pub struct ObjectVariant {
+pub struct StructVariant {
     /// Type information for object variant.
-    pub rtti: Arc<VariantRtti>,
+    pub(crate) rtti: Arc<VariantRtti>,
     /// Content of the object.
-    pub object: Object,
+    pub(crate) data: Object,
 }
 
-impl ObjectVariant {
+impl StructVariant {
+    /// Access runtime type information.
+    pub fn rtti(&self) -> &Arc<VariantRtti> {
+        &self.rtti
+    }
+
+    /// Access underlying data.
+    pub fn data(&self) -> &Object {
+        &self.data
+    }
+
+    /// Access underlying data mutably.
+    pub fn data_mut(&mut self) -> &mut Object {
+        &mut self.data
+    }
+
     /// Get type info for the typed object.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Variant(self.rtti.clone())
@@ -149,7 +219,7 @@ impl ObjectVariant {
         String: std::borrow::Borrow<Q>,
         Q: std::hash::Hash + std::cmp::Eq,
     {
-        self.object.get(k)
+        self.data.get(k)
     }
 
     /// Get the given mutable value by key in the object.
@@ -158,23 +228,28 @@ impl ObjectVariant {
         String: std::borrow::Borrow<Q>,
         Q: std::hash::Hash + std::cmp::Eq,
     {
-        self.object.get_mut(k)
+        self.data.get_mut(k)
     }
 }
 
-impl fmt::Debug for ObjectVariant {
+impl fmt::Debug for StructVariant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:?}", self.rtti.item, self.object)
+        write!(f, "{}{:?}", self.rtti.item, self.data)
     }
 }
 
 /// An object with a well-defined variant of an enum.
 pub struct UnitVariant {
     /// Type information for object variant.
-    pub rtti: Arc<VariantRtti>,
+    pub(crate) rtti: Arc<VariantRtti>,
 }
 
 impl UnitVariant {
+    /// Access runtime type information.
+    pub fn rtti(&self) -> &Arc<VariantRtti> {
+        &self.rtti
+    }
+
     /// Get type info for the typed object.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::Variant(self.rtti.clone())
@@ -266,7 +341,7 @@ pub enum Value {
     /// A tuple variant with a well-defined type.
     TupleVariant(Shared<TupleVariant>),
     /// An struct variant with a well-defined type.
-    ObjectVariant(Shared<ObjectVariant>),
+    StructVariant(Shared<StructVariant>),
     /// A stored function pointer.
     Function(Shared<Function>),
     /// An opaque value that can be downcasted.
@@ -293,7 +368,7 @@ impl Value {
     pub fn tuple_struct(rtti: Arc<Rtti>, vec: vec::Vec<Value>) -> Self {
         Self::TupleStruct(Shared::new(TupleStruct {
             rtti,
-            tuple: Tuple::from(vec),
+            data: Tuple::from(vec),
         }))
     }
 
@@ -306,7 +381,7 @@ impl Value {
     pub fn tuple_variant(rtti: Arc<VariantRtti>, vec: vec::Vec<Value>) -> Self {
         Self::TupleVariant(Shared::new(TupleVariant {
             rtti,
-            tuple: Tuple::from(vec),
+            data: Tuple::from(vec),
         }))
     }
 
@@ -568,7 +643,7 @@ impl Value {
             Self::Struct(object) => Type::from(object.borrow_ref()?.rtti.hash),
             Self::UnitVariant(empty) => Type::from(empty.borrow_ref()?.rtti.enum_hash),
             Self::TupleVariant(tuple) => Type::from(tuple.borrow_ref()?.rtti.enum_hash),
-            Self::ObjectVariant(object) => Type::from(object.borrow_ref()?.rtti.enum_hash),
+            Self::StructVariant(object) => Type::from(object.borrow_ref()?.rtti.enum_hash),
             Self::Any(any) => Type::from(any.borrow_ref()?.type_hash()),
         })
     }
@@ -601,7 +676,7 @@ impl Value {
             Self::Struct(object) => object.borrow_ref()?.type_info(),
             Self::UnitVariant(empty) => empty.borrow_ref()?.type_info(),
             Self::TupleVariant(tuple) => tuple.borrow_ref()?.type_info(),
-            Self::ObjectVariant(object) => object.borrow_ref()?.type_info(),
+            Self::StructVariant(object) => object.borrow_ref()?.type_info(),
             Self::Any(any) => TypeInfo::Any(any.borrow_ref()?.type_name()),
         })
     }
@@ -752,7 +827,7 @@ impl fmt::Debug for Value {
             Value::TupleVariant(value) => {
                 write!(f, "{:?}", value)?;
             }
-            Value::ObjectVariant(value) => {
+            Value::StructVariant(value) => {
                 write!(f, "{:?}", value)?;
             }
             Value::Function(value) => {
@@ -851,7 +926,7 @@ impl_from_shared!(Shared<TupleStruct>, TupleStruct);
 impl_from_shared!(Shared<Struct>, Struct);
 impl_from_shared!(Shared<UnitVariant>, UnitVariant);
 impl_from_shared!(Shared<TupleVariant>, TupleVariant);
-impl_from_shared!(Shared<ObjectVariant>, ObjectVariant);
+impl_from_shared!(Shared<StructVariant>, StructVariant);
 impl_from_shared!(Shared<Function>, Function);
 impl_from_shared!(Shared<AnyObj>, Any);
 
