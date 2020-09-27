@@ -284,7 +284,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
         let item = self.items.item();
 
-        let guard = self.scopes.push_function(decl_fn.async_.is_some());
+        let guard = self.scopes.push_function(decl_fn.async_token.is_some());
 
         for (arg, _) in &decl_fn.args {
             match arg {
@@ -395,53 +395,40 @@ impl Index<ast::ItemFn> for Indexer<'_> {
     }
 }
 
-impl Index<ast::ExprAsync> for Indexer<'_> {
-    fn index(&mut self, expr_async: &mut ast::ExprAsync) -> CompileResult<()> {
-        let span = expr_async.span();
-        log::trace!("ExprAsync => {:?}", self.source.source(span));
-
-        if let Some(first) = expr_async.attributes.first() {
-            return Err(CompileError::internal(
-                first,
-                "async block attributes are not supported yet",
-            ));
-        }
-
-        let _guard = self.items.push_async_block();
-        let guard = self.scopes.push_closure(true);
-        self.index(&mut expr_async.block)?;
-
-        let c = guard.into_closure(span)?;
-
-        let captures = Arc::new(c.captures);
-        let call = Self::call(c.generator, c.is_async);
-
-        self.query.index_async_block(
-            self.items.item(),
-            expr_async.block.clone(),
-            captures,
-            call,
-            self.source.clone(),
-            self.source_id,
-        )?;
-
-        Ok(())
-    }
-}
-
 impl Index<ast::ExprBlock> for Indexer<'_> {
     fn index(&mut self, expr_block: &mut ast::ExprBlock) -> CompileResult<()> {
         let span = expr_block.span();
         log::trace!("ExprBlock => {:?}", self.source.source(span));
 
-        if let Some(first) = expr_block.attributes.first() {
+        if let Some(span) = expr_block.attributes.option_span() {
             return Err(CompileError::internal(
-                first,
+                span,
                 "block attributes are not supported yet",
             ));
         }
 
-        self.index(&mut expr_block.block)?;
+        if expr_block.async_token.is_some() {
+            let _guard = self.items.push_async_block();
+            let guard = self.scopes.push_closure(true);
+            self.index(&mut expr_block.block)?;
+
+            let c = guard.into_closure(span)?;
+
+            let captures = Arc::new(c.captures);
+            let call = Self::call(c.generator, c.is_async);
+
+            self.query.index_async_block(
+                self.items.item(),
+                expr_block.block.clone(),
+                captures,
+                call,
+                self.source.clone(),
+                self.source_id,
+            )?;
+        } else {
+            self.index(&mut expr_block.block)?;
+        }
+
         Ok(())
     }
 }
@@ -606,11 +593,9 @@ impl Index<ast::Expr> for Indexer<'_> {
     fn index(&mut self, expr: &mut ast::Expr) -> CompileResult<()> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span));
-        if expr.has_unsupported_attributes() {
-            return Err(CompileError::internal(
-                expr,
-                "expression attributes are not supported",
-            ));
+
+        if let Some(span) = expr.attributes_span() {
+            return Err(CompileError::internal(span, "attributes are not supported"));
         }
 
         match expr {
@@ -625,9 +610,6 @@ impl Index<ast::Expr> for Indexer<'_> {
             }
             ast::Expr::ExprBlock(block) => {
                 self.index(block)?;
-            }
-            ast::Expr::ExprAsync(expr_async) => {
-                self.index(expr_async)?;
             }
             ast::Expr::ExprGroup(expr) => {
                 self.index(&mut *expr.expr)?;

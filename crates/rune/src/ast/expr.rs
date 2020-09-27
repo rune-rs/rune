@@ -2,6 +2,7 @@ use crate::ast;
 use crate::{
     OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens,
 };
+use runestick::Span;
 use std::mem::take;
 use std::ops;
 
@@ -63,8 +64,6 @@ pub enum Expr {
     ExprYield(ast::ExprYield),
     /// A block as an expression.
     ExprBlock(ast::ExprBlock),
-    /// An async block as an expression.
-    ExprAsync(ast::ExprAsync),
     /// A return statement.
     ExprReturn(ast::ExprReturn),
     /// An await expression.
@@ -89,7 +88,6 @@ impl Expr {
             Self::ExprIf(_) => false,
             Self::ExprMatch(_) => false,
             Self::ExprBlock(_) => false,
-            Self::ExprAsync(_) => false,
             Self::ExprSelect(_) => false,
             _ => true,
         }
@@ -106,23 +104,22 @@ impl Expr {
     }
 
     /// Test if the expression has any attributes
-    pub fn has_unsupported_attributes(&self) -> bool {
+    pub fn attributes_span(&self) -> Option<Span> {
         match self {
-            Expr::ExprBreak(expr) => !expr.attributes.is_empty(),
-            Expr::ExprYield(expr) => !expr.attributes.is_empty(),
-            Expr::ExprBlock(expr) => !expr.attributes.is_empty(),
-            Expr::ExprAsync(expr) => !expr.attributes.is_empty(),
-            Expr::ExprReturn(expr) => !expr.attributes.is_empty(),
-            Expr::ExprClosure(expr) => !expr.attributes.is_empty(),
-            Expr::Item(expr) => expr.has_unsupported_attributes(),
-            Expr::ExprMatch(expr) => !expr.attributes.is_empty(),
-            Expr::ExprWhile(expr) => !expr.attributes.is_empty(),
-            Expr::ExprLoop(expr) => !expr.attributes.is_empty(),
-            Expr::ExprFor(expr) => !expr.attributes.is_empty(),
-            Expr::ExprLet(expr) => !expr.attributes.is_empty(),
-            Expr::ExprIf(expr) => !expr.attributes.is_empty(),
-            Expr::ExprSelect(expr) => !expr.attributes.is_empty(),
-            Expr::ExprLit(expr) => !expr.attributes.is_empty(),
+            Expr::Item(expr) => expr.attributes_span(),
+            Expr::ExprBreak(expr) => expr.attributes.option_span(),
+            Expr::ExprYield(expr) => expr.attributes.option_span(),
+            Expr::ExprBlock(expr) => expr.attributes.option_span(),
+            Expr::ExprReturn(expr) => expr.attributes.option_span(),
+            Expr::ExprClosure(expr) => expr.attributes.option_span(),
+            Expr::ExprMatch(expr) => expr.attributes.option_span(),
+            Expr::ExprWhile(expr) => expr.attributes.option_span(),
+            Expr::ExprLoop(expr) => expr.attributes.option_span(),
+            Expr::ExprFor(expr) => expr.attributes.option_span(),
+            Expr::ExprLet(expr) => expr.attributes.option_span(),
+            Expr::ExprIf(expr) => expr.attributes.option_span(),
+            Expr::ExprSelect(expr) => expr.attributes.option_span(),
+            Expr::ExprLit(expr) => expr.attributes.option_span(),
             Expr::ExprAwait(_)
             | Expr::ExprCall(_)
             | Expr::Self_(_)
@@ -134,7 +131,7 @@ impl Expr {
             | Expr::ExprBinary(_)
             | Expr::ExprUnary(_)
             | Expr::ExprIndexGet(_)
-            | Expr::ExprTry(_) => false,
+            | Expr::ExprTry(_) => None,
         }
     }
 
@@ -304,20 +301,11 @@ impl Expr {
                 ast::Kind::Open(ast::Delimiter::Parenthesis) => {
                     Self::parse_open_paren(parser, attributes)?
                 }
-                ast::Kind::Open(ast::Delimiter::Brace) => {
-                    if let Some(async_token) = take(&mut async_token) {
-                        Self::ExprAsync(ast::ExprAsync {
-                            attributes: take(attributes),
-                            async_token,
-                            block: parser.parse()?,
-                        })
-                    } else {
-                        Self::ExprBlock(ast::ExprBlock::parse_with_attributes(
-                            parser,
-                            take(attributes),
-                        )?)
-                    }
-                }
+                ast::Kind::Open(ast::Delimiter::Brace) => Self::ExprBlock(ast::ExprBlock {
+                    async_token: take(&mut async_token),
+                    attributes: take(attributes),
+                    block: parser.parse()?,
+                }),
                 ast::Kind::Break => Self::ExprBreak(ast::ExprBreak::parse_with_attributes(
                     parser,
                     take(attributes),

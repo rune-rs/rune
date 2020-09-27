@@ -1,13 +1,61 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile a block expression.
-///
-/// Blocks are special in that they do not produce a value unless there is
-/// an item in them which does.
 impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr_block, needs): (&ast::ExprBlock, Needs)) -> CompileResult<()> {
-        log::trace!("ExprBlock => {:?}", self.source.source(expr_block.span()));
-        self.compile((&expr_block.block, needs))?;
+        let span = expr_block.span();
+        log::trace!("ExprBlock => {:?}", self.source.source(span));
+
+        if expr_block.async_token.is_none() {
+            return Ok(self.compile((&expr_block.block, needs))?);
+        }
+
+        let _guard = self.items.push_async_block();
+        let item = self.items.item();
+
+        let meta = match self.lookup_meta(&item, span)? {
+            Some(meta) => meta,
+            None => {
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::MissingType { item },
+                ));
+            }
+        };
+
+        let captures = match &meta.kind {
+            CompileMetaKind::AsyncBlock { captures, .. } => captures,
+            _ => {
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedAsyncBlock { meta },
+                ));
+            }
+        };
+
+        for ident in &**captures {
+            let var = self
+                .scopes
+                .get_var(&ident.ident, self.source_id, self.visitor, span)?;
+            var.copy(&mut self.asm, span, format!("captures `{}`", ident.ident));
+        }
+
+        let item = meta.item();
+        let hash = Hash::type_hash(item);
+        self.asm.push_with_comment(
+            Inst::Call {
+                hash,
+                args: captures.len(),
+            },
+            span,
+            format!("fn `{}`", item),
+        );
+
+        if !needs.value() {
+            self.asm
+                .push_with_comment(Inst::Pop, span, "value is not needed");
+        }
+
         Ok(())
     }
 }

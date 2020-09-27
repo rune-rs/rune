@@ -1,7 +1,6 @@
 mod block;
 mod const_value;
 mod expr;
-mod expr_async;
 mod expr_await;
 mod expr_binary;
 mod expr_block;

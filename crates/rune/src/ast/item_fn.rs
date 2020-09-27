@@ -13,7 +13,7 @@ pub struct ItemFn {
     pub visibility: ast::Visibility,
     /// The optional `async` keyword.
     #[rune(iter)]
-    pub async_: Option<ast::Async>,
+    pub async_token: Option<ast::Async>,
     /// The `fn` token.
     pub fn_: ast::Fn,
     /// The name of the function.
@@ -27,8 +27,8 @@ pub struct ItemFn {
 impl ItemFn {
     /// Get the identifying span for this function.
     pub fn item_span(&self) -> Span {
-        if let Some(async_) = &self.async_ {
-            async_.span().join(self.args.span())
+        if let Some(async_token) = &self.async_token {
+            async_token.span().join(self.args.span())
         } else {
             self.fn_.span().join(self.args.span())
         }
@@ -40,15 +40,16 @@ impl ItemFn {
     }
 
     /// Parse a `fn` item with the given attributes
-    pub fn parse_with_meta(
+    pub fn parse_with_meta_async(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
         visibility: ast::Visibility,
+        async_token: Option<ast::Async>,
     ) -> Result<Self, ParseError> {
         Ok(Self {
             attributes,
             visibility,
-            async_: parser.parse()?,
+            async_token,
             fn_: parser.parse()?,
             name: parser.parse()?,
             args: parser.parse()?,
@@ -94,6 +95,7 @@ impl Parse for ItemFn {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
         let visibility = parser.parse()?;
-        Self::parse_with_meta(parser, attributes, visibility)
+        let async_token = parser.parse()?;
+        Self::parse_with_meta_async(parser, attributes, visibility, async_token)
     }
 }

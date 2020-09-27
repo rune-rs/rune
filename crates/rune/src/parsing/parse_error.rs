@@ -177,6 +177,6 @@ pub enum ParseErrorKind {
     ItemNeedsSemi,
     #[error("expected `while`, `for`, `loop` after a label")]
     UnsupportedLabel,
-    #[error("expected block or closure after `async`")]
+    #[error("expected block, closure, or `fn` after `async`")]
     UnsupportedAsync,
 }

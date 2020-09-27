@@ -5,11 +5,9 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
     fn compile(&mut self, (expr, needs): (&ast::Expr, Needs)) -> CompileResult<()> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span));
-        if expr.has_unsupported_attributes() {
-            return Err(CompileError::internal(
-                expr,
-                "expression attributes are not supported",
-            ));
+
+        if let Some(span) = expr.attributes_span() {
+            return Err(CompileError::internal(span, "attributes are not supported"));
         }
 
         match expr {
@@ -57,9 +55,6 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
             }
             ast::Expr::ExprBlock(expr_block) => {
                 self.compile((expr_block, needs))?;
-            }
-            ast::Expr::ExprAsync(expr_async) => {
-                self.compile((expr_async, needs))?;
             }
             ast::Expr::ExprReturn(expr_return) => {
                 self.compile((expr_return, needs))?;

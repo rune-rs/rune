@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
+use runestick::Span;
 
 /// A declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -35,16 +36,16 @@ impl Item {
     }
 
     /// Test if the item has any attributes
-    pub fn has_unsupported_attributes(&self) -> bool {
+    pub fn attributes_span(&self) -> Option<Span> {
         match self {
-            Item::ItemUse(item) => !item.attributes.is_empty(),
-            Item::ItemFn(item) => !item.attributes.is_empty(),
-            Item::ItemEnum(item) => !item.attributes.is_empty(),
-            Item::ItemStruct(item) => !item.attributes.is_empty(),
-            Item::ItemImpl(item) => !item.attributes.is_empty(),
-            Item::ItemMod(item) => !item.attributes.is_empty(),
-            Item::ItemConst(item) => !item.attributes.is_empty(),
-            Item::MacroCall(_) => false,
+            Item::ItemUse(item) => item.attributes.option_span(),
+            Item::ItemFn(item) => item.attributes.option_span(),
+            Item::ItemEnum(item) => item.attributes.option_span(),
+            Item::ItemStruct(item) => item.attributes.option_span(),
+            Item::ItemImpl(item) => item.attributes.option_span(),
+            Item::ItemMod(item) => item.attributes.option_span(),
+            Item::ItemConst(item) => item.attributes.option_span(),
+            Item::MacroCall(item) => item.attributes.option_span(),
         }
     }
 
@@ -89,9 +90,10 @@ impl Item {
                 path,
             )?)
         } else {
+            let mut async_token = parser.parse::<Option<ast::Async>>()?;
             let t = parser.token_peek_eof()?;
 
-            match t.kind {
+            let item = match t.kind {
                 ast::Kind::Use => Self::ItemUse(ast::ItemUse::parse_with_meta(
                     parser,
                     take(&mut attributes),
@@ -111,13 +113,12 @@ impl Item {
                     parser,
                     take(&mut attributes),
                 )?),
-                ast::Kind::Async | ast::Kind::Fn => {
-                    Self::ItemFn(Box::new(ast::ItemFn::parse_with_meta(
-                        parser,
-                        take(&mut attributes),
-                        take(&mut visibility),
-                    )?))
-                }
+                ast::Kind::Fn => Self::ItemFn(Box::new(ast::ItemFn::parse_with_meta_async(
+                    parser,
+                    take(&mut attributes),
+                    take(&mut visibility),
+                    take(&mut async_token),
+                )?)),
                 ast::Kind::Mod => Self::ItemMod(ast::ItemMod::parse_with_meta(
                     parser,
                     take(&mut attributes),
@@ -135,7 +136,13 @@ impl Item {
                         "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
                     ))
                 }
+            };
+
+            if let Some(span) = async_token.option_span() {
+                return Err(ParseError::new(span, ParseErrorKind::UnsupportedAsync));
             }
+
+            item
         };
 
         if let Some(span) = attributes.option_span() {
