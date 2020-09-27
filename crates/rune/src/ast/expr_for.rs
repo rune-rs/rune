@@ -50,24 +50,12 @@ impl ExprFor {
             body: Box::new(parser.parse()?),
         })
     }
-
-    /// Parse the `for` loop with the given attributes
-    pub fn parse_with_attributes(
-        parser: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
-        let label = if parser.peek::<ast::Label>()? {
-            Some((parser.parse()?, parser.parse()?))
-        } else {
-            None
-        };
-        Self::parse_with_attributes_and_label(parser, attributes, label)
-    }
 }
 
 impl Parse for ExprFor {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
+        let label = parser.parse()?;
+        Self::parse_with_attributes_and_label(parser, attributes, label)
     }
 }

@@ -153,6 +153,12 @@ impl BinOp {
             Self::Sub => true,
             Self::Or => true,
             Self::And => true,
+            Self::Rem => true,
+            Self::Shl => true,
+            Self::Shr => true,
+            Self::BitAnd => true,
+            Self::BitOr => true,
+            Self::BitXor => true,
             _ => false,
         }
     }

@@ -38,7 +38,8 @@ impl Parse for Stmt {
         let path = parser.parse::<Option<ast::Path>>()?;
 
         if ast::Item::peek_as_item(parser, path.as_ref())? {
-            let item: ast::Item = ast::Item::parse_with_meta(parser, attributes, visibility, path)?;
+            let item: ast::Item =
+                ast::Item::parse_with_meta_path(parser, attributes, visibility, path)?;
 
             let semi = if item.needs_semi_colon() {
                 Some(parser.parse()?)

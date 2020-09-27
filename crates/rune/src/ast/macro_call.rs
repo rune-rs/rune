@@ -5,6 +5,9 @@ use runestick::Span;
 /// A function call `<expr>!(<args>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct MacroCall {
+    /// Attributes associated with macro call.
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// The expression being called over.
     pub path: ast::Path,
     /// Bang operator `!`.
@@ -19,7 +22,11 @@ pub struct MacroCall {
 
 impl MacroCall {
     /// Parse with an expression.
-    pub fn parse_with_path(parser: &mut Parser, path: ast::Path) -> Result<Self, ParseError> {
+    pub fn parse_with_meta_path(
+        parser: &mut Parser,
+        attributes: Vec<ast::Attribute>,
+        path: ast::Path,
+    ) -> Result<Self, ParseError> {
         let bang = parser.parse()?;
 
         let mut level = 1;
@@ -71,6 +78,7 @@ impl MacroCall {
         }
 
         Ok(Self {
+            attributes,
             bang,
             path,
             open,
@@ -82,7 +90,8 @@ impl MacroCall {
 
 impl Parse for MacroCall {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        let attributes = parser.parse()?;
         let path = parser.parse()?;
-        Self::parse_with_path(parser, path)
+        Self::parse_with_meta_path(parser, attributes, path)
     }
 }

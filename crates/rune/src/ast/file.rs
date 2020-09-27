@@ -83,8 +83,12 @@ impl Parse for File {
         let mut path = parser.parse::<Option<ast::Path>>()?;
 
         while path.is_some() || ast::Item::peek_as_item(parser, path.as_ref())? {
-            let item: ast::Item =
-                ast::Item::parse_with_meta(parser, item_attributes, item_visibility, path.take())?;
+            let item: ast::Item = ast::Item::parse_with_meta_path(
+                parser,
+                item_attributes,
+                item_visibility,
+                path.take(),
+            )?;
 
             let semi_colon = if item.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {
                 Some(parser.parse::<ast::SemiColon>()?)

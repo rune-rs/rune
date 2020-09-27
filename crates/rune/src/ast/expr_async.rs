@@ -24,7 +24,7 @@ pub struct ExprAsync {
     #[rune(iter, attributes)]
     pub attributes: Vec<ast::Attribute>,
     /// The `async` keyword.
-    pub async_: ast::Async,
+    pub async_token: ast::Async,
     /// The close brace.
     pub block: ast::Block,
 }

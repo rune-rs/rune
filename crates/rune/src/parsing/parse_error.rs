@@ -175,4 +175,8 @@ pub enum ParseErrorKind {
     ExpectedInnerAttribute,
     #[error("item needs to be terminated by a semi-colon `;`")]
     ItemNeedsSemi,
+    #[error("expected `while`, `for`, `loop` after a label")]
+    UnsupportedLabel,
+    #[error("expected block or closure after `async`")]
+    UnsupportedAsync,
 }
