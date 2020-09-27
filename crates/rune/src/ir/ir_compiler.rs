@@ -100,6 +100,24 @@ impl IrCompile<&ast::Expr> for IrCompiler<'_> {
     }
 }
 
+impl IrCompile<&ast::ExprAssign> for IrCompiler<'_> {
+    type Output = ir::Ir;
+
+    fn compile(&mut self, expr_assign: &ast::ExprAssign) -> Result<Self::Output, CompileError> {
+        let span = expr_assign.span();
+        let target = self.ir_target(&*expr_assign.lhs)?;
+
+        return Ok(ir::Ir::new(
+            span,
+            ir::IrSet {
+                span,
+                target,
+                value: Box::new(self.compile(&*expr_assign.rhs)?),
+            },
+        ));
+    }
+}
+
 impl IrCompile<&ast::ExprBinary> for IrCompiler<'_> {
     type Output = ir::Ir;
 
@@ -108,18 +126,6 @@ impl IrCompile<&ast::ExprBinary> for IrCompiler<'_> {
 
         if expr_binary.op.is_assign() {
             let op = match expr_binary.op {
-                ast::BinOp::Assign => {
-                    let target = self.ir_target(&*expr_binary.lhs)?;
-
-                    return Ok(ir::Ir::new(
-                        span,
-                        ir::IrSet {
-                            span,
-                            target,
-                            value: Box::new(self.compile(&*expr_binary.rhs)?),
-                        },
-                    ));
-                }
                 ast::BinOp::AddAssign => ir::IrAssignOp::Add,
                 ast::BinOp::SubAssign => ir::IrAssignOp::Sub,
                 ast::BinOp::MulAssign => ir::IrAssignOp::Mul,

@@ -27,6 +27,8 @@ pub enum Expr {
     Path(ast::Path),
     /// A declaration.
     Item(ast::Item),
+    /// An assign expression.
+    ExprAssign(ast::ExprAssign),
     /// A while loop.
     ExprWhile(ast::ExprWhile),
     /// An unconditional loop.
@@ -35,8 +37,6 @@ pub enum Expr {
     ExprFor(ast::ExprFor),
     /// A let expression.
     ExprLet(ast::ExprLet),
-    /// An index set operation.
-    ExprIndexSet(ast::ExprIndexSet),
     /// An if expression.
     ExprIf(ast::ExprIf),
     /// An match expression.
@@ -54,7 +54,7 @@ pub enum Expr {
     /// A unary expression.
     ExprUnary(ast::ExprUnary),
     /// An index set operation.
-    ExprIndexGet(ast::ExprIndexGet),
+    ExprIndex(ast::ExprIndex),
     /// A break expression.
     ExprBreak(ast::ExprBreak),
     /// A yield expression.
@@ -100,9 +100,43 @@ impl Expr {
         }
     }
 
+    /// Take the attributes from the expression.
+    pub fn take_attributes(&mut self) -> Vec<ast::Attribute> {
+        match self {
+            Expr::Self_(_) => Vec::new(),
+            Expr::Path(_) => Vec::new(),
+            Expr::Item(item) => item.take_attributes(),
+            Expr::ExprBreak(expr) => take(&mut expr.attributes),
+            Expr::ExprYield(expr) => take(&mut expr.attributes),
+            Expr::ExprBlock(expr) => take(&mut expr.attributes),
+            Expr::ExprReturn(expr) => take(&mut expr.attributes),
+            Expr::ExprClosure(expr) => take(&mut expr.attributes),
+            Expr::ExprMatch(expr) => take(&mut expr.attributes),
+            Expr::ExprWhile(expr) => take(&mut expr.attributes),
+            Expr::ExprLoop(expr) => take(&mut expr.attributes),
+            Expr::ExprFor(expr) => take(&mut expr.attributes),
+            Expr::ExprLet(expr) => take(&mut expr.attributes),
+            Expr::ExprIf(expr) => take(&mut expr.attributes),
+            Expr::ExprSelect(expr) => take(&mut expr.attributes),
+            Expr::ExprLit(expr) => take(&mut expr.attributes),
+            Expr::ExprAssign(expr) => take(&mut expr.attributes),
+            Expr::ExprBinary(expr) => take(&mut expr.attributes),
+            Expr::ExprCall(expr) => take(&mut expr.attributes),
+            Expr::MacroCall(expr) => take(&mut expr.attributes),
+            Expr::ExprFieldAccess(expr) => take(&mut expr.attributes),
+            Expr::ExprGroup(expr) => take(&mut expr.attributes),
+            Expr::ExprUnary(expr) => take(&mut expr.attributes),
+            Expr::ExprIndex(expr) => take(&mut expr.attributes),
+            Expr::ExprAwait(expr) => take(&mut expr.attributes),
+            Expr::ExprTry(expr) => take(&mut expr.attributes),
+        }
+    }
+
     /// Test if the expression has any attributes
     pub fn attributes_span(&self) -> Option<Span> {
         match self {
+            Expr::Self_(_) => None,
+            Expr::Path(_) => None,
             Expr::Item(expr) => expr.attributes_span(),
             Expr::ExprBreak(expr) => expr.attributes.option_span(),
             Expr::ExprYield(expr) => expr.attributes.option_span(),
@@ -117,18 +151,16 @@ impl Expr {
             Expr::ExprIf(expr) => expr.attributes.option_span(),
             Expr::ExprSelect(expr) => expr.attributes.option_span(),
             Expr::ExprLit(expr) => expr.attributes.option_span(),
-            Expr::ExprAwait(_)
-            | Expr::ExprCall(_)
-            | Expr::Self_(_)
-            | Expr::Path(_)
-            | Expr::ExprIndexSet(_)
-            | Expr::MacroCall(_)
-            | Expr::ExprFieldAccess(_)
-            | Expr::ExprGroup(_)
-            | Expr::ExprBinary(_)
-            | Expr::ExprUnary(_)
-            | Expr::ExprIndexGet(_)
-            | Expr::ExprTry(_) => None,
+            Expr::ExprAssign(expr) => expr.attributes.option_span(),
+            Expr::ExprBinary(expr) => expr.attributes.option_span(),
+            Expr::ExprCall(expr) => expr.attributes.option_span(),
+            Expr::MacroCall(expr) => expr.attributes.option_span(),
+            Expr::ExprFieldAccess(expr) => expr.attributes.option_span(),
+            Expr::ExprGroup(expr) => expr.attributes.option_span(),
+            Expr::ExprUnary(expr) => expr.attributes.option_span(),
+            Expr::ExprIndex(expr) => expr.attributes.option_span(),
+            Expr::ExprAwait(expr) => expr.attributes.option_span(),
+            Expr::ExprTry(expr) => expr.attributes.option_span(),
         }
     }
 
@@ -142,7 +174,10 @@ impl Expr {
     }
 
     /// ull, configurable parsing of an expression.F
-    fn parse_with(parser: &mut Parser<'_>, eager_brace: EagerBrace) -> Result<Self, ParseError> {
+    pub(crate) fn parse_with(
+        parser: &mut Parser<'_>,
+        eager_brace: EagerBrace,
+    ) -> Result<Self, ParseError> {
         let mut attributes = parser.parse()?;
 
         let expr = Self::parse_base(parser, &mut attributes, eager_brace)?;
@@ -203,6 +238,7 @@ impl Expr {
 
         if parser.peek::<ast::CloseParen>()? {
             return Ok(Expr::ExprGroup(ast::ExprGroup {
+                attributes: take(attributes),
                 open,
                 expr: Box::new(expr),
                 close: parser.parse()?,
@@ -342,39 +378,40 @@ impl Expr {
 
             match token.kind {
                 ast::Kind::Open(ast::Delimiter::Bracket) if is_chainable => {
-                    let index_get = ast::ExprIndexGet {
+                    expr = Self::ExprIndex(ast::ExprIndex {
+                        attributes: expr.take_attributes(),
                         target: Box::new(expr),
                         open: parser.parse()?,
                         index: parser.parse()?,
                         close: parser.parse()?,
-                    };
-
-                    if parser.peek::<ast::Eq>()? {
-                        return Ok(Self::ExprIndexSet(ast::ExprIndexSet {
-                            target: index_get.target,
-                            open: index_get.open,
-                            index: index_get.index,
-                            close: index_get.close,
-                            eq: parser.parse()?,
-                            value: parser.parse()?,
-                        }));
-                    }
-
-                    expr = Self::ExprIndexGet(index_get);
+                    });
                 }
                 // Chained function call.
                 ast::Kind::Open(ast::Delimiter::Parenthesis) if is_chainable => {
                     let args = parser.parse::<ast::Parenthesized<ast::Expr, ast::Comma>>()?;
 
                     expr = Expr::ExprCall(ast::ExprCall {
+                        attributes: expr.take_attributes(),
                         expr: Box::new(expr),
                         args,
                     });
                 }
                 ast::Kind::QuestionMark => {
                     expr = Expr::ExprTry(ast::ExprTry {
+                        attributes: expr.take_attributes(),
                         expr: Box::new(expr),
                         try_: parser.parse()?,
+                    });
+                }
+                ast::Kind::Eq => {
+                    let eq = parser.parse()?;
+                    let rhs = Self::parse_with(parser, EagerBrace(true))?;
+
+                    expr = Expr::ExprAssign(ast::ExprAssign {
+                        attributes: expr.take_attributes(),
+                        lhs: Box::new(expr),
+                        eq,
+                        rhs: Box::new(rhs),
                     });
                 }
                 ast::Kind::Dot => {
@@ -383,6 +420,7 @@ impl Expr {
                     if let Some(t) = parser.token_peek()? {
                         if let ast::Kind::Await = t.kind {
                             expr = Expr::ExprAwait(ast::ExprAwait {
+                                attributes: expr.take_attributes(),
                                 expr: Box::new(expr),
                                 dot,
                                 await_: parser.parse()?,
@@ -400,6 +438,7 @@ impl Expr {
 
                             if let Some(name) = path.try_as_ident() {
                                 expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
+                                    attributes: expr.take_attributes(),
                                     expr: Box::new(expr),
                                     dot,
                                     expr_field: ast::ExprField::Ident(name.clone()),
@@ -415,6 +454,7 @@ impl Expr {
                             attributes,
                         }) if attributes.is_empty() => {
                             expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
+                                attributes: expr.take_attributes(),
                                 expr: Box::new(expr),
                                 dot,
                                 expr_field: ast::ExprField::LitNumber(n),
@@ -480,6 +520,7 @@ impl Expr {
             }
 
             lhs = Expr::ExprBinary(ast::ExprBinary {
+                attributes: Vec::new(),
                 lhs: Box::new(lhs),
                 t1,
                 t2,

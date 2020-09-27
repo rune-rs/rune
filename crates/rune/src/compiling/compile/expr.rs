@@ -35,16 +35,16 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
             ast::Expr::ExprUnary(expr_unary) => {
                 self.compile((expr_unary, needs))?;
             }
+            ast::Expr::ExprAssign(expr_assign) => {
+                self.compile((expr_assign, needs))?;
+            }
             ast::Expr::ExprBinary(expr_binary) => {
                 self.compile((expr_binary, needs))?;
             }
             ast::Expr::ExprIf(expr_if) => {
                 self.compile((expr_if, needs))?;
             }
-            ast::Expr::ExprIndexSet(expr_index_set) => {
-                self.compile((expr_index_set, needs))?;
-            }
-            ast::Expr::ExprIndexGet(expr_index_get) => {
+            ast::Expr::ExprIndex(expr_index_get) => {
                 self.compile((expr_index_get, needs))?;
             }
             ast::Expr::ExprBreak(expr_break) => {

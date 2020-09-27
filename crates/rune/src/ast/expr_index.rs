@@ -1,9 +1,12 @@
 use crate::ast;
 use crate::{Spanned, ToTokens};
 
-/// An index set operation `<target>[<index>] = <value>`.
+/// An index get operation `<target>[<index>]`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub struct ExprIndexSet {
+pub struct ExprIndex {
+    /// Attributes associated with expression.
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// The target of the index set.
     pub target: Box<ast::Expr>,
     /// The opening bracket.
@@ -12,8 +15,4 @@ pub struct ExprIndexSet {
     pub index: Box<ast::Expr>,
     /// The closening bracket.
     pub close: ast::CloseBracket,
-    /// The equals sign.
-    pub eq: ast::Eq,
-    /// The value expression we are assigning.
-    pub value: Box<ast::Expr>,
 }

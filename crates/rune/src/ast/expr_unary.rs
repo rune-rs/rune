@@ -1,10 +1,14 @@
 use crate::ast;
+use crate::ast::expr::EagerBrace;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 use std::fmt;
 
 /// A unary expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprUnary {
+    /// Attributes associated with expression.
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// Token associated with operator.
     pub token: ast::Token,
     /// The expression of the operation.
@@ -12,6 +16,23 @@ pub struct ExprUnary {
     /// The operation to apply.
     #[rune(skip)]
     pub op: UnaryOp,
+}
+
+impl ExprUnary {
+    fn parse_with_meta(
+        parser: &mut Parser,
+        attributes: Vec<ast::Attribute>,
+        eager_brace: EagerBrace,
+    ) -> Result<Self, ParseError> {
+        let token = parser.token_next()?;
+
+        Ok(Self {
+            attributes,
+            op: UnaryOp::from_token(token)?,
+            token,
+            expr: Box::new(ast::Expr::parse_with(parser, eager_brace)?),
+        })
+    }
 }
 
 /// Parse a unary statement.
@@ -27,14 +48,8 @@ pub struct ExprUnary {
 /// ```
 impl Parse for ExprUnary {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
-        let path = parser.parse::<Option<ast::Path>>()?;
-
-        Ok(Self {
-            op: UnaryOp::from_token(token)?,
-            token,
-            expr: Box::new(ast::Expr::parse_with_meta(parser, &mut vec![], path)?),
-        })
+        let attributes = parser.parse()?;
+        Self::parse_with_meta(parser, attributes, EagerBrace(true))
     }
 }
 

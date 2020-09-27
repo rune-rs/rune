@@ -1,13 +1,10 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile an expression.
-impl Compile<(&ast::ExprIndexGet, Needs)> for Compiler<'_> {
-    fn compile(
-        &mut self,
-        (expr_index_get, needs): (&ast::ExprIndexGet, Needs),
-    ) -> CompileResult<()> {
+impl Compile<(&ast::ExprIndex, Needs)> for Compiler<'_> {
+    fn compile(&mut self, (expr_index_get, needs): (&ast::ExprIndex, Needs)) -> CompileResult<()> {
         let span = expr_index_get.span();
-        log::trace!("ExprIndexGet => {:?}", self.source.source(span));
+        log::trace!("ExprIndex => {:?}", self.source.source(span));
 
         let guard = self.scopes.push_child(span)?;
 

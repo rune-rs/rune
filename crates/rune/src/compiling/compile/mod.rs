@@ -1,6 +1,7 @@
 mod block;
 mod const_value;
 mod expr;
+mod expr_assign;
 mod expr_await;
 mod expr_binary;
 mod expr_block;
@@ -10,8 +11,7 @@ mod expr_closure;
 mod expr_field_access;
 mod expr_for;
 mod expr_if;
-mod expr_index_get;
-mod expr_index_set;
+mod expr_index;
 mod expr_let;
 mod expr_loop;
 mod expr_match;

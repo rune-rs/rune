@@ -8,10 +8,15 @@ use crate::{Parse, Spanned, ToTokens};
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::ExprAwait>("42.await");
+/// testing::roundtrip::<ast::Expr>("(42).await");
+/// testing::roundtrip::<ast::Expr>("self.await");
+/// testing::roundtrip::<ast::Expr>("test.await");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprAwait {
+    /// Attributes associated with expression.
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// The expression being awaited.
     pub expr: Box<ast::Expr>,
     /// The dot separating the expression.

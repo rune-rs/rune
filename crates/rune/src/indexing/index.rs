@@ -617,6 +617,9 @@ impl Index<ast::Expr> for Indexer<'_> {
             ast::Expr::ExprIf(expr_if) => {
                 self.index(expr_if)?;
             }
+            ast::Expr::ExprAssign(expr_assign) => {
+                self.index(expr_assign)?;
+            }
             ast::Expr::ExprBinary(expr_binary) => {
                 self.index(expr_binary)?;
             }
@@ -638,16 +641,13 @@ impl Index<ast::Expr> for Indexer<'_> {
             ast::Expr::ExprFor(expr_for) => {
                 self.index(expr_for)?;
             }
-            ast::Expr::ExprIndexSet(expr_index_set) => {
-                self.index(expr_index_set)?;
-            }
             ast::Expr::ExprFieldAccess(expr_field_access) => {
                 self.index(expr_field_access)?;
             }
             ast::Expr::ExprUnary(expr_unary) => {
                 self.index(expr_unary)?;
             }
-            ast::Expr::ExprIndexGet(expr_index_get) => {
+            ast::Expr::ExprIndex(expr_index_get) => {
                 self.index(expr_index_get)?;
             }
             ast::Expr::ExprBreak(expr_break) => {
@@ -705,6 +705,17 @@ impl Index<ast::ExprIf> for Indexer<'_> {
             self.index(&mut *expr_else.block)?;
         }
 
+        Ok(())
+    }
+}
+
+impl Index<ast::ExprAssign> for Indexer<'_> {
+    fn index(&mut self, expr_binary: &mut ast::ExprAssign) -> CompileResult<()> {
+        let span = expr_binary.span();
+        log::trace!("ExprAssign => {:?}", self.source.source(span));
+
+        self.index(&mut *expr_binary.lhs)?;
+        self.index(&mut *expr_binary.rhs)?;
         Ok(())
     }
 }
@@ -1057,18 +1068,6 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
     }
 }
 
-impl Index<ast::ExprIndexSet> for Indexer<'_> {
-    fn index(&mut self, expr_index_set: &mut ast::ExprIndexSet) -> CompileResult<()> {
-        let span = expr_index_set.span();
-        log::trace!("ExprIndexSet => {:?}", self.source.source(span));
-
-        self.index(&mut *expr_index_set.value)?;
-        self.index(&mut *expr_index_set.index)?;
-        self.index(&mut *expr_index_set.target)?;
-        Ok(())
-    }
-}
-
 impl Index<ast::ExprFieldAccess> for Indexer<'_> {
     fn index(&mut self, expr_field_access: &mut ast::ExprFieldAccess) -> CompileResult<()> {
         let span = expr_field_access.span();
@@ -1089,10 +1088,10 @@ impl Index<ast::ExprUnary> for Indexer<'_> {
     }
 }
 
-impl Index<ast::ExprIndexGet> for Indexer<'_> {
-    fn index(&mut self, expr_index_get: &mut ast::ExprIndexGet) -> CompileResult<()> {
+impl Index<ast::ExprIndex> for Indexer<'_> {
+    fn index(&mut self, expr_index_get: &mut ast::ExprIndex) -> CompileResult<()> {
         let span = expr_index_get.span();
-        log::trace!("ExprIndexGet => {:?}", self.source.source(span));
+        log::trace!("ExprIndex => {:?}", self.source.source(span));
 
         self.index(&mut *expr_index_get.index)?;
         self.index(&mut *expr_index_get.target)?;
