@@ -112,3 +112,45 @@ fn test_const_collections() {
         vec.get_value::<String>(0).unwrap().as_deref()
     );
 }
+
+#[test]
+fn test_more_complexity() {
+    let result = rune!(i64 => r#"
+    const BASE = 10;
+    const LIMIT = 0b1 << 10;
+
+    const VALUE = {
+        let timeout = BASE;
+
+        while timeout < LIMIT {
+            timeout *= 2;
+        }
+
+        timeout
+    };
+
+    fn main() { VALUE }
+    "#);
+    assert_eq!(result, 1280);
+}
+
+#[test]
+fn test_if_else() {
+    let result = rune!(i64 => r#"
+    const VALUE = { if true { 1 } else if true { 2 } else { 3 } };
+    fn main() { VALUE }
+    "#);
+    assert_eq!(result, 1);
+
+    let result = rune!(i64 => r#"
+    const VALUE = { if false { 1 } else if true { 2 } else { 3 } };
+    fn main() { VALUE }
+    "#);
+    assert_eq!(result, 2);
+
+    let result = rune!(i64 => r#"
+    const VALUE = { if false { 1 } else if false { 2 } else { 3 } };
+    fn main() { VALUE }
+    "#);
+    assert_eq!(result, 3);
+}
