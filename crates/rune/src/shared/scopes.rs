@@ -48,13 +48,34 @@ impl<T> Scopes<T> {
         Ok(())
     }
 
-    /// Get the given variable as mutable.
+    /// Get the given variable.
     pub(crate) fn get_name<'a, S>(&'a self, name: &str, spanned: S) -> Result<&'a T, ScopeError>
     where
         S: Spanned,
     {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
+                return Ok(current);
+            }
+        }
+
+        Err(ScopeError::new(
+            spanned,
+            ScopeErrorKind::MissingLocal { name: name.into() },
+        ))
+    }
+
+    /// Get the given variable as mutable.
+    pub(crate) fn get_name_mut<'a, S>(
+        &'a mut self,
+        name: &str,
+        spanned: S,
+    ) -> Result<&'a mut T, ScopeError>
+    where
+        S: Spanned,
+    {
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(current) = scope.locals.get_mut(name) {
                 return Ok(current);
             }
         }
@@ -109,18 +130,6 @@ pub(crate) struct ScopeGuard {
 pub(crate) struct Scope<T> {
     /// Locals in the current scope.
     locals: HashMap<String, T>,
-}
-
-impl<T> Scope<T> {
-    /// Insert the given local.
-    pub(crate) fn insert(&mut self, name: String, local: T) -> Option<T> {
-        self.locals.insert(name, local)
-    }
-
-    /// Get the given name mutably from the scope.
-    pub(crate) fn get_mut(&mut self, name: &str) -> Option<&mut T> {
-        self.locals.get_mut(name)
-    }
 }
 
 impl<T> Default for Scope<T> {

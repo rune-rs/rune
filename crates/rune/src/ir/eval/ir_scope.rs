@@ -7,8 +7,8 @@ impl Eval<&ir::IrScope> for IrInterpreter<'_> {
         self.budget.take(ir_scope)?;
         let guard = self.scopes.push();
 
-        for im in &ir_scope.instructions {
-            let _ = self.eval(im, used)?;
+        for ir in &ir_scope.instructions {
+            let _ = self.eval(ir, used)?;
         }
 
         let value = if let Some(last) = &ir_scope.last {

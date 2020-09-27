@@ -179,11 +179,7 @@ impl IrScopes {
     ) -> Result<(), IrError> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                let scope = self
-                    .last_mut()
-                    .ok_or_else(|| IrError::custom(ir_target, "no scopes"))?;
-
-                scope.insert(name.as_ref().to_owned(), value);
+                *self.get_name_mut(name.as_ref(), ir_target)? = value;
                 Ok(())
             }
             ir::IrTargetKind::Field(target, field) => {
@@ -241,14 +237,7 @@ impl IrScopes {
     ) -> Result<(), IrError> {
         match &ir_target.kind {
             ir::IrTargetKind::Name(name) => {
-                let scope = self
-                    .last_mut()
-                    .ok_or_else(|| IrError::custom(ir_target, "no scopes"))?;
-
-                let value = scope
-                    .get_mut(name.as_ref())
-                    .ok_or_else(|| IrError::custom(ir_target, "not such variable"))?;
-
+                let value = self.get_name_mut(name.as_ref(), ir_target)?;
                 op(value)
             }
             ir::IrTargetKind::Field(target, field) => {
