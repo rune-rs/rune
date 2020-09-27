@@ -73,3 +73,22 @@ fn test_assign_tuple() {
         }
     };
 }
+
+#[test]
+fn test_assign_assign_exprs() {
+    assert_eq! {
+        (4, (), ()),
+        rune! {
+            (i64, (), ()) => r#"
+            fn main() {
+                let a = #{b: #{c: #{d: 1}}};
+                let b = 2;
+                let c = 3;
+
+                c = b = a.b.c = 4;
+                (a.b.c, b, c)
+            }
+            "#
+        }
+    };
+}
