@@ -10,7 +10,7 @@ pub struct ExprClosure {
     pub attributes: Vec<ast::Attribute>,
     /// If the closure is async or not.
     #[rune(iter)]
-    pub async_: Option<ast::Async>,
+    pub async_token: Option<ast::Async>,
     /// Arguments to the closure.
     pub args: ExprClosureArgs,
     /// The body of the closure.
@@ -20,7 +20,7 @@ pub struct ExprClosure {
 impl ExprClosure {
     /// Get the identifying span for this closure.
     pub fn item_span(&self) -> Span {
-        if let Some(async_) = &self.async_ {
+        if let Some(async_) = &self.async_token {
             async_.span().join(self.args.span())
         } else {
             self.args.span()
@@ -28,12 +28,11 @@ impl ExprClosure {
     }
 
     /// Parse the closure attaching the given attributes
-    pub fn parse_with_attributes(
+    pub fn parse_with_attributes_and_async(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
+        async_token: Option<ast::Async>,
     ) -> Result<Self, ParseError> {
-        let async_ = parser.parse()?;
-
         let args = if let Some(token) = parser.parse::<Option<ast::Or>>()? {
             ExprClosureArgs::Empty { token }
         } else {
@@ -59,7 +58,7 @@ impl ExprClosure {
 
         Ok(Self {
             attributes,
-            async_,
+            async_token,
             args,
             body: Box::new(parser.parse()?),
         })
@@ -86,7 +85,8 @@ impl ExprClosure {
 impl Parse for ExprClosure {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
+        let async_token = parser.parse()?;
+        Self::parse_with_attributes_and_async(parser, attributes, async_token)
     }
 }
 

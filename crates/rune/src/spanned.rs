@@ -84,3 +84,12 @@ where
         }
     }
 }
+
+impl<T> OptionSpanned for Option<T>
+where
+    T: Spanned,
+{
+    fn option_span(&self) -> Option<Span> {
+        self.as_ref().map(Spanned::span)
+    }
+}

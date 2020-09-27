@@ -1,5 +1,4 @@
 use crate::ast;
-use crate::ast::expr::{EagerBrace, ExprChain};
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 use std::fmt;
 
@@ -30,16 +29,12 @@ impl Parse for ExprUnary {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let token = parser.token_next()?;
         let op = UnaryOp::from_token(token)?;
+        let path = parser.parse::<Option<ast::Path>>()?;
 
         Ok(Self {
             op,
             token,
-            expr: Box::new(ast::Expr::parse_primary(
-                parser,
-                EagerBrace(true),
-                ExprChain(true),
-                &mut vec![],
-            )?),
+            expr: Box::new(ast::Expr::parse_with_meta(parser, &mut vec![], path)?),
         })
     }
 }

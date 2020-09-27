@@ -73,8 +73,8 @@ impl Item {
         })
     }
 
-    /// Parse an Item attaching the given meta.
-    pub fn parse_with_meta(
+    /// Parse an Item attaching the given meta and optional path.
+    pub fn parse_with_meta_path(
         parser: &mut Parser,
         mut attributes: Vec<ast::Attribute>,
         mut visibility: ast::Visibility,
@@ -82,53 +82,59 @@ impl Item {
     ) -> Result<Self, ParseError> {
         use std::mem::take;
 
-        if let Some(path) = path {
-            return Ok(Self::MacroCall(ast::MacroCall::parse_with_path(
-                parser, path,
-            )?));
-        }
+        let item = if let Some(path) = path {
+            Self::MacroCall(ast::MacroCall::parse_with_meta_path(
+                parser,
+                take(&mut attributes),
+                path,
+            )?)
+        } else {
+            let t = parser.token_peek_eof()?;
 
-        let t = parser.token_peek_eof()?;
-
-        let item = match t.kind {
-            ast::Kind::Use => Self::ItemUse(ast::ItemUse::parse_with_meta(
-                parser,
-                take(&mut attributes),
-                take(&mut visibility),
-            )?),
-            ast::Kind::Enum => Self::ItemEnum(ast::ItemEnum::parse_with_meta(
-                parser,
-                take(&mut attributes),
-                take(&mut visibility),
-            )?),
-            ast::Kind::Struct => Self::ItemStruct(ast::ItemStruct::parse_with_meta(
-                parser,
-                take(&mut attributes),
-                take(&mut visibility),
-            )?),
-            ast::Kind::Impl => Self::ItemImpl(ast::ItemImpl::parse_with_attributes(
-                parser,
-                take(&mut attributes),
-            )?),
-            ast::Kind::Async | ast::Kind::Fn => Self::ItemFn(Box::new(
-                ast::ItemFn::parse_with_meta(parser, take(&mut attributes), take(&mut visibility))?,
-            )),
-            ast::Kind::Mod => Self::ItemMod(ast::ItemMod::parse_with_meta(
-                parser,
-                take(&mut attributes),
-                take(&mut visibility),
-            )?),
-            ast::Kind::Const => Self::ItemConst(ast::ItemConst::parse_with_meta(
-                parser,
-                take(&mut attributes),
-                take(&mut visibility),
-            )?),
-            ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
-            _ => {
-                return Err(ParseError::expected(
-                    t,
-                    "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
-                ))
+            match t.kind {
+                ast::Kind::Use => Self::ItemUse(ast::ItemUse::parse_with_meta(
+                    parser,
+                    take(&mut attributes),
+                    take(&mut visibility),
+                )?),
+                ast::Kind::Enum => Self::ItemEnum(ast::ItemEnum::parse_with_meta(
+                    parser,
+                    take(&mut attributes),
+                    take(&mut visibility),
+                )?),
+                ast::Kind::Struct => Self::ItemStruct(ast::ItemStruct::parse_with_meta(
+                    parser,
+                    take(&mut attributes),
+                    take(&mut visibility),
+                )?),
+                ast::Kind::Impl => Self::ItemImpl(ast::ItemImpl::parse_with_attributes(
+                    parser,
+                    take(&mut attributes),
+                )?),
+                ast::Kind::Async | ast::Kind::Fn => {
+                    Self::ItemFn(Box::new(ast::ItemFn::parse_with_meta(
+                        parser,
+                        take(&mut attributes),
+                        take(&mut visibility),
+                    )?))
+                }
+                ast::Kind::Mod => Self::ItemMod(ast::ItemMod::parse_with_meta(
+                    parser,
+                    take(&mut attributes),
+                    take(&mut visibility),
+                )?),
+                ast::Kind::Const => Self::ItemConst(ast::ItemConst::parse_with_meta(
+                    parser,
+                    take(&mut attributes),
+                    take(&mut visibility),
+                )?),
+                ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
+                _ => {
+                    return Err(ParseError::expected(
+                        t,
+                        "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
+                    ))
+                }
             }
         };
 
@@ -155,6 +161,6 @@ impl Parse for Item {
         let attributes = parser.parse()?;
         let visibility = parser.parse()?;
         let path = parser.parse()?;
-        Self::parse_with_meta(parser, attributes, visibility, path)
+        Self::parse_with_meta_path(parser, attributes, visibility, path)
     }
 }

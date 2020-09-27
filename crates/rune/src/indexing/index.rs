@@ -1039,7 +1039,7 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
         log::trace!("ExprClosure => {:?}", self.source.source(span));
 
         let _guard = self.items.push_closure();
-        let guard = self.scopes.push_closure(expr_closure.async_.is_some());
+        let guard = self.scopes.push_closure(expr_closure.async_token.is_some());
         let span = expr_closure.span();
 
         for (arg, _) in expr_closure.args.as_slice() {

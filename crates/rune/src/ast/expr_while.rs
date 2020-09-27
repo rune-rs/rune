@@ -43,20 +43,12 @@ impl ExprWhile {
             body: Box::new(parser.parse()?),
         })
     }
-
-    /// Parse the `while` with the given attributes.
-    pub fn parse_with_attributes(
-        parser: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
-        let label = parser.parse()?;
-        Self::parse_with_attributes_and_label(parser, attributes, label)
-    }
 }
 
 impl Parse for ExprWhile {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
+        let label = parser.parse()?;
+        Self::parse_with_attributes_and_label(parser, attributes, label)
     }
 }
