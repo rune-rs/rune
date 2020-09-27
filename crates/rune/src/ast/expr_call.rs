@@ -1,8 +1,16 @@
 use crate::ast;
-use crate::{Spanned, ToTokens};
+use crate::{Parse, Spanned, ToTokens};
 
 /// A function call `<expr>(<args>)`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::ExprCall>("test()");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct ExprCall {
     /// The name of the function being called.
     pub expr: Box<ast::Expr>,

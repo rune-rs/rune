@@ -153,9 +153,6 @@ pub enum ParseErrorKind {
     /// When we encounter an expression that cannot be used in a chained manner.
     #[error("unsupported field access")]
     UnsupportedFieldAccess,
-    /// Trying to use a token that is not supported as a function argument.
-    #[error("not supported as a function or closure argument")]
-    ExpectedFunctionArgument,
     /// Trying to use an expression as async when it's not supported.
     #[error("not supported as an async expression")]
     UnsupportedAsyncExpr,
