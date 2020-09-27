@@ -80,10 +80,11 @@ impl Parse for File {
 
         let mut item_attributes = parser.parse()?;
         let mut item_visibility = parser.parse()?;
+        let mut path = parser.parse::<Option<ast::Path>>()?;
 
-        while ast::Item::peek_as_stmt(parser)? {
+        while path.is_some() || ast::Item::peek_as_item(parser, path.as_ref())? {
             let item: ast::Item =
-                ast::Item::parse_with_meta(parser, item_attributes, item_visibility)?;
+                ast::Item::parse_with_meta(parser, item_attributes, item_visibility, path.take())?;
 
             let semi_colon = if item.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {
                 Some(parser.parse::<ast::SemiColon>()?)
@@ -94,6 +95,7 @@ impl Parse for File {
             items.push((item, semi_colon));
             item_attributes = parser.parse()?;
             item_visibility = parser.parse()?;
+            path = parser.parse()?;
         }
 
         // meta without items. maybe use different error kind?

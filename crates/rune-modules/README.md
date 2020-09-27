@@ -54,6 +54,7 @@ See each module for documentation:
 * [fs]
 * [process]
 * [signal]
+* [rand]
 
 ### Features
 
@@ -62,9 +63,10 @@ See each module for documentation:
 * `json` for the [json module][json]
 * `toml` for the [toml module][toml]
 * `time` for the [time module][time]
-* `fs` for the [fs module]][fs]
-* `process` for the [process module]][process]
-* `signal` for the [process module]][signal]
+* `fs` for the [fs module][fs]
+* `process` for the [process module][process]
+* `signal` for the [signal module][signal]
+* `rand` for the [rand module][rand]
 
 [http]: https://docs.rs/rune-modules/0/rune_modules/http/
 [json]: https://docs.rs/rune-modules/0/rune_modules/json/
@@ -73,3 +75,4 @@ See each module for documentation:
 [fs]: https://docs.rs/rune-modules/0/rune_modules/fs/
 [process]: https://docs.rs/rune-modules/0/rune_modules/process/
 [signal]: https://docs.rs/rune-modules/0/rune_modules/signal/
+[rand]: https://docs.rs/rune-modules/0/rune_modules/rand/

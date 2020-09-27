@@ -8,7 +8,7 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::ItemConst>("const value = #{};");
+/// testing::roundtrip::<ast::ItemConst>("const value = #{}");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct ItemConst {
@@ -26,8 +26,6 @@ pub struct ItemConst {
     pub eq: ast::Eq,
     /// The optional body of the module declaration.
     pub expr: Box<ast::Expr>,
-    /// Terminating semicolon.
-    pub semi: ast::SemiColon,
 }
 
 impl ItemConst {
@@ -44,7 +42,6 @@ impl ItemConst {
             name: parser.parse()?,
             eq: parser.parse()?,
             expr: parser.parse()?,
-            semi: parser.parse()?,
         })
     }
 }

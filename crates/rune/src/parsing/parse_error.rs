@@ -32,6 +32,7 @@ impl ParseError {
 
 /// Error when parsing.
 #[derive(Debug, Clone, Copy, Error)]
+#[allow(missing_docs)]
 pub enum ParseErrorKind {
     /// Error raised when we expect and end-of-file but it didn't happen.
     #[error("expected end-of-file, but got token `{actual}`")]
@@ -166,16 +167,12 @@ pub enum ParseErrorKind {
         /// The delimiter we saw.
         actual: ast::Kind,
     },
-    /// Expected a block semicolon which is needed for the kind of expression.
-    #[error("expected expression to be terminated by a semicolon `;`")]
-    ExpectedBlockSemiColon {
-        /// The following expression.
-        followed_span: Span,
-    },
     /// Encountered a position with attributes for which it is not supported.
     #[error("attributes not supported in this position")]
     AttributesNotSupported,
     /// Encountered when we expect inner attributes.
     #[error("expected inner attribute")]
     ExpectedInnerAttribute,
+    #[error("item needs to be terminated by a semi-colon `;`")]
+    ItemNeedsSemi,
 }

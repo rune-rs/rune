@@ -26,7 +26,12 @@ pub enum Item {
 impl Item {
     /// Indicates if the declaration needs a semi-colon or not.
     pub fn needs_semi_colon(&self) -> bool {
-        matches!(self, Self::MacroCall(..))
+        match self {
+            Self::ItemUse(..) => true,
+            Self::ItemStruct(st) => st.needs_semi_colon(),
+            Self::ItemConst(..) => true,
+            _ => false,
+        }
     }
 
     /// Test if the item has any attributes
@@ -43,9 +48,17 @@ impl Item {
         }
     }
 
-    /// Test if declaration is suitable inside of a block.
-    pub fn peek_as_stmt(parser: &mut Parser<'_>) -> Result<bool, ParseError> {
+    /// Test if declaration is suitable inside of a file.
+    pub fn peek_as_item(
+        parser: &mut Parser<'_>,
+        path: Option<&ast::Path>,
+    ) -> Result<bool, ParseError> {
         let (t1, t2) = peek!(parser.token_peek_pair()?, Ok(false));
+
+        if path.is_some() {
+            // Macro call.
+            return Ok(matches!(t1.kind, ast::Kind::Bang));
+        }
 
         Ok(match t1.kind {
             ast::Kind::Use => true,
@@ -65,8 +78,15 @@ impl Item {
         parser: &mut Parser,
         mut attributes: Vec<ast::Attribute>,
         mut visibility: ast::Visibility,
+        path: Option<ast::Path>,
     ) -> Result<Self, ParseError> {
         use std::mem::take;
+
+        if let Some(path) = path {
+            return Ok(Self::MacroCall(ast::MacroCall::parse_with_path(
+                parser, path,
+            )?));
+        }
 
         let t = parser.token_peek_eof()?;
 
@@ -107,7 +127,7 @@ impl Item {
             _ => {
                 return Err(ParseError::expected(
                     t,
-                    "`fn`, `mod`, `struct`, `enum`, or `use`",
+                    "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
                 ))
             }
         };
@@ -134,6 +154,7 @@ impl Parse for Item {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let attributes = parser.parse()?;
         let visibility = parser.parse()?;
-        Self::parse_with_meta(parser, attributes, visibility)
+        let path = parser.parse()?;
+        Self::parse_with_meta(parser, attributes, visibility, path)
     }
 }

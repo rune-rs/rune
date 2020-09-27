@@ -4,6 +4,7 @@ use std::sync::Arc;
 /// A collection of source files, and a queue of things to compile.
 #[derive(Debug, Default)]
 pub struct Sources {
+    /// Sources associated.
     sources: Vec<Arc<Source>>,
 }
 

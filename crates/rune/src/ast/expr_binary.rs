@@ -20,12 +20,6 @@ pub struct ExprBinary {
 }
 
 impl ExprBinary {
-    /// If the expression is empty.
-    pub fn produces_nothing(&self) -> bool {
-        // Assignments do not produce a value.
-        matches!(self.op, BinOp::Assign { .. })
-    }
-
     /// Get the span of the op.
     pub fn op_span(&self) -> Span {
         if let Some(t2) = self.t2 {

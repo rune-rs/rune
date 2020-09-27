@@ -660,10 +660,8 @@ impl Query {
         source: &Source,
     ) -> Result<CompileMetaKind, QueryError> {
         Ok(match body {
-            ast::ItemStructBody::UnitBody(_) => self.unit_body_meta(item, enum_item),
-            ast::ItemStructBody::TupleBody(tuple, _) => {
-                self.tuple_body_meta(item, enum_item, tuple)
-            }
+            ast::ItemStructBody::UnitBody => self.unit_body_meta(item, enum_item),
+            ast::ItemStructBody::TupleBody(tuple) => self.tuple_body_meta(item, enum_item, tuple),
             ast::ItemStructBody::StructBody(st) => {
                 self.struct_body_meta(item, enum_item, source, st)?
             }

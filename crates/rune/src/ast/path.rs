@@ -30,6 +30,18 @@ impl Path {
         }
     }
 
+    /// Borrow as an identifier used for field access calls.
+    ///
+    /// This is only allowed if there are no other path components
+    /// and the PathSegment is not `Crate` or `Super`.
+    pub fn try_as_ident_mut(&mut self) -> Option<&mut ast::Ident> {
+        if self.rest.is_empty() && self.trailing.is_none() && self.leading_colon.is_none() {
+            self.first.try_as_ident_mut()
+        } else {
+            None
+        }
+    }
+
     /// Iterate over all components in path.
     pub fn into_components(&self) -> impl Iterator<Item = &'_ PathSegment> + '_ {
         let mut first = Some(&self.first);
@@ -69,6 +81,18 @@ impl PathSegment {
     /// This is only allowed if the PathSegment is `Ident(_)`
     /// and not `Crate` or `Super`.
     pub fn try_as_ident(&self) -> Option<&ast::Ident> {
+        if let PathSegment::Ident(ident) = self {
+            Some(ident)
+        } else {
+            None
+        }
+    }
+
+    /// Borrow as a mutable identifier.
+    ///
+    /// This is only allowed if the PathSegment is `Ident(_)`
+    /// and not `Crate` or `Super`.
+    pub fn try_as_ident_mut(&mut self) -> Option<&mut ast::Ident> {
         if let PathSegment::Ident(ident) = self {
             Some(ident)
         } else {

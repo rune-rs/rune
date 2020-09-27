@@ -210,4 +210,10 @@ pub enum CompileErrorKind {
     BreakOutsideOfLoop,
     #[error("multiple `default` branches in select")]
     SelectMultipleDefaults,
+    /// Expected a block semicolon which is needed for the kind of expression.
+    #[error("expected expression to be terminated by a semicolon `;`")]
+    ExpectedBlockSemiColon {
+        /// The following expression.
+        followed_span: Span,
+    },
 }

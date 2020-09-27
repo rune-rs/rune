@@ -34,11 +34,6 @@ pub struct ExprIf {
 }
 
 impl ExprIf {
-    /// An if statement evaluates to empty if it does not have an else branch.
-    pub fn produces_nothing(&self) -> bool {
-        self.expr_else.is_none()
-    }
-
     /// Parse an if statement attaching the given attributes
     pub fn parse_with_attributes(
         parser: &mut Parser,

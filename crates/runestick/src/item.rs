@@ -12,7 +12,6 @@ const STRING: u8 = 0;
 const BLOCK: u8 = 1;
 const CLOSURE: u8 = 2;
 const ASYNC_BLOCK: u8 = 3;
-const MACRO: u8 = 4;
 
 /// The name of an item.
 ///
@@ -276,8 +275,6 @@ pub enum Component {
     Closure(usize),
     /// An async block, like `async {  }`.
     AsyncBlock(usize),
-    /// An expanded macro.
-    Macro(usize),
 }
 
 impl Component {
@@ -308,7 +305,7 @@ impl Component {
                 // are safe input paths which ensure that the input is a string.
                 Some(unsafe { std::str::from_utf8_unchecked(bytes) })
             }
-            BLOCK | CLOSURE | ASYNC_BLOCK | MACRO => None,
+            BLOCK | CLOSURE | ASYNC_BLOCK => None,
             b => panic!("unexpected control byte `{:?}`", b),
         };
 
@@ -333,7 +330,6 @@ impl Component {
             BLOCK => Component::Block(read_usize(content)),
             CLOSURE => Component::Closure(read_usize(content)),
             ASYNC_BLOCK => Component::AsyncBlock(read_usize(content)),
-            MACRO => Component::Macro(read_usize(content)),
             b => panic!("unexpected control byte `{:?}`", b),
         };
 
@@ -350,7 +346,6 @@ impl fmt::Display for Component {
             Self::Block(n) => write!(fmt, "$block{}", n),
             Self::Closure(n) => write!(fmt, "$closure{}", n),
             Self::AsyncBlock(n) => write!(fmt, "$async{}", n),
-            Self::Macro(n) => write!(fmt, "$macro{}", n),
         }
     }
 }
@@ -410,10 +405,6 @@ impl IntoComponent for &Component {
                 output.push(ASYNC_BLOCK);
                 write_usize(output, *c);
             }
-            Component::Macro(c) => {
-                output.push(MACRO);
-                write_usize(output, *c);
-            }
         }
 
         write_usize(output, output.len() - offset);
@@ -438,10 +429,6 @@ impl IntoComponent for &Component {
             }
             Component::AsyncBlock(c) => {
                 ASYNC_BLOCK.hash(hasher);
-                c.hash(hasher);
-            }
-            Component::Macro(c) => {
-                MACRO.hash(hasher);
                 c.hash(hasher);
             }
         }
@@ -617,11 +604,9 @@ mod tests {
         item.push(Component::Closure(2));
         item.push("middle");
         item.push(Component::AsyncBlock(3));
-        item.push(Component::Macro(4));
         item.push("end");
 
         assert_eq!(item.pop(), Some("end".into_component()));
-        assert_eq!(item.pop(), Some(Component::Macro(4)));
         assert_eq!(item.pop(), Some(Component::AsyncBlock(3)));
         assert_eq!(item.pop(), Some("middle".into_component()));
         assert_eq!(item.pop(), Some(Component::Closure(2)));
@@ -641,7 +626,6 @@ mod tests {
         item.push(Component::Closure(2));
         item.push("middle");
         item.push(Component::AsyncBlock(3));
-        item.push(Component::Macro(4));
         item.push("end");
 
         let mut it = item.iter();
@@ -651,7 +635,6 @@ mod tests {
         assert_eq!(it.next(), Some(Component::Closure(2)));
         assert_eq!(it.next(), Some("middle".into_component()));
         assert_eq!(it.next(), Some(Component::AsyncBlock(3)));
-        assert_eq!(it.next(), Some(Component::Macro(4)));
         assert_eq!(it.next(), Some("end".into_component()));
         assert_eq!(it.next(), None);
 
@@ -667,13 +650,11 @@ mod tests {
         item.push(Component::Closure(2));
         item.push("middle");
         item.push(Component::AsyncBlock(3));
-        item.push(Component::Macro(4));
         item.push("end");
 
         let mut it = item.iter();
 
         assert_eq!(it.next_back_str(), Some("end"));
-        assert_eq!(it.next_back(), Some(Component::Macro(4)));
         assert_eq!(it.next_back(), Some(Component::AsyncBlock(3)));
         assert_eq!(it.next_back_str(), Some("middle"));
         assert_eq!(it.next_back(), Some(Component::Closure(2)));
@@ -691,7 +672,6 @@ mod tests {
         item.push(Component::Closure(2));
         item.push("middle");
         item.push(Component::AsyncBlock(3));
-        item.push(Component::Macro(4));
         item.push("end");
 
         let mut it = item.iter();
@@ -699,7 +679,6 @@ mod tests {
         assert_eq!(it.next_str(), Some("start"));
         assert_eq!(it.next_back_str(), Some("end"));
         assert_eq!(it.next(), Some(Component::Block(1)));
-        assert_eq!(it.next_back(), Some(Component::Macro(4)));
         assert_eq!(it.next(), Some(Component::Closure(2)));
         assert_eq!(it.next_back(), Some(Component::AsyncBlock(3)));
         assert_eq!(it.next_str(), Some("middle"));

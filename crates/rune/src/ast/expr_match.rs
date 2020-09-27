@@ -94,10 +94,3 @@ pub struct ExprMatchBranch {
     /// The body of the match.
     pub body: Box<ast::Expr>,
 }
-
-impl ExprMatchBranch {
-    /// Test if the branch produces nothing.
-    pub fn produces_nothing(&self) -> bool {
-        self.body.produces_nothing()
-    }
-}

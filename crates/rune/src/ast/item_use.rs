@@ -18,9 +18,8 @@ pub struct ItemUse {
     /// First component in use.
     pub first: ast::PathSegment,
     /// The rest of the import.
+    #[rune(iter)]
     pub rest: Vec<(ast::Scope, ItemUseComponent)>,
-    /// Use items are always terminated by a semi-colon.
-    pub semi: ast::SemiColon,
 }
 
 impl ItemUse {
@@ -37,7 +36,6 @@ impl ItemUse {
             use_: parser.parse()?,
             first: parser.parse()?,
             rest: parser.parse()?,
-            semi: parser.parse()?,
         })
     }
 }
@@ -49,11 +47,11 @@ impl ItemUse {
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::ItemUse>("use foo;");
-/// testing::roundtrip::<ast::ItemUse>("use foo::bar;");
-/// testing::roundtrip::<ast::ItemUse>("use foo::bar::baz;");
-/// testing::roundtrip::<ast::ItemUse>("#[macro_use] use foo::bar::baz;");
-/// testing::roundtrip::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz;");
+/// testing::roundtrip::<ast::ItemUse>("use foo");
+/// testing::roundtrip::<ast::ItemUse>("use foo::bar");
+/// testing::roundtrip::<ast::ItemUse>("use foo::bar::baz");
+/// testing::roundtrip::<ast::ItemUse>("#[macro_use] use foo::bar::baz");
+/// testing::roundtrip::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz");
 /// ```
 impl Parse for ItemUse {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
