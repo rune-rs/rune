@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 use runestick::Span;
 
-/// A closure.
+/// A closure expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprClosure {
     /// The attributes for the async closure

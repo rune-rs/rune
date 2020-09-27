@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A single argument in a closure.
 ///
@@ -24,18 +24,13 @@ pub enum FnArg {
 
 impl Parse for FnArg {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_peek_eof()?;
+        let t = parser.token_peek_eof()?;
 
-        Ok(match token.kind {
+        Ok(match t.kind {
             ast::Kind::Self_ => Self::Self_(parser.parse()?),
             ast::Kind::Underscore => Self::Ignore(parser.parse()?),
             ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
-            _ => {
-                return Err(ParseError::new(
-                    token,
-                    ParseErrorKind::ExpectedFunctionArgument,
-                ))
-            }
+            _ => return Err(ParseError::expected(t, "expected function argument")),
         })
     }
 }

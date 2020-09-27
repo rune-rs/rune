@@ -26,9 +26,6 @@ pub enum Expr {
     /// An path expression.
     Path(ast::Path),
     /// A declaration.
-    // large size difference between variants
-    // we should box this variant.
-    // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
     Item(ast::Item),
     /// A while loop.
     ExprWhile(ast::ExprWhile),
@@ -241,98 +238,99 @@ impl Expr {
         attributes: &mut Vec<ast::Attribute>,
         eager_brace: EagerBrace,
     ) -> Result<Self, ParseError> {
-        let expr = if let Some(path) = parser.parse::<Option<ast::Path>>()? {
-            Self::parse_with_meta_path(parser, attributes, path, eager_brace)?
-        } else if ast::Lit::peek_in_expr(parser)? {
-            ast::Expr::ExprLit(ast::ExprLit::parse_with_attributes(
+        if let Some(path) = parser.parse::<Option<ast::Path>>()? {
+            return Ok(Self::parse_with_meta_path(
+                parser,
+                attributes,
+                path,
+                eager_brace,
+            )?);
+        }
+
+        if ast::Lit::peek_in_expr(parser)? {
+            return Ok(ast::Expr::ExprLit(ast::ExprLit::parse_with_attributes(
                 parser,
                 take(attributes),
-            )?)
-        } else {
-            let mut label = parser.parse::<Option<(ast::Label, ast::Colon)>>()?;
-            let mut async_token = parser.parse::<Option<ast::Async>>()?;
-            let t = parser.token_peek_eof()?;
+            )?));
+        }
 
-            let expr = match t.kind {
-                ast::Kind::PipePipe | ast::Kind::Pipe => {
-                    Self::ExprClosure(ast::ExprClosure::parse_with_attributes_and_async(
-                        parser,
-                        take(attributes),
-                        take(&mut async_token),
-                    )?)
-                }
-                ast::Kind::Self_ => Self::Self_(parser.parse()?),
-                ast::Kind::Select => Self::ExprSelect(ast::ExprSelect::parse_with_attributes(
-                    parser,
-                    take(attributes),
-                )?),
-                ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => {
-                    Self::ExprUnary(parser.parse()?)
-                }
-                ast::Kind::While => {
-                    Self::ExprWhile(ast::ExprWhile::parse_with_attributes_and_label(
-                        parser,
-                        take(attributes),
-                        take(&mut label),
-                    )?)
-                }
-                ast::Kind::Loop => Self::ExprLoop(ast::ExprLoop::parse_with_attributes_and_label(
-                    parser,
-                    take(attributes),
-                    take(&mut label),
-                )?),
-                ast::Kind::For => Self::ExprFor(ast::ExprFor::parse_with_attributes_and_label(
-                    parser,
-                    take(attributes),
-                    take(&mut label),
-                )?),
-                ast::Kind::Let => Self::ExprLet(ast::ExprLet::parse_with_attributes(
-                    parser,
-                    take(attributes),
-                )?),
-                ast::Kind::If => Self::ExprIf(ast::ExprIf::parse_with_attributes(
-                    parser,
-                    take(attributes),
-                )?),
-                ast::Kind::Match => Self::ExprMatch(ast::ExprMatch::parse_with_attributes(
-                    parser,
-                    take(attributes),
-                )?),
-                ast::Kind::Open(ast::Delimiter::Parenthesis) => {
-                    Self::parse_open_paren(parser, attributes)?
-                }
-                ast::Kind::Open(ast::Delimiter::Brace) => Self::ExprBlock(ast::ExprBlock {
-                    async_token: take(&mut async_token),
-                    attributes: take(attributes),
-                    block: parser.parse()?,
-                }),
-                ast::Kind::Break => Self::ExprBreak(ast::ExprBreak::parse_with_attributes(
-                    parser,
-                    take(attributes),
-                )?),
-                ast::Kind::Yield => Self::ExprYield(ast::ExprYield::parse_with_attributes(
-                    parser,
-                    take(attributes),
-                )?),
-                ast::Kind::Return => Self::ExprReturn(ast::ExprReturn::parse_with_attributes(
-                    parser,
-                    take(attributes),
-                )?),
-                _ => {
-                    return Err(ParseError::expected(t, "expression"));
-                }
-            };
+        let mut label = parser.parse::<Option<(ast::Label, ast::Colon)>>()?;
+        let mut async_token = parser.parse::<Option<ast::Async>>()?;
+        let t = parser.token_peek_eof()?;
 
-            if let Some(span) = label.option_span() {
-                return Err(ParseError::new(span, ParseErrorKind::UnsupportedLabel));
+        let expr = match t.kind {
+            ast::Kind::PipePipe | ast::Kind::Pipe => {
+                Self::ExprClosure(ast::ExprClosure::parse_with_attributes_and_async(
+                    parser,
+                    take(attributes),
+                    take(&mut async_token),
+                )?)
             }
-
-            if let Some(span) = async_token.option_span() {
-                return Err(ParseError::new(span, ParseErrorKind::UnsupportedAsync));
+            ast::Kind::Self_ => Self::Self_(parser.parse()?),
+            ast::Kind::Select => Self::ExprSelect(ast::ExprSelect::parse_with_attributes(
+                parser,
+                take(attributes),
+            )?),
+            ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => Self::ExprUnary(parser.parse()?),
+            ast::Kind::While => Self::ExprWhile(ast::ExprWhile::parse_with_attributes_and_label(
+                parser,
+                take(attributes),
+                take(&mut label),
+            )?),
+            ast::Kind::Loop => Self::ExprLoop(ast::ExprLoop::parse_with_attributes_and_label(
+                parser,
+                take(attributes),
+                take(&mut label),
+            )?),
+            ast::Kind::For => Self::ExprFor(ast::ExprFor::parse_with_attributes_and_label(
+                parser,
+                take(attributes),
+                take(&mut label),
+            )?),
+            ast::Kind::Let => Self::ExprLet(ast::ExprLet::parse_with_attributes(
+                parser,
+                take(attributes),
+            )?),
+            ast::Kind::If => Self::ExprIf(ast::ExprIf::parse_with_attributes(
+                parser,
+                take(attributes),
+            )?),
+            ast::Kind::Match => Self::ExprMatch(ast::ExprMatch::parse_with_attributes(
+                parser,
+                take(attributes),
+            )?),
+            ast::Kind::Open(ast::Delimiter::Parenthesis) => {
+                Self::parse_open_paren(parser, attributes)?
             }
-
-            expr
+            ast::Kind::Open(ast::Delimiter::Brace) => Self::ExprBlock(ast::ExprBlock {
+                async_token: take(&mut async_token),
+                attributes: take(attributes),
+                block: parser.parse()?,
+            }),
+            ast::Kind::Break => Self::ExprBreak(ast::ExprBreak::parse_with_attributes(
+                parser,
+                take(attributes),
+            )?),
+            ast::Kind::Yield => Self::ExprYield(ast::ExprYield::parse_with_attributes(
+                parser,
+                take(attributes),
+            )?),
+            ast::Kind::Return => Self::ExprReturn(ast::ExprReturn::parse_with_attributes(
+                parser,
+                take(attributes),
+            )?),
+            _ => {
+                return Err(ParseError::expected(t, "expression"));
+            }
         };
+
+        if let Some(span) = label.option_span() {
+            return Err(ParseError::new(span, ParseErrorKind::UnsupportedLabel));
+        }
+
+        if let Some(span) = async_token.option_span() {
+            return Err(ParseError::new(span, ParseErrorKind::UnsupportedAsync));
+        }
 
         Ok(expr)
     }

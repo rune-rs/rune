@@ -1,8 +1,16 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{Parse, Spanned, ToTokens};
 
 /// A return statement `<expr>.await`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::ExprAwait>("42.await");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprAwait {
     /// The expression being awaited.
     pub expr: Box<ast::Expr>,
@@ -10,14 +18,4 @@ pub struct ExprAwait {
     pub dot: ast::Dot,
     /// The await token.
     pub await_: ast::Await,
-}
-
-impl Parse for ExprAwait {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(Self {
-            expr: Box::new(parser.parse()?),
-            dot: parser.parse()?,
-            await_: parser.parse()?,
-        })
-    }
 }

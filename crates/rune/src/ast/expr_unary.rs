@@ -28,11 +28,10 @@ pub struct ExprUnary {
 impl Parse for ExprUnary {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         let token = parser.token_next()?;
-        let op = UnaryOp::from_token(token)?;
         let path = parser.parse::<Option<ast::Path>>()?;
 
         Ok(Self {
-            op,
+            op: UnaryOp::from_token(token)?,
             token,
             expr: Box::new(ast::Expr::parse_with_meta(parser, &mut vec![], path)?),
         })
