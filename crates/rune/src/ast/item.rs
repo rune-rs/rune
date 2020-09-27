@@ -35,6 +35,22 @@ impl Item {
         }
     }
 
+    /// Take the attributes associated with the item.
+    pub fn take_attributes(&mut self) -> Vec<ast::Attribute> {
+        use std::mem::take;
+
+        match self {
+            Item::ItemUse(item) => take(&mut item.attributes),
+            Item::ItemFn(item) => take(&mut item.attributes),
+            Item::ItemEnum(item) => take(&mut item.attributes),
+            Item::ItemStruct(item) => take(&mut item.attributes),
+            Item::ItemImpl(item) => take(&mut item.attributes),
+            Item::ItemMod(item) => take(&mut item.attributes),
+            Item::ItemConst(item) => take(&mut item.attributes),
+            Item::MacroCall(item) => take(&mut item.attributes),
+        }
+    }
+
     /// Test if the item has any attributes
     pub fn attributes_span(&self) -> Option<Span> {
         match self {

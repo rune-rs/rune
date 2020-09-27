@@ -13,6 +13,9 @@ pub enum ExprField {
 /// A field access `<expr>.<field>`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprFieldAccess {
+    /// Attributes associated with expression.
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// The expr where the field is being accessed.
     pub expr: Box<ast::Expr>,
     /// The parsed dot separator.

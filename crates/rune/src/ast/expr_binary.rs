@@ -6,6 +6,9 @@ use std::fmt;
 /// A binary expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprBinary {
+    /// Attributes associated with the binary expression.
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
     /// The left-hand side of a binary operation.
     pub lhs: Box<ast::Expr>,
     /// Token associated with operator.
@@ -73,8 +76,6 @@ pub enum BinOp {
     BitXor,
     /// Bitwise or operator `a | b`.
     BitOr,
-    /// Assign operator `a = b`.
-    Assign,
     /// Add assign `a += b`.
     AddAssign,
     /// Sub assign `a -= b`.
@@ -101,7 +102,6 @@ impl BinOp {
     /// Test if operator is an assign operator.
     pub fn is_assign(self) -> bool {
         match self {
-            Self::Assign => true,
             Self::AddAssign => true,
             Self::SubAssign => true,
             Self::MulAssign => true,
@@ -188,7 +188,6 @@ impl BinOp {
 
                 Self::Is
             }
-            ast::Kind::Eq => Self::Assign,
             ast::Kind::AmpAmp => Self::And,
             ast::Kind::PipePipe => Self::Or,
             ast::Kind::LtLt => Self::Shl,
@@ -237,7 +236,6 @@ impl fmt::Display for BinOp {
             Self::Lte => write!(f, "<="),
             Self::Is => write!(f, "is"),
             Self::IsNot => write!(f, "is not"),
-            Self::Assign => write!(f, "="),
             Self::And => write!(f, "&&"),
             Self::Or => write!(f, "||"),
             Self::Shl => write!(f, "<<"),
