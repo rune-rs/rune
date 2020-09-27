@@ -21,11 +21,11 @@ pub(crate) struct MacroCompiler<'a> {
 
 impl MacroCompiler<'_> {
     /// Compile the given macro into the given output type.
-    pub(crate) fn eval_macro<T>(&mut self, expr_call_macro: ast::MacroCall) -> CompileResult<T>
+    pub(crate) fn eval_macro<T>(&mut self, macro_call: &ast::MacroCall) -> CompileResult<T>
     where
         T: Parse,
     {
-        let span = expr_call_macro.span();
+        let span = macro_call.span();
 
         if !self.options.macros {
             return Err(CompileError::experimental(
@@ -34,12 +34,10 @@ impl MacroCompiler<'_> {
             ));
         }
 
-        let item = self.unit.convert_path(
-            &self.item,
-            &expr_call_macro.path,
-            &self.storage,
-            &*self.source,
-        )?;
+        let item =
+            self.unit
+                .convert_path(&self.item, &macro_call.path, &self.storage, &*self.source)?;
+
         let hash = Hash::type_hash(&item);
 
         let handler = match self.context.lookup_macro(hash) {
@@ -52,7 +50,7 @@ impl MacroCompiler<'_> {
             }
         };
 
-        let input_stream = &expr_call_macro.stream;
+        let input_stream = &macro_call.stream;
 
         self.macro_context.default_span = span;
         self.macro_context.end = Span::point(span.end);

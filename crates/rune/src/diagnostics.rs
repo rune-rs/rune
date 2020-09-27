@@ -1,8 +1,8 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
 use crate::{
-    CompileErrorKind, Error, ErrorKind, Errors, LinkerError, ParseErrorKind, Sources, Spanned as _,
-    WarningKind, Warnings,
+    CompileErrorKind, Error, ErrorKind, Errors, LinkerError, Sources, Spanned as _, WarningKind,
+    Warnings,
 };
 use runestick::{Span, VmError};
 use std::error::Error as _;
@@ -277,34 +277,7 @@ impl EmitDiagnostics for Error {
 
                 return Ok(());
             }
-            ErrorKind::ParseError(error) => {
-                // we allow here single match, since it is hard to use `if let` with pattern destruction.
-                #[allow(clippy::single_match)]
-                match error.kind() {
-                    ParseErrorKind::ExpectedBlockSemiColon { followed_span } => {
-                        labels.push(
-                            Label::secondary(
-                                self.source_id(),
-                                followed_span.start..followed_span.end,
-                            )
-                            .with_message("because this immediately follows"),
-                        );
-
-                        let binding = sources
-                            .source_at(self.source_id())
-                            .and_then(|s| s.source(error.span()));
-
-                        if let Some(binding) = binding {
-                            let mut note = String::new();
-                            writeln!(note, "Hint: Rewrite to `{};`", binding)?;
-                            notes.push(note);
-                        }
-                    }
-                    _ => (),
-                }
-
-                error.span()
-            }
+            ErrorKind::ParseError(error) => error.span(),
             ErrorKind::CompileError(error) => {
                 match error.kind() {
                     CompileErrorKind::DuplicateObjectKey { existing, object } => {
@@ -328,6 +301,25 @@ impl EmitDiagnostics for Error {
                             )
                             .with_message("previously loaded here"),
                         );
+                    }
+                    CompileErrorKind::ExpectedBlockSemiColon { followed_span } => {
+                        labels.push(
+                            Label::secondary(
+                                self.source_id(),
+                                followed_span.start..followed_span.end,
+                            )
+                            .with_message("because this immediately follows"),
+                        );
+
+                        let binding = sources
+                            .source_at(self.source_id())
+                            .and_then(|s| s.source(error.span()));
+
+                        if let Some(binding) = binding {
+                            let mut note = String::new();
+                            writeln!(note, "Hint: Rewrite to `{};`", binding)?;
+                            notes.push(note);
+                        }
                     }
                     _ => (),
                 }

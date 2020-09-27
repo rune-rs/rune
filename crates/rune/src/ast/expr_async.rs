@@ -10,15 +10,12 @@ use crate::{Parse, Spanned, ToTokens};
 ///
 /// let expr = testing::roundtrip::<ast::ExprAsync>("async {}");
 /// assert_eq!(expr.block.statements.len(), 0);
-/// assert!(expr.block.produces_nothing());
 ///
 /// let expr = testing::roundtrip::<ast::ExprAsync>("async { 42 }");
 /// assert_eq!(expr.block.statements.len(), 1);
-/// assert!(!expr.block.produces_nothing());
 ///
 /// let expr = testing::roundtrip::<ast::ExprAsync>("#[retry] async { 42 }");
 /// assert_eq!(expr.block.statements.len(), 1);
-/// assert!(!expr.block.produces_nothing());
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]

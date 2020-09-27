@@ -3,7 +3,6 @@ use crate::collections::HashMap;
 use crate::compiling::{Assembly, Compile as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
 use crate::query::Query;
 use crate::shared::Items;
-use crate::worker::Expanded;
 use crate::CompileResult;
 use crate::{
     CompileError, CompileErrorKind, Options, Resolve as _, Spanned as _, Storage, UnitBuilder,
@@ -40,8 +39,6 @@ pub(crate) struct Compiler<'a> {
     pub(crate) storage: &'a Storage,
     /// The context we are compiling for.
     pub(crate) context: &'a Context,
-    /// Items expanded by macros.
-    pub(crate) expanded: &'a HashMap<Item, Expanded>,
     /// Query system to compile required items.
     pub(crate) query: &'a mut Query,
     /// The assembly we are generating.

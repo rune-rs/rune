@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A block of expressions.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -13,15 +13,15 @@ pub struct Block {
 }
 
 impl Block {
-    /// Test if the block expression doesn't produce a value.
+    /// Test if the block produces nothing.
     pub fn produces_nothing(&self) -> bool {
         let mut it = self.statements.iter();
 
         while let Some(stmt) = it.next_back() {
             match stmt {
+                ast::Stmt::Item(..) => (),
                 ast::Stmt::Expr(..) => return false,
                 ast::Stmt::Semi(..) => return true,
-                _ => (),
             }
         }
 
@@ -63,55 +63,9 @@ impl Parse for Block {
         let mut statements = Vec::new();
 
         let open = parser.parse()?;
-        let mut must_be_last = None;
 
         while !parser.peek::<ast::CloseBrace>()? {
-            let attributes = parser.parse()?;
-            let visibility = parser.parse()?;
-
-            if ast::Item::peek_as_stmt(parser)? {
-                let decl: ast::Item = ast::Item::parse_with_meta(parser, attributes, visibility)?;
-
-                if let Some(span) = must_be_last {
-                    return Err(ParseError::new(
-                        span,
-                        ParseErrorKind::ExpectedBlockSemiColon {
-                            followed_span: decl.span(),
-                        },
-                    ));
-                }
-
-                statements.push(ast::Stmt::Item(decl));
-                continue;
-            }
-
-            if let Some(span) = visibility.option_span() {
-                return Err(ParseError::new(
-                    span,
-                    ParseErrorKind::UnsupportedExprVisibility,
-                ));
-            }
-
-            let expr: ast::Expr = ast::Expr::parse_primary_with_attributes(parser, attributes)?;
-
-            if let Some(span) = must_be_last {
-                return Err(ParseError::new(
-                    span,
-                    ParseErrorKind::ExpectedBlockSemiColon {
-                        followed_span: expr.span(),
-                    },
-                ));
-            }
-
-            if parser.peek::<ast::SemiColon>()? {
-                statements.push(ast::Stmt::Semi(expr, parser.parse()?));
-            } else {
-                if expr.needs_semi() {
-                    must_be_last = Some(expr.span());
-                }
-
-                statements.push(ast::Stmt::Expr(expr));
-            }
+            statements.push(parser.parse()?);
         }
 
         let close = parser.parse()?;

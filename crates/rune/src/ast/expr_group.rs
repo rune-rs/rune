@@ -11,10 +11,3 @@ pub struct ExprGroup {
     /// The close parenthesis.
     pub close: ast::CloseParen,
 }
-
-impl ExprGroup {
-    /// Check if expression is empty.
-    pub fn produces_nothing(&self) -> bool {
-        self.expr.produces_nothing()
-    }
-}

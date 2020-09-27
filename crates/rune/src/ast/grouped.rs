@@ -34,6 +34,11 @@ macro_rules! grouped {
             pub fn iter(&self) -> std::slice::Iter<'_, (T, Option<S>)> {
                 self.$field.iter()
             }
+
+            /// Iterate mutably over elements.
+            pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, (T, Option<S>)> {
+                self.$field.iter_mut()
+            }
         }
 
         impl<'a, T, S> IntoIterator for &'a $name<T, S> {
@@ -42,6 +47,15 @@ macro_rules! grouped {
 
             fn into_iter(self) -> Self::IntoIter {
                 self.iter()
+            }
+        }
+
+        impl<'a, T, S> IntoIterator for &'a mut $name<T, S> {
+            type Item = &'a mut (T, Option<S>);
+            type IntoIter = std::slice::IterMut<'a, (T, Option<S>)>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                self.iter_mut()
             }
         }
 

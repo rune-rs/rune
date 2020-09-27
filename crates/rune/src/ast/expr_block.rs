@@ -10,10 +10,3 @@ pub struct ExprBlock {
     /// The close brace.
     pub block: ast::Block,
 }
-
-impl ExprBlock {
-    /// Test if the block expression doesn't produce a value.
-    pub fn produces_nothing(&self) -> bool {
-        self.block.produces_nothing()
-    }
-}

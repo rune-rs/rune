@@ -121,16 +121,10 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
                 }
             },
             ast::Expr::MacroCall(expr_call_macro) => {
-                let _guard = self.items.push_macro();
-                let item = self.items.item();
-
-                if let Some(Expanded::Expr(expr)) = self.expanded.get(&item) {
-                    self.compile((expr, needs))?;
-                } else {
-                    let span = expr_call_macro.span();
-
-                    return Err(CompileError::internal(&span, "macro has not been expanded"));
-                }
+                return Err(CompileError::internal(
+                    expr_call_macro,
+                    "encountered unexpanded macro",
+                ));
             }
             // NB: declarations are not used in this compilation stage.
             // They have been separately indexed and will be built when queried

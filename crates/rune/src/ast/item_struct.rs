@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A struct declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -15,10 +15,16 @@ pub struct ItemStruct {
     /// The identifier of the struct declaration.
     pub ident: ast::Ident,
     /// The body of the struct.
+    #[rune(optional)]
     pub body: ItemStructBody,
 }
 
 impl ItemStruct {
+    /// If the struct declaration needs to be terminated with a semicolon.
+    pub fn needs_semi_colon(&self) -> bool {
+        self.body.needs_semi_colon()
+    }
+
     /// Parse a `struct` item with the given attributes
     pub fn parse_with_meta(
         parser: &mut Parser,
@@ -42,11 +48,11 @@ impl ItemStruct {
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo;");
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo ( a, b, c );");
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo");
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo ( a, b, c )");
 /// testing::roundtrip::<ast::ItemStruct>("struct Foo { a, b, c }");
 /// testing::roundtrip::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }");
-/// testing::roundtrip::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c );");
+/// testing::roundtrip::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c )");
 /// ```
 impl Parse for ItemStruct {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
@@ -57,22 +63,27 @@ impl Parse for ItemStruct {
 }
 
 /// AST for a struct body.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
 pub enum ItemStructBody {
     /// An empty struct declaration.
-    UnitBody(ast::SemiColon),
+    UnitBody,
     /// A tuple struct body.
-    TupleBody(ast::Parenthesized<Field, ast::Comma>, ast::SemiColon),
+    TupleBody(ast::Parenthesized<Field, ast::Comma>),
     /// A regular struct body.
     StructBody(ast::Braced<Field, ast::Comma>),
 }
 
 impl ItemStructBody {
+    /// If the body needs to be terminated with a semicolon.
+    fn needs_semi_colon(&self) -> bool {
+        matches!(self, Self::UnitBody | Self::TupleBody(..))
+    }
+
     /// Iterate over the fields of the body.
     pub fn fields(&self) -> impl Iterator<Item = &'_ (Field, Option<ast::Comma>)> {
         match self {
-            ItemStructBody::UnitBody(..) => IntoIterator::into_iter(&[]),
-            ItemStructBody::TupleBody(body, ..) => body.iter(),
+            ItemStructBody::UnitBody => IntoIterator::into_iter(&[]),
+            ItemStructBody::TupleBody(body) => body.iter(),
             ItemStructBody::StructBody(body) => body.iter(),
         }
     }
@@ -85,31 +96,25 @@ impl ItemStructBody {
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::ItemStructBody>(";");
+/// testing::roundtrip::<ast::ItemStructBody>("");
 ///
 /// testing::roundtrip::<ast::ItemStructBody>("{ a, b, c }");
 /// testing::roundtrip::<ast::ItemStructBody>("{ #[x] a, #[y] b, #[z] #[w] #[f32] c }");
 /// testing::roundtrip::<ast::ItemStructBody>("{ a, #[attribute] b, c }");
 ///
-/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c );");
-/// testing::roundtrip::<ast::ItemStructBody>("( #[x] a, b, c );");
-/// testing::roundtrip::<ast::ItemStructBody>("( #[x] pub a, b, c );");
-/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c );");
-/// testing::roundtrip::<ast::ItemStructBody>("();");
+/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c )");
+/// testing::roundtrip::<ast::ItemStructBody>("( #[x] a, b, c )");
+/// testing::roundtrip::<ast::ItemStructBody>("( #[x] pub a, b, c )");
+/// testing::roundtrip::<ast::ItemStructBody>("( a, b, c )");
+/// testing::roundtrip::<ast::ItemStructBody>("()");
 /// ```
 impl Parse for ItemStructBody {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let t = parser.token_peek_eof()?;
-
-        let body = match t.kind {
-            ast::Kind::Open(ast::Delimiter::Parenthesis) => {
-                Self::TupleBody(parser.parse()?, parser.parse()?)
-            }
-            ast::Kind::Open(ast::Delimiter::Brace) => Self::StructBody(parser.parse()?),
-            _ => Self::UnitBody(parser.parse()?),
-        };
-
-        Ok(body)
+        Ok(match parser.token_peek()?.map(|t| t.kind) {
+            Some(ast::Kind::Open(ast::Delimiter::Parenthesis)) => Self::TupleBody(parser.parse()?),
+            Some(ast::Kind::Open(ast::Delimiter::Brace)) => Self::StructBody(parser.parse()?),
+            _ => Self::UnitBody,
+        })
     }
 }
 

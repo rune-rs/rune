@@ -1,9 +1,8 @@
 use crate::ast;
-use crate::collections::HashMap;
 use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::{Consts, Items};
-use crate::worker::{Expanded, LoadFileKind, Task, Worker};
+use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
 use runestick::{Context, Item, Source, Span};
 use std::collections::VecDeque;
@@ -119,7 +118,6 @@ pub fn compile_with_options(
                 warnings: worker.warnings,
                 query: &mut worker.query,
                 entry,
-                expanded: &worker.expanded,
                 visitor: worker.visitor,
             };
 
@@ -154,7 +152,6 @@ struct CompileBuildEntry<'a> {
     warnings: &'a mut Warnings,
     query: &'a mut Query,
     entry: BuildEntry,
-    expanded: &'a HashMap<Item, Expanded>,
     visitor: &'a mut dyn CompileVisitor,
 }
 
@@ -185,7 +182,6 @@ impl CompileBuildEntry<'_> {
             loops: Loops::new(),
             options: self.options,
             warnings: self.warnings,
-            expanded: self.expanded,
             visitor: self.visitor,
         };
 

@@ -40,6 +40,15 @@ where
     }
 }
 
+impl<T> Spanned for &mut T
+where
+    T: Spanned,
+{
+    fn span(&self) -> Span {
+        Spanned::span(*self)
+    }
+}
+
 /// Types for which we can optionally get a span.
 pub trait OptionSpanned {
     /// Get the optional span of the type.

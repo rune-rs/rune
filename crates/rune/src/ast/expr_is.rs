@@ -11,10 +11,3 @@ pub struct ExprIs {
     /// The right-hand side of a is operation.
     pub rhs: Box<ast::Expr>,
 }
-
-impl ExprIs {
-    /// If the expression is empty.
-    pub fn produces_nothing(&self) -> bool {
-        false
-    }
-}

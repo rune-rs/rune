@@ -1,5 +1,7 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
+use crate::{
+    OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens,
+};
 use std::mem::take;
 use std::ops;
 
@@ -105,25 +107,6 @@ impl Expr {
         }
     }
 
-    /// Test if the expression implicitly evaluates to nothing.
-    pub fn produces_nothing(&self) -> bool {
-        match self {
-            Self::ExprWhile(..) => true,
-            Self::ExprLoop(..) => true,
-            Self::ExprFor(..) => true,
-            Self::ExprLet(..) => true,
-            Self::ExprIndexSet(..) => true,
-            Self::ExprIf(expr_if) => expr_if.produces_nothing(),
-            Self::ExprGroup(expr_group) => expr_group.produces_nothing(),
-            Self::ExprBreak(..) => true,
-            Self::ExprBinary(expr_binary) => expr_binary.produces_nothing(),
-            Self::ExprBlock(expr_block) => expr_block.produces_nothing(),
-            Self::ExprAsync(..) => false,
-            Self::ExprReturn(..) => true,
-            _ => false,
-        }
-    }
-
     /// Test if expression should be chained by default.
     pub fn is_chainable(&self) -> bool {
         match self {
@@ -173,28 +156,27 @@ impl Expr {
     /// are arguments to statements immediately followed by blocks. Like `if`,
     /// `while`, and `match`.
     pub(crate) fn parse_without_eager_brace(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_full(parser, EagerBrace(false), ExprChain(true), vec![])
+        Self::parse_full(parser, EagerBrace(false), ExprChain(true), &mut vec![])
     }
 
     /// Full, configurable parsing of an expression.
-    pub(crate) fn parse_full(
+    fn parse_full(
         parser: &mut Parser<'_>,
         eager_brace: EagerBrace,
         expr_chain: ExprChain,
-        attributes: Vec<ast::Attribute>,
+        attributes: &mut Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
         let lhs = Self::parse_primary(parser, eager_brace, expr_chain, attributes)?;
         Ok(Self::parse_expr_binary(parser, lhs, 0, eager_brace)?)
     }
 
     /// Parse expressions that start with an identifier.
-    pub(crate) fn parse_ident_start(
+    pub(crate) fn parse_with_path(
         parser: &mut Parser<'_>,
+        path: ast::Path,
         eager_brace: EagerBrace,
         attributes: &mut Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
-        let path = parser.parse::<ast::Path>()?;
-
         if *eager_brace && parser.peek::<ast::OpenBrace>()? {
             let ident = ast::LitObjectIdent::Named(path);
 
@@ -226,7 +208,7 @@ impl Expr {
         }
 
         let open = parser.parse::<ast::OpenParen>()?;
-        let expr = ast::Expr::parse_full(parser, EagerBrace(true), ExprChain(true), vec![])?;
+        let expr = ast::Expr::parse_full(parser, EagerBrace(true), ExprChain(true), &mut vec![])?;
 
         if parser.peek::<ast::CloseParen>()? {
             return Ok(Expr::ExprGroup(ast::ExprGroup {
@@ -244,11 +226,19 @@ impl Expr {
         }))
     }
 
-    pub(crate) fn parse_primary_with_attributes(
+    pub(crate) fn parse_with_meta(
         parser: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
+        attributes: &mut Vec<ast::Attribute>,
+        path: Option<ast::Path>,
     ) -> Result<Self, ParseError> {
-        Self::parse_full(parser, EagerBrace(true), ExprChain(true), attributes)
+        let lhs = if let Some(path) = path {
+            let expr = Self::parse_with_path(parser, path, EagerBrace(true), attributes)?;
+            Self::parse_expr_chain(parser, expr)?
+        } else {
+            Self::parse_primary(parser, EagerBrace(true), ExprChain(true), attributes)?
+        };
+
+        Ok(Self::parse_expr_binary(parser, lhs, 0, EagerBrace(true))?)
     }
 
     /// Parse a single expression value.
@@ -256,7 +246,7 @@ impl Expr {
         parser: &mut Parser<'_>,
         eager_brace: EagerBrace,
         expr_chain: ExprChain,
-        mut attributes: Vec<ast::Attribute>,
+        attributes: &mut Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
         while parser.peek::<ast::Attribute>()? {
             attributes.push(parser.parse::<ast::attribute::InnerAttribute>()?.0);
@@ -265,7 +255,7 @@ impl Expr {
         let expr = if ast::Lit::peek_in_expr(parser)? {
             ast::Expr::ExprLit(ast::ExprLit::parse_with_attributes(
                 parser,
-                take(&mut attributes),
+                take(attributes),
             )?)
         } else {
             let token = parser.token_peek_eof()?;
@@ -273,17 +263,18 @@ impl Expr {
             match token.kind {
                 ast::Kind::Async => {
                     let async_: ast::Async = parser.parse()?;
-                    let expr: Self = Self::parse_primary(parser, eager_brace, expr_chain, vec![])?;
+                    let expr: Self =
+                        Self::parse_primary(parser, eager_brace, expr_chain, &mut vec![])?;
 
                     match expr {
                         Self::ExprClosure(expr_closure) => Self::ExprClosure(ast::ExprClosure {
-                            attributes: take(&mut attributes),
+                            attributes: take(attributes),
                             async_: Some(async_),
                             args: expr_closure.args,
                             body: expr_closure.body,
                         }),
                         Self::ExprBlock(expr_block) => Self::ExprAsync(ast::ExprAsync {
-                            attributes: take(&mut attributes),
+                            attributes: take(attributes),
                             async_,
                             block: expr_block.block,
                         }),
@@ -296,12 +287,12 @@ impl Expr {
                     }
                 }
                 ast::Kind::PipePipe | ast::Kind::Pipe => Self::ExprClosure(
-                    ast::ExprClosure::parse_with_attributes(parser, take(&mut attributes))?,
+                    ast::ExprClosure::parse_with_attributes(parser, take(attributes))?,
                 ),
                 ast::Kind::Self_ => Self::Self_(parser.parse()?),
                 ast::Kind::Select => Self::ExprSelect(ast::ExprSelect::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 ast::Kind::Label(..) => {
                     let label =
@@ -312,21 +303,21 @@ impl Expr {
                         ast::Kind::While => {
                             Self::ExprWhile(ast::ExprWhile::parse_with_attributes_and_label(
                                 parser,
-                                take(&mut attributes),
+                                take(attributes),
                                 label,
                             )?)
                         }
                         ast::Kind::Loop => {
                             Self::ExprLoop(ast::ExprLoop::parse_with_attributes_and_label(
                                 parser,
-                                take(&mut attributes),
+                                take(attributes),
                                 label,
                             )?)
                         }
                         ast::Kind::For => {
                             Self::ExprFor(ast::ExprFor::parse_with_attributes_and_label(
                                 parser,
-                                take(&mut attributes),
+                                take(attributes),
                                 label,
                             )?)
                         }
@@ -340,69 +331,55 @@ impl Expr {
                 }
                 ast::Kind::While => Self::ExprWhile(ast::ExprWhile::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 ast::Kind::Loop => Self::ExprLoop(ast::ExprLoop::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 ast::Kind::For => Self::ExprFor(ast::ExprFor::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 ast::Kind::Let => Self::ExprLet(ast::ExprLet::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 ast::Kind::If => Self::ExprIf(ast::ExprIf::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 ast::Kind::Match => Self::ExprMatch(ast::ExprMatch::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 ast::Kind::Open(ast::Delimiter::Parenthesis) => {
-                    Self::parse_open_paren(parser, &mut attributes)?
+                    Self::parse_open_paren(parser, attributes)?
                 }
                 ast::Kind::Open(ast::Delimiter::Brace) => Self::ExprBlock(
-                    ast::ExprBlock::parse_with_attributes(parser, take(&mut attributes))?,
+                    ast::ExprBlock::parse_with_attributes(parser, take(attributes))?,
                 ),
                 ast::Kind::Ident(..) => {
-                    Self::parse_ident_start(parser, eager_brace, &mut attributes)?
+                    let path = parser.parse()?;
+                    Self::parse_with_path(parser, path, eager_brace, attributes)?
                 }
                 ast::Kind::Break => Self::ExprBreak(ast::ExprBreak::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 ast::Kind::Yield => Self::ExprYield(ast::ExprYield::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 ast::Kind::Return => Self::ExprReturn(ast::ExprReturn::parse_with_attributes(
                     parser,
-                    take(&mut attributes),
+                    take(attributes),
                 )?),
                 _ => {
                     return Err(ParseError::expected(token, "expression"));
                 }
             }
         };
-
-        let mut it = attributes.into_iter();
-
-        if let Some(first) = it.next() {
-            let span = if let Some(last) = it.next_back() {
-                first.span().join(last.span())
-            } else {
-                first.span()
-            };
-
-            return Err(ParseError::new(
-                span,
-                ParseErrorKind::AttributesNotSupported,
-            ));
-        }
 
         if !*expr_chain {
             return Ok(expr);
@@ -469,8 +446,12 @@ impl Expr {
                         }
                     }
 
-                    let next =
-                        Expr::parse_primary(parser, EagerBrace(false), ExprChain(false), vec![])?;
+                    let next = Expr::parse_primary(
+                        parser,
+                        EagerBrace(false),
+                        ExprChain(false),
+                        &mut vec![],
+                    )?;
 
                     let span = match next {
                         Expr::Path(path) => {
@@ -536,7 +517,7 @@ impl Expr {
                 parser.token_next()?;
             }
 
-            let mut rhs = Self::parse_primary(parser, eager_brace, ExprChain(true), vec![])?;
+            let mut rhs = Self::parse_primary(parser, eager_brace, ExprChain(true), &mut vec![])?;
 
             lookahead_tok = parser.token_peek_pair()?;
 
@@ -607,8 +588,17 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        Self::parse_full(parser, EagerBrace(true), ExprChain(true), attributes)
+        let mut attributes = parser.parse()?;
+        let expr = Self::parse_full(parser, EagerBrace(true), ExprChain(true), &mut attributes)?;
+
+        if let Some(span) = attributes.option_span() {
+            return Err(ParseError::new(
+                span,
+                ParseErrorKind::AttributesNotSupported,
+            ));
+        }
+
+        Ok(expr)
     }
 }
 

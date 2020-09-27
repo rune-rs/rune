@@ -51,13 +51,6 @@ impl Items {
         }
     }
 
-    /// Take a snapshot of the existing items.
-    pub(crate) fn snapshot(&self) -> Self {
-        Self {
-            path: Rc::new(RefCell::new(self.path.borrow().clone())),
-        }
-    }
-
     /// Check if the current path is empty.
     pub(crate) fn is_empty(&self) -> bool {
         self.path.borrow().is_empty()
@@ -125,28 +118,9 @@ impl Items {
         }
     }
 
-    /// Push a component and return a guard to it.
-    pub(crate) fn push_macro(&mut self) -> Guard {
-        let index = self.next_child();
-
-        self.path
-            .borrow_mut()
-            .push(Node::from(Component::Macro(index)));
-
-        Guard {
-            path: self.path.clone(),
-        }
-    }
-
     /// Get the item for the current state of the path.
     pub(crate) fn item(&self) -> Item {
         let path = self.path.borrow();
         Item::of(path.iter().map(|n| &n.component))
-    }
-
-    /// Pop the last component.
-    pub(crate) fn pop(&self) -> Option<Component> {
-        let mut path = self.path.borrow_mut();
-        Some(path.pop()?.component)
     }
 }

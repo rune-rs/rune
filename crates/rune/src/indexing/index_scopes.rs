@@ -150,13 +150,13 @@ enum IndexScopeLevel {
 
 /// An indexing scope.
 #[derive(Debug)]
-pub struct IndexScopes {
+pub(crate) struct IndexScopes {
     levels: Rc<RefCell<Vec<IndexScopeLevel>>>,
 }
 
 impl IndexScopes {
     /// Construct a new handler for indexing scopes.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             levels: Rc::new(RefCell::new(vec![IndexScopeLevel::IndexScope(
                 IndexScope::new(),
@@ -164,15 +164,8 @@ impl IndexScopes {
         }
     }
 
-    /// Take a snapshot of the current scopes.
-    pub fn snapshot(&self) -> Self {
-        Self {
-            levels: Rc::new(RefCell::new(self.levels.borrow().clone())),
-        }
-    }
-
     /// Declare the given variable in the last scope.
-    pub fn declare(&mut self, var: &str, span: Span) -> Result<(), CompileError> {
+    pub(crate) fn declare(&mut self, var: &str, span: Span) -> Result<(), CompileError> {
         let mut levels = self.levels.borrow_mut();
 
         let level = levels
@@ -190,7 +183,7 @@ impl IndexScopes {
     }
 
     /// Mark that the given variable is used.
-    pub fn mark_use(&mut self, var: &str) {
+    pub(crate) fn mark_use(&mut self, var: &str) {
         let mut levels = self.levels.borrow_mut();
         let iter = levels.iter_mut().rev();
 
@@ -244,7 +237,7 @@ impl IndexScopes {
 
     /// Mark that a yield was used, meaning the encapsulating function is a
     /// generator.
-    pub fn mark_yield(&mut self, span: Span) -> Result<(), CompileError> {
+    pub(crate) fn mark_yield(&mut self, span: Span) -> Result<(), CompileError> {
         let mut levels = self.levels.borrow_mut();
         let iter = levels.iter_mut().rev();
 
@@ -270,7 +263,7 @@ impl IndexScopes {
 
     /// Mark that a yield was used, meaning the encapsulating function is a
     /// generator.
-    pub fn mark_await(&mut self, span: Span) -> Result<(), CompileError> {
+    pub(crate) fn mark_await(&mut self, span: Span) -> Result<(), CompileError> {
         let mut levels = self.levels.borrow_mut();
         let iter = levels.iter_mut().rev();
 
@@ -303,7 +296,7 @@ impl IndexScopes {
     }
 
     /// Push a function.
-    pub fn push_function(&mut self, is_async: bool) -> IndexScopeGuard {
+    pub(crate) fn push_function(&mut self, is_async: bool) -> IndexScopeGuard {
         self.levels
             .borrow_mut()
             .push(IndexScopeLevel::IndexFunction(IndexFunction::new(is_async)));
@@ -314,7 +307,7 @@ impl IndexScopes {
     }
 
     /// Push a closure boundary.
-    pub fn push_closure(&mut self, is_async: bool) -> IndexScopeGuard {
+    pub(crate) fn push_closure(&mut self, is_async: bool) -> IndexScopeGuard {
         self.levels
             .borrow_mut()
             .push(IndexScopeLevel::IndexClosure(IndexClosure::new(is_async)));
@@ -325,7 +318,7 @@ impl IndexScopes {
     }
 
     /// Push a new scope.
-    pub fn push_scope(&mut self) -> IndexScopeGuard {
+    pub(crate) fn push_scope(&mut self) -> IndexScopeGuard {
         self.levels
             .borrow_mut()
             .push(IndexScopeLevel::IndexScope(IndexScope::new()));

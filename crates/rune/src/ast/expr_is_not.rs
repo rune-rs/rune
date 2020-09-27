@@ -13,10 +13,3 @@ pub struct ExprIsNot {
     /// The right-hand side of a is operation.
     pub rhs: Box<ast::Expr>,
 }
-
-impl ExprIsNot {
-    /// If the expression is empty.
-    pub fn produces_nothing(&self) -> bool {
-        false
-    }
-}
