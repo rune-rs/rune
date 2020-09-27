@@ -18,10 +18,10 @@ use std::future;
 
 struct Timeout;
 
-const URL = "https://httpstat.us";
+const SITE = "https://httpstat.us";
 
 async fn request(timeout) {
-    let request = http::get(`{URL}?sleep={timeout}`);
+    let request = http::get(`{SITE}/200?sleep={timeout}`);
     let timeout = time::delay_for(time::Duration::from_secs(1));
 
     let result = select {
