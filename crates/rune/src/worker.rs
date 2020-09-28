@@ -27,6 +27,7 @@ pub(crate) enum Task {
         /// The source id of the item being loaded.
         source_id: SourceId,
     },
+    Import(Import),
 }
 
 /// The kind of the loaded module.
@@ -141,7 +142,15 @@ impl<'a> Worker<'a> {
 
                     if let Err(error) = indexer.index(&mut file) {
                         self.errors.push(Error::new(source_id, error));
-                        continue;
+                    }
+                }
+                Task::Import(import) => {
+                    let source_id = import.source_id;
+
+                    if let Err(error) =
+                        import.process(self.context, &self.query.storage, &self.query.unit)
+                    {
+                        self.errors.push(Error::new(source_id, error));
                     }
                 }
             }
@@ -173,70 +182,62 @@ impl Import {
             source_id,
         } = self;
 
-        let span = decl_use.span();
+        let mut queue = VecDeque::new();
+        queue.push_back((Item::new(), &decl_use.path));
 
-        let mut name = Item::new();
+        while let Some((mut name, path)) = queue.pop_front() {
+            let span = path.span();
 
-        let first = decl_use
-            .first
-            .try_as_ident()
-            .ok_or_else(|| CompileError::internal_unsupported_path(&decl_use.first))?
-            .resolve(storage, &*source)?;
-        name.push(first.as_ref());
+            let first = path
+                .first
+                .try_as_ident()
+                .ok_or_else(|| CompileError::internal_unsupported_path(&path.first))?
+                .resolve(storage, &*source)?;
 
-        let mut it = decl_use.rest.iter();
-        let last = it.next_back();
+            name.push(first.as_ref());
 
-        for (_, c) in it {
-            match c {
-                ast::ItemUseComponent::Wildcard(t) => {
-                    return Err(CompileError::new(t, CompileErrorKind::UnsupportedWildcard));
-                }
-                ast::ItemUseComponent::PathSegment(segment) => {
-                    let ident = segment
-                        .try_as_ident()
-                        .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
-                    name.push(ident.resolve(storage, &*source)?.as_ref());
-                }
+            for (_, segment) in &path.middle {
+                let ident = segment
+                    .try_as_ident()
+                    .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
+                name.push(ident.resolve(storage, &*source)?.as_ref());
             }
-        }
 
-        if let Some((_, c)) = last {
-            match c {
-                ast::ItemUseComponent::Wildcard(..) => {
-                    let mut new_names = Vec::new();
+            if let Some((_, c)) = &path.last {
+                match c {
+                    ast::ItemUseComponent::Wildcard(..) => {
+                        let mut new_names = Vec::new();
 
-                    if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
-                        return Err(CompileError::new(
-                            span,
-                            CompileErrorKind::MissingModule { item: name },
-                        ));
+                        if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
+                            return Err(CompileError::new(
+                                span,
+                                CompileErrorKind::MissingModule { item: name },
+                            ));
+                        }
+
+                        let iter = context
+                            .iter_components(&name)
+                            .chain(unit.iter_components(&name));
+
+                        for c in iter {
+                            let mut name = name.clone();
+                            name.push(c);
+                            new_names.push(name);
+                        }
+
+                        for name in new_names {
+                            unit.new_import(item.clone(), &name, span, source_id)?;
+                        }
                     }
-
-                    let iter = context
-                        .iter_components(&name)
-                        .chain(unit.iter_components(&name));
-
-                    for c in iter {
-                        let mut name = name.clone();
-                        name.push(c);
-                        new_names.push(name);
-                    }
-
-                    for name in new_names {
-                        unit.new_import(item.clone(), &name, span, source_id)?;
+                    ast::ItemUseComponent::Group(group) => {
+                        for (path, _) in group {
+                            queue.push_back((name.clone(), path));
+                        }
                     }
                 }
-                ast::ItemUseComponent::PathSegment(segment) => {
-                    let ident = segment
-                        .try_as_ident()
-                        .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
-                    name.push(ident.resolve(storage, &*source)?.as_ref());
-                    unit.new_import(item, &name, span, source_id)?;
-                }
+            } else {
+                unit.new_import(item.clone(), &name, span, source_id)?;
             }
-        } else {
-            unit.new_import(item, &name, span, source_id)?;
         }
 
         Ok(())

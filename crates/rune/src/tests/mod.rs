@@ -28,6 +28,7 @@ mod vm_result;
 mod vm_streams;
 mod vm_test_external_fn_ptr;
 mod vm_test_from_value_derive;
+mod vm_test_imports;
 mod vm_test_instance_fns;
 mod vm_test_linked_list;
 mod vm_test_mod;
