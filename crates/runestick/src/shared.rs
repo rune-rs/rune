@@ -7,6 +7,7 @@ use std::cell::{Cell, UnsafeCell};
 use std::fmt;
 use std::future::Future;
 use std::marker;
+use std::mem;
 use std::mem::ManuallyDrop;
 use std::ops;
 use std::pin::Pin;
@@ -197,7 +198,7 @@ impl<T> Shared<T> {
         //
         // Appropriate access is checked when constructing the guards.
         unsafe {
-            let guard = self.inner.as_ref().access.shared(kind)?;
+            let guard = self.inner.as_ref().access.shared(kind)?.into_raw();
 
             // NB: we need to prevent the Drop impl for Shared from being called,
             // since we are deconstructing its internals.
@@ -255,7 +256,7 @@ impl<T> Shared<T> {
         //
         // Appropriate access is checked when constructing the guards.
         unsafe {
-            let guard = self.inner.as_ref().access.exclusive(kind)?;
+            let guard = self.inner.as_ref().access.exclusive(kind)?.into_raw();
 
             // NB: we need to prevent the Drop impl for Shared from being called,
             // since we are deconstructing its internals.
@@ -310,7 +311,8 @@ impl<T: ?Sized> Shared<T> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.shared(AccessKind::Any)?;
-            Ok(BorrowRef::from_raw(inner.data.get(), guard))
+            mem::forget(guard);
+            Ok(BorrowRef::new(&*inner.data.get(), &inner.access))
         }
     }
 
@@ -349,7 +351,8 @@ impl<T: ?Sized> Shared<T> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.exclusive(AccessKind::Any)?;
-            Ok(BorrowMut::from_raw(inner.data.get(), guard))
+            mem::forget(guard);
+            Ok(BorrowMut::new(&mut *inner.data.get(), &inner.access))
         }
     }
 }
@@ -520,7 +523,8 @@ impl Shared<AnyObj> {
                 }
             };
 
-            Ok(BorrowRef::from_raw(data as *const T, guard))
+            mem::forget(guard);
+            Ok(BorrowRef::new(&*(data as *const T), &inner.access))
         }
     }
 
@@ -544,7 +548,8 @@ impl Shared<AnyObj> {
                 }
             };
 
-            Ok(BorrowMut::from_raw(data as *mut T, guard))
+            mem::forget(guard);
+            Ok(BorrowMut::new(&mut *(data as *mut T), &inner.access))
         }
     }
 
@@ -584,6 +589,7 @@ impl Shared<AnyObj> {
                 }
             };
 
+            let guard = guard.into_raw();
             // NB: we need to prevent the Drop impl for Shared from being called,
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
@@ -633,6 +639,7 @@ impl Shared<AnyObj> {
                 }
             };
 
+            let guard = guard.into_raw();
             // NB: we need to prevent the Drop impl for Shared from being called,
             // since we are deconstructing its internals.
             let this = ManuallyDrop::new(self);
@@ -770,7 +777,11 @@ impl<T: ?Sized> SharedBox<T> {
         } else {
             // NB: At the point of the final drop, no on else should be using
             // this.
-            debug_assert!((*this).access.is_exclusive());
+            debug_assert!(
+                (*this).access.is_exclusive(),
+                "expected exclusive, but was: {:?}",
+                (*this).access
+            );
             let _ = Box::from_raw(this);
         }
 

@@ -2,7 +2,7 @@ use crate::RawStr;
 use std::cell::Cell;
 use std::fmt;
 use std::future::Future;
-use std::marker;
+use std::mem::ManuallyDrop;
 use std::ops;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -172,7 +172,7 @@ impl Access {
     pub(crate) unsafe fn shared(
         &self,
         kind: AccessKind,
-    ) -> Result<RawSharedGuard, NotAccessibleRef> {
+    ) -> Result<SharedGuard<'_>, NotAccessibleRef> {
         if let AccessKind::Owned = kind {
             if self.is_ref() {
                 return Err(NotAccessibleRef(Snapshot(self.0.get())));
@@ -192,7 +192,7 @@ impl Access {
         }
 
         self.set(n);
-        Ok(RawSharedGuard { access: self })
+        Ok(SharedGuard(self))
     }
 
     /// Mark that we want exclusive access to the given access token.
@@ -204,7 +204,7 @@ impl Access {
     pub(crate) unsafe fn exclusive(
         &self,
         kind: AccessKind,
-    ) -> Result<RawExclusiveGuard, NotAccessibleMut> {
+    ) -> Result<ExclusiveGuard<'_>, NotAccessibleMut> {
         if let AccessKind::Owned = kind {
             if self.is_ref() {
                 return Err(NotAccessibleMut(Snapshot(self.0.get())));
@@ -219,7 +219,7 @@ impl Access {
         }
 
         self.set(n);
-        Ok(RawExclusiveGuard { access: self })
+        Ok(ExclusiveGuard(self))
     }
 
     /// Mark that we want to mark the given access as "taken".
@@ -259,7 +259,7 @@ impl Access {
     #[inline]
     fn release_exclusive(&self) {
         let b = self.get().wrapping_sub(1);
-        debug_assert!(b == 0);
+        debug_assert_eq!(b, 0, "borrow value should be exclusive (0)");
         self.set(b);
     }
 
@@ -267,7 +267,7 @@ impl Access {
     #[inline]
     fn release_take(&self) {
         let b = self.get();
-        debug_assert!(b == TAKEN);
+        debug_assert_eq!(b, TAKEN, "borrow value should be TAKEN ({})", TAKEN);
         self.set(0);
     }
 
@@ -294,13 +294,11 @@ impl fmt::Debug for Access {
 ///
 /// This is created with [Access::shared], and must not outlive the [Access]
 /// instance it was created from.
-pub struct RawSharedGuard {
-    access: *const Access,
-}
+pub struct RawSharedGuard(*const Access);
 
 impl Drop for RawSharedGuard {
     fn drop(&mut self) {
-        unsafe { (*self.access).release_shared() };
+        unsafe { (*self.0).release_shared() };
     }
 }
 
@@ -309,23 +307,23 @@ impl Drop for RawSharedGuard {
 /// These guards are necessary, since we need to guarantee certain forms of
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowRef<'a, T: ?Sized + 'a> {
-    data: *const T,
-    guard: RawSharedGuard,
-    _marker: marker::PhantomData<&'a T>,
+    data: &'a T,
+    guard: SharedGuard<'a>,
 }
 
 impl<'a, T: ?Sized> BorrowRef<'a, T> {
-    /// Construct a new raw reference guard.
+    /// Construct a new shared guard.
     ///
     /// # Safety
     ///
-    /// The provided components must be valid for the lifetime of the returned
-    /// reference, which is unbounded.
-    pub(crate) unsafe fn from_raw(data: *const T, guard: RawSharedGuard) -> Self {
+    /// since this has implications for releasing access, the caller must
+    /// ensure that access has been acquired correctly using e.g.
+    /// [Access::shared]. Otherwise access can be release incorrectly once
+    /// this guard is dropped.
+    pub(crate) fn new(data: &'a T, access: &'a Access) -> Self {
         Self {
             data,
-            guard,
-            _marker: marker::PhantomData,
+            guard: SharedGuard(access),
         }
     }
 
@@ -334,13 +332,9 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     where
         M: FnOnce(&T) -> Result<&U, E>,
     {
-        let data = m(unsafe { &*this.data })?;
-        let guard = this.guard;
-
         Ok(BorrowRef {
-            data,
-            guard,
-            _marker: marker::PhantomData,
+            data: m(this.data)?,
+            guard: this.guard,
         })
     }
 }
@@ -349,7 +343,7 @@ impl<T: ?Sized> ops::Deref for BorrowRef<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.data }
+        self.data
     }
 }
 
@@ -362,17 +356,37 @@ where
     }
 }
 
+/// A guard around access.
+pub struct SharedGuard<'a>(&'a Access);
+
+impl SharedGuard<'_> {
+    /// Convert into a raw guard which does not have a lifetime associated with
+    /// it. Droping the raw guard will release the resource.
+    ///
+    /// # Safety
+    ///
+    /// Since we're losing track of the lifetime, caller must ensure that the
+    /// access outlives the guard.
+    pub unsafe fn into_raw(self) -> RawSharedGuard {
+        RawSharedGuard(ManuallyDrop::new(self).0)
+    }
+}
+
+impl Drop for SharedGuard<'_> {
+    fn drop(&mut self) {
+        self.0.release_shared();
+    }
+}
+
 /// An exclusive access guard.
 ///
 /// This is created with [Access::exclusive], and must not outlive the [Access]
 /// instance it was created from.
-pub struct RawExclusiveGuard {
-    access: *const Access,
-}
+pub struct RawExclusiveGuard(*const Access);
 
 impl Drop for RawExclusiveGuard {
     fn drop(&mut self) {
-        unsafe { (*self.access).release_exclusive() }
+        unsafe { (*self.0).release_exclusive() }
     }
 }
 
@@ -395,23 +409,23 @@ impl Drop for RawTakeGuard {
 /// These guards are necessary, since we need to guarantee certain forms of
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowMut<'a, T: ?Sized> {
-    data: *mut T,
-    guard: RawExclusiveGuard,
-    _marker: marker::PhantomData<&'a mut T>,
+    data: &'a mut T,
+    guard: ExclusiveGuard<'a>,
 }
 
 impl<'a, T: ?Sized> BorrowMut<'a, T> {
-    /// Construct a new raw reference guard.
+    /// Construct a new exclusive guard.
     ///
     /// # Safety
     ///
-    /// The provided components must be valid for the lifetime of the returned
-    /// reference, which is unbounded.
-    pub(crate) unsafe fn from_raw(data: *mut T, guard: RawExclusiveGuard) -> Self {
+    /// since this has implications for releasing access, the caller must
+    /// ensure that access has been acquired correctly using e.g.
+    /// [Access::exclusive]. Otherwise access can be release incorrectly once
+    /// this guard is dropped.
+    pub(crate) unsafe fn new(data: &'a mut T, access: &'a Access) -> Self {
         Self {
             data,
-            guard,
-            _marker: marker::PhantomData,
+            guard: ExclusiveGuard(access),
         }
     }
 
@@ -420,13 +434,9 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     where
         M: FnOnce(&mut T) -> &mut U,
     {
-        let data = m(unsafe { &mut *this.data });
-        let guard = this.guard;
-
         BorrowMut {
-            data,
-            guard,
-            _marker: marker::PhantomData,
+            data: m(this.data),
+            guard: this.guard,
         }
     }
 
@@ -435,12 +445,9 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     where
         M: FnOnce(&mut T) -> Option<&mut U>,
     {
-        let data = m(unsafe { &mut *this.data })?;
-
         Some(BorrowMut {
-            data,
+            data: m(this.data)?,
             guard: this.guard,
-            _marker: marker::PhantomData,
         })
     }
 }
@@ -449,13 +456,13 @@ impl<T: ?Sized> ops::Deref for BorrowMut<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.data }
+        self.data
     }
 }
 
 impl<T: ?Sized> ops::DerefMut for BorrowMut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *self.data }
+        self.data
     }
 }
 
@@ -478,6 +485,27 @@ where
         // NB: inner Future is Unpin.
         let this = self.get_mut();
         Pin::new(&mut **this).poll(cx)
+    }
+}
+
+pub struct ExclusiveGuard<'a>(&'a Access);
+
+impl ExclusiveGuard<'_> {
+    /// Convert into a raw guard which does not have a lifetime associated with
+    /// it. Droping the raw guard will release the resource.
+    ///
+    /// # Safety
+    ///
+    /// Since we're losing track of the lifetime, caller must ensure that the
+    /// access outlives the guard.
+    pub unsafe fn into_raw(self) -> RawExclusiveGuard {
+        RawExclusiveGuard(ManuallyDrop::new(self).0)
+    }
+}
+
+impl Drop for ExclusiveGuard<'_> {
+    fn drop(&mut self) {
+        self.0.release_exclusive();
     }
 }
 

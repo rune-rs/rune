@@ -2457,8 +2457,8 @@ impl Vm {
         I: FnOnce(i64, i64) -> Option<i64>,
         F: FnOnce(f64, f64) -> f64,
     {
-        let mut guard;
         let lhs;
+        let mut guard;
 
         let (lhs, rhs) = target_value!(self, target, guard, lhs);
 
@@ -2573,8 +2573,8 @@ impl Vm {
         H: IntoTypeHash,
         I: FnOnce(&mut i64, i64),
     {
-        let mut guard;
         let lhs;
+        let mut guard;
 
         let (lhs, rhs) = target_value!(self, target, guard, lhs);
 
@@ -2645,8 +2645,8 @@ impl Vm {
         E: FnOnce() -> VmError,
         I: FnOnce(i64, i64) -> Option<i64>,
     {
-        let mut guard;
         let lhs;
+        let mut guard;
 
         let (lhs, rhs) = target_value!(self, target, guard, lhs);
 
