@@ -291,7 +291,7 @@ pub use compiling::compile;
 pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
 #[cfg(feature = "diagnostics")]
-pub use diagnostics::{termcolor, DiagnosticsError, EmitDiagnostics};
+pub use diagnostics::{termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics};
 
 /// Construct a a default context runestick context.
 ///

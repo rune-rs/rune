@@ -1,5 +1,4 @@
 @import 'colors';
-@import 'menu';
 @import 'vars';
 @import 'macros';
 @import 'shortcodes';
@@ -451,7 +450,6 @@ nav.pagination {
 
     &-control {
         padding: 6px;
-        border-bottom: 1px solid $accent;
     }
 
     &-editor {
@@ -472,22 +470,31 @@ nav.pagination {
         }
     }
 
+    &-instructions {
+        display: inline-block;
+    }
+
     &-console {
         position: relative;
         display: block;
         background-color: black;
         font-size: 14px;
+        color: $accent2;
         
         border-bottom-left-radius: $editor-border-radius;
         border-bottom-right-radius: $editor-border-radius;
     }
-    
+
     &-output {
         padding: 6px;
         overflow-x: auto;
         font-family: monospace;
-        color: $accent2;
         white-space: pre;
+        border-top: 1px solid $accent;
+
+        &.instructions {
+            max-height: 300px;
+        }
     }
 
     &-title {
@@ -503,7 +510,7 @@ nav.pagination {
         text-align: center;
     }
 
-    &-run {
+    &-button {
         font-size: 14px;
     }
 

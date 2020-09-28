@@ -19,6 +19,7 @@ serde = { version = "1", features = ["derive"] }
 wasm-bindgen = {version = "0.2.68", features = ["serde-serialize"]}
 wasm-bindgen-futures = "0.4.18"
 js-sys = "0.3.45"
+anyhow = "1.0.32"
 
 rune = {version = "0.6.16", path = "../rune", features = []}
 rune-macros = {version = "0.6.16", path = "../rune-macros"}

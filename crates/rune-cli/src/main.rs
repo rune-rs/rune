@@ -51,7 +51,7 @@
 
 use anyhow::{Context as _, Result};
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::EmitDiagnostics as _;
+use rune::{DumpInstructions as _, EmitDiagnostics as _};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -319,61 +319,15 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     }
 
     if args.dump_unit {
-        use std::io::Write as _;
-
         let unit = vm.unit();
 
         if args.dump_instructions {
             println!("# instructions");
 
-            let mut first_function = true;
+            let out = std::io::stdout();
+            let mut out = out.lock();
 
-            for (n, inst) in unit.iter_instructions().enumerate() {
-                let out = std::io::stdout();
-                let mut out = out.lock();
-
-                let debug = unit.debug_info().and_then(|d| d.instruction_at(n));
-
-                if let Some((hash, signature)) = unit.debug_info().and_then(|d| d.function_at(n)) {
-                    if first_function {
-                        first_function = false;
-                    } else {
-                        println!();
-                    }
-
-                    println!("fn {} ({}):", signature, hash);
-                }
-
-                if args.with_source {
-                    if let Some((source, span)) =
-                        debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
-                    {
-                        if let Some((count, line)) =
-                            rune::diagnostics::line_for(source.as_str(), span)
-                        {
-                            writeln!(
-                                out,
-                                "  {}:{: <3} - {}",
-                                source.name(),
-                                count + 1,
-                                line.trim_end()
-                            )?;
-                        }
-                    }
-                }
-
-                if let Some(label) = debug.and_then(|d| d.label.as_ref()) {
-                    println!("{}:", label);
-                }
-
-                write!(out, "  {:04} = {}", n, inst)?;
-
-                if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
-                    write!(out, " // {}", comment)?;
-                }
-
-                println!();
-            }
+            unit.dump_instructions(&mut out, &sources, args.with_source)?;
         }
 
         let mut functions = unit.iter_functions().peekable();

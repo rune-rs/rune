@@ -46,7 +46,8 @@
 
 use wasm_bindgen::prelude::*;
 
-use rune::{EmitDiagnostics as _, Spanned as _};
+use anyhow::Context as _;
+use rune::{DumpInstructions as _, EmitDiagnostics as _, Spanned as _};
 use runestick::budget;
 use runestick::{ContextError, Value};
 use serde::{Deserialize, Serialize};
@@ -83,6 +84,9 @@ struct Config {
     /// Include the `std::experiments` package.
     #[serde(default)]
     experimental: bool,
+    /// Show instructions.
+    #[serde(default)]
+    instructions: bool,
 }
 
 #[derive(Serialize)]
@@ -108,6 +112,7 @@ pub struct CompileResult {
     diagnostics: Vec<Diagnostic>,
     result: Option<String>,
     output: Option<String>,
+    instructions: Option<String>,
 }
 
 impl CompileResult {
@@ -116,6 +121,7 @@ impl CompileResult {
         output: Value,
         diagnostics_output: Option<String>,
         diagnostics: Vec<Diagnostic>,
+        instructions: Option<String>,
     ) -> Self {
         Self {
             error: None,
@@ -123,6 +129,7 @@ impl CompileResult {
             diagnostics,
             result: Some(format!("{:?}", output)),
             output: core::drain_output(),
+            instructions,
         }
     }
 
@@ -131,6 +138,7 @@ impl CompileResult {
         error: E,
         diagnostics_output: Option<String>,
         diagnostics: Vec<Diagnostic>,
+        instructions: Option<String>,
     ) -> Self
     where
         E: fmt::Display,
@@ -141,6 +149,7 @@ impl CompileResult {
             diagnostics,
             result: None,
             output: core::drain_output(),
+            instructions,
         }
     }
 }
@@ -162,34 +171,23 @@ fn setup_context(experimental: bool) -> Result<runestick::Context, ContextError>
     Ok(context)
 }
 
-async fn inner_compile(input: String, config: JsValue) -> CompileResult {
-    let config = match config.into_serde::<Config>() {
-        Ok(config) => config,
-        Err(error) => {
-            return CompileResult::from_error(error, None, Vec::new());
-        }
-    };
+async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, anyhow::Error> {
+    let instructions = None;
 
+    let config = config.into_serde::<Config>()?;
     let budget = config.budget.unwrap_or(1_000_000);
 
     let source = runestick::Source::new("entry", input);
     let mut sources = rune::Sources::new();
     sources.insert(source);
 
-    let context = match setup_context(config.experimental) {
-        Ok(context) => context,
-        Err(error) => {
-            return CompileResult::from_error(error, None, Vec::new());
-        }
-    };
+    let context = setup_context(config.experimental)?;
 
     let context = Arc::new(context);
     let mut options = rune::Options::default();
 
     for option in &config.options {
-        if let Err(error) = options.parse_option(option) {
-            return CompileResult::from_error(error, None, Vec::new());
-        }
+        options.parse_option(option)?;
     }
 
     let mut errors = rune::Errors::new();
@@ -225,7 +223,7 @@ async fn inner_compile(input: String, config: JsValue) -> CompileResult {
 
     warnings
         .emit_diagnostics(&mut writer, &sources)
-        .expect("emitting to buffer should never fail");
+        .context("emitting to buffer should never fail")?;
 
     let unit = match result {
         Ok(unit) => Arc::new(unit),
@@ -306,8 +304,22 @@ async fn inner_compile(input: String, config: JsValue) -> CompileResult {
                 .emit_diagnostics(&mut writer, &sources)
                 .expect("emitting to buffer should never fail");
 
-            return CompileResult::from_error(error, diagnostics_output(writer), diagnostics);
+            return Ok(CompileResult::from_error(
+                error,
+                diagnostics_output(writer),
+                diagnostics,
+                instructions,
+            ));
         }
+    };
+
+    let instructions = if config.instructions {
+        let mut out = Vec::new();
+        unit.dump_instructions(&mut out, &sources, false)
+            .expect("dumping to string shouldn't fail");
+        Some(String::from_utf8(out).context("converting instructions to UTF-8")?)
+    } else {
+        None
     };
 
     let vm = runestick::Vm::new(context, unit);
@@ -317,9 +329,14 @@ async fn inner_compile(input: String, config: JsValue) -> CompileResult {
         Err(error) => {
             error
                 .emit_diagnostics(&mut writer, &sources)
-                .expect("emitting to buffer should never fail");
+                .context("emitting to buffer should never fail")?;
 
-            return CompileResult::from_error(error, diagnostics_output(writer), diagnostics);
+            return Ok(CompileResult::from_error(
+                error,
+                diagnostics_output(writer),
+                diagnostics,
+                instructions,
+            ));
         }
     };
 
@@ -359,13 +376,23 @@ async fn inner_compile(input: String, config: JsValue) -> CompileResult {
 
             error
                 .emit_diagnostics(&mut writer, &sources)
-                .expect("emitting to buffer should never fail");
+                .context("emitting to buffer should never fail")?;
 
-            return CompileResult::from_error(error, diagnostics_output(writer), diagnostics);
+            return Ok(CompileResult::from_error(
+                error,
+                diagnostics_output(writer),
+                diagnostics,
+                instructions,
+            ));
         }
     };
 
-    CompileResult::output(output, diagnostics_output(writer), diagnostics)
+    Ok(CompileResult::output(
+        output,
+        diagnostics_output(writer),
+        diagnostics,
+        instructions,
+    ))
 }
 
 fn diagnostics_output(writer: rune::termcolor::Buffer) -> Option<String> {
@@ -376,6 +403,11 @@ fn diagnostics_output(writer: rune::termcolor::Buffer) -> Option<String> {
 }
 
 #[wasm_bindgen]
-pub async fn compile(input: String, options: JsValue) -> JsValue {
-    JsValue::from_serde(&inner_compile(input, options).await).unwrap()
+pub async fn compile(input: String, config: JsValue) -> JsValue {
+    let result = match inner_compile(input, config).await {
+        Ok(result) => result,
+        Err(error) => CompileResult::from_error(error, None, Vec::new(), None),
+    };
+
+    JsValue::from_serde(&result).unwrap()
 }
