@@ -93,6 +93,22 @@ impl Span {
             end: usize::max(self.end.saturating_sub(amount), self.start),
         }
     }
+
+    /// Get the start as a point span.
+    pub fn start(self) -> Self {
+        Self {
+            start: self.start,
+            end: self.start,
+        }
+    }
+
+    /// Get the end as a point span.
+    pub fn end(self) -> Self {
+        Self {
+            start: self.end,
+            end: self.end,
+        }
+    }
 }
 
 impl fmt::Display for Span {

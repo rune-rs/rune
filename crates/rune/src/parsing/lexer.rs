@@ -48,9 +48,9 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Access the end span of the input.
-    pub fn end(&self) -> Span {
-        Span::point(self.source.len())
+    /// Access the span of the lexer.
+    pub fn span(&self) -> Span {
+        Span::new(0, self.source.len())
     }
 
     /// Calculate the end span by peeking the next token.

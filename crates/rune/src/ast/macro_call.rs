@@ -1,6 +1,5 @@
 use crate::ast;
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens, TokenStream};
-use runestick::Span;
 
 /// A function call `<expr>!(<args>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -12,11 +11,12 @@ pub struct MacroCall {
     pub path: ast::Path,
     /// Bang operator `!`.
     pub bang: ast::Bang,
-    /// Opening paren.
+    /// Opening token.
     pub open: ast::Token,
     /// The tokens provided to the macro.
+    #[rune(optional)]
     pub stream: TokenStream,
-    /// Closing paren.
+    /// Closing token.
     pub close: ast::Token,
 }
 
@@ -45,7 +45,6 @@ impl MacroCall {
         let close;
 
         let mut stream = Vec::new();
-        let end;
 
         loop {
             let token = parser.token_next()?;
@@ -66,7 +65,6 @@ impl MacroCall {
                             ));
                         }
 
-                        end = Span::point(token.span().start);
                         close = token;
                         break;
                     }
@@ -82,7 +80,7 @@ impl MacroCall {
             bang,
             path,
             open,
-            stream: TokenStream::new(stream, end),
+            stream: TokenStream::new(stream),
             close,
         })
     }

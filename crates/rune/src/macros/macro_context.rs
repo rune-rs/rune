@@ -10,9 +10,7 @@ pub struct MacroContext {
     /// The current source.
     source: Arc<Source>,
     /// Temporary recorded default span.
-    pub(crate) default_span: Span,
-    /// End point of the span.
-    pub(crate) end: Span,
+    pub(crate) span: Span,
     /// Storage used in macro context.
     pub(crate) storage: Storage,
 }
@@ -22,8 +20,7 @@ impl MacroContext {
     pub fn empty() -> Self {
         Self {
             source: Arc::new(Source::default()),
-            default_span: Span::empty(),
-            end: Span::empty(),
+            span: Span::empty(),
             storage: Storage::default(),
         }
     }
@@ -32,20 +29,19 @@ impl MacroContext {
     pub fn new(storage: Storage, source: Arc<Source>) -> Self {
         Self {
             source,
-            default_span: Span::empty(),
-            end: Span::empty(),
+            span: Span::empty(),
             storage,
         }
     }
 
     /// Access the default span of the context.
-    pub fn default_span(&self) -> Span {
-        self.default_span
+    pub fn span(&self) -> Span {
+        self.span
     }
 
     /// Construct a new token stream.
     pub fn token_stream(&self) -> TokenStream {
-        TokenStream::new(Vec::new(), self.end)
+        TokenStream::new(Vec::new())
     }
 
     /// Access storage for the macro system.
@@ -72,7 +68,7 @@ impl MacroContext {
         let id = self.storage.insert_string(ident);
 
         ast::Token {
-            span: self.default_span,
+            span: self.span,
             kind: ast::Kind::Ident(ast::StringSource::Synthetic(id)),
         }
     }
@@ -83,7 +79,7 @@ impl MacroContext {
         let id = self.storage.insert_string(label);
 
         ast::Token {
-            span: self.default_span,
+            span: self.span,
             kind: ast::Kind::Label(ast::StringSource::Synthetic(id)),
         }
     }
@@ -94,7 +90,7 @@ impl MacroContext {
         let id = self.storage.insert_string(string);
 
         ast::Token {
-            span: self.default_span,
+            span: self.span,
             kind: ast::Kind::LitTemplate(ast::LitStrSource::Synthetic(id)),
         }
     }
@@ -112,7 +108,7 @@ impl IntoLit for i32 {
 
         ast::Token {
             kind,
-            span: ctx.default_span(),
+            span: ctx.span(),
         }
     }
 }
@@ -123,7 +119,7 @@ impl IntoLit for i64 {
 
         ast::Token {
             kind,
-            span: ctx.default_span(),
+            span: ctx.span(),
         }
     }
 }
@@ -134,7 +130,7 @@ impl IntoLit for f64 {
 
         ast::Token {
             kind,
-            span: ctx.default_span(),
+            span: ctx.span(),
         }
     }
 }
@@ -143,7 +139,7 @@ impl IntoLit for char {
     fn into_lit(self, ctx: &mut MacroContext) -> ast::Token {
         ast::Token {
             kind: ast::Kind::LitChar(ast::CopySource::Inline(self)),
-            span: ctx.default_span(),
+            span: ctx.span(),
         }
     }
 }
@@ -152,7 +148,7 @@ impl IntoLit for u8 {
     fn into_lit(self, ctx: &mut MacroContext) -> ast::Token {
         ast::Token {
             kind: ast::Kind::LitByte(ast::CopySource::Inline(self)),
-            span: ctx.default_span(),
+            span: ctx.span(),
         }
     }
 }
@@ -163,7 +159,7 @@ impl IntoLit for &str {
 
         ast::Token {
             kind: ast::Kind::LitStr(ast::LitStrSource::Synthetic(id)),
-            span: ctx.default_span(),
+            span: ctx.span(),
         }
     }
 }
@@ -180,7 +176,7 @@ impl IntoLit for &[u8] {
 
         ast::Token {
             kind: ast::Kind::LitByteStr(ast::LitByteStrSource::Synthetic(id)),
-            span: ctx.default_span(),
+            span: ctx.span(),
         }
     }
 }

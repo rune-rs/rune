@@ -1,6 +1,5 @@
 use crate::ast;
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens, TokenStream};
-use runestick::Span;
 
 /// Attribute like `#[derive(Debug)]`
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -14,6 +13,7 @@ pub struct Attribute {
     /// The path of the attribute
     pub path: ast::Path,
     /// The input to the input of the attribute
+    #[rune(optional)]
     pub input: TokenStream,
     /// The `]` character
     pub close: ast::CloseBracket,
@@ -43,7 +43,6 @@ impl Parse for Attribute {
 
         let mut level = 1;
         let mut stream = Vec::new();
-        let end;
 
         loop {
             let token = parser.token_next()?;
@@ -57,7 +56,6 @@ impl Parse for Attribute {
             }
 
             if level == 0 {
-                end = Span::point(token.span().start);
                 close = ast::CloseBracket { token };
                 break;
             }
@@ -70,7 +68,7 @@ impl Parse for Attribute {
             style,
             open,
             path,
-            input: TokenStream::new(stream, end),
+            input: TokenStream::new(stream),
             close,
         })
     }
