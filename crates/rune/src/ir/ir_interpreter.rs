@@ -88,18 +88,18 @@ impl<'a> IrInterpreter<'a> {
     /// their result.
     pub(crate) fn resolve_var(
         &mut self,
-        ident: &str,
+        name: &str,
         span: Span,
         used: Used,
     ) -> Result<IrValue, IrError> {
-        if let Some(ir_value) = self.scopes.get(ident) {
+        if let Some(ir_value) = self.scopes.try_get(name) {
             return Ok(ir_value.clone());
         }
 
         let mut base = self.item.clone();
 
         loop {
-            let item = base.extended(ident);
+            let item = base.extended(name);
 
             if let Some(const_value) = self.query.consts.get(&item) {
                 return Ok(IrValue::from_const(const_value));
@@ -123,7 +123,17 @@ impl<'a> IrInterpreter<'a> {
             base.pop();
         }
 
-        Err(IrError::new(span, IrErrorKind::NotConst))
+        if name.starts_with(char::is_lowercase) {
+            Err(IrError::new(
+                span,
+                IrErrorKind::MissingLocal { name: name.into() },
+            ))
+        } else {
+            Err(IrError::new(
+                span,
+                IrErrorKind::MissingConst { name: name.into() },
+            ))
+        }
     }
 
     pub(crate) fn call_const_fn<S>(
@@ -178,7 +188,7 @@ impl<'a> IrInterpreter<'a> {
             ));
         }
 
-        let guard = self.scopes.push();
+        let guard = self.scopes.isolate();
 
         for (name, value) in const_fn.args.iter().zip(args) {
             self.scopes.decl(&**name, value, spanned)?;
