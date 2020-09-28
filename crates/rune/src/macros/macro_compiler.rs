@@ -58,13 +58,27 @@ impl MacroCompiler<'_> {
         let output = match result {
             Ok(output) => output,
             Err(error) => {
-                return match error.downcast::<ParseError>() {
-                    Ok(error) => Err(CompileError::from(error)),
-                    Err(error) => Err(CompileError::new(
-                        span,
-                        CompileErrorKind::CallMacroError { error },
-                    )),
+                let error = match error.downcast::<ParseError>() {
+                    Ok(error) => return Err(CompileError::from(error)),
+                    Err(error) => error,
                 };
+
+                let error = match error.downcast::<runestick::SpannedError>() {
+                    Ok(error) => {
+                        return Err(CompileError::new(
+                            error.span(),
+                            CompileErrorKind::CallMacroError {
+                                error: error.into_inner(),
+                            },
+                        ));
+                    }
+                    Err(error) => error,
+                };
+
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::CallMacroError { error },
+                ));
             }
         };
 

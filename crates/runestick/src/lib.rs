@@ -86,6 +86,7 @@ mod serde;
 mod shared;
 mod source;
 mod span;
+mod spanned_error;
 mod stack;
 mod static_string;
 mod static_type;
@@ -130,6 +131,7 @@ pub use self::raw_str::RawStr;
 pub use self::select::Select;
 pub use self::source::Source;
 pub use self::span::Span;
+pub use self::spanned_error::SpannedError;
 pub use self::static_string::StaticString;
 pub use self::static_type::{
     StaticType, BOOL_TYPE, BYTES_TYPE, BYTE_TYPE, CHAR_TYPE, FLOAT_TYPE, FUNCTION_TYPE,

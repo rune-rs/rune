@@ -1,6 +1,9 @@
 <div class="rune big"
     rune-update-url="false"
-    rune-run-on-change="{% if manually %}false{% else %}true{% endif %}"">
+    rune-run-on-change="{% if manually %}false{% else %}true{% endif %}""
+    rune-options="{% if options %}{{options}}{% endif %}""
+    rune-experimental="{% if experimental %}true{% else %}false{% endif %}""
+    >
     <div class="rune-editor {% if classes %}{{classes}}{% endif %}">{{body | safe}}</div>
     <div class="rune-console {% if classes %}{{classes}}{% endif %}">
         <div class="rune-control">

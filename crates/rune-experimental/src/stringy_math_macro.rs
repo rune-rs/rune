@@ -1,6 +1,6 @@
 use rune::ast;
 use rune::Resolve as _;
-use rune::{quote, MacroContext, Parser, TokenStream};
+use rune::{quote, MacroContext, Parser, Spanned, TokenStream};
 
 /// Implementation for the `stringy_math!` macro.
 pub(crate) fn stringy_math(
@@ -12,29 +12,18 @@ pub(crate) fn stringy_math(
     let mut output = quote!(ctx => 0);
 
     while !parser.is_eof()? {
-        let op = parser.parse::<ast::Ident>()?.macro_resolve(ctx)?;
+        let op = parser.parse::<ast::Ident>()?;
+        let arg = parser.parse::<ast::Expr>()?;
 
-        match op.as_ref() {
-            "add" => {
-                let op = parser.parse::<ast::Expr>()?;
-                output = quote!(ctx => (#output) + #op);
-            }
-            "sub" => {
-                let op = parser.parse::<ast::Expr>()?;
-                output = quote!(ctx => (#output) - #op);
-            }
-            "div" => {
-                let op = parser.parse::<ast::Expr>()?;
-                output = quote!(ctx => (#output) / #op);
-            }
-            "mul" => {
-                let op = parser.parse::<ast::Expr>()?;
-                output = quote!(ctx => (#output) * #op);
-            }
-            other => {
-                return Err(runestick::Error::msg(format!(
-                    "unsupported operation `{}`",
-                    other
+        output = match op.macro_resolve(ctx)?.as_ref() {
+            "add" => quote!(ctx => (#output) + #arg),
+            "sub" => quote!(ctx => (#output) - #arg),
+            "div" => quote!(ctx => (#output) / #arg),
+            "mul" => quote!(ctx => (#output) * #arg),
+            _ => {
+                return Err(From::from(runestick::SpannedError::msg(
+                    op.span(),
+                    "unsupported operation",
                 )));
             }
         }

@@ -49,7 +49,7 @@ use wasm_bindgen::prelude::*;
 use rune::{EmitDiagnostics as _, Spanned as _};
 use runestick::budget;
 use runestick::{ContextError, Value};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 
@@ -70,6 +70,19 @@ impl From<(usize, usize)> for Position {
             character: character as u32,
         }
     }
+}
+
+#[derive(Deserialize)]
+struct Config {
+    /// Budget.
+    #[serde(default)]
+    budget: Option<usize>,
+    /// Compiler options.
+    #[serde(default)]
+    options: Vec<String>,
+    /// Include the `std::experiments` package.
+    #[serde(default)]
+    experimental: bool,
 }
 
 #[derive(Serialize)]
@@ -133,7 +146,7 @@ impl CompileResult {
 }
 
 /// Setup a wasm-compatible context.
-fn setup_context() -> Result<runestick::Context, ContextError> {
+fn setup_context(experimental: bool) -> Result<runestick::Context, ContextError> {
     let mut context = runestick::Context::with_config(false)?;
     context.install(&core::module()?)?;
     context.install(&time::module()?)?;
@@ -141,15 +154,29 @@ fn setup_context() -> Result<runestick::Context, ContextError> {
     context.install(&rune_modules::json::module()?)?;
     context.install(&rune_modules::toml::module()?)?;
     context.install(&rune_modules::rand::module()?)?;
+
+    if experimental {
+        context.install(&rune_experimental::module()?)?;
+    }
+
     Ok(context)
 }
 
-async fn inner_compile(input: String, budget: usize) -> CompileResult {
+async fn inner_compile(input: String, config: JsValue) -> CompileResult {
+    let config = match config.into_serde::<Config>() {
+        Ok(config) => config,
+        Err(error) => {
+            return CompileResult::from_error(error, None, Vec::new());
+        }
+    };
+
+    let budget = config.budget.unwrap_or(1_000_000);
+
     let source = runestick::Source::new("entry", input);
     let mut sources = rune::Sources::new();
     sources.insert(source);
 
-    let context = match setup_context() {
+    let context = match setup_context(config.experimental) {
         Ok(context) => context,
         Err(error) => {
             return CompileResult::from_error(error, None, Vec::new());
@@ -157,7 +184,14 @@ async fn inner_compile(input: String, budget: usize) -> CompileResult {
     };
 
     let context = Arc::new(context);
-    let options = rune::Options::default();
+    let mut options = rune::Options::default();
+
+    for option in &config.options {
+        if let Err(error) = options.parse_option(option) {
+            return CompileResult::from_error(error, None, Vec::new());
+        }
+    }
+
     let mut errors = rune::Errors::new();
     let mut warnings = rune::Warnings::new();
 
@@ -342,6 +376,6 @@ fn diagnostics_output(writer: rune::termcolor::Buffer) -> Option<String> {
 }
 
 #[wasm_bindgen]
-pub async fn compile(input: String, budget: usize) -> JsValue {
-    JsValue::from_serde(&inner_compile(input, budget).await).unwrap()
+pub async fn compile(input: String, options: JsValue) -> JsValue {
+    JsValue::from_serde(&inner_compile(input, options).await).unwrap()
 }

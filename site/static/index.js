@@ -10,7 +10,20 @@ window.onload = () => {
     for (let rune of document.querySelectorAll(".rune")) {
         let updateUrl = rune.getAttribute("rune-update-url") === "true";
         let runOnChange = rune.getAttribute("rune-run-on-change") === "true";
-        editors.push(setupEditor(rune, {budget, outputTrim, outputLineTrim, updateUrl, runOnChange}));
+        let runeOptions = parseOptions(rune.getAttribute("rune-options") || "");
+        let runeExperimental = rune.getAttribute("rune-experimental") === "true";
+
+        let options = {
+            budget,
+            outputTrim,
+            outputLineTrim,
+            updateUrl,
+            runOnChange,
+            runeOptions,
+            runeExperimental
+        };
+
+        editors.push(setupEditor(rune, options));
     }
 
     rune.init().then(() => {
@@ -19,6 +32,20 @@ window.onload = () => {
         }
     });
 };
+
+function parseOptions(options) {
+    let output = [];
+
+    for (let option of options.split(";")) {
+        option = option.trim();
+
+        if (!!option) {
+            output.push(option);
+        }
+    }
+
+    return output;
+}
 
 function filterPrelude(input) {
     let prelude = [];
@@ -57,7 +84,7 @@ function updateUrlContent(content) {
 }
 
 function setupEditor(element, options) {
-    let { budget, outputTrim, outputLineTrim, updateUrl, runOnChange } = options;
+    let { budget, outputTrim, outputLineTrim, updateUrl, runOnChange, runeOptions, runeExperimental } = options;
 
     let runeEditor = element.querySelector(".rune-editor");
     let runeOutput = element.querySelector(".rune-output");
@@ -119,10 +146,11 @@ function setupEditor(element, options) {
             content = `${content}\n${prelude}`;
         }
 
+        let o = {budget, options: runeOptions, experimental: runeExperimental};
         let result = null;
-        
+
         try {
-            result = await rune.module.compile(content, budget);
+            result = await rune.module.compile(content, o);
         } finally {
             if (!!runButton) {
                 runButton.disabled = false;
