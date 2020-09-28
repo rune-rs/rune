@@ -20,6 +20,7 @@ mod vm_is;
 mod vm_lazy_and_or;
 mod vm_literals;
 mod vm_match;
+mod vm_not_used;
 mod vm_option;
 mod vm_pat;
 mod vm_result;
