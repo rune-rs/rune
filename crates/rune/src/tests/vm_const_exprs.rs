@@ -187,13 +187,17 @@ fn test_const_fn() {
     const VALUE = foo("bar", "baz");
 
     const fn foo(a, b) {
-        `foo {a} {b}`
+        `foo {a} {b} {bar("biz")}`
     }
-
+    
+    const fn bar(c) {
+        c
+    }
+    
     fn main() {
         VALUE
-    }
+    }    
     "#);
 
-    assert_eq!(result, "foo bar baz");
+    assert_eq!(result, "foo bar baz biz");
 }

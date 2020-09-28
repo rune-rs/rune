@@ -10,17 +10,6 @@ pub(crate) struct Scopes<T> {
 }
 
 impl<T> Scopes<T> {
-    /// Get a value out of the scope.
-    pub(crate) fn get<'a>(&'a self, name: &str) -> Option<&'a T> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(current) = scope.locals.get(name) {
-                return Some(current);
-            }
-        }
-
-        None
-    }
-
     /// Clear the current scope.
     pub(crate) fn clear_current<S>(&mut self, spanned: S) -> Result<(), Internal>
     where
@@ -48,6 +37,22 @@ impl<T> Scopes<T> {
         Ok(())
     }
 
+    /// Try to get the value out from the scopes.
+    pub(crate) fn try_get<'a>(&'a self, name: &str) -> Option<&'a T> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(current) = scope.locals.get(name) {
+                return Some(current);
+            }
+
+            // don't look past isolate scopes.
+            if let ScopeKind::Isolate = scope.kind {
+                break;
+            }
+        }
+
+        None
+    }
+
     /// Get the given variable.
     pub(crate) fn get_name<'a, S>(&'a self, name: &str, spanned: S) -> Result<&'a T, ScopeError>
     where
@@ -56,6 +61,11 @@ impl<T> Scopes<T> {
         for scope in self.scopes.iter().rev() {
             if let Some(current) = scope.locals.get(name) {
                 return Ok(current);
+            }
+
+            // don't look past isolate scopes.
+            if let ScopeKind::Isolate = scope.kind {
+                break;
             }
         }
 
@@ -78,6 +88,11 @@ impl<T> Scopes<T> {
             if let Some(current) = scope.locals.get_mut(name) {
                 return Ok(current);
             }
+
+            // don't look past isolate scopes.
+            if let ScopeKind::Isolate = scope.kind {
+                break;
+            }
         }
 
         Err(ScopeError::new(
@@ -90,6 +105,15 @@ impl<T> Scopes<T> {
     pub(crate) fn push(&mut self) -> ScopeGuard {
         let length = self.scopes.len();
         self.scopes.push(Scope::default());
+        ScopeGuard { length }
+    }
+
+    /// Push an isolate scope and return the guard associated with the scope.
+    pub(crate) fn isolate(&mut self) -> ScopeGuard {
+        let length = self.scopes.len();
+        let mut scope = Scope::default();
+        scope.kind = ScopeKind::Isolate;
+        self.scopes.push(scope);
         ScopeGuard { length }
     }
 
@@ -127,7 +151,14 @@ pub(crate) struct ScopeGuard {
     length: usize,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ScopeKind {
+    None,
+    Isolate,
+}
+
 pub(crate) struct Scope<T> {
+    kind: ScopeKind,
     /// Locals in the current scope.
     locals: HashMap<String, T>,
 }
@@ -135,6 +166,7 @@ pub(crate) struct Scope<T> {
 impl<T> Default for Scope<T> {
     fn default() -> Self {
         Self {
+            kind: ScopeKind::None,
             locals: Default::default(),
         }
     }

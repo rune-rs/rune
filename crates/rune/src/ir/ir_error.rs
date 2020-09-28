@@ -95,7 +95,7 @@ pub enum IrErrorKind {
     },
     /// Encountered an expression that is not supported as a constant
     /// expression.
-    #[error("not a supported constant expression")]
+    #[error("not a constant expression")]
     NotConst,
     /// Trying to process a cycle of constants.
     #[error("constant cycle detected")]
@@ -136,6 +136,12 @@ pub enum IrErrorKind {
     #[error("missing local `{name}`")]
     MissingLocal {
         /// Name of the missing local.
+        name: Box<str>,
+    },
+    /// Missing const or local with the given name.
+    #[error("no constant or local matching `{name}`")]
+    MissingConst {
+        /// Name of the missing thing.
         name: Box<str>,
     },
     /// Error raised when trying to use a break outside of a loop.
