@@ -85,13 +85,17 @@ impl<'a> Indexer<'a> {
             match entry {
                 ProcessEntry::Item((item, semi)) => {
                     match item {
-                        ast::Item::ItemUse(item_use) => {
-                            self.process_use(item_use)?;
-                        }
                         // Expand items in case they are imports.
+                        ast::Item::ItemUse(item_use) => {
+                            self.queue.push_back(Task::Import(Import {
+                                item: self.items.item(),
+                                ast: item_use,
+                                source: self.source.clone(),
+                                source_id: self.source_id,
+                            }));
+                        }
                         ast::Item::MacroCall(macro_call) => {
                             item_queue.push_back(ProcessEntry::MacroCall(macro_call));
-                            continue;
                         }
                         item => {
                             items.push((item, semi));
@@ -124,11 +128,15 @@ impl<'a> Indexer<'a> {
             match entry {
                 ProcessEntry::Stmt(stmt) => match stmt {
                     ast::Stmt::Item(ast::Item::ItemUse(item_use), _) => {
-                        self.process_use(item_use)?;
+                        self.queue.push_back(Task::Import(Import {
+                            item: self.items.item(),
+                            ast: item_use,
+                            source: self.source.clone(),
+                            source_id: self.source_id,
+                        }));
                     }
                     ast::Stmt::Item(ast::Item::MacroCall(macro_call), _) => {
                         item_queue.push_back(ProcessEntry::MacroCall(macro_call));
-                        continue;
                     }
                     item => {
                         stmts.push(item);
@@ -147,31 +155,6 @@ impl<'a> Indexer<'a> {
             Stmt(ast::Stmt),
             MacroCall(ast::MacroCall),
         }
-    }
-
-    /// Process a single use declaration.
-    fn process_use(&mut self, item_use: ast::ItemUse) -> Result<(), CompileError> {
-        if let Some(first) = item_use.attributes.first() {
-            return Err(CompileError::internal(
-                first,
-                "use attributes are not supported",
-            ));
-        } else if !item_use.visibility.is_inherited() {
-            return Err(CompileError::internal(
-                &item_use.visibility.option_span().unwrap(),
-                "use visibility levels are not supported",
-            ));
-        }
-
-        let import = Import {
-            item: self.items.item(),
-            ast: item_use.clone(),
-            source: self.source.clone(),
-            source_id: self.source_id,
-        };
-
-        import.process(self.context, &self.query.storage, &self.query.unit)?;
-        Ok(())
     }
 
     /// Construct the calling convention based on the parameters.
