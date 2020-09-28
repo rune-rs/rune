@@ -11,7 +11,7 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
             self.warnings.not_used(self.source_id, span, self.context());
         }
 
-        let item = self.convert_path_to_item(path)?;
+        let (base, item) = self.convert_path_to_item(path)?;
 
         if let Needs::Value = needs {
             if let Some(local) = item.as_local() {
@@ -25,7 +25,7 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(&item, span)? {
+        let meta = match self.lookup_meta(&base, &item, span)? {
             Some(meta) => meta,
             None => {
                 let error = match (needs, item.as_local()) {

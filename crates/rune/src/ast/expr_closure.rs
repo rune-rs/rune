@@ -1,10 +1,14 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::parsing::Opaque;
+use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
 use runestick::Span;
 
 /// A closure expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprClosure {
+    /// Opaque identifier for the closure.
+    #[rune(id)]
+    pub id: Id,
     /// The attributes for the async closure
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -57,11 +61,18 @@ impl ExprClosure {
         };
 
         Ok(Self {
+            id: Default::default(),
             attributes,
             async_token,
             args,
             body: Box::new(parser.parse()?),
         })
+    }
+}
+
+impl Opaque for ExprClosure {
+    fn id(&self) -> Id {
+        self.id
     }
 }
 

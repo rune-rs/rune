@@ -1,3 +1,4 @@
+use crate::parsing::Id;
 use runestick::Span;
 
 /// Types for which we can get a span.
@@ -46,6 +47,12 @@ where
 {
     fn span(&self) -> Span {
         Spanned::span(*self)
+    }
+}
+
+impl Spanned for (Span, Id) {
+    fn span(&self) -> Span {
+        self.0
     }
 }
 

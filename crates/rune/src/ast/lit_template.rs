@@ -1,16 +1,26 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::parsing::Opaque;
+use crate::{Id, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
 /// A string literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitTemplate {
+    /// Opaque identifier for the template.
+    #[rune(id)]
+    pub id: Id,
     /// The token corresponding to the literal.
     token: ast::Token,
     /// The source string of the literal template.
     #[rune(skip)]
     source: ast::LitStrSource,
+}
+
+impl Opaque for LitTemplate {
+    fn id(&self) -> Id {
+        self.id
+    }
 }
 
 /// A single template component.
@@ -132,7 +142,11 @@ impl Parse for LitTemplate {
         let token = parser.token_next()?;
 
         match token.kind {
-            ast::Kind::LitTemplate(source) => Ok(LitTemplate { token, source }),
+            ast::Kind::LitTemplate(source) => Ok(LitTemplate {
+                id: Default::default(),
+                token,
+                source,
+            }),
             _ => Err(ParseError::expected(token, "template literal")),
         }
     }

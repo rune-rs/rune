@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A const declaration.
 ///
@@ -12,6 +12,9 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct ItemConst {
+    /// Opaque identifier for the constant.
+    #[rune(id)]
+    pub id: Id,
     /// The *inner* attributes that are applied to the const declaration.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -36,6 +39,7 @@ impl ItemConst {
         visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
         Ok(Self {
+            id: Default::default(),
             attributes,
             visibility,
             const_token: parser.parse()?,

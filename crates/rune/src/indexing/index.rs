@@ -380,8 +380,11 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 .map_err(|e| CompileError::new(span, e))?;
         } else {
             // NB: non toplevel functions can be indexed for later construction.
+            let id = self.query.insert_item(item);
+
             self.query.index(
-                item,
+                span,
+                id,
                 IndexedEntry {
                     span,
                     source: self.source.clone(),
@@ -407,27 +410,31 @@ impl Index<ast::ExprBlock> for Indexer<'_> {
             ));
         }
 
-        if expr_block.async_token.is_some() {
-            let _guard = self.items.push_async_block();
-            let guard = self.scopes.push_closure(true);
-            self.index(&mut expr_block.block)?;
-
-            let c = guard.into_closure(span)?;
-
-            let captures = Arc::new(c.captures);
-            let call = Self::call(c.generator, c.is_async);
-
-            self.query.index_async_block(
-                self.items.item(),
-                expr_block.block.clone(),
-                captures,
-                call,
-                self.source.clone(),
-                self.source_id,
-            )?;
-        } else {
-            self.index(&mut expr_block.block)?;
+        if expr_block.async_token.is_none() {
+            return self.index(&mut expr_block.block);
         }
+
+        let _guard = self.items.push_async_block();
+        let guard = self.scopes.push_closure(true);
+        self.index(&mut expr_block.block)?;
+
+        let c = guard.into_closure(span)?;
+
+        let captures = Arc::new(c.captures);
+        let call = Self::call(c.generator, c.is_async);
+
+        let id = self.query.insert_item(self.items.item());
+        expr_block.block.id = id;
+
+        self.query.index_async_block(
+            &*expr_block,
+            id,
+            expr_block.block.clone(),
+            captures,
+            call,
+            self.source.clone(),
+            self.source_id,
+        )?;
 
         Ok(())
     }
@@ -516,6 +523,8 @@ impl Index<ast::Pat> for Indexer<'_> {
 
         match pat {
             ast::Pat::PatPath(pat_path) => {
+                self.index(&mut pat_path.path)?;
+
                 if let Some(ident) = pat_path.path.try_as_ident_mut() {
                     self.index(ident)?;
                 }
@@ -546,6 +555,10 @@ impl Index<ast::PatTuple> for Indexer<'_> {
         let span = pat_tuple.span();
         log::trace!("PatTuple => {:?}", self.source.source(span));
 
+        if let Some(path) = &mut pat_tuple.path {
+            self.index(path)?;
+        }
+
         for (pat, _) in &mut pat_tuple.items {
             self.index(&mut **pat)?;
         }
@@ -558,6 +571,13 @@ impl Index<ast::PatObject> for Indexer<'_> {
     fn index(&mut self, pat_object: &mut ast::PatObject) -> CompileResult<()> {
         let span = pat_object.span();
         log::trace!("PatObject => {:?}", self.source.source(span));
+
+        match &mut pat_object.ident {
+            ast::LitObjectIdent::Anonymous(..) => (),
+            ast::LitObjectIdent::Named(path) => {
+                self.index(path)?;
+            }
+        }
 
         for (field, _) in &mut pat_object.fields {
             if let Some((_, pat)) = &mut field.binding {
@@ -792,34 +812,25 @@ impl Index<ast::Item> for Indexer<'_> {
                 let name = item_enum.name.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(name.as_ref());
 
-                let span = item_enum.span();
-                let enum_item = self.items.item();
+                let enum_id = self.query.insert_item(self.items.item());
 
                 self.query.index_enum(
-                    enum_item.clone(),
+                    &*item_enum,
+                    enum_id,
                     self.source.clone(),
                     self.source_id,
-                    span,
+                    item_enum.span(),
                 )?;
 
-                for (
-                    ast::ItemVariant {
-                        attributes,
-                        name,
-                        body,
-                        ..
-                    },
-                    _,
-                ) in &item_enum.variants
-                {
-                    if let Some(first) = attributes.first() {
+                for (variant, _) in &mut item_enum.variants {
+                    if let Some(first) = variant.attributes.first() {
                         return Err(CompileError::internal(
                             first,
                             "variant attributes are not supported yet",
                         ));
                     }
 
-                    for (field, _) in body.fields() {
+                    for (field, _) in variant.body.fields() {
                         if let Some(first) = field.attributes.first() {
                             return Err(CompileError::internal(
                                 first,
@@ -828,14 +839,18 @@ impl Index<ast::Item> for Indexer<'_> {
                         }
                     }
 
-                    let span = name.span();
-                    let name = name.resolve(&self.storage, &*self.source)?;
+                    let span = variant.name.span();
+                    let name = variant.name.resolve(&self.storage, &*self.source)?;
                     let _guard = self.items.push_name(name.as_ref());
 
+                    let id = self.query.insert_item(self.items.item());
+                    variant.id = id;
+
                     self.query.index_variant(
-                        self.items.item(),
-                        enum_item.clone(),
-                        body.clone(),
+                        &*variant,
+                        id,
+                        enum_id,
+                        variant.clone(),
                         self.source.clone(),
                         self.source_id,
                         span,
@@ -872,8 +887,12 @@ impl Index<ast::Item> for Indexer<'_> {
                 let ident = item_struct.ident.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(ident.as_ref());
 
+                let id = self.query.insert_item(self.items.item());
+                item_struct.id = id;
+
                 self.query.index_struct(
-                    self.items.item(),
+                    &item_struct,
+                    id,
                     item_struct.clone(),
                     self.source.clone(),
                     self.source_id,
@@ -946,11 +965,15 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 self.index(item_const)?;
 
+                let id = self.query.insert_item(self.items.item());
+                item_const.id = id;
+
                 self.query.index_const(
-                    self.items.item(),
+                    &item_const,
+                    id,
                     self.source.clone(),
                     self.source_id,
-                    *item_const.expr.clone(),
+                    item_const.clone(),
                     span,
                 )?;
             }
@@ -978,6 +1001,8 @@ impl Index<ast::Path> for Indexer<'_> {
     fn index(&mut self, path: &mut ast::Path) -> CompileResult<()> {
         let span = path.span();
         log::trace!("Path => {:?}", self.source.source(span));
+
+        path.id = self.query.insert_item(self.items.item());
 
         if let Some(ident) = path.try_as_ident() {
             let ident = ident.resolve(&self.storage, &*self.source)?;
@@ -1055,8 +1080,12 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
         let captures = Arc::new(c.captures);
         let call = Self::call(c.generator, c.is_async);
 
+        let id = self.query.insert_item(self.items.item());
+        expr_closure.id = id;
+
         self.query.index_closure(
-            self.items.item(),
+            &expr_closure,
+            id,
             expr_closure.clone(),
             captures,
             call,
@@ -1269,6 +1298,7 @@ impl Index<ast::LitTemplate> for Indexer<'_> {
             }
         }
 
+        lit_template.id = self.query.insert_template(template);
         Ok(())
     }
 }
@@ -1303,6 +1333,13 @@ impl Index<ast::LitObject> for Indexer<'_> {
     fn index(&mut self, lit_object: &mut ast::LitObject) -> CompileResult<()> {
         let span = lit_object.span();
         log::trace!("LitObject => {:?}", self.source.source(span));
+
+        match &mut lit_object.ident {
+            ast::LitObjectIdent::Named(path) => {
+                self.index(path)?;
+            }
+            ast::LitObjectIdent::Anonymous(..) => (),
+        }
 
         for (assign, _) in &mut lit_object.assignments {
             if let Some((_, expr)) = &mut assign.assign {

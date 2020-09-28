@@ -6,9 +6,10 @@ use crate::compiling::InsertMetaError;
 use crate::ir::ir;
 use crate::ir::{IrBudget, IrInterpreter};
 use crate::ir::{IrCompile as _, IrCompiler};
+use crate::parsing::Opaque;
 use crate::shared::Consts;
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, IrError, IrErrorKind, ParseError,
+    CompileError, CompileErrorKind, CompileVisitor, Id, IrError, IrErrorKind, ParseError,
     ParseErrorKind, Resolve as _, Spanned, Storage, UnitBuilder,
 };
 use runestick::{
@@ -16,6 +17,7 @@ use runestick::{
     CompileMetaTuple, CompileSource, Hash, Item, Source, SourceId, Span, Type,
 };
 use std::collections::VecDeque;
+use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -43,6 +45,7 @@ error! {
     }
 
     impl From<IrError>;
+    impl From<CompileError>;
     impl From<ParseError>;
 }
 
@@ -62,12 +65,24 @@ pub enum QueryErrorKind {
         #[from]
         error: Box<IrErrorKind>,
     },
+    #[error("compile error: {error}")]
+    CompileError {
+        #[source]
+        #[from]
+        error: Box<CompileErrorKind>,
+    },
     #[error("parse error: {error}")]
     ParseError {
         #[source]
         #[from]
         error: ParseErrorKind,
     },
+    #[error("missing item for {id:?}")]
+    MissingItemId { id: Id },
+    #[error("missing template for {id:?}")]
+    MissingTemplateId { id: Id },
+    #[error("found conflicting item `{existing}`")]
+    ItemConflict { existing: Item },
 }
 
 pub(crate) enum Indexed {
@@ -93,16 +108,16 @@ impl Struct {
 }
 
 pub struct Variant {
-    /// Item of the enum type.
-    enum_item: Item,
+    /// Id of of the enum type.
+    enum_id: Id,
     /// Ast for declaration.
-    ast: ast::ItemVariantBody,
+    ast: ast::ItemVariant,
 }
 
 impl Variant {
     /// Construct a new variant.
-    pub fn new(enum_item: Item, ast: ast::ItemVariantBody) -> Self {
-        Self { enum_item, ast }
+    pub fn new(enum_id: Id, ast: ast::ItemVariant) -> Self {
+        Self { enum_id, ast }
     }
 }
 
@@ -184,9 +199,20 @@ pub(crate) struct IndexedEntry {
 pub(crate) struct Query {
     pub(crate) storage: Storage,
     pub(crate) unit: UnitBuilder,
-    /// Const expression that have been resolved.
+    /// Cache of constants that have been expanded.
     pub(crate) consts: Consts,
+    /// Build queue.
     pub(crate) queue: VecDeque<BuildEntry>,
+    /// Associated between `id` and `Item`. Use to look up items through
+    /// `item_for` with an opaque id.
+    ///
+    /// These items are associated with AST elements, and encodoes the item path
+    /// that the AST element was indexed.
+    pub(crate) items: Vec<Item>,
+    /// Resolved templates.
+    pub(crate) templates: Vec<Rc<ast::Template>>,
+    /// Indexed items that can be queried for, which will queue up for them to
+    /// be compiled.
     pub(crate) indexed: HashMap<Item, IndexedEntry>,
 }
 
@@ -198,30 +224,90 @@ impl Query {
             unit,
             consts,
             queue: VecDeque::new(),
+            items: vec![],
+            templates: vec![],
             indexed: HashMap::new(),
         }
     }
 
+    /// Insert an item and return its Id.
+    pub fn insert_item(&mut self, item: Item) -> Id {
+        let id = Id::new(self.items.len());
+        self.items.push(item);
+        id
+    }
+
+    /// Insert a template and return its Id.
+    pub fn insert_template(&mut self, template: ast::Template) -> Id {
+        let id = Id::new(self.templates.len());
+        self.templates.push(Rc::new(template));
+        id
+    }
+
+    /// Get the item for the given identifier.
+    pub fn item_for<T>(&self, ast: T) -> Result<&Item, QueryError>
+    where
+        T: Spanned + Opaque,
+    {
+        let id = ast.id();
+
+        if let Some(index) = *id {
+            let item = self
+                .items
+                .get(index.get() - 1)
+                .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingItemId { id }))?;
+
+            return Ok(item);
+        }
+
+        return Err(QueryError::new(ast, QueryErrorKind::MissingItemId { id }));
+    }
+
+    /// Get the template for the given identifier.
+    pub fn template_for<T>(&self, ast: T) -> Result<Rc<ast::Template>, QueryError>
+    where
+        T: Spanned + Opaque,
+    {
+        let id = ast.id();
+
+        if let Some(index) = *id {
+            let template = self
+                .templates
+                .get(index.get() - 1)
+                .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingTemplateId { id }))?;
+
+            return Ok(template.clone());
+        }
+
+        return Err(QueryError::new(ast, QueryErrorKind::MissingItemId { id }));
+    }
+
     /// Index a constant expression.
-    pub fn index_const(
+    pub fn index_const<S>(
         &mut self,
-        item: Item,
+        spanned: S,
+        id: Id,
         source: Arc<Source>,
         source_id: usize,
-        expr: ast::Expr,
+        item_const: ast::ItemConst,
         span: Span,
-    ) -> Result<(), CompileError> {
-        log::trace!("new enum: {}", item);
+    ) -> Result<(), QueryError>
+    where
+        S: Spanned,
+    {
+        log::trace!("new enum: {:?}", id);
 
         let mut ir_compiler = IrCompiler {
+            query: self,
             source: &*source,
             storage: &self.storage,
         };
 
-        let ir = ir_compiler.compile(&expr)?;
+        let ir = ir_compiler.compile(&*item_const.expr)?;
 
         self.index(
-            item,
+            spanned,
+            id,
             IndexedEntry {
                 span,
                 source,
@@ -234,17 +320,22 @@ impl Query {
     }
 
     /// Add a new enum item.
-    pub fn index_enum(
+    pub fn index_enum<S>(
         &mut self,
-        item: Item,
+        spanned: S,
+        id: Id,
         source: Arc<Source>,
         source_id: usize,
         span: Span,
-    ) -> Result<(), CompileError> {
-        log::trace!("new enum: {}", item);
+    ) -> Result<(), QueryError>
+    where
+        S: Spanned,
+    {
+        log::trace!("new enum: {:?}", id);
 
         self.index(
-            item,
+            spanned,
+            id,
             IndexedEntry {
                 span,
                 source,
@@ -257,18 +348,23 @@ impl Query {
     }
 
     /// Add a new struct item that can be queried.
-    pub fn index_struct(
+    pub fn index_struct<S>(
         &mut self,
-        item: Item,
+        spanned: S,
+        id: Id,
         ast: ast::ItemStruct,
         source: Arc<Source>,
         source_id: usize,
-    ) -> Result<(), CompileError> {
-        log::trace!("new struct: {}", item);
+    ) -> Result<(), QueryError>
+    where
+        S: Spanned,
+    {
+        log::trace!("new struct: {:?}", id);
         let span = ast.span();
 
         self.index(
-            item,
+            spanned,
+            id,
             IndexedEntry {
                 span,
                 source,
@@ -281,24 +377,29 @@ impl Query {
     }
 
     /// Add a new variant item that can be queried.
-    pub fn index_variant(
+    pub fn index_variant<S>(
         &mut self,
-        item: Item,
-        enum_item: Item,
-        ast: ast::ItemVariantBody,
+        spanned: S,
+        id: Id,
+        enum_id: Id,
+        ast: ast::ItemVariant,
         source: Arc<Source>,
         source_id: usize,
         span: Span,
-    ) -> Result<(), CompileError> {
-        log::trace!("new variant: {}", item);
+    ) -> Result<(), QueryError>
+    where
+        S: Spanned,
+    {
+        log::trace!("new variant: {:?}", id);
 
         self.index(
-            item,
+            spanned,
+            id,
             IndexedEntry {
                 span,
                 source,
                 source_id,
-                indexed: Indexed::Variant(Variant::new(enum_item, ast)),
+                indexed: Indexed::Variant(Variant::new(enum_id, ast)),
             },
         )?;
 
@@ -306,20 +407,25 @@ impl Query {
     }
 
     /// Add a new function that can be queried for.
-    pub fn index_closure(
+    pub fn index_closure<S>(
         &mut self,
-        item: Item,
+        spanned: S,
+        id: Id,
         ast: ast::ExprClosure,
         captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
         source: Arc<Source>,
         source_id: usize,
-    ) -> Result<(), CompileError> {
+    ) -> Result<(), QueryError>
+    where
+        S: Spanned,
+    {
         let span = ast.span();
-        log::trace!("new closure: {}", item);
+        log::trace!("new closure: {:?}", id);
 
         self.index(
-            item,
+            spanned,
+            id,
             IndexedEntry {
                 span,
                 source,
@@ -336,20 +442,25 @@ impl Query {
     }
 
     /// Add a new async block.
-    pub fn index_async_block(
+    pub fn index_async_block<S>(
         &mut self,
-        item: Item,
+        spanned: S,
+        id: Id,
         ast: ast::Block,
         captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
         source: Arc<Source>,
         source_id: usize,
-    ) -> Result<(), CompileError> {
+    ) -> Result<(), QueryError>
+    where
+        S: Spanned,
+    {
         let span = ast.span();
-        log::trace!("new closure: {}", item);
+        log::trace!("new closure: {:?}", id);
 
         self.index(
-            item,
+            spanned,
+            id,
             IndexedEntry {
                 span,
                 source,
@@ -366,15 +477,33 @@ impl Query {
     }
 
     /// Index the given element.
-    pub fn index(&mut self, item: Item, entry: IndexedEntry) -> Result<(), CompileError> {
+    pub fn index<S>(&mut self, spanned: S, id: Id, entry: IndexedEntry) -> Result<(), QueryError>
+    where
+        S: Spanned,
+    {
+        let item = match *id {
+            Some(index) => self
+                .items
+                .get(index.get() - 1)
+                .ok_or_else(|| QueryError::new(spanned, QueryErrorKind::MissingItemId { id }))?,
+            None => {
+                return Err(QueryError::new(
+                    spanned,
+                    QueryErrorKind::MissingItemId { id },
+                ));
+            }
+        };
+
         log::trace!("indexed: {}", item);
 
-        self.unit.insert_name(&item);
+        self.unit.insert_name(item);
 
         if let Some(old) = self.indexed.insert(item.clone(), entry) {
-            return Err(CompileError::new(
+            return Err(QueryError::new(
                 &old.span,
-                CompileErrorKind::ItemConflict { existing: item },
+                QueryErrorKind::ItemConflict {
+                    existing: item.clone(),
+                },
             ));
         }
 
@@ -458,9 +587,10 @@ impl Query {
                 item: item.clone(),
             },
             Indexed::Variant(variant) => {
+                let enum_item = self.item_for((entry_span, variant.enum_id))?.clone();
                 // Assert that everything is built for the enum.
-                self.query_meta(&variant.enum_item)?;
-                self.variant_into_item_decl(item, variant.ast, Some(variant.enum_item), &*source)?
+                self.query_meta(&enum_item)?;
+                self.variant_into_item_decl(item, variant.ast.body, Some(&enum_item), &*source)?
             }
             Indexed::Struct(st) => self.struct_into_item_decl(item, st.ast.body, None, &*source)?,
             Indexed::Function(f) => {
@@ -559,7 +689,7 @@ impl Query {
     }
 
     /// Construct metadata for an empty body.
-    fn unit_body_meta(&self, item: &Item, enum_item: Option<Item>) -> CompileMetaKind {
+    fn unit_body_meta(&self, item: &Item, enum_item: Option<&Item>) -> CompileMetaKind {
         let type_of = Type::from(Hash::type_hash(item));
 
         let empty = CompileMetaEmpty {
@@ -570,7 +700,7 @@ impl Query {
         match enum_item {
             Some(enum_item) => CompileMetaKind::UnitVariant {
                 type_of,
-                enum_item,
+                enum_item: enum_item.clone(),
                 empty,
             },
             None => CompileMetaKind::UnitStruct { type_of, empty },
@@ -581,7 +711,7 @@ impl Query {
     fn tuple_body_meta(
         &self,
         item: &Item,
-        enum_item: Option<Item>,
+        enum_item: Option<&Item>,
         tuple: ast::Parenthesized<ast::Field, ast::Comma>,
     ) -> CompileMetaKind {
         let type_of = Type::from(Hash::type_hash(item));
@@ -595,7 +725,7 @@ impl Query {
         match enum_item {
             Some(enum_item) => CompileMetaKind::TupleVariant {
                 type_of,
-                enum_item,
+                enum_item: enum_item.clone(),
                 tuple,
             },
             None => CompileMetaKind::TupleStruct { type_of, tuple },
@@ -606,7 +736,7 @@ impl Query {
     fn struct_body_meta(
         &self,
         item: &Item,
-        enum_item: Option<Item>,
+        enum_item: Option<&Item>,
         source: &Source,
         st: ast::Braced<ast::Field, ast::Comma>,
     ) -> Result<CompileMetaKind, QueryError> {
@@ -627,7 +757,7 @@ impl Query {
         Ok(match enum_item {
             Some(enum_item) => CompileMetaKind::StructVariant {
                 type_of,
-                enum_item,
+                enum_item: enum_item.clone(),
                 object,
             },
             None => CompileMetaKind::Struct { type_of, object },
@@ -639,7 +769,7 @@ impl Query {
         &self,
         item: &Item,
         body: ast::ItemVariantBody,
-        enum_item: Option<Item>,
+        enum_item: Option<&Item>,
         source: &Source,
     ) -> Result<CompileMetaKind, QueryError> {
         Ok(match body {
@@ -656,7 +786,7 @@ impl Query {
         &self,
         item: &Item,
         body: ast::ItemStructBody,
-        enum_item: Option<Item>,
+        enum_item: Option<&Item>,
         source: &Source,
     ) -> Result<CompileMetaKind, QueryError> {
         Ok(match body {

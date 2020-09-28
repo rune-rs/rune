@@ -66,7 +66,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             self.scopes.decl_anon(span)?;
         }
 
-        let item = self.convert_path_to_item(path)?;
+        let (base, item) = self.convert_path_to_item(path)?;
 
         if let Some(name) = item.as_local() {
             if let Some(var) =
@@ -85,7 +85,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(&item, path.span())? {
+        let meta = match self.lookup_meta(&base, &item, path.span())? {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(

@@ -101,6 +101,13 @@ impl Expander {
 
         for (i, field) in named.named.iter().enumerate() {
             let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
+            let ident = self.ctx.field_ident(&field)?;
+
+            if attrs.id.is_some() {
+                fields.push(quote_spanned! { field.span() => #ident: Default::default() });
+                continue;
+            }
+
             if attrs.attributes.is_some() {
                 if let Some((idx, attrs_field)) = &attrs_field {
                     let attrs_ident = self.ctx.field_ident(attrs_field)?;
@@ -123,7 +130,6 @@ impl Expander {
                 }
             }
 
-            let ident = self.ctx.field_ident(&field)?;
             fields.push(quote_spanned! { field.span() => #ident: parser.parse()? })
         }
 

@@ -1,15 +1,25 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::parsing::Opaque;
+use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A block of expressions.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct Block {
+    /// The unique identifier for the block expression.
+    #[rune(id)]
+    pub id: Id,
     /// The close brace.
     pub open: ast::OpenBrace,
     /// Statements in the block.
     pub statements: Vec<ast::Stmt>,
     /// The close brace.
     pub close: ast::CloseBrace,
+}
+
+impl Opaque for Block {
+    fn id(&self) -> Id {
+        self.id
+    }
 }
 
 impl Block {
@@ -71,6 +81,7 @@ impl Parse for Block {
         let close = parser.parse()?;
 
         Ok(Block {
+            id: Default::default(),
             open,
             statements,
             close,
