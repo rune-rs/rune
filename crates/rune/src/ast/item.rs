@@ -105,6 +105,7 @@ impl Item {
                 path,
             )?)
         } else {
+            let mut const_token = parser.parse::<Option<ast::Const>>()?;
             let mut async_token = parser.parse::<Option<ast::Async>>()?;
             let t = parser.token_peek_eof()?;
 
@@ -128,10 +129,11 @@ impl Item {
                     parser,
                     take(&mut attributes),
                 )?),
-                ast::Kind::Fn => Self::ItemFn(ast::ItemFn::parse_with_meta_async(
+                ast::Kind::Fn => Self::ItemFn(ast::ItemFn::parse_with_meta(
                     parser,
                     take(&mut attributes),
                     take(&mut visibility),
+                    take(&mut const_token),
                     take(&mut async_token),
                 )?),
                 ast::Kind::Mod => Self::ItemMod(ast::ItemMod::parse_with_meta(
@@ -139,12 +141,18 @@ impl Item {
                     take(&mut attributes),
                     take(&mut visibility),
                 )?),
-                ast::Kind::Const => Self::ItemConst(ast::ItemConst::parse_with_meta(
-                    parser,
-                    take(&mut attributes),
-                    take(&mut visibility),
-                )?),
-                ast::Kind::Ident(..) => Self::MacroCall(parser.parse()?),
+                ast::Kind::Ident { .. } => {
+                    if let Some(const_token) = const_token.take() {
+                        Self::ItemConst(ast::ItemConst::parse_with_meta(
+                            parser,
+                            take(&mut attributes),
+                            take(&mut visibility),
+                            const_token,
+                        )?)
+                    } else {
+                        Self::MacroCall(parser.parse()?)
+                    }
+                }
                 _ => {
                     return Err(ParseError::expected(
                         t,
@@ -152,6 +160,10 @@ impl Item {
                     ))
                 }
             };
+
+            if let Some(span) = const_token.option_span() {
+                return Err(ParseError::new(span, ParseErrorKind::UnsupportedConst));
+            }
 
             if let Some(span) = async_token.option_span() {
                 return Err(ParseError::new(span, ParseErrorKind::UnsupportedAsync));

@@ -392,6 +392,7 @@ impl Expr {
                     let args = parser.parse::<ast::Parenthesized<ast::Expr, ast::Comma>>()?;
 
                     expr = Expr::ExprCall(ast::ExprCall {
+                        id: Default::default(),
                         attributes: expr.take_attributes(),
                         expr: Box::new(expr),
                         args,

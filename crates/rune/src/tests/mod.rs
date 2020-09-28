@@ -1,6 +1,7 @@
 mod compiler_attributes;
 mod compiler_expr_assign;
 mod compiler_expr_binary;
+mod compiler_fn;
 mod compiler_general;
 mod compiler_literals;
 mod compiler_paths;

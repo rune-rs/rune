@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::indexing::IndexScopes;
+use crate::indexing::{IndexFnKind, IndexScopes};
 use crate::load::{SourceLoader, Sources};
 use crate::macros::{MacroCompiler, MacroContext};
 use crate::parsing::Parse;
@@ -175,17 +175,13 @@ impl<'a> Indexer<'a> {
     }
 
     /// Construct the calling convention based on the parameters.
-    fn call(generator: bool, is_async: bool) -> Call {
-        if is_async {
-            if generator {
-                Call::Stream
-            } else {
-                Call::Async
-            }
-        } else if generator {
-            Call::Generator
-        } else {
-            Call::Immediate
+    fn call(generator: bool, kind: IndexFnKind) -> Option<Call> {
+        match kind {
+            IndexFnKind::None if generator => Some(Call::Generator),
+            IndexFnKind::None => Some(Call::Immediate),
+            IndexFnKind::Async if generator => Some(Call::Stream),
+            IndexFnKind::Async => Some(Call::Async),
+            IndexFnKind::Const => None,
         }
     }
 
@@ -284,7 +280,26 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
         let item = self.items.item();
 
-        let guard = self.scopes.push_function(decl_fn.async_token.is_some());
+        let kind = match (decl_fn.const_token, decl_fn.async_token) {
+            (Some(const_token), Some(async_token)) => {
+                return Err(CompileError::new(
+                    const_token.span().join(async_token.span()),
+                    CompileErrorKind::FnConstAsyncConflict,
+                ));
+            }
+            (Some(..), _) => IndexFnKind::Const,
+            (_, Some(..)) => IndexFnKind::Async,
+            _ => IndexFnKind::None,
+        };
+
+        if let (Some(const_token), Some(async_token)) = (decl_fn.const_token, decl_fn.async_token) {
+            return Err(CompileError::new(
+                const_token.span().join(async_token.span()),
+                CompileErrorKind::FnConstAsyncConflict,
+            ));
+        }
+
+        let guard = self.scopes.push_function(kind);
 
         for (arg, _) in &decl_fn.args {
             match arg {
@@ -304,7 +319,33 @@ impl Index<ast::ItemFn> for Indexer<'_> {
         self.index(&mut decl_fn.body)?;
 
         let f = guard.into_function(span)?;
-        let call = Self::call(f.generator, f.is_async);
+
+        let call = match Self::call(f.generator, f.kind) {
+            Some(call) => call,
+            // const function.
+            None => {
+                if f.generator {
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::FnConstNotGenerator,
+                    ));
+                }
+
+                let id = self.query.insert_item(self.items.item());
+                decl_fn.id = id;
+
+                self.query.index_const_fn(
+                    &decl_fn,
+                    id,
+                    self.source.clone(),
+                    self.source_id,
+                    decl_fn.clone(),
+                    span,
+                )?;
+
+                return Ok(());
+            }
+        };
 
         let fun = Function {
             ast: decl_fn.clone(),
@@ -415,13 +456,19 @@ impl Index<ast::ExprBlock> for Indexer<'_> {
         }
 
         let _guard = self.items.push_async_block();
-        let guard = self.scopes.push_closure(true);
+        let guard = self.scopes.push_closure(IndexFnKind::Async);
         self.index(&mut expr_block.block)?;
 
         let c = guard.into_closure(span)?;
 
         let captures = Arc::new(c.captures);
-        let call = Self::call(c.generator, c.is_async);
+
+        let call = match Self::call(c.generator, c.kind) {
+            Some(call) => call,
+            None => {
+                return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
+            }
+        };
 
         let id = self.query.insert_item(self.items.item());
         expr_block.block.id = id;
@@ -1075,7 +1122,13 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
         log::trace!("ExprClosure => {:?}", self.source.source(span));
 
         let _guard = self.items.push_closure();
-        let guard = self.scopes.push_closure(expr_closure.async_token.is_some());
+
+        let kind = match expr_closure.async_token {
+            Some(..) => IndexFnKind::Async,
+            _ => IndexFnKind::None,
+        };
+
+        let guard = self.scopes.push_closure(kind);
         let span = expr_closure.span();
 
         for (arg, _) in expr_closure.args.as_slice() {
@@ -1096,7 +1149,13 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
         let c = guard.into_closure(span)?;
 
         let captures = Arc::new(c.captures);
-        let call = Self::call(c.generator, c.is_async);
+
+        let call = match Self::call(c.generator, c.kind) {
+            Some(call) => call,
+            None => {
+                return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
+            }
+        };
 
         let id = self.query.insert_item(self.items.item());
         expr_closure.id = id;
@@ -1253,6 +1312,8 @@ impl Index<ast::ExprCall> for Indexer<'_> {
     fn index(&mut self, expr_call: &mut ast::ExprCall) -> CompileResult<()> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span));
+
+        expr_call.id = self.query.insert_item(self.items.item());
 
         for (expr, _) in &mut expr_call.args {
             self.index(expr)?;

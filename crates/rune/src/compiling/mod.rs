@@ -283,6 +283,9 @@ impl CompileBuildEntry<'_> {
             Build::UnusedConst(c) => {
                 self.warnings.not_used(source_id, &c.ir, None);
             }
+            Build::UnusedConstFn(c) => {
+                self.warnings.not_used(source_id, &c.item_fn, None);
+            }
         }
 
         Ok(())

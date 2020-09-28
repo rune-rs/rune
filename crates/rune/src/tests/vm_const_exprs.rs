@@ -154,3 +154,32 @@ fn test_if_else() {
     "#);
     assert_eq!(result, 3);
 }
+
+#[test]
+fn test_const_fn() {
+    let result = rune!(i64 => r#"
+    const VALUE = 2;
+    const fn foo(n) { n + VALUE }
+
+    fn main() {
+        const VALUE = 1;
+        foo(1 + 4 / 2 - VALUE) + foo(VALUE - 1)
+    }
+    "#);
+
+    assert_eq!(result, 6);
+
+    let result = rune!(String => r#"
+    const VALUE = "baz";
+
+    const fn foo(n) {
+        `foo {n}`
+    }
+    
+    fn main() {
+        foo(`bar {VALUE}`)
+    }
+    "#);
+
+    assert_eq!(result, "foo bar baz");
+}

@@ -7,7 +7,6 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         log::trace!("ExprCall => {:?}", self.source.source(span));
 
         let guard = self.scopes.push_child(span)?;
-
         let args = expr_call.args.len();
 
         // NB: either handle a proper function call by resolving it's meta hash,
@@ -61,18 +60,20 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             return Ok(());
         };
 
-        for (expr, _) in &expr_call.args {
-            self.compile((expr, Needs::Value))?;
-            self.scopes.decl_anon(span)?;
-        }
-
         let (base, item) = self.convert_path_to_item(path)?;
 
         if let Some(name) = item.as_local() {
-            if let Some(var) =
-                self.scopes
-                    .try_get_var(name, self.source_id, self.visitor, path.span())
-            {
+            let local = self
+                .scopes
+                .try_get_var(name, self.source_id, self.visitor, path.span())
+                .copied();
+
+            if let Some(var) = local {
+                for (expr, _) in &expr_call.args {
+                    self.compile((expr, Needs::Value))?;
+                    self.scopes.decl_anon(span)?;
+                }
+
                 var.copy(&mut self.asm, span, format!("var `{}`", name));
                 self.asm.push(Inst::CallFn { args }, span);
 
@@ -137,6 +138,23 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                 tuple.item.clone()
             }
             CompileMetaKind::Function { item, .. } => item.clone(),
+            CompileMetaKind::ConstFn { id, item: at, .. } => {
+                let from = self.query.item_for(expr_call)?.clone();
+                let const_fn = self.query.const_fn_for((expr_call.span(), *id))?;
+
+                let value = self.call_const_fn(
+                    expr_call,
+                    &meta,
+                    &from,
+                    at,
+                    &*const_fn,
+                    expr_call.args.as_slice(),
+                )?;
+
+                self.compile((&value, expr_call.span()))?;
+                self.scopes.pop(guard, span)?;
+                return Ok(());
+            }
             _ => {
                 return Err(CompileError::new(
                     span,
@@ -144,6 +162,11 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                 ));
             }
         };
+
+        for (expr, _) in &expr_call.args {
+            self.compile((expr, Needs::Value))?;
+            self.scopes.decl_anon(span)?;
+        }
 
         let hash = Hash::type_hash(&item);
         self.asm

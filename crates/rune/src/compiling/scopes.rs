@@ -5,7 +5,7 @@ use runestick::{Inst, SourceId, Span};
 
 /// A locally declared variable, its calculated stack offset and where it was
 /// declared in its source file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Var {
     /// Slot offset from the current stack frame.
     pub(crate) offset: usize,

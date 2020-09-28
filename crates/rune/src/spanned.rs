@@ -1,4 +1,4 @@
-use crate::parsing::Id;
+use crate::Id;
 use runestick::Span;
 
 /// Types for which we can get a span.

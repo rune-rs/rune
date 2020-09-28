@@ -1,14 +1,16 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, Compile as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
-use crate::query::Query;
+use crate::ir::ir;
+use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
+use crate::query::{Query, Used};
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, Options, Resolve as _, Spanned as _, Storage, UnitBuilder,
-    Warnings,
+    CompileError, CompileErrorKind, Options, Resolve as _, Spanned, Storage, UnitBuilder, Warnings,
 };
 use runestick::{
-    CompileMeta, CompileMetaKind, Context, Inst, InstValue, Item, Label, Source, Span, TypeCheck,
+    CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label, Source, Span,
+    TypeCheck,
 };
 use std::sync::Arc;
 
@@ -783,5 +785,61 @@ impl<'a> Compiler<'a> {
     /// Get the latest relevant warning context.
     pub(crate) fn context(&self) -> Option<Span> {
         self.contexts.last().copied()
+    }
+
+    /// Calling a constant function by id and return the resuling value.
+    pub(crate) fn call_const_fn<S>(
+        &mut self,
+        spanned: S,
+        meta: &CompileMeta,
+        from: &Item,
+        at: &Item,
+        ir_fn: &ir::IrFn,
+        args: &[(ast::Expr, Option<ast::Comma>)],
+    ) -> Result<ConstValue, CompileError>
+    where
+        S: Copy + Spanned,
+    {
+        use crate::ir::IrCompile;
+
+        if ir_fn.args.len() != args.len() {
+            return Err(CompileError::new(
+                spanned,
+                CompileErrorKind::UnsupportedArgumentCount {
+                    meta: meta.clone(),
+                    expected: ir_fn.args.len(),
+                    actual: args.len(),
+                },
+            ));
+        }
+
+        let mut compiler = IrCompiler {
+            query: self.query,
+            source: &*self.source,
+            storage: self.storage,
+        };
+
+        let mut compiled = Vec::new();
+
+        // TODO: precompile these and fetch using opaque id?
+        for ((a, _), name) in args.iter().zip(&ir_fn.args) {
+            compiled.push((compiler.compile(a)?, name));
+        }
+
+        let mut interpreter = IrInterpreter {
+            budget: IrBudget::new(1_000_000),
+            scopes: Default::default(),
+            item: from.clone(),
+            query: self.query,
+        };
+
+        for (ir, name) in compiled {
+            let value = interpreter.eval_value(&ir, Used::Used)?;
+            interpreter.scopes.decl(name, value, spanned)?;
+        }
+
+        interpreter.item = at.clone();
+        let value = interpreter.eval_value(&ir_fn.ir, Used::Used)?;
+        Ok(value.into_const(spanned)?)
     }
 }

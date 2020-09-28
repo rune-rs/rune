@@ -37,12 +37,13 @@ impl ItemConst {
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
         visibility: ast::Visibility,
+        const_token: ast::Const,
     ) -> Result<Self, ParseError> {
         Ok(Self {
             id: Default::default(),
             attributes,
             visibility,
-            const_token: parser.parse()?,
+            const_token,
             name: parser.parse()?,
             eq: parser.parse()?,
             expr: parser.parse()?,

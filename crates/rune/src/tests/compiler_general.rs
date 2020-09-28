@@ -23,7 +23,7 @@ fn break_outside_of_loop() {
 #[test]
 fn test_pointers() {
     assert_compile_error! {
-        r#"fn main() { let n = 0; foo(&n); }"#,
+        r#"fn main() { let n = 0; foo(&n); } fn foo(n) {}"#,
         span, UnsupportedRef => {
             assert_eq!(span, Span::new(27, 29));
         }

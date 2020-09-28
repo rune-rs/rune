@@ -16,8 +16,8 @@ use std::ops;
 pub struct Id(Option<NonZeroUsize>);
 
 impl Id {
-    /// Construct a new identifier.
-    pub(crate) fn new(index: usize) -> Id {
+    /// Construct a new opaque identifier.
+    pub fn new(index: usize) -> Id {
         Id(NonZeroUsize::new(index + 1))
     }
 }
