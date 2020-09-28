@@ -80,6 +80,7 @@ impl IrCompile<&ast::Expr> for IrCompiler<'_> {
             ast::Expr::ExprGroup(expr_group) => self.compile(&*expr_group.expr)?,
             ast::Expr::ExprBinary(expr_binary) => self.compile(expr_binary)?,
             ast::Expr::ExprAssign(expr_assign) => self.compile(expr_assign)?,
+            ast::Expr::ExprCall(expr_call) => ir::Ir::new(expr.span(), self.compile(expr_call)?),
             ast::Expr::ExprIf(expr_if) => ir::Ir::new(expr.span(), self.compile(expr_if)?),
             ast::Expr::ExprLoop(expr_loop) => ir::Ir::new(expr.span(), self.compile(expr_loop)?),
             ast::Expr::ExprWhile(expr_while) => ir::Ir::new(expr.span(), self.compile(expr_while)?),
@@ -141,6 +142,37 @@ impl IrCompile<&ast::ExprAssign> for IrCompiler<'_> {
                 value: Box::new(self.compile(&*expr_assign.rhs)?),
             },
         ));
+    }
+}
+
+impl IrCompile<&ast::ExprCall> for IrCompiler<'_> {
+    type Output = ir::IrCall;
+
+    fn compile(&mut self, expr_call: &ast::ExprCall) -> Result<Self::Output, CompileError> {
+        let span = expr_call.span();
+
+        let mut args = Vec::new();
+
+        for (expr, _) in &expr_call.args {
+            args.push(self.compile(expr)?);
+        }
+
+        match &*expr_call.expr {
+            ast::Expr::Path(path) => {
+                if let Some(ident) = path.try_as_ident() {
+                    let target = self.resolve(ident)?;
+
+                    return Ok(ir::IrCall {
+                        span,
+                        target: target.into(),
+                        args,
+                    });
+                }
+            }
+            _ => (),
+        }
+
+        Err(CompileError::const_error(span, "call not supported"))
     }
 }
 

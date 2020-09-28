@@ -26,6 +26,7 @@ impl Eval<&ir::Ir> for IrInterpreter<'_> {
             ir::IrKind::Vec(ir_vec) => self.eval(ir_vec, used),
             ir::IrKind::Tuple(ir_tuple) => self.eval(ir_tuple, used),
             ir::IrKind::Object(ir_object) => self.eval(ir_object, used),
+            ir::IrKind::Call(ir_call) => self.eval(ir_call, used),
         }
     }
 }

@@ -108,6 +108,8 @@ decl_kind! {
         Tuple(IrTuple),
         /// Constructing an object.
         Object(IrObject),
+        /// A call.
+        Call(IrCall),
     }
 }
 
@@ -298,6 +300,18 @@ pub(crate) struct IrObject {
     pub(crate) span: Span,
     /// Field initializations.
     pub(crate) assignments: Box<[(Box<str>, Ir)]>,
+}
+
+/// Call expressions.
+#[derive(Debug, Clone, Spanned)]
+pub(crate) struct IrCall {
+    /// Span of the call.
+    #[rune(span)]
+    pub(crate) span: Span,
+    /// The target of the call.
+    pub(crate) target: Box<str>,
+    /// Arguments to the call.
+    pub(crate) args: Vec<Ir>,
 }
 
 /// Vector expression.

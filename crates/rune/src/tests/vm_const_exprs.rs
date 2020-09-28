@@ -182,4 +182,18 @@ fn test_const_fn() {
     "#);
 
     assert_eq!(result, "foo bar baz");
+
+    let result = rune!(String => r#"
+    const VALUE = foo("bar", "baz");
+
+    const fn foo(a, b) {
+        `foo {a} {b}`
+    }
+
+    fn main() {
+        VALUE
+    }
+    "#);
+
+    assert_eq!(result, "foo bar baz");
 }

@@ -9,6 +9,7 @@ mod ir_assign;
 mod ir_binary;
 mod ir_branches;
 mod ir_break;
+mod ir_call;
 mod ir_condition;
 mod ir_decl;
 mod ir_loop;

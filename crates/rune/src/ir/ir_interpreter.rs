@@ -125,6 +125,69 @@ impl<'a> IrInterpreter<'a> {
 
         Err(IrError::new(span, IrErrorKind::NotConst))
     }
+
+    pub(crate) fn call_const_fn<S>(
+        &mut self,
+        spanned: S,
+        target: &str,
+        args: Vec<IrValue>,
+        used: Used,
+    ) -> Result<IrValue, IrError>
+    where
+        S: Copy + Spanned,
+    {
+        let mut base = self.item.clone();
+
+        let id = loop {
+            let item = base.extended(target);
+
+            if let Some(meta) = self.query.query_meta_with_use(&item, used)? {
+                match &meta.kind {
+                    CompileMetaKind::ConstFn { id, .. } => {
+                        break Some(*id);
+                    }
+                    _ => {
+                        return Err(IrError::new(spanned, IrErrorKind::UnsupportedMeta { meta }));
+                    }
+                }
+            }
+
+            if base.is_empty() {
+                break None;
+            }
+
+            base.pop();
+        };
+
+        let id = match id {
+            Some(id) => id,
+            None => {
+                return Err(IrError::new(spanned, IrErrorKind::FnNotFound));
+            }
+        };
+
+        let const_fn = self.query.const_fn_for((spanned.span(), id))?;
+
+        if const_fn.args.len() != args.len() {
+            return Err(IrError::new(
+                spanned,
+                IrErrorKind::ArgumentCountMismatch {
+                    actual: args.len(),
+                    expected: const_fn.args.len(),
+                },
+            ));
+        }
+
+        let guard = self.scopes.push();
+
+        for (name, value) in const_fn.args.iter().zip(args) {
+            self.scopes.decl(&**name, value, spanned)?;
+        }
+
+        let value = self.eval_value(&const_fn.ir, used)?;
+        self.scopes.pop(spanned, guard)?;
+        Ok(value)
+    }
 }
 
 impl IrScopes {

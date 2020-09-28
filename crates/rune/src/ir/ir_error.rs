@@ -61,6 +61,7 @@ impl IrError {
 
 /// Error when encoding AST.
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
 pub enum IrErrorKind {
     /// A custom error.
     #[error("{0}")]
@@ -140,4 +141,8 @@ pub enum IrErrorKind {
     /// Error raised when trying to use a break outside of a loop.
     #[error("break outside of supported loop")]
     BreakOutsideOfLoop,
+    #[error("function not found")]
+    FnNotFound,
+    #[error("argument count mismatch, got {actual} but expected {expected}")]
+    ArgumentCountMismatch { actual: usize, expected: usize },
 }
