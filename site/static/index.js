@@ -2,28 +2,28 @@
 window.onload = () => {
     // Only permit that snippets run 1_000_000 instructions by default.
     let budget = 1_000_000;
-    let outputTrim = 100;
-    let outputLineTrim = 80;
+    let colTrim = 100;
+    let lineTrim = 80;
 
     let editors = [];
     
     for (let rune of document.querySelectorAll(".rune")) {
         let updateUrl = rune.getAttribute("rune-update-url") === "true";
         let runOnChange = rune.getAttribute("rune-run-on-change") === "true";
-        let runeOptions = parseOptions(rune.getAttribute("rune-options") || "");
-        let runeExperimental = rune.getAttribute("rune-experimental") === "true";
+        let options = parseOptions(rune.getAttribute("rune-options") || "");
+        let experimental = rune.getAttribute("rune-experimental") === "true";
 
-        let options = {
+        let opts = {
             budget,
-            outputTrim,
-            outputLineTrim,
+            colTrim,
+            lineTrim,
             updateUrl,
             runOnChange,
-            runeOptions,
-            runeExperimental
+            options,
+            experimental
         };
 
-        editors.push(setupEditor(rune, options));
+        editors.push(setupEditor(rune, opts));
     }
 
     rune.init().then(() => {
@@ -83,16 +83,23 @@ function updateUrlContent(content) {
     history.replaceState(null, null, "?" + query.toString());
 }
 
-function setupEditor(element, options) {
-    let { budget, outputTrim, outputLineTrim, updateUrl, runOnChange, runeOptions, runeExperimental } = options;
-
+function setupEditor(element, opts) {
     let runeEditor = element.querySelector(".rune-editor");
-    let runeOutput = element.querySelector(".rune-output");
-    let runButton = element.querySelector(".rune-run");
-    let runeControl = element.querySelector(".rune-control");
 
-    if (runOnChange && !!runeControl) {
-        runeControl.classList.add("hidden");
+    let primaryOutput = element.querySelector(".rune-output.primary");
+    let diagnosticsOutput = element.querySelector(".rune-output.diagnostics");
+    let instructionsOutput = element.querySelector(".rune-output.instructions");
+
+    let runButton = element.querySelector(".rune-run");
+    let instructionsCheckbox = element.querySelector(".rune-checkbox.instructions");
+    let runOnChangeCheckbox = element.querySelector(".rune-checkbox.run-on-change");
+
+    primaryOutput.classList.add("hidden");
+    diagnosticsOutput.classList.add("hidden");
+    instructionsOutput.classList.add("hidden");
+
+    if (!!runOnChangeCheckbox) {
+        runOnChangeCheckbox.checked = opts.runOnChange;
     }
 
     let markers = [];
@@ -110,7 +117,7 @@ function setupEditor(element, options) {
     let content = editor.getValue();
     let [prelude, newContent] = filterPrelude(content);
 
-    if (!!updateUrl) {
+    if (!!opts.updateUrl) {
         let content = getUrlContent();
 
         if (!!content) {
@@ -129,10 +136,12 @@ function setupEditor(element, options) {
             runButton.disabled = true;
         }
 
-        runeOutput.textContent = "Running...";
+        primaryOutput.textContent = "Running...";
+        primaryOutput.classList.remove("hidden");
+
         let content = editor.getValue();
 
-        if (!!updateUrl) {
+        if (!!opts.updateUrl) {
             updateUrlContent(content);
         }
 
@@ -146,7 +155,13 @@ function setupEditor(element, options) {
             content = `${content}\n${prelude}`;
         }
 
-        let o = {budget, options: runeOptions, experimental: runeExperimental};
+        let o = {
+            budget: opts.budget,
+            options: opts.options,
+            experimental: opts.experimental,
+            instructions: !!(instructionsCheckbox && instructionsCheckbox.checked),
+        };
+
         let result = null;
 
         try {
@@ -157,36 +172,55 @@ function setupEditor(element, options) {
             }
         }
 
-        let text = "";
-    
         if (!!result.diagnostics_output) {
-            text += result.diagnostics_output + "\n";
+            diagnosticsOutput.textContent = result.diagnostics_output;
+            diagnosticsOutput.classList.remove("hidden");
+        } else {
+            diagnosticsOutput.textContent = null;
+            diagnosticsOutput.classList.add("hidden");
         }
+
+        let hasOutput = !!result.output || !!result.result;
+        let text = "";
 
         if (!!result.output) {
             let parts = result.output.split("\n").map(part => {
-                if (part.length > outputLineTrim) {
-                    let trimmed = part.length - outputLineTrim;
-                    return part.slice(0, outputLineTrim) + ` ... (${trimmed} trimmed)`;
+                if (part.length > opts.lineTrim) {
+                    let trimmed = part.length - opts.lineTrim;
+                    return part.slice(0, opts.lineTrim) + ` ... (${trimmed} trimmed)`;
                 } else {
                     return part;
                 }
             });
             
-            if (parts.length > outputTrim) {
-                text += parts.slice(0, outputTrim).join("\n") + "\n";
-                text += `${parts.length - outputTrim} more lines trimmed...\n`;
+            if (parts.length > opts.colTrim) {
+                text += parts.slice(0, opts.colTrim).join("\n") + "\n";
+                text += `${parts.length - opts.colTrim} more lines trimmed...\n`;
             } else {
                 text += parts.join("\n");
             }
         }
-        
+
         if (!result.error) {
-            text +=  "== " + result.result;
+            text += result.result;
         }
 
-        runeOutput.textContent = text;
-        
+        if (hasOutput) {
+            primaryOutput.textContent = text;
+            primaryOutput.classList.remove("hidden");
+        } else {
+            primaryOutput.textContent = null;
+            primaryOutput.classList.add("hidden");
+        }
+
+        if (!!result.instructions) {
+            instructionsOutput.textContent = `# instruction\n${result.instructions}`;
+            instructionsOutput.classList.remove("hidden");
+        } else {
+            instructionsOutput.textContent = null;
+            instructionsOutput.classList.add("hidden");   
+        }
+
         let annotations = [];
         
         for (let d of result.diagnostics) {
@@ -194,7 +228,7 @@ function setupEditor(element, options) {
                 d.start.line, d.start.character,
                 d.end.line, d.end.character,
             );
-                
+
             markers.push(editor.getSession().addMarker(r, d.kind, "text"));
 
             annotations.push({
@@ -209,25 +243,21 @@ function setupEditor(element, options) {
         editor.getSession().setAnnotations(annotations);
     };
 
-    if (runOnChange || !runButton) {
-        runeOutput.classList.remove("hidden");
+    runButton.addEventListener("click", (e) => {
+        e.preventDefault();
+        recompile();
+        return false;
+    });
 
-        editor.session.on('change', function(delta) {
+    editor.session.on('change', function(delta) {
+        if (runOnChangeCheckbox.checked) {
             recompile();
-        });
+        }
+    });
 
+    if (runOnChangeCheckbox.checked) {
         return { recompile };
-    } else {
-        runeOutput.classList.add("hidden");
-        runButton.classList.remove("hidden");
-
-        runButton.addEventListener("click", (e) => {
-            runeOutput.classList.remove("hidden");
-            e.preventDefault();
-            recompile();
-            return false;
-        });
-
-        return { recompile: () => {} };
     }
+
+    return { recompile: () => {} };
 }

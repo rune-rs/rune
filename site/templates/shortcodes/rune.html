@@ -1,15 +1,28 @@
 <div class="rune big"
     rune-update-url="false"
     rune-run-on-change="{% if manually %}false{% else %}true{% endif %}""
+    rune-run-button="{% if run %}true{% else %}false{% endif %}""
     rune-options="{% if options %}{{options}}{% endif %}""
     rune-experimental="{% if experimental %}true{% else %}false{% endif %}""
     >
-    <div class="rune-editor {% if classes %}{{classes}}{% endif %}">{{body | safe}}</div>
-    <div class="rune-console {% if classes %}{{classes}}{% endif %}">
+    <div class="rune-editor">{{body | safe}}</div>
+    <div class="rune-console">
         <div class="rune-control">
-            <button class="rune-run">Run</button>
+            <button class="rune-button rune-run">Run</button>
+
+            <label class="rune-option">
+                <input class="rune-checkbox instructions" type="checkbox" title="Show compiled instructions"></input>
+                Instructions
+            </label>
+
+            <label class="rune-option">
+                <input class="rune-checkbox run-on-change" type="checkbox" title="Show compiled instructions"></input>
+                Run on change
+            </label>
         </div>
-        <div class="rune-output"></div>
+        <div class="rune-output primary"></div>
+        <div class="rune-output diagnostics"></div>
+        <div class="rune-output instructions"></div>
     </div>
     {% if footnote %}<div class="rune-footnote">{{footnote}}</div>{% endif %}
 </div>

@@ -4,7 +4,7 @@ use crate::{
     CompileErrorKind, Error, ErrorKind, Errors, LinkerError, Sources, Spanned as _, WarningKind,
     Warnings,
 };
-use runestick::{Span, VmError};
+use runestick::{Span, Unit, VmError};
 use std::error::Error as _;
 use std::fmt;
 use std::fmt::Write as _;
@@ -362,4 +362,75 @@ pub fn line_for(source: &str, span: Span) -> Option<(usize, &str)> {
     }
 
     None
+}
+
+/// Trait to dump a unit to the given writer.
+pub trait DumpInstructions {
+    /// Dump the current unit to the given writer.
+    fn dump_instructions<O>(
+        &self,
+        out: &mut O,
+        sources: &Sources,
+        with_source: bool,
+    ) -> io::Result<()>
+    where
+        O: io::Write;
+}
+
+impl DumpInstructions for Unit {
+    fn dump_instructions<O>(
+        &self,
+        out: &mut O,
+        sources: &Sources,
+        with_source: bool,
+    ) -> io::Result<()>
+    where
+        O: io::Write,
+    {
+        let mut first_function = true;
+
+        for (n, inst) in self.iter_instructions().enumerate() {
+            let debug = self.debug_info().and_then(|d| d.instruction_at(n));
+
+            if let Some((hash, signature)) = self.debug_info().and_then(|d| d.function_at(n)) {
+                if first_function {
+                    first_function = false;
+                } else {
+                    writeln!(out)?;
+                }
+
+                writeln!(out, "fn {} ({}):", signature, hash)?;
+            }
+
+            if with_source {
+                if let Some((source, span)) =
+                    debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
+                {
+                    if let Some((count, line)) = self::line_for(source.as_str(), span) {
+                        writeln!(
+                            out,
+                            "  {}:{: <3} - {}",
+                            source.name(),
+                            count + 1,
+                            line.trim_end()
+                        )?;
+                    }
+                }
+            }
+
+            if let Some(label) = debug.and_then(|d| d.label.as_ref()) {
+                writeln!(out, "{}:", label)?;
+            }
+
+            write!(out, "  {:04} = {}", n, inst)?;
+
+            if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
+                write!(out, " // {}", comment)?;
+            }
+
+            writeln!(out)?;
+        }
+
+        Ok(())
+    }
 }
