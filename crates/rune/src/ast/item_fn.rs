@@ -1,8 +1,34 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use crate::{ParseError, Parser, Peek, Spanned, ToTokens};
 use runestick::Span;
 
-/// A function.
+/// A function item.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast, parse_all};
+///
+/// testing::roundtrip::<ast::ItemFn>("async fn hello() {}");
+/// assert!(parse_all::<ast::ItemFn>("fn async hello() {}").is_err());
+///
+/// let item = testing::roundtrip::<ast::ItemFn>("fn hello() {}");
+/// assert_eq!(item.args.len(), 0);
+///
+/// let item = testing::roundtrip::<ast::ItemFn>("fn hello(foo, bar) {}");
+/// assert_eq!(item.args.len(), 2);
+///
+/// testing::roundtrip::<ast::ItemFn>("pub fn hello(foo, bar) {}");
+/// testing::roundtrip::<ast::ItemFn>("pub async fn hello(foo, bar) {}");
+/// testing::roundtrip::<ast::ItemFn>("#[inline] fn hello(foo, bar) {}");
+///
+/// let item = testing::roundtrip::<ast::ItemFn>("#[inline] pub async fn hello(foo, bar) {}");
+/// assert!(matches!(item.visibility, ast::Visibility::Public(..)));
+///
+/// assert_eq!(item.args.len(), 2);
+/// assert_eq!(item.attributes.len(), 1);
+///
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemFn {
     /// The attributes for the fn
@@ -58,44 +84,10 @@ impl ItemFn {
     }
 }
 
+item_parse!(ItemFn, "function item");
+
 impl Peek for ItemFn {
     fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
         matches!(peek!(t1).kind, ast::Kind::Fn | ast::Kind::Async)
-    }
-}
-
-/// Parse implementation for a function.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast, parse_all};
-///
-/// testing::roundtrip::<ast::ItemFn>("async fn hello() {}");
-/// assert!(parse_all::<ast::ItemFn>("fn async hello() {}").is_err());
-///
-/// let item = testing::roundtrip::<ast::ItemFn>("fn hello() {}");
-/// assert_eq!(item.args.len(), 0);
-///
-/// let item = testing::roundtrip::<ast::ItemFn>("fn hello(foo, bar) {}");
-/// assert_eq!(item.args.len(), 2);
-///
-/// testing::roundtrip::<ast::ItemFn>("pub fn hello(foo, bar) {}");
-/// testing::roundtrip::<ast::ItemFn>("pub async fn hello(foo, bar) {}");
-/// testing::roundtrip::<ast::ItemFn>("#[inline] fn hello(foo, bar) {}");
-///
-/// let item = testing::roundtrip::<ast::ItemFn>("#[inline] pub async fn hello(foo, bar) {}");
-/// assert!(matches!(item.visibility, ast::Visibility::Public(..)));
-///
-/// assert_eq!(item.args.len(), 2);
-/// assert_eq!(item.attributes.len(), 1);
-///
-/// ```
-impl Parse for ItemFn {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        let visibility = parser.parse()?;
-        let async_token = parser.parse()?;
-        Self::parse_with_meta_async(parser, attributes, visibility, async_token)
     }
 }

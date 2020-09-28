@@ -35,6 +35,7 @@ mod lit_template;
 mod lit_tuple;
 mod lit_unit;
 mod lit_vec;
+mod local;
 mod prelude;
 
 /// Compiler trait implemented for things that can be compiled.

@@ -33,6 +33,8 @@ impl ExprBinary {
     }
 }
 
+expr_parse!(ExprBinary, "binary expression");
+
 /// A binary operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BinOp {

@@ -1,7 +1,22 @@
 use crate::ast;
 use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
-/// A module declaration.
+/// A module item.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::ItemMod>("mod ruins {}");
+///
+/// let item = testing::roundtrip::<ast::ItemMod>("#[cfg(test)] mod tests {}");
+/// assert_eq!(item.attributes.len(), 1);
+///
+/// let item = testing::roundtrip::<ast::ItemMod>("mod whiskey_bravo { #![allow(dead_code)] fn x() {} }");
+/// assert_eq!(item.attributes.len(), 0);
+/// assert!(matches!(item.body, ast::ItemModBody::InlineBody(..)));
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemMod {
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
@@ -35,29 +50,7 @@ impl ItemMod {
     }
 }
 
-/// Parse a `mod` item
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::ItemMod>("mod ruins {}");
-///
-/// let item = testing::roundtrip::<ast::ItemMod>("#[cfg(test)] mod tests {}");
-/// assert_eq!(item.attributes.len(), 1);
-///
-/// let item = testing::roundtrip::<ast::ItemMod>("mod whiskey_bravo { #![allow(dead_code)] fn x() {} }");
-/// assert_eq!(item.attributes.len(), 0);
-/// assert!(matches!(item.body, ast::ItemModBody::InlineBody(..)));
-/// ```
-impl Parse for ItemMod {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        let visibility = parser.parse()?;
-        Self::parse_with_meta(parser, attributes, visibility)
-    }
-}
+item_parse!(ItemMod, "mod item");
 
 /// An item body.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

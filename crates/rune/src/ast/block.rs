@@ -3,6 +3,20 @@ use crate::parsing::Opaque;
 use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A block of expressions.
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// let expr = testing::roundtrip::<ast::ExprBlock>("{}");
+/// assert_eq!(expr.block.statements.len(), 0);
+///
+/// let expr = testing::roundtrip::<ast::ExprBlock>("{ 42 }");
+/// assert_eq!(expr.block.statements.len(), 1);
+///
+/// let expr = testing::roundtrip::<ast::ExprBlock>("#[retry] { 42 }");
+/// assert_eq!(expr.block.statements.len(), 1);
+/// assert_eq!(expr.attributes.len(), 1);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct Block {
     /// The unique identifier for the block expression.
@@ -29,9 +43,9 @@ impl Block {
 
         while let Some(stmt) = it.next_back() {
             match stmt {
-                ast::Stmt::Item(..) => (),
                 ast::Stmt::Expr(..) => return false,
                 ast::Stmt::Semi(..) => return true,
+                _ => (),
             }
         }
 

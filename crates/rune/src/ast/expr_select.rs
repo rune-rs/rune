@@ -3,6 +3,26 @@ use crate::ast::utils;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A `select` expression that selects over a collection of futures.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// let select = testing::roundtrip::<ast::ExprSelect>(r#"
+/// select {
+///     _ = a => 0,
+///     _ = b => {},
+///     _ = c => {}
+///     default => ()
+/// }
+/// "#);
+///
+/// assert_eq!(4, select.branches.len());
+/// assert!(matches!(select.branches.get(1), Some(&(ast::ExprSelectBranch::Pat(..), Some(..)))));
+/// assert!(matches!(select.branches.get(2), Some(&(ast::ExprSelectBranch::Pat(..), None))));
+/// assert!(matches!(select.branches.get(3), Some(&(ast::ExprSelectBranch::Default(..), None))));
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprSelect {
     /// The attributes of the `select`
@@ -52,33 +72,7 @@ impl ExprSelect {
     }
 }
 
-/// Parse a `select`.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// let select = testing::roundtrip::<ast::ExprSelect>(r#"
-/// select {
-///     _ = a => 0,
-///     _ = b => {},
-///     _ = c => {}
-///     default => ()
-/// }
-/// "#);
-///
-/// assert_eq!(4, select.branches.len());
-/// assert!(matches!(select.branches.get(1), Some(&(ast::ExprSelectBranch::Pat(..), Some(..)))));
-/// assert!(matches!(select.branches.get(2), Some(&(ast::ExprSelectBranch::Pat(..), None))));
-/// assert!(matches!(select.branches.get(3), Some(&(ast::ExprSelectBranch::Default(..), None))));
-/// ```
-impl Parse for ExprSelect {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
-    }
-}
+expr_parse!(ExprSelect, "select expression");
 
 /// A single selection branch.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

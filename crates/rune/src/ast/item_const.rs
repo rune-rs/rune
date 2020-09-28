@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{Id, ParseError, Parser, Spanned, ToTokens};
 
 /// A const declaration.
 ///
@@ -10,7 +10,7 @@ use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
 ///
 /// testing::roundtrip::<ast::ItemConst>("const value = #{}");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemConst {
     /// Opaque identifier for the constant.
     #[rune(id)]
@@ -49,3 +49,5 @@ impl ItemConst {
         })
     }
 }
+
+item_parse!(ItemConst, "constant item");

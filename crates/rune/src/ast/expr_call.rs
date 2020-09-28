@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, Spanned, ToTokens};
+use crate::{Spanned, ToTokens};
 
 /// A function call `<expr>(<args>)`.
 ///
@@ -8,9 +8,9 @@ use crate::{Parse, Spanned, ToTokens};
 /// ```rust
 /// use rune::{testing, ast};
 ///
-/// testing::roundtrip::<ast::Expr>("test()");
+/// testing::roundtrip::<ast::ExprCall>("test()");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprCall {
     /// Attributes associated with expression.
     #[rune(iter)]
@@ -20,3 +20,5 @@ pub struct ExprCall {
     /// The arguments of the function call.
     pub args: ast::Parenthesized<ast::Expr, ast::Comma>,
 }
+
+expr_parse!(ExprCall, "call expression");

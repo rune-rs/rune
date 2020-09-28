@@ -2,7 +2,6 @@ use crate::ast;
 use crate::{
     OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens,
 };
-use runestick::Span;
 use std::mem::take;
 use std::ops;
 
@@ -132,35 +131,35 @@ impl Expr {
         }
     }
 
-    /// Test if the expression has any attributes
-    pub fn attributes_span(&self) -> Option<Span> {
+    /// Access the attributes of the expression.
+    pub fn attributes(&self) -> &[ast::Attribute] {
         match self {
-            Expr::Self_(_) => None,
-            Expr::Path(_) => None,
-            Expr::Item(expr) => expr.attributes_span(),
-            Expr::ExprBreak(expr) => expr.attributes.option_span(),
-            Expr::ExprYield(expr) => expr.attributes.option_span(),
-            Expr::ExprBlock(expr) => expr.attributes.option_span(),
-            Expr::ExprReturn(expr) => expr.attributes.option_span(),
-            Expr::ExprClosure(expr) => expr.attributes.option_span(),
-            Expr::ExprMatch(expr) => expr.attributes.option_span(),
-            Expr::ExprWhile(expr) => expr.attributes.option_span(),
-            Expr::ExprLoop(expr) => expr.attributes.option_span(),
-            Expr::ExprFor(expr) => expr.attributes.option_span(),
-            Expr::ExprLet(expr) => expr.attributes.option_span(),
-            Expr::ExprIf(expr) => expr.attributes.option_span(),
-            Expr::ExprSelect(expr) => expr.attributes.option_span(),
-            Expr::ExprLit(expr) => expr.attributes.option_span(),
-            Expr::ExprAssign(expr) => expr.attributes.option_span(),
-            Expr::ExprBinary(expr) => expr.attributes.option_span(),
-            Expr::ExprCall(expr) => expr.attributes.option_span(),
-            Expr::MacroCall(expr) => expr.attributes.option_span(),
-            Expr::ExprFieldAccess(expr) => expr.attributes.option_span(),
-            Expr::ExprGroup(expr) => expr.attributes.option_span(),
-            Expr::ExprUnary(expr) => expr.attributes.option_span(),
-            Expr::ExprIndex(expr) => expr.attributes.option_span(),
-            Expr::ExprAwait(expr) => expr.attributes.option_span(),
-            Expr::ExprTry(expr) => expr.attributes.option_span(),
+            Expr::Self_(_) => &[],
+            Expr::Path(_) => &[],
+            Expr::Item(expr) => expr.attributes(),
+            Expr::ExprBreak(expr) => &expr.attributes,
+            Expr::ExprYield(expr) => &expr.attributes,
+            Expr::ExprBlock(expr) => &expr.attributes,
+            Expr::ExprReturn(expr) => &expr.attributes,
+            Expr::ExprClosure(expr) => &expr.attributes,
+            Expr::ExprMatch(expr) => &expr.attributes,
+            Expr::ExprWhile(expr) => &expr.attributes,
+            Expr::ExprLoop(expr) => &expr.attributes,
+            Expr::ExprFor(expr) => &expr.attributes,
+            Expr::ExprLet(expr) => &expr.attributes,
+            Expr::ExprIf(expr) => &expr.attributes,
+            Expr::ExprSelect(expr) => &expr.attributes,
+            Expr::ExprLit(expr) => &expr.attributes,
+            Expr::ExprAssign(expr) => &expr.attributes,
+            Expr::ExprBinary(expr) => &expr.attributes,
+            Expr::ExprCall(expr) => &expr.attributes,
+            Expr::MacroCall(expr) => &expr.attributes,
+            Expr::ExprFieldAccess(expr) => &expr.attributes,
+            Expr::ExprGroup(expr) => &expr.attributes,
+            Expr::ExprUnary(expr) => &expr.attributes,
+            Expr::ExprIndex(expr) => &expr.attributes,
+            Expr::ExprAwait(expr) => &expr.attributes,
+            Expr::ExprTry(expr) => &expr.attributes,
         }
     }
 
@@ -307,18 +306,20 @@ impl Expr {
                 parser,
                 take(attributes),
             )?),
-            ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => Self::ExprUnary(parser.parse()?),
-            ast::Kind::While => Self::ExprWhile(ast::ExprWhile::parse_with_attributes_and_label(
+            ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => Self::ExprUnary(
+                ast::ExprUnary::parse_with_meta(parser, take(attributes), eager_brace)?,
+            ),
+            ast::Kind::While => Self::ExprWhile(ast::ExprWhile::parse_with_meta(
                 parser,
                 take(attributes),
                 take(&mut label),
             )?),
-            ast::Kind::Loop => Self::ExprLoop(ast::ExprLoop::parse_with_attributes_and_label(
+            ast::Kind::Loop => Self::ExprLoop(ast::ExprLoop::parse_with_meta(
                 parser,
                 take(attributes),
                 take(&mut label),
             )?),
-            ast::Kind::For => Self::ExprFor(ast::ExprFor::parse_with_attributes_and_label(
+            ast::Kind::For => Self::ExprFor(ast::ExprFor::parse_with_meta(
                 parser,
                 take(attributes),
                 take(&mut label),
@@ -400,7 +401,7 @@ impl Expr {
                     expr = Expr::ExprTry(ast::ExprTry {
                         attributes: expr.take_attributes(),
                         expr: Box::new(expr),
-                        try_: parser.parse()?,
+                        try_token: parser.parse()?,
                     });
                 }
                 ast::Kind::Eq => {
@@ -571,7 +572,8 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_with(parser, EagerBrace(true))
+        let out = Self::parse_with(parser, EagerBrace(true));
+        out
     }
 }
 
@@ -604,5 +606,20 @@ impl Peek for Expr {
             ast::Kind::Return => true,
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ast, testing};
+
+    #[test]
+    fn test_expr_if() {
+        testing::roundtrip::<ast::Expr>(r#"if true {} else {}"#);
+    }
+
+    #[test]
+    fn test_expr_while() {
+        testing::roundtrip::<ast::ExprWhile>(r#"while true {}"#);
     }
 }

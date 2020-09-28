@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, Spanned, ToTokens};
+use crate::{Spanned, ToTokens};
 
 /// A block expression.
 ///
@@ -18,7 +18,7 @@ use crate::{Parse, Spanned, ToTokens};
 /// assert_eq!(expr.block.statements.len(), 1);
 /// assert_eq!(expr.attributes.len(), 1);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprBlock {
     /// The attributes for the block.
     #[rune(iter)]
@@ -29,3 +29,5 @@ pub struct ExprBlock {
     /// The close brace.
     pub block: ast::Block,
 }
+
+expr_parse!(ExprBlock, "block expression");

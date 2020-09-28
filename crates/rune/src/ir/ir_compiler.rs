@@ -89,15 +89,8 @@ impl IrCompile<&ast::Expr> for IrCompiler<'_> {
             }
             ast::Expr::Path(path) => self.compile(path)?,
             ast::Expr::ExprFieldAccess(..) => ir::Ir::new(expr, self.ir_target(expr)?),
-            ast::Expr::ExprBreak(expr_break) => ir::Ir::new(expr.span(), self.compile(expr_break)?),
-            ast::Expr::ExprLet(expr_let) => {
-                let decl = match self.compile(expr_let)? {
-                    Some(decl) => decl,
-                    None => return Ok(ir::Ir::new(expr_let.span(), ConstValue::Unit)),
-                };
-
-                ir::Ir::new(expr.span(), decl)
-            }
+            ast::Expr::ExprBreak(expr_break) => ir::Ir::new(expr_break, self.compile(expr_break)?),
+            ast::Expr::ExprLet(expr_let) => ir::Ir::new(expr_let, self.compile(expr_let)?),
             _ => return Err(CompileError::const_error(expr, "not supported yet")),
         })
     }
@@ -336,9 +329,13 @@ impl IrCompile<&ast::Block> for IrCompiler<'_> {
 
         for stmt in &block.statements {
             let (expr, term) = match stmt {
+                ast::Stmt::Local(local) => {
+                    instructions.push(self.compile(local)?);
+                    continue;
+                }
                 ast::Stmt::Expr(expr) => (expr, false),
                 ast::Stmt::Semi(expr, _) => (expr, true),
-                _ => continue,
+                ast::Stmt::Item(..) => continue,
             };
 
             if let Some((expr, _)) = std::mem::replace(&mut last, Some((expr, term))) {
@@ -428,15 +425,23 @@ impl IrCompile<&ast::ExprBreak> for IrCompiler<'_> {
 }
 
 impl IrCompile<&ast::ExprLet> for IrCompiler<'_> {
-    type Output = Option<ir::IrDecl>;
+    type Output = ir::IrDecl;
 
     fn compile(&mut self, expr_let: &ast::ExprLet) -> Result<Self::Output, CompileError> {
-        let span = expr_let.span();
+        Err(CompileError::const_error(expr_let, "not supported yet"))
+    }
+}
+
+impl IrCompile<&ast::Local> for IrCompiler<'_> {
+    type Output = ir::Ir;
+
+    fn compile(&mut self, local: &ast::Local) -> Result<Self::Output, CompileError> {
+        let span = local.span();
 
         let name = loop {
-            match &expr_let.pat {
+            match &local.pat {
                 ast::Pat::PatIgnore(_) => {
-                    return Ok(None);
+                    return self.compile(&*local.expr);
                 }
                 ast::Pat::PatPath(path) => match path.path.try_as_ident() {
                     Some(ident) => break ident,
@@ -448,11 +453,14 @@ impl IrCompile<&ast::ExprLet> for IrCompiler<'_> {
             return Err(CompileError::const_error(span, "not supported yet"));
         };
 
-        Ok(Some(ir::IrDecl {
+        Ok(ir::Ir::new(
             span,
-            name: self.resolve(name)?.into(),
-            value: Box::new(self.compile(&*expr_let.expr)?),
-        }))
+            ir::IrDecl {
+                span,
+                name: self.resolve(name)?.into(),
+                value: Box::new(self.compile(&*local.expr)?),
+            },
+        ))
     }
 }
 

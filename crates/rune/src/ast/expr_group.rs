@@ -1,8 +1,17 @@
 use crate::ast;
-use crate::{Parse, Spanned, ToTokens};
+use crate::{Spanned, ToTokens};
 
 /// A prioritized expression group `(<expr>)`.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::ExprGroup>("(for i in x {})");
+/// testing::roundtrip::<ast::ExprGroup>("(1 + 2)");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprGroup {
     /// Attributes associated with expression.
     #[rune(iter)]
@@ -14,3 +23,5 @@ pub struct ExprGroup {
     /// The close parenthesis.
     pub close: ast::CloseParen,
 }
+
+expr_parse!(ExprGroup, "group expression");

@@ -17,6 +17,38 @@ macro_rules! peek {
     };
 }
 
+macro_rules! expr_parse {
+    ($ty:ident, $expected:literal) => {
+        impl crate::Parse for $ty {
+            fn parse(parser: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
+                let t = parser.token_peek_eof()?;
+                let expr = crate::ast::Expr::parse(parser)?;
+
+                match expr {
+                    crate::ast::Expr::$ty(expr) => Ok(expr),
+                    _ => Err(crate::ParseError::expected(t, $expected)),
+                }
+            }
+        }
+    };
+}
+
+macro_rules! item_parse {
+    ($ty:ident, $expected:literal) => {
+        impl crate::Parse for $ty {
+            fn parse(parser: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
+                let t = parser.token_peek_eof()?;
+                let expr = crate::ast::Item::parse(parser)?;
+
+                match expr {
+                    crate::ast::Item::$ty(item) => Ok(item),
+                    _ => Err(crate::ParseError::expected(t, $expected)),
+                }
+            }
+        }
+    };
+}
+
 mod attribute;
 mod block;
 mod condition;
@@ -33,8 +65,6 @@ mod expr_for;
 mod expr_group;
 mod expr_if;
 mod expr_index;
-mod expr_is;
-mod expr_is_not;
 mod expr_let;
 mod expr_lit;
 mod expr_loop;
@@ -70,6 +100,7 @@ mod lit_template;
 mod lit_tuple;
 mod lit_unit;
 mod lit_vec;
+mod local;
 mod macro_call;
 mod pat;
 mod pat_object;
@@ -99,8 +130,6 @@ pub use self::expr_for::ExprFor;
 pub use self::expr_group::ExprGroup;
 pub use self::expr_if::{ExprElse, ExprElseIf, ExprIf};
 pub use self::expr_index::ExprIndex;
-pub use self::expr_is::ExprIs;
-pub use self::expr_is_not::ExprIsNot;
 pub use self::expr_let::ExprLet;
 pub use self::expr_lit::ExprLit;
 pub use self::expr_loop::ExprLoop;
@@ -138,6 +167,7 @@ pub use self::lit_template::{LitTemplate, Template, TemplateComponent};
 pub use self::lit_tuple::LitTuple;
 pub use self::lit_unit::LitUnit;
 pub use self::lit_vec::LitVec;
+pub use self::local::Local;
 pub use self::macro_call::MacroCall;
 pub use self::pat::Pat;
 pub use self::pat_object::{PatObject, PatObjectItem};

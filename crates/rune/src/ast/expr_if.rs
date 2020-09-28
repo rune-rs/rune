@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
 /// An if statement: `if cond { true } else { false }`
 ///
@@ -43,16 +43,12 @@ impl ExprIf {
         let condition = parser.parse()?;
         let block = parser.parse()?;
         let mut expr_else_ifs = Vec::new();
-        let mut expr_else = None;
 
-        while parser.peek::<ast::Else>()? {
-            if parser.peek2::<ast::If>()? {
-                expr_else_ifs.push(parser.parse()?);
-                continue;
-            }
-
-            expr_else = Some(parser.parse()?);
+        while parser.peek::<ast::Else>()? && parser.peek2::<ast::If>()? {
+            expr_else_ifs.push(parser.parse()?);
         }
+
+        let expr_else = parser.parse()?;
 
         Ok(ExprIf {
             attributes,
@@ -65,12 +61,7 @@ impl ExprIf {
     }
 }
 
-impl Parse for ExprIf {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
-    }
-}
+expr_parse!(ExprIf, "if expression");
 
 /// An else branch of an if expression.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
@@ -91,5 +82,11 @@ pub struct ExprElse {
     /// The `else` token.
     pub else_: ast::Else,
     /// The body of the else statement.
-    pub block: Box<ast::ExprBlock>,
+    pub block: Box<ast::Block>,
+}
+
+impl Peek for ExprElse {
+    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
+        matches!(peek!(t1).kind, ast::Kind::Else)
+    }
 }
