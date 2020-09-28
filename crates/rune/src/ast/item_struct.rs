@@ -1,9 +1,12 @@
 use crate::ast;
-use crate::{OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{Id, OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A struct declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemStruct {
+    /// Opaque identifier of the struct.
+    #[rune(id)]
+    pub id: Id,
     /// The attributes for the struct
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -32,6 +35,7 @@ impl ItemStruct {
         visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
         Ok(Self {
+            id: Default::default(),
             attributes,
             visibility,
             struct_: parser.parse()?,

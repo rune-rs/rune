@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{Id, OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// An enum declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -58,6 +58,9 @@ impl Parse for ItemEnum {
 /// An enum variant.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct ItemVariant {
+    /// Opaque identifier of variant.
+    #[rune(id)]
+    pub id: Id,
     /// The attributes associated with the variant.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,

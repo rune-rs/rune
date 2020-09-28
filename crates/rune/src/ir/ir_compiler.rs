@@ -1,4 +1,5 @@
 use crate::ir::ir;
+use crate::query::Query;
 use crate::{Resolve, Spanned, Storage};
 use runestick::{ConstValue, Source};
 
@@ -7,6 +8,7 @@ use crate::CompileError;
 
 /// A compiler that compiles AST into Rune IR.
 pub(crate) struct IrCompiler<'a> {
+    pub(crate) query: &'a Query,
     pub(crate) storage: &'a Storage,
     pub(crate) source: &'a Source,
 }
@@ -370,15 +372,15 @@ impl IrCompile<&ast::LitTemplate> for IrCompiler<'_> {
         let span = lit_template.span();
         let mut components = Vec::new();
 
-        let template = self.resolve(lit_template)?;
+        let template = self.query.template_for(lit_template)?;
 
-        for c in template.components {
+        for c in &template.components {
             match c {
                 ast::TemplateComponent::String(string) => {
-                    components.push(ir::IrTemplateComponent::String(string.into()));
+                    components.push(ir::IrTemplateComponent::String(string.clone().into()));
                 }
                 ast::TemplateComponent::Expr(expr) => {
-                    let ir = self.compile(&*expr)?;
+                    let ir = self.compile(&**expr)?;
                     components.push(ir::IrTemplateComponent::Ir(ir));
                 }
             }

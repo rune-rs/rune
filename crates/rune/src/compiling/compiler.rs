@@ -2,7 +2,6 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, Compile as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
 use crate::query::Query;
-use crate::shared::Items;
 use crate::CompileResult;
 use crate::{
     CompileError, CompileErrorKind, Options, Resolve as _, Spanned as _, Storage, UnitBuilder,
@@ -43,8 +42,6 @@ pub(crate) struct Compiler<'a> {
     pub(crate) query: &'a mut Query,
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
-    /// Item builder.
-    pub(crate) items: Items,
     /// The compilation unit we are compiling for.
     pub(crate) unit: UnitBuilder,
     /// Scopes defined in the compiler.
@@ -63,7 +60,12 @@ pub(crate) struct Compiler<'a> {
 
 impl<'a> Compiler<'a> {
     /// Access the meta for the given language item.
-    pub fn lookup_meta(&mut self, name: &Item, span: Span) -> CompileResult<Option<CompileMeta>> {
+    pub fn lookup_meta(
+        &mut self,
+        base: &Item,
+        name: &Item,
+        span: Span,
+    ) -> CompileResult<Option<CompileMeta>> {
         log::trace!("lookup meta: {}", name);
 
         if let Some(meta) = self.context.lookup_meta(name) {
@@ -72,7 +74,7 @@ impl<'a> Compiler<'a> {
             return Ok(Some(meta));
         }
 
-        let mut base = self.items.item();
+        let mut base = base.clone();
 
         loop {
             let current = base.join(name);
@@ -87,6 +89,29 @@ impl<'a> Compiler<'a> {
             if base.pop().is_none() {
                 break;
             }
+        }
+
+        Ok(None)
+    }
+
+    /// Access the meta for the given language item.
+    pub fn lookup_exact_meta(
+        &mut self,
+        name: &Item,
+        span: Span,
+    ) -> CompileResult<Option<CompileMeta>> {
+        log::trace!("lookup meta: {}", name);
+
+        if let Some(meta) = self.context.lookup_meta(name) {
+            log::trace!("found in context: {:?}", meta);
+            self.visitor.visit_meta(self.source_id, &meta, span);
+            return Ok(Some(meta));
+        }
+
+        if let Some(meta) = self.query.query_meta(name)? {
+            log::trace!("found in query: {:?}", meta);
+            self.visitor.visit_meta(self.source_id, &meta, span);
+            return Ok(Some(meta));
         }
 
         Ok(None)
@@ -223,10 +248,12 @@ impl<'a> Compiler<'a> {
     }
 
     /// Convert a path to an item.
-    pub(crate) fn convert_path_to_item(&self, path: &ast::Path) -> CompileResult<Item> {
-        let base = self.items.item();
-        self.unit
-            .convert_path(&base, path, &self.storage, &*self.source)
+    pub(crate) fn convert_path_to_item(&self, path: &ast::Path) -> CompileResult<(Item, Item)> {
+        let base = self.query.item_for(path)?.clone();
+        let item = self
+            .unit
+            .convert_path(&base, path, &self.storage, &*self.source)?;
+        Ok((base, item))
     }
 
     pub(crate) fn compile_condition(
@@ -336,9 +363,9 @@ impl<'a> Compiler<'a> {
         let offset = self.scopes.decl_anon(span)?;
 
         let type_check = if let Some(path) = &pat_tuple.path {
-            let item = self.convert_path_to_item(path)?;
+            let (base, item) = self.convert_path_to_item(path)?;
 
-            let meta = match self.lookup_meta(&item, path.span())? {
+            let meta = match self.lookup_meta(&base, &item, path.span())? {
                 Some(meta) => meta,
                 None => {
                     return Err(CompileError::new(
@@ -469,9 +496,10 @@ impl<'a> Compiler<'a> {
         let type_check = match &pat_object.ident {
             ast::LitObjectIdent::Named(path) => {
                 let span = path.span();
-                let item = self.convert_path_to_item(path)?;
 
-                let meta = match self.lookup_meta(&item, span)? {
+                let (base, item) = self.convert_path_to_item(path)?;
+
+                let meta = match self.lookup_meta(&base, &item, span)? {
                     Some(meta) => meta,
                     None => {
                         return Err(CompileError::new(
@@ -648,9 +676,9 @@ impl<'a> Compiler<'a> {
             ast::Pat::PatPath(path) => {
                 let span = path.span();
 
-                let item = self.convert_path_to_item(&path.path)?;
+                let (base, item) = self.convert_path_to_item(&path.path)?;
 
-                if let Some(meta) = self.lookup_meta(&item, span)? {
+                if let Some(meta) = self.lookup_meta(&base, &item, span)? {
                     if self.compile_pat_meta_binding(span, &meta, false_label, load)? {
                         return Ok(true);
                     }

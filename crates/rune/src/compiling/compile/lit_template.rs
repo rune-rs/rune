@@ -12,7 +12,7 @@ impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {
             return Ok(());
         }
 
-        let template = lit_template.resolve(&self.storage, &*self.source)?;
+        let template = self.query.template_for(lit_template)?.clone();
 
         if !template.has_expansions {
             self.warnings
@@ -21,7 +21,7 @@ impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {
 
         let expected = self.scopes.push_child(span)?;
 
-        for c in template.components.iter() {
+        for c in &template.components {
             match c {
                 ast::TemplateComponent::String(string) => {
                     let slot = self.unit.new_static_string(span, &string)?;

@@ -10,15 +10,14 @@ impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
             return Ok(self.compile((&expr_block.block, needs))?);
         }
 
-        let _guard = self.items.push_async_block();
-        let item = self.items.item();
+        let item = self.query.item_for(&expr_block.block)?.clone();
 
-        let meta = match self.lookup_meta(&item, span)? {
+        let meta = match self.lookup_exact_meta(&item, span)? {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::MissingType { item },
+                    CompileErrorKind::MissingType { item: item.clone() },
                 ));
             }
         };

@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
-use crate::shared::{Consts, Items};
+use crate::shared::Consts;
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
 use runestick::{Context, Item, Source, Span};
@@ -175,7 +175,6 @@ impl CompileBuildEntry<'_> {
             context: self.context,
             query: self.query,
             asm: &mut asm,
-            items: Items::new(item.as_vec()),
             unit: self.unit.clone(),
             scopes: Scopes::new(),
             contexts: vec![],
@@ -214,7 +213,7 @@ impl CompileBuildEntry<'_> {
                 let name = f.ast.name.resolve(self.storage, &*source)?;
 
                 let meta = compiler
-                    .lookup_meta(&f.impl_item, f.instance_span)?
+                    .lookup_exact_meta(&f.impl_item, f.instance_span)?
                     .ok_or_else(|| {
                         CompileError::new(
                             &f.instance_span,

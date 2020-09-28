@@ -120,8 +120,6 @@ pub enum CompileErrorKind {
         item: Item,
         existing: (SourceId, Span),
     },
-    #[error("found conflicting item `{existing}`")]
-    ItemConflict { existing: Item },
     #[error("variable `{name}` conflicts")]
     VariableConflict { name: String, existing_span: Span },
     #[error("missing macro `{item}`")]

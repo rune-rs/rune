@@ -10,16 +10,26 @@ use syn::NestedMeta::*;
 /// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]
 pub(crate) struct FieldAttrs {
+    /// A field that is an identifier. Should use `Default::default` to be
+    /// constructed and ignored during `ToTokens` and `Spanned`.
+    pub(crate) id: Option<Span>,
     /// `#[rune(iter)]`
     pub(crate) iter: Option<Span>,
     /// `#[rune(skip)]`
-    pub(crate) skip: Option<Span>,
+    skip: Option<Span>,
     /// `#[rune(optional)]`
     pub(crate) optional: Option<Span>,
     /// `#[rune(attributes)]`
     pub(crate) attributes: Option<Span>,
     /// A single field marked with `#[rune(span)]`.
     pub(crate) span: Option<Span>,
+}
+
+impl FieldAttrs {
+    /// Indicate if the field should be skipped.
+    pub(crate) fn skip(&self) -> bool {
+        self.skip.is_some() || self.id.is_some()
+    }
 }
 
 /// Parsed ast derive attributes.
@@ -139,6 +149,10 @@ impl Context {
             #[allow(clippy::never_loop)] // I guess this is on purpose?
             for meta in self.get_meta_items(attr, RUNE)? {
                 match &meta {
+                    // Parse `#[rune(id)]`
+                    Meta(Path(word)) if *word == ID => {
+                        attrs.id = Some(meta.span());
+                    }
                     // Parse `#[rune(iter)]`.
                     Meta(Path(word)) if *word == ITER => {
                         attrs.iter = Some(meta.span());
@@ -192,7 +206,7 @@ impl Context {
 
             let spanned = &self.spanned;
 
-            if attrs.skip.is_some() {
+            if attrs.skip() {
                 continue;
             }
 

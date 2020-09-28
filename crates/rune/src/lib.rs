@@ -282,7 +282,7 @@ pub use self::load::{
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{MacroContext, Storage, ToTokens, TokenStream, TokenStreamIter};
 pub use self::options::Options;
-pub use self::parsing::{Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve};
+pub use self::parsing::{Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve};
 pub use self::query::{QueryError, QueryErrorKind};
 pub use self::shared::{ScopeError, ScopeErrorKind};
 pub use self::spanned::{OptionSpanned, Spanned};

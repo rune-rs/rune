@@ -27,7 +27,6 @@ impl Compile<(&ast::Block, Needs)> for Compiler<'_> {
     fn compile(&mut self, (block, needs): (&ast::Block, Needs)) -> CompileResult<()> {
         let span = block.span();
         log::trace!("Block => {:?}", self.source.source(span));
-        let _guard = self.items.push_block();
 
         self.contexts.push(span);
         let scopes_count = self.scopes.push_child(span)?;

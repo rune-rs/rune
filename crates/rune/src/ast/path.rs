@@ -1,9 +1,13 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
+use crate::parsing::Opaque;
+use crate::{Id, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct Path {
+    /// Opaque id associated with path.
+    #[rune(id)]
+    pub id: Id,
     /// The optional leading colon `::`
     #[rune(iter)]
     pub leading_colon: Option<ast::Scope>,
@@ -54,6 +58,12 @@ impl Path {
 
             Some(&it.next()?.1)
         })
+    }
+}
+
+impl Opaque for Path {
+    fn id(&self) -> Id {
+        self.id
     }
 }
 
