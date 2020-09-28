@@ -705,6 +705,7 @@ impl UnitBuilder {
             CompileMetaKind::AsyncBlock { item, .. } => item.clone(),
             CompileMetaKind::Macro { item, .. } => item.clone(),
             CompileMetaKind::Const { item, .. } => item.clone(),
+            CompileMetaKind::ConstFn { item, .. } => item.clone(),
         };
 
         if let Some(existing) = inner.meta.insert(item, meta.clone()) {

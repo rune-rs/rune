@@ -6,6 +6,14 @@ use runestick::{CompileMetaCapture, Span};
 use std::rc::Rc;
 use std::{cell::RefCell, mem::ManuallyDrop};
 
+/// The kind of an indexed function.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum IndexFnKind {
+    None,
+    Const,
+    Async,
+}
+
 #[derive(Debug)]
 pub struct IndexScopeGuard {
     levels: Rc<RefCell<Vec<IndexScopeLevel>>>,
@@ -26,7 +34,7 @@ impl IndexScopeGuard {
             IndexScopeLevel::IndexClosure(closure) => Ok(Closure {
                 captures: closure.captures,
                 generator: closure.generator,
-                is_async: closure.is_async,
+                kind: closure.kind,
                 has_await: closure.has_await,
             }),
             _ => Err(CompileError::internal(&span, "expected closure")),
@@ -46,7 +54,7 @@ impl IndexScopeGuard {
         match level {
             IndexScopeLevel::IndexFunction(fun) => Ok(Function {
                 generator: fun.generator,
-                is_async: fun.is_async,
+                kind: fun.kind,
                 has_await: fun.has_await,
             }),
             _ => Err(CompileError::internal(&span, "expected function")),
@@ -76,8 +84,8 @@ impl IndexScope {
 }
 
 #[derive(Debug, Clone)]
-pub struct IndexClosure {
-    is_async: bool,
+pub(crate) struct IndexClosure {
+    kind: IndexFnKind,
     /// Variables which could not be found in the immediate scope, and
     /// marked as needed to be captured from the outer scope.
     captures: Vec<CompileMetaCapture>,
@@ -89,9 +97,9 @@ pub struct IndexClosure {
 
 impl IndexClosure {
     /// Construct a new closure.
-    pub fn new(is_async: bool) -> Self {
+    pub(crate) fn new(kind: IndexFnKind) -> Self {
         Self {
-            is_async,
+            kind,
             captures: Vec::new(),
             existing: HashSet::new(),
             scope: IndexScope::new(),
@@ -103,7 +111,7 @@ impl IndexClosure {
 
 pub(crate) struct Function {
     pub(crate) generator: bool,
-    pub(crate) is_async: bool,
+    pub(crate) kind: IndexFnKind,
     #[allow(dead_code)]
     pub(crate) has_await: bool,
 }
@@ -111,14 +119,14 @@ pub(crate) struct Function {
 pub(crate) struct Closure {
     pub(crate) captures: Vec<CompileMetaCapture>,
     pub(crate) generator: bool,
-    pub(crate) is_async: bool,
+    pub(crate) kind: IndexFnKind,
     #[allow(dead_code)]
     pub(crate) has_await: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct IndexFunction {
-    is_async: bool,
+    kind: IndexFnKind,
     scope: IndexScope,
     generator: bool,
     has_await: bool,
@@ -126,9 +134,9 @@ pub struct IndexFunction {
 
 impl IndexFunction {
     /// Construct a new function.
-    pub fn new(is_async: bool) -> Self {
+    pub(crate) fn new(kind: IndexFnKind) -> Self {
         Self {
-            is_async,
+            kind,
             scope: IndexScope::new(),
             generator: false,
             has_await: false,
@@ -270,7 +278,7 @@ impl IndexScopes {
         for level in iter {
             match level {
                 IndexScopeLevel::IndexFunction(fun) => {
-                    if fun.is_async {
+                    if let IndexFnKind::Async = fun.kind {
                         fun.has_await = true;
                         return Ok(());
                     }
@@ -278,7 +286,7 @@ impl IndexScopes {
                     break;
                 }
                 IndexScopeLevel::IndexClosure(closure) => {
-                    if closure.is_async {
+                    if let IndexFnKind::Async = closure.kind {
                         closure.has_await = true;
                         return Ok(());
                     }
@@ -296,10 +304,10 @@ impl IndexScopes {
     }
 
     /// Push a function.
-    pub(crate) fn push_function(&mut self, is_async: bool) -> IndexScopeGuard {
+    pub(crate) fn push_function(&mut self, kind: IndexFnKind) -> IndexScopeGuard {
         self.levels
             .borrow_mut()
-            .push(IndexScopeLevel::IndexFunction(IndexFunction::new(is_async)));
+            .push(IndexScopeLevel::IndexFunction(IndexFunction::new(kind)));
 
         IndexScopeGuard {
             levels: self.levels.clone(),
@@ -307,10 +315,10 @@ impl IndexScopes {
     }
 
     /// Push a closure boundary.
-    pub(crate) fn push_closure(&mut self, is_async: bool) -> IndexScopeGuard {
+    pub(crate) fn push_closure(&mut self, kind: IndexFnKind) -> IndexScopeGuard {
         self.levels
             .borrow_mut()
-            .push(IndexScopeLevel::IndexClosure(IndexClosure::new(is_async)));
+            .push(IndexScopeLevel::IndexClosure(IndexClosure::new(kind)));
 
         IndexScopeGuard {
             levels: self.levels.clone(),

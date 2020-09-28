@@ -96,6 +96,36 @@ impl IrCompile<&ast::Expr> for IrCompiler<'_> {
     }
 }
 
+impl IrCompile<&ast::ItemFn> for IrCompiler<'_> {
+    type Output = ir::IrFn;
+
+    fn compile(&mut self, item_fn: &ast::ItemFn) -> Result<Self::Output, CompileError> {
+        let mut args = Vec::new();
+
+        for (arg, _) in &item_fn.args {
+            match arg {
+                ast::FnArg::Ident(ident) => {
+                    args.push(self.resolve(ident)?.into());
+                }
+                _ => {
+                    return Err(CompileError::const_error(
+                        arg,
+                        "unsupported argument in const fn",
+                    ))
+                }
+            }
+        }
+
+        let ir_scope = self.compile(&item_fn.body)?;
+
+        Ok(ir::IrFn {
+            span: item_fn.span(),
+            args,
+            ir: ir::Ir::new(item_fn.span(), ir_scope),
+        })
+    }
+}
+
 impl IrCompile<&ast::ExprAssign> for IrCompiler<'_> {
     type Output = ir::Ir;
 

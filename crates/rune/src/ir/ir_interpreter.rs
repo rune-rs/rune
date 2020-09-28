@@ -24,7 +24,7 @@ pub(crate) struct IrInterpreter<'a> {
 
 impl<'a> IrInterpreter<'a> {
     /// Outer evaluation for an expression which performs caching into `consts`.
-    pub(crate) fn eval_expr(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
+    pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
         log::trace!("processing constant: {}", self.item);
 
         if let Some(const_value) = self.query.consts.get(&self.item) {
@@ -67,6 +67,21 @@ impl<'a> IrInterpreter<'a> {
         Ok(const_value)
     }
 
+    /// Evaluate to an ir value.
+    pub(crate) fn eval_value(&mut self, ir: &ir::Ir, used: Used) -> Result<IrValue, IrError> {
+        match self.eval(ir, used) {
+            Ok(ir_value) => Ok(ir_value),
+            Err(outcome) => match outcome {
+                EvalOutcome::Error(error) => Err(IrError::from(error)),
+                EvalOutcome::NotConst(span) => Err(IrError::new(span, IrErrorKind::NotConst)),
+                EvalOutcome::Break(span, _) => Err(IrError::from(IrError::new(
+                    span,
+                    IrErrorKind::BreakOutsideOfLoop,
+                ))),
+            },
+        }
+    }
+
     /// Resolve the given constant value from the block scope.
     ///
     /// This looks up `const <ident> = <expr>` and evaluates them while caching
@@ -83,27 +98,29 @@ impl<'a> IrInterpreter<'a> {
 
         let mut base = self.item.clone();
 
-        while !base.is_empty() {
-            base.pop();
+        loop {
             let item = base.extended(ident);
 
             if let Some(const_value) = self.query.consts.get(&item) {
                 return Ok(IrValue::from_const(const_value));
             }
 
-            let meta = match self.query.query_meta_with_use(&item, used)? {
-                Some(meta) => meta,
-                None => continue,
-            };
-
-            match &meta.kind {
-                CompileMetaKind::Const { const_value, .. } => {
-                    return Ok(IrValue::from_const(const_value.clone()));
-                }
-                _ => {
-                    return Err(IrError::new(span, IrErrorKind::UnsupportedMeta { meta }));
+            if let Some(meta) = self.query.query_meta_with_use(&item, used)? {
+                match &meta.kind {
+                    CompileMetaKind::Const { const_value, .. } => {
+                        return Ok(IrValue::from_const(const_value.clone()));
+                    }
+                    _ => {
+                        return Err(IrError::new(span, IrErrorKind::UnsupportedMeta { meta }));
+                    }
                 }
             }
+
+            if base.is_empty() {
+                break;
+            }
+
+            base.pop();
         }
 
         Err(IrError::new(span, IrErrorKind::NotConst))

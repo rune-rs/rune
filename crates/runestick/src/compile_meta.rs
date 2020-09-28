@@ -1,5 +1,5 @@
 use crate::collections::HashSet;
-use crate::{ConstValue, Hash, Item, SourceId, Span, Type};
+use crate::{ConstValue, Hash, Id, Item, SourceId, Span, Type};
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -47,6 +47,7 @@ impl CompileMeta {
             CompileMetaKind::AsyncBlock { item, .. } => item,
             CompileMetaKind::Macro { item, .. } => item,
             CompileMetaKind::Const { item, .. } => item,
+            CompileMetaKind::ConstFn { item, .. } => item,
         }
     }
 
@@ -65,6 +66,7 @@ impl CompileMeta {
             CompileMetaKind::AsyncBlock { type_of, .. } => Some(*type_of),
             CompileMetaKind::Macro { .. } => None,
             CompileMetaKind::Const { .. } => None,
+            CompileMetaKind::ConstFn { .. } => None,
         }
     }
 }
@@ -107,6 +109,9 @@ impl fmt::Display for CompileMeta {
             }
             CompileMetaKind::Const { item, .. } => {
                 write!(fmt, "const {}", item)?;
+            }
+            CompileMetaKind::ConstFn { item, .. } => {
+                write!(fmt, "const fn {}", item)?;
             }
         }
 
@@ -202,6 +207,13 @@ pub enum CompileMetaKind {
         /// The evaluated constant value.
         const_value: ConstValue,
         /// The item for the constant expression.
+        item: Item,
+    },
+    /// A constant function.
+    ConstFn {
+        /// Opaque identifier for the constant function.
+        id: Id,
+        /// The item of the constant function.
         item: Item,
     },
     /// A macro.

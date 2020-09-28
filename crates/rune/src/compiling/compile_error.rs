@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::compiling::{InsertMetaError, UnitBuilderError, UnitBuilderErrorKind};
+use crate::shared::Internal;
 use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
 };
@@ -29,11 +30,11 @@ impl CompileError {
     ///
     /// This should be used for programming invariants of the encoder which are
     /// broken for some reason.
-    pub fn internal<S>(spanned: S, msg: &'static str) -> Self
+    pub fn internal<S>(spanned: S, message: &'static str) -> Self
     where
         S: Spanned,
     {
-        CompileError::new(spanned, CompileErrorKind::Internal { msg })
+        CompileError::new(spanned, CompileErrorKind::Internal { message })
     }
 
     /// Construct an "unsupported path" internal error for the
@@ -45,7 +46,7 @@ impl CompileError {
         CompileError::new(
             spanned,
             CompileErrorKind::Internal {
-                msg: "paths containing `crate` or `super` are not supported",
+                message: "paths containing `crate` or `super` are not supported",
             },
         )
     }
@@ -70,12 +71,23 @@ impl CompileError {
     }
 }
 
+impl From<Internal> for CompileError {
+    fn from(error: Internal) -> Self {
+        Self {
+            span: error.span(),
+            kind: CompileErrorKind::Internal {
+                message: error.message(),
+            },
+        }
+    }
+}
+
 /// Compiler error.
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum CompileErrorKind {
-    #[error("internal compiler error: {msg}")]
-    Internal { msg: &'static str },
+    #[error("internal compiler error: {message}")]
+    Internal { message: &'static str },
     #[error("ir error: {error}")]
     IrError {
         #[source]
@@ -214,4 +226,10 @@ pub enum CompileErrorKind {
         /// The following expression.
         followed_span: Span,
     },
+    #[error("an `fn` can't both be `async` and `const` at the same time")]
+    FnConstAsyncConflict,
+    #[error("const functions can't be generators")]
+    FnConstNotGenerator,
+    #[error("unsupported closure kind")]
+    ClosureKind,
 }

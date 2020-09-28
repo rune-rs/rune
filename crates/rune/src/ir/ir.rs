@@ -111,6 +111,18 @@ decl_kind! {
     }
 }
 
+/// An interpeted function.
+#[derive(Debug, Clone, Spanned)]
+pub(crate) struct IrFn {
+    /// The span of the function.
+    #[rune(span)]
+    pub(crate) span: Span,
+    /// The number of arguments the function takes and their names.
+    pub(crate) args: Vec<Box<str>>,
+    /// The scope for the function.
+    pub(crate) ir: Ir,
+}
+
 /// Definition of a new variable scope.
 #[derive(Debug, Clone, Spanned)]
 pub(crate) struct IrScope {

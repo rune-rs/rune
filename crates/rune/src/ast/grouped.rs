@@ -39,6 +39,11 @@ macro_rules! grouped {
             pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, (T, Option<S>)> {
                 self.$field.iter_mut()
             }
+
+            /// Get the values as a slice.
+            pub fn as_slice(&self) -> &[(T, Option<S>)] {
+                &*self.$field
+            }
         }
 
         impl<'a, T, S> IntoIterator for &'a $name<T, S> {

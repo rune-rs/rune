@@ -53,6 +53,8 @@ error! {
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum QueryErrorKind {
+    #[error("internal error: {message}")]
+    Internal { message: &'static str },
     #[error("failed to insert meta: {error}")]
     InsertMetaError {
         #[source]
@@ -81,6 +83,8 @@ pub enum QueryErrorKind {
     MissingItemId { id: Id },
     #[error("missing template for {id:?}")]
     MissingTemplateId { id: Id },
+    #[error("missing const fn by id {id:?}")]
+    MissingConstFnId { id: Id },
     #[error("found conflicting item `{existing}`")]
     ItemConflict { existing: Item },
 }
@@ -93,6 +97,7 @@ pub(crate) enum Indexed {
     Closure(Closure),
     AsyncBlock(AsyncBlock),
     Const(Const),
+    ConstFn(ConstFn),
 }
 
 pub struct Struct {
@@ -160,6 +165,11 @@ pub(crate) struct Const {
     pub(crate) ir: ir::Ir,
 }
 
+pub(crate) struct ConstFn {
+    /// The const fn ast.
+    pub(crate) item_fn: ast::ItemFn,
+}
+
 /// An entry in the build queue.
 pub(crate) enum Build {
     Function(Function),
@@ -167,6 +177,7 @@ pub(crate) enum Build {
     Closure(Closure),
     AsyncBlock(AsyncBlock),
     UnusedConst(Const),
+    UnusedConstFn(ConstFn),
 }
 
 /// An entry in the build queue.
@@ -214,6 +225,8 @@ pub(crate) struct Query {
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
     pub(crate) indexed: HashMap<Item, IndexedEntry>,
+    /// Compiled constant functions.
+    pub(crate) const_fns: Vec<Rc<ir::IrFn>>,
 }
 
 impl Query {
@@ -224,28 +237,36 @@ impl Query {
             unit,
             consts,
             queue: VecDeque::new(),
-            items: vec![],
-            templates: vec![],
+            items: Vec::new(),
+            templates: Vec::new(),
             indexed: HashMap::new(),
+            const_fns: Vec::new(),
         }
     }
 
     /// Insert an item and return its Id.
-    pub fn insert_item(&mut self, item: Item) -> Id {
+    pub(crate) fn insert_item(&mut self, item: Item) -> Id {
         let id = Id::new(self.items.len());
         self.items.push(item);
         id
     }
 
     /// Insert a template and return its Id.
-    pub fn insert_template(&mut self, template: ast::Template) -> Id {
+    pub(crate) fn insert_template(&mut self, template: ast::Template) -> Id {
         let id = Id::new(self.templates.len());
         self.templates.push(Rc::new(template));
         id
     }
 
+    /// Insert an item and return its Id.
+    pub(crate) fn insert_const_fn(&mut self, ir_fn: ir::IrFn) -> Id {
+        let id = Id::new(self.const_fns.len());
+        self.const_fns.push(Rc::new(ir_fn));
+        id
+    }
+
     /// Get the item for the given identifier.
-    pub fn item_for<T>(&self, ast: T) -> Result<&Item, QueryError>
+    pub(crate) fn item_for<T>(&self, ast: T) -> Result<&Item, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -264,7 +285,7 @@ impl Query {
     }
 
     /// Get the template for the given identifier.
-    pub fn template_for<T>(&self, ast: T) -> Result<Rc<ast::Template>, QueryError>
+    pub(crate) fn template_for<T>(&self, ast: T) -> Result<Rc<ast::Template>, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -282,6 +303,28 @@ impl Query {
         return Err(QueryError::new(ast, QueryErrorKind::MissingItemId { id }));
     }
 
+    /// Get the constant function associated with the opaque.
+    pub(crate) fn const_fn_for<T>(&self, ast: T) -> Result<Rc<ir::IrFn>, QueryError>
+    where
+        T: Spanned + Opaque,
+    {
+        let id = ast.id();
+
+        if let Some(index) = *id {
+            let const_fn = self
+                .const_fns
+                .get(index.get() - 1)
+                .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingConstFnId { id }))?;
+
+            return Ok(const_fn.clone());
+        }
+
+        return Err(QueryError::new(
+            ast,
+            QueryErrorKind::MissingConstFnId { id },
+        ));
+    }
+
     /// Index a constant expression.
     pub fn index_const<S>(
         &mut self,
@@ -295,7 +338,7 @@ impl Query {
     where
         S: Spanned,
     {
-        log::trace!("new enum: {:?}", id);
+        log::trace!("new const: {:?}", id);
 
         let mut ir_compiler = IrCompiler {
             query: self,
@@ -313,6 +356,35 @@ impl Query {
                 source,
                 source_id,
                 indexed: Indexed::Const(Const { ir }),
+            },
+        )?;
+
+        Ok(())
+    }
+
+    /// Index a constant function.
+    pub fn index_const_fn<S>(
+        &mut self,
+        spanned: S,
+        id: Id,
+        source: Arc<Source>,
+        source_id: usize,
+        item_fn: ast::ItemFn,
+        span: Span,
+    ) -> Result<(), QueryError>
+    where
+        S: Spanned,
+    {
+        log::trace!("new const fn: {:?}", id);
+
+        self.index(
+            spanned,
+            id,
+            IndexedEntry {
+                span,
+                source,
+                source_id,
+                indexed: Indexed::ConstFn(ConstFn { item_fn }),
             },
         )?;
 
@@ -652,7 +724,7 @@ impl Query {
                     query: self,
                 };
 
-                let const_value = const_compiler.eval_expr(&c.ir, used)?;
+                let const_value = const_compiler.eval_const(&c.ir, used)?;
 
                 if used.is_unused() {
                     self.queue.push_back(BuildEntry {
@@ -667,6 +739,35 @@ impl Query {
 
                 CompileMetaKind::Const {
                     const_value,
+                    item: item.clone(),
+                }
+            }
+            Indexed::ConstFn(c) => {
+                let mut ir_compiler = IrCompiler {
+                    query: self,
+                    source: &*source,
+                    storage: &self.storage,
+                };
+
+                let ir_fn = ir_compiler.compile(&c.item_fn)?;
+
+                let id = if used.is_unused() {
+                    self.queue.push_back(BuildEntry {
+                        span: c.item_fn.span(),
+                        item: item.clone(),
+                        build: Build::UnusedConstFn(c),
+                        source,
+                        source_id,
+                        used,
+                    });
+
+                    Id::default()
+                } else {
+                    self.insert_const_fn(ir_fn)
+                };
+
+                CompileMetaKind::ConstFn {
+                    id,
                     item: item.clone(),
                 }
             }
