@@ -1,0 +1,18 @@
+mod thing1 {
+    fn x() {
+        use crate::thing2;
+        thing2::y();
+    }
+}
+
+mod thing2 {
+    fn y() {
+        use crate::thing1;
+        thing1::x()
+    }
+}
+
+fn main() {
+    use crate::thing1::x;
+    x();
+}

@@ -3,10 +3,12 @@
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
-use crate::ast;
+use crate::ast::PathSegment;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
+use crate::query::IndexedEntry;
 use crate::CompileResult;
+use crate::{ast, CompileErrorKind};
 use crate::{CompileError, Error, Errors, Resolve as _, Spanned, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
@@ -14,6 +16,7 @@ use runestick::{
     IntoComponent, Item, Label, Names, Rtti, Source, Span, StaticString, Type, Unit, UnitFn,
     UnitTypeInfo, VariantRtti,
 };
+use std::borrow::Cow;
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -211,7 +214,7 @@ impl UnitBuilder {
 
     /// Access imports.
     pub(crate) fn imports(&self) -> Ref<'_, HashMap<ImportKey, ImportEntry>> {
-        let inner = self.inner.borrow();
+        let inner = (&*self.inner).borrow();
         Ref::map(inner, |inner| &inner.imports)
     }
 
@@ -377,6 +380,90 @@ impl UnitBuilder {
         Ok(new_slot)
     }
 
+    /// Try to resolve the `self` keyword as part of a path prefix using
+    /// `base` as the current item context.
+    fn resolve_self(&self, base: &Item) -> Option<Item> {
+        let mut item = base.clone();
+        while !item.is_empty() {
+            let meta_kind = self.lookup_meta(&item).map(|m| m.kind);
+
+            if let Some(CompileMetaKind::Module { .. }) = meta_kind {
+                return Some(item);
+            }
+
+            item.pop();
+        }
+
+        // `self` is the root module
+        Some(Item::new())
+    }
+
+    /// Try to resolve the `Self` keyword as part of a path prefix using
+    /// `base` as the current item context.
+    fn resolve_self_type(&self, base: &Item) -> Option<Item> {
+        let mut item = base.clone();
+
+        while !item.is_empty() {
+            let meta_kind = self.lookup_meta(&item).map(|m| m.kind);
+
+            if let Some(CompileMetaKind::Struct { .. }) = meta_kind {
+                return Some(item);
+            }
+
+            item.pop();
+        }
+
+        None
+    }
+
+    /// Try to resolve the `super` keyword as part of a path prefix using
+    /// `base` as the current item context.
+    fn resolve_super(&self, base: &Item) -> Option<Item> {
+        let mut count = 0;
+        let mut item = base.clone();
+        while !item.is_empty() {
+            let meta_kind = self.lookup_meta(&item).map(|m| m.kind);
+            if let Some(CompileMetaKind::Module { .. }) = meta_kind {
+                count += 1;
+                if count == 2 {
+                    return Some(item);
+                }
+            }
+
+            item.pop();
+        }
+
+        if count == 1 {
+            // The parent of a single nested module
+            // is root, the root "empty" module.
+            Some(Item::new())
+        } else {
+            None
+        }
+    }
+
+    /// Try to resolve the first part of a path which may contain
+    /// the relative `Self`, `self`, `super`, and `crate` path keywords.  
+    fn resolve_path_prefix<'a>(
+        &self,
+        base: &Item,
+        segment: &ast::PathSegment,
+        storage: &Storage,
+        source: &'a Source,
+    ) -> CompileResult<Item> {
+        let name = segment.resolve(storage, source)?;
+
+        let prefix = match segment {
+            ast::PathSegment::Ident(_ident) => Some(Item::of(&[name.as_ref()])),
+            ast::PathSegment::Crate(_crate) => Some(Item::new()),
+            ast::PathSegment::Super(_super) => self.resolve_super(base),
+            ast::PathSegment::SelfValue(_self) => self.resolve_self(base),
+            ast::PathSegment::SelfType(_self_type) => self.resolve_self_type(base),
+        };
+
+        prefix.ok_or_else(|| CompileError::unresolved_type_or_module(segment, name.to_string()))
+    }
+
     /// Perform a path lookup on the current state of the unit.
     pub(crate) fn convert_path(
         &self,
@@ -387,19 +474,24 @@ impl UnitBuilder {
     ) -> CompileResult<Item> {
         let inner = self.inner.borrow();
 
-        let ident = path
-            .first
-            .try_as_ident()
-            .ok_or_else(|| CompileError::internal_unsupported_path(path))?;
+        let mut it = path.into_components();
 
-        let local = ident.resolve(storage, source)?;
+        let local = it
+            .next()
+            .map(|prefix| self.resolve_path_prefix(base, prefix, storage, source))
+            .unwrap_or_else(|| Ok(Item::new()))?;
 
-        let mut imported = match inner.lookup_import_by_name(base, local.as_ref()) {
-            Some(path) => path,
-            None => Item::of(&[local.as_ref()]),
+        let mut imported = if !local.is_empty() {
+            let name = local.to_string();
+            match inner.lookup_import_by_name(base, &name) {
+                Some(path) => path,
+                None => Item::of(&[name]),
+            }
+        } else {
+            local
         };
 
-        for (_, segment) in &path.rest {
+        for segment in it {
             let part = segment
                 .try_as_ident()
                 .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
@@ -419,7 +511,7 @@ impl UnitBuilder {
         source_id: usize,
     ) -> Result<(), UnitBuilderError>
     where
-        I: Copy + IntoIterator,
+        I: IntoIterator,
         I::Item: IntoComponent,
     {
         let mut inner = self.inner.borrow_mut();
@@ -448,7 +540,6 @@ impl UnitBuilder {
     /// Declare a new struct.
     pub(crate) fn insert_meta(&self, meta: CompileMeta) -> Result<(), InsertMetaError> {
         let mut inner = self.inner.borrow_mut();
-
         let item = match &meta.kind {
             CompileMetaKind::UnitStruct { empty, .. } => {
                 let info = UnitFn::UnitStruct { hash: empty.hash };
@@ -705,6 +796,8 @@ impl UnitBuilder {
             CompileMetaKind::AsyncBlock { item, .. } => item.clone(),
             CompileMetaKind::Macro { item, .. } => item.clone(),
             CompileMetaKind::Const { item, .. } => item.clone(),
+            CompileMetaKind::Module { item } => item.clone(),
+            CompileMetaKind::Impl { item, .. } => item.clone(),
         };
 
         if let Some(existing) = inner.meta.insert(item, meta.clone()) {

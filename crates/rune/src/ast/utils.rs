@@ -1,8 +1,9 @@
-use crate::ast;
+use crate::{ast, Spanned, Storage};
 use crate::{ParseError, ParseErrorKind};
-use runestick::Span;
+use runestick::{Span, Source};
 use std::iter::Peekable;
 use std::ops;
+use std::borrow::Cow;
 
 /// Indicates if we are parsing braces.
 #[derive(Debug, Clone, Copy)]
@@ -237,6 +238,15 @@ pub(crate) fn is_block_end(expr: &ast::Expr, comma: Option<&ast::Comma>) -> bool
         (_, Some(..)) => false,
         (_, None) => true,
     }
+}
+
+/// Get the text for a span from the source.
+pub(crate) fn resolve_text<'a, S: Spanned>(spanned: S, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
+    let span = spanned.span();
+    source.source(span)
+        .map(|s| Cow::Borrowed(s))
+        .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))
+
 }
 
 #[cfg(test)]

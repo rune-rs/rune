@@ -78,17 +78,24 @@ pub(crate) enum Indexed {
     Closure(Closure),
     AsyncBlock(AsyncBlock),
     Const(Const),
+    Module(Module),
+    Impl(Impl),
 }
 
 pub struct Struct {
     /// The ast of the struct.
     ast: ast::ItemStruct,
+    /// The impls fo the struct.
+    impls: HashMap<Item, Impl>,
 }
 
 impl Struct {
     /// Construct a new struct entry.
     pub fn new(ast: ast::ItemStruct) -> Self {
-        Self { ast }
+        Self {
+            ast,
+            impls: Default::default(),
+        }
     }
 }
 
@@ -143,6 +150,30 @@ pub(crate) struct AsyncBlock {
 pub(crate) struct Const {
     /// The intermediate representation of the constant expression.
     pub(crate) ir: ir::Ir,
+}
+
+pub(crate) struct Module {
+    /// Ast for the `mod`.
+    pub(crate) ast: ast::ItemMod,
+}
+
+impl Module {
+    /// Construct a new struct entry.
+    pub fn new(ast: ast::ItemMod) -> Self {
+        Self { ast }
+    }
+}
+
+pub(crate) struct Impl {
+    /// Ast for the `impl`.
+    pub(crate) ast: ast::ItemImpl,
+}
+
+impl Impl {
+    /// Construct a new struct entry.
+    pub fn new(ast: ast::ItemImpl) -> Self {
+        Self { ast }
+    }
 }
 
 /// An entry in the build queue.
@@ -252,6 +283,50 @@ impl Query {
                 indexed: Indexed::Enum,
             },
         )?;
+
+        Ok(())
+    }
+
+    /// Add a new `mod` item.
+    pub fn index_module(
+        &mut self,
+        item: Item,
+        ast: ast::ItemMod,
+        source: Arc<Source>,
+        source_id: usize,
+    ) -> Result<(), CompileError> {
+        log::trace!("new module: {}", item);
+        let span = ast.span();
+
+        self.index(
+            item.clone(),
+            IndexedEntry {
+                span,
+                source,
+                source_id,
+                indexed: Indexed::Module(Module::new(ast)),
+            },
+        )?;
+
+        // build index entries for modules eagerly so we can use the meta
+        // to resolve path keywords while building the unit.
+        self.query_meta_with_use(&item, Used::Used)?;
+
+        Ok(())
+    }
+
+    /// Add a new `impl` item.
+    pub fn index_impl(
+        &mut self,
+        item: Item,
+        ast: ast::ItemImpl,
+        source: Arc<Source>,
+        source_id: usize,
+    ) -> Result<(), CompileError> {
+        log::trace!("new impl: {}", item);
+        let span = ast.span();
+
+        // TODO(dillon)
 
         Ok(())
     }
@@ -540,6 +615,11 @@ impl Query {
                     item: item.clone(),
                 }
             }
+            Indexed::Module(m) => CompileMetaKind::Module { item: item.clone() },
+            Indexed::Impl(i) => CompileMetaKind::Impl {
+                type_of: Type::from(Hash::type_hash(item)),
+                item: item.clone(),
+            },
         };
 
         let meta = CompileMeta {

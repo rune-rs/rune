@@ -47,6 +47,8 @@ impl CompileMeta {
             CompileMetaKind::AsyncBlock { item, .. } => item,
             CompileMetaKind::Macro { item, .. } => item,
             CompileMetaKind::Const { item, .. } => item,
+            CompileMetaKind::Module { item } => item,
+            CompileMetaKind::Impl { item, .. } => item,
         }
     }
 
@@ -65,6 +67,8 @@ impl CompileMeta {
             CompileMetaKind::AsyncBlock { type_of, .. } => Some(*type_of),
             CompileMetaKind::Macro { .. } => None,
             CompileMetaKind::Const { .. } => None,
+            CompileMetaKind::Module { .. } => None,
+            CompileMetaKind::Impl { type_of, .. } => Some(*type_of),
         }
     }
 }
@@ -107,6 +111,12 @@ impl fmt::Display for CompileMeta {
             }
             CompileMetaKind::Const { item, .. } => {
                 write!(fmt, "const {}", item)?;
+            }
+            CompileMetaKind::Module { item } => {
+                write!(fmt, "mod {}", item)?;
+            }
+            CompileMetaKind::Impl { item, .. } => {
+                write!(fmt, "impl {}", item)?;
             }
         }
 
@@ -207,6 +217,18 @@ pub enum CompileMetaKind {
     /// A macro.
     Macro {
         /// The item of the macro.
+        item: Item,
+    },
+    /// Metadata about a module.
+    Module {
+        /// The item of the module.
+        item: Item,
+    },
+    /// Metadata about a impl.
+    Impl {
+        /// The span where impl is declared.
+        type_of: Type,
+        /// The item of the module.
         item: Item,
     },
 }

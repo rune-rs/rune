@@ -1,0 +1,40 @@
+struct Foo {
+    n,
+}
+
+impl Foo {
+
+    fn outer_1(self, n) {
+
+        struct Bar {
+            c
+        }
+
+        impl Bar {
+
+            fn inner_1(self) {
+                // FIXME: This breaks with the following error
+                // ```
+                // error: compile error
+                // ┌─ scripts/hello_world.rn:19:26
+                // │
+                // │                 self.c + Self::inner_2()
+                // │                          ^^^^^^^^^^^^^^^ `Foo::outer_1::$block0::Bar::inner_2` is not a function
+                // ```
+                self.c + Self::inner_2()
+            }
+
+            fn inner_2() {
+                2
+            }
+        }
+
+        self.n + Self::outer_2() + Bar{c: 1}.inner_1()
+    }
+
+    fn outer_2() {
+        1
+    }
+}
+
+

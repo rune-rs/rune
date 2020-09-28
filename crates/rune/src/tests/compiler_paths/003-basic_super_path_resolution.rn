@@ -1,0 +1,7 @@
+mod abc {
+    const XYZ = 3;
+    mod def {
+        use super::XYZ;
+    }
+}
+fn main() {}

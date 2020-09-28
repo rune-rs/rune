@@ -3,7 +3,7 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::indexing::{Index as _, IndexScopes, Indexer};
-use crate::query::Query;
+use crate::query::{IndexedEntry, Query};
 use crate::shared::{Consts, Items};
 use crate::CompileResult;
 use crate::{
@@ -175,65 +175,23 @@ impl Import {
 
         let span = decl_use.span();
 
-        let mut name = Item::new();
+        let name = unit.convert_path(&item, &decl_use.path, storage, &*source)?;
 
-        let first = decl_use
-            .first
-            .try_as_ident()
-            .ok_or_else(|| CompileError::internal_unsupported_path(&decl_use.first))?
-            .resolve(storage, &*source)?;
-        name.push(first.as_ref());
-
-        let mut it = decl_use.rest.iter();
-        let last = it.next_back();
-
-        for (_, c) in it {
-            match c {
-                ast::ItemUseComponent::Wildcard(t) => {
-                    return Err(CompileError::new(t, CompileErrorKind::UnsupportedWildcard));
-                }
-                ast::ItemUseComponent::PathSegment(segment) => {
-                    let ident = segment
-                        .try_as_ident()
-                        .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
-                    name.push(ident.resolve(storage, &*source)?.as_ref());
-                }
+        if decl_use.is_wildcard() {
+            if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::MissingModule { item: name },
+                ));
             }
-        }
 
-        if let Some((_, c)) = last {
-            match c {
-                ast::ItemUseComponent::Wildcard(..) => {
-                    let mut new_names = Vec::new();
+            let iter = context
+                .iter_components(name.iter())
+                .chain(unit.iter_components(&name));
 
-                    if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
-                        return Err(CompileError::new(
-                            span,
-                            CompileErrorKind::MissingModule { item: name },
-                        ));
-                    }
-
-                    let iter = context
-                        .iter_components(&name)
-                        .chain(unit.iter_components(&name));
-
-                    for c in iter {
-                        let mut name = name.clone();
-                        name.push(c);
-                        new_names.push(name);
-                    }
-
-                    for name in new_names {
-                        unit.new_import(item.clone(), &name, span, source_id)?;
-                    }
-                }
-                ast::ItemUseComponent::PathSegment(segment) => {
-                    let ident = segment
-                        .try_as_ident()
-                        .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
-                    name.push(ident.resolve(storage, &*source)?.as_ref());
-                    unit.new_import(item, &name, span, source_id)?;
-                }
+            for c in iter {
+                let name = name.iter().chain(std::iter::once(c));
+                unit.new_import(item.clone(), name, span, source_id)?;
             }
         } else {
             unit.new_import(item, &name, span, source_id)?;

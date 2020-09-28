@@ -122,7 +122,7 @@ pub use self::item_fn::ItemFn;
 pub use self::item_impl::ItemImpl;
 pub use self::item_mod::{ItemMod, ItemModBody};
 pub use self::item_struct::{Field, ItemStruct, ItemStructBody};
-pub use self::item_use::{ItemUse, ItemUseComponent};
+pub use self::item_use::ItemUse;
 pub use self::label::Label;
 pub use self::lit::Lit;
 pub use self::lit_bool::LitBool;
@@ -256,6 +256,8 @@ decl_tokens! {
     (Crate, "The `crate` keyword.", Kind::Crate),
     (Super, "The `super` keyword.", Kind::Super),
     (Extern, "The `extern` keyword.", Kind::Extern),
+    (SelfType, "The `Self` keyword.", Kind::SelfType),
+
 }
 
 #[cfg(test)]

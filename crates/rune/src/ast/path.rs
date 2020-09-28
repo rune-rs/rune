@@ -1,5 +1,7 @@
-use crate::ast;
+use crate::{ast, Resolve, Storage};
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
+use runestick::Source;
+use std::borrow::Cow;
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
@@ -44,16 +46,14 @@ impl Path {
 
     /// Iterate over all components in path.
     pub fn into_components(&self) -> impl Iterator<Item = &'_ PathSegment> + '_ {
-        let mut first = Some(&self.first);
-        let mut it = self.rest.iter();
+        self.iter()
+    }
 
-        std::iter::from_fn(move || {
-            if let Some(first) = first.take() {
-                return Some(first);
-            }
-
-            Some(&it.next()?.1)
-        })
+    /// Iterate over the components of the path
+    pub fn iter<'a>(&'a self) -> impl 'a + Iterator<Item = &'a ast::PathSegment> {
+        Some(&self.first)
+            .into_iter()
+            .chain(self.rest.iter().map(|(_, i)| i))
     }
 }
 
@@ -63,8 +63,7 @@ impl Peek for Path {
     }
 }
 
-/// Part of a `::` separated path.
-///
+/// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum PathSegment {
     /// A path segment that is an identifier.
@@ -73,6 +72,10 @@ pub enum PathSegment {
     Crate(ast::Crate),
     /// The `super` keyword use as a path segment.
     Super(ast::Super),
+    /// The `self` keyword used as a path segment: `self::foo`.
+    SelfValue(ast::Self_),
+    /// The `Self` keyword used as a path segment: `Self::Bar`.
+    SelfType(ast::SelfType),
 }
 
 impl PathSegment {
@@ -108,6 +111,8 @@ impl Parse for PathSegment {
             ast::Kind::Ident(_) => Ok(PathSegment::Ident(parser.parse()?)),
             ast::Kind::Crate => Ok(PathSegment::Crate(parser.parse()?)),
             ast::Kind::Super => Ok(PathSegment::Super(parser.parse()?)),
+            ast::Kind::Self_ => Ok(PathSegment::SelfValue(parser.parse()?)),
+            ast::Kind::SelfType => Ok(PathSegment::SelfType(parser.parse()?)),
             _ => {
                 return Err(ParseError::new(
                     token,
@@ -123,6 +128,24 @@ impl Parse for PathSegment {
 
 impl Peek for PathSegment {
     fn peek(t1: Option<ast::Token>, _t2: Option<ast::Token>) -> bool {
-        matches!(peek!(t1).kind, ast::Kind::Ident(_) | ast::Kind::Crate | ast::Kind::Super)
+        matches!(peek!(t1).kind,
+            ast::Kind::Ident(_)
+            | ast::Kind::Crate
+            | ast::Kind::Super
+            | ast::Kind::SelfType)
+    }
+}
+
+impl<'a> Resolve<'a> for PathSegment {
+    type Output = Cow<'a, str>;
+
+    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
+        match self {
+            Self::Ident(ident) => ident.resolve(storage, source),
+            Self::Crate(crate_) => ast::utils::resolve_text(crate_, source),
+            Self::Super(super_) => ast::utils::resolve_text(super_, source),
+            Self::SelfValue(self_) => ast::utils::resolve_text(self_, source),
+            Self::SelfType(self_type) => ast::utils::resolve_text(self_type, source),
+        }
     }
 }

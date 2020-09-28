@@ -1,0 +1,12 @@
+mod abc {
+    fn x() {}
+    fn y() {}
+    fn z() {}
+}
+
+fn main() {
+    use crate::abc::*;
+    x();
+    y();
+    z();
+}

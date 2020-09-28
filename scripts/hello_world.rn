@@ -1,3 +1,48 @@
-fn main() {
-    println("Hello World");
+
+
+
+struct Foo {
+    n,
 }
+
+impl Foo {
+
+    fn outer_1(self, n) {
+
+        struct Bar {
+            c
+        }
+
+        impl Bar {
+
+            fn inner_1(self) {
+                self.c + Self::inner_2()
+            }
+
+            fn inner_2() {
+                2
+            }
+        }
+
+
+        self.n + Self::outer_2() + Bar{c: 1}.inner_1()
+    }
+
+    fn outer_2() {
+        1
+    }
+}
+
+mod x {
+    mod y {
+        const a = "yup";
+    }
+    use self::y::a;
+
+
+}
+
+fn main() {
+   let x = ::self::Foo {n: 33};
+}
+

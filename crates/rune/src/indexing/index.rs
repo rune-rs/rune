@@ -194,7 +194,12 @@ impl<'a> Indexer<'a> {
         let span = item_mod.span();
         let name = item_mod.name.resolve(&self.storage, &*self.source)?;
         let _guard = self.items.push_name(name.as_ref());
-
+        self.query.index_module(
+            self.items.item(),
+            item_mod.clone(),
+            self.source.clone(),
+            self.source_id,
+        )?;
         let root = match &self.root {
             Some(root) => root,
             None => {
@@ -897,10 +902,18 @@ impl Index<ast::Item> for Indexer<'_> {
                         .try_as_ident()
                         .ok_or_else(|| CompileError::internal_unsupported_path(path_segment))?;
                     let ident = ident_segment.resolve(&self.storage, &*self.source)?;
+
                     guards.push(self.items.push_name(ident.as_ref()));
                 }
 
                 self.impl_items.push(self.items.item());
+
+                self.query.index_impl(
+                    self.items.item(),
+                    item_impl.clone(),
+                    self.source.clone(),
+                    self.source_id,
+                )?;
 
                 for item_fn in &mut item_impl.functions {
                     self.index(item_fn)?;
@@ -921,6 +934,8 @@ impl Index<ast::Item> for Indexer<'_> {
                     ));
                 }
 
+                let cloned = item_mod.clone();
+
                 match &mut item_mod.body {
                     ast::ItemModBody::EmptyBody(..) => {
                         self.handle_file_mod(item_mod)?;
@@ -928,6 +943,14 @@ impl Index<ast::Item> for Indexer<'_> {
                     ast::ItemModBody::InlineBody(body) => {
                         let name = item_mod.name.resolve(&self.storage, &*self.source)?;
                         let _guard = self.items.push_name(name.as_ref());
+
+                        self.query.index_module(
+                            self.items.item(),
+                            cloned,
+                            self.source.clone(),
+                            self.source_id,
+                        )?;
+
                         self.index(&mut *body.file)?;
                     }
                 }

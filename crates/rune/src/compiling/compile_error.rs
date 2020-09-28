@@ -7,6 +7,7 @@ use runestick::{CompileMeta, Item, SourceId, Span};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
+use std::borrow::Cow;
 
 /// A compile result.
 pub type CompileResult<T> = std::result::Result<T, CompileError>;
@@ -46,6 +47,20 @@ impl CompileError {
             spanned,
             CompileErrorKind::Internal {
                 msg: "paths containing `crate` or `super` are not supported",
+            },
+        )
+    }
+
+    /// A failure to resolve a path representing a type or a module.
+    pub fn unresolved_type_or_module<S, N>(spanned: S, name: N) -> Self
+        where
+            S: Spanned,
+            N: Into<Cow<'static, str>>
+    {
+        CompileError::new(
+            spanned,
+            CompileErrorKind::UnresolvedTypeOrModule {
+                name: name.into(),
             },
         )
     }
@@ -215,5 +230,11 @@ pub enum CompileErrorKind {
     ExpectedBlockSemiColon {
         /// The following expression.
         followed_span: Span,
+    },
+    /// A failure to resolve a path to a type or module.
+    #[error("failed to resolve: use of undeclared type or module `{name}`")]
+    UnresolvedTypeOrModule {
+        /// The name that failed to resolve.
+        name: Cow<'static, str>,
     },
 }

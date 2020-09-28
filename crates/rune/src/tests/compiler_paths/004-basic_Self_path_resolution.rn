@@ -1,0 +1,15 @@
+struct Struct {
+    field,
+}
+
+impl Struct {
+    fn new() {
+        Struct { field: 0 }
+    }
+
+    fn with_field(field) {
+        let self_ = Self::new();
+        self_.field = field;
+        self_
+    }
+}

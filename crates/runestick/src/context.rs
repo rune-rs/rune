@@ -4,8 +4,8 @@ use crate::module::{
 };
 use crate::{
     CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, Component, Hash,
-    IntoComponent, Item, Module, Names, Stack, StaticType, Type, TypeCheck, TypeInfo, TypeOf,
-    VmError,
+    IntoComponent, Item, Module, Names, Source, Stack, StaticType, Type, TypeCheck, TypeInfo,
+    TypeOf, VmError,
 };
 use std::any;
 use std::fmt;
