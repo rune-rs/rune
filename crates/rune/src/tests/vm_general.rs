@@ -654,14 +654,6 @@ fn test_break_label() {
 }
 
 #[test]
-fn test_literal() {
-    assert_eq! {
-        rune!(char => r#"fn main() { '\u{1F4AF}' }"#),
-        '💯',
-    };
-}
-
-#[test]
 fn test_string_concat() {
     assert_eq! {
         rune! {
@@ -728,53 +720,6 @@ fn test_variants_as_functions() {
 
                 match foo {
                     Foo::B(a, b) => a + b,
-                    _ => 0,
-                }
-            }
-            "#
-        },
-        3,
-    };
-}
-
-#[test]
-fn test_struct_matching() {
-    assert_eq! {
-        rune! {
-            i64 => r#"
-            struct Foo { a, b }
-
-            fn main() {
-                let foo = Foo {
-                    a: 1,
-                    b: 2,
-                };
-
-                match foo {
-                    Foo { a, b } => a + b,
-                    _ => 0,
-                }
-            }
-            "#
-        },
-        3,
-    };
-
-    assert_eq! {
-        rune! {
-            i64 => r#"
-            struct Foo { a, b }
-
-            fn main() {
-                let b = 2;
-
-                let foo = Foo {
-                    a: 1,
-                    b,
-                };
-
-                match foo {
-                    Foo { a, b } => a + b,
                     _ => 0,
                 }
             }

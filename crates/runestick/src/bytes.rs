@@ -4,6 +4,7 @@
 
 use crate::{FromValue, Mut, Named, RawMut, RawRef, RawStr, Ref, UnsafeFromValue, Value, VmError};
 
+use std::cmp;
 use std::fmt;
 use std::ops;
 
@@ -116,8 +117,7 @@ impl ops::DerefMut for Bytes {
 
 impl FromValue for Bytes {
     fn from_value(value: Value) -> Result<Self, VmError> {
-        let bytes = value.into_bytes()?;
-        Ok(bytes.borrow_ref()?.clone())
+        Ok(value.into_bytes()?.borrow_ref()?.clone())
     }
 }
 
@@ -169,4 +169,34 @@ impl<'a> UnsafeFromValue for &'a [u8] {
 
 impl Named for Bytes {
     const NAME: RawStr = RawStr::from_str("Bytes");
+}
+
+impl cmp::PartialEq<[u8]> for Bytes {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.bytes == other
+    }
+}
+
+impl cmp::PartialEq<Bytes> for [u8] {
+    fn eq(&self, other: &Bytes) -> bool {
+        self == other.bytes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Bytes, Shared, Value};
+
+    #[test]
+    fn test_clone_issue() -> Result<(), Box<dyn std::error::Error>> {
+        let shared = Value::Bytes(Shared::new(Bytes::new()));
+
+        let _ = {
+            let shared = shared.into_bytes()?;
+            let out = shared.borrow_ref()?.clone();
+            out
+        };
+
+        Ok(())
+    }
 }
