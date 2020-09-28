@@ -62,6 +62,22 @@ pub trait OptionSpanned {
     fn option_span(&self) -> Option<Span>;
 }
 
+impl<S> OptionSpanned for std::slice::Iter<'_, S>
+where
+    S: Spanned,
+{
+    fn option_span(&self) -> Option<Span> {
+        let mut it = self.clone();
+        let start = it.next()?.span();
+
+        Some(if let Some(end) = it.next_back() {
+            start.join(end.span())
+        } else {
+            start
+        })
+    }
+}
+
 impl<T> OptionSpanned for Box<T>
 where
     T: OptionSpanned,

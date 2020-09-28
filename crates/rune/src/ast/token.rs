@@ -500,7 +500,7 @@ impl crate::ToTokens for Kind {
     fn to_tokens(&self, context: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
         stream.push(Token {
             kind: *self,
-            span: context.default_span(),
+            span: context.span(),
         });
     }
 }

@@ -1,6 +1,7 @@
 use crate::ast::Token;
 use crate::macros::{TokenStream, TokenStreamIter};
 use crate::parsing::{Lexer, Parse, ParseError, ParseErrorKind, Peek};
+use crate::OptionSpanned as _;
 use runestick::Span;
 use std::fmt;
 
@@ -20,6 +21,7 @@ pub struct Parser<'a> {
     p1: Result<Option<Token>, ParseError>,
     p2: Result<Option<Token>, ParseError>,
     p3: Result<Option<Token>, ParseError>,
+    span: Option<Span>,
 }
 
 impl<'a> Parser<'a> {
@@ -44,11 +46,19 @@ impl<'a> Parser<'a> {
 
     /// Construct a new parser with a source.
     fn with_source(mut source: Source<'a>) -> Self {
+        let span = source.span();
+
         let p1 = source.next();
         let p2 = source.next();
         let p3 = source.next();
 
-        Self { source, p1, p2, p3 }
+        Self {
+            source,
+            p1,
+            p2,
+            p3,
+            span,
+        }
     }
 
     /// Parse a specific item from the parser.
@@ -102,7 +112,7 @@ impl<'a> Parser<'a> {
         match token? {
             Some(token) => Ok(token),
             None => Err(ParseError::new(
-                self.source.end(),
+                self.span.unwrap_or_default().end(),
                 ParseErrorKind::UnexpectedEof,
             )),
         }
@@ -114,7 +124,7 @@ impl<'a> Parser<'a> {
         match self.p1? {
             Some(token) => Ok(token),
             None => Err(ParseError::new(
-                self.source.end(),
+                self.span.unwrap_or_default().end(),
                 ParseErrorKind::UnexpectedEof,
             )),
         }
@@ -126,7 +136,7 @@ impl<'a> Parser<'a> {
         match self.p2? {
             Some(token) => Ok(token),
             None => Err(ParseError::new(
-                self.source.end(),
+                self.span.unwrap_or_default().end(),
                 ParseErrorKind::UnexpectedEof,
             )),
         }
@@ -157,11 +167,11 @@ pub(crate) struct Source<'a> {
 }
 
 impl Source<'_> {
-    /// Get the end span of the source.
-    pub(crate) fn end(&self) -> Span {
+    /// Get the span of the source.
+    pub(crate) fn span(&self) -> Option<Span> {
         match &self.inner {
-            SourceInner::Lexer(lexer) => lexer.end(),
-            SourceInner::TokenStream(token_stream) => token_stream.end(),
+            SourceInner::Lexer(lexer) => Some(lexer.span()),
+            SourceInner::TokenStream(token_stream) => token_stream.option_span(),
         }
     }
 

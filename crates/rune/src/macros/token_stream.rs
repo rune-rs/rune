@@ -1,5 +1,5 @@
 use crate::ast::{Kind, Token};
-use crate::MacroContext;
+use crate::{MacroContext, OptionSpanned};
 use runestick::Span;
 use std::fmt;
 use std::slice;
@@ -8,21 +8,17 @@ use std::slice;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenStream {
     stream: Vec<Token>,
-    end: Span,
 }
 
 impl TokenStream {
     /// Construct an empty token stream for testing.
     pub fn empty() -> Self {
-        Self {
-            stream: Vec::new(),
-            end: Span::empty(),
-        }
+        Self { stream: Vec::new() }
     }
 
     /// Construct a new token stream with the specified end span.
-    pub fn new(stream: Vec<Token>, end: Span) -> Self {
-        Self { stream, end }
+    pub fn new(stream: Vec<Token>) -> Self {
+        Self { stream }
     }
 
     /// Push the current token to the stream.
@@ -39,16 +35,10 @@ impl TokenStream {
         self.stream.extend(tokens.into_iter().map(Token::from));
     }
 
-    /// Get the end span of the token stream.
-    pub fn end(&self) -> Span {
-        self.end
-    }
-
     /// Create an iterator over the token stream.
     pub(crate) fn iter(&self) -> TokenStreamIter<'_> {
         TokenStreamIter {
             iter: self.stream.iter(),
-            end: self.end,
         }
     }
 
@@ -60,17 +50,21 @@ impl TokenStream {
     }
 }
 
-/// A token stream iterator.
-#[derive(Debug)]
-pub struct TokenStreamIter<'a> {
-    iter: slice::Iter<'a, Token>,
-    end: Span,
+impl OptionSpanned for TokenStream {
+    fn option_span(&self) -> Option<Span> {
+        self.stream.option_span()
+    }
 }
 
-impl TokenStreamIter<'_> {
-    /// Get the end point of the token stream iterator.
-    pub(crate) fn end(&self) -> Span {
-        self.end
+/// A token stream iterator.
+#[derive(Debug, Clone)]
+pub struct TokenStreamIter<'a> {
+    iter: slice::Iter<'a, Token>,
+}
+
+impl OptionSpanned for TokenStreamIter<'_> {
+    fn option_span(&self) -> Option<Span> {
+        self.iter.option_span()
     }
 }
 
@@ -79,6 +73,12 @@ impl Iterator for TokenStreamIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().copied()
+    }
+}
+
+impl DoubleEndedIterator for TokenStreamIter<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().copied()
     }
 }
 

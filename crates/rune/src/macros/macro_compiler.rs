@@ -6,7 +6,7 @@ use crate::{
     ast, CompileError, CompileErrorKind, Options, Parse, ParseError, Parser, Spanned as _,
     UnitBuilder,
 };
-use runestick::{Context, Hash, Item, Source, Span};
+use runestick::{Context, Hash, Item, Source};
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
@@ -52,14 +52,8 @@ impl MacroCompiler<'_> {
 
         let input_stream = &macro_call.stream;
 
-        self.macro_context.default_span = span;
-        self.macro_context.end = Span::point(span.end);
-
+        self.macro_context.span = span;
         let result = handler(self.macro_context, input_stream);
-
-        // reset to default spans.
-        self.macro_context.default_span = Span::default();
-        self.macro_context.end = Span::default();
 
         let output = match result {
             Ok(output) => output,
