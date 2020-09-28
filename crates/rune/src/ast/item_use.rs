@@ -1,7 +1,19 @@
 use crate::ast;
 use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 
-/// An imported declaration.
+/// A use item.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::ItemUse>("use foo");
+/// testing::roundtrip::<ast::ItemUse>("use foo::bar");
+/// testing::roundtrip::<ast::ItemUse>("use foo::bar::baz");
+/// testing::roundtrip::<ast::ItemUse>("#[macro_use] use foo::bar::baz");
+/// testing::roundtrip::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemUse {
     /// The attributes on use item
@@ -40,26 +52,7 @@ impl ItemUse {
     }
 }
 
-/// Parsing an use declaration.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::ItemUse>("use foo");
-/// testing::roundtrip::<ast::ItemUse>("use foo::bar");
-/// testing::roundtrip::<ast::ItemUse>("use foo::bar::baz");
-/// testing::roundtrip::<ast::ItemUse>("#[macro_use] use foo::bar::baz");
-/// testing::roundtrip::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz");
-/// ```
-impl Parse for ItemUse {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        let visibility = parser.parse()?;
-        Self::parse_with_meta(parser, attributes, visibility)
-    }
-}
+item_parse!(ItemUse, "use item");
 
 /// A use component.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

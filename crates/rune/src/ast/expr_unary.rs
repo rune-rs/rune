@@ -1,41 +1,9 @@
 use crate::ast;
 use crate::ast::expr::EagerBrace;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{ParseError, Parser, Spanned, ToTokens};
 use std::fmt;
 
 /// A unary expression.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub struct ExprUnary {
-    /// Attributes associated with expression.
-    #[rune(iter)]
-    pub attributes: Vec<ast::Attribute>,
-    /// Token associated with operator.
-    pub token: ast::Token,
-    /// The expression of the operation.
-    pub expr: Box<ast::Expr>,
-    /// The operation to apply.
-    #[rune(skip)]
-    pub op: UnaryOp,
-}
-
-impl ExprUnary {
-    fn parse_with_meta(
-        parser: &mut Parser,
-        attributes: Vec<ast::Attribute>,
-        eager_brace: EagerBrace,
-    ) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
-
-        Ok(Self {
-            attributes,
-            op: UnaryOp::from_token(token)?,
-            token,
-            expr: Box::new(ast::Expr::parse_with(parser, eager_brace)?),
-        })
-    }
-}
-
-/// Parse a unary statement.
 ///
 /// # Examples
 ///
@@ -45,13 +13,44 @@ impl ExprUnary {
 /// testing::roundtrip::<ast::ExprUnary>("!0");
 /// testing::roundtrip::<ast::ExprUnary>("*foo");
 /// testing::roundtrip::<ast::ExprUnary>("&foo");
+/// testing::roundtrip::<ast::ExprUnary>("&Foo {
+///     a: 42,
+/// }");
 /// ```
-impl Parse for ExprUnary {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        Self::parse_with_meta(parser, attributes, EagerBrace(true))
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+pub struct ExprUnary {
+    /// Attributes associated with expression.
+    #[rune(iter)]
+    pub attributes: Vec<ast::Attribute>,
+    /// Token associated with operator.
+    pub op_token: ast::Token,
+    /// The expression of the operation.
+    pub expr: Box<ast::Expr>,
+    /// The operation to apply.
+    #[rune(skip)]
+    pub op: UnaryOp,
+}
+
+impl ExprUnary {
+    /// Parse the uniary expression with the given meta and configuration.
+    pub(crate) fn parse_with_meta(
+        parser: &mut Parser,
+        attributes: Vec<ast::Attribute>,
+        eager_brace: EagerBrace,
+    ) -> Result<Self, ParseError> {
+        let op_token = parser.token_next()?;
+        let op = UnaryOp::from_token(op_token)?;
+
+        Ok(Self {
+            attributes,
+            op_token,
+            expr: Box::new(ast::Expr::parse_with(parser, eager_brace)?),
+            op,
+        })
     }
 }
+
+expr_parse!(ExprUnary, "try expression");
 
 /// A unary operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

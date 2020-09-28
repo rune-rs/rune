@@ -35,9 +35,13 @@ impl Compile<(&ast::Block, Needs)> for Compiler<'_> {
 
         for stmt in &block.statements {
             let (expr, term) = match stmt {
+                ast::Stmt::Local(local) => {
+                    self.compile((local, Needs::None))?;
+                    continue;
+                }
                 ast::Stmt::Expr(expr) => (expr, false),
                 ast::Stmt::Semi(expr, _) => (expr, true),
-                _ => continue,
+                ast::Stmt::Item(..) => continue,
             };
 
             if let Some((stmt, _)) = std::mem::replace(&mut last, Some((expr, term))) {

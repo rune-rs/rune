@@ -462,6 +462,9 @@ impl Index<ast::Block> for Indexer<'_> {
             }
 
             match stmt {
+                ast::Stmt::Local(local) => {
+                    self.index(local)?;
+                }
                 ast::Stmt::Item(item, semi) => {
                     if let Some(semi) = semi {
                         if !item.needs_semi_colon() {
@@ -490,6 +493,21 @@ impl Index<ast::Block> for Indexer<'_> {
             }
         }
 
+        Ok(())
+    }
+}
+
+impl Index<ast::Local> for Indexer<'_> {
+    fn index(&mut self, local: &mut ast::Local) -> CompileResult<()> {
+        let span = local.span();
+        log::trace!("Local => {:?}", self.source.source(span));
+
+        if let Some(span) = local.attributes.option_span() {
+            return Err(CompileError::internal(span, "attributes are not supported"));
+        }
+
+        self.index(&mut local.pat)?;
+        self.index(&mut *local.expr)?;
         Ok(())
     }
 }
@@ -614,7 +632,7 @@ impl Index<ast::Expr> for Indexer<'_> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span));
 
-        if let Some(span) = expr.attributes_span() {
+        if let Some(span) = expr.attributes().option_span() {
             return Err(CompileError::internal(span, "attributes are not supported"));
         }
 
@@ -899,7 +917,7 @@ impl Index<ast::Item> for Indexer<'_> {
                 )?;
             }
             ast::Item::ItemFn(item_fn) => {
-                self.index(&mut **item_fn)?;
+                self.index(item_fn)?;
             }
             ast::Item::ItemImpl(item_impl) => {
                 if let Some(first) = item_impl.attributes.first() {

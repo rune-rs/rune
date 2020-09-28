@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{ParseError, Parser, Spanned, ToTokens};
 
 /// A `loop` expression: `loop { ... }`.
 ///
@@ -24,12 +24,12 @@ pub struct ExprLoop {
     /// The `loop` keyword.
     pub loop_: ast::Loop,
     /// The body of the loop.
-    pub body: Box<ast::ExprBlock>,
+    pub body: Box<ast::Block>,
 }
 
 impl ExprLoop {
     /// Parse the `loop` the given attributes and label.
-    pub fn parse_with_attributes_and_label(
+    pub(crate) fn parse_with_meta(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
         label: Option<(ast::Label, ast::Colon)>,
@@ -43,10 +43,4 @@ impl ExprLoop {
     }
 }
 
-impl Parse for ExprLoop {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        let label = parser.parse()?;
-        Self::parse_with_attributes_and_label(parser, attributes, label)
-    }
-}
+expr_parse!(ExprLoop, "loop expression");

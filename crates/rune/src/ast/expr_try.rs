@@ -9,6 +9,8 @@ pub struct ExprTry {
     pub attributes: Vec<ast::Attribute>,
     /// The expression being awaited.
     pub expr: Box<ast::Expr>,
-    /// The try operator.
-    pub try_: ast::Try,
+    /// The try operator `?`.
+    pub try_token: ast::Try,
 }
+
+expr_parse!(ExprTry, "try expression");

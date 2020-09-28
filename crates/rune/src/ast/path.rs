@@ -85,6 +85,16 @@ pub enum PathSegment {
     Super(ast::Super),
 }
 
+impl From<PathSegment> for ast::Kind {
+    fn from(segment: PathSegment) -> Self {
+        match segment {
+            PathSegment::Ident(ident) => ident.token.kind,
+            PathSegment::Crate(crate_token) => crate_token.token.kind,
+            PathSegment::Super(super_token) => super_token.token.kind,
+        }
+    }
+}
+
 impl PathSegment {
     /// Borrow as an identifier.
     ///

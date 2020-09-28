@@ -5,7 +5,7 @@ fn test_let_pattern_might_panic() {
     assert_warnings! {
         r#"fn main() { let [0, 1, 3] = []; }"#,
         LetPatternMightPanic { span, .. } => {
-            assert_eq!(span, Span::new(12, 30));
+            assert_eq!(span, Span::new(12, 31));
         }
     };
 }

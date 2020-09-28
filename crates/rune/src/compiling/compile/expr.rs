@@ -6,7 +6,7 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
         let span = expr.span();
         log::trace!("Expr => {:?}", self.source.source(span));
 
-        if let Some(span) = expr.attributes_span() {
+        if let Some(span) = expr.attributes().option_span() {
             return Err(CompileError::internal(span, "attributes are not supported"));
         }
 

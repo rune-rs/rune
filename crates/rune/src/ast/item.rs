@@ -1,6 +1,5 @@
 use crate::ast;
 use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
-use runestick::Span;
 
 /// A declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -9,7 +8,7 @@ pub enum Item {
     ItemUse(ast::ItemUse),
     /// A function declaration.
     // large variant, so boxed
-    ItemFn(Box<ast::ItemFn>),
+    ItemFn(ast::ItemFn),
     /// An enum declaration.
     ItemEnum(ast::ItemEnum),
     /// A struct declaration.
@@ -52,16 +51,16 @@ impl Item {
     }
 
     /// Test if the item has any attributes
-    pub fn attributes_span(&self) -> Option<Span> {
+    pub fn attributes(&self) -> &[ast::Attribute] {
         match self {
-            Item::ItemUse(item) => item.attributes.option_span(),
-            Item::ItemFn(item) => item.attributes.option_span(),
-            Item::ItemEnum(item) => item.attributes.option_span(),
-            Item::ItemStruct(item) => item.attributes.option_span(),
-            Item::ItemImpl(item) => item.attributes.option_span(),
-            Item::ItemMod(item) => item.attributes.option_span(),
-            Item::ItemConst(item) => item.attributes.option_span(),
-            Item::MacroCall(item) => item.attributes.option_span(),
+            Item::ItemUse(item) => &item.attributes,
+            Item::ItemFn(item) => &item.attributes,
+            Item::ItemEnum(item) => &item.attributes,
+            Item::ItemStruct(item) => &item.attributes,
+            Item::ItemImpl(item) => &item.attributes,
+            Item::ItemMod(item) => &item.attributes,
+            Item::ItemConst(item) => &item.attributes,
+            Item::MacroCall(item) => &item.attributes,
         }
     }
 
@@ -129,12 +128,12 @@ impl Item {
                     parser,
                     take(&mut attributes),
                 )?),
-                ast::Kind::Fn => Self::ItemFn(Box::new(ast::ItemFn::parse_with_meta_async(
+                ast::Kind::Fn => Self::ItemFn(ast::ItemFn::parse_with_meta_async(
                     parser,
                     take(&mut attributes),
                     take(&mut visibility),
                     take(&mut async_token),
-                )?)),
+                )?),
                 ast::Kind::Mod => Self::ItemMod(ast::ItemMod::parse_with_meta(
                     parser,
                     take(&mut attributes),

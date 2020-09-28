@@ -67,14 +67,7 @@ where
     S: Spanned,
 {
     fn option_span(&self) -> Option<Span> {
-        let mut it = self.clone();
-        let start = it.next()?.span();
-
-        Some(if let Some(end) = it.next_back() {
-            start.join(end.span())
-        } else {
-            start
-        })
+        OptionSpanned::option_span(self.as_slice())
     }
 }
 
@@ -94,16 +87,23 @@ where
     T: Spanned,
 {
     fn option_span(&self) -> Option<Span> {
-        let first = if let Some(first) = self.first() {
-            first.span()
-        } else {
-            return self.last().map(Spanned::span);
-        };
+        OptionSpanned::option_span(&**self)
+    }
+}
+
+/// Take the span of a vector of spanned.
+/// Provides the span between the first and the last element.
+impl<T> OptionSpanned for [T]
+where
+    T: Spanned,
+{
+    fn option_span(&self) -> Option<Span> {
+        let span = self.first()?.span();
 
         if let Some(last) = self.last() {
-            Some(first.join(last.span()))
+            Some(span.join(last.span()))
         } else {
-            Some(first)
+            Some(span)
         }
     }
 }
@@ -113,6 +113,6 @@ where
     T: Spanned,
 {
     fn option_span(&self) -> Option<Span> {
-        self.as_ref().map(Spanned::span)
+        Some(self.as_ref()?.span())
     }
 }

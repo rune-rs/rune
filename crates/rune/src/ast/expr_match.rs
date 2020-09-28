@@ -2,6 +2,16 @@ use crate::ast;
 use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A match expression.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::ExprMatch>("match 0 { _ => 1, }");
+/// let expr = testing::roundtrip::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }");
+/// assert_eq!(expr.attributes.len(), 1);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprMatch {
     /// The attributes for the match expression
@@ -56,23 +66,7 @@ impl ExprMatch {
     }
 }
 
-/// Parse a match statement.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::ExprMatch>("match 0 { _ => 1, }");
-/// let expr = testing::roundtrip::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }");
-/// assert_eq!(expr.attributes.len(), 1);
-/// ```
-impl Parse for ExprMatch {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        Self::parse_with_attributes(parser, attributes)
-    }
-}
+expr_parse!(ExprMatch, "match expression");
 
 /// A match branch.
 ///

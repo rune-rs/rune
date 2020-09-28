@@ -1,9 +1,25 @@
 use crate::ast;
 use crate::parsing::Opaque;
-use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{Id, ParseError, Parser, Spanned, ToTokens};
 use runestick::Span;
 
 /// A closure expression.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::ExprClosure>("async || 42");
+/// testing::roundtrip::<ast::ExprClosure>("|| 42");
+/// testing::roundtrip::<ast::ExprClosure>("|| { 42 }");
+///
+/// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)]  || 43");
+/// assert_eq!(expr.attributes.len(), 1);
+///
+/// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)] async || 43");
+/// assert_eq!(expr.attributes.len(), 1);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprClosure {
     /// Opaque identifier for the closure.
@@ -76,30 +92,7 @@ impl Opaque for ExprClosure {
     }
 }
 
-/// Parse implementation for a function.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::ExprClosure>("async || 42");
-/// testing::roundtrip::<ast::ExprClosure>("|| 42");
-/// testing::roundtrip::<ast::ExprClosure>("|| { 42 }");
-///
-/// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)]  || 43");
-/// assert_eq!(expr.attributes.len(), 1);
-///
-/// let expr = testing::roundtrip::<ast::ExprClosure>("#[retry(n=3)] async || 43");
-/// assert_eq!(expr.attributes.len(), 1);
-/// ```
-impl Parse for ExprClosure {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        let async_token = parser.parse()?;
-        Self::parse_with_attributes_and_async(parser, attributes, async_token)
-    }
-}
+expr_parse!(ExprClosure, "closure expression");
 
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
 pub enum ExprClosureArgs {

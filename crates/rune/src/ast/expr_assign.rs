@@ -14,3 +14,5 @@ pub struct ExprAssign {
     /// The value.
     pub rhs: Box<ast::Expr>,
 }
+
+expr_parse!(ExprAssign, "assign expression");

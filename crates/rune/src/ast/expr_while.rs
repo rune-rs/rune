@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
+use crate::{ParseError, Parser, Spanned, ToTokens};
 
 /// A `while` loop: `while [expr] { ... }`.
 ///
@@ -21,16 +21,16 @@ pub struct ExprWhile {
     #[rune(iter)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `while` keyword.
-    pub while_: ast::While,
+    pub while_token: ast::While,
     /// The name of the binding.
     pub condition: ast::Condition,
     /// The body of the while loop.
-    pub body: Box<ast::ExprBlock>,
+    pub body: Box<ast::Block>,
 }
 
 impl ExprWhile {
     /// Parse the `while` with the given attributes and label.
-    pub fn parse_with_attributes_and_label(
+    pub(crate) fn parse_with_meta(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
         label: Option<(ast::Label, ast::Colon)>,
@@ -38,17 +38,11 @@ impl ExprWhile {
         Ok(ExprWhile {
             attributes,
             label,
-            while_: parser.parse()?,
+            while_token: parser.parse()?,
             condition: parser.parse()?,
-            body: Box::new(parser.parse()?),
+            body: parser.parse()?,
         })
     }
 }
 
-impl Parse for ExprWhile {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        let label = parser.parse()?;
-        Self::parse_with_attributes_and_label(parser, attributes, label)
-    }
-}
+expr_parse!(ExprWhile, "while expression");

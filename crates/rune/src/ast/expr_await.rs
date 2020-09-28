@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, Spanned, ToTokens};
+use crate::{Spanned, ToTokens};
 
 /// A return statement `<expr>.await`.
 ///
@@ -12,7 +12,7 @@ use crate::{Parse, Spanned, ToTokens};
 /// testing::roundtrip::<ast::Expr>("self.await");
 /// testing::roundtrip::<ast::Expr>("test.await");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprAwait {
     /// Attributes associated with expression.
     #[rune(iter)]
@@ -24,3 +24,5 @@ pub struct ExprAwait {
     /// The await token.
     pub await_: ast::Await,
 }
+
+expr_parse!(ExprAwait, ".await expression");

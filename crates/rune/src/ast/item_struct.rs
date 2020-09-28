@@ -1,7 +1,19 @@
 use crate::ast;
 use crate::{Id, OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 
-/// A struct declaration.
+/// A struct item.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo");
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo ( a, b, c )");
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo { a, b, c }");
+/// testing::roundtrip::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }");
+/// testing::roundtrip::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c )");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemStruct {
     /// Opaque identifier of the struct.
@@ -45,26 +57,7 @@ impl ItemStruct {
     }
 }
 
-/// Parse implementation for a struct.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo");
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo ( a, b, c )");
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo { a, b, c }");
-/// testing::roundtrip::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }");
-/// testing::roundtrip::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c )");
-/// ```
-impl Parse for ItemStruct {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        let visibility = parser.parse()?;
-        Self::parse_with_meta(parser, attributes, visibility)
-    }
-}
+item_parse!(ItemStruct, "struct item");
 
 /// AST for a struct body.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]

@@ -10,17 +10,32 @@ use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 /// testing::roundtrip::<ast::ExprBreak>("break 42");
 /// testing::roundtrip::<ast::ExprBreak>("#[attr] break 42");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ExprBreak {
     /// The attributes of the `break` expression
     #[rune(iter, attributes)]
     pub attributes: Vec<ast::Attribute>,
     /// The return token.
-    pub break_: ast::Break,
+    pub break_token: ast::Break,
     /// An optional expression to break with.
     #[rune(iter)]
     pub expr: Option<ExprBreakValue>,
 }
+
+impl ExprBreak {
+    pub(crate) fn parse_with_attributes(
+        parser: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+    ) -> Result<Self, ParseError> {
+        Ok(Self {
+            attributes,
+            break_token: parser.parse()?,
+            expr: parser.parse()?,
+        })
+    }
+}
+
+expr_parse!(ExprBreak, "break expression");
 
 /// Things that we can break on.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]

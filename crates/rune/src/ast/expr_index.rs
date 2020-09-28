@@ -16,3 +16,5 @@ pub struct ExprIndex {
     /// The closening bracket.
     pub close: ast::CloseBracket,
 }
+
+expr_parse!(ExprIndex, "index expression");
