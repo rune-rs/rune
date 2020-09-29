@@ -1,126 +1,106 @@
-use runestick::{Component, Item};
-use std::cell::RefCell;
-use std::mem;
+use runestick::{Component, ComponentRef, Item};
+use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 
 pub(crate) struct Guard {
-    path: Rc<RefCell<Vec<Node>>>,
+    inner: Rc<RefCell<Inner>>,
 }
 
 impl Drop for Guard {
     fn drop(&mut self) {
-        let exists = self.path.borrow_mut().pop().is_some();
-        debug_assert!(exists);
+        let mut inner = self.inner.borrow_mut();
+
+        let id = inner
+            .item
+            .pop()
+            .and_then(|c| c.id())
+            .and_then(|n| n.checked_add(1))
+            .unwrap_or_default();
+
+        inner.id = id;
     }
 }
 
-#[derive(Debug, Clone)]
-struct Node {
-    children: usize,
-    component: Component,
-}
-
-impl From<Component> for Node {
-    fn from(component: Component) -> Self {
-        Self {
-            children: 0,
-            component,
-        }
-    }
+#[derive(Debug)]
+struct Inner {
+    id: usize,
+    item: Item,
 }
 
 /// Manage item paths.
 #[derive(Debug)]
 pub(crate) struct Items {
-    path: Rc<RefCell<Vec<Node>>>,
+    inner: Rc<RefCell<Inner>>,
 }
 
 impl Items {
     /// Construct a new items manager.
-    pub(crate) fn new(base: Vec<Component>) -> Self {
-        let path = base
-            .into_iter()
-            .map(|component| Node {
-                children: 0,
-                component,
-            })
-            .collect();
-
+    pub(crate) fn new(item: Item) -> Self {
         Self {
-            path: Rc::new(RefCell::new(path)),
+            inner: Rc::new(RefCell::new(Inner {
+                id: item.last().and_then(ComponentRef::id).unwrap_or_default(),
+                item,
+            })),
         }
     }
 
     /// Check if the current path is empty.
     pub(crate) fn is_empty(&self) -> bool {
-        self.path.borrow().is_empty()
-    }
-
-    /// Get the next child id.
-    fn next_child(&mut self) -> usize {
-        let mut path = self.path.borrow_mut();
-
-        if let Some(node) = path.last_mut() {
-            let new = node.children + 1;
-            mem::replace(&mut node.children, new)
-        } else {
-            0
-        }
+        self.inner.borrow().item.is_empty()
     }
 
     /// Push a component and return a guard to it.
     pub(crate) fn push_block(&mut self) -> Guard {
-        let index = self.next_child();
+        let mut inner = self.inner.borrow_mut();
 
-        self.path
-            .borrow_mut()
-            .push(Node::from(Component::Block(index)));
+        let id = inner.id;
+        inner.item.push(Component::Block(id));
 
         Guard {
-            path: self.path.clone(),
+            inner: self.inner.clone(),
         }
     }
 
     /// Push a closure component and return guard associated with it.
     pub(crate) fn push_closure(&mut self) -> Guard {
-        let index = self.next_child();
+        let mut inner = self.inner.borrow_mut();
 
-        self.path
-            .borrow_mut()
-            .push(Node::from(Component::Closure(index)));
+        let id = inner.id;
+        inner.item.push(Component::Closure(id));
 
         Guard {
-            path: self.path.clone(),
+            inner: self.inner.clone(),
         }
     }
 
     /// Push a component and return a guard to it.
     pub(crate) fn push_async_block(&mut self) -> Guard {
-        let index = self.next_child();
+        let mut inner = self.inner.borrow_mut();
 
-        self.path
-            .borrow_mut()
-            .push(Node::from(Component::AsyncBlock(index)));
+        let id = inner.id;
+        inner.item.push(Component::AsyncBlock(id));
 
         Guard {
-            path: self.path.clone(),
+            inner: self.inner.clone(),
         }
     }
 
     /// Push a component and return a guard to it.
     pub(crate) fn push_name(&mut self, name: &str) -> Guard {
-        self.path.borrow_mut().push(Node::from(Component::String(
-            name.to_owned().into_boxed_str(),
-        )));
+        let mut inner = self.inner.borrow_mut();
+
+        inner.id = 0;
+        inner
+            .item
+            .push(Component::String(name.to_owned().into_boxed_str()));
 
         Guard {
-            path: self.path.clone(),
+            inner: self.inner.clone(),
         }
     }
 
     /// Get the item for the current state of the path.
-    pub(crate) fn item(&self) -> Item {
-        let path = self.path.borrow();
-        Item::of(path.iter().map(|n| &n.component))
+    pub(crate) fn item(&self) -> Ref<'_, Item> {
+        Ref::map(self.inner.borrow(), |inner| &inner.item)
     }
 }

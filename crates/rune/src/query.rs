@@ -251,14 +251,14 @@ impl Query {
     }
 
     /// Insert an item and return its Id.
-    pub(crate) fn insert_item(&mut self, item: Item) -> Option<Id> {
+    pub(crate) fn insert_item(&mut self, item: &Item) -> Option<Id> {
         if let Some(id) = self.items_rev.get(&item) {
             return Some(*id);
         }
 
         let id = self.next_id.next()?;
         self.items_rev.insert(item.clone(), id);
-        self.items.insert(id, item);
+        self.items.insert(id, item.clone());
         Some(id)
     }
 

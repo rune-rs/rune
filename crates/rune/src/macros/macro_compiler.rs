@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
     pub(crate) storage: Storage,
-    pub(crate) item: Item,
+    pub(crate) item: &'a Item,
     pub(crate) macro_context: &'a mut MacroContext,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,

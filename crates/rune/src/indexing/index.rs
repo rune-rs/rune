@@ -56,7 +56,7 @@ impl<'a> Indexer<'a> {
 
         let mut compiler = MacroCompiler {
             storage: self.query.storage.clone(),
-            item: self.items.item(),
+            item: &*self.items.item(),
             macro_context: &mut macro_context,
             options: self.options,
             context: self.context,
@@ -82,7 +82,7 @@ impl<'a> Indexer<'a> {
             match item {
                 ast::Item::ItemUse(item_use) => {
                     let import = Import {
-                        item: self.items.item(),
+                        item: self.items.item().clone(),
                         ast: item_use,
                         source: self.source.clone(),
                         source_id: self.source_id,
@@ -118,7 +118,7 @@ impl<'a> Indexer<'a> {
             match stmt {
                 ast::Stmt::Item(ast::Item::ItemUse(item_use), _) => {
                     let import = Import {
-                        item: self.items.item(),
+                        item: self.items.item().clone(),
                         ast: item_use,
                         source: self.source.clone(),
                         source_id: self.source_id,
@@ -179,7 +179,10 @@ impl<'a> Indexer<'a> {
         if let Some(existing) = self.loaded.insert(item.clone(), (self.source_id, span)) {
             return Err(CompileError::new(
                 span,
-                CompileErrorKind::ModAlreadyLoaded { item, existing },
+                CompileErrorKind::ModAlreadyLoaded {
+                    item: item.clone(),
+                    existing,
+                },
             ));
         }
 
@@ -190,7 +193,7 @@ impl<'a> Indexer<'a> {
             kind: LoadFileKind::Module {
                 root: self.root.clone(),
             },
-            item,
+            item: item.clone(),
             source_id,
         });
 
@@ -250,8 +253,6 @@ impl Index<ast::ItemFn> for Indexer<'_> {
         let name = decl_fn.name.resolve(&self.storage, &*self.source)?;
         let _guard = self.items.push_name(name.as_ref());
 
-        let item = self.items.item();
-
         let kind = match (decl_fn.const_token, decl_fn.async_token) {
             (Some(const_token), Some(async_token)) => {
                 return Err(CompileError::new(
@@ -303,7 +304,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                     ));
                 }
 
-                let id = self.query.insert_item(self.items.item());
+                let id = self.query.insert_item(&*self.items.item());
                 decl_fn.id = id;
 
                 self.query.index_const_fn(
@@ -336,6 +337,8 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 call: fun.call,
             };
 
+            let item = self.items.item();
+
             // NB: all instance functions must be pre-emptively built,
             // because statically we don't know if they will be used or
             // not.
@@ -350,8 +353,8 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
             let meta = CompileMeta {
                 kind: CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(&item)),
-                    item,
+                    type_of: Type::from(Hash::type_hash(&*item)),
+                    item: item.clone(),
                 },
                 source: Some(CompileSource {
                     span,
@@ -365,6 +368,8 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 .insert_meta(meta)
                 .map_err(|e| CompileError::new(span, e))?;
         } else if is_toplevel {
+            let item = self.items.item();
+
             // NB: immediately compile all toplevel functions.
             self.query.queue.push_back(BuildEntry {
                 span: fun.ast.span(),
@@ -377,8 +382,8 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
             let meta = CompileMeta {
                 kind: CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(&item)),
-                    item,
+                    type_of: Type::from(Hash::type_hash(&*item)),
+                    item: item.clone(),
                 },
                 source: Some(CompileSource {
                     span,
@@ -393,7 +398,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 .map_err(|e| CompileError::new(span, e))?;
         } else {
             // NB: non toplevel functions can be indexed for later construction.
-            let id = self.query.insert_item(item);
+            let id = self.query.insert_item(&*self.items.item());
 
             self.query.index(
                 span,
@@ -442,7 +447,7 @@ impl Index<ast::ExprBlock> for Indexer<'_> {
             }
         };
 
-        let id = self.query.insert_item(self.items.item());
+        let id = self.query.insert_item(&*self.items.item());
         expr_block.block.id = id;
 
         self.query.index_async_block(
@@ -849,7 +854,7 @@ impl Index<ast::Item> for Indexer<'_> {
                 let name = item_enum.name.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(name.as_ref());
 
-                let enum_id = self.query.insert_item(self.items.item());
+                let enum_id = self.query.insert_item(&*self.items.item());
 
                 self.query.index_enum(
                     &*item_enum,
@@ -880,7 +885,7 @@ impl Index<ast::Item> for Indexer<'_> {
                     let name = variant.name.resolve(&self.storage, &*self.source)?;
                     let _guard = self.items.push_name(name.as_ref());
 
-                    let id = self.query.insert_item(self.items.item());
+                    let id = self.query.insert_item(&*self.items.item());
                     variant.id = id;
 
                     self.query.index_variant(
@@ -924,7 +929,7 @@ impl Index<ast::Item> for Indexer<'_> {
                 let ident = item_struct.ident.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(ident.as_ref());
 
-                let id = self.query.insert_item(self.items.item());
+                let id = self.query.insert_item(&*self.items.item());
                 item_struct.id = id;
 
                 self.query.index_struct(
@@ -956,7 +961,7 @@ impl Index<ast::Item> for Indexer<'_> {
                     guards.push(self.items.push_name(ident.as_ref()));
                 }
 
-                self.impl_items.push(self.items.item());
+                self.impl_items.push(self.items.item().clone());
 
                 for item_fn in &mut item_impl.functions {
                     self.index(item_fn)?;
@@ -1002,7 +1007,7 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 self.index(item_const)?;
 
-                let id = self.query.insert_item(self.items.item());
+                let id = self.query.insert_item(&*self.items.item());
                 item_const.id = id;
 
                 self.query.index_const(
@@ -1039,7 +1044,7 @@ impl Index<ast::Path> for Indexer<'_> {
         let span = path.span();
         log::trace!("Path => {:?}", self.source.source(span));
 
-        path.id = self.query.insert_item(self.items.item());
+        path.id = self.query.insert_item(&*self.items.item());
 
         if let Some(ident) = path.try_as_ident() {
             let ident = ident.resolve(&self.storage, &*self.source)?;
@@ -1129,7 +1134,7 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
             }
         };
 
-        let id = self.query.insert_item(self.items.item());
+        let id = self.query.insert_item(&*self.items.item());
         expr_closure.id = id;
 
         self.query.index_closure(
@@ -1285,7 +1290,7 @@ impl Index<ast::ExprCall> for Indexer<'_> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span));
 
-        expr_call.id = self.query.insert_item(self.items.item());
+        expr_call.id = self.query.insert_item(&*self.items.item());
 
         for (expr, _) in &mut expr_call.args {
             self.index(expr)?;

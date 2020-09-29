@@ -1,5 +1,5 @@
 use crate::{CompileError, CompileErrorKind};
-use runestick::{Component, Item, Source, Span};
+use runestick::{ComponentRef, Item, Source, Span};
 use std::path::Path;
 
 /// A source loader.
@@ -32,8 +32,8 @@ impl SourceLoader for FileSourceLoader {
         }
 
         for c in item {
-            if let Component::String(string) = c {
-                base.push(string.as_ref());
+            if let ComponentRef::String(string) = c {
+                base.push(string);
             } else {
                 return Err(CompileError::new(
                     span,
