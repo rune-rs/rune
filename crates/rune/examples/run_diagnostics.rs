@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let context = Arc::new(rune::default_context()?);
+    let context = Arc::new(rune_modules::default_context()?);
     let options = Options::default();
     let mut sources = Sources::new();
 

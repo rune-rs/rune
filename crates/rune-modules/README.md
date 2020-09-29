@@ -59,6 +59,7 @@ See each module for documentation:
 ### Features
 
 * `full` includes all modules.
+* `experiments` for the [experiments module][experiments]
 * `http` for the [http module][http]
 * `json` for the [json module][json]
 * `toml` for the [toml module][toml]
@@ -68,6 +69,7 @@ See each module for documentation:
 * `signal` for the [signal module][signal]
 * `rand` for the [rand module][rand]
 
+[experiments]: https://docs.rs/rune-modules/0/rune_modules/experiments/
 [http]: https://docs.rs/rune-modules/0/rune_modules/http/
 [json]: https://docs.rs/rune-modules/0/rune_modules/json/
 [toml]: https://docs.rs/rune-modules/0/rune_modules/toml/

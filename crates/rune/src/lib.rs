@@ -106,7 +106,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn Error>> {
-//!     let context = Arc::new(rune::default_context()?);
+//!     let context = Arc::new(rune_modules::default_context()?);
 //!     let options = rune::Options::default();
 //!
 //!     let mut sources = rune::Sources::new();
@@ -292,31 +292,6 @@ pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
 #[cfg(feature = "diagnostics")]
 pub use diagnostics::{termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics};
-
-/// Construct a a default context runestick context.
-///
-/// If built with the `modules` feature, this includes all available native
-/// modules.
-///
-/// See [load_sources](crate::load_sources) for how to use.
-pub fn default_context() -> Result<runestick::Context, runestick::ContextError> {
-    #[allow(unused_mut)]
-    let mut context = runestick::Context::with_default_modules()?;
-
-    #[cfg(feature = "modules")]
-    {
-        context.install(&rune_modules::http::module()?)?;
-        context.install(&rune_modules::json::module()?)?;
-        context.install(&rune_modules::toml::module()?)?;
-        context.install(&rune_modules::time::module()?)?;
-        context.install(&rune_modules::process::module()?)?;
-        context.install(&rune_modules::fs::module()?)?;
-        context.install(&rune_modules::signal::module()?)?;
-        context.install(&rune_modules::rand::module()?)?;
-    }
-
-    Ok(context)
-}
 
 /// Parse the given input as the given type that implements
 /// [Parse][crate::traits::Parse].

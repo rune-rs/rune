@@ -57,6 +57,7 @@
 //! ## Features
 //!
 //! * `full` includes all modules.
+//! * `experiments` for the [experiments module][experiments]
 //! * `http` for the [http module][http]
 //! * `json` for the [json module][json]
 //! * `toml` for the [toml module][toml]
@@ -66,6 +67,7 @@
 //! * `signal` for the [signal module][signal]
 //! * `rand` for the [rand module][rand]
 //!
+//! [experiments]: https://docs.rs/rune-modules/0/rune_modules/experiments/
 //! [http]: https://docs.rs/rune-modules/0/rune_modules/http/
 //! [json]: https://docs.rs/rune-modules/0/rune_modules/json/
 //! [toml]: https://docs.rs/rune-modules/0/rune_modules/toml/
@@ -75,26 +77,42 @@
 //! [signal]: https://docs.rs/rune-modules/0/rune_modules/signal/
 //! [rand]: https://docs.rs/rune-modules/0/rune_modules/rand/
 
-#[cfg(feature = "http")]
-pub mod http;
+#[cfg(feature = "experiments")]
+pub mod experiments;
 
-#[cfg(feature = "json")]
-pub mod json;
+macro_rules! modules {
+    ($($ident:ident, $name:literal),* $(,)?) => {
+        $(
+            #[cfg(feature = $name)]
+            pub mod $ident;
+        )*
 
-#[cfg(feature = "toml")]
-pub mod toml;
+        /// Construct a a default context runestick context with all enabled
+        /// modules provided based on the [default runestick
+        /// context](runestick::Context::with_default_modules).
+        pub fn default_context() -> Result<runestick::Context, runestick::ContextError> {
+            #[allow(unused_mut)]
+            let mut context = runestick::Context::with_default_modules()?;
 
-#[cfg(feature = "time")]
-pub mod time;
+            $(
+                #[cfg(feature = $name)]
+                {
+                    context.install(&self::$ident::module()?)?;
+                }
+            )*
 
-#[cfg(feature = "fs")]
-pub mod fs;
+            Ok(context)
+        }
+    }
+}
 
-#[cfg(feature = "process")]
-pub mod process;
-
-#[cfg(feature = "signal")]
-pub mod signal;
-
-#[cfg(feature = "rand")]
-pub mod rand;
+modules! {
+    fs, "fs",
+    http, "http",
+    json, "json",
+    process, "process",
+    rand, "rand",
+    signal, "signal",
+    time, "time",
+    toml, "toml",
+}

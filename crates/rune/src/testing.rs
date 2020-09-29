@@ -95,7 +95,7 @@ where
 ///
 /// This is primarily used in examples.
 pub fn build(source: &str) -> runestick::Result<(Arc<runestick::Context>, Arc<runestick::Unit>)> {
-    let context = std::sync::Arc::new(crate::default_context()?);
+    let context = std::sync::Arc::new(runestick::Context::with_default_modules()?);
     let options = crate::Options::default();
     let mut sources = crate::Sources::new();
     sources.insert(runestick::Source::new("source", source));

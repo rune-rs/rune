@@ -17,8 +17,6 @@ An embeddable dynamic programming language for Rust.
 [features]
 default = ["diagnostics", "testing"]
 diagnostics = ["codespan-reporting"]
-# include all native modules in the default context.
-modules = ["rune-modules"]
 testing = ["futures-executor"]
 
 [dependencies]
@@ -32,12 +30,13 @@ itoa = "0.4.6"
 ryu = "1.0"
 
 runestick = {version = "0.6.16", path = "../runestick"}
-rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["full"], optional = true}
 rune-macros = {version = "0.6.16", path = "../rune-macros"}
 
 [dev-dependencies]
 tokio = {version = "0.2.22", features = ["macros"]}
 futures-executor = "0.3.5"
+
+rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["full"]}
 
 [package.metadata.docs.rs]
 all-features = true

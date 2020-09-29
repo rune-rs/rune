@@ -43,7 +43,7 @@ pub struct LoadSourcesError;
 /// use std::error::Error;
 ///
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let context = Arc::new(rune::default_context()?);
+/// let context = Arc::new(rune_modules::default_context()?);
 /// let mut options = rune::Options::default();
 /// let mut sources = rune::Sources::new();
 /// sources.insert(Source::new("entry", r#"

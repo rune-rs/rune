@@ -165,7 +165,7 @@ fn setup_context(experimental: bool) -> Result<runestick::Context, ContextError>
     context.install(&rune_modules::rand::module()?)?;
 
     if experimental {
-        context.install(&rune_experimental::module()?)?;
+        context.install(&rune_modules::experiments::module()?)?;
     }
 
     Ok(context)

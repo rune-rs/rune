@@ -231,10 +231,10 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     }
 
     let bytecode_path = path.with_extension("rnc");
-    let mut context = rune::default_context()?;
+    let mut context = rune_modules::default_context()?;
 
     if args.experimental {
-        context.install(&rune_experimental::module()?)?;
+        context.install(&rune_modules::experiments::module()?)?;
     }
 
     let source = runestick::Source::from_path(path)

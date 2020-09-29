@@ -23,8 +23,7 @@ anyhow = "1.0.32"
 
 rune = {version = "0.6.16", path = "../rune", features = []}
 rune-macros = {version = "0.6.16", path = "../rune-macros"}
-rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["json", "toml", "rand"]}
-rune-experimental = {version = "0.6.16", path = "../rune-experimental"}
+rune-modules = {version = "0.6.16", path = "../rune-modules", features = ["json", "toml", "rand", "experiments"]}
 runestick = {version = "0.6.16", path = "../runestick"}
 
 [dependencies.web-sys]

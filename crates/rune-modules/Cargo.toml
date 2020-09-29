@@ -23,6 +23,7 @@ json = ["serde_json"]
 process = ["tokio/process"]
 signal = ["tokio/signal"]
 rand = ["nanorand"]
+experiments = []
 
 [dependencies]
 reqwest = {version = "0.10.7", optional = true, default-features = false, features = ["rustls-tls", "gzip", "json"]}
@@ -31,6 +32,7 @@ serde_json = {version = "1.0.57", optional = true}
 toml = {version = "0.5.6", optional = true}
 nanorand = {version = "0.4.4", optional = true, features = ["getrandom"]}
 
+rune = {version = "0.6.16", path = "../rune"}
 runestick = {version = "0.6.16", path = "../runestick"}
 
 [package.metadata.docs.rs]
