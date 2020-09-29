@@ -1,17 +1,25 @@
 use crate::RawStr;
-use byteorder::{ByteOrder as _, LittleEndian, ReadBytesExt as _, WriteBytesExt as _};
+use byteorder::{ByteOrder as _, NativeEndian, WriteBytesExt as _};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom as _;
 use std::fmt;
 use std::hash;
 use std::hash::Hash as _;
-use std::io::Cursor;
-use std::io::Read as _;
 
+// Types available.
 const STRING: u8 = 0;
 const BLOCK: u8 = 1;
 const CLOSURE: u8 = 2;
 const ASYNC_BLOCK: u8 = 3;
+
+/// How many bits the type of a tag takes up.
+const TYPE_BITS: usize = 2;
+/// Mask of the type of a tag.
+const TYPE_MASK: usize = (0b1 << TYPE_BITS) - 1;
+/// Total tag size in bytes.
+const TAG_BYTES: usize = 2;
+/// Max size of data stored.
+const MAX_DATA: usize = 0b1 << (TAG_BYTES * 8 - TYPE_BITS);
 
 /// The name of an item.
 ///
@@ -20,15 +28,32 @@ const ASYNC_BLOCK: u8 = 3;
 ///
 /// # Panics
 ///
-/// The max length of an item is 2**16 = 65536. Attempting to create an item
-/// larger than that will panic.
+/// The max length of a string component is is 2**14 = 16384. Attempting to add
+/// a string larger than that will panic.
 ///
 /// # Component encoding
 ///
 /// A component is encoded as:
-/// * A single byte prefix identifying the type of the component.
-/// * The payload of the component, specific to its type.
-/// * The offset to the start of the last component.
+/// * A two byte tag as a u16 in native endianess, indicating its type (least
+///   significant 2 bits) and data (most significant 14 bits).
+/// * If the type is a `STRING`, the data is treated as the length of the
+///   string. Any other type this the `data` is treated as the numeric id of the
+///   component.
+/// * If the type is a `STRING`, the tag is repeated at the end of it to allow
+///   for seeking backwards. This is **not** the case for other types. Since
+///   they are fixed size its not necessary.
+///
+/// So all in all, a string is encoded as:
+///
+/// ```text
+/// dddddddd ddddddtt *string content* dddddddd ddddddtt
+/// ```
+///
+/// And any other component is just the two bytes:
+///
+/// ```text
+/// dddddddd ddddddtt
+/// ```
 #[derive(Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Item {
     content: Vec<u8>,
@@ -130,7 +155,7 @@ impl Item {
 
     /// Access the last component in the path.
     pub fn last(&self) -> Option<ComponentRef<'_>> {
-        self.iter().next_back_ref()
+        self.iter().next_back()
     }
 
     /// Implement an iterator.
@@ -211,15 +236,10 @@ impl<'a> Iter<'a> {
     /// Will consume the next component in the iterator, but will only indicate
     /// if the next component was present, and was a [Component::String].
     pub fn next_str(&mut self) -> Option<&'a str> {
-        if self.content.is_empty() {
-            return None;
+        match self.next()? {
+            ComponentRef::String(s) => Some(s),
+            _ => None,
         }
-
-        let mut cursor = Cursor::new(&self.content[..]);
-        let c = ComponentRef::decode_str(&mut cursor);
-        let start = usize::try_from(cursor.position()).unwrap();
-        self.content = &self.content[start..];
-        c
     }
 
     /// Get the next back as a string component.
@@ -227,26 +247,10 @@ impl<'a> Iter<'a> {
     /// Will consume the next component in the iterator, but will only indicate
     /// if the next component was present, and was a [Component::String].
     pub fn next_back_str(&mut self) -> Option<&'a str> {
-        if self.content.is_empty() {
-            return None;
+        match self.next_back()? {
+            ComponentRef::String(s) => Some(s),
+            _ => None,
         }
-
-        let (head, tail) = split_tail(&self.content);
-        self.content = head;
-        ComponentRef::decode_str(&mut Cursor::new(tail))
-    }
-
-    /// Get the next back as a component reference.
-    ///
-    /// Will consume the next component in the iterator.
-    pub fn next_back_ref(&mut self) -> Option<ComponentRef<'a>> {
-        if self.content.is_empty() {
-            return None;
-        }
-
-        let (head, tail) = split_tail(&self.content);
-        self.content = head;
-        Some(ComponentRef::decode(&mut Cursor::new(tail)))
     }
 }
 
@@ -258,10 +262,30 @@ impl<'a> Iterator for Iter<'a> {
             return None;
         }
 
-        let mut cursor = Cursor::new(&self.content[..]);
-        let c = ComponentRef::decode(&mut cursor);
-        let start = usize::try_from(cursor.position()).unwrap();
-        self.content = &self.content[start..];
+        let (head_tag, content) = self.content.split_at(TAG_BYTES);
+        let (b, n) = read_tag(head_tag);
+
+        let c = match b {
+            STRING => {
+                let (buf, content) = content.split_at(n);
+
+                // consume the head tag.
+                let (tail_tag, content) = content.split_at(TAG_BYTES);
+                debug_assert_eq!(head_tag, tail_tag);
+                self.content = content;
+
+                // Safety: we control the construction of the item.
+                return Some(ComponentRef::String(unsafe {
+                    std::str::from_utf8_unchecked(buf)
+                }));
+            }
+            BLOCK => ComponentRef::Block(n),
+            CLOSURE => ComponentRef::Closure(n),
+            ASYNC_BLOCK => ComponentRef::AsyncBlock(n),
+            b => panic!("unsupported control byte {:?}", b),
+        };
+
+        self.content = content;
         Some(c)
     }
 }
@@ -272,9 +296,41 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
             return None;
         }
 
-        let (head, tail) = split_tail(&self.content);
-        self.content = head;
-        let c = ComponentRef::decode(&mut Cursor::new(tail));
+        let content = &self.content[..];
+        let (content, tail) = content.split_at(
+            content
+                .len()
+                .checked_sub(TAG_BYTES)
+                .expect("length underflow"),
+        );
+        let (b, n) = read_tag(tail);
+
+        let c = match b {
+            STRING => {
+                let (content, buf) =
+                    content.split_at(content.len().checked_sub(n).expect("length underflow"));
+
+                // consume the head tag.
+                let (content, _) = content.split_at(
+                    content
+                        .len()
+                        .checked_sub(TAG_BYTES)
+                        .expect("length underflow"),
+                );
+                self.content = content;
+
+                // Safety: we control the construction of the item.
+                return Some(ComponentRef::String(unsafe {
+                    std::str::from_utf8_unchecked(buf)
+                }));
+            }
+            BLOCK => ComponentRef::Block(n),
+            CLOSURE => ComponentRef::Closure(n),
+            ASYNC_BLOCK => ComponentRef::AsyncBlock(n),
+            b => panic!("unsupported control byte {:?}", b),
+        };
+
+        self.content = content;
         Some(c)
     }
 }
@@ -314,14 +370,6 @@ impl Component {
             Self::Closure(n) => ComponentRef::Closure(*n),
             Self::AsyncBlock(n) => ComponentRef::AsyncBlock(*n),
         }
-    }
-
-    /// Internal function to write only the string of a component.
-    fn write_str(output: &mut Vec<u8>, s: &str) {
-        output.push(STRING);
-        let len = u16::try_from(s.len()).unwrap();
-        output.write_u16::<LittleEndian>(len).unwrap();
-        output.extend(s.as_bytes());
     }
 }
 
@@ -372,37 +420,6 @@ impl ComponentRef<'_> {
             Self::AsyncBlock(n) => Component::AsyncBlock(n),
         }
     }
-
-    /// Internal function to decode a borrowed string component without cloning
-    /// it.
-    fn decode_str<'a>(content: &mut Cursor<&'a [u8]>) -> Option<&'a str> {
-        match Self::decode(content) {
-            ComponentRef::String(s) => Some(s),
-            _ => None,
-        }
-    }
-
-    /// Internal function to decode a borrowed component without cloning it.
-    fn decode<'a>(content: &mut Cursor<&'a [u8]>) -> ComponentRef<'a> {
-        let c = match read_u8(content) {
-            STRING => {
-                let len = read_usize(content);
-                let bytes = read_bytes(content, len);
-
-                // Safety: all code paths which construct a string component
-                // are safe input paths which ensure that the input is a string.
-                ComponentRef::String(unsafe { std::str::from_utf8_unchecked(bytes) })
-            }
-            BLOCK => ComponentRef::Block(read_usize(content)),
-            CLOSURE => ComponentRef::Closure(read_usize(content)),
-            ASYNC_BLOCK => ComponentRef::AsyncBlock(read_usize(content)),
-            b => panic!("unexpected control byte `{:?}`", b),
-        };
-
-        // read the suffix offset used for reading backwards.
-        let _ = read_usize(content);
-        c
-    }
 }
 
 impl fmt::Display for ComponentRef<'_> {
@@ -450,23 +467,20 @@ impl IntoComponent for ComponentRef<'_> {
     }
 
     fn write_component(self, output: &mut Vec<u8>) {
-        write_with_suffix_len(output, |output| match self {
+        match self {
             ComponentRef::String(s) => {
-                Component::write_str(output, s);
+                write_str(output, s);
             }
             ComponentRef::Block(c) => {
-                output.push(BLOCK);
-                write_usize(output, c);
+                write_tag(output, BLOCK, c);
             }
             ComponentRef::Closure(c) => {
-                output.push(CLOSURE);
-                write_usize(output, c);
+                write_tag(output, CLOSURE, c);
             }
             ComponentRef::AsyncBlock(c) => {
-                output.push(ASYNC_BLOCK);
-                write_usize(output, c);
+                write_tag(output, ASYNC_BLOCK, c);
             }
-        })
+        }
     }
 
     fn hash_component<H>(self, hasher: &mut H)
@@ -525,7 +539,7 @@ impl IntoComponent for &str {
 
     /// Encode the given string onto the buffer.
     fn write_component(self, output: &mut Vec<u8>) {
-        write_with_suffix_len(output, |output| Component::write_str(output, self))
+        write_str(output, self)
     }
 
     fn hash_component<H>(self, hasher: &mut H)
@@ -642,66 +656,37 @@ impl IntoComponent for &String {
     }
 }
 
-/// Split the tail end of the content buffer.
-fn split_tail(content: &[u8]) -> (&[u8], &[u8]) {
-    let start = content.len().checked_sub(2).unwrap();
-    let len = LittleEndian::read_u16(&content[start..]);
-    let len = usize::try_from(len).unwrap();
-    let start = start.checked_sub(len).unwrap();
-    let start = usize::try_from(start).unwrap();
-    content.split_at(start)
-}
-
-/// Read a single byte from the cursor.
-fn read_u8(cursor: &mut Cursor<&[u8]>) -> u8 {
-    let mut buf = [0u8; 1];
-    cursor.read_exact(&mut buf).unwrap();
-    buf[0]
-}
-
-/// Read a usize out of the cursor.
-///
-/// Internally we encode usize's as LE u32's.
+/// Read a single byte.
 ///
 /// # Panics
 ///
-/// panics if the cursor doesn't contain enough data to decode.
-fn read_usize(cursor: &mut Cursor<&[u8]>) -> usize {
-    let c = cursor.read_u16::<LittleEndian>().unwrap();
-    usize::try_from(c).unwrap()
+/// Panics if the byte is not available.
+fn read_tag(content: &[u8]) -> (u8, usize) {
+    let n = NativeEndian::read_u16(content);
+    let n = usize::try_from(n).unwrap();
+    ((n & TYPE_MASK) as u8, n >> TYPE_BITS)
 }
 
-/// Helper function to write a usize.
+/// Helper function to write an identifier.
 ///
 /// # Panics
 ///
-/// Panics if the provided value cannot fit in a u16.
-fn write_usize(output: &mut Vec<u8>, value: usize) {
-    let value = u16::try_from(value).unwrap();
-    output.write_u16::<LittleEndian>(value).unwrap();
+/// Panics if the provided size cannot fit withing an identifier.
+fn write_tag(output: &mut Vec<u8>, tag: u8, n: usize) {
+    debug_assert!(tag as usize <= TYPE_MASK);
+    assert!(
+        n < MAX_DATA,
+        "item data overflow, index or string size larger than MAX_DATA"
+    );
+    let n = u16::try_from(n << TYPE_BITS | tag as usize).unwrap();
+    output.write_u16::<NativeEndian>(n).unwrap();
 }
 
-/// Read the given number of bytes from the cursor without copying them.
-///
-/// # Panics
-///
-/// Panics if the provided number of bytes are not available in the cursor.
-fn read_bytes<'a>(cursor: &mut Cursor<&'a [u8]>, len: usize) -> &'a [u8] {
-    let pos = usize::try_from(cursor.position()).unwrap();
-    let end = pos.checked_add(len).unwrap();
-    let bytes = &(*cursor.get_ref())[pos..end];
-    let end = u64::try_from(end).unwrap();
-    cursor.set_position(end);
-    bytes
-}
-
-/// Perform the given write operation, while adding the suffix length to the end
-/// of it. This is used when reading the items backwards (e.g.
-/// [Iter::next_back_ref]).
-fn write_with_suffix_len(output: &mut Vec<u8>, cb: impl FnOnce(&mut Vec<u8>)) {
-    let offset = output.len();
-    cb(output);
-    write_usize(output, output.len() - offset);
+/// Internal function to write only the string of a component.
+fn write_str(output: &mut Vec<u8>, s: &str) {
+    write_tag(output, STRING, s.len());
+    output.extend(s.as_bytes());
+    write_tag(output, STRING, s.len());
 }
 
 #[cfg(test)]
@@ -797,5 +782,40 @@ mod tests {
         assert_eq!(it.next_str(), Some("middle"));
         assert_eq!(it.next_back(), None);
         assert_eq!(it.next(), None);
+    }
+
+    #[test]
+    fn store_max_data() {
+        let mut item = Item::new();
+        item.push(ComponentRef::Block(super::MAX_DATA - 1));
+        assert_eq!(item.last(), Some(ComponentRef::Block(super::MAX_DATA - 1)));
+    }
+
+    #[test]
+    fn store_max_string() {
+        let mut item = Item::new();
+        let s = std::iter::repeat('x')
+            .take(super::MAX_DATA - 1)
+            .collect::<String>();
+        item.push(ComponentRef::String(&s));
+        assert_eq!(item.last(), Some(ComponentRef::String(&s)));
+    }
+
+    #[test]
+    #[should_panic(expected = "item data overflow, index or string size larger than MAX_DATA")]
+    fn store_max_data_overflow() {
+        let mut item = Item::new();
+        item.push(ComponentRef::Block(super::MAX_DATA));
+        assert_eq!(item.last(), Some(ComponentRef::Block(super::MAX_DATA)));
+    }
+
+    #[test]
+    #[should_panic(expected = "item data overflow, index or string size larger than MAX_DATA")]
+    fn store_max_string_overflow() {
+        let mut item = Item::new();
+        let s = std::iter::repeat('x')
+            .take(super::MAX_DATA)
+            .collect::<String>();
+        item.push(ComponentRef::String(&s));
     }
 }
