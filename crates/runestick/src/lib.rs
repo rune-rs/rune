@@ -160,7 +160,7 @@ pub use crate::function::Function;
 pub use crate::future::Future;
 pub use crate::hash::{Hash, IntoTypeHash};
 pub use crate::inst::{Inst, InstOp, InstTarget, InstValue, PanicReason, TypeCheck};
-pub use crate::item::{Component, IntoComponent, Item};
+pub use crate::item::{Component, ComponentRef, IntoComponent, Item};
 pub use crate::names::Names;
 pub use crate::object::Object;
 pub use crate::panic::Panic;

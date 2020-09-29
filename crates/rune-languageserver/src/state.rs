@@ -4,7 +4,7 @@ use hashbrown::HashMap;
 use lsp::Url;
 use ropey::Rope;
 use rune::Spanned as _;
-use runestick::{CompileMeta, CompileMetaKind, CompileSource, Component, Item, SourceId, Span};
+use runestick::{CompileMeta, CompileMetaKind, CompileSource, ComponentRef, Item, SourceId, Span};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Path;
@@ -621,28 +621,33 @@ impl<'a> SourceLoader<'a> {
     fn candidates(root: &Path, item: &Item) -> Option<[Url; 2]> {
         let mut base = root.to_owned();
 
-        let mut it = item.iter();
+        let mut it = item.iter().peekable();
+        let mut last = None;
 
-        let last = match it.next_back()? {
-            Component::String(string) => string,
-            _ => return None,
-        };
+        while let Some(c) = it.next() {
+            if it.peek().is_none() {
+                last = match c {
+                    ComponentRef::String(string) => Some(string),
+                    _ => return None,
+                };
 
-        {
-            for c in it {
-                if let Component::String(string) = c {
-                    base.push(string.as_ref());
-                } else {
-                    return None;
-                }
+                break;
+            }
+
+            if let ComponentRef::String(string) = c {
+                base.push(string);
+            } else {
+                return None;
             }
         }
+
+        let last = last?;
 
         let mut a = base.clone();
         a.push(&format!("{}.rn", last));
 
         let mut b = base.clone();
-        b.push(last.as_ref());
+        b.push(last);
         b.push("mod.rn");
 
         let a = Url::from_file_path(&a).ok()?;

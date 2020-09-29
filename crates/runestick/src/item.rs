@@ -73,7 +73,7 @@ impl Item {
     /// Push the given component to the current item.
     pub fn pop(&mut self) -> Option<Component> {
         let mut it = self.iter();
-        let c = it.next_back()?;
+        let c = it.next_back()?.into_component();
         let new_len = it.content.len();
         self.content.resize(new_len, 0);
         Some(c)
@@ -81,12 +81,16 @@ impl Item {
 
     /// Construct a new vector from the current item.
     pub fn as_vec(&self) -> Vec<Component> {
-        self.iter().collect::<Vec<_>>()
+        self.iter()
+            .map(ComponentRef::into_component)
+            .collect::<Vec<_>>()
     }
 
     /// Convert into a vector from the current item.
     pub fn into_vec(self) -> Vec<Component> {
-        self.iter().collect::<Vec<_>>()
+        self.iter()
+            .map(ComponentRef::into_component)
+            .collect::<Vec<_>>()
     }
 
     /// If the item only contains one element, return that element.
@@ -125,8 +129,8 @@ impl Item {
     }
 
     /// Access the last component in the path.
-    pub fn last(&self) -> Option<Component> {
-        self.iter().next_back()
+    pub fn last(&self) -> Option<ComponentRef<'_>> {
+        self.iter().next_back_ref()
     }
 
     /// Implement an iterator.
@@ -182,7 +186,7 @@ impl<'a> IntoIterator for Item {
 
 impl<'a> IntoIterator for &'a Item {
     type IntoIter = Iter<'a>;
-    type Item = Component;
+    type Item = ComponentRef<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -212,7 +216,7 @@ impl<'a> Iter<'a> {
         }
 
         let mut cursor = Cursor::new(&self.content[..]);
-        let c = Component::try_decode_str(&mut cursor);
+        let c = ComponentRef::decode_str(&mut cursor);
         let start = usize::try_from(cursor.position()).unwrap();
         self.content = &self.content[start..];
         c
@@ -229,12 +233,25 @@ impl<'a> Iter<'a> {
 
         let (head, tail) = split_tail(&self.content);
         self.content = head;
-        Component::try_decode_str(&mut Cursor::new(tail))
+        ComponentRef::decode_str(&mut Cursor::new(tail))
+    }
+
+    /// Get the next back as a component reference.
+    ///
+    /// Will consume the next component in the iterator.
+    pub fn next_back_ref(&mut self) -> Option<ComponentRef<'a>> {
+        if self.content.is_empty() {
+            return None;
+        }
+
+        let (head, tail) = split_tail(&self.content);
+        self.content = head;
+        Some(ComponentRef::decode(&mut Cursor::new(tail)))
     }
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = Component;
+    type Item = ComponentRef<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.content.is_empty() {
@@ -242,7 +259,7 @@ impl<'a> Iterator for Iter<'a> {
         }
 
         let mut cursor = Cursor::new(&self.content[..]);
-        let c = Component::decode(&mut cursor);
+        let c = ComponentRef::decode(&mut cursor);
         let start = usize::try_from(cursor.position()).unwrap();
         self.content = &self.content[start..];
         Some(c)
@@ -257,19 +274,20 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
 
         let (head, tail) = split_tail(&self.content);
         self.content = head;
-        let c = Component::decode(&mut Cursor::new(tail));
+        let c = ComponentRef::decode(&mut Cursor::new(tail));
         Some(c)
     }
 }
 
 /// The component of an item.
+///
+/// All indexes refere to sibling indexes. So two sibling blocks could have the
+/// indexes `1` and `2` respectively.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Component {
     /// A regular string component.
     String(Box<str>),
     /// A nested block with an index.
-    ///
-    /// The block for the current function is always `0`.
     Block(usize),
     /// A closure component.
     Closure(usize),
@@ -278,64 +296,32 @@ pub enum Component {
 }
 
 impl Component {
-    /// Encode the given string onto the buffer.
-    fn write_str(output: &mut Vec<u8>, s: &str) {
-        let len = output.len();
-        Self::internal_write_str(output, s);
-        write_usize(output, output.len() - len);
+    /// Get the identifier of the component.
+    pub fn id(&self) -> Option<usize> {
+        match self {
+            Self::String(..) => None,
+            Self::Block(n) => Some(*n),
+            Self::Closure(n) => Some(*n),
+            Self::AsyncBlock(n) => Some(*n),
+        }
     }
 
-    /// Encode only the string.
-    fn internal_write_str(output: &mut Vec<u8>, s: &str) {
+    /// Convert into component reference.
+    pub fn as_component_ref(&self) -> ComponentRef<'_> {
+        match self {
+            Self::String(s) => ComponentRef::String(&*s),
+            Self::Block(n) => ComponentRef::Block(*n),
+            Self::Closure(n) => ComponentRef::Closure(*n),
+            Self::AsyncBlock(n) => ComponentRef::AsyncBlock(*n),
+        }
+    }
+
+    /// Internal function to write only the string of a component.
+    fn write_str(output: &mut Vec<u8>, s: &str) {
         output.push(STRING);
         let len = u16::try_from(s.len()).unwrap();
         output.write_u16::<LittleEndian>(len).unwrap();
         output.extend(s.as_bytes());
-    }
-
-    /// Internal function to decode a borrowed string component without cloning
-    /// it.
-    fn try_decode_str<'a>(content: &mut Cursor<&'a [u8]>) -> Option<&'a str> {
-        let c = match read_u8(content) {
-            STRING => {
-                let len = read_usize(content);
-                let bytes = read_bytes(content, len);
-
-                // Safety: all code paths which construct a string component
-                // are safe input paths which ensure that the input is a string.
-                Some(unsafe { std::str::from_utf8_unchecked(bytes) })
-            }
-            BLOCK | CLOSURE | ASYNC_BLOCK => None,
-            b => panic!("unexpected control byte `{:?}`", b),
-        };
-
-        // read the suffix offset used for reading backwards.
-        let _ = read_usize(content);
-        c
-    }
-
-    /// Internal function to decode a component from the given content.
-    fn decode(content: &mut Cursor<&[u8]>) -> Component {
-        let c = match read_u8(content) {
-            STRING => {
-                let len = read_usize(content);
-                let bytes = read_bytes(content, len);
-
-                // Safety: all code paths which construct a string component
-                // are safe input paths which ensure that the input is a string.
-                unsafe {
-                    Component::String(String::from_utf8_unchecked(bytes.to_vec()).into_boxed_str())
-                }
-            }
-            BLOCK => Component::Block(read_usize(content)),
-            CLOSURE => Component::Closure(read_usize(content)),
-            ASYNC_BLOCK => Component::AsyncBlock(read_usize(content)),
-            b => panic!("unexpected control byte `{:?}`", b),
-        };
-
-        // read the suffix offset used for reading backwards.
-        let _ = read_usize(content);
-        c
     }
 }
 
@@ -350,64 +336,137 @@ impl fmt::Display for Component {
     }
 }
 
+/// A reference to a component of an item.
+///
+/// All indexes refere to sibling indexes. So two sibling blocks could have the
+/// indexes `1` and `2` respectively.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum ComponentRef<'a> {
+    /// A regular string component.
+    String(&'a str),
+    /// A nested block with an index.
+    Block(usize),
+    /// A closure component.
+    Closure(usize),
+    /// An async block, like `async {  }`.
+    AsyncBlock(usize),
+}
+
+impl ComponentRef<'_> {
+    /// Get the identifier of the component.
+    pub fn id(self) -> Option<usize> {
+        match self {
+            Self::String(..) => None,
+            Self::Block(n) => Some(n),
+            Self::Closure(n) => Some(n),
+            Self::AsyncBlock(n) => Some(n),
+        }
+    }
+
+    /// Convert into an owned component.
+    pub fn into_component(self) -> Component {
+        match self {
+            Self::String(s) => Component::String(s.into()),
+            Self::Block(n) => Component::Block(n),
+            Self::Closure(n) => Component::Closure(n),
+            Self::AsyncBlock(n) => Component::AsyncBlock(n),
+        }
+    }
+
+    /// Internal function to decode a borrowed string component without cloning
+    /// it.
+    fn decode_str<'a>(content: &mut Cursor<&'a [u8]>) -> Option<&'a str> {
+        match Self::decode(content) {
+            ComponentRef::String(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Internal function to decode a borrowed component without cloning it.
+    fn decode<'a>(content: &mut Cursor<&'a [u8]>) -> ComponentRef<'a> {
+        let c = match read_u8(content) {
+            STRING => {
+                let len = read_usize(content);
+                let bytes = read_bytes(content, len);
+
+                // Safety: all code paths which construct a string component
+                // are safe input paths which ensure that the input is a string.
+                ComponentRef::String(unsafe { std::str::from_utf8_unchecked(bytes) })
+            }
+            BLOCK => ComponentRef::Block(read_usize(content)),
+            CLOSURE => ComponentRef::Closure(read_usize(content)),
+            ASYNC_BLOCK => ComponentRef::AsyncBlock(read_usize(content)),
+            b => panic!("unexpected control byte `{:?}`", b),
+        };
+
+        // read the suffix offset used for reading backwards.
+        let _ = read_usize(content);
+        c
+    }
+}
+
+impl fmt::Display for ComponentRef<'_> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::String(s) => write!(fmt, "{}", s),
+            Self::Block(n) => write!(fmt, "$block{}", n),
+            Self::Closure(n) => write!(fmt, "$closure{}", n),
+            Self::AsyncBlock(n) => write!(fmt, "$async{}", n),
+        }
+    }
+}
+
 /// Trait for encoding the current type into a component.
-pub trait IntoComponent {
+pub trait IntoComponent: Sized {
     /// Convert into a component directly.
-    fn into_component(self) -> Component;
+    fn as_component_ref(&self) -> ComponentRef<'_>;
+
+    /// Convert into component.
+    fn into_component(self) -> Component {
+        ComponentRef::into_component(self.as_component_ref())
+    }
 
     /// Write a component directly to a buffer.
-    fn write_component(self, output: &mut Vec<u8>);
+    fn write_component(self, output: &mut Vec<u8>) {
+        IntoComponent::write_component(self.as_component_ref(), output)
+    }
 
     /// Hash the current component.
     fn hash_component<H>(self, hasher: &mut H)
     where
-        H: hash::Hasher;
-}
-
-impl IntoComponent for Component {
-    fn into_component(self) -> Component {
-        self
-    }
-
-    fn write_component(self, output: &mut Vec<u8>) {
-        <&Component>::write_component(&self, output)
-    }
-
-    fn hash_component<H>(self, hasher: &mut H)
-    where
         H: hash::Hasher,
     {
-        <&Component>::hash_component(&self, hasher);
+        IntoComponent::hash_component(self.as_component_ref(), hasher)
     }
 }
 
-impl IntoComponent for &Component {
+impl IntoComponent for ComponentRef<'_> {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        *self
+    }
+
     fn into_component(self) -> Component {
-        self.clone()
+        ComponentRef::into_component(self)
     }
 
     fn write_component(self, output: &mut Vec<u8>) {
-        let offset = output.len();
-
-        match self {
-            Component::String(s) => {
-                Component::internal_write_str(output, s.as_ref());
+        write_with_suffix_len(output, |output| match self {
+            ComponentRef::String(s) => {
+                Component::write_str(output, s);
             }
-            Component::Block(c) => {
+            ComponentRef::Block(c) => {
                 output.push(BLOCK);
-                write_usize(output, *c);
+                write_usize(output, c);
             }
-            Component::Closure(c) => {
+            ComponentRef::Closure(c) => {
                 output.push(CLOSURE);
-                write_usize(output, *c);
+                write_usize(output, c);
             }
-            Component::AsyncBlock(c) => {
+            ComponentRef::AsyncBlock(c) => {
                 output.push(ASYNC_BLOCK);
-                write_usize(output, *c);
+                write_usize(output, c);
             }
-        }
-
-        write_usize(output, output.len() - offset);
+        })
     }
 
     fn hash_component<H>(self, hasher: &mut H)
@@ -415,19 +474,19 @@ impl IntoComponent for &Component {
         H: hash::Hasher,
     {
         match self {
-            Component::String(s) => {
+            ComponentRef::String(s) => {
                 STRING.hash(hasher);
                 s.hash(hasher);
             }
-            Component::Block(c) => {
+            ComponentRef::Block(c) => {
                 BLOCK.hash(hasher);
                 c.hash(hasher);
             }
-            Component::Closure(c) => {
+            ComponentRef::Closure(c) => {
                 CLOSURE.hash(hasher);
                 c.hash(hasher);
             }
-            Component::AsyncBlock(c) => {
+            ComponentRef::AsyncBlock(c) => {
                 ASYNC_BLOCK.hash(hasher);
                 c.hash(hasher);
             }
@@ -435,47 +494,38 @@ impl IntoComponent for &Component {
     }
 }
 
-impl IntoComponent for RawStr {
+impl IntoComponent for Component {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        Component::as_component_ref(self)
+    }
+
     fn into_component(self) -> Component {
-        Component::String((*self).to_owned().into_boxed_str())
-    }
-
-    fn write_component(self, output: &mut Vec<u8>) {
-        Component::write_str(output, &*self)
-    }
-
-    fn hash_component<H>(self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        <&str>::hash_component(&*self, hasher);
+        self
     }
 }
 
-impl IntoComponent for &RawStr {
+impl IntoComponent for &Component {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        Component::as_component_ref(*self)
+    }
+
     fn into_component(self) -> Component {
-        Component::String((**self).to_owned().into_boxed_str())
-    }
-
-    fn write_component(self, output: &mut Vec<u8>) {
-        Component::write_str(output, &**self)
-    }
-
-    fn hash_component<H>(self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        <&str>::hash_component(&**self, hasher);
+        self.clone()
     }
 }
 
 impl IntoComponent for &str {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        ComponentRef::String(*self)
+    }
+
     fn into_component(self) -> Component {
         Component::String(self.to_owned().into_boxed_str())
     }
 
+    /// Encode the given string onto the buffer.
     fn write_component(self, output: &mut Vec<u8>) {
-        Component::write_str(output, self)
+        write_with_suffix_len(output, |output| Component::write_str(output, self))
     }
 
     fn hash_component<H>(self, hasher: &mut H)
@@ -487,13 +537,59 @@ impl IntoComponent for &str {
     }
 }
 
-impl IntoComponent for &&str {
+impl IntoComponent for RawStr {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        ComponentRef::String(&**self)
+    }
+
     fn into_component(self) -> Component {
         Component::String((*self).to_owned().into_boxed_str())
     }
 
     fn write_component(self, output: &mut Vec<u8>) {
-        Component::write_str(output, *self)
+        <&str>::write_component(&*self, output)
+    }
+
+    fn hash_component<H>(self, hasher: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        <&str>::hash_component(&*self, hasher);
+    }
+}
+
+impl IntoComponent for &RawStr {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        ComponentRef::String(&***self)
+    }
+
+    fn into_component(self) -> Component {
+        Component::String((**self).to_owned().into_boxed_str())
+    }
+
+    fn write_component(self, output: &mut Vec<u8>) {
+        <&str>::write_component(&**self, output)
+    }
+
+    fn hash_component<H>(self, hasher: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        <&str>::hash_component(&**self, hasher);
+    }
+}
+
+impl IntoComponent for &&str {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        ComponentRef::String(**self)
+    }
+
+    fn into_component(self) -> Component {
+        Component::String((*self).to_owned().into_boxed_str())
+    }
+
+    fn write_component(self, output: &mut Vec<u8>) {
+        <&str>::write_component(*self, output)
     }
 
     fn hash_component<H>(self, hasher: &mut H)
@@ -505,29 +601,37 @@ impl IntoComponent for &&str {
 }
 
 impl IntoComponent for String {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        ComponentRef::String(&*self)
+    }
+
     fn into_component(self) -> Component {
         Component::String(self.into_boxed_str())
     }
 
     fn write_component(self, output: &mut Vec<u8>) {
-        Component::write_str(output, self.as_str())
+        <&str>::write_component(self.as_str(), output)
     }
 
     fn hash_component<H>(self, hasher: &mut H)
     where
         H: hash::Hasher,
     {
-        <&str>::hash_component(self.as_str(), hasher);
+        <&str>::hash_component(self.as_str(), hasher)
     }
 }
 
 impl IntoComponent for &String {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        ComponentRef::String(&**self)
+    }
+
     fn into_component(self) -> Component {
         Component::String(self.clone().into_boxed_str())
     }
 
     fn write_component(self, output: &mut Vec<u8>) {
-        Component::write_str(output, self.as_str())
+        <&str>::write_component(self.as_str(), output)
     }
 
     fn hash_component<H>(self, hasher: &mut H)
@@ -591,19 +695,28 @@ fn read_bytes<'a>(cursor: &mut Cursor<&'a [u8]>, len: usize) -> &'a [u8] {
     bytes
 }
 
+/// Perform the given write operation, while adding the suffix length to the end
+/// of it. This is used when reading the items backwards (e.g.
+/// [Iter::next_back_ref]).
+fn write_with_suffix_len(output: &mut Vec<u8>, cb: impl FnOnce(&mut Vec<u8>)) {
+    let offset = output.len();
+    cb(output);
+    write_usize(output, output.len() - offset);
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Component, IntoComponent as _, Item};
+    use super::{Component, ComponentRef, IntoComponent as _, Item};
 
     #[test]
     fn test_pop() {
         let mut item = Item::new();
 
         item.push("start");
-        item.push(Component::Block(1));
-        item.push(Component::Closure(2));
+        item.push(ComponentRef::Block(1));
+        item.push(ComponentRef::Closure(2));
         item.push("middle");
-        item.push(Component::AsyncBlock(3));
+        item.push(ComponentRef::AsyncBlock(3));
         item.push("end");
 
         assert_eq!(item.pop(), Some("end".into_component()));
@@ -622,20 +735,20 @@ mod tests {
         let mut item = Item::new();
 
         item.push("start");
-        item.push(Component::Block(1));
-        item.push(Component::Closure(2));
+        item.push(ComponentRef::Block(1));
+        item.push(ComponentRef::Closure(2));
         item.push("middle");
-        item.push(Component::AsyncBlock(3));
+        item.push(ComponentRef::AsyncBlock(3));
         item.push("end");
 
         let mut it = item.iter();
 
-        assert_eq!(it.next(), Some("start".into_component()));
-        assert_eq!(it.next(), Some(Component::Block(1)));
-        assert_eq!(it.next(), Some(Component::Closure(2)));
-        assert_eq!(it.next(), Some("middle".into_component()));
-        assert_eq!(it.next(), Some(Component::AsyncBlock(3)));
-        assert_eq!(it.next(), Some("end".into_component()));
+        assert_eq!(it.next(), Some("start".as_component_ref()));
+        assert_eq!(it.next(), Some(ComponentRef::Block(1)));
+        assert_eq!(it.next(), Some(ComponentRef::Closure(2)));
+        assert_eq!(it.next(), Some("middle".as_component_ref()));
+        assert_eq!(it.next(), Some(ComponentRef::AsyncBlock(3)));
+        assert_eq!(it.next(), Some("end".as_component_ref()));
         assert_eq!(it.next(), None);
 
         assert!(!item.is_empty());
@@ -646,19 +759,19 @@ mod tests {
         let mut item = Item::new();
 
         item.push("start");
-        item.push(Component::Block(1));
-        item.push(Component::Closure(2));
+        item.push(ComponentRef::Block(1));
+        item.push(ComponentRef::Closure(2));
         item.push("middle");
-        item.push(Component::AsyncBlock(3));
+        item.push(ComponentRef::AsyncBlock(3));
         item.push("end");
 
         let mut it = item.iter();
 
         assert_eq!(it.next_back_str(), Some("end"));
-        assert_eq!(it.next_back(), Some(Component::AsyncBlock(3)));
+        assert_eq!(it.next_back(), Some(ComponentRef::AsyncBlock(3)));
         assert_eq!(it.next_back_str(), Some("middle"));
-        assert_eq!(it.next_back(), Some(Component::Closure(2)));
-        assert_eq!(it.next_back(), Some(Component::Block(1)));
+        assert_eq!(it.next_back(), Some(ComponentRef::Closure(2)));
+        assert_eq!(it.next_back(), Some(ComponentRef::Block(1)));
         assert_eq!(it.next_back_str(), Some("start"));
         assert_eq!(it.next_back(), None);
     }
@@ -668,19 +781,19 @@ mod tests {
         let mut item = Item::new();
 
         item.push("start");
-        item.push(Component::Block(1));
-        item.push(Component::Closure(2));
+        item.push(ComponentRef::Block(1));
+        item.push(ComponentRef::Closure(2));
         item.push("middle");
-        item.push(Component::AsyncBlock(3));
+        item.push(ComponentRef::AsyncBlock(3));
         item.push("end");
 
         let mut it = item.iter();
 
         assert_eq!(it.next_str(), Some("start"));
         assert_eq!(it.next_back_str(), Some("end"));
-        assert_eq!(it.next(), Some(Component::Block(1)));
-        assert_eq!(it.next(), Some(Component::Closure(2)));
-        assert_eq!(it.next_back(), Some(Component::AsyncBlock(3)));
+        assert_eq!(it.next(), Some(ComponentRef::Block(1)));
+        assert_eq!(it.next(), Some(ComponentRef::Closure(2)));
+        assert_eq!(it.next_back(), Some(ComponentRef::AsyncBlock(3)));
         assert_eq!(it.next_str(), Some("middle"));
         assert_eq!(it.next_back(), None);
         assert_eq!(it.next(), None);

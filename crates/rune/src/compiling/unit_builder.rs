@@ -421,7 +421,7 @@ impl UnitBuilder {
         let mut inner = self.inner.borrow_mut();
 
         if let Some(last) = path.last() {
-            let key = ImportKey::new(at, last.clone());
+            let key = ImportKey::new(at, last.into_component());
 
             let entry = ImportEntry {
                 item: path.clone(),

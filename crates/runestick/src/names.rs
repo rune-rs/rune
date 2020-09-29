@@ -125,7 +125,7 @@ impl Names {
         let mut current = &self.root;
 
         for c in iter {
-            let c = c.into_component();
+            let c = c.as_component_ref().into_component();
             current = current.children.get(&c)?;
         }
 

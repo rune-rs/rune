@@ -119,9 +119,8 @@ impl<'a> Worker<'a> {
                         LoadFileKind::Module { root } => root,
                     };
 
-                    let items = Items::new(item.clone().into_vec());
-
                     log::trace!("index: {}", item);
+                    let items = Items::new(item.clone());
 
                     let mut indexer = Indexer {
                         root,
