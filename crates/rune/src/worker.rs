@@ -27,7 +27,9 @@ pub(crate) enum Task {
         /// The source id of the item being loaded.
         source_id: SourceId,
     },
-    Import(Import),
+    /// Deferred action, since it requires all modules to be loaded to be able
+    /// to discover all modules.
+    ExpandUnitWildcard(ExpandUnitWildcard),
 }
 
 /// The kind of the loaded module.
@@ -144,12 +146,10 @@ impl<'a> Worker<'a> {
                         self.errors.push(Error::new(source_id, error));
                     }
                 }
-                Task::Import(import) => {
-                    let source_id = import.source_id;
+                Task::ExpandUnitWildcard(expander) => {
+                    let source_id = expander.source_id;
 
-                    if let Err(error) =
-                        import.process(self.context, &self.query.storage, &self.query.unit)
-                    {
+                    if let Err(error) = expander.expand(&self.query.unit) {
                         self.errors.push(Error::new(source_id, error));
                     }
                 }
@@ -174,6 +174,7 @@ impl Import {
         context: &Context,
         storage: &Storage,
         unit: &UnitBuilder,
+        mut wildcard_expand: impl FnMut(ExpandUnitWildcard),
     ) -> CompileResult<()> {
         let Self {
             item,
@@ -206,28 +207,26 @@ impl Import {
             if let Some((_, c)) = &path.last {
                 match c {
                     ast::ItemUseComponent::Wildcard(..) => {
-                        let mut new_names = Vec::new();
+                        let was_in_context = if context.contains_prefix(&name) {
+                            for c in context.iter_components(&name) {
+                                let name = name.extended(c);
+                                unit.new_import(item.clone(), name, span, self.source_id)?;
+                            }
 
-                        if !context.contains_prefix(&name) && !unit.contains_prefix(&name) {
-                            return Err(CompileError::new(
-                                span,
-                                CompileErrorKind::MissingModule { item: name },
-                            ));
-                        }
+                            true
+                        } else {
+                            false
+                        };
 
-                        let iter = context
-                            .iter_components(&name)
-                            .chain(unit.iter_components(&name));
+                        let wildcard_expander = ExpandUnitWildcard {
+                            from: item.clone(),
+                            name,
+                            span,
+                            source_id,
+                            was_in_context,
+                        };
 
-                        for c in iter {
-                            let mut name = name.clone();
-                            name.push(c);
-                            new_names.push(name);
-                        }
-
-                        for name in new_names {
-                            unit.new_import(item.clone(), &name, span, source_id)?;
-                        }
+                        wildcard_expand(wildcard_expander);
                     }
                     ast::ItemUseComponent::Group(group) => {
                         for (path, _) in group {
@@ -236,8 +235,40 @@ impl Import {
                     }
                 }
             } else {
-                unit.new_import(item.clone(), &name, span, source_id)?;
+                unit.new_import(item.clone(), name, span, source_id)?;
             }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ExpandUnitWildcard {
+    from: Item,
+    name: Item,
+    span: Span,
+    source_id: SourceId,
+    /// Indicates if any wildcards were expanded from context.
+    was_in_context: bool,
+}
+
+impl ExpandUnitWildcard {
+    pub(crate) fn expand(self, unit: &UnitBuilder) -> CompileResult<()> {
+        if unit.contains_prefix(&self.name) {
+            for c in unit.iter_components(&self.name) {
+                let name = self.name.extended(c);
+                unit.new_import(self.from.clone(), name, self.span, self.source_id)?;
+            }
+
+            return Ok(());
+        }
+
+        if !self.was_in_context {
+            return Err(CompileError::new(
+                self.span,
+                CompileErrorKind::MissingModule { item: self.name },
+            ));
         }
 
         Ok(())
