@@ -227,6 +227,8 @@ pub(crate) struct Query {
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
     pub(crate) items: HashMap<Id, Item>,
+    /// Reverse lookup for items to reduce the number of items used.
+    pub(crate) items_rev: HashMap<Item, Id>,
     /// Compiled constant functions.
     pub(crate) const_fns: HashMap<Id, Rc<ir::IrFn>>,
 }
@@ -243,13 +245,19 @@ impl Query {
             indexed: HashMap::new(),
             templates: HashMap::new(),
             items: HashMap::new(),
+            items_rev: HashMap::new(),
             const_fns: HashMap::new(),
         }
     }
 
     /// Insert an item and return its Id.
     pub(crate) fn insert_item(&mut self, item: Item) -> Option<Id> {
+        if let Some(id) = self.items_rev.get(&item) {
+            return Some(*id);
+        }
+
         let id = self.next_id.next()?;
+        self.items_rev.insert(item.clone(), id);
         self.items.insert(id, item);
         Some(id)
     }
