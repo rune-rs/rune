@@ -20,8 +20,6 @@ impl ops::Deref for EagerBrace {
 /// A rune expression.
 #[derive(Debug, Clone, ToTokens, Spanned, PartialEq, Eq)]
 pub enum Expr {
-    /// The `self` keyword.
-    Self_(ast::Self_),
     /// An path expression.
     Path(ast::Path),
     /// A declaration.
@@ -102,7 +100,6 @@ impl Expr {
     /// Take the attributes from the expression.
     pub fn take_attributes(&mut self) -> Vec<ast::Attribute> {
         match self {
-            Expr::Self_(_) => Vec::new(),
             Expr::Path(_) => Vec::new(),
             Expr::Item(item) => item.take_attributes(),
             Expr::ExprBreak(expr) => take(&mut expr.attributes),
@@ -134,7 +131,6 @@ impl Expr {
     /// Access the attributes of the expression.
     pub fn attributes(&self) -> &[ast::Attribute] {
         match self {
-            Expr::Self_(_) => &[],
             Expr::Path(_) => &[],
             Expr::Item(expr) => expr.attributes(),
             Expr::ExprBreak(expr) => &expr.attributes,
@@ -301,7 +297,6 @@ impl Expr {
                     take(&mut async_token),
                 )?)
             }
-            ast::Kind::Self_ => Self::Self_(parser.parse()?),
             ast::Kind::Select => Self::ExprSelect(ast::ExprSelect::parse_with_attributes(
                 parser,
                 take(attributes),
@@ -582,7 +577,7 @@ impl Peek for Expr {
     fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         match peek!(t1).kind {
             ast::Kind::Async => true,
-            ast::Kind::Self_ => true,
+            ast::Kind::SelfValue => true,
             ast::Kind::Select => true,
             ast::Kind::Label(..) => matches!(peek!(t2).kind, ast::Kind::Colon),
             ast::Kind::Pound => true,

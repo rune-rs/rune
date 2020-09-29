@@ -11,7 +11,7 @@ impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
             let span = arg.span();
 
             match arg {
-                ast::FnArg::Self_(s) => {
+                ast::FnArg::SelfValue(s) => {
                     if !instance_fn || !first {
                         return Err(CompileError::new(span, CompileErrorKind::UnsupportedSelf));
                     }

@@ -18,7 +18,6 @@ mod expr_match;
 mod expr_path;
 mod expr_return;
 mod expr_select;
-mod expr_self;
 mod expr_try;
 mod expr_unary;
 mod expr_while;

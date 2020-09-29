@@ -304,7 +304,7 @@ where
 
     for arg in arguments {
         match arg {
-            ast::FnArg::Self_(..) => {
+            ast::FnArg::SelfValue(..) => {
                 args.push(String::from("self"));
             }
             ast::FnArg::Ignore(..) => {

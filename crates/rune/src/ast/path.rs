@@ -22,6 +22,19 @@ pub struct Path {
 }
 
 impl Path {
+    /// Identify the kind of the path.
+    pub fn as_kind(&self) -> Option<PathKind> {
+        if self.rest.is_empty() && self.trailing.is_none() && self.leading_colon.is_none() {
+            match self.first {
+                PathSegment::SelfValue(..) => Some(PathKind::SelfValue),
+                PathSegment::Ident(ident) => Some(PathKind::Ident(ident)),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
     /// Borrow as an identifier used for field access calls.
     ///
     /// This is only allowed if there are no other path components
@@ -73,10 +86,22 @@ impl Peek for Path {
     }
 }
 
+/// An identified path kind.
+pub enum PathKind {
+    /// A path that is the `self` value.
+    SelfValue,
+    /// A path that is the identifier.
+    Ident(ast::Ident),
+}
+
 /// Part of a `::` separated path.
 ///
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum PathSegment {
+    /// A path segment that contains `Self`.
+    SelfType(ast::SelfType),
+    /// A path segment that contains `self`.
+    SelfValue(ast::SelfValue),
     /// A path segment that is an identifier.
     Ident(ast::Ident),
     /// The `crate` keyword used as a path segment.
@@ -88,6 +113,8 @@ pub enum PathSegment {
 impl From<PathSegment> for ast::Kind {
     fn from(segment: PathSegment) -> Self {
         match segment {
+            PathSegment::SelfType(self_type) => self_type.token.kind,
+            PathSegment::SelfValue(self_value) => self_value.token.kind,
             PathSegment::Ident(ident) => ident.token.kind,
             PathSegment::Crate(crate_token) => crate_token.token.kind,
             PathSegment::Super(super_token) => super_token.token.kind,
@@ -125,6 +152,8 @@ impl Parse for PathSegment {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
         let token = parser.token_peek_eof()?;
         match token.kind {
+            ast::Kind::SelfType => Ok(PathSegment::SelfType(parser.parse()?)),
+            ast::Kind::SelfValue => Ok(PathSegment::SelfValue(parser.parse()?)),
             ast::Kind::Ident(_) => Ok(PathSegment::Ident(parser.parse()?)),
             ast::Kind::Crate => Ok(PathSegment::Crate(parser.parse()?)),
             ast::Kind::Super => Ok(PathSegment::Super(parser.parse()?)),
@@ -143,6 +172,9 @@ impl Parse for PathSegment {
 
 impl Peek for PathSegment {
     fn peek(t1: Option<ast::Token>, _t2: Option<ast::Token>) -> bool {
-        matches!(peek!(t1).kind, ast::Kind::Ident(_) | ast::Kind::Crate | ast::Kind::Super)
+        matches! {
+            peek!(t1).kind,
+            ast::Kind::SelfType | ast::Kind::SelfValue | ast::Kind::Crate | ast::Kind::Super | ast::Kind::Ident(_)
+        }
     }
 }

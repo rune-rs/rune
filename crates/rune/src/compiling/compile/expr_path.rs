@@ -6,6 +6,22 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
         let span = path.span();
         log::trace!("Path => {:?}", self.source.source(span));
 
+        match path.as_kind() {
+            Some(ast::PathKind::SelfValue) => {
+                let var = self
+                    .scopes
+                    .get_var("self", self.source_id, self.visitor, span)?;
+
+                if !needs.value() {
+                    return Ok(());
+                }
+
+                var.copy(&mut self.asm, span, "self");
+                return Ok(());
+            }
+            _ => (),
+        }
+
         // NB: do nothing if we don't need a value.
         if !needs.value() {
             self.warnings.not_used(self.source_id, span, self.context());
@@ -25,7 +41,7 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(&base, named.item(), span)? {
+        let meta = match self.lookup_meta(&base, &named.item, span)? {
             Some(meta) => meta,
             None => {
                 let error = match (needs, named.as_local()) {
@@ -36,7 +52,7 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
                             CompileError::new(
                                 span,
                                 CompileErrorKind::MissingType {
-                                    item: named.item().clone(),
+                                    item: named.item.clone(),
                                 },
                             )
                         } else {
@@ -51,7 +67,7 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
                     _ => CompileError::new(
                         span,
                         CompileErrorKind::MissingType {
-                            item: named.item().clone(),
+                            item: named.item.clone(),
                         },
                     ),
                 };

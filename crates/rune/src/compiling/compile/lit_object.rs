@@ -51,13 +51,13 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
             ast::LitObjectIdent::Named(path) => {
                 let (base, named) = self.convert_path_to_item(path)?;
 
-                let meta = match self.lookup_meta(&base, named.item(), path.span())? {
+                let meta = match self.lookup_meta(&base, &named.item, path.span())? {
                     Some(meta) => meta,
                     None => {
                         return Err(CompileError::new(
                             span,
                             CompileErrorKind::MissingType {
-                                item: named.item().clone(),
+                                item: named.item.clone(),
                             },
                         ));
                     }

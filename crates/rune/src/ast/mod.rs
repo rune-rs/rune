@@ -174,7 +174,7 @@ pub use self::pat_object::{PatObject, PatObjectItem};
 pub use self::pat_path::PatPath;
 pub use self::pat_tuple::PatTuple;
 pub use self::pat_vec::PatVec;
-pub use self::path::{Path, PathSegment};
+pub use self::path::{Path, PathKind, PathSegment};
 pub use self::stmt::Stmt;
 pub use self::token::{
     CopySource, Delimiter, Kind, LitByteStrSource, LitByteStrSourceText, LitStrSource,
@@ -240,7 +240,8 @@ decl_tokens! {
     (CloseBrace, "An closing brace `}`.", Kind::Close(Delimiter::Brace)),
     (OpenBracket, "An open bracket `[`.", Kind::Open(Delimiter::Bracket)),
     (CloseBracket, "An open bracket `]`.", Kind::Close(Delimiter::Bracket)),
-    (Self_, "The `self` keyword.", Kind::Self_),
+    (SelfValue, "The `self` keyword.", Kind::SelfValue),
+    (SelfType, "The `Self` type.", Kind::SelfType),
     (Fn, "The `fn` keyword.", Kind::Fn),
     (Is, "The `is` keyword.", Kind::Is),
     (Not, "The `!` operator.", Kind::Not),

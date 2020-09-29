@@ -11,9 +11,6 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
         }
 
         match expr {
-            ast::Expr::Self_(self_) => {
-                self.compile((self_, needs))?;
-            }
             ast::Expr::Path(path) => {
                 self.compile((path, needs))?;
             }

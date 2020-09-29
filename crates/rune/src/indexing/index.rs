@@ -276,7 +276,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
         for (arg, _) in &decl_fn.args {
             match arg {
-                ast::FnArg::Self_(s) => {
+                ast::FnArg::SelfValue(s) => {
                     let span = s.span();
                     self.scopes.declare("self", span)?;
                 }
@@ -661,9 +661,6 @@ impl Index<ast::Expr> for Indexer<'_> {
         }
 
         match expr {
-            ast::Expr::Self_(..) => {
-                self.scopes.mark_use("self");
-            }
             ast::Expr::Path(path) => {
                 self.index(path)?;
             }
@@ -1046,9 +1043,15 @@ impl Index<ast::Path> for Indexer<'_> {
 
         path.id = self.query.insert_item(&*self.items.item());
 
-        if let Some(ident) = path.try_as_ident() {
-            let ident = ident.resolve(&self.storage, &*self.source)?;
-            self.scopes.mark_use(ident.as_ref());
+        match path.as_kind() {
+            Some(ast::PathKind::SelfValue) => {
+                self.scopes.mark_use("self");
+            }
+            Some(ast::PathKind::Ident(ident)) => {
+                let ident = ident.resolve(&self.storage, &*self.source)?;
+                self.scopes.mark_use(ident.as_ref());
+            }
+            None => (),
         }
 
         Ok(())
@@ -1110,7 +1113,7 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
 
         for (arg, _) in expr_closure.args.as_slice() {
             match arg {
-                ast::FnArg::Self_(s) => {
+                ast::FnArg::SelfValue(s) => {
                     return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf));
                 }
                 ast::FnArg::Ident(ident) => {
