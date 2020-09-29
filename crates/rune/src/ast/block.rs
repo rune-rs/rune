@@ -21,7 +21,7 @@ use crate::{Id, Parse, ParseError, Parser, Spanned, ToTokens};
 pub struct Block {
     /// The unique identifier for the block expression.
     #[rune(id)]
-    pub id: Id,
+    pub id: Option<Id>,
     /// The close brace.
     pub open: ast::OpenBrace,
     /// Statements in the block.
@@ -31,7 +31,7 @@ pub struct Block {
 }
 
 impl Opaque for Block {
-    fn id(&self) -> Id {
+    fn id(&self) -> Option<Id> {
         self.id
     }
 }

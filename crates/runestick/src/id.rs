@@ -1,6 +1,5 @@
 use std::fmt;
 use std::num::NonZeroUsize;
-use std::ops;
 
 /// An opaque identifier that is associated with AST items.
 ///
@@ -11,31 +10,32 @@ use std::ops;
 /// This is used to store associated metadata to AST items through:
 /// * [Query::insert_item](crate::Query::insert_item)
 /// * [Query::insert_template](crate::Query::insert_template)
-#[derive(Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct Id(Option<NonZeroUsize>);
+pub struct Id(NonZeroUsize);
 
 impl Id {
-    /// Construct a new opaque identifier.
-    pub fn new(index: usize) -> Id {
-        Id(NonZeroUsize::new(index + 1))
+    /// Construct the initial (non-empty) id.
+    pub fn initial() -> Self {
+        Id(NonZeroUsize::new(1).unwrap())
     }
-}
 
-impl ops::Deref for Id {
-    type Target = Option<NonZeroUsize>;
+    /// Return the next id based on the current. Returns `None` if the next ID
+    /// could not be generated.
+    pub fn next(&mut self) -> Option<Self> {
+        let next = self.0.get().checked_add(1).and_then(NonZeroUsize::new)?;
+        *self = Self(next);
+        Some(*self)
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    /// Construct a new opaque identifier.
+    pub fn new(index: usize) -> Option<Id> {
+        NonZeroUsize::new(index).map(Self)
     }
 }
 
 impl fmt::Debug for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(index) = self.0 {
-            write!(f, "Id({})", index.get())
-        } else {
-            write!(f, "Id(*)")
-        }
+        write!(f, "Id({})", self.0.get())
     }
 }

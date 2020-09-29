@@ -14,7 +14,7 @@ use crate::{Id, ParseError, Parser, Spanned, ToTokens};
 pub struct ItemConst {
     /// Opaque identifier for the constant.
     #[rune(id)]
-    pub id: Id,
+    pub id: Option<Id>,
     /// The *inner* attributes that are applied to the const declaration.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,

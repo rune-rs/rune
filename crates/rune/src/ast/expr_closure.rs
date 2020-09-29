@@ -24,7 +24,7 @@ use runestick::Span;
 pub struct ExprClosure {
     /// Opaque identifier for the closure.
     #[rune(id)]
-    pub id: Id,
+    pub id: Option<Id>,
     /// The attributes for the async closure
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -87,7 +87,7 @@ impl ExprClosure {
 }
 
 impl Opaque for ExprClosure {
-    fn id(&self) -> Id {
+    fn id(&self) -> Option<Id> {
         self.id
     }
 }
