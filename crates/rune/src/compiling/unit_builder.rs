@@ -411,30 +411,24 @@ impl UnitBuilder {
     }
 
     /// Declare a new import.
-    pub(crate) fn new_import<I>(
+    pub(crate) fn new_import(
         &self,
-        item: Item,
-        path: I,
+        at: Item,
+        path: Item,
         span: Span,
         source_id: usize,
-    ) -> Result<(), UnitBuilderError>
-    where
-        I: Copy + IntoIterator,
-        I::Item: IntoComponent,
-    {
+    ) -> Result<(), UnitBuilderError> {
         let mut inner = self.inner.borrow_mut();
 
-        let path = Item::of(path);
-
         if let Some(last) = path.last() {
+            let key = ImportKey::new(at, last.clone());
+
             let entry = ImportEntry {
                 item: path.clone(),
                 span: Some((span, source_id)),
             };
 
-            inner
-                .imports
-                .insert(ImportKey::new(item, last.clone()), entry);
+            inner.imports.insert(key, entry);
         }
 
         Ok(())

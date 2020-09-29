@@ -76,85 +76,74 @@ impl<'a> Indexer<'a> {
         &mut self,
         items: &mut Vec<(ast::Item, Option<ast::SemiColon>)>,
     ) -> Result<(), CompileError> {
-        let mut item_queue = items
-            .drain(..)
-            .map(ProcessEntry::Item)
-            .collect::<VecDeque<_>>();
+        let mut queue = items.drain(..).collect::<VecDeque<_>>();
 
-        while let Some(entry) = item_queue.pop_front() {
-            match entry {
-                ProcessEntry::Item((item, semi)) => {
-                    match item {
-                        // Expand items in case they are imports.
-                        ast::Item::ItemUse(item_use) => {
-                            self.queue.push_back(Task::Import(Import {
-                                item: self.items.item(),
-                                ast: item_use,
-                                source: self.source.clone(),
-                                source_id: self.source_id,
-                            }));
-                        }
-                        ast::Item::MacroCall(macro_call) => {
-                            item_queue.push_back(ProcessEntry::MacroCall(macro_call));
-                        }
-                        item => {
-                            items.push((item, semi));
-                        }
+        while let Some((item, semi)) = queue.pop_front() {
+            match item {
+                ast::Item::ItemUse(item_use) => {
+                    let import = Import {
+                        item: self.items.item(),
+                        ast: item_use,
+                        source: self.source.clone(),
+                        source_id: self.source_id,
+                    };
+
+                    let queue = &mut *self.queue;
+
+                    import.process(&self.context, &self.storage, &self.query.unit, |expand| {
+                        queue.push_back(Task::ExpandUnitWildcard(expand));
+                    })?;
+                }
+                ast::Item::MacroCall(macro_call) => {
+                    let file = self.expand_macro::<ast::File>(&macro_call)?;
+
+                    for entry in file.items.into_iter().rev() {
+                        queue.push_front(entry);
                     }
                 }
-                ProcessEntry::MacroCall(macro_call) => {
-                    let file = self.expand_macro::<ast::File>(&macro_call)?;
-                    item_queue.extend(file.items.into_iter().map(ProcessEntry::Item));
+                item => {
+                    items.push((item, semi));
                 }
             }
         }
 
-        return Ok(());
-
-        enum ProcessEntry {
-            Item((ast::Item, Option<ast::SemiColon>)),
-            MacroCall(ast::MacroCall),
-        }
+        Ok(())
     }
 
     /// Preprocess uses in statements.
     fn preprocess_stmts(&mut self, stmts: &mut Vec<ast::Stmt>) -> Result<(), CompileError> {
-        let mut item_queue = stmts
-            .drain(..)
-            .map(ProcessEntry::Stmt)
-            .collect::<VecDeque<_>>();
+        let mut queue = stmts.drain(..).collect::<VecDeque<_>>();
 
-        while let Some(entry) = item_queue.pop_front() {
-            match entry {
-                ProcessEntry::Stmt(stmt) => match stmt {
-                    ast::Stmt::Item(ast::Item::ItemUse(item_use), _) => {
-                        self.queue.push_back(Task::Import(Import {
-                            item: self.items.item(),
-                            ast: item_use,
-                            source: self.source.clone(),
-                            source_id: self.source_id,
-                        }));
-                    }
-                    ast::Stmt::Item(ast::Item::MacroCall(macro_call), _) => {
-                        item_queue.push_back(ProcessEntry::MacroCall(macro_call));
-                    }
-                    item => {
-                        stmts.push(item);
-                    }
-                },
-                ProcessEntry::MacroCall(macro_call) => {
+        while let Some(stmt) = queue.pop_front() {
+            match stmt {
+                ast::Stmt::Item(ast::Item::ItemUse(item_use), _) => {
+                    let import = Import {
+                        item: self.items.item(),
+                        ast: item_use,
+                        source: self.source.clone(),
+                        source_id: self.source_id,
+                    };
+
+                    let queue = &mut *self.queue;
+
+                    import.process(self.context, &self.storage, &self.query.unit, |expand| {
+                        queue.push_back(Task::ExpandUnitWildcard(expand));
+                    })?;
+                }
+                ast::Stmt::Item(ast::Item::MacroCall(macro_call), _) => {
                     let out = self.expand_macro::<Vec<ast::Stmt>>(&macro_call)?;
-                    item_queue.extend(out.into_iter().map(ProcessEntry::Stmt));
+
+                    for stmt in out.into_iter().rev() {
+                        queue.push_front(stmt);
+                    }
+                }
+                item => {
+                    stmts.push(item);
                 }
             }
         }
 
-        return Ok(());
-
-        enum ProcessEntry {
-            Stmt(ast::Stmt),
-            MacroCall(ast::MacroCall),
-        }
+        Ok(())
     }
 
     /// Construct the calling convention based on the parameters.
