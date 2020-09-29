@@ -272,7 +272,7 @@ mod collections {
 
 pub use self::compiling::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntry, ImportKey,
-    LinkerError, NoopCompileVisitor, UnitBuilder, Var,
+    LinkerError, Named, NoopCompileVisitor, UnitBuilder, Var,
 };
 pub use self::ir::{IrError, IrErrorKind};
 pub use self::load::{

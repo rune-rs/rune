@@ -60,9 +60,9 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             return Ok(());
         };
 
-        let (base, item) = self.convert_path_to_item(path)?;
+        let (base, named) = self.convert_path_to_item(path)?;
 
-        if let Some(name) = item.as_local() {
+        if let Some(name) = named.as_local() {
             let local = self
                 .scopes
                 .try_get_var(name, self.source_id, self.visitor, path.span())
@@ -86,12 +86,14 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(&base, &item, path.span())? {
+        let meta = match self.lookup_meta(&base, named.item(), path.span())? {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::MissingFunction { item },
+                    CompileErrorKind::MissingFunction {
+                        item: named.item().clone(),
+                    },
                 ));
             }
         };
@@ -158,7 +160,9 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             _ => {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::MissingFunction { item },
+                    CompileErrorKind::MissingFunction {
+                        item: named.item().clone(),
+                    },
                 ));
             }
         };

@@ -11,10 +11,10 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
             self.warnings.not_used(self.source_id, span, self.context());
         }
 
-        let (base, item) = self.convert_path_to_item(path)?;
+        let (base, named) = self.convert_path_to_item(path)?;
 
         if let Needs::Value = needs {
-            if let Some(local) = item.as_local() {
+            if let Some(local) = named.as_local() {
                 if let Some(var) =
                     self.scopes
                         .try_get_var(local, self.source_id, self.visitor, span)
@@ -25,15 +25,20 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(&base, &item, span)? {
+        let meta = match self.lookup_meta(&base, named.item(), span)? {
             Some(meta) => meta,
             None => {
-                let error = match (needs, item.as_local()) {
+                let error = match (needs, named.as_local()) {
                     (Needs::Value, Some(local)) => {
                         // light heuristics, treat it as a type error in case the
                         // first character is uppercase.
                         if local.starts_with(char::is_uppercase) {
-                            CompileError::new(span, CompileErrorKind::MissingType { item })
+                            CompileError::new(
+                                span,
+                                CompileErrorKind::MissingType {
+                                    item: named.item().clone(),
+                                },
+                            )
                         } else {
                             CompileError::new(
                                 span,
@@ -43,7 +48,12 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
                             )
                         }
                     }
-                    _ => CompileError::new(span, CompileErrorKind::MissingType { item }),
+                    _ => CompileError::new(
+                        span,
+                        CompileErrorKind::MissingType {
+                            item: named.item().clone(),
+                        },
+                    ),
                 };
 
                 return Err(error);

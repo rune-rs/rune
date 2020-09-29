@@ -6,7 +6,8 @@ use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::query::{Query, Used};
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, Options, Resolve as _, Spanned, Storage, UnitBuilder, Warnings,
+    CompileError, CompileErrorKind, Named, Options, Resolve as _, Spanned, Storage, UnitBuilder,
+    Warnings,
 };
 use runestick::{
     CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label, Source, Span,
@@ -250,12 +251,12 @@ impl<'a> Compiler<'a> {
     }
 
     /// Convert a path to an item.
-    pub(crate) fn convert_path_to_item(&self, path: &ast::Path) -> CompileResult<(Item, Item)> {
-        let base = self.query.item_for(path)?.clone();
+    pub(crate) fn convert_path_to_item(&self, path: &ast::Path) -> CompileResult<(Item, Named)> {
+        let base = self.query.item_for(path)?;
         let item = self
             .unit
-            .convert_path(&base, path, &self.storage, &*self.source)?;
-        Ok((base, item))
+            .find_named(base, path, &self.storage, &*self.source)?;
+        Ok((base.clone(), item))
     }
 
     pub(crate) fn compile_condition(
@@ -365,9 +366,9 @@ impl<'a> Compiler<'a> {
         let offset = self.scopes.decl_anon(span)?;
 
         let type_check = if let Some(path) = &pat_tuple.path {
-            let (base, item) = self.convert_path_to_item(path)?;
+            let (base, named) = self.convert_path_to_item(path)?;
 
-            let meta = match self.lookup_meta(&base, &item, path.span())? {
+            let meta = match self.lookup_meta(&base, named.item(), path.span())? {
                 Some(meta) => meta,
                 None => {
                     return Err(CompileError::new(
@@ -499,14 +500,16 @@ impl<'a> Compiler<'a> {
             ast::LitObjectIdent::Named(path) => {
                 let span = path.span();
 
-                let (base, item) = self.convert_path_to_item(path)?;
+                let (base, named) = self.convert_path_to_item(path)?;
 
-                let meta = match self.lookup_meta(&base, &item, span)? {
+                let meta = match self.lookup_meta(&base, named.item(), span)? {
                     Some(meta) => meta,
                     None => {
                         return Err(CompileError::new(
                             span,
-                            CompileErrorKind::MissingType { item },
+                            CompileErrorKind::MissingType {
+                                item: named.item().clone(),
+                            },
                         ));
                     }
                 };
@@ -678,15 +681,15 @@ impl<'a> Compiler<'a> {
             ast::Pat::PatPath(path) => {
                 let span = path.span();
 
-                let (base, item) = self.convert_path_to_item(&path.path)?;
+                let (base, named) = self.convert_path_to_item(&path.path)?;
 
-                if let Some(meta) = self.lookup_meta(&base, &item, span)? {
+                if let Some(meta) = self.lookup_meta(&base, named.item(), span)? {
                     if self.compile_pat_meta_binding(span, &meta, false_label, load)? {
                         return Ok(true);
                     }
                 }
 
-                let ident = match item.as_local() {
+                let ident = match named.as_local() {
                     Some(ident) => ident,
                     None => {
                         return Err(CompileError::new(

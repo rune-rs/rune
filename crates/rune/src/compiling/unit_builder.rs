@@ -15,6 +15,7 @@ use runestick::{
     UnitTypeInfo, VariantRtti,
 };
 use std::cell::{Ref, RefCell};
+use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
@@ -378,13 +379,13 @@ impl UnitBuilder {
     }
 
     /// Perform a path lookup on the current state of the unit.
-    pub(crate) fn convert_path(
+    pub(crate) fn find_named(
         &self,
         base: &Item,
         path: &ast::Path,
         storage: &Storage,
         source: &Source,
-    ) -> CompileResult<Item> {
+    ) -> CompileResult<Named> {
         let inner = self.inner.borrow();
 
         let ident = path
@@ -396,7 +397,15 @@ impl UnitBuilder {
 
         let mut imported = match inner.lookup_import_by_name(base, local.as_ref()) {
             Some(path) => path,
-            None => Item::of(&[local.as_ref()]),
+            None => {
+                let item = Item::of(Some(local));
+
+                if path.leading_colon.is_none() && path.rest.is_empty() {
+                    return Ok(Named::Local(item));
+                }
+
+                item
+            }
         };
 
         for (_, segment) in &path.rest {
@@ -407,7 +416,7 @@ impl UnitBuilder {
             imported.push(part.resolve(storage, source)?.as_ref());
         }
 
-        Ok(imported)
+        Ok(Named::Item(imported))
     }
 
     /// Declare a new import.
@@ -829,6 +838,44 @@ impl UnitBuilder {
                     },
                 ));
             }
+        }
+    }
+}
+
+/// The result of calling [UnitBuilder::find_named].
+#[derive(Debug)]
+pub enum Named {
+    /// The path resolved to a local. A local is a name which has no special
+    /// components like `self` or `super`, no other parts except the first one,
+    /// and no leading colons.
+    Local(Item),
+    /// The path resolved to the given item.
+    Item(Item),
+}
+
+impl Named {
+    /// Get the local identifier of this named.
+    pub fn as_local(&self) -> Option<&str> {
+        match self {
+            Named::Local(item) => item.as_local(),
+            Named::Item(..) => None,
+        }
+    }
+
+    /// Extract the associated item.
+    pub fn item(&self) -> &Item {
+        match self {
+            Named::Local(item) => item,
+            Named::Item(item) => item,
+        }
+    }
+}
+
+impl fmt::Display for Named {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Named::Local(item) => fmt::Display::fmt(item, f),
+            Named::Item(item) => fmt::Display::fmt(item, f),
         }
     }
 }

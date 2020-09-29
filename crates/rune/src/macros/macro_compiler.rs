@@ -34,18 +34,20 @@ impl MacroCompiler<'_> {
             ));
         }
 
-        let item =
+        let named =
             self.unit
-                .convert_path(&self.item, &macro_call.path, &self.storage, &*self.source)?;
+                .find_named(&self.item, &macro_call.path, &self.storage, &*self.source)?;
 
-        let hash = Hash::type_hash(&item);
+        let hash = Hash::type_hash(named.item());
 
         let handler = match self.context.lookup_macro(hash) {
             Some(handler) => handler,
             None => {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::MissingMacro { item },
+                    CompileErrorKind::MissingMacro {
+                        item: named.item().clone(),
+                    },
                 ));
             }
         };

@@ -561,6 +561,7 @@ impl_into_component_for_str!(RawStr, self, (*self).into());
 impl_into_component_for_str!(&RawStr, self, (**self).into());
 impl_into_component_for_str!(String, self, self.into());
 impl_into_component_for_str!(&String, self, self.clone().into());
+impl_into_component_for_str!(std::borrow::Cow<'_, str>, self, self.as_ref().into());
 
 /// Read a single byte.
 ///

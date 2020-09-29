@@ -20,7 +20,7 @@ pub use self::compile_error::{CompileError, CompileErrorKind, CompileResult};
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
 pub use self::scopes::Var;
 pub use self::unit_builder::{
-    ImportEntry, ImportKey, InsertMetaError, LinkerError, UnitBuilder, UnitBuilderError,
+    ImportEntry, ImportKey, InsertMetaError, LinkerError, Named, UnitBuilder, UnitBuilderError,
     UnitBuilderErrorKind,
 };
 use crate::parsing::Resolve as _;
