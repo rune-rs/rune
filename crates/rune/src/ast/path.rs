@@ -7,7 +7,7 @@ use crate::{Id, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToToke
 pub struct Path {
     /// Opaque id associated with path.
     #[rune(id)]
-    pub id: Id,
+    pub id: Option<Id>,
     /// The optional leading colon `::`
     #[rune(iter)]
     pub leading_colon: Option<ast::Scope>,
@@ -62,7 +62,7 @@ impl Path {
 }
 
 impl Opaque for Path {
-    fn id(&self) -> Id {
+    fn id(&self) -> Option<Id> {
         self.id
     }
 }

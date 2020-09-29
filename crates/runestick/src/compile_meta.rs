@@ -212,7 +212,7 @@ pub enum CompileMetaKind {
     /// A constant function.
     ConstFn {
         /// Opaque identifier for the constant function.
-        id: Id,
+        id: Option<Id>,
         /// The item of the constant function.
         item: Item,
     },

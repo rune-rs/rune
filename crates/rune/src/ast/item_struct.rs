@@ -18,7 +18,7 @@ use crate::{Id, OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 pub struct ItemStruct {
     /// Opaque identifier of the struct.
     #[rune(id)]
-    pub id: Id,
+    pub id: Option<Id>,
     /// The attributes for the struct
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,

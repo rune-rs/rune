@@ -80,11 +80,11 @@ pub enum QueryErrorKind {
         error: ParseErrorKind,
     },
     #[error("missing item for {id:?}")]
-    MissingItemId { id: Id },
+    MissingItemId { id: Option<Id> },
     #[error("missing template for {id:?}")]
-    MissingTemplateId { id: Id },
+    MissingTemplateId { id: Option<Id> },
     #[error("missing const fn by id {id:?}")]
-    MissingConstFnId { id: Id },
+    MissingConstFnId { id: Option<Id> },
     #[error("found conflicting item `{existing}`")]
     ItemConflict { existing: Item },
 }
@@ -114,14 +114,14 @@ impl Struct {
 
 pub struct Variant {
     /// Id of of the enum type.
-    enum_id: Id,
+    enum_id: Option<Id>,
     /// Ast for declaration.
     ast: ast::ItemVariant,
 }
 
 impl Variant {
     /// Construct a new variant.
-    pub fn new(enum_id: Id, ast: ast::ItemVariant) -> Self {
+    pub fn new(enum_id: Option<Id>, ast: ast::ItemVariant) -> Self {
         Self { enum_id, ast }
     }
 }
@@ -208,61 +208,64 @@ pub(crate) struct IndexedEntry {
 }
 
 pub(crate) struct Query {
+    /// Next opaque id generated.
+    next_id: Id,
     pub(crate) storage: Storage,
     pub(crate) unit: UnitBuilder,
     /// Cache of constants that have been expanded.
     pub(crate) consts: Consts,
     /// Build queue.
     pub(crate) queue: VecDeque<BuildEntry>,
+    /// Indexed items that can be queried for, which will queue up for them to
+    /// be compiled.
+    pub(crate) indexed: HashMap<Item, IndexedEntry>,
+    /// Resolved templates.
+    pub(crate) templates: HashMap<Id, Rc<ast::Template>>,
     /// Associated between `id` and `Item`. Use to look up items through
     /// `item_for` with an opaque id.
     ///
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
-    pub(crate) items: Vec<Item>,
-    /// Resolved templates.
-    pub(crate) templates: Vec<Rc<ast::Template>>,
-    /// Indexed items that can be queried for, which will queue up for them to
-    /// be compiled.
-    pub(crate) indexed: HashMap<Item, IndexedEntry>,
+    pub(crate) items: HashMap<Id, Item>,
     /// Compiled constant functions.
-    pub(crate) const_fns: Vec<Rc<ir::IrFn>>,
+    pub(crate) const_fns: HashMap<Id, Rc<ir::IrFn>>,
 }
 
 impl Query {
     /// Construct a new compilation context.
     pub fn new(storage: Storage, unit: UnitBuilder, consts: Consts) -> Self {
         Self {
+            next_id: Id::initial(),
             storage,
             unit,
             consts,
             queue: VecDeque::new(),
-            items: Vec::new(),
-            templates: Vec::new(),
             indexed: HashMap::new(),
-            const_fns: Vec::new(),
+            templates: HashMap::new(),
+            items: HashMap::new(),
+            const_fns: HashMap::new(),
         }
     }
 
     /// Insert an item and return its Id.
-    pub(crate) fn insert_item(&mut self, item: Item) -> Id {
-        let id = Id::new(self.items.len());
-        self.items.push(item);
-        id
+    pub(crate) fn insert_item(&mut self, item: Item) -> Option<Id> {
+        let id = self.next_id.next()?;
+        self.items.insert(id, item);
+        Some(id)
     }
 
     /// Insert a template and return its Id.
-    pub(crate) fn insert_template(&mut self, template: ast::Template) -> Id {
-        let id = Id::new(self.templates.len());
-        self.templates.push(Rc::new(template));
-        id
+    pub(crate) fn insert_template(&mut self, template: ast::Template) -> Option<Id> {
+        let id = self.next_id.next()?;
+        self.templates.insert(id, Rc::new(template));
+        Some(id)
     }
 
     /// Insert an item and return its Id.
-    pub(crate) fn insert_const_fn(&mut self, ir_fn: ir::IrFn) -> Id {
-        let id = Id::new(self.const_fns.len());
-        self.const_fns.push(Rc::new(ir_fn));
-        id
+    pub(crate) fn insert_const_fn(&mut self, ir_fn: ir::IrFn) -> Option<Id> {
+        let id = self.next_id.next()?;
+        self.const_fns.insert(id, Rc::new(ir_fn));
+        Some(id)
     }
 
     /// Get the item for the given identifier.
@@ -272,16 +275,11 @@ impl Query {
     {
         let id = ast.id();
 
-        if let Some(index) = *id {
-            let item = self
-                .items
-                .get(index.get() - 1)
-                .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingItemId { id }))?;
+        let item = id
+            .and_then(|n| self.items.get(&n))
+            .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingItemId { id }))?;
 
-            return Ok(item);
-        }
-
-        return Err(QueryError::new(ast, QueryErrorKind::MissingItemId { id }));
+        Ok(item)
     }
 
     /// Get the template for the given identifier.
@@ -291,16 +289,11 @@ impl Query {
     {
         let id = ast.id();
 
-        if let Some(index) = *id {
-            let template = self
-                .templates
-                .get(index.get() - 1)
-                .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingTemplateId { id }))?;
+        let template = id
+            .and_then(|n| self.templates.get(&n))
+            .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingTemplateId { id }))?;
 
-            return Ok(template.clone());
-        }
-
-        return Err(QueryError::new(ast, QueryErrorKind::MissingItemId { id }));
+        Ok(template.clone())
     }
 
     /// Get the constant function associated with the opaque.
@@ -310,26 +303,18 @@ impl Query {
     {
         let id = ast.id();
 
-        if let Some(index) = *id {
-            let const_fn = self
-                .const_fns
-                .get(index.get() - 1)
-                .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingConstFnId { id }))?;
+        let const_fn = id
+            .and_then(|n| self.const_fns.get(&n))
+            .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingConstFnId { id }))?;
 
-            return Ok(const_fn.clone());
-        }
-
-        return Err(QueryError::new(
-            ast,
-            QueryErrorKind::MissingConstFnId { id },
-        ));
+        Ok(const_fn.clone())
     }
 
     /// Index a constant expression.
     pub fn index_const<S>(
         &mut self,
         spanned: S,
-        id: Id,
+        id: Option<Id>,
         source: Arc<Source>,
         source_id: usize,
         item_const: ast::ItemConst,
@@ -366,7 +351,7 @@ impl Query {
     pub fn index_const_fn<S>(
         &mut self,
         spanned: S,
-        id: Id,
+        id: Option<Id>,
         source: Arc<Source>,
         source_id: usize,
         item_fn: ast::ItemFn,
@@ -395,7 +380,7 @@ impl Query {
     pub fn index_enum<S>(
         &mut self,
         spanned: S,
-        id: Id,
+        id: Option<Id>,
         source: Arc<Source>,
         source_id: usize,
         span: Span,
@@ -423,7 +408,7 @@ impl Query {
     pub fn index_struct<S>(
         &mut self,
         spanned: S,
-        id: Id,
+        id: Option<Id>,
         ast: ast::ItemStruct,
         source: Arc<Source>,
         source_id: usize,
@@ -452,8 +437,8 @@ impl Query {
     pub fn index_variant<S>(
         &mut self,
         spanned: S,
-        id: Id,
-        enum_id: Id,
+        id: Option<Id>,
+        enum_id: Option<Id>,
         ast: ast::ItemVariant,
         source: Arc<Source>,
         source_id: usize,
@@ -482,7 +467,7 @@ impl Query {
     pub fn index_closure<S>(
         &mut self,
         spanned: S,
-        id: Id,
+        id: Option<Id>,
         ast: ast::ExprClosure,
         captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
@@ -517,7 +502,7 @@ impl Query {
     pub fn index_async_block<S>(
         &mut self,
         spanned: S,
-        id: Id,
+        id: Option<Id>,
         ast: ast::Block,
         captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
@@ -549,33 +534,27 @@ impl Query {
     }
 
     /// Index the given element.
-    pub fn index<S>(&mut self, spanned: S, id: Id, entry: IndexedEntry) -> Result<(), QueryError>
+    pub fn index<S>(
+        &mut self,
+        spanned: S,
+        id: Option<Id>,
+        entry: IndexedEntry,
+    ) -> Result<(), QueryError>
     where
         S: Spanned,
     {
-        let item = match *id {
-            Some(index) => self
-                .items
-                .get(index.get() - 1)
-                .ok_or_else(|| QueryError::new(spanned, QueryErrorKind::MissingItemId { id }))?,
-            None => {
-                return Err(QueryError::new(
-                    spanned,
-                    QueryErrorKind::MissingItemId { id },
-                ));
-            }
-        };
+        let item = id
+            .and_then(|n| self.items.get(&n).cloned())
+            .ok_or_else(|| QueryError::new(spanned, QueryErrorKind::MissingItemId { id }))?;
 
         log::trace!("indexed: {}", item);
 
-        self.unit.insert_name(item);
+        self.unit.insert_name(&item);
 
         if let Some(old) = self.indexed.insert(item.clone(), entry) {
             return Err(QueryError::new(
                 &old.span,
-                QueryErrorKind::ItemConflict {
-                    existing: item.clone(),
-                },
+                QueryErrorKind::ItemConflict { existing: item },
             ));
         }
 
@@ -761,7 +740,7 @@ impl Query {
                         used,
                     });
 
-                    Id::default()
+                    None
                 } else {
                     self.insert_const_fn(ir_fn)
                 };

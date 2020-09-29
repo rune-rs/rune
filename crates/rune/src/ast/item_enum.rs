@@ -53,7 +53,7 @@ item_parse!(ItemEnum, "enum item");
 pub struct ItemVariant {
     /// Opaque identifier of variant.
     #[rune(id)]
-    pub id: Id,
+    pub id: Option<Id>,
     /// The attributes associated with the variant.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,

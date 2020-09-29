@@ -42,7 +42,7 @@ use runestick::Span;
 pub struct ItemFn {
     /// Opaque identifier for fn item.
     #[rune(id)]
-    pub id: Id,
+    pub id: Option<Id>,
     /// The attributes for the fn
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,

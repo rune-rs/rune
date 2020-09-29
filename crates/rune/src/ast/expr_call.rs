@@ -15,7 +15,7 @@ use crate::{Id, Spanned, ToTokens};
 pub struct ExprCall {
     /// Opaque identifier related with call.
     #[rune(id)]
-    pub id: Id,
+    pub id: Option<Id>,
     /// Attributes associated with expression.
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -28,7 +28,7 @@ pub struct ExprCall {
 expr_parse!(ExprCall, "call expression");
 
 impl Opaque for ExprCall {
-    fn id(&self) -> Id {
+    fn id(&self) -> Option<Id> {
         self.id
     }
 }

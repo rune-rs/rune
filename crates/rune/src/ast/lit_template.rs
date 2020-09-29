@@ -9,7 +9,7 @@ use std::borrow::Cow;
 pub struct LitTemplate {
     /// Opaque identifier for the template.
     #[rune(id)]
-    pub id: Id,
+    pub id: Option<Id>,
     /// The token corresponding to the literal.
     token: ast::Token,
     /// The source string of the literal template.
@@ -18,7 +18,7 @@ pub struct LitTemplate {
 }
 
 impl Opaque for LitTemplate {
-    fn id(&self) -> Id {
+    fn id(&self) -> Option<Id> {
         self.id
     }
 }
