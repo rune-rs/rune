@@ -13,7 +13,6 @@ use crate::{
 use runestick::{Context, Item, Source, SourceId, Span};
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 /// A single task that can be fed to the worker.
 #[derive(Debug)]
@@ -159,14 +158,14 @@ impl<'a> Worker<'a> {
 
 /// Import to process.
 #[derive(Debug)]
-pub(crate) struct Import {
-    pub(crate) item: Item,
-    pub(crate) ast: ast::ItemUse,
-    pub(crate) source: Arc<Source>,
+pub(crate) struct Import<'a> {
+    pub(crate) item: &'a Item,
+    pub(crate) source: &'a Source,
     pub(crate) source_id: usize,
+    pub(crate) ast: ast::ItemUse,
 }
 
-impl Import {
+impl Import<'_> {
     /// Process the import, populating the unit.
     pub(crate) fn process(
         self,
@@ -175,15 +174,8 @@ impl Import {
         unit: &UnitBuilder,
         mut wildcard_expand: impl FnMut(ExpandUnitWildcard),
     ) -> CompileResult<()> {
-        let Self {
-            item,
-            ast: decl_use,
-            source,
-            source_id,
-        } = self;
-
         let mut queue = VecDeque::new();
-        queue.push_back((Item::new(), &decl_use.path));
+        queue.push_back((Item::new(), &self.ast.path));
 
         while let Some((mut name, path)) = queue.pop_front() {
             let span = path.span();
@@ -192,7 +184,7 @@ impl Import {
                 .first
                 .try_as_ident()
                 .ok_or_else(|| CompileError::internal_unsupported_path(&path.first))?
-                .resolve(storage, &*source)?;
+                .resolve(storage, self.source)?;
 
             name.push(first.as_ref());
 
@@ -200,7 +192,7 @@ impl Import {
                 let ident = segment
                     .try_as_ident()
                     .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
-                name.push(ident.resolve(storage, &*source)?.as_ref());
+                name.push(ident.resolve(storage, self.source)?.as_ref());
             }
 
             if let Some((_, c)) = &path.last {
@@ -209,7 +201,7 @@ impl Import {
                         let was_in_context = if context.contains_prefix(&name) {
                             for c in context.iter_components(&name) {
                                 let name = name.extended(c);
-                                unit.new_import(item.clone(), name, span, self.source_id)?;
+                                unit.new_import(self.item.clone(), name, span, self.source_id)?;
                             }
 
                             true
@@ -218,10 +210,10 @@ impl Import {
                         };
 
                         let wildcard_expander = ExpandUnitWildcard {
-                            from: item.clone(),
+                            from: self.item.clone(),
                             name,
                             span,
-                            source_id,
+                            source_id: self.source_id,
                             was_in_context,
                         };
 
@@ -234,7 +226,7 @@ impl Import {
                     }
                 }
             } else {
-                unit.new_import(item.clone(), name, span, source_id)?;
+                unit.new_import(self.item.clone(), name, span, self.source_id)?;
             }
         }
 

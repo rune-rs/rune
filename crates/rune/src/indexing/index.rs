@@ -81,14 +81,14 @@ impl<'a> Indexer<'a> {
         while let Some((item, semi)) = queue.pop_front() {
             match item {
                 ast::Item::ItemUse(item_use) => {
-                    let import = Import {
-                        item: self.items.item().clone(),
-                        ast: item_use,
-                        source: self.source.clone(),
-                        source_id: self.source_id,
-                    };
-
                     let queue = &mut *self.queue;
+
+                    let import = Import {
+                        item: &*self.items.item(),
+                        source: &*self.source,
+                        source_id: self.source_id,
+                        ast: item_use,
+                    };
 
                     import.process(&self.context, &self.storage, &self.query.unit, |expand| {
                         queue.push_back(Task::ExpandUnitWildcard(expand));
@@ -117,14 +117,14 @@ impl<'a> Indexer<'a> {
         while let Some(stmt) = queue.pop_front() {
             match stmt {
                 ast::Stmt::Item(ast::Item::ItemUse(item_use), _) => {
-                    let import = Import {
-                        item: self.items.item().clone(),
-                        ast: item_use,
-                        source: self.source.clone(),
-                        source_id: self.source_id,
-                    };
-
                     let queue = &mut *self.queue;
+
+                    let import = Import {
+                        item: &*self.items.item(),
+                        source: &*self.source,
+                        source_id: self.source_id,
+                        ast: item_use,
+                    };
 
                     import.process(self.context, &self.storage, &self.query.unit, |expand| {
                         queue.push_back(Task::ExpandUnitWildcard(expand));
@@ -174,7 +174,7 @@ impl<'a> Indexer<'a> {
         };
 
         let item = self.items.item();
-        let source = self.source_loader.load(root, &item, span)?;
+        let source = self.source_loader.load(root, &*item, span)?;
 
         if let Some(existing) = self.loaded.insert(item.clone(), (self.source_id, span)) {
             return Err(CompileError::new(

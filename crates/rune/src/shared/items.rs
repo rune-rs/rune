@@ -90,9 +90,7 @@ impl Items {
         let mut inner = self.inner.borrow_mut();
 
         inner.id = 0;
-        inner
-            .item
-            .push(Component::String(name.to_owned().into_boxed_str()));
+        inner.item.push(name);
 
         Guard {
             inner: self.inner.clone(),
