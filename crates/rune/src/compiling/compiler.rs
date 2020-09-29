@@ -368,7 +368,7 @@ impl<'a> Compiler<'a> {
         let type_check = if let Some(path) = &pat_tuple.path {
             let (base, named) = self.convert_path_to_item(path)?;
 
-            let meta = match self.lookup_meta(&base, named.item(), path.span())? {
+            let meta = match self.lookup_meta(&base, &named.item, path.span())? {
                 Some(meta) => meta,
                 None => {
                     return Err(CompileError::new(
@@ -502,13 +502,13 @@ impl<'a> Compiler<'a> {
 
                 let (base, named) = self.convert_path_to_item(path)?;
 
-                let meta = match self.lookup_meta(&base, named.item(), span)? {
+                let meta = match self.lookup_meta(&base, &named.item, span)? {
                     Some(meta) => meta,
                     None => {
                         return Err(CompileError::new(
                             span,
                             CompileErrorKind::MissingType {
-                                item: named.item().clone(),
+                                item: named.item.clone(),
                             },
                         ));
                     }
@@ -683,25 +683,22 @@ impl<'a> Compiler<'a> {
 
                 let (base, named) = self.convert_path_to_item(&path.path)?;
 
-                if let Some(meta) = self.lookup_meta(&base, named.item(), span)? {
+                if let Some(meta) = self.lookup_meta(&base, &named.item, span)? {
                     if self.compile_pat_meta_binding(span, &meta, false_label, load)? {
                         return Ok(true);
                     }
                 }
 
-                let ident = match named.as_local() {
-                    Some(ident) => ident,
-                    None => {
-                        return Err(CompileError::new(
-                            span,
-                            CompileErrorKind::UnsupportedBinding,
-                        ));
-                    }
-                };
+                if let Some(ident) = named.as_local() {
+                    load(self, Needs::Value)?;
+                    self.scopes.decl_var(ident, span)?;
+                    return Ok(false);
+                }
 
-                load(self, Needs::Value)?;
-                self.scopes.decl_var(&ident, span)?;
-                return Ok(false);
+                return Err(CompileError::new(
+                    span,
+                    CompileErrorKind::UnsupportedBinding,
+                ));
             }
             ast::Pat::PatIgnore(..) => {
                 // ignore binding, but might still have side effects, so must

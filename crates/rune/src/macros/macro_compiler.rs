@@ -38,7 +38,7 @@ impl MacroCompiler<'_> {
             self.unit
                 .find_named(&self.item, &macro_call.path, &self.storage, &*self.source)?;
 
-        let hash = Hash::type_hash(named.item());
+        let hash = Hash::type_hash(&named.item);
 
         let handler = match self.context.lookup_macro(hash) {
             Some(handler) => handler,
@@ -46,7 +46,7 @@ impl MacroCompiler<'_> {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::MissingMacro {
-                        item: named.item().clone(),
+                        item: named.item.clone(),
                     },
                 ));
             }

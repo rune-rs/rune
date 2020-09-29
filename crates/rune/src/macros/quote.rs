@@ -68,7 +68,7 @@ macro_rules! quote {
     }};
 
     (@push $ctx:expr, $s:expr => self $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Self_ => $($tt)*);
+        $crate::quote!(@token $ctx, $s, SelfValue => $($tt)*);
     }};
 
     (@push $ctx:expr, $s:expr => macro $($tt:tt)*) => {{
@@ -394,7 +394,7 @@ mod tests {
     fn test_tokens() {
         let ctx = &mut MacroContext::empty();
 
-        assert_eq!(vec![token(Self_)], quote!(ctx => self));
+        assert_eq!(vec![token(SelfValue)], quote!(ctx => self));
         assert_eq!(vec![token(Macro)], quote!(ctx => macro));
         assert_eq!(vec![token(Fn)], quote!(ctx => fn));
         assert_eq!(vec![token(Enum)], quote!(ctx => enum));
@@ -503,7 +503,7 @@ mod tests {
         let iter = quote!(ctx => self struct enum);
 
         assert_eq!(
-            vec![token(Self_), token(Struct), token(Enum)],
+            vec![token(SelfValue), token(Struct), token(Enum)],
             quote!(ctx => #(iter)*)
         );
     }
@@ -515,7 +515,7 @@ mod tests {
 
         assert_eq!(
             vec![
-                token(Self_),
+                token(SelfValue),
                 token(Comma),
                 token(Struct),
                 token(Comma),

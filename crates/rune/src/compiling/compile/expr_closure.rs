@@ -14,7 +14,7 @@ impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
                 let span = arg.span();
 
                 match arg {
-                    ast::FnArg::Self_(s) => {
+                    ast::FnArg::SelfValue(s) => {
                         return Err(CompileError::new(s, CompileErrorKind::UnsupportedSelf))
                     }
                     ast::FnArg::Ident(ident) => {

@@ -77,7 +77,7 @@ impl ItemFn {
 
     /// Test if function is an instance fn.
     pub fn is_instance(&self) -> bool {
-        matches!(self.args.first(), Some((ast::FnArg::Self_(..), _)))
+        matches!(self.args.first(), Some((ast::FnArg::SelfValue(..), _)))
     }
 
     /// Parse a `fn` item with the given meta

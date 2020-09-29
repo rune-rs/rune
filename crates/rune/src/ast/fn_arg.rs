@@ -15,7 +15,7 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum FnArg {
     /// The `self` parameter.
-    Self_(ast::Self_),
+    SelfValue(ast::SelfValue),
     /// Ignoring the argument with `_`.
     Ignore(ast::Underscore),
     /// Binding the argument to an ident.
@@ -27,7 +27,7 @@ impl Parse for FnArg {
         let t = parser.token_peek_eof()?;
 
         Ok(match t.kind {
-            ast::Kind::Self_ => Self::Self_(parser.parse()?),
+            ast::Kind::SelfValue => Self::SelfValue(parser.parse()?),
             ast::Kind::Underscore => Self::Ignore(parser.parse()?),
             ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
             _ => return Err(ParseError::expected(t, "expected function argument")),

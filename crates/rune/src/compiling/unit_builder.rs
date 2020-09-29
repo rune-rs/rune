@@ -395,17 +395,9 @@ impl UnitBuilder {
 
         let local = ident.resolve(storage, source)?;
 
-        let mut imported = match inner.lookup_import_by_name(base, local.as_ref()) {
+        let mut item = match inner.lookup_import_by_name(base, local.as_ref()) {
             Some(path) => path,
-            None => {
-                let item = Item::of(Some(local));
-
-                if path.leading_colon.is_none() && path.rest.is_empty() {
-                    return Ok(Named::Local(item));
-                }
-
-                item
-            }
+            None => Item::of(Some(local.as_ref())),
         };
 
         for (_, segment) in &path.rest {
@@ -413,10 +405,13 @@ impl UnitBuilder {
                 .try_as_ident()
                 .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
 
-            imported.push(part.resolve(storage, source)?.as_ref());
+            item.push(part.resolve(storage, source)?.as_ref());
         }
 
-        Ok(Named::Item(imported))
+        Ok(Named {
+            local: path.leading_colon.is_none() && path.rest.is_empty(),
+            item,
+        })
     }
 
     /// Declare a new import.
@@ -844,39 +839,27 @@ impl UnitBuilder {
 
 /// The result of calling [UnitBuilder::find_named].
 #[derive(Debug)]
-pub enum Named {
-    /// The path resolved to a local. A local is a name which has no special
-    /// components like `self` or `super`, no other parts except the first one,
-    /// and no leading colons.
-    Local(Item),
+pub struct Named {
+    /// If the resolved value is local.
+    pub local: bool,
     /// The path resolved to the given item.
-    Item(Item),
+    pub item: Item,
 }
 
 impl Named {
     /// Get the local identifier of this named.
     pub fn as_local(&self) -> Option<&str> {
-        match self {
-            Named::Local(item) => item.as_local(),
-            Named::Item(..) => None,
-        }
-    }
-
-    /// Extract the associated item.
-    pub fn item(&self) -> &Item {
-        match self {
-            Named::Local(item) => item,
-            Named::Item(item) => item,
+        if self.local {
+            self.item.as_local()
+        } else {
+            None
         }
     }
 }
 
 impl fmt::Display for Named {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Named::Local(item) => fmt::Display::fmt(item, f),
-            Named::Item(item) => fmt::Display::fmt(item, f),
-        }
+        fmt::Display::fmt(&self.item, f)
     }
 }
 

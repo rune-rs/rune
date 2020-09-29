@@ -86,13 +86,13 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(&base, named.item(), path.span())? {
+        let meta = match self.lookup_meta(&base, &named.item, path.span())? {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::MissingFunction {
-                        item: named.item().clone(),
+                        item: named.item.clone(),
                     },
                 ));
             }
@@ -161,7 +161,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::MissingFunction {
-                        item: named.item().clone(),
+                        item: named.item.clone(),
                     },
                 ));
             }
