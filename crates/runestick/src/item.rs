@@ -420,6 +420,49 @@ impl ComponentRef<'_> {
             Self::AsyncBlock(n) => Component::AsyncBlock(n),
         }
     }
+
+    /// Write the current component to the given vector.
+    pub fn write_component(self, output: &mut Vec<u8>) {
+        match self {
+            ComponentRef::String(s) => {
+                write_str(s, output);
+            }
+            ComponentRef::Block(c) => {
+                write_tag(output, BLOCK, c);
+            }
+            ComponentRef::Closure(c) => {
+                write_tag(output, CLOSURE, c);
+            }
+            ComponentRef::AsyncBlock(c) => {
+                write_tag(output, ASYNC_BLOCK, c);
+            }
+        }
+    }
+
+    /// Hash the current component to the given hasher.
+    pub fn hash_component<H>(self, hasher: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        match self {
+            ComponentRef::String(s) => {
+                STRING.hash(hasher);
+                s.hash(hasher);
+            }
+            ComponentRef::Block(c) => {
+                BLOCK.hash(hasher);
+                c.hash(hasher);
+            }
+            ComponentRef::Closure(c) => {
+                CLOSURE.hash(hasher);
+                c.hash(hasher);
+            }
+            ComponentRef::AsyncBlock(c) => {
+                ASYNC_BLOCK.hash(hasher);
+                c.hash(hasher);
+            }
+        }
+    }
 }
 
 impl fmt::Display for ComponentRef<'_> {
@@ -445,7 +488,7 @@ pub trait IntoComponent: Sized {
 
     /// Write a component directly to a buffer.
     fn write_component(self, output: &mut Vec<u8>) {
-        IntoComponent::write_component(self.as_component_ref(), output)
+        ComponentRef::write_component(self.as_component_ref(), output)
     }
 
     /// Hash the current component.
@@ -453,7 +496,7 @@ pub trait IntoComponent: Sized {
     where
         H: hash::Hasher,
     {
-        IntoComponent::hash_component(self.as_component_ref(), hasher)
+        ComponentRef::hash_component(self.as_component_ref(), hasher)
     }
 }
 
@@ -464,47 +507,6 @@ impl IntoComponent for ComponentRef<'_> {
 
     fn into_component(self) -> Component {
         ComponentRef::into_component(self)
-    }
-
-    fn write_component(self, output: &mut Vec<u8>) {
-        match self {
-            ComponentRef::String(s) => {
-                write_str(output, s);
-            }
-            ComponentRef::Block(c) => {
-                write_tag(output, BLOCK, c);
-            }
-            ComponentRef::Closure(c) => {
-                write_tag(output, CLOSURE, c);
-            }
-            ComponentRef::AsyncBlock(c) => {
-                write_tag(output, ASYNC_BLOCK, c);
-            }
-        }
-    }
-
-    fn hash_component<H>(self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        match self {
-            ComponentRef::String(s) => {
-                STRING.hash(hasher);
-                s.hash(hasher);
-            }
-            ComponentRef::Block(c) => {
-                BLOCK.hash(hasher);
-                c.hash(hasher);
-            }
-            ComponentRef::Closure(c) => {
-                CLOSURE.hash(hasher);
-                c.hash(hasher);
-            }
-            ComponentRef::AsyncBlock(c) => {
-                ASYNC_BLOCK.hash(hasher);
-                c.hash(hasher);
-            }
-        }
     }
 }
 
@@ -528,133 +530,37 @@ impl IntoComponent for &Component {
     }
 }
 
-impl IntoComponent for &str {
-    fn as_component_ref(&self) -> ComponentRef<'_> {
-        ComponentRef::String(*self)
-    }
+macro_rules! impl_into_component_for_str {
+    ($ty:ty, $slf:ident, $into:expr) => {
+        impl IntoComponent for $ty {
+            fn as_component_ref(&self) -> ComponentRef<'_> {
+                ComponentRef::String(self.as_ref())
+            }
 
-    fn into_component(self) -> Component {
-        Component::String(self.to_owned().into_boxed_str())
-    }
+            fn into_component($slf) -> Component {
+                Component::String($into)
+            }
 
-    /// Encode the given string onto the buffer.
-    fn write_component(self, output: &mut Vec<u8>) {
-        write_str(output, self)
-    }
+            fn write_component(self, output: &mut Vec<u8>) {
+                write_str(self.as_ref(), output)
+            }
 
-    fn hash_component<H>(self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        STRING.hash(hasher);
-        self.hash(hasher);
+            fn hash_component<H>(self, hasher: &mut H)
+            where
+                H: hash::Hasher,
+            {
+                hash_str(self.as_ref(), hasher);
+            }
+        }
     }
 }
 
-impl IntoComponent for RawStr {
-    fn as_component_ref(&self) -> ComponentRef<'_> {
-        ComponentRef::String(&**self)
-    }
-
-    fn into_component(self) -> Component {
-        Component::String((*self).to_owned().into_boxed_str())
-    }
-
-    fn write_component(self, output: &mut Vec<u8>) {
-        <&str>::write_component(&*self, output)
-    }
-
-    fn hash_component<H>(self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        <&str>::hash_component(&*self, hasher);
-    }
-}
-
-impl IntoComponent for &RawStr {
-    fn as_component_ref(&self) -> ComponentRef<'_> {
-        ComponentRef::String(&***self)
-    }
-
-    fn into_component(self) -> Component {
-        Component::String((**self).to_owned().into_boxed_str())
-    }
-
-    fn write_component(self, output: &mut Vec<u8>) {
-        <&str>::write_component(&**self, output)
-    }
-
-    fn hash_component<H>(self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        <&str>::hash_component(&**self, hasher);
-    }
-}
-
-impl IntoComponent for &&str {
-    fn as_component_ref(&self) -> ComponentRef<'_> {
-        ComponentRef::String(**self)
-    }
-
-    fn into_component(self) -> Component {
-        Component::String((*self).to_owned().into_boxed_str())
-    }
-
-    fn write_component(self, output: &mut Vec<u8>) {
-        <&str>::write_component(*self, output)
-    }
-
-    fn hash_component<H>(self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        <&str>::hash_component(*self, hasher);
-    }
-}
-
-impl IntoComponent for String {
-    fn as_component_ref(&self) -> ComponentRef<'_> {
-        ComponentRef::String(&*self)
-    }
-
-    fn into_component(self) -> Component {
-        Component::String(self.into_boxed_str())
-    }
-
-    fn write_component(self, output: &mut Vec<u8>) {
-        <&str>::write_component(self.as_str(), output)
-    }
-
-    fn hash_component<H>(self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        <&str>::hash_component(self.as_str(), hasher)
-    }
-}
-
-impl IntoComponent for &String {
-    fn as_component_ref(&self) -> ComponentRef<'_> {
-        ComponentRef::String(&**self)
-    }
-
-    fn into_component(self) -> Component {
-        Component::String(self.clone().into_boxed_str())
-    }
-
-    fn write_component(self, output: &mut Vec<u8>) {
-        <&str>::write_component(self.as_str(), output)
-    }
-
-    fn hash_component<H>(self, hasher: &mut H)
-    where
-        H: hash::Hasher,
-    {
-        <&str>::hash_component(self.as_str(), hasher);
-    }
-}
+impl_into_component_for_str!(&str, self, self.into());
+impl_into_component_for_str!(&&str, self, (*self).into());
+impl_into_component_for_str!(RawStr, self, (*self).into());
+impl_into_component_for_str!(&RawStr, self, (**self).into());
+impl_into_component_for_str!(String, self, self.into());
+impl_into_component_for_str!(&String, self, self.clone().into());
 
 /// Read a single byte.
 ///
@@ -683,10 +589,19 @@ fn write_tag(output: &mut Vec<u8>, tag: u8, n: usize) {
 }
 
 /// Internal function to write only the string of a component.
-fn write_str(output: &mut Vec<u8>, s: &str) {
+fn write_str(s: &str, output: &mut Vec<u8>) {
     write_tag(output, STRING, s.len());
     output.extend(s.as_bytes());
     write_tag(output, STRING, s.len());
+}
+
+/// Internal function to hash the given string.
+fn hash_str<H>(string: &str, hasher: &mut H)
+where
+    H: hash::Hasher,
+{
+    STRING.hash(hasher);
+    string.hash(hasher);
 }
 
 #[cfg(test)]
