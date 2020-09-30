@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::{CompileError, CompileErrorKind, Spanned as _};
 use std::fmt;
 
 /// Information on the visibility of an item.
@@ -13,13 +14,20 @@ pub enum Visibility {
 }
 
 impl Visibility {
-    pub fn from_ast(vis: &ast::Visibility) -> Self {
-        match vis {
-            ast::Visibility::Inherited => Self::Inherited,
-            ast::Visibility::Public(_) => Self::Public,
-            // TODO: restricted means more than just `crate`.
-            ast::Visibility::Restricted(_) => Self::Crate,
-        }
+    pub fn from_ast(vis: &ast::Visibility) -> Result<Self, CompileError> {
+        let span = match vis {
+            ast::Visibility::Inherited => return Ok(Self::Inherited),
+            ast::Visibility::Public(_) => return Ok(Self::Public),
+            ast::Visibility::Crate(_) => return Ok(Self::Crate),
+            ast::Visibility::Super(restrict) => restrict.span(),
+            ast::Visibility::SelfValue(restrict) => restrict.span(),
+            ast::Visibility::In(restrict) => restrict.span(),
+        };
+
+        Err(CompileError::new(
+            span,
+            CompileErrorKind::UnsupportedVisibility,
+        ))
     }
 }
 

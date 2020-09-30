@@ -1,16 +1,21 @@
 use crate::ast;
-use crate::{OptionSpanned, Parse, ParseError, Parser, ToTokens};
+use crate::{OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// Visibility level restricted to some path: pub(self) or pub(super) or pub(crate) or pub(in some::module).
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, OptionSpanned)]
 pub enum Visibility {
-    /// An unrestricted public visibility level: `pub`.
-    Public(ast::Pub),
-    /// A visibility level restricted to some path: `pub(self)` or
-    /// `pub(super)` or `pub(crate)` or `pub(in some::module)`.
-    Restricted(ast::VisRestricted),
     /// An inherited visibility level, this usually means private.
     Inherited,
+    /// An unrestricted public visibility level: `pub`.
+    Public(ast::Pub),
+    /// Crate visibility `pub(crate)`.
+    Crate(VisibilityRestrict<ast::Crate>),
+    /// Super visibility `pub(super)`.
+    Super(VisibilityRestrict<ast::Super>),
+    /// Self visibility `pub(self)`.
+    SelfValue(VisibilityRestrict<ast::SelfValue>),
+    /// In visibility `pub(in path)`.
+    In(VisibilityRestrict<VisibilityIn>),
 }
 
 impl Visibility {
@@ -36,59 +41,100 @@ impl Default for Visibility {
 /// # Examples
 ///
 /// ```rust
-/// use rune::{parse_all, ast, ParseError};
+/// use rune::{testing, ast};
 ///
-/// match parse_all::<ast::Visibility>("pub").unwrap() {
-///     ast::Visibility::Public(_) => {}
-///     vis => panic!("expected `Public` visibility got {:?}", vis),
-/// }
+/// assert!(matches!{
+///     testing::roundtrip::<ast::Visibility>("pub"),
+///     ast::Visibility::Public(_)
+/// });
 ///
-/// match parse_all::<ast::Visibility>("pub(in a::b::c)").unwrap() {
-///     ast::Visibility::Restricted(ast::VisRestricted{..}) => {}
-///     vis => panic!("expected `Restricted` visibility got {:?}", vis),
-/// }
+/// assert!(matches!{
+///     testing::roundtrip::<ast::Visibility>("pub (in a::b::c)"),
+///     ast::Visibility::In(_)
+/// });
 ///
-/// match parse_all::<ast::Visibility>("pub(in crate::x::y::z)").unwrap() {
-///     ast::Visibility::Restricted(ast::VisRestricted{..}) => {}
-///     vis => panic!("expected `Restricted` visibility got {:?}", vis),
-/// }
+/// assert!(matches!{
+///     testing::roundtrip::<ast::Visibility>("pub(in crate::x::y::z)"),
+///     ast::Visibility::In(_)
+/// });
 ///
-/// match parse_all::<ast::Visibility>("pub(super)").unwrap() {
-///     ast::Visibility::Restricted(ast::VisRestricted{..}) => {}
-///     vis => panic!("expected `Restricted` visibility got {:?}", vis),
-/// }
+/// assert!(matches!{
+///     testing::roundtrip::<ast::Visibility>("pub(super)"),
+///     ast::Visibility::Super(_)
+/// });
 ///
-/// match parse_all::<ast::Visibility>("pub(crate)").unwrap() {
-///     ast::Visibility::Restricted(ast::VisRestricted{..}) => {}
-///     vis => panic!("expected `Restricted` visibility got {:?}", vis),
-/// }
+/// assert!(matches!{
+///     testing::roundtrip::<ast::Visibility>("pub(crate)"),
+///     ast::Visibility::Crate(_)
+/// });
 ///
-///
+/// assert!(matches!{
+///     testing::roundtrip::<ast::Visibility>("pub(self)"),
+///     ast::Visibility::SelfValue(_)
+/// });
 /// ```
 impl Parse for Visibility {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = match parser.token_peek()? {
-            Some(token) => token,
+        let pub_token = match parser.parse::<Option<ast::Pub>>()? {
+            Some(pub_token) => pub_token,
             None => return Ok(Self::Inherited),
         };
 
-        if token.kind == ast::Kind::Pub {
-            let pub_ = parser.parse()?;
-            let next_kind = parser.token_peek()?.map(|t| t.kind);
-            match next_kind {
-                Some(ast::Kind::Open(ast::Delimiter::Parenthesis)) => {
-                    Ok(Visibility::Restricted(ast::VisRestricted {
-                        pub_,
-                        open: parser.parse()?,
-                        in_: parser.parse()?,
-                        path: parser.parse()?,
-                        close: parser.parse()?,
-                    }))
-                }
-                _ => Ok(Visibility::Public(pub_)),
-            }
-        } else {
-            Ok(Visibility::Inherited)
-        }
+        let open = match parser.parse::<Option<ast::OpenParen>>()? {
+            Some(open) => open,
+            None => return Ok(Self::Public(pub_token)),
+        };
+
+        Ok(match parser.token_peek_eof()?.kind {
+            ast::Kind::In => Self::In(VisibilityRestrict {
+                pub_token,
+                open,
+                restriction: VisibilityIn {
+                    in_token: parser.parse()?,
+                    path: parser.parse()?,
+                },
+                close: parser.parse()?,
+            }),
+            ast::Kind::Super => Self::Super(VisibilityRestrict {
+                pub_token,
+                open,
+                restriction: parser.parse()?,
+                close: parser.parse()?,
+            }),
+            ast::Kind::SelfValue => Self::SelfValue(VisibilityRestrict {
+                pub_token,
+                open,
+                restriction: parser.parse()?,
+                close: parser.parse()?,
+            }),
+            _ => Self::Crate(VisibilityRestrict {
+                pub_token,
+                open,
+                restriction: parser.parse()?,
+                close: parser.parse()?,
+            }),
+        })
     }
+}
+
+/// A `in path` restriction to visibility.
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+pub struct VisibilityIn {
+    /// The `in` keyword.
+    pub in_token: ast::In,
+    /// The path the restriction applies to.
+    pub path: ast::Path,
+}
+
+/// A restriction to visibility.
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+pub struct VisibilityRestrict<T> {
+    /// `pub` keyword.
+    pub pub_token: ast::Pub,
+    /// Opening paren `(`.
+    pub open: ast::OpenParen,
+    /// The restriction.
+    pub restriction: T,
+    /// Closing paren `(`.
+    pub close: ast::CloseParen,
 }

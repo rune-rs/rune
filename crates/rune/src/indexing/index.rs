@@ -189,7 +189,7 @@ impl<'a> Indexer<'a> {
         };
 
         let item = self.items.item();
-        let visibility = Visibility::from_ast(&item_mod.visibility);
+        let visibility = Visibility::from_ast(&item_mod.visibility)?;
         item_mod.id = Some(self.query.insert_mod(&*item, visibility));
 
         let source = self.source_loader.load(root, &*item, span)?;
@@ -313,7 +313,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
         let f = guard.into_function(span)?;
 
-        let visibility = Visibility::from_ast(&decl_fn.visibility);
+        let visibility = Visibility::from_ast(&decl_fn.visibility)?;
         let (id, item) =
             self.query
                 .insert_item(span, &*self.items.item(), &self.mod_item, visibility)?;
@@ -869,7 +869,7 @@ impl Index<ast::Item> for Indexer<'_> {
                 let name = item_enum.name.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(name.as_ref());
 
-                let visibility = Visibility::from_ast(&item_enum.visibility);
+                let visibility = Visibility::from_ast(&item_enum.visibility)?;
                 let (enum_id, enum_item) = self.query.insert_item(
                     span,
                     &*self.items.item(),
@@ -948,7 +948,7 @@ impl Index<ast::Item> for Indexer<'_> {
                 let ident = item_struct.ident.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(ident.as_ref());
 
-                let visibility = Visibility::from_ast(&item_struct.visibility);
+                let visibility = Visibility::from_ast(&item_struct.visibility)?;
                 let (id, item) = self.query.insert_item(
                     span,
                     &*self.items.item(),
@@ -1018,7 +1018,7 @@ impl Index<ast::Item> for Indexer<'_> {
                         let _guard = self.items.push_name(name.as_ref());
 
                         let module_item = Rc::new(self.items.item().clone());
-                        let visibility = Visibility::from_ast(&item_mod.visibility);
+                        let visibility = Visibility::from_ast(&item_mod.visibility)?;
                         item_mod.id = Some(self.query.insert_mod(&module_item, visibility));
 
                         let replaced = std::mem::replace(&mut self.mod_item, module_item);
@@ -1041,7 +1041,7 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 self.index(item_const)?;
 
-                let visibility = Visibility::from_ast(&item_const.visibility);
+                let visibility = Visibility::from_ast(&item_const.visibility)?;
                 let (id, item) = self.query.insert_item(
                     span,
                     &*self.items.item(),

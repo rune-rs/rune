@@ -112,7 +112,6 @@ mod stmt;
 mod token;
 pub(super) mod utils;
 mod vis;
-mod vis_restricted;
 
 pub use self::attribute::Attribute;
 pub use self::block::Block;
@@ -181,7 +180,6 @@ pub use self::token::{
     LitStrSourceText, Number, NumberBase, NumberSource, NumberSourceText, StringSource, Token,
 };
 pub use self::vis::Visibility;
-pub use self::vis_restricted::VisRestricted;
 
 macro_rules! decl_tokens {
     ($(($parser:ident, $doc:expr, $($kind:tt)*),)*) => {

@@ -303,4 +303,6 @@ pub enum CompileErrorKind {
     ExpectedLeadingPathSegment,
     #[error("tried to insert conflicting item `{item}`")]
     ItemConflict { item: Item },
+    #[error("visibility modifier not supported")]
+    UnsupportedVisibility,
 }
