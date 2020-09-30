@@ -44,7 +44,7 @@ pub(crate) struct Indexer<'a> {
     /// The current module being indexed.
     pub(crate) mod_item: Rc<Item>,
     /// Set if we are inside of an impl block.
-    pub(crate) impl_items: Vec<Rc<Item>>,
+    pub(crate) impl_item: Option<Rc<Item>>,
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     pub(crate) source_loader: &'a mut dyn SourceLoader,
 }
@@ -348,7 +348,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
         };
 
         if decl_fn.is_instance() {
-            let impl_item = self.impl_items.last().ok_or_else(|| {
+            let impl_item = self.impl_item.as_ref().ok_or_else(|| {
                 CompileError::new(span, CompileErrorKind::InstanceFunctionOutsideImpl)
             })?;
 
@@ -992,13 +992,14 @@ impl Index<ast::Item> for Indexer<'_> {
                     guards.push(self.items.push_name(ident.as_ref()));
                 }
 
-                self.impl_items.push(Rc::new(self.items.item().clone()));
+                let new = Rc::new(self.items.item().clone());
+                let old = std::mem::replace(&mut self.impl_item, Some(new));
 
                 for item_fn in &mut item_impl.functions {
                     self.index(item_fn)?;
                 }
 
-                self.impl_items.pop();
+                self.impl_item = old;
             }
             ast::Item::ItemMod(item_mod) => {
                 if let Some(first) = item_mod.attributes.first() {
@@ -1084,7 +1085,7 @@ impl Index<ast::Path> for Indexer<'_> {
 
         path.id =
             self.query
-                .insert_path(&self.mod_item, self.impl_items.last(), &*self.items.item());
+                .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
 
         match path.as_kind() {
             Some(ast::PathKind::SelfValue) => {

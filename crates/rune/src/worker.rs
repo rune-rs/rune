@@ -137,7 +137,7 @@ impl<'a> Worker<'a> {
                         items,
                         scopes: IndexScopes::new(),
                         mod_item: Rc::new(item.clone()),
-                        impl_items: Default::default(),
+                        impl_item: Default::default(),
                         visitor: self.visitor,
                         source_loader: self.source_loader,
                     };
