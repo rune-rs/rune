@@ -40,6 +40,8 @@ pub(crate) struct Indexer<'a> {
     pub(crate) warnings: &'a mut Warnings,
     pub(crate) items: Items,
     pub(crate) scopes: IndexScopes,
+    /// The current module being indexed.
+    pub(crate) mod_item: Item,
     /// Set if we are inside of an impl block.
     pub(crate) impl_items: Vec<Item>,
     pub(crate) visitor: &'a mut dyn CompileVisitor,
@@ -90,9 +92,15 @@ impl<'a> Indexer<'a> {
                         ast: item_use,
                     };
 
-                    import.process(&self.context, &self.storage, &self.query.unit, |expand| {
-                        queue.push_back(Task::ExpandUnitWildcard(expand));
-                    })?;
+                    import.process(
+                        &self.mod_item,
+                        &self.context,
+                        &self.storage,
+                        &self.query.unit,
+                        |expand| {
+                            queue.push_back(Task::ExpandUnitWildcard(expand));
+                        },
+                    )?;
                 }
                 ast::Item::MacroCall(macro_call) => {
                     let file = self.expand_macro::<ast::File>(&macro_call)?;
@@ -126,9 +134,15 @@ impl<'a> Indexer<'a> {
                         ast: item_use,
                     };
 
-                    import.process(self.context, &self.storage, &self.query.unit, |expand| {
-                        queue.push_back(Task::ExpandUnitWildcard(expand));
-                    })?;
+                    import.process(
+                        &self.mod_item,
+                        self.context,
+                        &self.storage,
+                        &self.query.unit,
+                        |expand| {
+                            queue.push_back(Task::ExpandUnitWildcard(expand));
+                        },
+                    )?;
                 }
                 ast::Stmt::Item(ast::Item::MacroCall(macro_call), _) => {
                     let out = self.expand_macro::<Vec<ast::Stmt>>(&macro_call)?;
@@ -986,7 +1000,10 @@ impl Index<ast::Item> for Indexer<'_> {
                     ast::ItemModBody::InlineBody(body) => {
                         let name = item_mod.name.resolve(&self.storage, &*self.source)?;
                         let _guard = self.items.push_name(name.as_ref());
+                        let replaced =
+                            std::mem::replace(&mut self.mod_item, self.items.item().clone());
                         self.index(&mut *body.file)?;
+                        self.mod_item = replaced;
                     }
                 }
             }
@@ -1041,7 +1058,9 @@ impl Index<ast::Path> for Indexer<'_> {
         let span = path.span();
         log::trace!("Path => {:?}", self.source.source(span));
 
-        path.id = self.query.insert_item(&*self.items.item());
+        path.id =
+            self.query
+                .insert_path(&self.mod_item, self.impl_items.last(), &*self.items.item());
 
         match path.as_kind() {
             Some(ast::PathKind::SelfValue) => {

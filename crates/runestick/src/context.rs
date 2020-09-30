@@ -3,7 +3,7 @@ use crate::module::{
     ModuleAssociatedFn, ModuleFn, ModuleInternalEnum, ModuleMacro, ModuleType, ModuleUnitType,
 };
 use crate::{
-    CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, Component, Hash,
+    CompileMeta, CompileMetaKind, CompileMetaStruct, CompileMetaTuple, ComponentRef, Hash,
     IntoComponent, Item, Module, Names, Stack, StaticType, Type, TypeCheck, TypeInfo, TypeOf,
     VmError,
 };
@@ -277,7 +277,10 @@ impl Context {
     }
 
     /// Iterate over known child components of the given name.
-    pub fn iter_components<'a, I: 'a>(&'a self, iter: I) -> impl Iterator<Item = Component> + 'a
+    pub fn iter_components<'a, I: 'a>(
+        &'a self,
+        iter: I,
+    ) -> impl Iterator<Item = ComponentRef<'a>> + 'a
     where
         I: IntoIterator,
         I::Item: IntoComponent,

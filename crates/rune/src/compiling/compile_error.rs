@@ -37,6 +37,14 @@ impl CompileError {
         CompileError::new(spanned, CompileErrorKind::Internal { message })
     }
 
+    /// Construct a factor for unsupported super.
+    pub fn unsupported_super<S>(spanned: S) -> impl FnOnce() -> Self
+    where
+        S: Spanned,
+    {
+        || CompileError::new(spanned, CompileErrorKind::UnsupportedSuper)
+    }
+
     /// Construct an "unsupported path" internal error for the
     /// paths containing unsupported path keywords like super and crate.
     pub fn internal_unsupported_path<S>(spanned: S) -> Self
@@ -142,8 +150,8 @@ pub enum CompileErrorKind {
     MissingLocal { name: String },
     #[error("no such type `{item}`")]
     MissingType { item: Item },
-    #[error("missing module `{item}`")]
-    MissingModule { item: Item },
+    #[error("missing item `{item}`")]
+    MissingItem { item: Item },
     #[error("label not found in scope")]
     MissingLabel,
     #[error("cannot load modules using a source without an associated URL")]
@@ -232,4 +240,14 @@ pub enum CompileErrorKind {
     FnConstNotGenerator,
     #[error("unsupported closure kind")]
     ClosureKind,
+    #[error("`crate` is only suppoted in the first location of a path")]
+    UnsupportedCrate,
+    #[error("`Self` is only supported inside of `impl` blocks")]
+    UnsupportedSelfType,
+    #[error("`self` cannot be used here")]
+    UnsupportedSelfValue,
+    #[error("`super` is not supported at the root module level")]
+    UnsupportedSuper,
+    #[error("`super` can't be used in paths starting with `Self`")]
+    UnsupportedSuperInSelfType,
 }

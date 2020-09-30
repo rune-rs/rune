@@ -363,7 +363,7 @@ impl Kind {
             "return" => Self::Return,
             "select" => Self::Select,
             "self" => Self::SelfValue,
-            "Self" => Self::SelfValue,
+            "Self" => Self::SelfType,
             "sizeof" => Self::SizeOf,
             "static" => Self::Static,
             "struct" => Self::Struct,

@@ -135,6 +135,7 @@ impl<'a> Worker<'a> {
                         warnings: self.warnings,
                         items,
                         scopes: IndexScopes::new(),
+                        mod_item: item.clone(),
                         impl_items: Default::default(),
                         visitor: self.visitor,
                         source_loader: self.source_loader,
@@ -169,30 +170,68 @@ impl Import<'_> {
     /// Process the import, populating the unit.
     pub(crate) fn process(
         self,
+        mod_item: &Item,
         context: &Context,
         storage: &Storage,
         unit: &UnitBuilder,
         mut wildcard_expand: impl FnMut(ExpandUnitWildcard),
     ) -> CompileResult<()> {
+        let name = match &self.ast.path.first {
+            ast::PathSegment::SelfType(self_type) => {
+                return Err(CompileError::new(
+                    self_type,
+                    CompileErrorKind::UnsupportedSelfType,
+                ));
+            }
+            ast::PathSegment::SelfValue(..) => mod_item.clone(),
+            ast::PathSegment::Ident(ident) => {
+                let ident = ident.resolve(storage, self.source)?;
+                Item::of(&[ident.as_ref()])
+            }
+            ast::PathSegment::Crate(..) => Item::new(),
+            ast::PathSegment::Super(super_token) => {
+                let mut name = mod_item.clone();
+                name.pop()
+                    .ok_or_else(CompileError::unsupported_super(super_token))?;
+                name
+            }
+        };
+
         let mut queue = VecDeque::new();
-        queue.push_back((Item::new(), &self.ast.path));
+        queue.push_back((name, &self.ast.path));
 
         while let Some((mut name, path)) = queue.pop_front() {
             let span = path.span();
 
-            let first = path
-                .first
-                .try_as_ident()
-                .ok_or_else(|| CompileError::internal_unsupported_path(&path.first))?
-                .resolve(storage, self.source)?;
-
-            name.push(first.as_ref());
-
             for (_, segment) in &path.middle {
-                let ident = segment
-                    .try_as_ident()
-                    .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
-                name.push(ident.resolve(storage, self.source)?.as_ref());
+                match segment {
+                    ast::PathSegment::SelfType(..) => {
+                        return Err(CompileError::new(
+                            path,
+                            CompileErrorKind::UnsupportedSelfType,
+                        ));
+                    }
+                    ast::PathSegment::SelfValue(self_type) => {
+                        return Err(CompileError::new(
+                            self_type,
+                            CompileErrorKind::UnsupportedSelfValue,
+                        ));
+                    }
+                    ast::PathSegment::Ident(ident) => {
+                        name.push(ident.resolve(storage, self.source)?);
+                    }
+                    ast::PathSegment::Crate(crate_token) => {
+                        return Err(CompileError::new(
+                            crate_token,
+                            CompileErrorKind::UnsupportedCrate,
+                        ));
+                    }
+                    ast::PathSegment::Super(super_token) => {
+                        name.pop().ok_or_else(|| {
+                            CompileError::new(super_token, CompileErrorKind::UnsupportedSuper)
+                        })?;
+                    }
+                }
             }
 
             if let Some((_, c)) = &path.last {
@@ -201,7 +240,14 @@ impl Import<'_> {
                         let was_in_context = if context.contains_prefix(&name) {
                             for c in context.iter_components(&name) {
                                 let name = name.extended(c);
-                                unit.new_import(self.item.clone(), name, span, self.source_id)?;
+
+                                unit.new_import(
+                                    self.item.clone(),
+                                    name,
+                                    None::<&str>,
+                                    span,
+                                    self.source_id,
+                                )?;
                             }
 
                             true
@@ -221,12 +267,52 @@ impl Import<'_> {
                     }
                     ast::ItemUseComponent::Group(group) => {
                         for (path, _) in group {
-                            queue.push_back((name.clone(), path));
+                            let mut name = name.clone();
+
+                            match &path.first {
+                                ast::PathSegment::SelfType(self_type) => {
+                                    return Err(CompileError::new(
+                                        self_type,
+                                        CompileErrorKind::UnsupportedSelfType,
+                                    ));
+                                }
+                                // `self` refers to the current module.
+                                ast::PathSegment::SelfValue(self_value) => {
+                                    return Err(CompileError::new(
+                                        self_value,
+                                        CompileErrorKind::UnsupportedSelfValue,
+                                    ));
+                                }
+                                ast::PathSegment::Ident(ident) => {
+                                    name.push(ident.resolve(storage, self.source)?);
+                                }
+                                ast::PathSegment::Crate(crate_token) => {
+                                    return Err(CompileError::new(
+                                        crate_token,
+                                        CompileErrorKind::UnsupportedCrate,
+                                    ));
+                                }
+                                ast::PathSegment::Super(super_token) => {
+                                    name.pop().ok_or_else(|| {
+                                        CompileError::new(
+                                            super_token,
+                                            CompileErrorKind::UnsupportedSuper,
+                                        )
+                                    })?;
+                                }
+                            }
+
+                            queue.push_back((name, path));
                         }
                     }
                 }
             } else {
-                unit.new_import(self.item.clone(), name, span, self.source_id)?;
+                let alias = match path.alias {
+                    Some((_, ident)) => Some(ident.resolve(storage, self.source)?),
+                    None => None,
+                };
+
+                unit.new_import(self.item.clone(), name, alias, span, self.source_id)?;
             }
         }
 
@@ -249,7 +335,13 @@ impl ExpandUnitWildcard {
         if unit.contains_prefix(&self.name) {
             for c in unit.iter_components(&self.name) {
                 let name = self.name.extended(c);
-                unit.new_import(self.from.clone(), name, self.span, self.source_id)?;
+                unit.new_import(
+                    self.from.clone(),
+                    name,
+                    None::<&str>,
+                    self.span,
+                    self.source_id,
+                )?;
             }
 
             return Ok(());
@@ -258,7 +350,7 @@ impl ExpandUnitWildcard {
         if !self.was_in_context {
             return Err(CompileError::new(
                 self.span,
-                CompileErrorKind::MissingModule { item: self.name },
+                CompileErrorKind::MissingItem { item: self.name },
             ));
         }
 

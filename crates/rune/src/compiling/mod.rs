@@ -330,13 +330,11 @@ fn verify_imports(errors: &mut Errors, context: &Context, unit: &UnitBuilder) ->
                 source_id,
                 CompileError::new(
                     span,
-                    CompileErrorKind::MissingModule {
+                    CompileErrorKind::MissingItem {
                         item: entry.item.clone(),
                     },
                 ),
             ));
-
-            return Err(());
         } else {
             errors.push(Error::new(
                 0,
@@ -347,9 +345,9 @@ fn verify_imports(errors: &mut Errors, context: &Context, unit: &UnitBuilder) ->
                     },
                 ),
             ));
-
-            return Err(());
         }
+
+        return Err(());
     }
 
     Ok(())
