@@ -60,7 +60,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             return Ok(());
         };
 
-        let (base, named) = self.convert_path_to_named(path)?;
+        let (query_path, named) = self.convert_path_to_named(path)?;
 
         if let Some(name) = named.as_local() {
             let local = self
@@ -86,7 +86,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(path.span(), &base, &named)? {
+        let meta = match self.lookup_meta(path.span(), &*query_path, &named)? {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(
@@ -140,15 +140,14 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                 tuple.item.clone()
             }
             CompileMetaKind::Function { item, .. } => item.clone(),
-            CompileMetaKind::ConstFn { id, item: at, .. } => {
+            CompileMetaKind::ConstFn { id, .. } => {
                 let from = self.query.item_for(expr_call)?.clone();
                 let const_fn = self.query.const_fn_for((expr_call.span(), *id))?;
 
                 let value = self.call_const_fn(
                     expr_call,
                     &meta,
-                    &from.item,
-                    at,
+                    &from,
                     &*const_fn,
                     expr_call.args.as_slice(),
                 )?;

@@ -301,4 +301,6 @@ pub enum CompileErrorKind {
     },
     #[error("segment is only supported in the first position")]
     ExpectedLeadingPathSegment,
+    #[error("tried to insert conflicting item `{item}`")]
+    ItemConflict { item: Item },
 }

@@ -13,6 +13,7 @@ use crate::{
 use runestick::{Context, Item, Source, SourceId, Span};
 use std::collections::VecDeque;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 /// A single task that can be fed to the worker.
 #[derive(Debug)]
@@ -135,7 +136,7 @@ impl<'a> Worker<'a> {
                         warnings: self.warnings,
                         items,
                         scopes: IndexScopes::new(),
-                        mod_item: item.clone(),
+                        mod_item: Rc::new(item.clone()),
                         impl_items: Default::default(),
                         visitor: self.visitor,
                         source_loader: self.source_loader,

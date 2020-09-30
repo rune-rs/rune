@@ -5,6 +5,7 @@ use crate::query::Query;
 use crate::query::Used;
 use crate::{IrError, IrErrorKind, Spanned};
 use runestick::{CompileMetaKind, ConstValue, Item, Span};
+use std::rc::Rc;
 
 /// Ir Scopes.
 pub(crate) type IrScopes = crate::shared::Scopes<IrValue>;
@@ -14,6 +15,8 @@ pub(crate) struct IrInterpreter<'a> {
     /// A budget associated with the compiler, for how many expressions it's
     /// allowed to evaluate.
     pub(crate) budget: IrBudget,
+    /// The module in which the interpreter is run.
+    pub(crate) mod_item: Rc<Item>,
     /// The item where the constant expression is located.
     pub(crate) item: Item,
     /// Query engine to look for constant expressions.
@@ -105,10 +108,12 @@ impl<'a> IrInterpreter<'a> {
                 return Ok(IrValue::from_const(const_value));
             }
 
-            if let Some(meta) =
-                self.query
-                    .query_meta_with_use_by_item(spanned, Some(&self.item), &item, used)?
-            {
+            if let Some(meta) = self.query.query_meta_with_use_by_item(
+                spanned,
+                Some(&self.mod_item),
+                &item,
+                used,
+            )? {
                 match &meta.kind {
                     CompileMetaKind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value.clone()));
@@ -157,7 +162,7 @@ impl<'a> IrInterpreter<'a> {
 
             if let Some(meta) =
                 self.query
-                    .query_meta_with_use_by_item(span, Some(&self.item), &item, used)?
+                    .query_meta_with_use_by_item(span, Some(&self.mod_item), &item, used)?
             {
                 match &meta.kind {
                     CompileMetaKind::ConstFn { id: Some(id), .. } => {
@@ -185,23 +190,23 @@ impl<'a> IrInterpreter<'a> {
 
         let const_fn = self.query.const_fn_for((spanned.span(), id))?;
 
-        if const_fn.args.len() != args.len() {
+        if const_fn.ir_fn.args.len() != args.len() {
             return Err(IrError::new(
                 spanned,
                 IrErrorKind::ArgumentCountMismatch {
                     actual: args.len(),
-                    expected: const_fn.args.len(),
+                    expected: const_fn.ir_fn.args.len(),
                 },
             ));
         }
 
         let guard = self.scopes.isolate();
 
-        for (name, value) in const_fn.args.iter().zip(args) {
+        for (name, value) in const_fn.ir_fn.args.iter().zip(args) {
             self.scopes.decl(&**name, value, spanned)?;
         }
 
-        let value = self.eval_value(&const_fn.ir, used)?;
+        let value = self.eval_value(&const_fn.ir_fn.ir, used)?;
         self.scopes.pop(spanned, guard)?;
         Ok(value)
     }

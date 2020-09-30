@@ -1,9 +1,8 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, Compile as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
-use crate::ir::ir;
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
-use crate::query::{Query, Used};
+use crate::query::{Query, QueryConstFn, QueryItem, QueryPath, Used};
 use crate::CompileResult;
 use crate::{
     CompileError, CompileErrorKind, Named, Options, Resolve as _, Spanned, Storage, UnitBuilder,
@@ -13,6 +12,7 @@ use runestick::{
     CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label, Source, Span,
     TypeCheck,
 };
+use std::rc::Rc;
 use std::sync::Arc;
 
 /// A needs hint for an expression.
@@ -66,7 +66,7 @@ impl<'a> Compiler<'a> {
     pub fn lookup_meta(
         &mut self,
         spanned: Span,
-        base: &Item,
+        query_path: &QueryPath,
         named: &Named,
     ) -> CompileResult<Option<CompileMeta>> {
         log::trace!("lookup meta: {:?}", named);
@@ -74,9 +74,9 @@ impl<'a> Compiler<'a> {
         // Imported items are expected to be "exact", and do not look upwards in
         // blocks to find a matching item as is implemented after this if block.
         if named.imported {
-            if let Some(meta) = self
-                .query
-                .query_meta_by_item(spanned, Some(base), &named.item)?
+            if let Some(meta) =
+                self.query
+                    .query_meta_by_item(spanned, Some(&query_path.mod_item), &named.item)?
             {
                 log::trace!("found in query: {:?}", meta);
                 self.visitor.visit_meta(self.source_id, &meta, spanned);
@@ -92,15 +92,15 @@ impl<'a> Compiler<'a> {
             return Ok(None);
         }
 
-        let mut b = base.clone();
+        let mut b = query_path.item.clone();
 
         loop {
             let current = b.join(&named.item);
             log::trace!("lookup meta (query): {}", current);
 
-            if let Some(meta) = self
-                .query
-                .query_meta_by_item(spanned, Some(base), &current)?
+            if let Some(meta) =
+                self.query
+                    .query_meta_by_item(spanned, Some(&query_path.mod_item), &current)?
             {
                 log::trace!("found in query: {:?}", meta);
                 self.visitor.visit_meta(self.source_id, &meta, spanned);
@@ -275,19 +275,22 @@ impl<'a> Compiler<'a> {
     }
 
     /// Convert a path to an item.
-    pub(crate) fn convert_path_to_named(&self, path: &ast::Path) -> CompileResult<(Item, Named)> {
+    pub(crate) fn convert_path_to_named(
+        &self,
+        path: &ast::Path,
+    ) -> CompileResult<(Rc<QueryPath>, Named)> {
         let query_path = self.query.path_for(path)?;
 
         let item = self.unit.find_named(
             &query_path.item,
             Some(&query_path.mod_item),
-            query_path.impl_item.as_ref(),
+            query_path.impl_item.as_deref(),
             path,
             &self.storage,
             &*self.source,
         )?;
 
-        Ok((query_path.item.clone(), item))
+        Ok((query_path.clone(), item))
     }
 
     pub(crate) fn compile_condition(
@@ -397,9 +400,9 @@ impl<'a> Compiler<'a> {
         let offset = self.scopes.decl_anon(span)?;
 
         let type_check = if let Some(path) = &pat_tuple.path {
-            let (base, named) = self.convert_path_to_named(path)?;
+            let (query_path, named) = self.convert_path_to_named(path)?;
 
-            let meta = match self.lookup_meta(path.span(), &base, &named)? {
+            let meta = match self.lookup_meta(path.span(), &*query_path, &named)? {
                 Some(meta) => meta,
                 None => {
                     return Err(CompileError::new(
@@ -531,9 +534,9 @@ impl<'a> Compiler<'a> {
             ast::LitObjectIdent::Named(path) => {
                 let span = path.span();
 
-                let (base, named) = self.convert_path_to_named(path)?;
+                let (query_path, named) = self.convert_path_to_named(path)?;
 
-                let meta = match self.lookup_meta(span, &base, &named)? {
+                let meta = match self.lookup_meta(span, &*query_path, &named)? {
                     Some(meta) => meta,
                     None => {
                         return Err(CompileError::new(
@@ -712,9 +715,9 @@ impl<'a> Compiler<'a> {
             ast::Pat::PatPath(path) => {
                 let span = path.span();
 
-                let (base, named) = self.convert_path_to_named(&path.path)?;
+                let (query_path, named) = self.convert_path_to_named(&path.path)?;
 
-                if let Some(meta) = self.lookup_meta(span, &base, &named)? {
+                if let Some(meta) = self.lookup_meta(span, &*query_path, &named)? {
                     if self.compile_pat_meta_binding(span, &meta, false_label, load)? {
                         return Ok(true);
                     }
@@ -823,9 +826,8 @@ impl<'a> Compiler<'a> {
         &mut self,
         spanned: S,
         meta: &CompileMeta,
-        from: &Item,
-        at: &Item,
-        ir_fn: &ir::IrFn,
+        from: &QueryItem,
+        query_const_fn: &QueryConstFn,
         args: &[(ast::Expr, Option<ast::Comma>)],
     ) -> Result<ConstValue, CompileError>
     where
@@ -833,12 +835,12 @@ impl<'a> Compiler<'a> {
     {
         use crate::ir::IrCompile;
 
-        if ir_fn.args.len() != args.len() {
+        if query_const_fn.ir_fn.args.len() != args.len() {
             return Err(CompileError::new(
                 spanned,
                 CompileErrorKind::UnsupportedArgumentCount {
                     meta: meta.clone(),
-                    expected: ir_fn.args.len(),
+                    expected: query_const_fn.ir_fn.args.len(),
                     actual: args.len(),
                 },
             ));
@@ -853,14 +855,15 @@ impl<'a> Compiler<'a> {
         let mut compiled = Vec::new();
 
         // TODO: precompile these and fetch using opaque id?
-        for ((a, _), name) in args.iter().zip(&ir_fn.args) {
+        for ((a, _), name) in args.iter().zip(&query_const_fn.ir_fn.args) {
             compiled.push((compiler.compile(a)?, name));
         }
 
         let mut interpreter = IrInterpreter {
             budget: IrBudget::new(1_000_000),
             scopes: Default::default(),
-            item: from.clone(),
+            mod_item: from.mod_item.clone(),
+            item: from.item.clone(),
             query: self.query,
         };
 
@@ -869,8 +872,9 @@ impl<'a> Compiler<'a> {
             interpreter.scopes.decl(name, value, spanned)?;
         }
 
-        interpreter.item = at.clone();
-        let value = interpreter.eval_value(&ir_fn.ir, Used::Used)?;
+        interpreter.mod_item = query_const_fn.item.mod_item.clone();
+        interpreter.item = query_const_fn.item.item.clone();
+        let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
         Ok(value.into_const(spanned)?)
     }
 }

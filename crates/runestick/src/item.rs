@@ -82,6 +82,25 @@ impl Item {
         Self { content }
     }
 
+    /// Push the given component to the current item.
+    pub fn push<C>(&mut self, c: C)
+    where
+        C: IntoComponent,
+    {
+        c.write_component(&mut self.content);
+    }
+
+    /// Extend the current item with an iterator.
+    pub fn extend<I>(&mut self, i: I)
+    where
+        I: IntoIterator,
+        I::Item: IntoComponent,
+    {
+        for c in i {
+            self.push(c);
+        }
+    }
+
     /// Check if the item is empty.
     pub fn is_empty(&self) -> bool {
         self.content.is_empty()
@@ -90,14 +109,6 @@ impl Item {
     /// Clear the current item.
     pub fn clear(&mut self) {
         self.content.clear();
-    }
-
-    /// Push the given component to the current item.
-    pub fn push<C>(&mut self, c: C)
-    where
-        C: IntoComponent,
-    {
-        c.write_component(&mut self.content);
     }
 
     /// Push the given component to the current item.
@@ -191,36 +202,37 @@ impl Item {
     }
 
     /// Get the differing suffix from self to other.
-    pub fn module_difference(&self, other: &Self) -> (Self, Self) {
+    ///
+    /// This returns three things:
+    /// * The shared prefix between the current and the `other` path.
+    /// * The suffix to get to the `other` path from the shared prefix.
+    /// * A boolean which if `true`, indicates that the current item is a strict
+    ///   prefix of `other`.
+    pub fn module_difference(&self, other: &Self) -> (Self, Self, bool) {
         let mut a = self.iter();
         let mut b = other.iter();
 
         let mut shared = Item::new();
         let mut suffix = Item::new();
 
-        while let Some(n) = b.next() {
-            let a = match a.next() {
-                Some(a) => a,
-                None => {
-                    suffix.push(n);
-                    return (shared, suffix);
+        while let Some(v) = b.next() {
+            if let Some(u) = a.next() {
+                if u == v {
+                    shared.push(v);
+                    continue;
+                } else {
+                    suffix.push(v);
+                    suffix.extend(b);
+                    return (shared, suffix, false);
                 }
-            };
-
-            // last component is allowed to be a mismatch.
-            if a != n {
-                suffix.push(n);
-                break;
             }
 
-            shared.push(a);
+            suffix.push(v);
+            break;
         }
 
-        for n in b {
-            suffix.push(n);
-        }
-
-        (shared, suffix)
+        suffix.extend(b);
+        (shared, suffix, true)
     }
 }
 
@@ -817,16 +829,28 @@ mod tests {
     #[test]
     fn test_module_difference() {
         assert_eq!(
-            (Item::new(), Item::new()),
+            (Item::new(), Item::new(), true),
             Item::new().module_difference(&Item::new())
         );
+
         assert_eq!(
-            (Item::new(), Item::of(&["a"])),
+            (Item::new(), Item::of(&["a"]), true),
             Item::new().module_difference(&Item::of(&["a"]))
         );
+
         assert_eq!(
-            (Item::of(&["a"]), Item::of(&["b"])),
-            Item::of(&["a"]).module_difference(&Item::of(&["a", "b"]))
+            (Item::new(), Item::of(&["a", "b"]), true),
+            Item::new().module_difference(&Item::of(&["a", "b"]))
+        );
+
+        assert_eq!(
+            (Item::of(&["a"]), Item::of(&["b"]), false),
+            Item::of(&["a", "c"]).module_difference(&Item::of(&["a", "b"]))
+        );
+
+        assert_eq!(
+            (Item::of(&["a", "b"]), Item::of(&["d", "e"]), false),
+            Item::of(&["a", "b", "c"]).module_difference(&Item::of(&["a", "b", "d", "e"]))
         );
     }
 }

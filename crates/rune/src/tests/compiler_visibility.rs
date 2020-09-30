@@ -3,15 +3,19 @@ use crate::testing::*;
 #[test]
 fn test_working_visibility() {
     let output = rune!(i64 => r#"
-    pub mod a {
+    mod a {
         pub struct Foo;
-        fn hidden() { 42 }
-        pub fn visible() { hidden() }
+    
+        mod b {
+            fn hidden() { 42 }
+        }
+    
+        pub fn visible() { b::hidden() }
     }
 
     fn main() {
         a::visible()
-    }    
+    } 
     "#);
 
     assert_eq!(output, 42);
@@ -21,21 +25,25 @@ fn test_working_visibility() {
 fn test_access_hidden() {
     assert_compile_error! {
         r#"
-        pub mod a {
+        mod a {
             pub struct Foo;
-            fn hidden() { 42 }
-            pub fn visible() { hidden() }
+        
+            mod b {
+                fn hidden() { 42 }
+            }
+        
+            pub fn visible() { b::hidden() }
         }
-
+        
         fn main() {
-            a::hidden()
-        }  
+            a::b::hidden()
+        }        
         "#,
         span, QueryError { error } => {
-            assert_eq!(span, Span::new(165, 174));
+            assert_eq!(span, Span::new(228, 240));
 
             match *error {
-                NotVisible { .. } => (),
+                NotVisibleMod { .. } => (),
                 other => panic!("unexpected query error: {:?}", other),
             }
         }

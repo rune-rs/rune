@@ -201,3 +201,32 @@ fn test_const_fn() {
 
     assert_eq!(result, "foo bar baz biz");
 }
+
+#[test]
+fn test_const_fn_visibility() {
+    let result = rune!(i64 => r#"
+    pub mod a {
+        pub mod b {
+            pub const fn out(n) {
+                n + A
+            }
+
+            const A = 1;
+        }
+    }
+
+    mod b {
+        fn out() {
+            crate::a::b::out(B)
+        }
+    
+        const B = 2;
+    }
+
+    fn main() {
+        b::out()
+    }   
+    "#);
+
+    assert_eq!(result, 3);
+}
