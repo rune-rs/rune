@@ -22,9 +22,6 @@ pub struct ItemUse {
     /// The visibility of the `use` item
     #[rune(optional)]
     pub visibility: ast::Visibility,
-    /// The optional leading `::`
-    #[rune(iter)]
-    pub leading_colon: Option<ast::Scope>,
     /// The use token.
     pub use_token: ast::Use,
     /// Item path.
@@ -41,7 +38,6 @@ impl ItemUse {
         Ok(Self {
             attributes,
             visibility,
-            leading_colon: parser.parse()?,
             use_token: parser.parse()?,
             path: parser.parse()?,
         })
