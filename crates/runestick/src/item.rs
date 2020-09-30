@@ -173,15 +173,16 @@ impl Item {
 
 /// Format implementation for item.
 ///
-/// An empty item is formatted as `{empty}`.
+/// An empty item is formatted as `{root}`, because it refers to the topmost
+/// root module.
 ///
 /// # Examples
 ///
 /// ```rust
-/// use runestick::{Item, Component::*};
+/// use runestick::{Item, ComponentRef::*};
 ///
-/// assert_eq!("{empty}", Item::new().to_string());
-/// assert_eq!("hello::$block0", Item::of(&[String("hello".into()), Block(0)]).to_string());
+/// assert_eq!("{root}", Item::new().to_string());
+/// assert_eq!("hello::$block0", Item::of(&[String("hello"), Block(0)]).to_string());
 /// ```
 impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -194,7 +195,7 @@ impl fmt::Display for Item {
 
             write!(f, "{}", last)
         } else {
-            write!(f, "{{empty}}")
+            write!(f, "{{root}}")
         }
     }
 }
@@ -512,6 +513,16 @@ impl IntoComponent for ComponentRef<'_> {
 
     fn into_component(self) -> Component {
         ComponentRef::into_component(self)
+    }
+}
+
+impl IntoComponent for &ComponentRef<'_> {
+    fn as_component_ref(&self) -> ComponentRef<'_> {
+        **self
+    }
+
+    fn into_component(self) -> Component {
+        ComponentRef::into_component(*self)
     }
 }
 

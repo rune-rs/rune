@@ -55,7 +55,11 @@ impl ImportKey {
 
 impl fmt::Display for ImportKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}::{}", self.item, self.component)
+        if !self.item.is_empty() {
+            write!(f, "{}::", self.item)?;
+        }
+
+        write!(f, "{}", self.component)
     }
 }
 
@@ -409,6 +413,20 @@ impl UnitBuilder {
         let mut in_self_type = false;
 
         let (item, local) = match &path.first {
+            ast::PathSegment::Ident(ident) => {
+                let local = ident.resolve(storage, source)?;
+                (base.clone(), Some(local))
+            }
+            ast::PathSegment::Super(super_value) => {
+                let mut item = mod_item
+                    .ok_or_else(CompileError::unsupported_super(super_value))?
+                    .clone();
+
+                item.pop()
+                    .ok_or_else(CompileError::unsupported_super(super_value))?;
+
+                (item, None)
+            }
             ast::PathSegment::SelfType(self_type) => {
                 let impl_item = impl_item.ok_or_else(|| {
                     CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
@@ -424,21 +442,7 @@ impl UnitBuilder {
 
                 (mod_item.clone(), None)
             }
-            ast::PathSegment::Ident(ident) => {
-                let local = ident.resolve(storage, source)?;
-                (base.clone(), Some(local))
-            }
             ast::PathSegment::Crate(..) => (Item::new(), None),
-            ast::PathSegment::Super(super_value) => {
-                let mut item = mod_item
-                    .ok_or_else(CompileError::unsupported_super(super_value))?
-                    .clone();
-
-                item.pop()
-                    .ok_or_else(CompileError::unsupported_super(super_value))?;
-
-                (item, None)
-            }
         };
 
         let (mut item, imported) = if let Some(local) = local {
@@ -452,24 +456,6 @@ impl UnitBuilder {
 
         for (_, segment) in &path.rest {
             match segment {
-                ast::PathSegment::SelfType(self_type) => {
-                    return Err(CompileError::new(
-                        self_type,
-                        CompileErrorKind::UnsupportedSelfType,
-                    ));
-                }
-                ast::PathSegment::SelfValue(self_value) => {
-                    return Err(CompileError::new(
-                        self_value,
-                        CompileErrorKind::UnsupportedSelfType,
-                    ));
-                }
-                ast::PathSegment::Crate(crate_token) => {
-                    return Err(CompileError::new(
-                        crate_token,
-                        CompileErrorKind::UnsupportedCrate,
-                    ));
-                }
                 ast::PathSegment::Ident(ident) => {
                     item.push(ident.resolve(storage, source)?.as_ref());
                 }
@@ -483,6 +469,12 @@ impl UnitBuilder {
 
                     item.pop()
                         .ok_or_else(CompileError::unsupported_super(super_token))?;
+                }
+                other => {
+                    return Err(CompileError::new(
+                        other,
+                        CompileErrorKind::ExpectedLeadingPathSegment,
+                    ));
                 }
             }
         }
@@ -521,11 +513,14 @@ impl UnitBuilder {
                 span: Some((spanned.span(), source_id)),
             };
 
-            if let Some(..) = inner.imports.insert(key.clone(), entry) {
-                return Err(CompileError::new(
-                    spanned,
-                    CompileErrorKind::ImportConflict { key },
-                ));
+            if let Some(old) = inner.imports.insert(key.clone(), entry) {
+                // NB: don't error if we're overwriting prelude.
+                if let Some(existing) = old.span {
+                    return Err(CompileError::new(
+                        spanned,
+                        CompileErrorKind::ImportConflict { key, existing },
+                    ));
+                }
             }
         }
 

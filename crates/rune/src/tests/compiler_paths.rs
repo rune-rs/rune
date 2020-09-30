@@ -1,3 +1,5 @@
+use crate::testing::*;
+
 #[test]
 fn test_super_self_crate_mod() {
     assert_eq! {
@@ -55,5 +57,32 @@ fn test_super_use() {
             "#
         },
         3,
+    };
+}
+
+#[test]
+fn test_unsupported_leading_path() {
+    assert_compile_error! {
+        r#"use foo::crate::bar;"#,
+        span, ExpectedLeadingPathSegment => {
+            assert_eq!(span, Span::new(9, 14));
+        }
+    };
+
+    assert_compile_error! {
+        r#"use foo::{bar::crate, baz};"#,
+        span, ExpectedLeadingPathSegment => {
+            assert_eq!(span, Span::new(15, 20));
+        }
+    };
+}
+
+#[test]
+fn test_import_conflict() {
+    assert_compile_error! {
+        r#"use std::{option, option};"#,
+        span, ImportConflict { .. } => {
+            assert_eq!(span, Span::new(18, 24));
+        }
     };
 }
