@@ -1,5 +1,4 @@
-use crate::Id;
-use runestick::Span;
+use crate::{Id, Spanned};
 
 pub(crate) trait Opaque {
     fn id(&self) -> Option<Id>;
@@ -20,7 +19,10 @@ where
     }
 }
 
-impl Opaque for (Span, Option<Id>) {
+impl<S> Opaque for (S, Option<Id>)
+where
+    S: Spanned,
+{
     fn id(&self) -> Option<Id> {
         self.1
     }

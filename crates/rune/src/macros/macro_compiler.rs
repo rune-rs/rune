@@ -34,9 +34,16 @@ impl MacroCompiler<'_> {
             ));
         }
 
-        let named =
-            self.unit
-                .find_named(&self.item, &macro_call.path, &self.storage, &*self.source)?;
+        // TODO: include information on the module the macro is being called
+        // from.
+        let named = self.unit.find_named(
+            &self.item,
+            None,
+            None,
+            &macro_call.path,
+            &self.storage,
+            &*self.source,
+        )?;
 
         let hash = Hash::type_hash(&named.item);
 

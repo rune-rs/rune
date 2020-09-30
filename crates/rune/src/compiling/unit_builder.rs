@@ -7,12 +7,12 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
 use crate::CompileResult;
-use crate::{CompileError, Error, Errors, Resolve as _, Spanned, Storage};
+use crate::{CompileError, CompileErrorKind, Error, Errors, Resolve as _, Spanned, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst,
-    IntoComponent, Item, Label, Names, Rtti, Source, Span, StaticString, Type, Unit, UnitFn,
-    UnitTypeInfo, VariantRtti,
+    IntoComponent, Item, Label, Names, Rtti, Source, SourceId, Span, StaticString, Type, Unit,
+    UnitFn, UnitTypeInfo, VariantRtti,
 };
 use std::cell::{Ref, RefCell};
 use std::fmt;
@@ -59,7 +59,7 @@ pub struct ImportEntry {
     /// The item being imported.
     pub item: Item,
     /// The span of the import.
-    pub span: Option<(Span, usize)>,
+    pub span: Option<(Span, SourceId)>,
 }
 
 impl ImportEntry {
@@ -223,7 +223,11 @@ impl UnitBuilder {
         I::Item: IntoComponent,
     {
         let inner = self.inner.borrow();
-        inner.names.iter_components(iter).collect::<Vec<_>>()
+        inner
+            .names
+            .iter_components(iter)
+            .map(|c| c.into_component())
+            .collect::<Vec<_>>()
     }
 
     /// Access the meta for the given language item.
@@ -382,49 +386,120 @@ impl UnitBuilder {
     pub(crate) fn find_named(
         &self,
         base: &Item,
+        mod_item: Option<&Item>,
+        impl_item: Option<&Item>,
         path: &ast::Path,
         storage: &Storage,
         source: &Source,
     ) -> CompileResult<Named> {
         let inner = self.inner.borrow();
+        let mut in_self_type = false;
 
-        let ident = path
-            .first
-            .try_as_ident()
-            .ok_or_else(|| CompileError::internal_unsupported_path(path))?;
+        let (item, local) = match &path.first {
+            ast::PathSegment::SelfType(self_type) => {
+                let impl_item = impl_item.ok_or_else(|| {
+                    CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
+                })?;
 
-        let local = ident.resolve(storage, source)?;
+                in_self_type = true;
+                (impl_item.clone(), None)
+            }
+            ast::PathSegment::SelfValue(self_value) => {
+                let mod_item = mod_item.ok_or_else(|| {
+                    CompileError::new(self_value, CompileErrorKind::UnsupportedSelfValue)
+                })?;
 
-        let mut item = match inner.lookup_import_by_name(base, local.as_ref()) {
-            Some(path) => path,
-            None => Item::of(Some(local.as_ref())),
+                (mod_item.clone(), None)
+            }
+            ast::PathSegment::Ident(ident) => {
+                let local = ident.resolve(storage, source)?;
+                (base.clone(), Some(local))
+            }
+            ast::PathSegment::Crate(..) => (Item::new(), None),
+            ast::PathSegment::Super(super_value) => {
+                let mut item = mod_item
+                    .ok_or_else(CompileError::unsupported_super(super_value))?
+                    .clone();
+
+                item.pop()
+                    .ok_or_else(CompileError::unsupported_super(super_value))?;
+
+                (item, None)
+            }
+        };
+
+        let (mut item, imported) = if let Some(local) = local {
+            match inner.lookup_import_by_name(&item, local.as_ref()) {
+                Some(path) => (path, true),
+                None => (Item::of(Some(local)), false),
+            }
+        } else {
+            (item, false)
         };
 
         for (_, segment) in &path.rest {
-            let part = segment
-                .try_as_ident()
-                .ok_or_else(|| CompileError::internal_unsupported_path(segment))?;
+            match segment {
+                ast::PathSegment::SelfType(self_type) => {
+                    return Err(CompileError::new(
+                        self_type,
+                        CompileErrorKind::UnsupportedSelfType,
+                    ));
+                }
+                ast::PathSegment::SelfValue(self_value) => {
+                    return Err(CompileError::new(
+                        self_value,
+                        CompileErrorKind::UnsupportedSelfType,
+                    ));
+                }
+                ast::PathSegment::Crate(crate_token) => {
+                    return Err(CompileError::new(
+                        crate_token,
+                        CompileErrorKind::UnsupportedCrate,
+                    ));
+                }
+                ast::PathSegment::Ident(ident) => {
+                    item.push(ident.resolve(storage, source)?.as_ref());
+                }
+                ast::PathSegment::Super(super_token) => {
+                    if in_self_type {
+                        return Err(CompileError::new(
+                            super_token,
+                            CompileErrorKind::UnsupportedSuperInSelfType,
+                        ));
+                    }
 
-            item.push(part.resolve(storage, source)?.as_ref());
+                    item.pop()
+                        .ok_or_else(CompileError::unsupported_super(super_token))?;
+                }
+            }
         }
 
         Ok(Named {
+            imported,
             local: path.leading_colon.is_none() && path.rest.is_empty(),
             item,
         })
     }
 
     /// Declare a new import.
-    pub(crate) fn new_import(
+    pub(crate) fn new_import<A>(
         &self,
         at: Item,
         path: Item,
+        alias: Option<A>,
         span: Span,
         source_id: usize,
-    ) -> Result<(), UnitBuilderError> {
+    ) -> Result<(), UnitBuilderError>
+    where
+        A: IntoComponent,
+    {
         let mut inner = self.inner.borrow_mut();
 
-        if let Some(last) = path.last() {
+        if let Some(last) = alias
+            .as_ref()
+            .map(IntoComponent::as_component_ref)
+            .or_else(|| path.last())
+        {
             let key = ImportKey::new(at, last.into_component());
 
             let entry = ImportEntry {
@@ -840,6 +915,8 @@ impl UnitBuilder {
 /// The result of calling [UnitBuilder::find_named].
 #[derive(Debug)]
 pub struct Named {
+    /// If the named item was imported.
+    pub imported: bool,
     /// If the resolved value is local.
     pub local: bool,
     /// The path resolved to the given item.

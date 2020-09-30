@@ -79,12 +79,8 @@ pub enum QueryErrorKind {
         #[from]
         error: ParseErrorKind,
     },
-    #[error("missing item for {id:?}")]
-    MissingItemId { id: Option<Id> },
-    #[error("missing template for {id:?}")]
-    MissingTemplateId { id: Option<Id> },
-    #[error("missing const fn by id {id:?}")]
-    MissingConstFnId { id: Option<Id> },
+    #[error("missing {what} for id {id:?}")]
+    MissingId { what: &'static str, id: Option<Id> },
     #[error("found conflicting item `{existing}`")]
     ItemConflict { existing: Item },
 }
@@ -207,6 +203,13 @@ pub(crate) struct IndexedEntry {
     pub(crate) indexed: Indexed,
 }
 
+/// Query information for a path.
+pub(crate) struct QueryPath {
+    pub(crate) mod_item: Id,
+    pub(crate) impl_item: Option<Id>,
+    pub(crate) item: Id,
+}
+
 pub(crate) struct Query {
     /// Next opaque id generated.
     next_id: Id,
@@ -226,11 +229,13 @@ pub(crate) struct Query {
     ///
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
-    pub(crate) items: HashMap<Id, Item>,
+    items: HashMap<Id, Item>,
     /// Reverse lookup for items to reduce the number of items used.
-    pub(crate) items_rev: HashMap<Item, Id>,
+    items_rev: HashMap<Item, Id>,
     /// Compiled constant functions.
-    pub(crate) const_fns: HashMap<Id, Rc<ir::IrFn>>,
+    const_fns: HashMap<Id, Rc<ir::IrFn>>,
+    /// Query paths.
+    query_paths: HashMap<Id, QueryPath>,
 }
 
 impl Query {
@@ -247,7 +252,29 @@ impl Query {
             items: HashMap::new(),
             items_rev: HashMap::new(),
             const_fns: HashMap::new(),
+            query_paths: HashMap::new(),
         }
+    }
+
+    /// Insert path information.
+    pub(crate) fn insert_path(
+        &mut self,
+        mod_item: &Item,
+        impl_item: Option<&Item>,
+        item: &Item,
+    ) -> Option<Id> {
+        let query_path = QueryPath {
+            mod_item: self.insert_item(mod_item)?,
+            impl_item: match impl_item {
+                Some(item) => Some(self.insert_item(item)?),
+                None => None,
+            },
+            item: self.insert_item(item)?,
+        };
+
+        let id = self.next_id.next()?;
+        self.query_paths.insert(id, query_path);
+        Some(id)
     }
 
     /// Insert an item and return its Id.
@@ -276,6 +303,20 @@ impl Query {
         Some(id)
     }
 
+    /// Get path information for the given ast.
+    pub(crate) fn path_for<T>(&self, ast: T) -> Result<&QueryPath, QueryError>
+    where
+        T: Spanned + Opaque,
+    {
+        let id = ast.id();
+
+        let query_path = id
+            .and_then(|n| self.query_paths.get(&n))
+            .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingId { what: "path", id }))?;
+
+        Ok(query_path)
+    }
+
     /// Get the item for the given identifier.
     pub(crate) fn item_for<T>(&self, ast: T) -> Result<&Item, QueryError>
     where
@@ -285,7 +326,7 @@ impl Query {
 
         let item = id
             .and_then(|n| self.items.get(&n))
-            .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingItemId { id }))?;
+            .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingId { what: "item", id }))?;
 
         Ok(item)
     }
@@ -297,9 +338,15 @@ impl Query {
     {
         let id = ast.id();
 
-        let template = id
-            .and_then(|n| self.templates.get(&n))
-            .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingTemplateId { id }))?;
+        let template = id.and_then(|n| self.templates.get(&n)).ok_or_else(|| {
+            QueryError::new(
+                ast,
+                QueryErrorKind::MissingId {
+                    what: "template",
+                    id,
+                },
+            )
+        })?;
 
         Ok(template.clone())
     }
@@ -311,9 +358,15 @@ impl Query {
     {
         let id = ast.id();
 
-        let const_fn = id
-            .and_then(|n| self.const_fns.get(&n))
-            .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingConstFnId { id }))?;
+        let const_fn = id.and_then(|n| self.const_fns.get(&n)).ok_or_else(|| {
+            QueryError::new(
+                ast,
+                QueryErrorKind::MissingId {
+                    what: "constant function",
+                    id,
+                },
+            )
+        })?;
 
         Ok(const_fn.clone())
     }
@@ -551,10 +604,7 @@ impl Query {
     where
         S: Spanned,
     {
-        let item = id
-            .and_then(|n| self.items.get(&n).cloned())
-            .ok_or_else(|| QueryError::new(spanned, QueryErrorKind::MissingItemId { id }))?;
-
+        let item = self.item_for((spanned.span(), id))?.clone();
         log::trace!("indexed: {}", item);
 
         self.unit.insert_name(&item);

@@ -87,6 +87,11 @@ impl Item {
         self.content.is_empty()
     }
 
+    /// Clear the current item.
+    pub fn clear(&mut self) {
+        self.content.clear();
+    }
+
     /// Push the given component to the current item.
     pub fn push<C>(&mut self, c: C)
     where

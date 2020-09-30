@@ -1,5 +1,5 @@
 use crate::collections::HashMap;
-use crate::{Component, IntoComponent};
+use crate::{Component, ComponentRef, IntoComponent};
 use std::mem;
 
 #[derive(Default, Debug)]
@@ -81,7 +81,10 @@ impl Names {
 
     /// Iterate over all known components immediately under the specified `iter`
     /// path.
-    pub fn iter_components<'a, I: 'a>(&'a self, iter: I) -> impl Iterator<Item = Component> + 'a
+    pub fn iter_components<'a, I: 'a>(
+        &'a self,
+        iter: I,
+    ) -> impl Iterator<Item = ComponentRef<'a>> + 'a
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -105,13 +108,13 @@ impl Names {
         where
             I: Iterator<Item = &'a Component>,
         {
-            type Item = Component;
+            type Item = ComponentRef<'a>;
 
             fn next(&mut self) -> Option<Self::Item> {
                 let mut iter = self.0.take()?;
                 let next = iter.next()?;
                 self.0 = Some(iter);
-                Some(next.clone())
+                Some(next.as_component_ref())
             }
         }
     }

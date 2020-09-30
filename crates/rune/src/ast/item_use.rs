@@ -71,6 +71,9 @@ pub struct ItemUsePath {
     /// The optional last group component.
     #[rune(iter)]
     pub last: Option<(ast::Scope, ItemUseComponent)>,
+    /// The alias of the import.
+    #[rune(iter)]
+    pub alias: Option<(ast::As, ast::Ident)>,
 }
 
 impl Parse for ItemUsePath {
@@ -94,6 +97,7 @@ impl Parse for ItemUsePath {
             first,
             middle,
             last,
+            alias: parser.parse()?,
         })
     }
 }
