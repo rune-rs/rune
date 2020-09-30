@@ -84,16 +84,20 @@ pub enum QueryErrorKind {
     MissingId { what: &'static str, id: Option<Id> },
     #[error("found conflicting item `{existing}`")]
     ItemConflict { existing: Item },
-    #[error("{item} with {visibility} visibility, is not visible from here")]
+    #[error("item `{item}` with {visibility} visibility, is not accessible from here")]
     NotVisible {
         visibility: Visibility,
         item: Item,
         from: Item,
     },
+    #[error("module `{item}` with {visibility} visibility, is not accessible from here")]
+    NotVisibleMod { visibility: Visibility, item: Item },
     #[error("missing reverse lookup for `{item}`")]
     MissingRevItem { item: Item },
     #[error("missing item for id {id:?}")]
     MissingRevId { id: Id },
+    #[error("missing query meta for module {item}")]
+    MissingMod { item: Item },
 }
 
 pub(crate) enum Indexed {
@@ -232,6 +236,13 @@ pub(crate) struct QueryItem {
     pub(crate) visibility: Visibility,
 }
 
+/// Module, its item and its visibility.
+#[derive(Debug)]
+pub(crate) struct QueryMod {
+    pub(crate) item: Item,
+    pub(crate) visibility: Visibility,
+}
+
 pub(crate) struct Query {
     /// Next opaque id generated.
     next_id: Id,
@@ -252,6 +263,8 @@ pub(crate) struct Query {
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
     items: HashMap<Id, Rc<QueryItem>>,
+    /// Modules and associated metadata.
+    modules: HashMap<Item, Rc<QueryMod>>,
     /// Reverse lookup for items to reduce the number of items used.
     items_rev: HashMap<Item, Rc<QueryItem>>,
     /// Compiled constant functions.
@@ -272,6 +285,7 @@ impl Query {
             indexed: HashMap::new(),
             templates: HashMap::new(),
             items: HashMap::new(),
+            modules: HashMap::new(),
             items_rev: HashMap::new(),
             const_fns: HashMap::new(),
             query_paths: HashMap::new(),
@@ -294,6 +308,19 @@ impl Query {
         let id = self.next_id.next()?;
         self.query_paths.insert(id, query_path);
         Some(id)
+    }
+
+    /// Insert module and associated metadata.
+    pub(crate) fn insert_mod(&mut self, item: &Item, visibility: Visibility) -> Id {
+        let id = self.next_id.next().expect("ran out of ids");
+
+        let query_mod = Rc::new(QueryMod {
+            item: item.clone(),
+            visibility,
+        });
+
+        self.modules.insert(item.clone(), query_mod.clone());
+        id
     }
 
     /// Insert an item and return its Id.
@@ -683,24 +710,7 @@ impl Query {
     ) -> Result<Option<CompileMeta>, QueryError> {
         // Test for visibility if from is specified.
         if let Some(from) = from {
-            match item.visibility {
-                Visibility::Inherited => {
-                    if !from.can_see_private_mod(&item.mod_item) {
-                        return Err(QueryError::new(
-                            spanned,
-                            QueryErrorKind::NotVisible {
-                                visibility: item.visibility,
-                                item: item.item.clone(),
-                                from: from.clone(),
-                            },
-                        ));
-                    }
-
-                    // TODO: test module suffixes.
-                }
-                Visibility::Public => (),
-                Visibility::Crate => (),
-            }
+            self.check_access_from(spanned, from, item)?;
         }
 
         if let Some(meta) = self.unit.lookup_meta(&item.item) {
@@ -878,6 +888,61 @@ impl Query {
             .map_err(|error| QueryError::new(entry_span, error))?;
 
         Ok(meta)
+    }
+
+    fn check_access_from(
+        &self,
+        spanned: Span,
+        from: &Item,
+        item: &QueryItem,
+    ) -> Result<(), QueryError> {
+        let (mut mod_item, suffix) = from.module_difference(&item.mod_item);
+
+        for c in &suffix {
+            mod_item.push(c);
+
+            let m = self.modules.get(&mod_item).ok_or_else(|| {
+                QueryError::new(
+                    spanned,
+                    QueryErrorKind::MissingMod {
+                        item: mod_item.clone(),
+                    },
+                )
+            })?;
+
+            match m.visibility {
+                Visibility::Public => (),
+                Visibility::Crate => (),
+                Visibility::Inherited => {
+                    return Err(QueryError::new(
+                        spanned,
+                        QueryErrorKind::NotVisibleMod {
+                            visibility: m.visibility,
+                            item: mod_item,
+                        },
+                    ));
+                }
+            }
+        }
+
+        match item.visibility {
+            Visibility::Inherited => {
+                if !from.can_see_private_mod(&item.mod_item) {
+                    return Err(QueryError::new(
+                        spanned,
+                        QueryErrorKind::NotVisible {
+                            visibility: item.visibility,
+                            item: item.item.clone(),
+                            from: from.clone(),
+                        },
+                    ));
+                }
+            }
+            Visibility::Public => (),
+            Visibility::Crate => (),
+        }
+
+        Ok(())
     }
 
     /// Construct metadata for an empty body.
