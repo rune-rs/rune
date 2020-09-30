@@ -151,7 +151,7 @@ pub use self::item_fn::ItemFn;
 pub use self::item_impl::ItemImpl;
 pub use self::item_mod::{ItemMod, ItemModBody};
 pub use self::item_struct::{Field, ItemStruct, ItemStructBody};
-pub use self::item_use::{ItemUse, ItemUseComponent, ItemUsePath};
+pub use self::item_use::{ItemUse, ItemUsePath, ItemUseSegment};
 pub use self::label::Label;
 pub use self::lit::Lit;
 pub use self::lit_bool::LitBool;

@@ -60,72 +60,50 @@ item_parse!(ItemUse, "use item");
 /// testing::roundtrip::<ast::ItemUsePath>("crate::foo");
 /// testing::roundtrip::<ast::ItemUsePath>("foo::bar");
 /// testing::roundtrip::<ast::ItemUsePath>("foo::bar::{baz::*, biz}");
+/// testing::roundtrip::<ast::ItemUsePath>("{*, bar::*}");
+/// testing::roundtrip::<ast::ItemUsePath>("::{*, bar::*}");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct ItemUsePath {
-    /// First component in use.
-    pub first: ast::PathSegment,
-    /// The middle part of the import.
+    /// Global prefix.
     #[rune(iter)]
-    pub middle: Vec<(ast::Scope, ast::PathSegment)>,
-    /// The optional last group component.
+    pub global: Option<ast::Scope>,
+    /// The first use component.
+    pub first: ItemUseSegment,
+    /// Optional segments.
     #[rune(iter)]
-    pub last: Option<(ast::Scope, ItemUseComponent)>,
+    pub segments: Vec<(ast::Scope, ItemUseSegment)>,
     /// The alias of the import.
     #[rune(iter)]
     pub alias: Option<(ast::As, ast::Ident)>,
 }
 
-impl Parse for ItemUsePath {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let first = parser.parse()?;
-        let mut middle = Vec::new();
-        let mut last = None;
-
-        while parser.peek::<ast::Scope>()? {
-            let scope = parser.parse::<ast::Scope>()?;
-
-            if parser.peek::<ast::PathSegment>()? {
-                middle.push((scope, parser.parse()?));
-            } else {
-                last = Some((scope, parser.parse()?));
-                break;
-            }
-        }
-
-        Ok(Self {
-            first,
-            middle,
-            last,
-            alias: parser.parse()?,
-        })
-    }
-}
-
 /// A use component.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub enum ItemUseComponent {
+pub enum ItemUseSegment {
+    /// A path segment.
+    PathSegment(ast::PathSegment),
     /// A wildcard import.
     Wildcard(ast::Mul),
     /// A grouped import.
     Group(ast::Braced<ast::ItemUsePath, ast::Comma>),
 }
 
-impl Peek for ItemUseComponent {
-    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
+impl Peek for ItemUseSegment {
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
         matches!(
             peek!(t1).kind,
             ast::Kind::Star | ast::Kind::Open(ast::Delimiter::Brace)
-        )
+        ) || ast::PathSegment::peek(t1, t2)
     }
 }
 
-impl Parse for ItemUseComponent {
+impl Parse for ItemUseSegment {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(if parser.peek::<ast::Mul>()? {
-            Self::Wildcard(parser.parse()?)
-        } else {
-            Self::Group(parser.parse()?)
+        Ok(match parser.token_peek_eof()?.kind {
+            ast::Kind::Star => Self::Wildcard(parser.parse()?),
+            ast::Kind::Open(ast::Delimiter::Brace) => Self::Group(parser.parse()?),
+            _ => Self::PathSegment(parser.parse()?),
         })
     }
 }

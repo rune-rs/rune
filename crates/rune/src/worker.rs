@@ -176,76 +176,77 @@ impl Import<'_> {
         unit: &UnitBuilder,
         mut wildcard_expand: impl FnMut(ExpandUnitWildcard),
     ) -> CompileResult<()> {
-        let name = match &self.ast.path.first {
-            ast::PathSegment::SelfType(self_type) => {
-                return Err(CompileError::new(
-                    self_type,
-                    CompileErrorKind::UnsupportedSelfType,
-                ));
-            }
-            ast::PathSegment::SelfValue(..) => mod_item.clone(),
-            ast::PathSegment::Ident(ident) => {
-                let ident = ident.resolve(storage, self.source)?;
-                Item::of(&[ident.as_ref()])
-            }
-            ast::PathSegment::Crate(..) => Item::new(),
-            ast::PathSegment::Super(super_token) => {
-                let mut name = mod_item.clone();
-                name.pop()
-                    .ok_or_else(CompileError::unsupported_super(super_token))?;
-                name
-            }
-        };
-
         let mut queue = VecDeque::new();
-        queue.push_back((name, &self.ast.path));
+        queue.push_back((Item::new(), &self.ast.path, true));
 
-        while let Some((mut name, path)) = queue.pop_front() {
+        while let Some((mut name, path, mut initial)) = queue.pop_front() {
             let span = path.span();
 
-            for (_, segment) in &path.middle {
-                match segment {
-                    ast::PathSegment::SelfType(..) => {
-                        return Err(CompileError::new(
-                            path,
-                            CompileErrorKind::UnsupportedSelfType,
-                        ));
-                    }
-                    ast::PathSegment::SelfValue(self_type) => {
-                        return Err(CompileError::new(
-                            self_type,
-                            CompileErrorKind::UnsupportedSelfValue,
-                        ));
-                    }
-                    ast::PathSegment::Ident(ident) => {
-                        name.push(ident.resolve(storage, self.source)?);
-                    }
-                    ast::PathSegment::Crate(crate_token) => {
-                        return Err(CompileError::new(
-                            crate_token,
-                            CompileErrorKind::UnsupportedCrate,
-                        ));
-                    }
-                    ast::PathSegment::Super(super_token) => {
-                        name.pop().ok_or_else(|| {
-                            CompileError::new(super_token, CompileErrorKind::UnsupportedSuper)
-                        })?;
-                    }
-                }
-            }
+            let mut it = Some(&path.first)
+                .into_iter()
+                .chain(path.segments.iter().map(|(_, s)| s));
 
-            if let Some((_, c)) = &path.last {
-                match c {
-                    ast::ItemUseComponent::Wildcard(..) => {
+            let mut unsupported_alias = None;
+
+            while let Some(segment) = it.next() {
+                // Only the first ever segment loaded counts as the initial
+                // segment.
+                let initial = std::mem::take(&mut initial);
+
+                match segment {
+                    ast::ItemUseSegment::PathSegment(segment) => match segment {
+                        ast::PathSegment::SelfType(..) => {
+                            return Err(CompileError::new(
+                                path,
+                                CompileErrorKind::UnsupportedSelfType,
+                            ));
+                        }
+                        ast::PathSegment::SelfValue(self_type) => {
+                            if !initial {
+                                return Err(CompileError::new(
+                                    self_type,
+                                    CompileErrorKind::UnsupportedSelfValue,
+                                ));
+                            }
+
+                            name = mod_item.clone();
+                        }
+                        ast::PathSegment::Ident(ident) => {
+                            if initial {
+                                let ident = ident.resolve(storage, self.source)?;
+                                name = Item::of(&[ident.as_ref()]);
+                            } else {
+                                name.push(ident.resolve(storage, self.source)?);
+                            }
+                        }
+                        ast::PathSegment::Crate(crate_token) => {
+                            if !initial {
+                                return Err(CompileError::new(
+                                    crate_token,
+                                    CompileErrorKind::UnsupportedCrate,
+                                ));
+                            }
+
+                            name = Item::new();
+                        }
+                        ast::PathSegment::Super(super_token) => {
+                            if initial {
+                                name = mod_item.clone();
+                            }
+
+                            name.pop().ok_or_else(|| {
+                                CompileError::new(super_token, CompileErrorKind::UnsupportedSuper)
+                            })?;
+                        }
+                    },
+                    ast::ItemUseSegment::Wildcard(star_token) => {
                         let was_in_context = if context.contains_prefix(&name) {
                             for c in context.iter_components(&name) {
-                                let name = name.extended(c);
-
                                 unit.new_import(
-                                    self.item.clone(),
-                                    name,
-                                    None::<&str>,
                                     span,
+                                    self.item.clone(),
+                                    name.extended(c),
+                                    None::<&str>,
                                     self.source_id,
                                 )?;
                             }
@@ -257,63 +258,49 @@ impl Import<'_> {
 
                         let wildcard_expander = ExpandUnitWildcard {
                             from: self.item.clone(),
-                            name,
+                            name: name.clone(),
                             span,
                             source_id: self.source_id,
                             was_in_context,
                         };
 
                         wildcard_expand(wildcard_expander);
+                        unsupported_alias = Some(star_token.span());
+                        break;
                     }
-                    ast::ItemUseComponent::Group(group) => {
+                    ast::ItemUseSegment::Group(group) => {
                         for (path, _) in group {
-                            let mut name = name.clone();
-
-                            match &path.first {
-                                ast::PathSegment::SelfType(self_type) => {
-                                    return Err(CompileError::new(
-                                        self_type,
-                                        CompileErrorKind::UnsupportedSelfType,
-                                    ));
-                                }
-                                // `self` refers to the current module.
-                                ast::PathSegment::SelfValue(self_value) => {
-                                    return Err(CompileError::new(
-                                        self_value,
-                                        CompileErrorKind::UnsupportedSelfValue,
-                                    ));
-                                }
-                                ast::PathSegment::Ident(ident) => {
-                                    name.push(ident.resolve(storage, self.source)?);
-                                }
-                                ast::PathSegment::Crate(crate_token) => {
-                                    return Err(CompileError::new(
-                                        crate_token,
-                                        CompileErrorKind::UnsupportedCrate,
-                                    ));
-                                }
-                                ast::PathSegment::Super(super_token) => {
-                                    name.pop().ok_or_else(|| {
-                                        CompileError::new(
-                                            super_token,
-                                            CompileErrorKind::UnsupportedSuper,
-                                        )
-                                    })?;
-                                }
-                            }
-
-                            queue.push_back((name, path));
+                            queue.push_back((name.clone(), path, initial));
                         }
+
+                        unsupported_alias = Some(group.span());
+                        break;
                     }
                 }
-            } else {
-                let alias = match path.alias {
-                    Some((_, ident)) => Some(ident.resolve(storage, self.source)?),
-                    None => None,
-                };
-
-                unit.new_import(self.item.clone(), name, alias, span, self.source_id)?;
             }
+
+            if let Some(segment) = it.next() {
+                return Err(CompileError::new(
+                    segment,
+                    CompileErrorKind::IllegalUseSegment,
+                ));
+            }
+
+            let alias = match path.alias {
+                Some((_, ident)) => {
+                    if let Some(span) = unsupported_alias {
+                        return Err(CompileError::new(
+                            span.join(ident.span()),
+                            CompileErrorKind::UseAliasNotSupported,
+                        ));
+                    }
+
+                    Some(ident.resolve(storage, self.source)?)
+                }
+                None => None,
+            };
+
+            unit.new_import(span, self.item.clone(), name, alias, self.source_id)?;
         }
 
         Ok(())
@@ -336,10 +323,10 @@ impl ExpandUnitWildcard {
             for c in unit.iter_components(&self.name) {
                 let name = self.name.extended(c);
                 unit.new_import(
+                    self.span,
                     self.from.clone(),
                     name,
                     None::<&str>,
-                    self.span,
                     self.source_id,
                 )?;
             }
