@@ -217,7 +217,7 @@ impl CompileBuildEntry<'_> {
                         CompileError::new(
                             &f.instance_span,
                             CompileErrorKind::MissingType {
-                                item: f.impl_item.clone(),
+                                item: (*f.impl_item).clone(),
                             },
                         )
                     })?;

@@ -147,7 +147,7 @@ pub(crate) struct InstanceFunction {
     /// Ast for the instance function.
     pub(crate) ast: ast::ItemFn,
     /// The item of the instance function.
-    pub(crate) impl_item: Item,
+    pub(crate) impl_item: Rc<Item>,
     /// The span of the instance function.
     pub(crate) instance_span: Span,
     pub(crate) call: Call,
@@ -172,6 +172,8 @@ pub(crate) struct AsyncBlock {
 }
 
 pub(crate) struct Const {
+    /// The module item the constant is defined in.
+    pub(crate) mod_item: Rc<Item>,
     /// The intermediate representation of the constant expression.
     pub(crate) ir: ir::Ir,
 }
@@ -223,17 +225,27 @@ pub(crate) struct IndexedEntry {
 /// Query information for a path.
 #[derive(Debug)]
 pub(crate) struct QueryPath {
-    pub(crate) mod_item: Item,
-    pub(crate) impl_item: Option<Item>,
+    pub(crate) mod_item: Rc<Item>,
+    pub(crate) impl_item: Option<Rc<Item>>,
     pub(crate) item: Item,
 }
 
 /// Item and the module that the item belongs to.
 #[derive(Debug)]
 pub(crate) struct QueryItem {
+    pub(crate) id: Id,
     pub(crate) item: Item,
-    pub(crate) mod_item: Item,
+    pub(crate) mod_item: Rc<Item>,
     pub(crate) visibility: Visibility,
+}
+
+/// An indexed constant function.
+#[derive(Debug)]
+pub(crate) struct QueryConstFn {
+    /// The item of the const fn.
+    pub(crate) item: Rc<QueryItem>,
+    /// The compiled constant function.
+    pub(crate) ir_fn: ir::IrFn,
 }
 
 /// Module, its item and its visibility.
@@ -268,9 +280,9 @@ pub(crate) struct Query {
     /// Reverse lookup for items to reduce the number of items used.
     items_rev: HashMap<Item, Rc<QueryItem>>,
     /// Compiled constant functions.
-    const_fns: HashMap<Id, Rc<ir::IrFn>>,
+    const_fns: HashMap<Id, Rc<QueryConstFn>>,
     /// Query paths.
-    query_paths: HashMap<Id, QueryPath>,
+    query_paths: HashMap<Id, Rc<QueryPath>>,
 }
 
 impl Query {
@@ -295,15 +307,15 @@ impl Query {
     /// Insert path information.
     pub(crate) fn insert_path(
         &mut self,
-        mod_item: &Item,
-        impl_item: Option<&Item>,
+        mod_item: &Rc<Item>,
+        impl_item: Option<&Rc<Item>>,
         item: &Item,
     ) -> Option<Id> {
-        let query_path = QueryPath {
+        let query_path = Rc::new(QueryPath {
             mod_item: mod_item.clone(),
             impl_item: impl_item.cloned().clone(),
             item: item.clone(),
-        };
+        });
 
         let id = self.next_id.next()?;
         self.query_paths.insert(id, query_path);
@@ -326,21 +338,33 @@ impl Query {
     /// Insert an item and return its Id.
     pub(crate) fn insert_item(
         &mut self,
+        span: Span,
         item: &Item,
-        mod_item: &Item,
+        mod_item: &Rc<Item>,
         visibility: Visibility,
-    ) -> (Id, Rc<QueryItem>) {
+    ) -> Result<(Id, Rc<QueryItem>), CompileError> {
+        if let Some(existing) = self.items_rev.get(item) {
+            return Ok((existing.id, existing.clone()));
+        }
+
         let id = self.next_id.next().expect("ran out of ids");
 
         let query_item = Rc::new(QueryItem {
+            id,
             item: item.clone(),
             mod_item: mod_item.clone(),
             visibility,
         });
 
-        self.items_rev.insert(item.clone(), query_item.clone());
+        if let Some(..) = self.items_rev.insert(item.clone(), query_item.clone()) {
+            return Err(CompileError::new(
+                span,
+                CompileErrorKind::ItemConflict { item: item.clone() },
+            ));
+        }
+
         self.items.insert(id, query_item.clone());
-        (id, query_item)
+        Ok((id, query_item))
     }
 
     /// Insert a template and return its Id.
@@ -351,14 +375,20 @@ impl Query {
     }
 
     /// Insert an item and return its Id.
-    pub(crate) fn insert_const_fn(&mut self, ir_fn: ir::IrFn) -> Option<Id> {
+    pub(crate) fn insert_const_fn(&mut self, item: &Rc<QueryItem>, ir_fn: ir::IrFn) -> Option<Id> {
         let id = self.next_id.next()?;
-        self.const_fns.insert(id, Rc::new(ir_fn));
+        self.const_fns.insert(
+            id,
+            Rc::new(QueryConstFn {
+                item: item.clone(),
+                ir_fn,
+            }),
+        );
         Some(id)
     }
 
     /// Get path information for the given ast.
-    pub(crate) fn path_for<T>(&self, ast: T) -> Result<&QueryPath, QueryError>
+    pub(crate) fn path_for<T>(&self, ast: T) -> Result<&Rc<QueryPath>, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -406,7 +436,7 @@ impl Query {
     }
 
     /// Get the constant function associated with the opaque.
-    pub(crate) fn const_fn_for<T>(&self, ast: T) -> Result<Rc<ir::IrFn>, QueryError>
+    pub(crate) fn const_fn_for<T>(&self, ast: T) -> Result<Rc<QueryConstFn>, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -451,7 +481,10 @@ impl Query {
                 span,
                 source,
                 source_id,
-                indexed: Indexed::Const(Const { ir }),
+                indexed: Indexed::Const(Const {
+                    mod_item: item.mod_item.clone(),
+                    ir,
+                }),
             },
         )?;
 
@@ -669,7 +702,7 @@ impl Query {
     pub(crate) fn query_meta(
         &mut self,
         spanned: Span,
-        from: Option<&Item>,
+        from: Option<&QueryMod>,
         item: &QueryItem,
     ) -> Result<Option<CompileMeta>, QueryError> {
         self.query_meta_with_use(spanned, from, item, Used::Used)
@@ -692,19 +725,29 @@ impl Query {
         item: &Item,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
+        // NB: `from` is expected to be the module being queried from. We look
+        // it up here.
+        let from = match from {
+            Some(from) => match self.modules.get(from) {
+                Some(from) => Some(from.clone()),
+                None => return Ok(None),
+            },
+            None => None,
+        };
+
         let item = match self.items_rev.get(item) {
             Some(item) => item.clone(),
             None => return Ok(None),
         };
 
-        self.query_meta_with_use(spanned, from, &*item, used)
+        self.query_meta_with_use(spanned, from.as_deref(), &*item, used)
     }
 
     /// Internal query meta with control over whether or not to mark things as unused.
     pub(crate) fn query_meta_with_use(
         &mut self,
         spanned: Span,
-        from: Option<&Item>,
+        from: Option<&QueryMod>,
         item: &QueryItem,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
@@ -732,7 +775,7 @@ impl Query {
     pub(crate) fn build_indexed_entry(
         &mut self,
         spanned: Span,
-        from: Option<&Item>,
+        from: Option<&QueryMod>,
         item: &QueryItem,
         entry: IndexedEntry,
         used: Used,
@@ -742,7 +785,7 @@ impl Query {
             indexed,
             source,
             source_id,
-            ..
+            item: entry_item,
         } = entry;
 
         let path = source.path().map(ToOwned::to_owned);
@@ -821,6 +864,7 @@ impl Query {
                 let mut const_compiler = IrInterpreter {
                     budget: IrBudget::new(1_000_000),
                     scopes: Default::default(),
+                    mod_item: c.mod_item.clone(),
                     item: item.item.clone(),
                     query: self,
                 };
@@ -864,7 +908,7 @@ impl Query {
 
                     None
                 } else {
-                    self.insert_const_fn(ir_fn)
+                    self.insert_const_fn(&entry_item, ir_fn)
                 };
 
                 CompileMetaKind::ConstFn {
@@ -893,12 +937,20 @@ impl Query {
     fn check_access_from(
         &self,
         spanned: Span,
-        from: &Item,
+        from: &QueryMod,
         item: &QueryItem,
     ) -> Result<(), QueryError> {
-        let (mut mod_item, suffix) = from.module_difference(&item.mod_item);
+        let (mut mod_item, suffix, is_strict_prefix) = from.item.module_difference(&item.mod_item);
+
+        // NB: if we are an immediate parent module, we're allowed to peek into
+        // a nested private module in one level of depth.
+        let mut permit_one_level = is_strict_prefix;
+        let mut suffix_len = 0;
 
         for c in &suffix {
+            suffix_len += 1;
+            let permit_one_level = std::mem::take(&mut permit_one_level);
+
             mod_item.push(c);
 
             let m = self.modules.get(&mod_item).ok_or_else(|| {
@@ -914,32 +966,36 @@ impl Query {
                 Visibility::Public => (),
                 Visibility::Crate => (),
                 Visibility::Inherited => {
-                    return Err(QueryError::new(
-                        spanned,
-                        QueryErrorKind::NotVisibleMod {
-                            visibility: m.visibility,
-                            item: mod_item,
-                        },
-                    ));
+                    if !permit_one_level {
+                        return Err(QueryError::new(
+                            spanned,
+                            QueryErrorKind::NotVisibleMod {
+                                visibility: m.visibility,
+                                item: mod_item,
+                            },
+                        ));
+                    }
                 }
             }
         }
 
-        match item.visibility {
-            Visibility::Inherited => {
-                if !from.can_see_private_mod(&item.mod_item) {
-                    return Err(QueryError::new(
-                        spanned,
-                        QueryErrorKind::NotVisible {
-                            visibility: item.visibility,
-                            item: item.item.clone(),
-                            from: from.clone(),
-                        },
-                    ));
+        if suffix_len == 0 || is_strict_prefix && suffix_len > 1 {
+            match item.visibility {
+                Visibility::Inherited => {
+                    if !from.item.can_see_private_mod(&item.mod_item) {
+                        return Err(QueryError::new(
+                            spanned,
+                            QueryErrorKind::NotVisible {
+                                visibility: item.visibility,
+                                item: item.item.clone(),
+                                from: from.item.clone(),
+                            },
+                        ));
+                    }
                 }
+                Visibility::Public => (),
+                Visibility::Crate => (),
             }
-            Visibility::Public => (),
-            Visibility::Crate => (),
         }
 
         Ok(())

@@ -1,13 +1,29 @@
 use crate::ast;
-use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, ToTokens};
+use crate::{OptionSpanned, Parse, ParseError, ParseErrorKind, Parser, ToTokens};
 
 /// A parsed file.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
 pub struct File {
     /// Top level "Outer" `#![...]` attributes for the file
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// All the declarations in a file.
+    #[rune(iter)]
     pub items: Vec<(ast::Item, Option<ast::SemiColon>)>,
+}
+
+impl OptionSpanned for File {
+    fn option_span(&self) -> Option<runestick::Span> {
+        let start = self.attributes.option_span();
+        let end = self.attributes.option_span();
+
+        match (start, end) {
+            (Some(start), Some(end)) => Some(start.join(end)),
+            (Some(start), None) => Some(start),
+            (None, Some(end)) => Some(end),
+            _ => None,
+        }
+    }
 }
 
 /// Parse a file.
