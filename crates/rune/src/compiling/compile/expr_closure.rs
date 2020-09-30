@@ -64,10 +64,15 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
         }
 
         let item = self.query.item_for(expr_closure)?.clone();
-        let hash = Hash::type_hash(&item);
+        let hash = Hash::type_hash(&item.item);
 
-        let meta = self.query.query_meta(&item)?.ok_or_else(|| {
-            CompileError::new(span, CompileErrorKind::MissingType { item: item.clone() })
+        let meta = self.query.query_meta(span, None, &item)?.ok_or_else(|| {
+            CompileError::new(
+                span,
+                CompileErrorKind::MissingType {
+                    item: item.item.clone(),
+                },
+            )
         })?;
 
         let captures = match &meta.kind {
@@ -80,13 +85,16 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
             }
         };
 
-        log::trace!("captures: {} => {:?}", item, captures);
+        log::trace!("captures: {} => {:?}", item.item, captures);
 
         if captures.is_empty() {
             // NB: if closure doesn't capture the environment it acts like a regular
             // function. No need to store and load the environment.
-            self.asm
-                .push_with_comment(Inst::LoadFn { hash }, span, format!("closure `{}`", item));
+            self.asm.push_with_comment(
+                Inst::LoadFn { hash },
+                span,
+                format!("closure `{}`", item.item),
+            );
         } else {
             // Construct a closure environment.
             for capture in &**captures {
@@ -102,7 +110,7 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
                     count: captures.len(),
                 },
                 span,
-                format!("closure `{}`", item),
+                format!("closure `{}`", item.item),
             );
         }
 

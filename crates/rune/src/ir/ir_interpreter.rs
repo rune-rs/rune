@@ -88,8 +88,8 @@ impl<'a> IrInterpreter<'a> {
     /// their result.
     pub(crate) fn resolve_var(
         &mut self,
+        spanned: Span,
         name: &str,
-        span: Span,
         used: Used,
     ) -> Result<IrValue, IrError> {
         if let Some(ir_value) = self.scopes.try_get(name) {
@@ -105,13 +105,16 @@ impl<'a> IrInterpreter<'a> {
                 return Ok(IrValue::from_const(const_value));
             }
 
-            if let Some(meta) = self.query.query_meta_with_use(&item, used)? {
+            if let Some(meta) =
+                self.query
+                    .query_meta_with_use_by_item(spanned, Some(&self.item), &item, used)?
+            {
                 match &meta.kind {
                     CompileMetaKind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value.clone()));
                     }
                     _ => {
-                        return Err(IrError::new(span, IrErrorKind::UnsupportedMeta { meta }));
+                        return Err(IrError::new(spanned, IrErrorKind::UnsupportedMeta { meta }));
                     }
                 }
             }
@@ -125,12 +128,12 @@ impl<'a> IrInterpreter<'a> {
 
         if name.starts_with(char::is_lowercase) {
             Err(IrError::new(
-                span,
+                spanned,
                 IrErrorKind::MissingLocal { name: name.into() },
             ))
         } else {
             Err(IrError::new(
-                span,
+                spanned,
                 IrErrorKind::MissingConst { name: name.into() },
             ))
         }
@@ -146,18 +149,22 @@ impl<'a> IrInterpreter<'a> {
     where
         S: Copy + Spanned,
     {
+        let span = spanned.span();
         let mut base = self.item.clone();
 
         let id = loop {
             let item = base.extended(target);
 
-            if let Some(meta) = self.query.query_meta_with_use(&item, used)? {
+            if let Some(meta) =
+                self.query
+                    .query_meta_with_use_by_item(span, Some(&self.item), &item, used)?
+            {
                 match &meta.kind {
-                    CompileMetaKind::ConstFn { id, .. } => {
+                    CompileMetaKind::ConstFn { id: Some(id), .. } => {
                         break Some(*id);
                     }
                     _ => {
-                        return Err(IrError::new(spanned, IrErrorKind::UnsupportedMeta { meta }));
+                        return Err(IrError::new(span, IrErrorKind::UnsupportedMeta { meta }));
                     }
                 }
             }

@@ -19,6 +19,15 @@ where
     }
 }
 
+impl<S> Opaque for (S, Id)
+where
+    S: Spanned,
+{
+    fn id(&self) -> Option<Id> {
+        Some(self.1)
+    }
+}
+
 impl<S> Opaque for (S, Option<Id>)
 where
     S: Spanned,

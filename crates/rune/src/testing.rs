@@ -4,6 +4,7 @@
 
 pub use crate::CompileErrorKind::*;
 pub use crate::ParseErrorKind::*;
+pub use crate::QueryErrorKind::*;
 pub use crate::WarningKind::*;
 use crate::{Error, Errors, Sources, UnitBuilder, Warnings};
 pub use futures_executor::block_on;

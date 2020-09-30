@@ -4,14 +4,14 @@ fn test_nested_mods() {
         3,
         rune! {
             i64 => r#"
-            mod hello {
-                mod inner {
-                    fn test() {
+            pub mod hello {
+                pub mod inner {
+                    pub fn test() {
                         2
                     }
                 }
 
-                fn test() {
+                pub fn test() {
                     1 + inner::test()
                 }
             }

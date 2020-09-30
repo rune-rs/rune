@@ -13,15 +13,15 @@ fn test_super_self_crate_mod() {
                 fn bar() { self::a::foo() ^ 0b10000 }
             }
 
-            mod a {
-                fn foo() { self::b::foo() ^ 0b1000 }
+            pub mod a {
+                pub fn foo() { self::b::foo() ^ 0b1000 }
 
-                mod b {
-                    fn foo() { super::c::foo() ^ 0b100 }
+                pub mod b {
+                    pub fn foo() { super::c::foo() ^ 0b100 }
                 }
 
-                mod c {
-                    fn foo() { crate::root() ^ 0b10 }
+                pub mod c {
+                    pub fn foo() { crate::root() ^ 0b10 }
                 }
             }
 
@@ -39,9 +39,9 @@ fn test_super_use() {
     assert_eq! {
         rune! {
             i64 => r#"
-            mod x {
-                mod y {
-                    fn foo() {
+            pub mod x {
+                pub mod y {
+                    pub fn foo() {
                         use crate::VALUE as A;
                         use super::VALUE as B;
                         A + B

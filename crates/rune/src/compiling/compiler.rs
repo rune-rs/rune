@@ -65,49 +65,55 @@ impl<'a> Compiler<'a> {
     /// Access the meta for the given language item.
     pub fn lookup_meta(
         &mut self,
+        spanned: Span,
         base: &Item,
         named: &Named,
-        span: Span,
     ) -> CompileResult<Option<CompileMeta>> {
         log::trace!("lookup meta: {:?}", named);
 
         // Imported items are expected to be "exact", and do not look upwards in
         // blocks to find a matching item as is implemented after this if block.
         if named.imported {
-            if let Some(meta) = self.query.query_meta(&named.item)? {
+            if let Some(meta) = self
+                .query
+                .query_meta_by_item(spanned, Some(base), &named.item)?
+            {
                 log::trace!("found in query: {:?}", meta);
-                self.visitor.visit_meta(self.source_id, &meta, span);
+                self.visitor.visit_meta(self.source_id, &meta, spanned);
                 return Ok(Some(meta));
             }
 
             if let Some(meta) = self.context.lookup_meta(&named.item) {
                 log::trace!("found in context: {:?}", meta);
-                self.visitor.visit_meta(self.source_id, &meta, span);
+                self.visitor.visit_meta(self.source_id, &meta, spanned);
                 return Ok(Some(meta));
             }
 
             return Ok(None);
         }
 
-        let mut base = base.clone();
+        let mut b = base.clone();
 
         loop {
-            let current = base.join(&named.item);
+            let current = b.join(&named.item);
             log::trace!("lookup meta (query): {}", current);
 
-            if let Some(meta) = self.query.query_meta(&current)? {
+            if let Some(meta) = self
+                .query
+                .query_meta_by_item(spanned, Some(base), &current)?
+            {
                 log::trace!("found in query: {:?}", meta);
-                self.visitor.visit_meta(self.source_id, &meta, span);
+                self.visitor.visit_meta(self.source_id, &meta, spanned);
                 return Ok(Some(meta));
             }
 
             if let Some(meta) = self.context.lookup_meta(&current) {
                 log::trace!("found in context: {:?}", meta);
-                self.visitor.visit_meta(self.source_id, &meta, span);
+                self.visitor.visit_meta(self.source_id, &meta, spanned);
                 return Ok(Some(meta));
             }
 
-            if base.pop().is_none() {
+            if b.pop().is_none() {
                 break;
             }
         }
@@ -118,20 +124,20 @@ impl<'a> Compiler<'a> {
     /// Access the meta for the given language item.
     pub fn lookup_exact_meta(
         &mut self,
+        spanned: Span,
         name: &Item,
-        span: Span,
     ) -> CompileResult<Option<CompileMeta>> {
         log::trace!("lookup meta: {}", name);
 
         if let Some(meta) = self.context.lookup_meta(name) {
             log::trace!("found in context: {:?}", meta);
-            self.visitor.visit_meta(self.source_id, &meta, span);
+            self.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));
         }
 
-        if let Some(meta) = self.query.query_meta(name)? {
+        if let Some(meta) = self.query.query_meta_by_item(spanned, None, name)? {
             log::trace!("found in query: {:?}", meta);
-            self.visitor.visit_meta(self.source_id, &meta, span);
+            self.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));
         }
 
@@ -272,23 +278,16 @@ impl<'a> Compiler<'a> {
     pub(crate) fn convert_path_to_named(&self, path: &ast::Path) -> CompileResult<(Item, Named)> {
         let query_path = self.query.path_for(path)?;
 
-        let base = self.query.item_for((path, Some(query_path.item)))?;
-        let mod_item = self.query.item_for((path, Some(query_path.mod_item)))?;
-        let impl_item = match query_path.impl_item {
-            Some(id) => Some(self.query.item_for((path, Some(id)))?),
-            None => None,
-        };
-
         let item = self.unit.find_named(
-            base,
-            Some(mod_item),
-            impl_item,
+            &query_path.item,
+            Some(&query_path.mod_item),
+            query_path.impl_item.as_ref(),
             path,
             &self.storage,
             &*self.source,
         )?;
 
-        Ok((base.clone(), item))
+        Ok((query_path.item.clone(), item))
     }
 
     pub(crate) fn compile_condition(
@@ -400,7 +399,7 @@ impl<'a> Compiler<'a> {
         let type_check = if let Some(path) = &pat_tuple.path {
             let (base, named) = self.convert_path_to_named(path)?;
 
-            let meta = match self.lookup_meta(&base, &named, path.span())? {
+            let meta = match self.lookup_meta(path.span(), &base, &named)? {
                 Some(meta) => meta,
                 None => {
                     return Err(CompileError::new(
@@ -534,7 +533,7 @@ impl<'a> Compiler<'a> {
 
                 let (base, named) = self.convert_path_to_named(path)?;
 
-                let meta = match self.lookup_meta(&base, &named, span)? {
+                let meta = match self.lookup_meta(span, &base, &named)? {
                     Some(meta) => meta,
                     None => {
                         return Err(CompileError::new(
@@ -715,7 +714,7 @@ impl<'a> Compiler<'a> {
 
                 let (base, named) = self.convert_path_to_named(&path.path)?;
 
-                if let Some(meta) = self.lookup_meta(&base, &named, span)? {
+                if let Some(meta) = self.lookup_meta(span, &base, &named)? {
                     if self.compile_pat_meta_binding(span, &meta, false_label, load)? {
                         return Ok(true);
                     }

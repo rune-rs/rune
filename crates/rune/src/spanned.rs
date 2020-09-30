@@ -50,6 +50,15 @@ where
     }
 }
 
+impl<S> Spanned for (S, Id)
+where
+    S: Spanned,
+{
+    fn span(&self) -> Span {
+        self.0.span()
+    }
+}
+
 impl<S> Spanned for (S, Option<Id>)
 where
     S: Spanned,

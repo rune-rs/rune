@@ -86,7 +86,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(&base, &named, path.span())? {
+        let meta = match self.lookup_meta(path.span(), &base, &named)? {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(
@@ -147,7 +147,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                 let value = self.call_const_fn(
                     expr_call,
                     &meta,
-                    &from,
+                    &from.item,
                     at,
                     &*const_fn,
                     expr_call.args.as_slice(),

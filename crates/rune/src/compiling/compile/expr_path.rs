@@ -41,7 +41,7 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(&base, &named, span)? {
+        let meta = match self.lookup_meta(span, &base, &named)? {
             Some(meta) => meta,
             None => {
                 let error = match (needs, named.as_local()) {

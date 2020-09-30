@@ -212,7 +212,7 @@ impl CompileBuildEntry<'_> {
                 let name = f.ast.name.resolve(self.storage, &*source)?;
 
                 let meta = compiler
-                    .lookup_exact_meta(&f.impl_item, f.instance_span)?
+                    .lookup_exact_meta(f.instance_span, &f.impl_item)?
                     .ok_or_else(|| {
                         CompileError::new(
                             &f.instance_span,
