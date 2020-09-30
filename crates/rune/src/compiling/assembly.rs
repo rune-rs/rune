@@ -1,7 +1,7 @@
 //! Helpers for building assembly.
 
 use crate::collections::HashMap;
-use crate::compiling::{UnitBuilderError, UnitBuilderErrorKind};
+use crate::compiling::{CompileError, CompileErrorKind};
 use crate::Spanned;
 use runestick::{Hash, Inst, Label, Span};
 
@@ -64,13 +64,13 @@ impl Assembly {
     }
 
     /// Apply the label at the current instruction offset.
-    pub(crate) fn label(&mut self, label: Label) -> Result<Label, UnitBuilderError> {
+    pub(crate) fn label(&mut self, label: Label) -> Result<Label, CompileError> {
         let offset = self.instructions.len();
 
         if self.labels.insert(label, offset).is_some() {
-            return Err(UnitBuilderError::new(
+            return Err(CompileError::new(
                 self.span,
-                UnitBuilderErrorKind::DuplicateLabel { label },
+                CompileErrorKind::DuplicateLabel { label },
             ));
         }
 

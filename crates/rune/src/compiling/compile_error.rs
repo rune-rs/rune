@@ -1,10 +1,11 @@
 use crate::ast;
-use crate::compiling::{InsertMetaError, UnitBuilderError, UnitBuilderErrorKind};
+use crate::compiling::{ImportKey, InsertMetaError};
 use crate::shared::Internal;
 use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
 };
-use runestick::{CompileMeta, Item, SourceId, Span};
+use runestick::debug::DebugSignature;
+use runestick::{CompileMeta, Hash, Item, Label, SourceId, Span};
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -22,7 +23,6 @@ error! {
     impl From<ParseError>;
     impl From<IrError>;
     impl From<QueryError>;
-    impl From<UnitBuilderError>;
 }
 
 impl CompileError {
@@ -106,12 +106,6 @@ pub enum CompileErrorKind {
         #[source]
         error: Box<QueryErrorKind>,
     },
-    #[error("unit construction error: {error}")]
-    UnitBuilderError {
-        #[source]
-        #[from]
-        error: UnitBuilderErrorKind,
-    },
     #[error("{error}")]
     ParseError {
         #[source]
@@ -152,8 +146,6 @@ pub enum CompileErrorKind {
     MissingType { item: Item },
     #[error("missing item `{item}`")]
     MissingItem { item: Item },
-    #[error("label not found in scope")]
-    MissingLabel,
     #[error("cannot load modules using a source without an associated URL")]
     UnsupportedModuleSource,
     #[error("cannot load modules relative to `{root}`")]
@@ -254,4 +246,110 @@ pub enum CompileErrorKind {
     IllegalUseSegment,
     #[error("use aliasing is not supported for wildcard `*` or group imports")]
     UseAliasNotSupported,
+    /// Trying to register a conflicting function.
+    #[error("conflicting function signature already exists `{existing}`")]
+    FunctionConflict {
+        /// The signature of an already existing function.
+        existing: DebugSignature,
+    },
+    /// Tried to register a conflicting constant.
+    #[error("conflicting constant registered for `{item}` on hash `{hash}`")]
+    ConstantConflict {
+        /// The item that was conflicting.
+        item: Item,
+        /// The conflicting hash.
+        hash: Hash,
+    },
+    /// Tried to add an unsupported meta item to a unit.
+    #[error("unsupported meta type for item `{existing}`")]
+    UnsupportedMeta {
+        /// The item used.
+        existing: Item,
+    },
+    /// A static string was missing for the given hash and slot.
+    #[error("missing static string for hash `{hash}` and slot `{slot}`")]
+    StaticStringMissing {
+        /// The hash of the string.
+        hash: Hash,
+        /// The slot of the string.
+        slot: usize,
+    },
+    /// A static byte string was missing for the given hash and slot.
+    #[error("missing static byte string for hash `{hash}` and slot `{slot}`")]
+    StaticBytesMissing {
+        /// The hash of the byte string.
+        hash: Hash,
+        /// The slot of the byte string.
+        slot: usize,
+    },
+    /// A static string was missing for the given hash and slot.
+    #[error(
+        "conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`"
+    )]
+    StaticStringHashConflict {
+        /// The hash of the string.
+        hash: Hash,
+        /// The static string that was inserted.
+        current: String,
+        /// The existing static string that conflicted.
+        existing: String,
+    },
+    /// A static byte string was missing for the given hash and slot.
+    #[error(
+        "conflicting static string for hash `{hash}` between `{existing:?}` and `{current:?}`"
+    )]
+    StaticBytesHashConflict {
+        /// The hash of the byte string.
+        hash: Hash,
+        /// The static byte string that was inserted.
+        current: Vec<u8>,
+        /// The existing static byte string that conflicted.
+        existing: Vec<u8>,
+    },
+    /// A static object keys was missing for the given hash and slot.
+    #[error("missing static object keys for hash `{hash}` and slot `{slot}`")]
+    StaticObjectKeysMissing {
+        /// The hash of the object keys.
+        hash: Hash,
+        /// The slot of the object keys.
+        slot: usize,
+    },
+    /// A static object keys was missing for the given hash and slot.
+    #[error(
+        "conflicting static object keys for hash `{hash}` between `{existing:?}` and `{current:?}`"
+    )]
+    StaticObjectKeysHashConflict {
+        /// The hash of the object keys.
+        hash: Hash,
+        /// The static object keys that was inserted.
+        current: Box<[String]>,
+        /// The existing static object keys that conflicted.
+        existing: Box<[String]>,
+    },
+    /// Tried to add a duplicate label.
+    #[error("duplicate label `{label}`")]
+    DuplicateLabel {
+        /// The duplicate label.
+        label: Label,
+    },
+    /// The specified label is missing.
+    #[error("missing label `{label}`")]
+    MissingLabel {
+        /// The missing label.
+        label: Label,
+    },
+    /// The specified loop label is missing.
+    #[error("missing loop label `{label}`")]
+    MissingLoopLabel {
+        /// The missing label.
+        label: Box<str>,
+    },
+    /// Overflow error.
+    #[error("base offset overflow")]
+    BaseOverflow,
+    /// Overflow error.
+    #[error("offset overflow")]
+    OffsetOverflow,
+    #[error("conflicting import {key}")]
+    ImportConflict { key: ImportKey },
 }
