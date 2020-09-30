@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::indexing::{IndexFnKind, IndexScopes};
+use crate::indexing::{IndexFnKind, IndexScopes, Visibility};
 use crate::load::{SourceLoader, Sources};
 use crate::macros::{MacroCompiler, MacroContext};
 use crate::parsing::Parse;
@@ -256,11 +256,6 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 first,
                 "function attributes are not supported",
             ));
-        } else if !decl_fn.visibility.is_inherited() {
-            return Err(CompileError::internal(
-                &decl_fn.visibility.option_span().unwrap(),
-                "function visibility levels are not supported",
-            ));
         }
 
         let is_toplevel = self.items.is_empty();
@@ -307,6 +302,12 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
         let f = guard.into_function(span)?;
 
+        let visibility = Visibility::from_ast(&decl_fn.visibility);
+        let (id, item) = self
+            .query
+            .insert_item(&*self.items.item(), &self.mod_item, visibility);
+        decl_fn.id = Some(id);
+
         let call = match Self::call(f.generator, f.kind) {
             Some(call) => call,
             // const function.
@@ -318,12 +319,8 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                     ));
                 }
 
-                let id = self.query.insert_item(&*self.items.item());
-                decl_fn.id = id;
-
                 self.query.index_const_fn(
-                    &decl_fn,
-                    id,
+                    &item,
                     self.source.clone(),
                     self.source_id,
                     decl_fn.clone(),
@@ -411,13 +408,10 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 .insert_meta(meta)
                 .map_err(|e| CompileError::new(span, e))?;
         } else {
-            // NB: non toplevel functions can be indexed for later construction.
-            let id = self.query.insert_item(&*self.items.item());
-
             self.query.index(
-                span,
-                id,
+                &item.item,
                 IndexedEntry {
+                    item: item.clone(),
                     span,
                     source: self.source.clone(),
                     source_id: self.source_id,
@@ -461,12 +455,13 @@ impl Index<ast::ExprBlock> for Indexer<'_> {
             }
         };
 
-        let id = self.query.insert_item(&*self.items.item());
-        expr_block.block.id = id;
+        let (id, item) =
+            self.query
+                .insert_item(&*self.items.item(), &self.mod_item, Visibility::Inherited);
+        expr_block.block.id = Some(id);
 
         self.query.index_async_block(
-            &*expr_block,
-            id,
+            &item,
             expr_block.block.clone(),
             captures,
             call,
@@ -855,21 +850,18 @@ impl Index<ast::Item> for Indexer<'_> {
                         first,
                         "enum attributes are not supported",
                     ));
-                } else if !item_enum.visibility.is_inherited() {
-                    return Err(CompileError::internal(
-                        &item_enum.visibility.option_span().unwrap(),
-                        "enum visibility levels are not supported",
-                    ));
                 }
 
                 let name = item_enum.name.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(name.as_ref());
 
-                let enum_id = self.query.insert_item(&*self.items.item());
+                let visibility = Visibility::from_ast(&item_enum.visibility);
+                let (enum_id, enum_item) =
+                    self.query
+                        .insert_item(&*self.items.item(), &self.mod_item, visibility);
 
                 self.query.index_enum(
-                    &*item_enum,
-                    enum_id,
+                    &enum_item,
                     self.source.clone(),
                     self.source_id,
                     item_enum.span(),
@@ -896,12 +888,13 @@ impl Index<ast::Item> for Indexer<'_> {
                     let name = variant.name.resolve(&self.storage, &*self.source)?;
                     let _guard = self.items.push_name(name.as_ref());
 
-                    let id = self.query.insert_item(&*self.items.item());
-                    variant.id = id;
+                    let (id, item) =
+                        self.query
+                            .insert_item(&*self.items.item(), &self.mod_item, visibility);
+                    variant.id = Some(id);
 
                     self.query.index_variant(
-                        &*variant,
-                        id,
+                        &item,
                         enum_id,
                         variant.clone(),
                         self.source.clone(),
@@ -916,11 +909,6 @@ impl Index<ast::Item> for Indexer<'_> {
                         first,
                         "struct attributes are not supported",
                     ));
-                } else if !item_struct.visibility.is_inherited() {
-                    return Err(CompileError::internal(
-                        &item_struct.visibility.option_span().unwrap(),
-                        "struct visibility levels are not supported",
-                    ));
                 }
 
                 for (field, _) in item_struct.body.fields() {
@@ -931,7 +919,7 @@ impl Index<ast::Item> for Indexer<'_> {
                         ));
                     } else if !field.visibility.is_inherited() {
                         return Err(CompileError::internal(
-                            &field.visibility.option_span().unwrap(),
+                            &field,
                             "field visibility levels are not supported",
                         ));
                     }
@@ -940,12 +928,14 @@ impl Index<ast::Item> for Indexer<'_> {
                 let ident = item_struct.ident.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(ident.as_ref());
 
-                let id = self.query.insert_item(&*self.items.item());
-                item_struct.id = id;
+                let visibility = Visibility::from_ast(&item_struct.visibility);
+                let (id, item) =
+                    self.query
+                        .insert_item(&*self.items.item(), &self.mod_item, visibility);
+                item_struct.id = Some(id);
 
                 self.query.index_struct(
-                    &item_struct,
-                    id,
+                    &item,
                     item_struct.clone(),
                     self.source.clone(),
                     self.source_id,
@@ -993,10 +983,10 @@ impl Index<ast::Item> for Indexer<'_> {
                         first,
                         "module attributes are not supported",
                     ));
-                } else if !item_mod.visibility.is_inherited() {
+                } else if !item_mod.visibility.is_public() {
                     return Err(CompileError::internal(
-                        &item_mod.visibility.option_span().unwrap(),
-                        "module visibility levels are not supported",
+                        &item_mod,
+                        "all modules must be public right now",
                     ));
                 }
 
@@ -1028,12 +1018,14 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 self.index(item_const)?;
 
-                let id = self.query.insert_item(&*self.items.item());
-                item_const.id = id;
+                let visibility = Visibility::from_ast(&item_const.visibility);
+                let (id, item) =
+                    self.query
+                        .insert_item(&*self.items.item(), &self.mod_item, visibility);
+                item_const.id = Some(id);
 
                 self.query.index_const(
-                    &item_const,
-                    id,
+                    &item,
                     self.source.clone(),
                     self.source_id,
                     item_const.clone(),
@@ -1163,12 +1155,14 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
             }
         };
 
-        let id = self.query.insert_item(&*self.items.item());
-        expr_closure.id = id;
+        let (id, item) =
+            self.query
+                .insert_item(&*self.items.item(), &self.mod_item, Visibility::Inherited);
+
+        expr_closure.id = Some(id);
 
         self.query.index_closure(
-            &expr_closure,
-            id,
+            &item,
             expr_closure.clone(),
             captures,
             call,
@@ -1319,7 +1313,11 @@ impl Index<ast::ExprCall> for Indexer<'_> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span));
 
-        expr_call.id = self.query.insert_item(&*self.items.item());
+        expr_call.id = Some(
+            self.query
+                .insert_item(&*self.items.item(), &self.mod_item, Visibility::Inherited)
+                .0,
+        );
 
         for (expr, _) in &mut expr_call.args {
             self.index(expr)?;

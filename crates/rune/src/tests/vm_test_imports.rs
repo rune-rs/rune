@@ -5,13 +5,13 @@ fn test_grouped_imports() {
             (i64, bool, bool) => r#"
             use a::{b::*, b::Foo::Baz, c};
 
-            mod a {
-                mod b {
-                    enum Foo { Bar, Baz, }
+            pub mod a {
+                pub mod b {
+                    pub enum Foo { Bar, Baz, }
                 }
             
-                mod c {
-                    const VALUE = 2;
+                pub mod c {
+                    pub const VALUE = 2;
                 }
             }
 

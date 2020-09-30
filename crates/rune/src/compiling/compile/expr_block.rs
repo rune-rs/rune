@@ -12,12 +12,14 @@ impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
 
         let item = self.query.item_for(&expr_block.block)?.clone();
 
-        let meta = match self.lookup_exact_meta(&item, span)? {
+        let meta = match self.lookup_exact_meta(span, &item.item)? {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::MissingType { item: item.clone() },
+                    CompileErrorKind::MissingType {
+                        item: item.item.clone(),
+                    },
                 ));
             }
         };

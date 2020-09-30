@@ -169,6 +169,26 @@ impl Item {
             content: &self.content,
         }
     }
+
+    /// Test if the current item can see another private module.
+    pub fn can_see_private_mod(&self, other: &Self) -> bool {
+        let mut a = self.iter();
+        let mut b = other.iter();
+
+        while let Some(n) = b.next() {
+            let a = match a.next() {
+                Some(a) => a,
+                None => return false,
+            };
+
+            // last component is allowed to be a mismatch.
+            if a != n {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
 /// Format implementation for item.
@@ -749,5 +769,15 @@ mod tests {
             .take(super::MAX_DATA)
             .collect::<String>();
         item.push(ComponentRef::String(&s));
+    }
+
+    #[test]
+    fn test_can_see_private() {
+        assert!(Item::new().can_see_private_mod(&Item::new()));
+        assert!(!Item::new().can_see_private_mod(&Item::of(&["a"])));
+
+        assert!(Item::of(&["a", "b"]).can_see_private_mod(&Item::of(&["a"])));
+        assert!(Item::of(&["a", "b"]).can_see_private_mod(&Item::of(&["a", "b"])));
+        assert!(!Item::of(&["a", "b"]).can_see_private_mod(&Item::of(&["a", "b", "c"])));
     }
 }

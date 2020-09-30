@@ -14,7 +14,7 @@ impl Eval<&ir::Ir> for IrInterpreter<'_> {
             ir::IrKind::Set(ir_set) => self.eval(ir_set, used),
             ir::IrKind::Assign(ir_assign) => self.eval(ir_assign, used),
             ir::IrKind::Template(ir_template) => self.eval(ir_template, used),
-            ir::IrKind::Name(name) => Ok(self.resolve_var(name.as_ref(), ir.span(), used)?),
+            ir::IrKind::Name(name) => Ok(self.resolve_var(ir.span(), name.as_ref(), used)?),
             ir::IrKind::Target(ir_target) => Ok(self.scopes.get_target(ir_target)?),
             ir::IrKind::Value(const_value) => Ok(IrValue::from_const(const_value.clone())),
             ir::IrKind::Branches(branches) => self.eval(branches, used),

@@ -18,6 +18,11 @@ impl Visibility {
     pub const fn is_inherited(&self) -> bool {
         matches!(self, Visibility::Inherited)
     }
+
+    /// Return `true` if the module is public.
+    pub const fn is_public(&self) -> bool {
+        matches!(self, Visibility::Public(..))
+    }
 }
 
 impl Default for Visibility {

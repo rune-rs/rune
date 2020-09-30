@@ -3,6 +3,7 @@
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::compiling::InsertMetaError;
+use crate::indexing::Visibility;
 use crate::ir::ir;
 use crate::ir::{IrBudget, IrInterpreter};
 use crate::ir::{IrCompile as _, IrCompiler};
@@ -83,6 +84,16 @@ pub enum QueryErrorKind {
     MissingId { what: &'static str, id: Option<Id> },
     #[error("found conflicting item `{existing}`")]
     ItemConflict { existing: Item },
+    #[error("{item} with {visibility} visibility, is not visible from here")]
+    NotVisible {
+        visibility: Visibility,
+        item: Item,
+        from: Item,
+    },
+    #[error("missing reverse lookup for `{item}`")]
+    MissingRevItem { item: Item },
+    #[error("missing item for id {id:?}")]
+    MissingRevId { id: Id },
 }
 
 pub(crate) enum Indexed {
@@ -110,14 +121,14 @@ impl Struct {
 
 pub struct Variant {
     /// Id of of the enum type.
-    enum_id: Option<Id>,
+    enum_id: Id,
     /// Ast for declaration.
     ast: ast::ItemVariant,
 }
 
 impl Variant {
     /// Construct a new variant.
-    pub fn new(enum_id: Option<Id>, ast: ast::ItemVariant) -> Self {
+    pub fn new(enum_id: Id, ast: ast::ItemVariant) -> Self {
         Self { enum_id, ast }
     }
 }
@@ -193,6 +204,8 @@ pub(crate) struct BuildEntry {
 }
 
 pub(crate) struct IndexedEntry {
+    /// The query item this indexed entry belongs to.
+    pub(crate) item: Rc<QueryItem>,
     /// The source location of the indexed entry.
     pub(crate) span: Span,
     /// The source of the indexed entry.
@@ -204,10 +217,19 @@ pub(crate) struct IndexedEntry {
 }
 
 /// Query information for a path.
+#[derive(Debug)]
 pub(crate) struct QueryPath {
-    pub(crate) mod_item: Id,
-    pub(crate) impl_item: Option<Id>,
-    pub(crate) item: Id,
+    pub(crate) mod_item: Item,
+    pub(crate) impl_item: Option<Item>,
+    pub(crate) item: Item,
+}
+
+/// Item and the module that the item belongs to.
+#[derive(Debug)]
+pub(crate) struct QueryItem {
+    pub(crate) item: Item,
+    pub(crate) mod_item: Item,
+    pub(crate) visibility: Visibility,
 }
 
 pub(crate) struct Query {
@@ -229,9 +251,9 @@ pub(crate) struct Query {
     ///
     /// These items are associated with AST elements, and encodoes the item path
     /// that the AST element was indexed.
-    items: HashMap<Id, Item>,
+    items: HashMap<Id, Rc<QueryItem>>,
     /// Reverse lookup for items to reduce the number of items used.
-    items_rev: HashMap<Item, Id>,
+    items_rev: HashMap<Item, Rc<QueryItem>>,
     /// Compiled constant functions.
     const_fns: HashMap<Id, Rc<ir::IrFn>>,
     /// Query paths.
@@ -264,12 +286,9 @@ impl Query {
         item: &Item,
     ) -> Option<Id> {
         let query_path = QueryPath {
-            mod_item: self.insert_item(mod_item)?,
-            impl_item: match impl_item {
-                Some(item) => Some(self.insert_item(item)?),
-                None => None,
-            },
-            item: self.insert_item(item)?,
+            mod_item: mod_item.clone(),
+            impl_item: impl_item.cloned().clone(),
+            item: item.clone(),
         };
 
         let id = self.next_id.next()?;
@@ -278,15 +297,23 @@ impl Query {
     }
 
     /// Insert an item and return its Id.
-    pub(crate) fn insert_item(&mut self, item: &Item) -> Option<Id> {
-        if let Some(id) = self.items_rev.get(&item) {
-            return Some(*id);
-        }
+    pub(crate) fn insert_item(
+        &mut self,
+        item: &Item,
+        mod_item: &Item,
+        visibility: Visibility,
+    ) -> (Id, Rc<QueryItem>) {
+        let id = self.next_id.next().expect("ran out of ids");
 
-        let id = self.next_id.next()?;
-        self.items_rev.insert(item.clone(), id);
-        self.items.insert(id, item.clone());
-        Some(id)
+        let query_item = Rc::new(QueryItem {
+            item: item.clone(),
+            mod_item: mod_item.clone(),
+            visibility,
+        });
+
+        self.items_rev.insert(item.clone(), query_item.clone());
+        self.items.insert(id, query_item.clone());
+        (id, query_item)
     }
 
     /// Insert a template and return its Id.
@@ -318,7 +345,7 @@ impl Query {
     }
 
     /// Get the item for the given identifier.
-    pub(crate) fn item_for<T>(&self, ast: T) -> Result<&Item, QueryError>
+    pub(crate) fn item_for<T>(&self, ast: T) -> Result<&Rc<QueryItem>, QueryError>
     where
         T: Spanned + Opaque,
     {
@@ -372,19 +399,15 @@ impl Query {
     }
 
     /// Index a constant expression.
-    pub fn index_const<S>(
+    pub fn index_const(
         &mut self,
-        spanned: S,
-        id: Option<Id>,
+        item: &Rc<QueryItem>,
         source: Arc<Source>,
         source_id: usize,
         item_const: ast::ItemConst,
         span: Span,
-    ) -> Result<(), QueryError>
-    where
-        S: Spanned,
-    {
-        log::trace!("new const: {:?}", id);
+    ) -> Result<(), QueryError> {
+        log::trace!("new const: {:?}", item.item);
 
         let mut ir_compiler = IrCompiler {
             query: self,
@@ -395,9 +418,9 @@ impl Query {
         let ir = ir_compiler.compile(&*item_const.expr)?;
 
         self.index(
-            spanned,
-            id,
+            &item.item,
             IndexedEntry {
+                item: item.clone(),
                 span,
                 source,
                 source_id,
@@ -409,24 +432,20 @@ impl Query {
     }
 
     /// Index a constant function.
-    pub fn index_const_fn<S>(
+    pub fn index_const_fn(
         &mut self,
-        spanned: S,
-        id: Option<Id>,
+        item: &Rc<QueryItem>,
         source: Arc<Source>,
         source_id: usize,
         item_fn: ast::ItemFn,
         span: Span,
-    ) -> Result<(), QueryError>
-    where
-        S: Spanned,
-    {
-        log::trace!("new const fn: {:?}", id);
+    ) -> Result<(), QueryError> {
+        log::trace!("new const fn: {:?}", item.item);
 
         self.index(
-            spanned,
-            id,
+            &item.item,
             IndexedEntry {
+                item: item.clone(),
                 span,
                 source,
                 source_id,
@@ -438,23 +457,19 @@ impl Query {
     }
 
     /// Add a new enum item.
-    pub fn index_enum<S>(
+    pub fn index_enum(
         &mut self,
-        spanned: S,
-        id: Option<Id>,
+        item: &Rc<QueryItem>,
         source: Arc<Source>,
         source_id: usize,
         span: Span,
-    ) -> Result<(), QueryError>
-    where
-        S: Spanned,
-    {
-        log::trace!("new enum: {:?}", id);
+    ) -> Result<(), QueryError> {
+        log::trace!("new enum: {:?}", item.item);
 
         self.index(
-            spanned,
-            id,
+            &item.item,
             IndexedEntry {
+                item: item.clone(),
                 span,
                 source,
                 source_id,
@@ -466,25 +481,20 @@ impl Query {
     }
 
     /// Add a new struct item that can be queried.
-    pub fn index_struct<S>(
+    pub fn index_struct(
         &mut self,
-        spanned: S,
-        id: Option<Id>,
+        item: &Rc<QueryItem>,
         ast: ast::ItemStruct,
         source: Arc<Source>,
         source_id: usize,
-    ) -> Result<(), QueryError>
-    where
-        S: Spanned,
-    {
-        log::trace!("new struct: {:?}", id);
-        let span = ast.span();
+    ) -> Result<(), QueryError> {
+        log::trace!("new struct: {:?}", item);
 
         self.index(
-            spanned,
-            id,
+            &item.item,
             IndexedEntry {
-                span,
+                item: item.clone(),
+                span: ast.span(),
                 source,
                 source_id,
                 indexed: Indexed::Struct(Struct::new(ast)),
@@ -495,25 +505,21 @@ impl Query {
     }
 
     /// Add a new variant item that can be queried.
-    pub fn index_variant<S>(
+    pub fn index_variant(
         &mut self,
-        spanned: S,
-        id: Option<Id>,
-        enum_id: Option<Id>,
+        item: &Rc<QueryItem>,
+        enum_id: Id,
         ast: ast::ItemVariant,
         source: Arc<Source>,
         source_id: usize,
         span: Span,
-    ) -> Result<(), QueryError>
-    where
-        S: Spanned,
-    {
-        log::trace!("new variant: {:?}", id);
+    ) -> Result<(), QueryError> {
+        log::trace!("new variant: {:?}", item);
 
         self.index(
-            spanned,
-            id,
+            &item.item,
             IndexedEntry {
+                item: item.clone(),
                 span,
                 source,
                 source_id,
@@ -525,27 +531,22 @@ impl Query {
     }
 
     /// Add a new function that can be queried for.
-    pub fn index_closure<S>(
+    pub fn index_closure(
         &mut self,
-        spanned: S,
-        id: Option<Id>,
+        item: &Rc<QueryItem>,
         ast: ast::ExprClosure,
         captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
         source: Arc<Source>,
         source_id: usize,
-    ) -> Result<(), QueryError>
-    where
-        S: Spanned,
-    {
-        let span = ast.span();
-        log::trace!("new closure: {:?}", id);
+    ) -> Result<(), QueryError> {
+        log::trace!("new closure: {:?}", item.item);
 
         self.index(
-            spanned,
-            id,
+            &item.item,
             IndexedEntry {
-                span,
+                item: item.clone(),
+                span: ast.span(),
                 source,
                 source_id,
                 indexed: Indexed::Closure(Closure {
@@ -560,27 +561,22 @@ impl Query {
     }
 
     /// Add a new async block.
-    pub fn index_async_block<S>(
+    pub fn index_async_block(
         &mut self,
-        spanned: S,
-        id: Option<Id>,
+        item: &Rc<QueryItem>,
         ast: ast::Block,
         captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
         source: Arc<Source>,
         source_id: usize,
-    ) -> Result<(), QueryError>
-    where
-        S: Spanned,
-    {
-        let span = ast.span();
-        log::trace!("new closure: {:?}", id);
+    ) -> Result<(), QueryError> {
+        log::trace!("new closure: {:?}", item.item);
 
         self.index(
-            spanned,
-            id,
+            &item.item,
             IndexedEntry {
-                span,
+                item: item.clone(),
+                span: ast.span(),
                 source,
                 source_id,
                 indexed: Indexed::AsyncBlock(AsyncBlock {
@@ -595,24 +591,16 @@ impl Query {
     }
 
     /// Index the given element.
-    pub fn index<S>(
-        &mut self,
-        spanned: S,
-        id: Option<Id>,
-        entry: IndexedEntry,
-    ) -> Result<(), QueryError>
-    where
-        S: Spanned,
-    {
-        let item = self.item_for((spanned.span(), id))?.clone();
+    pub fn index(&mut self, item: &Item, entry: IndexedEntry) -> Result<(), QueryError> {
         log::trace!("indexed: {}", item);
-
-        self.unit.insert_name(&item);
+        self.unit.insert_name(item);
 
         if let Some(old) = self.indexed.insert(item.clone(), entry) {
             return Err(QueryError::new(
                 &old.span,
-                QueryErrorKind::ItemConflict { existing: item },
+                QueryErrorKind::ItemConflict {
+                    existing: item.clone(),
+                },
             ));
         }
 
@@ -628,19 +616,19 @@ impl Query {
     ) -> Result<bool, (SourceId, QueryError)> {
         let unused = self
             .indexed
-            .iter()
-            .map(|(item, e)| (item.clone(), (e.span, e.source_id)))
+            .values()
+            .map(|e| (e.item.clone(), e.span, e.source_id))
             .collect::<Vec<_>>();
 
         if unused.is_empty() {
             return Ok(false);
         }
 
-        for (item, (span, source_id)) in unused {
+        for (item, span, source_id) in unused {
             // NB: recursive queries might remove from `indexed`, so we expect
             // to miss things here.
             if let Some(meta) = self
-                .query_meta_with_use(&item, Used::Unused)
+                .query_meta_with_use(span, None, &*item, Used::Unused)
                 .map_err(|e| (source_id, e))?
             {
                 visitor.visit_meta(source_id, &meta, span);
@@ -651,33 +639,91 @@ impl Query {
     }
 
     /// Public query meta which marks things as used.
-    pub(crate) fn query_meta(&mut self, item: &Item) -> Result<Option<CompileMeta>, QueryError> {
-        self.query_meta_with_use(item, Used::Used)
+    pub(crate) fn query_meta(
+        &mut self,
+        spanned: Span,
+        from: Option<&Item>,
+        item: &QueryItem,
+    ) -> Result<Option<CompileMeta>, QueryError> {
+        self.query_meta_with_use(spanned, from, item, Used::Used)
+    }
+
+    /// Public query meta which marks things as used.
+    pub(crate) fn query_meta_by_item(
+        &mut self,
+        spanned: Span,
+        from: Option<&Item>,
+        item: &Item,
+    ) -> Result<Option<CompileMeta>, QueryError> {
+        self.query_meta_with_use_by_item(spanned, from, item, Used::Used)
+    }
+
+    pub(crate) fn query_meta_with_use_by_item(
+        &mut self,
+        spanned: Span,
+        from: Option<&Item>,
+        item: &Item,
+        used: Used,
+    ) -> Result<Option<CompileMeta>, QueryError> {
+        let item = match self.items_rev.get(item) {
+            Some(item) => item.clone(),
+            None => return Ok(None),
+        };
+
+        self.query_meta_with_use(spanned, from, &*item, used)
     }
 
     /// Internal query meta with control over whether or not to mark things as unused.
     pub(crate) fn query_meta_with_use(
         &mut self,
-        item: &Item,
+        spanned: Span,
+        from: Option<&Item>,
+        item: &QueryItem,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        if let Some(meta) = self.unit.lookup_meta(item) {
+        // Test for visibility if from is specified.
+        if let Some(from) = from {
+            match item.visibility {
+                Visibility::Inherited => {
+                    if !from.can_see_private_mod(&item.mod_item) {
+                        return Err(QueryError::new(
+                            spanned,
+                            QueryErrorKind::NotVisible {
+                                visibility: item.visibility,
+                                item: item.item.clone(),
+                                from: from.clone(),
+                            },
+                        ));
+                    }
+
+                    // TODO: test module suffixes.
+                }
+                Visibility::Public => (),
+                Visibility::Crate => (),
+            }
+        }
+
+        if let Some(meta) = self.unit.lookup_meta(&item.item) {
             return Ok(Some(meta));
         }
 
         // See if there's an index entry we can construct.
-        let entry = match self.indexed.remove(item) {
+        let entry = match self.indexed.remove(&item.item) {
             Some(entry) => entry,
             None => return Ok(None),
         };
 
-        Ok(Some(self.build_indexed_entry(item, entry, used)?))
+        Ok(Some(
+            self.build_indexed_entry(spanned, from, item, entry, used)?,
+        ))
     }
 
     /// Build a single, indexed entry and return its metadata.
     pub(crate) fn build_indexed_entry(
         &mut self,
-        item: &Item,
+        spanned: Span,
+        from: Option<&Item>,
+        item: &QueryItem,
         entry: IndexedEntry,
         used: Used,
     ) -> Result<CompileMeta, QueryError> {
@@ -686,26 +732,34 @@ impl Query {
             indexed,
             source,
             source_id,
+            ..
         } = entry;
 
         let path = source.path().map(ToOwned::to_owned);
 
         let kind = match indexed {
             Indexed::Enum => CompileMetaKind::Enum {
-                type_of: Type::from(Hash::type_hash(item)),
-                item: item.clone(),
+                type_of: Type::from(Hash::type_hash(&item.item)),
+                item: item.item.clone(),
             },
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for((entry_span, variant.enum_id))?.clone();
                 // Assert that everything is built for the enum.
-                self.query_meta(&enum_item)?;
-                self.variant_into_item_decl(item, variant.ast.body, Some(&enum_item), &*source)?
+                self.query_meta(spanned, from, &enum_item)?;
+                self.variant_into_item_decl(
+                    &item.item,
+                    variant.ast.body,
+                    Some(&enum_item.item),
+                    &*source,
+                )?
             }
-            Indexed::Struct(st) => self.struct_into_item_decl(item, st.ast.body, None, &*source)?,
+            Indexed::Struct(st) => {
+                self.struct_into_item_decl(&item.item, st.ast.body, None, &*source)?
+            }
             Indexed::Function(f) => {
                 self.queue.push_back(BuildEntry {
                     span: f.ast.span(),
-                    item: item.clone(),
+                    item: item.item.clone(),
                     build: Build::Function(f),
                     source,
                     source_id,
@@ -713,8 +767,8 @@ impl Query {
                 });
 
                 CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(item)),
-                    item: item.clone(),
+                    type_of: Type::from(Hash::type_hash(&item.item)),
+                    item: item.item.clone(),
                 }
             }
             Indexed::Closure(c) => {
@@ -722,7 +776,7 @@ impl Query {
 
                 self.queue.push_back(BuildEntry {
                     span: c.ast.span(),
-                    item: item.clone(),
+                    item: item.item.clone(),
                     build: Build::Closure(c),
                     source,
                     source_id,
@@ -730,8 +784,8 @@ impl Query {
                 });
 
                 CompileMetaKind::Closure {
-                    type_of: Type::from(Hash::type_hash(item)),
-                    item: item.clone(),
+                    type_of: Type::from(Hash::type_hash(&item.item)),
+                    item: item.item.clone(),
                     captures,
                 }
             }
@@ -740,7 +794,7 @@ impl Query {
 
                 self.queue.push_back(BuildEntry {
                     span: b.ast.span(),
-                    item: item.clone(),
+                    item: item.item.clone(),
                     build: Build::AsyncBlock(b),
                     source,
                     source_id,
@@ -748,8 +802,8 @@ impl Query {
                 });
 
                 CompileMetaKind::AsyncBlock {
-                    type_of: Type::from(Hash::type_hash(item)),
-                    item: item.clone(),
+                    type_of: Type::from(Hash::type_hash(&item.item)),
+                    item: item.item.clone(),
                     captures,
                 }
             }
@@ -757,7 +811,7 @@ impl Query {
                 let mut const_compiler = IrInterpreter {
                     budget: IrBudget::new(1_000_000),
                     scopes: Default::default(),
-                    item: item.clone(),
+                    item: item.item.clone(),
                     query: self,
                 };
 
@@ -766,7 +820,7 @@ impl Query {
                 if used.is_unused() {
                     self.queue.push_back(BuildEntry {
                         span: c.ir.span(),
-                        item: item.clone(),
+                        item: item.item.clone(),
                         build: Build::UnusedConst(c),
                         source,
                         source_id,
@@ -776,7 +830,7 @@ impl Query {
 
                 CompileMetaKind::Const {
                     const_value,
-                    item: item.clone(),
+                    item: item.item.clone(),
                 }
             }
             Indexed::ConstFn(c) => {
@@ -791,7 +845,7 @@ impl Query {
                 let id = if used.is_unused() {
                     self.queue.push_back(BuildEntry {
                         span: c.item_fn.span(),
-                        item: item.clone(),
+                        item: item.item.clone(),
                         build: Build::UnusedConstFn(c),
                         source,
                         source_id,
@@ -805,7 +859,7 @@ impl Query {
 
                 CompileMetaKind::ConstFn {
                     id,
-                    item: item.clone(),
+                    item: item.item.clone(),
                 }
             }
         };
