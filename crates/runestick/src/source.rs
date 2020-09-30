@@ -2,6 +2,7 @@ use crate::Span;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::slice;
 
 /// A single source file.
 #[derive(Default, Debug, Clone)]
@@ -34,6 +35,11 @@ impl Source {
         }
     }
 
+    /// Access all line starts in the source.
+    pub fn line_starts(&self) -> &[usize] {
+        &self.line_starts
+    }
+
     /// Load a source from a path.
     pub fn from_path(path: &Path) -> io::Result<Self> {
         let name = path.display().to_string();
@@ -50,6 +56,11 @@ impl Source {
         })
     }
 
+    /// Get the length of the source.
+    pub fn len(&self) -> usize {
+        self.source.len()
+    }
+
     /// Get the name of the source.
     pub fn name(&self) -> &str {
         &self.name
@@ -57,7 +68,15 @@ impl Source {
 
     /// Fetch source for the given span.
     pub fn source(&self, span: Span) -> Option<&'_ str> {
-        self.source.get(span.start..span.end)
+        self.get(span.start..span.end)
+    }
+
+    ///  et the given range from the source.
+    pub fn get<I>(&self, i: I) -> Option<&I::Output>
+    where
+        I: slice::SliceIndex<str>,
+    {
+        self.source.get(i)
     }
 
     /// Get the end of the source.

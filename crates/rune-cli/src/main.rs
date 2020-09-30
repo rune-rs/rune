@@ -528,7 +528,7 @@ async fn do_trace(
             if with_source {
                 let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
                 if let Some((source, span)) = debug_info {
-                    let diagnostics = rune::diagnostics::line_for(source.as_str(), span);
+                    let diagnostics = rune::diagnostics::line_for(source, span);
                     if let Some((count, line)) = diagnostics {
                         writeln!(
                             out,

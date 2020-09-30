@@ -4,7 +4,7 @@ use crate::{
     CompileErrorKind, Error, ErrorKind, Errors, LinkerError, Sources, Spanned as _, WarningKind,
     Warnings,
 };
-use runestick::{Span, Unit, VmError};
+use runestick::{Source, Span, Unit, VmError};
 use std::error::Error as _;
 use std::fmt;
 use std::fmt::Write as _;
@@ -355,18 +355,16 @@ impl EmitDiagnostics for Error {
 }
 
 /// Get the line number and source line for the given source and span.
-pub fn line_for(source: &str, span: Span) -> Option<(usize, &str)> {
-    let mut it = codespan_reporting::files::line_starts(source)
-        .enumerate()
-        .peekable();
+pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str)> {
+    let mut it = source.line_starts().iter().copied().enumerate().peekable();
 
     while let Some((line, start)) = it.next() {
         if let Some((_, end)) = it.peek().copied() {
             if span.start > start && span.start <= end {
-                return Some((line, &source[start..end]));
+                return Some((line, source.get(start..end)?));
             }
         } else if span.start < source.len() {
-            return Some((line, &source[start..]));
+            return Some((line, source.get(start..)?));
         }
     }
 
@@ -402,9 +400,7 @@ impl DumpInstructions for Unit {
             let debug = self.debug_info().and_then(|d| d.instruction_at(n));
 
             if let Some((hash, signature)) = self.debug_info().and_then(|d| d.function_at(n)) {
-                if first_function {
-                    first_function = false;
-                } else {
+                if !std::mem::take(&mut first_function) {
                     writeln!(out)?;
                 }
 
@@ -415,7 +411,7 @@ impl DumpInstructions for Unit {
                 if let Some((source, span)) =
                     debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
                 {
-                    if let Some((count, line)) = self::line_for(source.as_str(), span) {
+                    if let Some((count, line)) = self::line_for(source, span) {
                         writeln!(
                             out,
                             "  {}:{: <3} - {}",
