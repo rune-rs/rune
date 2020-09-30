@@ -205,14 +205,14 @@ impl Import<'_> {
                         ast::PathSegment::SelfType(..) => {
                             return Err(CompileError::new(
                                 path,
-                                CompileErrorKind::UnsupportedSelfType,
+                                CompileErrorKind::ExpectedLeadingPathSegment,
                             ));
                         }
                         ast::PathSegment::SelfValue(self_type) => {
                             if !initial {
                                 return Err(CompileError::new(
                                     self_type,
-                                    CompileErrorKind::UnsupportedSelfValue,
+                                    CompileErrorKind::ExpectedLeadingPathSegment,
                                 ));
                             }
 
@@ -230,7 +230,7 @@ impl Import<'_> {
                             if !initial {
                                 return Err(CompileError::new(
                                     crate_token,
-                                    CompileErrorKind::UnsupportedCrate,
+                                    CompileErrorKind::ExpectedLeadingPathSegment,
                                 ));
                             }
 

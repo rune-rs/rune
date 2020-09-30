@@ -321,6 +321,15 @@ impl EmitDiagnostics for Error {
                             notes.push(note);
                         }
                     }
+                    CompileErrorKind::ImportConflict {
+                        existing: (span, source_id),
+                        ..
+                    } => {
+                        labels.push(
+                            Label::secondary(*source_id, span.start..span.end)
+                                .with_message("previous import here"),
+                        );
+                    }
                     _ => (),
                 }
 
