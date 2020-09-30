@@ -51,9 +51,10 @@
 
 use anyhow::{Context as _, Result};
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{DumpInstructions as _, EmitDiagnostics as _};
+use rune::{DumpInstructions as _, EmitDiagnostics as _, EmitSource as _};
 use std::fs;
 use std::io;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use structopt::StructOpt;
@@ -65,6 +66,16 @@ pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"))
 #[derive(Default, Debug, Clone, StructOpt)]
 #[structopt(name = "rune", about = "The Rune Language Interpreter", version = VERSION)]
 struct Args {
+    /// Control if output is colored or not.
+    ///
+    /// Valid options are:
+    /// * `auto` - try to detect automatically.
+    /// * `ansi` - unconditionally emit ansi control codes.
+    /// * `always` - always enabled.
+    ///
+    /// Anything else will disable coloring.
+    #[structopt(short = "C", long, default_value = "auto")]
+    color: String,
     /// Provide detailed tracing for each instruction executed.
     #[structopt(short, long)]
     trace: bool,
@@ -226,8 +237,23 @@ fn walk_paths(recursive: bool, paths: Vec<PathBuf>) -> impl Iterator<Item = io::
 
 /// Run a single path.
 async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<ExitCode> {
+    let choice = match args.color.as_str() {
+        "always" => ColorChoice::Always,
+        "ansi" => ColorChoice::AlwaysAnsi,
+        "auto" => {
+            if atty::is(atty::Stream::Stdout) {
+                ColorChoice::Auto
+            } else {
+                ColorChoice::Never
+            }
+        }
+        _ => ColorChoice::Never,
+    };
+
+    let mut out = StandardStream::stdout(choice);
+
     if args.test {
-        println!("testing: {}", path.display());
+        writeln!(out, "testing: {}", path.display())?;
     }
 
     let bytecode_path = path.with_extension("rnc");
@@ -279,8 +305,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
             ) {
                 Ok(unit) => unit,
                 Err(rune::LoadSourcesError) => {
-                    let mut writer = StandardStream::stderr(ColorChoice::Always);
-                    errors.emit_diagnostics(&mut writer, &sources)?;
+                    errors.emit_diagnostics(&mut out, &sources)?;
                     return Ok(ExitCode::Failure);
                 }
             };
@@ -292,8 +317,7 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
             }
 
             if !warnings.is_empty() {
-                let mut writer = StandardStream::stderr(ColorChoice::Always);
-                warnings.emit_diagnostics(&mut writer, &sources)?;
+                warnings.emit_diagnostics(&mut out, &sources)?;
             }
 
             Arc::new(unit)
@@ -303,18 +327,18 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     let vm = runestick::Vm::new(context.clone(), unit.clone());
 
     if args.dump_native_functions {
-        println!("# functions");
+        writeln!(out, "# functions")?;
 
         for (i, (hash, f)) in context.iter_functions().enumerate() {
-            println!("{:04} = {} ({})", i, f, hash);
+            writeln!(out, "{:04} = {} ({})", i, f, hash)?;
         }
     }
 
     if args.dump_native_types {
-        println!("# types");
+        writeln!(out, "# types")?;
 
         for (i, (hash, ty)) in context.iter_types().enumerate() {
-            println!("{:04} = {} ({})", i, ty, hash);
+            writeln!(out, "{:04} = {} ({})", i, ty, hash)?;
         }
     }
 
@@ -322,11 +346,8 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         let unit = vm.unit();
 
         if args.dump_instructions {
-            println!("# instructions");
-
-            let out = std::io::stdout();
+            writeln!(out, "# instructions")?;
             let mut out = out.lock();
-
             unit.dump_instructions(&mut out, &sources, args.with_source)?;
         }
 
@@ -336,38 +357,38 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
         let mut keys = unit.iter_static_object_keys().peekable();
 
         if args.dump_functions && functions.peek().is_some() {
-            println!("# dynamic functions");
+            writeln!(out, "# dynamic functions")?;
 
             for (hash, kind) in functions {
                 if let Some(signature) = unit.debug_info().and_then(|d| d.functions.get(&hash)) {
-                    println!("{} = {}", hash, signature);
+                    writeln!(out, "{} = {}", hash, signature)?;
                 } else {
-                    println!("{} = {}", hash, kind);
+                    writeln!(out, "{} = {}", hash, kind)?;
                 }
             }
         }
 
         if args.dump_types && types.peek().is_some() {
-            println!("# dynamic types");
+            writeln!(out, "# dynamic types")?;
 
             for (hash, ty) in types {
-                println!("{} = {}", hash, ty.type_of);
+                writeln!(out, "{} = {}", hash, ty.type_of)?;
             }
         }
 
         if strings.peek().is_some() {
-            println!("# strings");
+            writeln!(out, "# strings")?;
 
             for string in strings {
-                println!("{} = {:?}", string.hash(), string);
+                writeln!(out, "{} = {:?}", string.hash(), string)?;
             }
         }
 
         if keys.peek().is_some() {
-            println!("# object keys");
+            writeln!(out, "# object keys")?;
 
             for (hash, keys) in keys {
-                println!("{} = {:?}", hash, keys);
+                writeln!(out, "{} = {:?}", hash, keys)?;
             }
         }
     }
@@ -381,7 +402,15 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     let mut execution: runestick::VmExecution = vm.execute(&["main"], ())?;
 
     let result = if args.trace {
-        match do_trace(&mut execution, &sources, args.dump_stack, args.with_source).await {
+        match do_trace(
+            &mut out,
+            &mut execution,
+            &sources,
+            args.dump_stack,
+            args.with_source,
+        )
+        .await
+        {
             Ok(value) => Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
             Err(TraceError::VmError(vm)) => Err(vm),
@@ -395,18 +424,18 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
     match result {
         Ok(result) => {
             let duration = std::time::Instant::now().duration_since(last);
-            println!("== {:?} ({:?})", result, duration);
+            writeln!(out, "== {:?} ({:?})", result, duration)?;
             errored = None;
         }
         Err(error) => {
             let duration = std::time::Instant::now().duration_since(last);
-            println!("== ! ({}) ({:?})", error, duration);
+            writeln!(out, "== ! ({}) ({:?})", error, duration)?;
             errored = Some(error);
         }
     };
 
     if args.dump_stack {
-        println!("# full stack dump after halting");
+        writeln!(out, "# full stack dump after halting")?;
 
         let vm = execution.vm()?;
 
@@ -425,28 +454,28 @@ async fn run_path(args: &Args, options: &rune::Options, path: &Path) -> Result<E
                 .get(frame.stack_bottom()..stack_top)
                 .expect("bad stack slice");
 
-            println!("  frame #{} (+{})", count, frame.stack_bottom());
+            writeln!(out, "  frame #{} (+{})", count, frame.stack_bottom())?;
 
             if values.is_empty() {
-                println!("    *empty*");
+                writeln!(out, "    *empty*")?;
             }
 
             for (n, value) in stack.iter().enumerate() {
-                println!("{}+{} = {:?}", frame.stack_bottom(), n, value);
+                writeln!(out, "{}+{} = {:?}", frame.stack_bottom(), n, value)?;
             }
         }
 
         // NB: print final frame
-        println!("  frame #{} (+{})", frames.len(), stack.stack_bottom());
+        writeln!(out, "  frame #{} (+{})", frames.len(), stack.stack_bottom())?;
 
         let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
 
         if values.is_empty() {
-            println!("    *empty*");
+            writeln!(out, "    *empty*")?;
         }
 
         for (n, value) in values.iter().enumerate() {
-            println!("    {}+{} = {:?}", stack.stack_bottom(), n, value);
+            writeln!(out, "    {}+{} = {:?}", stack.stack_bottom(), n, value)?;
         }
     }
 
@@ -495,14 +524,12 @@ impl From<std::io::Error> for TraceError {
 
 /// Perform a detailed trace of the program.
 async fn do_trace(
+    out: &mut StandardStream,
     execution: &mut VmExecution,
     sources: &rune::Sources,
     dump_stack: bool,
     with_source: bool,
 ) -> Result<Value, TraceError> {
-    use std::io::Write as _;
-    let out = std::io::stdout();
-
     let mut current_frame_len = execution
         .vm()
         .map_err(TraceError::VmError)?
@@ -528,16 +555,7 @@ async fn do_trace(
             if with_source {
                 let debug_info = debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)));
                 if let Some((source, span)) = debug_info {
-                    let diagnostics = rune::diagnostics::line_for(source, span);
-                    if let Some((count, line)) = diagnostics {
-                        writeln!(
-                            out,
-                            "  {}:{: <3} - {}",
-                            source.name(),
-                            count + 1,
-                            line.trim_end()
-                        )?;
-                    }
+                    source.emit_source_line(&mut out, span)?;
                 }
             }
 
@@ -555,7 +573,7 @@ async fn do_trace(
                 write!(out, " // {}", comment)?;
             }
 
-            writeln!(out,)?;
+            writeln!(out)?;
         }
 
         let result = match execution.async_step().await {
@@ -573,9 +591,9 @@ async fn do_trace(
 
             if current_frame_len != frames.len() {
                 if current_frame_len < frames.len() {
-                    println!("=> frame {} ({}):", frames.len(), stack.stack_bottom());
+                    writeln!(out, "=> frame {} ({}):", frames.len(), stack.stack_bottom())?;
                 } else {
-                    println!("<= frame {} ({}):", frames.len(), stack.stack_bottom());
+                    writeln!(out, "<= frame {} ({}):", frames.len(), stack.stack_bottom())?;
                 }
 
                 current_frame_len = frames.len();
@@ -584,7 +602,7 @@ async fn do_trace(
             let values = stack.get(stack.stack_bottom()..).expect("bad stack slice");
 
             if values.is_empty() {
-                println!("    *empty*");
+                writeln!(out, "    *empty*")?;
             }
 
             for (n, value) in values.iter().enumerate() {

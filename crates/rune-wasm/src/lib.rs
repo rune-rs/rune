@@ -314,10 +314,10 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
     };
 
     let instructions = if config.instructions {
-        let mut out = Vec::new();
+        let mut out = rune::termcolor::Buffer::no_color();
         unit.dump_instructions(&mut out, &sources, false)
             .expect("dumping to string shouldn't fail");
-        Some(String::from_utf8(out).context("converting instructions to UTF-8")?)
+        Some(diagnostics_output(out).context("converting instructions to UTF-8")?)
     } else {
         None
     };

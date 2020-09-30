@@ -291,7 +291,7 @@ pub use compiling::compile;
 pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
 #[cfg(feature = "diagnostics")]
-pub use diagnostics::{termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics};
+pub use diagnostics::{termcolor, DiagnosticsError, DumpInstructions, EmitDiagnostics, EmitSource};
 
 /// Parse the given input as the given type that implements
 /// [Parse][crate::traits::Parse].

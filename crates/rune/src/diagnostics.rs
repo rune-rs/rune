@@ -355,25 +355,31 @@ impl EmitDiagnostics for Error {
 }
 
 /// Get the line number and source line for the given source and span.
-pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str)> {
-    let mut it = source.line_starts().iter().copied().enumerate().peekable();
+pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
+    let line_starts = source.line_starts();
 
-    while let Some((line, start)) = it.next() {
-        if let Some((_, end)) = it.peek().copied() {
-            if span.start > start && span.start <= end {
-                return Some((line, source.get(start..end)?));
-            }
-        } else if span.start < source.len() {
-            return Some((line, source.get(start..)?));
-        }
-    }
+    let line = match line_starts.binary_search(&span.start) {
+        Ok(n) => n,
+        Err(n) => n.saturating_sub(1),
+    };
 
-    None
+    let start = *line_starts.get(line)?;
+    let end = line.checked_add(1)?;
+
+    let s = if let Some(end) = line_starts.get(end) {
+        source.get(start..*end)?
+    } else {
+        source.get(start..)?
+    };
+
+    Some((line, s, Span::new(span.start - start, span.end - start)))
 }
 
-/// Trait to dump a unit to the given writer.
+/// Trait to dump the instructions of a unit to the given writer.
+///
+/// This is implemented for [Unit].
 pub trait DumpInstructions {
-    /// Dump the current unit to the given writer.
+    /// Dump the instructions of the current unit to the given writer.
     fn dump_instructions<O>(
         &self,
         out: &mut O,
@@ -381,7 +387,7 @@ pub trait DumpInstructions {
         with_source: bool,
     ) -> io::Result<()>
     where
-        O: io::Write;
+        O: WriteColor;
 }
 
 impl DumpInstructions for Unit {
@@ -392,7 +398,7 @@ impl DumpInstructions for Unit {
         with_source: bool,
     ) -> io::Result<()>
     where
-        O: io::Write,
+        O: WriteColor,
     {
         let mut first_function = true;
 
@@ -411,15 +417,7 @@ impl DumpInstructions for Unit {
                 if let Some((source, span)) =
                     debug.and_then(|d| sources.get(d.source_id).map(|s| (s, d.span)))
                 {
-                    if let Some((count, line)) = self::line_for(source, span) {
-                        writeln!(
-                            out,
-                            "  {}:{: <3} - {}",
-                            source.name(),
-                            count + 1,
-                            line.trim_end()
-                        )?;
-                    }
+                    source.emit_source_line(out, span)?;
                 }
             }
 
@@ -431,6 +429,53 @@ impl DumpInstructions for Unit {
 
             if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
                 write!(out, " // {}", comment)?;
+            }
+
+            writeln!(out)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Helper trait to emit source code locations.
+///
+/// These are implemented for [Source], so that you can print diagnostics about
+/// a source conveniently.
+pub trait EmitSource {
+    /// Emit the source location as a single line of the given writer.
+    fn emit_source_line<O>(&self, out: &mut O, span: Span) -> io::Result<()>
+    where
+        O: WriteColor;
+}
+
+impl EmitSource for Source {
+    fn emit_source_line<O>(&self, out: &mut O, span: Span) -> io::Result<()>
+    where
+        O: WriteColor,
+    {
+        let mut highlight = termcolor::ColorSpec::new();
+        highlight.set_fg(Some(termcolor::Color::Blue));
+
+        let diagnostics = line_for(self, span);
+
+        if let Some((count, line, span)) = diagnostics {
+            let line = line.trim_end();
+            let end = usize::min(span.end, line.len());
+
+            let before = &line[0..span.start];
+            let inner = &line[span.start..end];
+            let after = &line[end..];
+
+            write!(out, "  {}:{: <3} - {}", self.name(), count + 1, before,)?;
+
+            out.set_color(&highlight)?;
+            write!(out, "{}", inner)?;
+            out.reset()?;
+            write!(out, "{}", after)?;
+
+            if span.end != end {
+                write!(out, " .. trimmed")?;
             }
 
             writeln!(out)?;
