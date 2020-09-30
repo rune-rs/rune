@@ -189,6 +189,39 @@ impl Item {
 
         true
     }
+
+    /// Get the differing suffix from self to other.
+    pub fn module_difference(&self, other: &Self) -> (Self, Self) {
+        let mut a = self.iter();
+        let mut b = other.iter();
+
+        let mut shared = Item::new();
+        let mut suffix = Item::new();
+
+        while let Some(n) = b.next() {
+            let a = match a.next() {
+                Some(a) => a,
+                None => {
+                    suffix.push(n);
+                    return (shared, suffix);
+                }
+            };
+
+            // last component is allowed to be a mismatch.
+            if a != n {
+                suffix.push(n);
+                break;
+            }
+
+            shared.push(a);
+        }
+
+        for n in b {
+            suffix.push(n);
+        }
+
+        (shared, suffix)
+    }
 }
 
 /// Format implementation for item.
@@ -779,5 +812,21 @@ mod tests {
         assert!(Item::of(&["a", "b"]).can_see_private_mod(&Item::of(&["a"])));
         assert!(Item::of(&["a", "b"]).can_see_private_mod(&Item::of(&["a", "b"])));
         assert!(!Item::of(&["a", "b"]).can_see_private_mod(&Item::of(&["a", "b", "c"])));
+    }
+
+    #[test]
+    fn test_module_difference() {
+        assert_eq!(
+            (Item::new(), Item::new()),
+            Item::new().module_difference(&Item::new())
+        );
+        assert_eq!(
+            (Item::new(), Item::of(&["a"])),
+            Item::new().module_difference(&Item::of(&["a"]))
+        );
+        assert_eq!(
+            (Item::of(&["a"]), Item::of(&["b"])),
+            Item::of(&["a"]).module_difference(&Item::of(&["a", "b"]))
+        );
     }
 }

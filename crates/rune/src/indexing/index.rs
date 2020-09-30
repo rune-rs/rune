@@ -188,6 +188,9 @@ impl<'a> Indexer<'a> {
         };
 
         let item = self.items.item();
+        let visibility = Visibility::from_ast(&item_mod.visibility);
+        item_mod.id = Some(self.query.insert_mod(&*item, visibility));
+
         let source = self.source_loader.load(root, &*item, span)?;
 
         if let Some(existing) = self.loaded.insert(item.clone(), (self.source_id, span)) {
@@ -983,11 +986,6 @@ impl Index<ast::Item> for Indexer<'_> {
                         first,
                         "module attributes are not supported",
                     ));
-                } else if !item_mod.visibility.is_public() {
-                    return Err(CompileError::internal(
-                        &item_mod,
-                        "all modules must be public right now",
-                    ));
                 }
 
                 match &mut item_mod.body {
@@ -997,8 +995,12 @@ impl Index<ast::Item> for Indexer<'_> {
                     ast::ItemModBody::InlineBody(body) => {
                         let name = item_mod.name.resolve(&self.storage, &*self.source)?;
                         let _guard = self.items.push_name(name.as_ref());
-                        let replaced =
-                            std::mem::replace(&mut self.mod_item, self.items.item().clone());
+
+                        let module_item = self.items.item().clone();
+                        let visibility = Visibility::from_ast(&item_mod.visibility);
+                        item_mod.id = Some(self.query.insert_mod(&module_item, visibility));
+
+                        let replaced = std::mem::replace(&mut self.mod_item, module_item);
                         self.index(&mut *body.file)?;
                         self.mod_item = replaced;
                     }

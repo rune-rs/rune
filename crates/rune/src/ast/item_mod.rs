@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use runestick::Id;
 
 /// A module item.
 ///
@@ -19,6 +20,9 @@ use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct ItemMod {
+    /// The id of the module item.
+    #[rune(id)]
+    pub id: Option<Id>,
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
@@ -41,6 +45,7 @@ impl ItemMod {
         visibility: ast::Visibility,
     ) -> Result<Self, ParseError> {
         Ok(Self {
+            id: Default::default(),
             attributes,
             visibility,
             mod_: parser.parse()?,
