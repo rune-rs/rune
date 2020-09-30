@@ -8,9 +8,9 @@ pub struct Path {
     /// Opaque id associated with path.
     #[rune(id)]
     pub id: Option<Id>,
-    /// The optional leading colon `::`
+    /// The optional leading colon `::` indicating global scope.
     #[rune(iter)]
-    pub leading_colon: Option<ast::Scope>,
+    pub global: Option<ast::Scope>,
     /// The first component in the path.
     pub first: PathSegment,
     /// The rest of the components in the path.
@@ -24,7 +24,7 @@ pub struct Path {
 impl Path {
     /// Identify the kind of the path.
     pub fn as_kind(&self) -> Option<PathKind> {
-        if self.rest.is_empty() && self.trailing.is_none() && self.leading_colon.is_none() {
+        if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
             match self.first {
                 PathSegment::SelfValue(..) => Some(PathKind::SelfValue),
                 PathSegment::Ident(ident) => Some(PathKind::Ident(ident)),
@@ -40,7 +40,7 @@ impl Path {
     /// This is only allowed if there are no other path components
     /// and the PathSegment is not `Crate` or `Super`.
     pub fn try_as_ident(&self) -> Option<&ast::Ident> {
-        if self.rest.is_empty() && self.trailing.is_none() && self.leading_colon.is_none() {
+        if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
             self.first.try_as_ident()
         } else {
             None
@@ -52,7 +52,7 @@ impl Path {
     /// This is only allowed if there are no other path components
     /// and the PathSegment is not `Crate` or `Super`.
     pub fn try_as_ident_mut(&mut self) -> Option<&mut ast::Ident> {
-        if self.rest.is_empty() && self.trailing.is_none() && self.leading_colon.is_none() {
+        if self.rest.is_empty() && self.trailing.is_none() && self.global.is_none() {
             self.first.try_as_ident_mut()
         } else {
             None
