@@ -180,6 +180,13 @@ impl Import<'_> {
         queue.push_back((Item::new(), &self.ast.path, true));
 
         while let Some((mut name, path, mut initial)) = queue.pop_front() {
+            if let Some(global) = &path.global {
+                return Err(CompileError::internal(
+                    global,
+                    "global imports are not supported",
+                ));
+            }
+
             let span = path.span();
 
             let mut it = Some(&path.first)
