@@ -21,7 +21,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 /// The key of an import.
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImportKey {
     /// Where the import is located.
     pub item: Item,
@@ -50,6 +50,12 @@ impl ImportKey {
             item: Item::new(),
             component: component.into_component(),
         }
+    }
+}
+
+impl fmt::Display for ImportKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}::{}", self.item, self.component)
     }
 }
 
@@ -482,15 +488,16 @@ impl UnitBuilder {
     }
 
     /// Declare a new import.
-    pub(crate) fn new_import<A>(
+    pub(crate) fn new_import<S, A>(
         &self,
+        spanned: S,
         at: Item,
         path: Item,
         alias: Option<A>,
-        span: Span,
         source_id: usize,
     ) -> Result<(), UnitBuilderError>
     where
+        S: Spanned,
         A: IntoComponent,
     {
         let mut inner = self.inner.borrow_mut();
@@ -504,10 +511,15 @@ impl UnitBuilder {
 
             let entry = ImportEntry {
                 item: path.clone(),
-                span: Some((span, source_id)),
+                span: Some((spanned.span(), source_id)),
             };
 
-            inner.imports.insert(key, entry);
+            if let Some(..) = inner.imports.insert(key.clone(), entry) {
+                return Err(UnitBuilderError::new(
+                    spanned,
+                    UnitBuilderErrorKind::ImportConflict { key },
+                ));
+            }
         }
 
         Ok(())
@@ -1237,6 +1249,8 @@ pub enum UnitBuilderErrorKind {
     /// Overflow error.
     #[error("offset overflow")]
     OffsetOverflow,
+    #[error("conflicting import {key}")]
+    ImportConflict { key: ImportKey },
 }
 
 /// Errors raised when building a new unit.

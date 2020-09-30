@@ -250,4 +250,8 @@ pub enum CompileErrorKind {
     UnsupportedSuper,
     #[error("`super` can't be used in paths starting with `Self`")]
     UnsupportedSuperInSelfType,
+    #[error("another segment can't follow wildcard `*` or group imports")]
+    IllegalUseSegment,
+    #[error("use aliasing is not supported for wildcard `*` or group imports")]
+    UseAliasNotSupported,
 }
