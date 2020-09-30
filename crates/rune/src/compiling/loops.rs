@@ -87,7 +87,12 @@ impl Loops {
             }
         }
 
-        Err(CompileError::new(span, CompileErrorKind::MissingLabel))
+        Err(CompileError::new(
+            span,
+            CompileErrorKind::MissingLoopLabel {
+                label: expected.as_ref().into(),
+            },
+        ))
     }
 
     /// Construct an iterator over all available scopes.
