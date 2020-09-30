@@ -398,6 +398,13 @@ impl UnitBuilder {
         storage: &Storage,
         source: &Source,
     ) -> CompileResult<Named> {
+        if let Some(global) = &path.global {
+            return Err(CompileError::internal(
+                global,
+                "global scopes are not supported yet",
+            ));
+        }
+
         let inner = self.inner.borrow();
         let mut in_self_type = false;
 
@@ -482,7 +489,7 @@ impl UnitBuilder {
 
         Ok(Named {
             imported,
-            local: path.leading_colon.is_none() && path.rest.is_empty(),
+            local: path.global.is_none() && path.rest.is_empty(),
             item,
         })
     }

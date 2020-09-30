@@ -964,6 +964,13 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 let mut guards = Vec::new();
 
+                if let Some(global) = &item_impl.path.global {
+                    return Err(CompileError::internal(
+                        global,
+                        "global scopes are not supported yet",
+                    ));
+                }
+
                 for path_segment in item_impl.path.into_components() {
                     let ident_segment = path_segment
                         .try_as_ident()
