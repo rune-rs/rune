@@ -1,18 +1,16 @@
 //! Macro compiler.
 
 use crate::macros::{MacroContext, Storage, TokenStream};
-use crate::query::{Query, QueryMod};
+use crate::query::Query;
 use crate::CompileResult;
 use crate::{
     ast, CompileError, CompileErrorKind, Options, Parse, ParseError, Parser, Spanned as _,
 };
-use runestick::{Context, Hash, Item, Source};
+use runestick::{Context, Hash, Source};
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
     pub(crate) storage: Storage,
-    pub(crate) item: &'a Item,
-    pub(crate) mod_item: &'a QueryMod,
     pub(crate) macro_context: &'a mut MacroContext,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
@@ -37,14 +35,9 @@ impl MacroCompiler<'_> {
 
         // TODO: include information on the module the macro is being called
         // from.
-        let named = self.query.convert_path(
-            &self.item,
-            self.mod_item,
-            None,
-            &macro_call.path,
-            &self.storage,
-            &*self.source,
-        )?;
+        let named = self
+            .query
+            .convert_path(&macro_call.path, &self.storage, &*self.source)?;
 
         let hash = Hash::type_hash(&named.item);
 

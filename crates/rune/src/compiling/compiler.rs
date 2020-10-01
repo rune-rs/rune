@@ -2,7 +2,7 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, Compile as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
-use crate::query::{Named, Query, QueryConstFn, QueryItem, QueryPath, Used};
+use crate::query::{Named, Query, QueryConstFn, QueryItem, Used};
 use crate::CompileResult;
 use crate::{
     CompileError, CompileErrorKind, Options, Resolve as _, Spanned, Storage, UnitBuilder, Warnings,
@@ -11,7 +11,6 @@ use runestick::{
     CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label, Source, Span,
     TypeCheck,
 };
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// A needs hint for an expression.
@@ -65,17 +64,14 @@ impl<'a> Compiler<'a> {
     pub fn lookup_meta(
         &mut self,
         spanned: Span,
-        query_path: &QueryPath,
         named: &Named,
     ) -> CompileResult<Option<CompileMeta>> {
         log::trace!("lookup meta: {:?}", named.item);
 
-        if let Some(meta) = self.query.query_meta(
-            spanned,
-            Some(&query_path.mod_item),
-            &named.item,
-            Default::default(),
-        )? {
+        if let Some(meta) = self
+            .query
+            .query_meta(spanned, &named.item, Default::default())?
+        {
             log::trace!("found in query: {:?}", meta);
             self.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));
@@ -104,10 +100,7 @@ impl<'a> Compiler<'a> {
             return Ok(Some(meta));
         }
 
-        if let Some(meta) = self
-            .query
-            .query_meta(spanned, None, name, Default::default())?
-        {
+        if let Some(meta) = self.query.query_meta(spanned, name, Default::default())? {
             log::trace!("found in query: {:?}", meta);
             self.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));
@@ -242,22 +235,12 @@ impl<'a> Compiler<'a> {
     }
 
     /// Convert a path to an item.
-    pub(crate) fn convert_path_to_named(
-        &mut self,
-        path: &ast::Path,
-    ) -> CompileResult<(Rc<QueryPath>, Named)> {
-        let query_path = self.query.path_for(path)?.clone();
+    pub(crate) fn convert_path_to_named(&mut self, path: &ast::Path) -> CompileResult<Named> {
+        let named = self
+            .query
+            .convert_path(path, &self.storage, &*self.source)?;
 
-        let named = self.query.convert_path(
-            &query_path.item,
-            &query_path.mod_item,
-            query_path.impl_item.as_deref(),
-            path,
-            &self.storage,
-            &*self.source,
-        )?;
-
-        Ok((query_path.clone(), named))
+        Ok(named)
     }
 
     pub(crate) fn compile_condition(
@@ -367,9 +350,9 @@ impl<'a> Compiler<'a> {
         let offset = self.scopes.decl_anon(span)?;
 
         let type_check = if let Some(path) = &pat_tuple.path {
-            let (query_path, named) = self.convert_path_to_named(path)?;
+            let named = self.convert_path_to_named(path)?;
 
-            let meta = match self.lookup_meta(path.span(), &*query_path, &named)? {
+            let meta = match self.lookup_meta(path.span(), &named)? {
                 Some(meta) => meta,
                 None => {
                     return Err(CompileError::new(
@@ -502,9 +485,9 @@ impl<'a> Compiler<'a> {
             ast::LitObjectIdent::Named(path) => {
                 let span = path.span();
 
-                let (query_path, named) = self.convert_path_to_named(path)?;
+                let named = self.convert_path_to_named(path)?;
 
-                let meta = match self.lookup_meta(span, &*query_path, &named)? {
+                let meta = match self.lookup_meta(span, &named)? {
                     Some(meta) => meta,
                     None => {
                         return Err(CompileError::new(
@@ -681,9 +664,9 @@ impl<'a> Compiler<'a> {
             ast::Pat::PatPath(path) => {
                 let span = path.span();
 
-                let (query_path, named) = self.convert_path_to_named(&path.path)?;
+                let named = self.convert_path_to_named(&path.path)?;
 
-                if let Some(meta) = self.lookup_meta(span, &*query_path, &named)? {
+                if let Some(meta) = self.lookup_meta(span, &named)? {
                     if self.compile_pat_meta_binding(span, &meta, false_label, load)? {
                         return Ok(true);
                     }

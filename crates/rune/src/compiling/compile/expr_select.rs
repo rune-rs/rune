@@ -65,9 +65,9 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
             loop {
                 match &branch.pat {
                     ast::Pat::PatPath(path) => {
-                        let (_, item) = self.convert_path_to_named(&path.path)?;
+                        let named = self.convert_path_to_named(&path.path)?;
 
-                        if let Some(local) = item.as_local() {
+                        if let Some(local) = named.as_local() {
                             self.scopes.decl_var(local, path.span())?;
                             break;
                         }

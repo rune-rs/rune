@@ -68,7 +68,7 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
 
         let meta = self
             .query
-            .query_meta_with(span, None, &item, Default::default())?
+            .query_meta_with(span, &item, Default::default())?
             .ok_or_else(|| {
                 CompileError::new(
                     span,

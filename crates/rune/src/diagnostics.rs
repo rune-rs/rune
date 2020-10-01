@@ -1,8 +1,8 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
 use crate::{
-    CompileErrorKind, Error, ErrorKind, Errors, LinkerError, Sources, Spanned as _, WarningKind,
-    Warnings,
+    CompileErrorKind, Error, ErrorKind, Errors, LinkerError, QueryErrorKind, Sources, Spanned as _,
+    WarningKind, Warnings,
 };
 use runestick::{Source, Span, Unit, VmError};
 use std::error::Error as _;
@@ -330,7 +330,14 @@ impl EmitDiagnostics for Error {
                                 .with_message("previous import here"),
                         );
                     }
-                    CompileErrorKind::ImportCycle { path } => {
+                    _ => (),
+                }
+
+                error.span()
+            }
+            ErrorKind::QueryError(error) => {
+                match error.kind() {
+                    QueryErrorKind::ImportCycle { path } => {
                         let mut it = path.into_iter();
                         let last = it.next_back();
 
@@ -356,7 +363,6 @@ impl EmitDiagnostics for Error {
 
                 error.span()
             }
-            ErrorKind::QueryError(error) => error.span(),
         };
 
         if let Some(e) = self.kind().source() {

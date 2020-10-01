@@ -49,9 +49,9 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
 
         match &lit_object.ident {
             ast::LitObjectIdent::Named(path) => {
-                let (query_path, named) = self.convert_path_to_named(path)?;
+                let named = self.convert_path_to_named(path)?;
 
-                let meta = match self.lookup_meta(path.span(), &*query_path, &named)? {
+                let meta = match self.lookup_meta(path.span(), &named)? {
                     Some(meta) => meta,
                     None => {
                         return Err(CompileError::new(

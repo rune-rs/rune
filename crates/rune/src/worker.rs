@@ -195,9 +195,12 @@ impl Import<'_> {
                 .into_iter()
                 .chain(path.segments.iter().map(|(_, s)| s));
 
-            let mut unsupported_alias = None;
+            let complete = loop {
+                let segment = match it.next() {
+                    Some(segment) => segment,
+                    None => break None,
+                };
 
-            while let Some(segment) = it.next() {
                 // Only the first ever segment loaded counts as the initial
                 // segment.
                 let initial = std::mem::take(&mut initial);
@@ -253,11 +256,13 @@ impl Import<'_> {
                             for c in context.iter_components(&name) {
                                 query.insert_import(
                                     span,
+                                    mod_item,
                                     self.visibility,
                                     self.item.clone(),
                                     name.extended(c),
                                     None::<&str>,
                                     self.source_id,
+                                    true,
                                 )?;
                             }
 
@@ -273,22 +278,21 @@ impl Import<'_> {
                             span,
                             source_id: self.source_id,
                             was_in_context,
+                            mod_item: mod_item.clone(),
                         };
 
                         wildcard_expand(wildcard_expander);
-                        unsupported_alias = Some(star_token.span());
-                        break;
+                        break Some(star_token.span());
                     }
                     ast::ItemUseSegment::Group(group) => {
                         for (path, _) in group {
                             queue.push_back((name.clone(), path, initial));
                         }
 
-                        unsupported_alias = Some(group.span());
-                        break;
+                        break Some(group.span());
                     }
                 }
-            }
+            };
 
             if let Some(segment) = it.next() {
                 return Err(CompileError::new(
@@ -299,7 +303,7 @@ impl Import<'_> {
 
             let alias = match path.alias {
                 Some((_, ident)) => {
-                    if let Some(span) = unsupported_alias {
+                    if let Some(span) = complete {
                         return Err(CompileError::new(
                             span.join(ident.span()),
                             CompileErrorKind::UseAliasNotSupported,
@@ -311,14 +315,18 @@ impl Import<'_> {
                 None => None,
             };
 
-            query.insert_import(
-                span,
-                self.visibility,
-                self.item.clone(),
-                name,
-                alias,
-                self.source_id,
-            )?;
+            if complete.is_none() {
+                query.insert_import(
+                    span,
+                    mod_item,
+                    self.visibility,
+                    self.item.clone(),
+                    name,
+                    alias,
+                    self.source_id,
+                    false,
+                )?;
+            }
         }
 
         Ok(())
@@ -334,6 +342,7 @@ pub(crate) struct ExpandUnitWildcard {
     source_id: SourceId,
     /// Indicates if any wildcards were expanded from context.
     was_in_context: bool,
+    mod_item: Rc<QueryMod>,
 }
 
 impl ExpandUnitWildcard {
@@ -349,11 +358,13 @@ impl ExpandUnitWildcard {
 
                 query.insert_import(
                     self.span,
+                    &self.mod_item,
                     self.visibility,
                     self.from.clone(),
                     name,
                     None::<&str>,
                     self.source_id,
+                    true,
                 )?;
             }
 

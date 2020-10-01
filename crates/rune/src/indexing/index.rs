@@ -51,16 +51,19 @@ pub(crate) struct Indexer<'a> {
 
 impl<'a> Indexer<'a> {
     /// Perform a macro expansion.
-    fn expand_macro<T>(&mut self, ast: &ast::MacroCall) -> Result<T, CompileError>
+    fn expand_macro<T>(&mut self, ast: &mut ast::MacroCall) -> Result<T, CompileError>
     where
         T: Parse,
     {
+        let id =
+            self.query
+                .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
+        ast.path.id = Some(id);
+
         let mut macro_context = MacroContext::new(self.query.storage.clone(), self.source.clone());
 
         let mut compiler = MacroCompiler {
             storage: self.query.storage.clone(),
-            item: &*self.items.item(),
-            mod_item: &self.mod_item,
             macro_context: &mut macro_context,
             options: self.options,
             context: self.context,
@@ -68,7 +71,9 @@ impl<'a> Indexer<'a> {
             query: self.query,
         };
 
-        Ok(compiler.eval_macro::<T>(ast)?)
+        let expanded = compiler.eval_macro::<T>(ast)?;
+        self.query.remove_path_by_id(ast.path.id);
+        Ok(expanded)
     }
 
     /// pre-process uses and expand item macros.
@@ -106,8 +111,8 @@ impl<'a> Indexer<'a> {
                         },
                     )?;
                 }
-                ast::Item::MacroCall(macro_call) => {
-                    let file = self.expand_macro::<ast::File>(&macro_call)?;
+                ast::Item::MacroCall(mut macro_call) => {
+                    let file = self.expand_macro::<ast::File>(&mut macro_call)?;
 
                     for entry in file.items.into_iter().rev() {
                         queue.push_front(entry);
@@ -150,8 +155,8 @@ impl<'a> Indexer<'a> {
                         },
                     )?;
                 }
-                ast::Stmt::Item(ast::Item::MacroCall(macro_call), _) => {
-                    let out = self.expand_macro::<Vec<ast::Stmt>>(&macro_call)?;
+                ast::Stmt::Item(ast::Item::MacroCall(mut macro_call), _) => {
+                    let out = self.expand_macro::<Vec<ast::Stmt>>(&mut macro_call)?;
 
                     for stmt in out.into_iter().rev() {
                         queue.push_front(stmt);
@@ -1084,9 +1089,10 @@ impl Index<ast::Path> for Indexer<'_> {
         let span = path.span();
         log::trace!("Path => {:?}", self.source.source(span));
 
-        path.id =
+        let id =
             self.query
                 .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
+        path.id = Some(id);
 
         match path.as_kind() {
             Some(ast::PathKind::SelfValue) => {
