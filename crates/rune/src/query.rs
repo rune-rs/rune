@@ -746,7 +746,7 @@ impl Query {
         let meta = self.build_indexed_entry(spanned, from, item, entry, used)?;
 
         self.unit
-            .insert_meta(meta.clone())
+            .insert_meta(item.item.clone(), meta.clone())
             .map_err(|error| QueryError::new(spanned, error))?;
 
         Ok(Some(meta))

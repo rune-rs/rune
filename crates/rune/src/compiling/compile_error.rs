@@ -171,8 +171,8 @@ pub enum CompileErrorKind {
     UnsupportedUnaryOp { op: ast::UnaryOp },
     #[error("unsupported binary operator `{op}`")]
     UnsupportedBinaryOp { op: ast::BinOp },
-    #[error("type `{item}` is not an object")]
-    UnsupportedLitObject { item: Item },
+    #[error("{meta} is not an object")]
+    UnsupportedLitObject { meta: CompileMeta },
     #[error("missing field `{field}` in declaration of `{item}`")]
     LitObjectMissingField { field: String, item: Item },
     #[error("`{field}` is not a field in `{item}`")]
