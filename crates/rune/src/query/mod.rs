@@ -2,96 +2,37 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::compiling::{ImportEntryStep, InsertMetaError};
 use crate::indexing::Visibility;
 use crate::ir::ir;
 use crate::ir::{IrBudget, IrInterpreter};
 use crate::ir::{IrCompile as _, IrCompiler};
 use crate::parsing::Opaque;
-use crate::shared::Consts;
+use crate::shared::{Consts, Location};
 use crate::{
-    CompileError, CompileErrorKind, CompileVisitor, Id, IrError, IrErrorKind, ParseError,
-    ParseErrorKind, Resolve as _, Spanned, Storage, UnitBuilder,
+    CompileError, CompileErrorKind, CompileVisitor, Id, Resolve as _, Spanned, Storage, UnitBuilder,
 };
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
-    CompileMetaTuple, CompileSource, Component, ComponentRef, Hash, IntoComponent, Item, Names,
-    Source, SourceId, Span, Type,
+    CompileMetaTuple, CompileSource, ComponentRef, Hash, IntoComponent, Item, Names, Source,
+    SourceId, Span, Type,
 };
 use std::collections::VecDeque;
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
-use thiserror::Error;
 
-error! {
-    /// An error raised during querying.
-    #[derive(Debug)]
-    pub struct QueryError {
-        kind: QueryErrorKind,
-    }
+mod imports;
+mod query_error;
 
-    impl From<IrError>;
-    impl From<CompileError>;
-    impl From<ParseError>;
-}
+pub use self::imports::ImportKey;
+pub use self::query_error::{QueryError, QueryErrorKind};
 
-/// Error raised during queries.
-#[allow(missing_docs)]
-#[derive(Debug, Error)]
-pub enum QueryErrorKind {
-    #[error("internal error: {message}")]
-    Internal { message: &'static str },
-    #[error("failed to insert meta: {error}")]
-    InsertMetaError {
-        #[source]
-        #[from]
-        error: InsertMetaError,
-    },
-    #[error("interpreter error: {error}")]
-    IrError {
-        #[source]
-        #[from]
-        error: Box<IrErrorKind>,
-    },
-    #[error("compile error: {error}")]
-    CompileError {
-        #[source]
-        #[from]
-        error: Box<CompileErrorKind>,
-    },
-    #[error("parse error: {error}")]
-    ParseError {
-        #[source]
-        #[from]
-        error: ParseErrorKind,
-    },
-    #[error("missing {what} for id {id:?}")]
-    MissingId { what: &'static str, id: Option<Id> },
-    #[error("found conflicting item `{existing}`")]
-    ItemConflict { existing: Item },
-    #[error("item `{item}` with {visibility} visibility, is not accessible from here")]
-    NotVisible {
-        visibility: Visibility,
-        item: Item,
-        from: Item,
-    },
-    #[error("module `{item}` with {visibility} visibility, is not accessible from here")]
-    NotVisibleMod { visibility: Visibility, item: Item },
-    #[error("missing reverse lookup for `{item}`")]
-    MissingRevItem { item: Item },
-    #[error("missing item for id {id:?}")]
-    MissingRevId { id: Id },
-    #[error("missing query meta for module {item}")]
-    MissingMod { item: Item },
-    #[error("cycle in import")]
-    ImportCycle { path: Vec<ImportEntryStep> },
-}
+use self::imports::{ImportEntry, NameKind};
 
 pub(crate) struct Query {
     /// Next opaque id generated.
     next_id: Id,
-    imports: QueryImports,
+    imports: imports::Imports,
     pub(crate) storage: Storage,
     /// Unit being built.
     pub(crate) unit: UnitBuilder,
@@ -115,7 +56,7 @@ impl Query {
     pub fn new(storage: Storage, unit: UnitBuilder, consts: Consts) -> Self {
         Self {
             next_id: Id::initial(),
-            imports: QueryImports {
+            imports: imports::Imports {
                 prelude: unit.prelude(),
                 imports: Default::default(),
                 names: Names::default(),
@@ -162,10 +103,11 @@ impl Query {
     /// Insert module and associated metadata.
     pub(crate) fn insert_mod(
         &mut self,
+        source_id: SourceId,
         spanned: Span,
         item: &Item,
         visibility: Visibility,
-    ) -> Result<(Id, Rc<QueryMod>), CompileError> {
+    ) -> Result<(Id, Rc<QueryMod>), QueryError> {
         let id = self.next_id.next().expect("ran out of ids");
 
         let query_mod = Rc::new(QueryMod {
@@ -175,19 +117,20 @@ impl Query {
 
         self.imports.modules.insert(item.clone(), query_mod.clone());
 
-        self.insert_name(spanned, item)?;
-        self.insert_item(spanned, item, &query_mod, visibility)?;
+        self.insert_name(source_id, spanned, item)?;
+        self.insert_item(source_id, spanned, item, &query_mod, visibility)?;
         Ok((id, query_mod))
     }
 
     /// Insert an item and return its Id.
     pub(crate) fn insert_item(
         &mut self,
-        span: Span,
+        source_id: SourceId,
+        spanned: Span,
         item: &Item,
         mod_item: &Rc<QueryMod>,
         visibility: Visibility,
-    ) -> Result<(Id, Rc<QueryItem>), CompileError> {
+    ) -> Result<(Id, Rc<QueryItem>), QueryError> {
         if let Some(existing) = self.imports.items_rev.get(item) {
             return Ok((existing.id, existing.clone()));
         }
@@ -195,20 +138,24 @@ impl Query {
         let id = self.next_id.next().expect("ran out of ids");
 
         let query_item = Rc::new(QueryItem {
+            location: Location::new(source_id, spanned),
             id,
             item: item.clone(),
             mod_item: mod_item.clone(),
             visibility,
         });
 
-        if let Some(..) = self
+        if let Some(old) = self
             .imports
             .items_rev
             .insert(item.clone(), query_item.clone())
         {
-            return Err(CompileError::new(
-                span,
-                CompileErrorKind::ItemConflict { item: item.clone() },
+            return Err(QueryError::new(
+                spanned,
+                QueryErrorKind::ItemConflict {
+                    item: item.clone(),
+                    other: old.location,
+                },
             ));
         }
 
@@ -293,11 +240,10 @@ impl Query {
     /// Index a constant expression.
     pub fn index_const(
         &mut self,
+        source_id: SourceId,
         item: &Rc<QueryItem>,
         source: Arc<Source>,
-        source_id: usize,
         item_const: ast::ItemConst,
-        span: Span,
     ) -> Result<(), QueryError> {
         log::trace!("new const: {:?}", item.item);
 
@@ -313,9 +259,8 @@ impl Query {
             &item.item,
             IndexedEntry {
                 item: item.clone(),
-                span,
+                location: Location::new(source_id, item_const.span()),
                 source,
-                source_id,
                 indexed: Indexed::Const(Const {
                     mod_item: item.mod_item.clone(),
                     ir,
@@ -329,11 +274,10 @@ impl Query {
     /// Index a constant function.
     pub fn index_const_fn(
         &mut self,
+        source_id: SourceId,
         item: &Rc<QueryItem>,
         source: Arc<Source>,
-        source_id: usize,
         item_fn: ast::ItemFn,
-        span: Span,
     ) -> Result<(), QueryError> {
         log::trace!("new const fn: {:?}", item.item);
 
@@ -341,9 +285,8 @@ impl Query {
             &item.item,
             IndexedEntry {
                 item: item.clone(),
-                span,
+                location: Location::new(source_id, item_fn.span()),
                 source,
-                source_id,
                 indexed: Indexed::ConstFn(ConstFn { item_fn }),
             },
         )?;
@@ -354,10 +297,10 @@ impl Query {
     /// Add a new enum item.
     pub fn index_enum(
         &mut self,
+        source_id: SourceId,
+        span: Span,
         item: &Rc<QueryItem>,
         source: Arc<Source>,
-        source_id: usize,
-        span: Span,
     ) -> Result<(), QueryError> {
         log::trace!("new enum: {:?}", item.item);
 
@@ -365,9 +308,8 @@ impl Query {
             &item.item,
             IndexedEntry {
                 item: item.clone(),
-                span,
+                location: Location::new(source_id, span),
                 source,
-                source_id,
                 indexed: Indexed::Enum,
             },
         )?;
@@ -378,10 +320,10 @@ impl Query {
     /// Add a new struct item that can be queried.
     pub fn index_struct(
         &mut self,
+        source_id: SourceId,
         item: &Rc<QueryItem>,
         ast: ast::ItemStruct,
         source: Arc<Source>,
-        source_id: usize,
     ) -> Result<(), QueryError> {
         log::trace!("new struct: {:?}", item);
 
@@ -389,9 +331,8 @@ impl Query {
             &item.item,
             IndexedEntry {
                 item: item.clone(),
-                span: ast.span(),
+                location: Location::new(source_id, ast.span()),
                 source,
-                source_id,
                 indexed: Indexed::Struct(Struct::new(ast)),
             },
         )?;
@@ -402,12 +343,11 @@ impl Query {
     /// Add a new variant item that can be queried.
     pub fn index_variant(
         &mut self,
+        source_id: SourceId,
         item: &Rc<QueryItem>,
         enum_id: Id,
         ast: ast::ItemVariant,
         source: Arc<Source>,
-        source_id: usize,
-        span: Span,
     ) -> Result<(), QueryError> {
         log::trace!("new variant: {:?}", item);
 
@@ -415,9 +355,8 @@ impl Query {
             &item.item,
             IndexedEntry {
                 item: item.clone(),
-                span,
+                location: Location::new(source_id, ast.span()),
                 source,
-                source_id,
                 indexed: Indexed::Variant(Variant::new(enum_id, ast)),
             },
         )?;
@@ -441,9 +380,8 @@ impl Query {
             &item.item,
             IndexedEntry {
                 item: item.clone(),
-                span: ast.span(),
+                location: Location::new(source_id, ast.span()),
                 source,
-                source_id,
                 indexed: Indexed::Closure(Closure {
                     ast,
                     captures,
@@ -471,9 +409,8 @@ impl Query {
             &item.item,
             IndexedEntry {
                 item: item.clone(),
-                span: ast.span(),
+                location: Location::new(source_id, ast.span()),
                 source,
-                source_id,
                 indexed: Indexed::AsyncBlock(AsyncBlock {
                     ast,
                     captures,
@@ -488,13 +425,15 @@ impl Query {
     /// Index the given element.
     pub fn index(&mut self, item: &Item, entry: IndexedEntry) -> Result<(), QueryError> {
         log::trace!("indexed: {}", item);
-        self.insert_name(entry.span, item)?;
+        self.insert_name(entry.location.source_id, entry.location.span, item)?;
+        let span = entry.location.span;
 
         if let Some(old) = self.indexed.insert(item.clone(), entry) {
             return Err(QueryError::new(
-                &old.span,
+                span,
                 QueryErrorKind::ItemConflict {
-                    existing: item.clone(),
+                    item: item.clone(),
+                    other: old.location,
                 },
             ));
         }
@@ -512,21 +451,21 @@ impl Query {
         let unused = self
             .indexed
             .values()
-            .map(|e| (e.item.clone(), e.span, e.source_id))
+            .map(|e| (e.item.clone(), e.location))
             .collect::<Vec<_>>();
 
         if unused.is_empty() {
             return Ok(false);
         }
 
-        for (item, span, source_id) in unused {
+        for (item, location) in unused {
             // NB: recursive queries might remove from `indexed`, so we expect
             // to miss things here.
             if let Some(meta) = self
-                .query_meta_with(span, &*item, Used::Unused)
-                .map_err(|e| (source_id, e))?
+                .query_meta_with(location.span, &*item, Used::Unused)
+                .map_err(|e| (location.source_id, e))?
             {
-                visitor.visit_meta(source_id, &meta, span);
+                visitor.visit_meta(location.source_id, &meta, location.span);
             }
         }
 
@@ -583,10 +522,9 @@ impl Query {
         used: Used,
     ) -> Result<CompileMeta, QueryError> {
         let IndexedEntry {
-            span,
+            location,
             indexed,
             source,
-            source_id,
             item: entry_item,
         } = entry;
 
@@ -597,7 +535,7 @@ impl Query {
                 type_of: Type::from(Hash::type_hash(&item.item)),
             },
             Indexed::Variant(variant) => {
-                let enum_item = self.item_for((span, variant.enum_id))?.clone();
+                let enum_item = self.item_for((location.span, variant.enum_id))?.clone();
                 // Assert that everything is built for the enum.
                 self.query_meta_with(spanned, &enum_item, Default::default())?;
                 self.variant_into_item_decl(
@@ -612,11 +550,10 @@ impl Query {
             }
             Indexed::Function(f) => {
                 self.queue.push_back(BuildEntry {
-                    span: f.ast.span(),
+                    location: Location::new(location.source_id, f.ast.span()),
                     item: item.item.clone(),
                     build: Build::Function(f),
                     source,
-                    source_id,
                     used,
                 });
 
@@ -628,11 +565,10 @@ impl Query {
                 let captures = c.captures.clone();
 
                 self.queue.push_back(BuildEntry {
-                    span: c.ast.span(),
+                    location: Location::new(location.source_id, c.ast.span()),
                     item: item.item.clone(),
                     build: Build::Closure(c),
                     source,
-                    source_id,
                     used,
                 });
 
@@ -645,11 +581,10 @@ impl Query {
                 let captures = b.captures.clone();
 
                 self.queue.push_back(BuildEntry {
-                    span: b.ast.span(),
+                    location: Location::new(location.source_id, b.ast.span()),
                     item: item.item.clone(),
                     build: Build::AsyncBlock(b),
                     source,
-                    source_id,
                     used,
                 });
 
@@ -671,11 +606,10 @@ impl Query {
 
                 if used.is_unused() {
                     self.queue.push_back(BuildEntry {
-                        span: c.ir.span(),
+                        location,
                         item: item.item.clone(),
                         build: Build::UnusedConst(c),
                         source,
-                        source_id,
                         used,
                     });
                 }
@@ -695,11 +629,10 @@ impl Query {
 
                 if used.is_unused() {
                     self.queue.push_back(BuildEntry {
-                        span: c.item_fn.span(),
+                        location: Location::new(location.source_id, c.item_fn.span()),
                         item: item.item.clone(),
                         build: Build::UnusedConstFn(c),
                         source,
-                        source_id,
                         used,
                     });
                 }
@@ -712,9 +645,9 @@ impl Query {
             item: item.item.clone(),
             kind,
             source: Some(CompileSource {
-                span,
+                source_id: location.source_id,
+                span: location.span,
                 path,
-                source_id,
             }),
         })
     }
@@ -944,11 +877,23 @@ impl Query {
     }
 
     /// Insert the given name into the unit.
-    pub(crate) fn insert_name(&mut self, spanned: Span, item: &Item) -> Result<(), CompileError> {
-        if let Some(..) = self.imports.names.insert(item, NameKind::Other) {
-            return Err(CompileError::new(
+    pub(crate) fn insert_name(
+        &mut self,
+        source_id: SourceId,
+        spanned: Span,
+        item: &Item,
+    ) -> Result<(), QueryError> {
+        if let Some((_, other)) = self
+            .imports
+            .names
+            .insert(item, (NameKind::Other, Location::new(source_id, spanned)))
+        {
+            return Err(QueryError::new(
                 spanned,
-                CompileErrorKind::ItemConflict { item: item.clone() },
+                QueryErrorKind::ItemConflict {
+                    item: item.clone(),
+                    other,
+                },
             ));
         }
 
@@ -958,15 +903,15 @@ impl Query {
     /// Declare a new import.
     pub(crate) fn insert_import<A>(
         &mut self,
+        source_id: SourceId,
         spanned: Span,
         mod_item: &Rc<QueryMod>,
         visibility: Visibility,
         at: Item,
         path: Item,
         alias: Option<A>,
-        source_id: usize,
         wildcard: bool,
-    ) -> Result<(), CompileError>
+    ) -> Result<(), QueryError>
     where
         A: IntoComponent,
     {
@@ -988,29 +933,34 @@ impl Query {
             };
 
             let entry = Rc::new(ImportEntry {
-                source_id,
-                span: spanned.span(),
+                location: Location::new(source_id, spanned.span()),
                 visibility,
                 item: path.clone(),
                 mod_item: mod_item.clone(),
             });
 
-            if let Some(old) = self.imports.imports.insert(key.clone(), entry) {
-                return Err(CompileError::new(
+            if let Some(entry) = self.imports.imports.insert(key.clone(), entry) {
+                return Err(QueryError::new(
                     spanned,
-                    CompileErrorKind::ImportConflict {
+                    QueryErrorKind::ImportConflict {
                         key,
-                        existing: (old.source_id, old.span),
+                        other: entry.location,
                     },
                 ));
             }
 
-            self.insert_item(spanned, &item, mod_item, visibility)?;
+            self.insert_item(source_id, spanned, &item, mod_item, visibility)?;
 
-            if let Some(..) = self.imports.names.insert(item.clone(), NameKind::Use) {
-                return Err(CompileError::new(
+            if let Some((_, other)) = self.imports.names.insert(
+                item.clone(),
+                (NameKind::Use, Location::new(source_id, spanned)),
+            ) {
+                return Err(QueryError::new(
                     spanned,
-                    CompileErrorKind::ItemConflict { item: item.clone() },
+                    QueryErrorKind::ItemConflict {
+                        item: item.clone(),
+                        other,
+                    },
                 ));
             }
         }
@@ -1160,16 +1110,14 @@ pub(crate) enum Build {
 
 /// An entry in the build queue.
 pub(crate) struct BuildEntry {
-    /// The span of the build entry.
-    pub(crate) span: Span,
+    /// The location of the build entry.
+    pub(crate) location: Location,
     /// The item of the build entry.
     pub(crate) item: Item,
     /// The build entry.
     pub(crate) build: Build,
     /// The source of the build entry.
     pub(crate) source: Arc<Source>,
-    /// The source id of the build entry.
-    pub(crate) source_id: usize,
     /// If the queued up entry was unused or not.
     pub(crate) used: Used,
 }
@@ -1178,11 +1126,9 @@ pub(crate) struct IndexedEntry {
     /// The query item this indexed entry belongs to.
     pub(crate) item: Rc<QueryItem>,
     /// The source location of the indexed entry.
-    pub(crate) span: Span,
+    pub(crate) location: Location,
     /// The source of the indexed entry.
     pub(crate) source: Arc<Source>,
-    /// The source id of the indexed entry.
-    pub(crate) source_id: SourceId,
     /// The entry data.
     pub(crate) indexed: Indexed,
 }
@@ -1198,6 +1144,7 @@ pub(crate) struct QueryPath {
 /// Item and the module that the item belongs to.
 #[derive(Debug)]
 pub(crate) struct QueryItem {
+    pub(crate) location: Location,
     pub(crate) id: Id,
     pub(crate) item: Item,
     pub(crate) mod_item: Rc<QueryMod>,
@@ -1239,262 +1186,5 @@ impl Named {
 impl fmt::Display for Named {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.item, f)
-    }
-}
-
-#[derive(Debug)]
-enum NameKind {
-    Use,
-    Other,
-}
-
-/// The key of an import.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ImportKey {
-    /// Where the import is located.
-    pub item: Item,
-    /// The component that is imported.
-    pub component: Component,
-}
-
-impl fmt::Display for ImportKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}::{}", self.item, self.component)
-    }
-}
-
-/// An imported entry.
-#[derive(Debug, Clone)]
-pub struct ImportEntry {
-    /// The span of the import.
-    pub span: Span,
-    /// The source the entry belongs to.
-    pub source_id: SourceId,
-    /// The visibility of the import.
-    pub visibility: Visibility,
-    /// The item being imported.
-    pub item: Item,
-    /// The module in which the imports is located.
-    pub(crate) mod_item: Rc<QueryMod>,
-}
-
-/// Broken out substruct of `Query` to handle imports.
-struct QueryImports {
-    /// Prelude from the prelude.
-    prelude: HashMap<Box<str>, Item>,
-    /// All imports in the current unit.
-    ///
-    /// Only used to link against the current environment to make sure all
-    /// required units are present.
-    imports: HashMap<ImportKey, Rc<ImportEntry>>,
-    /// All available names in the context.
-    names: Names<NameKind>,
-    /// Associated between `id` and `Item`. Use to look up items through
-    /// `item_for` with an opaque id.
-    ///
-    /// These items are associated with AST elements, and encodoes the item path
-    /// that the AST element was indexed.
-    items: HashMap<Id, Rc<QueryItem>>,
-    /// Modules and associated metadata.
-    modules: HashMap<Item, Rc<QueryMod>>,
-    /// Reverse lookup for items to reduce the number of items used.
-    items_rev: HashMap<Item, Rc<QueryItem>>,
-}
-
-impl QueryImports {
-    /// Walk the names to find the first one that is contained in the unit.
-    fn walk_names(
-        &mut self,
-        spanned: Span,
-        mod_item: &Rc<QueryMod>,
-        base: &Item,
-        local: &str,
-        was_imported: &mut bool,
-    ) -> Result<Option<Item>, CompileError> {
-        debug_assert!(base.starts_with(&mod_item.item));
-
-        let mut base = base.clone();
-
-        loop {
-            let item = base.extended(local);
-
-            if let Some(NameKind::Other) = self.names.get(&item) {
-                return Ok(Some(item));
-            }
-
-            if let Some(item) = self.get_import(mod_item, spanned, &item)? {
-                *was_imported = true;
-                return Ok(Some(item));
-            }
-
-            if mod_item.item == base || base.pop().is_none() {
-                break;
-            }
-        }
-
-        if let Some(item) = self.prelude.get(local) {
-            return Ok(Some(item.clone()));
-        }
-
-        Ok(None)
-    }
-
-    /// Get the given import by name.
-    pub(crate) fn get_import(
-        &mut self,
-        mod_item: &Rc<QueryMod>,
-        spanned: Span,
-        item: &Item,
-    ) -> Result<Option<Item>, QueryError> {
-        let mut visited = HashSet::new();
-        let mut path = Vec::new();
-
-        let mut current = item.clone();
-        let mut matched = false;
-        let mut from = mod_item.clone();
-
-        loop {
-            let mut item = current.clone();
-
-            let local = match item.pop() {
-                Some(local) => local,
-                None => return Ok(None),
-            };
-
-            let key = ImportKey {
-                item,
-                component: local,
-            };
-
-            if let Some(entry) = self.imports.get(&key).cloned() {
-                if entry.mod_item.item != from.item {
-                    match entry.visibility {
-                        // TODO: make this more sophisticated.
-                        Visibility::Public => (),
-                        visibility => {
-                            return Err(QueryError::new(
-                                spanned,
-                                QueryErrorKind::NotVisible {
-                                    visibility,
-                                    item: entry.item.clone(),
-                                    from: from.item.clone(),
-                                },
-                            ));
-                        }
-                    }
-                }
-
-                // NB: if it's not in here, it's imported in the prelude.
-                if let Some(item) = self.items_rev.get(&entry.item) {
-                    self.check_access_from(spanned, &*from, item)?;
-                    from = item.mod_item.clone();
-                }
-
-                // NB: this happens when you have a superflous import, like:
-                // ```
-                // use std;
-                //
-                // std::option::Option::None
-                // ```
-                if entry.item == current {
-                    break;
-                }
-
-                path.push(ImportEntryStep {
-                    span: entry.span,
-                    source_id: entry.source_id,
-                    visibility: entry.visibility,
-                    item: entry.item.clone(),
-                });
-
-                if !visited.insert(entry.item.clone()) {
-                    return Err(QueryError::new(
-                        spanned,
-                        QueryErrorKind::ImportCycle { path },
-                    ));
-                }
-
-                matched = true;
-                current = entry.item.clone();
-                continue;
-            }
-
-            break;
-        }
-
-        if matched {
-            return Ok(Some(current));
-        }
-
-        Ok(None)
-    }
-
-    /// Check that the given item is accessible from the given module.
-    fn check_access_from(
-        &self,
-        spanned: Span,
-        from: &QueryMod,
-        item: &QueryItem,
-    ) -> Result<(), QueryError> {
-        let (mut mod_item, suffix, is_strict_prefix) =
-            from.item.module_difference(&item.mod_item.item);
-
-        // NB: if we are an immediate parent module, we're allowed to peek into
-        // a nested private module in one level of depth.
-        let mut permit_one_level = is_strict_prefix;
-        let mut suffix_len = 0;
-
-        for c in &suffix {
-            suffix_len += 1;
-            let permit_one_level = std::mem::take(&mut permit_one_level);
-
-            mod_item.push(c);
-
-            let m = self.modules.get(&mod_item).ok_or_else(|| {
-                QueryError::new(
-                    spanned,
-                    QueryErrorKind::MissingMod {
-                        item: mod_item.clone(),
-                    },
-                )
-            })?;
-
-            match m.visibility {
-                Visibility::Public => (),
-                Visibility::Crate => (),
-                Visibility::Inherited => {
-                    if !permit_one_level {
-                        return Err(QueryError::new(
-                            spanned,
-                            QueryErrorKind::NotVisibleMod {
-                                visibility: m.visibility,
-                                item: mod_item,
-                            },
-                        ));
-                    }
-                }
-            }
-        }
-
-        if suffix_len == 0 || is_strict_prefix && suffix_len > 1 {
-            match item.visibility {
-                Visibility::Inherited => {
-                    if !from.item.can_see_private_mod(&item.mod_item.item) {
-                        return Err(QueryError::new(
-                            spanned,
-                            QueryErrorKind::NotVisible {
-                                visibility: item.visibility,
-                                item: item.item.clone(),
-                                from: from.item.clone(),
-                            },
-                        ));
-                    }
-                }
-                Visibility::Public => (),
-                Visibility::Crate => (),
-            }
-        }
-
-        Ok(())
     }
 }

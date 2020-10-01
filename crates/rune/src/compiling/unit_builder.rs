@@ -5,6 +5,7 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
+use crate::shared::Location;
 use crate::{CompileError, CompileErrorKind, Error, Errors, Spanned};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
@@ -518,28 +519,21 @@ impl UnitBuilder {
     }
 
     /// Construct a new empty assembly associated with the current unit.
-    pub(crate) fn new_assembly<S>(&self, spanned: S, source_id: usize) -> Assembly
-    where
-        S: Spanned,
-    {
+    pub(crate) fn new_assembly(&self, location: Location) -> Assembly {
         let label_count = self.inner.borrow().label_count;
-        Assembly::new(source_id, spanned, label_count)
+        Assembly::new(location, label_count)
     }
 
     /// Declare a new function at the current instruction pointer.
-    pub(crate) fn new_function<S>(
+    pub(crate) fn new_function(
         &self,
-        spanned: S,
-        source_id: usize,
+        location: Location,
         path: Item,
         args: usize,
         assembly: Assembly,
         call: Call,
         debug_args: Vec<String>,
-    ) -> Result<(), CompileError>
-    where
-        S: Spanned,
-    {
+    ) -> Result<(), CompileError> {
         let mut inner = self.inner.borrow_mut();
 
         let offset = inner.instructions.len();
@@ -551,7 +545,7 @@ impl UnitBuilder {
 
         if inner.functions.insert(hash, info).is_some() {
             return Err(CompileError::new(
-                spanned,
+                location.span,
                 CompileErrorKind::FunctionConflict {
                     existing: signature,
                 },
@@ -559,15 +553,14 @@ impl UnitBuilder {
         }
 
         inner.debug_info_mut().functions.insert(hash, signature);
-        inner.add_assembly(source_id, assembly)?;
+        inner.add_assembly(location, assembly)?;
         Ok(())
     }
 
     /// Declare a new instance function at the current instruction pointer.
-    pub(crate) fn new_instance_function<S>(
+    pub(crate) fn new_instance_function(
         &self,
-        spanned: S,
-        source_id: usize,
+        location: Location,
         path: Item,
         type_of: Type,
         name: &str,
@@ -575,10 +568,7 @@ impl UnitBuilder {
         assembly: Assembly,
         call: Call,
         debug_args: Vec<String>,
-    ) -> Result<(), CompileError>
-    where
-        S: Spanned,
-    {
+    ) -> Result<(), CompileError> {
         log::trace!("instance fn: {}", path);
 
         let mut inner = self.inner.borrow_mut();
@@ -592,7 +582,7 @@ impl UnitBuilder {
 
         if inner.functions.insert(instance_fn, info).is_some() {
             return Err(CompileError::new(
-                spanned,
+                location.span,
                 CompileErrorKind::FunctionConflict {
                     existing: signature,
                 },
@@ -601,7 +591,7 @@ impl UnitBuilder {
 
         if inner.functions.insert(hash, info).is_some() {
             return Err(CompileError::new(
-                spanned,
+                location.span,
                 CompileErrorKind::FunctionConflict {
                     existing: signature,
                 },
@@ -613,7 +603,7 @@ impl UnitBuilder {
             .functions
             .insert(instance_fn, signature);
         inner.functions_rev.insert(offset, hash);
-        inner.add_assembly(source_id, assembly)?;
+        inner.add_assembly(location, assembly)?;
         Ok(())
     }
 
@@ -701,7 +691,7 @@ impl Inner {
     }
 
     /// Translate the given assembly into instructions.
-    fn add_assembly(&mut self, source_id: usize, assembly: Assembly) -> Result<(), CompileError> {
+    fn add_assembly(&mut self, location: Location, assembly: Assembly) -> Result<(), CompileError> {
         self.label_count = assembly.label_count;
 
         self.required_functions.extend(assembly.required_functions);
@@ -766,7 +756,7 @@ impl Inner {
             let debug = self.debug.get_or_insert_with(Default::default);
 
             debug.instructions.push(DebugInst {
-                source_id,
+                source_id: location.source_id,
                 span,
                 comment,
                 label: label.map(Label::into_owned),

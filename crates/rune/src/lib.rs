@@ -283,8 +283,8 @@ pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{MacroContext, Storage, ToTokens, TokenStream, TokenStreamIter};
 pub use self::options::Options;
 pub use self::parsing::{Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve};
-pub use self::query::{ImportEntry, ImportKey, QueryError, QueryErrorKind};
-pub use self::shared::{ScopeError, ScopeErrorKind};
+pub use self::query::{QueryError, QueryErrorKind};
+pub use self::shared::{Location, ScopeError, ScopeErrorKind};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use compiling::compile;
 

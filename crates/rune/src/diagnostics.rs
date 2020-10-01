@@ -1,10 +1,11 @@
 //! Runtime helpers for loading code and emitting diagnostics.
 
+use crate::shared::Location;
 use crate::{
-    CompileErrorKind, Error, ErrorKind, Errors, LinkerError, QueryErrorKind, Sources, Spanned as _,
-    WarningKind, Warnings,
+    CompileErrorKind, Error, ErrorKind, Errors, IrErrorKind, LinkerError, QueryErrorKind, Sources,
+    Spanned as _, WarningKind, Warnings,
 };
-use runestick::{Source, Span, Unit, VmError};
+use runestick::{Source, SourceId, Span, Unit, VmError};
 use std::error::Error as _;
 use std::fmt;
 use std::fmt::Write as _;
@@ -279,87 +280,26 @@ impl EmitDiagnostics for Error {
             }
             ErrorKind::ParseError(error) => error.span(),
             ErrorKind::CompileError(error) => {
-                match error.kind() {
-                    CompileErrorKind::DuplicateObjectKey { existing, object } => {
-                        labels.push(
-                            Label::secondary(self.source_id(), existing.start..existing.end)
-                                .with_message("previously defined here"),
-                        );
-
-                        labels.push(
-                            Label::secondary(self.source_id(), object.start..object.end)
-                                .with_message("object being defined here"),
-                        );
-                    }
-                    CompileErrorKind::ModAlreadyLoaded { existing, .. } => {
-                        let (existing_source_id, existing_span) = *existing;
-
-                        labels.push(
-                            Label::secondary(
-                                existing_source_id,
-                                existing_span.start..existing_span.end,
-                            )
-                            .with_message("previously loaded here"),
-                        );
-                    }
-                    CompileErrorKind::ExpectedBlockSemiColon { followed_span } => {
-                        labels.push(
-                            Label::secondary(
-                                self.source_id(),
-                                followed_span.start..followed_span.end,
-                            )
-                            .with_message("because this immediately follows"),
-                        );
-
-                        let binding = sources
-                            .source_at(self.source_id())
-                            .and_then(|s| s.source(error.span()));
-
-                        if let Some(binding) = binding {
-                            let mut note = String::new();
-                            writeln!(note, "Hint: Rewrite to `{};`", binding)?;
-                            notes.push(note);
-                        }
-                    }
-                    CompileErrorKind::ImportConflict {
-                        existing: (source_id, span),
-                        ..
-                    } => {
-                        labels.push(
-                            Label::secondary(*source_id, span.start..span.end)
-                                .with_message("previous import here"),
-                        );
-                    }
-                    _ => (),
-                }
+                format_compile_error(
+                    self,
+                    sources,
+                    error.span(),
+                    error.kind(),
+                    &mut labels,
+                    &mut notes,
+                )?;
 
                 error.span()
             }
             ErrorKind::QueryError(error) => {
-                match error.kind() {
-                    QueryErrorKind::ImportCycle { path } => {
-                        let mut it = path.into_iter();
-                        let last = it.next_back();
-
-                        for (step, entry) in (1..).zip(it) {
-                            labels.push(
-                                Label::secondary(entry.source_id, entry.span.start..entry.span.end)
-                                    .with_message(format!("step #{} for `{}`", step, entry.item)),
-                            );
-                        }
-
-                        if let Some(entry) = last {
-                            labels.push(
-                                Label::secondary(entry.source_id, entry.span.start..entry.span.end)
-                                    .with_message(format!(
-                                        "final step cycling back to `{}`",
-                                        entry.item
-                                    )),
-                            );
-                        }
-                    }
-                    _ => (),
-                }
+                format_query_error(
+                    self,
+                    sources,
+                    error.span(),
+                    error.kind(),
+                    &mut labels,
+                    &mut notes,
+                )?;
 
                 error.span()
             }
@@ -377,7 +317,144 @@ impl EmitDiagnostics for Error {
             .with_notes(notes);
 
         term::emit(out, &config, &files, &diagnostic)?;
-        Ok(())
+        return Ok(());
+
+        fn format_compile_error(
+            this: &Error,
+            sources: &Sources,
+            span: Span,
+            kind: &CompileErrorKind,
+            labels: &mut Vec<Label<SourceId>>,
+            notes: &mut Vec<String>,
+        ) -> fmt::Result {
+            match kind {
+                CompileErrorKind::QueryError { error } => {
+                    format_query_error(this, sources, span, error, labels, notes)?;
+                }
+                CompileErrorKind::DuplicateObjectKey { existing, object } => {
+                    labels.push(
+                        Label::secondary(this.source_id(), existing.start..existing.end)
+                            .with_message("previously defined here"),
+                    );
+
+                    labels.push(
+                        Label::secondary(this.source_id(), object.start..object.end)
+                            .with_message("object being defined here"),
+                    );
+                }
+                CompileErrorKind::ModAlreadyLoaded { existing, .. } => {
+                    let (existing_source_id, existing_span) = *existing;
+
+                    labels.push(
+                        Label::secondary(
+                            existing_source_id,
+                            existing_span.start..existing_span.end,
+                        )
+                        .with_message("previously loaded here"),
+                    );
+                }
+                CompileErrorKind::ExpectedBlockSemiColon { followed_span } => {
+                    labels.push(
+                        Label::secondary(this.source_id(), followed_span.start..followed_span.end)
+                            .with_message("because this immediately follows"),
+                    );
+
+                    let binding = sources
+                        .source_at(this.source_id())
+                        .and_then(|s| s.source(span));
+
+                    if let Some(binding) = binding {
+                        let mut note = String::new();
+                        writeln!(note, "Hint: Rewrite to `{};`", binding)?;
+                        notes.push(note);
+                    }
+                }
+                _ => (),
+            }
+
+            Ok(())
+        }
+
+        fn format_query_error(
+            this: &Error,
+            sources: &Sources,
+            span: Span,
+            kind: &QueryErrorKind,
+            labels: &mut Vec<Label<SourceId>>,
+            notes: &mut Vec<String>,
+        ) -> fmt::Result {
+            match kind {
+                QueryErrorKind::CompileError { error } => {
+                    format_compile_error(this, sources, span, error, labels, notes)?;
+                }
+                QueryErrorKind::IrError { error } => {
+                    format_ir_error(this, sources, span, error, labels, notes)?;
+                }
+                QueryErrorKind::ImportCycle { path } => {
+                    let mut it = path.into_iter();
+                    let last = it.next_back();
+
+                    for (step, entry) in (1..).zip(it) {
+                        labels.push(
+                            Label::secondary(
+                                entry.location.source_id,
+                                entry.location.span.start..entry.location.span.end,
+                            )
+                            .with_message(format!("step #{} for `{}`", step, entry.item)),
+                        );
+                    }
+
+                    if let Some(entry) = last {
+                        labels.push(
+                            Label::secondary(
+                                entry.location.source_id,
+                                entry.location.span.start..entry.location.span.end,
+                            )
+                            .with_message(format!("final step cycling back to `{}`", entry.item)),
+                        );
+                    }
+                }
+                QueryErrorKind::ItemConflict {
+                    other: Location { source_id, span },
+                    ..
+                } => {
+                    labels.push(
+                        Label::secondary(*source_id, span.start..span.end)
+                            .with_message("previously defined here"),
+                    );
+                }
+                QueryErrorKind::ImportConflict {
+                    other: Location { source_id, span },
+                    ..
+                } => {
+                    labels.push(
+                        Label::secondary(*source_id, span.start..span.end)
+                            .with_message("previous import here"),
+                    );
+                }
+                _ => (),
+            }
+
+            Ok(())
+        }
+
+        fn format_ir_error(
+            this: &Error,
+            sources: &Sources,
+            span: Span,
+            kind: &IrErrorKind,
+            labels: &mut Vec<Label<SourceId>>,
+            notes: &mut Vec<String>,
+        ) -> fmt::Result {
+            match kind {
+                IrErrorKind::QueryError { error } => {
+                    format_query_error(this, sources, span, error, labels, notes)?;
+                }
+                _ => (),
+            }
+
+            Ok(())
+        }
     }
 }
 

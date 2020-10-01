@@ -346,6 +346,17 @@ macro_rules! assert_warnings {
     }};
 }
 
+/// Assert that the given value matches the provided pattern.
+#[macro_export]
+macro_rules! assert_matches {
+    ($value:expr, $pat:pat) => {
+        match $value {
+            $pat => (),
+            other => panic!("expected {}, but was {:?}", stringify!($pat), other),
+        }
+    };
+}
+
 /// Function used during parse testing to take the source, parse it as the given
 /// type, tokenize it using [ToTokens][crate::macros::ToTokens], and parse the
 /// token stream.

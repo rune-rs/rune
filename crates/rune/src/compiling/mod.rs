@@ -85,17 +85,18 @@ pub fn compile_with_options(
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.sources.source_ids() {
-        let (_, mod_item) =
-            match worker
-                .query
-                .insert_mod(Span::empty(), &Item::new(), Visibility::Public)
-            {
-                Ok(result) => result,
-                Err(error) => {
-                    errors.push(Error::new(source_id, error));
-                    return Err(());
-                }
-            };
+        let (_, mod_item) = match worker.query.insert_mod(
+            source_id,
+            Span::empty(),
+            &Item::new(),
+            Visibility::Public,
+        ) {
+            Ok(result) => result,
+            Err(error) => {
+                errors.push(Error::new(source_id, error));
+                return Err(());
+            }
+        };
 
         worker.queue.push_back(Task::LoadFile {
             kind: LoadFileKind::Root,
@@ -114,7 +115,7 @@ pub fn compile_with_options(
 
     loop {
         while let Some(entry) = worker.query.queue.pop_front() {
-            let source_id = entry.source_id;
+            let source_id = entry.location.source_id;
 
             let task = CompileBuildEntry {
                 context,
@@ -165,18 +166,17 @@ impl CompileBuildEntry<'_> {
     fn compile(self) -> Result<(), CompileError> {
         let BuildEntry {
             item,
+            location,
             build,
-            span,
             source,
-            source_id,
             used,
         } = self.entry;
 
-        let mut asm = self.unit.new_assembly(span, source_id);
+        let mut asm = self.unit.new_assembly(location);
 
         let mut compiler = Compiler {
             storage: self.storage,
-            source_id,
+            source_id: location.source_id,
             source: source.clone(),
             context: self.context,
             query: self.query,
@@ -201,10 +201,10 @@ impl CompileBuildEntry<'_> {
                 compiler.compile((f.ast, false))?;
 
                 if used.is_unused() {
-                    compiler.warnings.not_used(source_id, span, None);
+                    compiler.warnings.not_used(location.source_id, span, None);
                 } else {
                     self.unit
-                        .new_function(span, source_id, item, count, asm, f.call, args)?;
+                        .new_function(location, item, count, asm, f.call, args)?;
                 }
             }
             Build::InstanceFunction(f) => {
@@ -236,11 +236,10 @@ impl CompileBuildEntry<'_> {
                 compiler.compile((f.ast, true))?;
 
                 if used.is_unused() {
-                    compiler.warnings.not_used(source_id, span, None);
+                    compiler.warnings.not_used(location.source_id, span, None);
                 } else {
                     self.unit.new_instance_function(
-                        span,
-                        source_id,
+                        location,
                         item,
                         type_of,
                         name.as_ref(),
@@ -264,10 +263,12 @@ impl CompileBuildEntry<'_> {
                 compiler.compile((c.ast, &c.captures[..]))?;
 
                 if used.is_unused() {
-                    compiler.warnings.not_used(source_id, span, None);
+                    compiler
+                        .warnings
+                        .not_used(location.source_id, location.span, None);
                 } else {
                     self.unit
-                        .new_function(span, source_id, item, count, asm, c.call, args)?;
+                        .new_function(location, item, count, asm, c.call, args)?;
                 }
             }
             Build::AsyncBlock(b) => {
@@ -277,17 +278,21 @@ impl CompileBuildEntry<'_> {
                 compiler.compile((&b.ast, &b.captures[..]))?;
 
                 if used.is_unused() {
-                    compiler.warnings.not_used(source_id, span, None);
+                    compiler
+                        .warnings
+                        .not_used(location.source_id, location.span, None);
                 } else {
                     self.unit
-                        .new_function(span, source_id, item, args, asm, b.call, Vec::new())?;
+                        .new_function(location, item, args, asm, b.call, Vec::new())?;
                 }
             }
-            Build::UnusedConst(c) => {
-                self.warnings.not_used(source_id, &c.ir, None);
+            Build::UnusedConst(..) => {
+                self.warnings
+                    .not_used(location.source_id, location.span, None);
             }
-            Build::UnusedConstFn(c) => {
-                self.warnings.not_used(source_id, &c.item_fn, None);
+            Build::UnusedConstFn(..) => {
+                self.warnings
+                    .not_used(location.source_id, location.span, None);
             }
         }
 
@@ -329,9 +334,9 @@ fn verify_imports(errors: &mut Errors, context: &Context, query: &Query) -> Resu
         }
 
         errors.push(Error::new(
-            entry.source_id,
+            entry.location.source_id,
             CompileError::new(
-                entry.span,
+                entry.location.span,
                 CompileErrorKind::MissingItem {
                     item: entry.item.clone(),
                 },

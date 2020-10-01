@@ -1,8 +1,7 @@
 use crate::ast;
 use crate::compiling::InsertMetaError;
 use crate::indexing::Visibility;
-use crate::query::ImportKey;
-use crate::shared::Internal;
+use crate::shared::{Internal, Location};
 use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
 };
@@ -290,15 +289,8 @@ pub enum CompileErrorKind {
     BaseOverflow,
     #[error("offset overflow")]
     OffsetOverflow,
-    #[error("already imported `{key}`")]
-    ImportConflict {
-        key: ImportKey,
-        existing: (SourceId, Span),
-    },
     #[error("segment is only supported in the first position")]
     ExpectedLeadingPathSegment,
-    #[error("tried to insert conflicting item `{item}`")]
-    ItemConflict { item: Item },
     #[error("visibility modifier not supported")]
     UnsupportedVisibility,
     #[error("expected {expected} but got `{meta}`")]
@@ -311,10 +303,8 @@ pub enum CompileErrorKind {
 /// A single stap as an import entry.
 #[derive(Debug)]
 pub struct ImportEntryStep {
-    /// The span of the import.
-    pub span: Span,
-    /// The source the entry belongs to.
-    pub source_id: SourceId,
+    /// The location of the import.
+    pub location: Location,
     /// The visibility of the import.
     pub visibility: Visibility,
     /// The item being imported.

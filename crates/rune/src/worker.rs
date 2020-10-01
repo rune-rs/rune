@@ -255,13 +255,13 @@ impl Import<'_> {
                         let was_in_context = if context.contains_prefix(&name) {
                             for c in context.iter_components(&name) {
                                 query.insert_import(
+                                    self.source_id,
                                     span,
                                     mod_item,
                                     self.visibility,
                                     self.item.clone(),
                                     name.extended(c),
                                     None::<&str>,
-                                    self.source_id,
                                     true,
                                 )?;
                             }
@@ -317,13 +317,13 @@ impl Import<'_> {
 
             if complete.is_none() {
                 query.insert_import(
+                    self.source_id,
                     span,
                     mod_item,
                     self.visibility,
                     self.item.clone(),
                     name,
                     alias,
-                    self.source_id,
                     false,
                 )?;
             }
@@ -338,8 +338,8 @@ pub(crate) struct ExpandUnitWildcard {
     visibility: Visibility,
     from: Item,
     name: Item,
-    span: Span,
     source_id: SourceId,
+    span: Span,
     /// Indicates if any wildcards were expanded from context.
     was_in_context: bool,
     mod_item: Rc<QueryMod>,
@@ -357,13 +357,13 @@ impl ExpandUnitWildcard {
                 let name = self.name.extended(c);
 
                 query.insert_import(
+                    self.source_id,
                     self.span,
                     &self.mod_item,
                     self.visibility,
                     self.from.clone(),
                     name,
                     None::<&str>,
-                    self.source_id,
                     true,
                 )?;
             }

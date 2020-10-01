@@ -25,12 +25,12 @@ pub struct CompileMeta {
 /// Information on a compile sourc.
 #[derive(Debug, Clone)]
 pub struct CompileSource {
+    /// The source id where the compile meta is defined.
+    pub source_id: SourceId,
     /// The span where the meta is declared.
     pub span: Span,
     /// The optional source id where the meta is declared.
     pub path: Option<PathBuf>,
-    /// The source id where the compile meta is defined.
-    pub source_id: SourceId,
 }
 
 impl CompileMeta {

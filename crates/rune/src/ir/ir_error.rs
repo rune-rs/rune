@@ -77,6 +77,7 @@ pub enum IrErrorKind {
     ScopeError {
         /// The kind of the scope error.
         #[source]
+        #[from]
         error: ScopeErrorKind,
     },
     /// An access error raised during compilation.
@@ -84,6 +85,7 @@ pub enum IrErrorKind {
     AccessError {
         /// The source error.
         #[source]
+        #[from]
         error: AccessError,
     },
     /// An access error raised during queries.
@@ -91,6 +93,7 @@ pub enum IrErrorKind {
     QueryError {
         /// The source error.
         #[source]
+        #[from]
         error: QueryErrorKind,
     },
     /// Encountered an expression that is not supported as a constant

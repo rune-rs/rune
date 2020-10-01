@@ -31,6 +31,7 @@ pub enum AccessError {
     #[error("{error}")]
     NotAccessibleRef {
         /// Source error.
+        #[source]
         #[from]
         error: NotAccessibleRef,
     },
@@ -38,6 +39,7 @@ pub enum AccessError {
     #[error("{error}")]
     NotAccessibleMut {
         /// Source error.
+        #[source]
         #[from]
         error: NotAccessibleMut,
     },
@@ -45,6 +47,7 @@ pub enum AccessError {
     #[error("{error}")]
     NotAccessibleTake {
         /// Source error.
+        #[source]
         #[from]
         error: NotAccessibleTake,
     },

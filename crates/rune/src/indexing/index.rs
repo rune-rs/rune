@@ -7,7 +7,7 @@ use crate::parsing::Parse;
 use crate::query::{
     Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query, QueryMod, Used,
 };
-use crate::shared::Items;
+use crate::shared::{Items, Location};
 use crate::worker::{Import, LoadFileKind, Task};
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, OptionSpanned as _, Options,
@@ -200,7 +200,9 @@ impl<'a> Indexer<'a> {
 
         let item = self.items.item();
         let visibility = Visibility::from_ast(&item_mod.visibility)?;
-        let (id, mod_item) = self.query.insert_mod(span, &*item, visibility)?;
+        let (id, mod_item) = self
+            .query
+            .insert_mod(self.source_id, span, &*item, visibility)?;
         item_mod.id = Some(id);
 
         let source = self.source_loader.load(root, &*item, span)?;
@@ -318,9 +320,13 @@ impl Index<ast::ItemFn> for Indexer<'_> {
         let f = guard.into_function(span)?;
 
         let visibility = Visibility::from_ast(&decl_fn.visibility)?;
-        let (id, item) =
-            self.query
-                .insert_item(span, &*self.items.item(), &self.mod_item, visibility)?;
+        let (id, item) = self.query.insert_item(
+            self.source_id,
+            span,
+            &*self.items.item(),
+            &self.mod_item,
+            visibility,
+        )?;
         decl_fn.id = Some(id);
 
         let call = match Self::call(f.generator, f.kind) {
@@ -335,11 +341,10 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 }
 
                 self.query.index_const_fn(
+                    self.source_id,
                     &item,
                     self.source.clone(),
-                    self.source_id,
                     decl_fn.clone(),
-                    span,
                 )?;
 
                 return Ok(());
@@ -369,11 +374,10 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             // because statically we don't know if they will be used or
             // not.
             self.query.queue.push_back(BuildEntry {
-                span: f.ast.span(),
+                location: Location::new(self.source_id, f.ast.span()),
                 item: item.clone(),
                 build: Build::InstanceFunction(f),
                 source: self.source.clone(),
-                source_id: self.source_id,
                 used: Used::Used,
             });
 
@@ -398,11 +402,10 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
             // NB: immediately compile all toplevel functions.
             self.query.queue.push_back(BuildEntry {
-                span: fun.ast.span(),
+                location: Location::new(self.source_id, fun.ast.item_span()),
                 item: item.clone(),
                 build: Build::Function(fun),
                 source: self.source.clone(),
-                source_id: self.source_id,
                 used: Used::Used,
             });
 
@@ -427,9 +430,8 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 &item.item,
                 IndexedEntry {
                     item: item.clone(),
-                    span,
+                    location: Location::new(self.source_id, span),
                     source: self.source.clone(),
-                    source_id: self.source_id,
                     indexed: Indexed::Function(fun),
                 },
             )?;
@@ -471,6 +473,7 @@ impl Index<ast::ExprBlock> for Indexer<'_> {
         };
 
         let (id, item) = self.query.insert_item(
+            self.source_id,
             span,
             &*self.items.item(),
             &self.mod_item,
@@ -875,6 +878,7 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 let visibility = Visibility::from_ast(&item_enum.visibility)?;
                 let (enum_id, enum_item) = self.query.insert_item(
+                    self.source_id,
                     span,
                     &*self.items.item(),
                     &self.mod_item,
@@ -882,10 +886,10 @@ impl Index<ast::Item> for Indexer<'_> {
                 )?;
 
                 self.query.index_enum(
-                    &enum_item,
-                    self.source.clone(),
                     self.source_id,
                     item_enum.span(),
+                    &enum_item,
+                    self.source.clone(),
                 )?;
 
                 for (variant, _) in &mut item_enum.variants {
@@ -910,6 +914,7 @@ impl Index<ast::Item> for Indexer<'_> {
                     let _guard = self.items.push_name(name.as_ref());
 
                     let (id, item) = self.query.insert_item(
+                        self.source_id,
                         span,
                         &*self.items.item(),
                         &self.mod_item,
@@ -918,12 +923,11 @@ impl Index<ast::Item> for Indexer<'_> {
                     variant.id = Some(id);
 
                     self.query.index_variant(
+                        self.source_id,
                         &item,
                         enum_id,
                         variant.clone(),
                         self.source.clone(),
-                        self.source_id,
-                        span,
                     )?;
                 }
             }
@@ -954,6 +958,7 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 let visibility = Visibility::from_ast(&item_struct.visibility)?;
                 let (id, item) = self.query.insert_item(
+                    self.source_id,
                     span,
                     &*self.items.item(),
                     &self.mod_item,
@@ -962,10 +967,10 @@ impl Index<ast::Item> for Indexer<'_> {
                 item_struct.id = Some(id);
 
                 self.query.index_struct(
+                    self.source_id,
                     &item,
                     item_struct.clone(),
                     self.source.clone(),
-                    self.source_id,
                 )?;
             }
             ast::Item::ItemFn(item_fn) => {
@@ -1022,9 +1027,12 @@ impl Index<ast::Item> for Indexer<'_> {
                         let _guard = self.items.push_name(name.as_ref());
 
                         let visibility = Visibility::from_ast(&item_mod.visibility)?;
-                        let (id, mod_item) =
-                            self.query
-                                .insert_mod(span, &*self.items.item(), visibility)?;
+                        let (id, mod_item) = self.query.insert_mod(
+                            self.source_id,
+                            span,
+                            &*self.items.item(),
+                            visibility,
+                        )?;
                         item_mod.id = Some(id);
 
                         let replaced = std::mem::replace(&mut self.mod_item, mod_item);
@@ -1049,6 +1057,7 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 let visibility = Visibility::from_ast(&item_const.visibility)?;
                 let (id, item) = self.query.insert_item(
+                    self.source_id,
                     span,
                     &*self.items.item(),
                     &self.mod_item,
@@ -1057,11 +1066,10 @@ impl Index<ast::Item> for Indexer<'_> {
                 item_const.id = Some(id);
 
                 self.query.index_const(
+                    self.source_id,
                     &item,
                     self.source.clone(),
-                    self.source_id,
                     item_const.clone(),
-                    span,
                 )?;
             }
             ast::Item::MacroCall(macro_call) => {
@@ -1189,6 +1197,7 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
         };
 
         let (id, item) = self.query.insert_item(
+            self.source_id,
             span,
             &*self.items.item(),
             &self.mod_item,
@@ -1350,6 +1359,7 @@ impl Index<ast::ExprCall> for Indexer<'_> {
         log::trace!("ExprCall => {:?}", self.source.source(span));
 
         let (id, _) = self.query.insert_item(
+            self.source_id,
             span,
             &*self.items.item(),
             &self.mod_item,

@@ -2,7 +2,7 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{CompileError, CompileErrorKind};
-use crate::Spanned;
+use crate::shared::Location;
 use runestick::{Hash, Inst, Label, Span};
 
 #[derive(Debug, Clone)]
@@ -20,10 +20,8 @@ pub enum AssemblyInst {
 /// Helper structure to build instructions and maintain certain invariants.
 #[derive(Debug, Clone, Default)]
 pub struct Assembly {
-    /// The span that caused the assembly.
-    pub(crate) span: Span,
-    /// The source id of the assembly.
-    pub(crate) source_id: usize,
+    /// The location that caused the assembly.
+    pub(crate) location: Location,
     /// Label to offset.
     pub(crate) labels: HashMap<Label, usize>,
     /// Registered label by offset.
@@ -40,13 +38,9 @@ pub struct Assembly {
 
 impl Assembly {
     /// Construct a new assembly.
-    pub(crate) fn new<S>(source_id: usize, spanned: S, label_count: usize) -> Self
-    where
-        S: Spanned,
-    {
+    pub(crate) fn new(location: Location, label_count: usize) -> Self {
         Self {
-            span: spanned.span(),
-            source_id,
+            location,
             labels: Default::default(),
             labels_rev: Default::default(),
             instructions: Default::default(),
@@ -69,7 +63,7 @@ impl Assembly {
 
         if self.labels.insert(label, offset).is_some() {
             return Err(CompileError::new(
-                self.span,
+                self.location.span,
                 CompileErrorKind::DuplicateLabel { label },
             ));
         }
@@ -127,7 +121,7 @@ impl Assembly {
             self.required_functions
                 .entry(hash)
                 .or_default()
-                .push((span, self.source_id));
+                .push((span, self.location.source_id));
         }
 
         self.instructions.push((AssemblyInst::Raw { raw }, span));
