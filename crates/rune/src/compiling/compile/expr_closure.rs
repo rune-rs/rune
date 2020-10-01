@@ -66,14 +66,17 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
         let item = self.query.item_for(expr_closure)?.clone();
         let hash = Hash::type_hash(&item.item);
 
-        let meta = self.query.query_meta(span, None, &item)?.ok_or_else(|| {
-            CompileError::new(
-                span,
-                CompileErrorKind::MissingType {
-                    item: item.item.clone(),
-                },
-            )
-        })?;
+        let meta = self
+            .query
+            .query_meta_with(span, None, &item, Default::default())?
+            .ok_or_else(|| {
+                CompileError::new(
+                    span,
+                    CompileErrorKind::MissingType {
+                        item: item.item.clone(),
+                    },
+                )
+            })?;
 
         let captures = match &meta.kind {
             CompileMetaKind::Closure { captures, .. } => captures,

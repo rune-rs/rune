@@ -74,10 +74,12 @@ impl<'a> Compiler<'a> {
         // Imported items are expected to be "exact", and do not look upwards in
         // blocks to find a matching item as is implemented after this if block.
         if named.imported {
-            if let Some(meta) =
-                self.query
-                    .query_meta_by_item(spanned, Some(&query_path.mod_item), &named.item)?
-            {
+            if let Some(meta) = self.query.query_meta(
+                spanned,
+                Some(&query_path.mod_item),
+                &named.item,
+                Default::default(),
+            )? {
                 log::trace!("found in query: {:?}", meta);
                 self.visitor.visit_meta(self.source_id, &meta, spanned);
                 return Ok(Some(meta));
@@ -98,10 +100,12 @@ impl<'a> Compiler<'a> {
             let current = b.join(&named.item);
             log::trace!("lookup meta (query): {}", current);
 
-            if let Some(meta) =
-                self.query
-                    .query_meta_by_item(spanned, Some(&query_path.mod_item), &current)?
-            {
+            if let Some(meta) = self.query.query_meta(
+                spanned,
+                Some(&query_path.mod_item),
+                &current,
+                Default::default(),
+            )? {
                 log::trace!("found in query: {:?}", meta);
                 self.visitor.visit_meta(self.source_id, &meta, spanned);
                 return Ok(Some(meta));
@@ -135,7 +139,10 @@ impl<'a> Compiler<'a> {
             return Ok(Some(meta));
         }
 
-        if let Some(meta) = self.query.query_meta_by_item(spanned, None, name)? {
+        if let Some(meta) = self
+            .query
+            .query_meta(spanned, None, name, Default::default())?
+        {
             log::trace!("found in query: {:?}", meta);
             self.visitor.visit_meta(self.source_id, &meta, spanned);
             return Ok(Some(meta));

@@ -6,6 +6,7 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
+use crate::query::QueryMod;
 use crate::CompileResult;
 use crate::{CompileError, CompileErrorKind, Error, Errors, Resolve as _, Spanned, Storage};
 use runestick::debug::{DebugArgs, DebugSignature};
@@ -396,7 +397,7 @@ impl UnitBuilder {
     pub(crate) fn find_named(
         &self,
         base: &Item,
-        mod_item: Option<&Item>,
+        mod_item: Option<&Rc<QueryMod>>,
         impl_item: Option<&Item>,
         path: &ast::Path,
         storage: &Storage,
@@ -420,6 +421,7 @@ impl UnitBuilder {
             ast::PathSegment::Super(super_value) => {
                 let mut item = mod_item
                     .ok_or_else(CompileError::unsupported_super(super_value))?
+                    .item
                     .clone();
 
                 item.pop()
@@ -436,9 +438,12 @@ impl UnitBuilder {
                 (impl_item.clone(), None)
             }
             ast::PathSegment::SelfValue(self_value) => {
-                let mod_item = mod_item.ok_or_else(|| {
-                    CompileError::new(self_value, CompileErrorKind::UnsupportedSelfValue)
-                })?;
+                let mod_item = mod_item
+                    .ok_or_else(|| {
+                        CompileError::new(self_value, CompileErrorKind::UnsupportedSelfValue)
+                    })?
+                    .item
+                    .clone();
 
                 (mod_item.clone(), None)
             }

@@ -1,11 +1,11 @@
 use crate::ast;
+use crate::indexing::Visibility;
 use crate::load::{FileSourceLoader, SourceLoader, Sources};
 use crate::query::{Build, BuildEntry, Query};
 use crate::shared::Consts;
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
 use runestick::{Context, Item, Source, Span};
-use std::collections::VecDeque;
 
 mod assembly;
 mod compile;
@@ -68,23 +68,11 @@ pub fn compile_with_options(
 ) -> Result<(), ()> {
     // Global storage.
     let storage = Storage::new();
-    // Worker queue.
-    let mut queue = VecDeque::new();
     // Constants storage.
     let consts = Consts::default();
 
-    // Queue up the initial sources to be loaded.
-    for source_id in sources.source_ids() {
-        queue.push_back(Task::LoadFile {
-            kind: LoadFileKind::Root,
-            item: Item::new(),
-            source_id,
-        });
-    }
-
     // The worker queue.
     let mut worker = Worker::new(
-        queue,
         context,
         sources,
         options,
@@ -96,6 +84,17 @@ pub fn compile_with_options(
         source_loader,
         storage.clone(),
     );
+
+    // Queue up the initial sources to be loaded.
+    for source_id in worker.sources.source_ids() {
+        let (_, mod_item) = worker.query.insert_mod(&Item::new(), Visibility::Public);
+
+        worker.queue.push_back(Task::LoadFile {
+            kind: LoadFileKind::Root,
+            source_id,
+            mod_item,
+        });
+    }
 
     worker.run();
 

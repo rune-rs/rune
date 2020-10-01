@@ -1,8 +1,7 @@
 use crate::ir::eval::{Eval as _, EvalOutcome};
 use crate::ir::ir;
 use crate::ir::IrValue;
-use crate::query::Query;
-use crate::query::Used;
+use crate::query::{Query, QueryMod, Used};
 use crate::{IrError, IrErrorKind, Spanned};
 use runestick::{CompileMetaKind, ConstValue, Item, Span};
 use std::rc::Rc;
@@ -16,7 +15,7 @@ pub(crate) struct IrInterpreter<'a> {
     /// allowed to evaluate.
     pub(crate) budget: IrBudget,
     /// The module in which the interpreter is run.
-    pub(crate) mod_item: Rc<Item>,
+    pub(crate) mod_item: Rc<QueryMod>,
     /// The item where the constant expression is located.
     pub(crate) item: Item,
     /// Query engine to look for constant expressions.
@@ -108,12 +107,10 @@ impl<'a> IrInterpreter<'a> {
                 return Ok(IrValue::from_const(const_value));
             }
 
-            if let Some(meta) = self.query.query_meta_with_use_by_item(
-                spanned,
-                Some(&self.mod_item),
-                &item,
-                used,
-            )? {
+            if let Some(meta) = self
+                .query
+                .query_meta(spanned, Some(&self.mod_item), &item, used)?
+            {
                 match &meta.kind {
                     CompileMetaKind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value.clone()));
@@ -160,13 +157,13 @@ impl<'a> IrInterpreter<'a> {
         let id = loop {
             let item = base.extended(target);
 
-            if let Some(meta) =
-                self.query
-                    .query_meta_with_use_by_item(span, Some(&self.mod_item), &item, used)?
+            if let Some(meta) = self
+                .query
+                .query_meta(span, Some(&self.mod_item), &item, used)?
             {
                 match &meta.kind {
-                    CompileMetaKind::ConstFn { id: Some(id), .. } => {
-                        break Some(*id);
+                    CompileMetaKind::ConstFn { id, .. } => {
+                        break *id;
                     }
                     _ => {
                         return Err(IrError::new(span, IrErrorKind::UnsupportedMeta { meta }));
@@ -175,17 +172,10 @@ impl<'a> IrInterpreter<'a> {
             }
 
             if base.is_empty() {
-                break None;
+                return Err(IrError::new(spanned, IrErrorKind::FnNotFound));
             }
 
             base.pop();
-        };
-
-        let id = match id {
-            Some(id) => id,
-            None => {
-                return Err(IrError::new(spanned, IrErrorKind::FnNotFound));
-            }
         };
 
         let const_fn = self.query.const_fn_for((spanned.span(), id))?;
