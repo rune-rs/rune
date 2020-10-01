@@ -728,28 +728,34 @@ impl Query {
         item: &QueryItem,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        // Test for visibility if from is specified.
-        if let Some(from) = from {
-            self.check_access_from(spanned, from, item)?;
-        }
+        let mut current = Some((from, item));
 
-        if let Some(meta) = self.unit.lookup_meta(&item.item) {
+        while let Some((from, item)) = current.take() {
+            // Test for visibility if from is specified.
+            if let Some(from) = from {
+                self.check_access_from(spanned, from, item)?;
+            }
+
+            if let Some(meta) = self.unit.lookup_meta(&item.item) {
+                return Ok(Some(meta));
+            }
+
+            // See if there's an index entry we can construct and insert.
+            let entry = match self.indexed.remove(&item.item) {
+                Some(entry) => entry,
+                None => return Ok(None),
+            };
+
+            let meta = self.build_indexed_entry(spanned, from, item, entry, used)?;
+
+            self.unit
+                .insert_meta(meta.clone())
+                .map_err(|error| QueryError::new(spanned, error))?;
+
             return Ok(Some(meta));
         }
 
-        // See if there's an index entry we can construct and insert.
-        let entry = match self.indexed.remove(&item.item) {
-            Some(entry) => entry,
-            None => return Ok(None),
-        };
-
-        let meta = self.build_indexed_entry(spanned, from, item, entry, used)?;
-
-        self.unit
-            .insert_meta(meta.clone())
-            .map_err(|error| QueryError::new(spanned, error))?;
-
-        Ok(Some(meta))
+        Ok(None)
     }
 
     /// Build a single, indexed entry and return its metadata.

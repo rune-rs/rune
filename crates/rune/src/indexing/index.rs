@@ -84,9 +84,11 @@ impl<'a> Indexer<'a> {
         while let Some((item, semi)) = queue.pop_front() {
             match item {
                 ast::Item::ItemUse(item_use) => {
+                    let visibility = Visibility::from_ast(&item_use.visibility)?;
                     let queue = &mut *self.queue;
 
                     let import = Import {
+                        visibility,
                         item: &*self.items.item(),
                         source: &*self.source,
                         source_id: self.source_id,
@@ -126,9 +128,11 @@ impl<'a> Indexer<'a> {
         while let Some(stmt) = queue.pop_front() {
             match stmt {
                 ast::Stmt::Item(ast::Item::ItemUse(item_use), _) => {
+                    let visibility = Visibility::from_ast(&item_use.visibility)?;
                     let queue = &mut *self.queue;
 
                     let import = Import {
+                        visibility,
                         item: &*self.items.item(),
                         source: &*self.source,
                         source_id: self.source_id,

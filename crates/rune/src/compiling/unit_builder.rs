@@ -6,6 +6,7 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
+use crate::indexing::Visibility;
 use crate::query::QueryMod;
 use crate::CompileResult;
 use crate::{CompileError, CompileErrorKind, Error, Errors, Resolve as _, Spanned, Storage};
@@ -25,7 +26,7 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImportKey {
     /// Where the import is located.
-    pub item: Item,
+    pub item: Option<Item>,
     /// The component that is imported.
     pub component: Component,
 }
@@ -37,18 +38,18 @@ impl ImportKey {
         C: IntoComponent,
     {
         Self {
-            item,
+            item: Some(item),
             component: component.into_component(),
         }
     }
 
     /// Construct an import key for a single component.
-    pub fn component<C>(component: C) -> Self
+    pub fn prelude<C>(component: C) -> Self
     where
         C: IntoComponent,
     {
         Self {
-            item: Item::new(),
+            item: None,
             component: component.into_component(),
         }
     }
@@ -56,8 +57,10 @@ impl ImportKey {
 
 impl fmt::Display for ImportKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.item.is_empty() {
-            write!(f, "{}::", self.item)?;
+        if let Some(item) = &self.item {
+            if !item.is_empty() {
+                write!(f, "{}::", item)?;
+            }
         }
 
         write!(f, "{}", self.component)
@@ -67,6 +70,8 @@ impl fmt::Display for ImportKey {
 /// An imported entry.
 #[derive(Debug, Clone)]
 pub struct ImportEntry {
+    /// The visibility of the import.
+    pub visibility: Visibility,
     /// The item being imported.
     pub item: Item,
     /// The span of the import.
@@ -75,12 +80,13 @@ pub struct ImportEntry {
 
 impl ImportEntry {
     /// Construct an entry.
-    pub fn of<I>(iter: I) -> Self
+    pub fn prelude<I>(iter: I) -> Self
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
         Self {
+            visibility: Visibility::Public,
             item: Item::of(iter),
             span: None,
         }
@@ -99,92 +105,92 @@ impl UnitBuilder {
         let mut this = Inner::default();
 
         this.imports.insert(
-            ImportKey::component("dbg"),
-            ImportEntry::of(&["std", "dbg"]),
+            ImportKey::prelude("dbg"),
+            Rc::new(ImportEntry::prelude(&["std", "dbg"])),
         );
         this.imports.insert(
-            ImportKey::component("drop"),
-            ImportEntry::of(&["std", "drop"]),
+            ImportKey::prelude("drop"),
+            Rc::new(ImportEntry::prelude(&["std", "drop"])),
         );
         this.imports.insert(
-            ImportKey::component("is_readable"),
-            ImportEntry::of(&["std", "is_readable"]),
+            ImportKey::prelude("is_readable"),
+            Rc::new(ImportEntry::prelude(&["std", "is_readable"])),
         );
         this.imports.insert(
-            ImportKey::component("is_writable"),
-            ImportEntry::of(&["std", "is_writable"]),
+            ImportKey::prelude("is_writable"),
+            Rc::new(ImportEntry::prelude(&["std", "is_writable"])),
         );
         this.imports.insert(
-            ImportKey::component("panic"),
-            ImportEntry::of(&["std", "panic"]),
+            ImportKey::prelude("panic"),
+            Rc::new(ImportEntry::prelude(&["std", "panic"])),
         );
         this.imports.insert(
-            ImportKey::component("print"),
-            ImportEntry::of(&["std", "print"]),
+            ImportKey::prelude("print"),
+            Rc::new(ImportEntry::prelude(&["std", "print"])),
         );
         this.imports.insert(
-            ImportKey::component("println"),
-            ImportEntry::of(&["std", "println"]),
+            ImportKey::prelude("println"),
+            Rc::new(ImportEntry::prelude(&["std", "println"])),
         );
         this.imports.insert(
-            ImportKey::component("unit"),
-            ImportEntry::of(&["std", "unit"]),
+            ImportKey::prelude("unit"),
+            Rc::new(ImportEntry::prelude(&["std", "unit"])),
         );
         this.imports.insert(
-            ImportKey::component("bool"),
-            ImportEntry::of(&["std", "bool"]),
+            ImportKey::prelude("bool"),
+            Rc::new(ImportEntry::prelude(&["std", "bool"])),
         );
         this.imports.insert(
-            ImportKey::component("byte"),
-            ImportEntry::of(&["std", "byte"]),
+            ImportKey::prelude("byte"),
+            Rc::new(ImportEntry::prelude(&["std", "byte"])),
         );
         this.imports.insert(
-            ImportKey::component("char"),
-            ImportEntry::of(&["std", "char"]),
+            ImportKey::prelude("char"),
+            Rc::new(ImportEntry::prelude(&["std", "char"])),
         );
         this.imports.insert(
-            ImportKey::component("int"),
-            ImportEntry::of(&["std", "int"]),
+            ImportKey::prelude("int"),
+            Rc::new(ImportEntry::prelude(&["std", "int"])),
         );
         this.imports.insert(
-            ImportKey::component("float"),
-            ImportEntry::of(&["std", "float"]),
+            ImportKey::prelude("float"),
+            Rc::new(ImportEntry::prelude(&["std", "float"])),
         );
         this.imports.insert(
-            ImportKey::component("Object"),
-            ImportEntry::of(&["std", "object", "Object"]),
+            ImportKey::prelude("Object"),
+            Rc::new(ImportEntry::prelude(&["std", "object", "Object"])),
         );
         this.imports.insert(
-            ImportKey::component("Vec"),
-            ImportEntry::of(&["std", "vec", "Vec"]),
+            ImportKey::prelude("Vec"),
+            Rc::new(ImportEntry::prelude(&["std", "vec", "Vec"])),
         );
         this.imports.insert(
-            ImportKey::component("String"),
-            ImportEntry::of(&["std", "string", "String"]),
+            ImportKey::prelude("String"),
+            Rc::new(ImportEntry::prelude(&["std", "string", "String"])),
         );
         this.imports.insert(
-            ImportKey::component("Result"),
-            ImportEntry::of(&["std", "result", "Result"]),
+            ImportKey::prelude("Result"),
+            Rc::new(ImportEntry::prelude(&["std", "result", "Result"])),
         );
         this.imports.insert(
-            ImportKey::component("Err"),
-            ImportEntry::of(&["std", "result", "Result", "Err"]),
+            ImportKey::prelude("Err"),
+            Rc::new(ImportEntry::prelude(&["std", "result", "Result", "Err"])),
         );
         this.imports.insert(
-            ImportKey::component("Ok"),
-            ImportEntry::of(&["std", "result", "Result", "Ok"]),
+            ImportKey::prelude("Ok"),
+            Rc::new(ImportEntry::prelude(&["std", "result", "Result", "Ok"])),
         );
         this.imports.insert(
-            ImportKey::component("Option"),
-            ImportEntry::of(&["std", "option", "Option"]),
+            ImportKey::prelude("Option"),
+            Rc::new(ImportEntry::prelude(&["std", "option", "Option"])),
         );
         this.imports.insert(
-            ImportKey::component("Some"),
-            ImportEntry::of(&["std", "option", "Option", "Some"]),
+            ImportKey::prelude("Some"),
+            Rc::new(ImportEntry::prelude(&["std", "option", "Option", "Some"])),
         );
         this.imports.insert(
-            ImportKey::component("None"),
-            ImportEntry::of(&["std", "option", "Option", "None"]),
+            ImportKey::prelude("None"),
+            Rc::new(ImportEntry::prelude(&["std", "option", "Option", "None"])),
         );
 
         Self {
@@ -222,7 +228,7 @@ impl UnitBuilder {
     }
 
     /// Access imports.
-    pub(crate) fn imports(&self) -> Ref<'_, HashMap<ImportKey, ImportEntry>> {
+    pub(crate) fn imports(&self) -> Ref<'_, HashMap<ImportKey, Rc<ImportEntry>>> {
         let inner = self.inner.borrow();
         Ref::map(inner, |inner| &inner.imports)
     }
@@ -393,6 +399,15 @@ impl UnitBuilder {
         Ok(new_slot)
     }
 
+    /// Lookup exact import.
+    #[allow(unused)]
+    pub(crate) fn get_import_for(&self, item: &Item) -> Option<Rc<ImportEntry>> {
+        let mut item = item.clone();
+        let last = item.pop()?;
+        let key = ImportKey::new(item, last);
+        Some(self.inner.borrow().imports.get(&key)?.clone())
+    }
+
     /// Perform a path lookup on the current state of the unit.
     pub(crate) fn find_named(
         &self,
@@ -451,7 +466,7 @@ impl UnitBuilder {
         };
 
         let (mut item, imported) = if let Some(local) = local {
-            match inner.lookup_import_by_name(&item, local.as_ref()) {
+            match inner.lookup_import(&item, local.as_ref()) {
                 Some(path) => (path, true),
                 None => (Item::of(Some(local)), false),
             }
@@ -495,6 +510,7 @@ impl UnitBuilder {
     pub(crate) fn new_import<S, A>(
         &self,
         spanned: S,
+        visibility: Visibility,
         at: Item,
         path: Item,
         alias: Option<A>,
@@ -513,10 +529,11 @@ impl UnitBuilder {
         {
             let key = ImportKey::new(at, last.into_component());
 
-            let entry = ImportEntry {
+            let entry = Rc::new(ImportEntry {
+                visibility,
                 item: path.clone(),
                 span: Some((spanned.span(), source_id)),
-            };
+            });
 
             if let Some(old) = inner.imports.insert(key.clone(), entry) {
                 // NB: don't error if we're overwriting prelude.
@@ -965,7 +982,7 @@ struct Inner {
     ///
     /// Only used to link against the current environment to make sure all
     /// required units are present.
-    imports: HashMap<ImportKey, ImportEntry>,
+    imports: HashMap<ImportKey, Rc<ImportEntry>>,
     /// Item metadata in the context.
     meta: HashMap<Item, CompileMeta>,
     /// Where functions are located in the collection of instructions.
@@ -1011,18 +1028,24 @@ impl Inner {
         self.debug.get_or_insert_with(Default::default)
     }
 
-    fn lookup_import_by_name(&self, base: &Item, local: &str) -> Option<Item> {
+    fn lookup_import(&self, base: &Item, local: &str) -> Option<Item> {
+        // Check for imports in current module.
+        if let Some(entry) = self.imports.get(&ImportKey::new(base.clone(), local)) {
+            return Some(entry.item.clone());
+        }
+
+        // Check prelude.
+        if let Some(entry) = self.imports.get(&ImportKey::prelude(local)) {
+            return Some(entry.item.clone());
+        }
+
         let mut base = base.clone();
 
-        loop {
+        while base.pop().is_some() {
             let key = ImportKey::new(base.clone(), local);
 
             if let Some(entry) = self.imports.get(&key) {
                 return Some(entry.item.clone());
-            }
-
-            if base.pop().is_none() {
-                break;
             }
         }
 
