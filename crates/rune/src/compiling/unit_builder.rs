@@ -5,7 +5,6 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
-use crate::query::{ImportEntry, ImportKey};
 use crate::{CompileError, CompileErrorKind, Error, Errors, Spanned};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
@@ -28,93 +27,51 @@ impl UnitBuilder {
     pub fn with_default_prelude() -> Self {
         let mut this = Inner::default();
 
-        this.imports.insert(
-            ImportKey::prelude("dbg"),
-            Rc::new(ImportEntry::prelude(&["std", "dbg"])),
+        this.prelude.insert("dbg".into(), Item::of(&["std", "dbg"]));
+        this.prelude
+            .insert("drop".into(), Item::of(&["std", "drop"]));
+        this.prelude
+            .insert("is_readable".into(), Item::of(&["std", "is_readable"]));
+        this.prelude
+            .insert("is_writable".into(), Item::of(&["std", "is_writable"]));
+        this.prelude
+            .insert("panic".into(), Item::of(&["std", "panic"]));
+        this.prelude
+            .insert("print".into(), Item::of(&["std", "print"]));
+        this.prelude
+            .insert("println".into(), Item::of(&["std", "println"]));
+        this.prelude
+            .insert("unit".into(), Item::of(&["std", "unit"]));
+        this.prelude
+            .insert("bool".into(), Item::of(&["std", "bool"]));
+        this.prelude
+            .insert("byte".into(), Item::of(&["std", "byte"]));
+        this.prelude
+            .insert("char".into(), Item::of(&["std", "char"]));
+        this.prelude.insert("int".into(), Item::of(&["std", "int"]));
+        this.prelude
+            .insert("float".into(), Item::of(&["std", "float"]));
+        this.prelude
+            .insert("Object".into(), Item::of(&["std", "object", "Object"]));
+        this.prelude
+            .insert("Vec".into(), Item::of(&["std", "vec", "Vec"]));
+        this.prelude
+            .insert("String".into(), Item::of(&["std", "string", "String"]));
+        this.prelude
+            .insert("Result".into(), Item::of(&["std", "result", "Result"]));
+        this.prelude
+            .insert("Err".into(), Item::of(&["std", "result", "Result", "Err"]));
+        this.prelude
+            .insert("Ok".into(), Item::of(&["std", "result", "Result", "Ok"]));
+        this.prelude
+            .insert("Option".into(), Item::of(&["std", "option", "Option"]));
+        this.prelude.insert(
+            "Some".into(),
+            Item::of(&["std", "option", "Option", "Some"]),
         );
-        this.imports.insert(
-            ImportKey::prelude("drop"),
-            Rc::new(ImportEntry::prelude(&["std", "drop"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("is_readable"),
-            Rc::new(ImportEntry::prelude(&["std", "is_readable"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("is_writable"),
-            Rc::new(ImportEntry::prelude(&["std", "is_writable"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("panic"),
-            Rc::new(ImportEntry::prelude(&["std", "panic"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("print"),
-            Rc::new(ImportEntry::prelude(&["std", "print"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("println"),
-            Rc::new(ImportEntry::prelude(&["std", "println"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("unit"),
-            Rc::new(ImportEntry::prelude(&["std", "unit"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("bool"),
-            Rc::new(ImportEntry::prelude(&["std", "bool"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("byte"),
-            Rc::new(ImportEntry::prelude(&["std", "byte"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("char"),
-            Rc::new(ImportEntry::prelude(&["std", "char"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("int"),
-            Rc::new(ImportEntry::prelude(&["std", "int"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("float"),
-            Rc::new(ImportEntry::prelude(&["std", "float"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("Object"),
-            Rc::new(ImportEntry::prelude(&["std", "object", "Object"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("Vec"),
-            Rc::new(ImportEntry::prelude(&["std", "vec", "Vec"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("String"),
-            Rc::new(ImportEntry::prelude(&["std", "string", "String"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("Result"),
-            Rc::new(ImportEntry::prelude(&["std", "result", "Result"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("Err"),
-            Rc::new(ImportEntry::prelude(&["std", "result", "Result", "Err"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("Ok"),
-            Rc::new(ImportEntry::prelude(&["std", "result", "Result", "Ok"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("Option"),
-            Rc::new(ImportEntry::prelude(&["std", "option", "Option"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("Some"),
-            Rc::new(ImportEntry::prelude(&["std", "option", "Option", "Some"])),
-        );
-        this.imports.insert(
-            ImportKey::prelude("None"),
-            Rc::new(ImportEntry::prelude(&["std", "option", "Option", "None"])),
+        this.prelude.insert(
+            "None".into(),
+            Item::of(&["std", "option", "Option", "None"]),
         );
 
         Self {
@@ -122,9 +79,9 @@ impl UnitBuilder {
         }
     }
 
-    /// Clone the initial collection of imports from this unit.
-    pub(crate) fn imports(&self) -> HashMap<ImportKey, Rc<ImportEntry>> {
-        self.inner.borrow().imports.clone()
+    /// Clone the prelude.
+    pub(crate) fn prelude(&self) -> HashMap<Box<str>, Item> {
+        self.inner.borrow().prelude.clone()
     }
 
     /// Convert into a runtime unit, shedding our build metadata in the process.
@@ -696,8 +653,8 @@ pub enum LinkerError {
 
 #[derive(Debug, Default)]
 struct Inner {
-    /// Keys and entries associated with the unit.
-    imports: HashMap<ImportKey, Rc<ImportEntry>>,
+    /// Prelude imports.
+    prelude: HashMap<Box<str>, Item>,
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
     /// Item metadata in the context.

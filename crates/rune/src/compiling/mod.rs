@@ -328,27 +328,15 @@ fn verify_imports(errors: &mut Errors, context: &Context, query: &Query) -> Resu
             continue;
         }
 
-        if let Some((span, source_id)) = entry.span {
-            errors.push(Error::new(
-                source_id,
-                CompileError::new(
-                    span,
-                    CompileErrorKind::MissingItem {
-                        item: entry.item.clone(),
-                    },
-                ),
-            ));
-        } else {
-            errors.push(Error::new(
-                0,
-                CompileError::new(
-                    &Span::empty(),
-                    CompileErrorKind::MissingPreludeModule {
-                        item: entry.item.clone(),
-                    },
-                ),
-            ));
-        }
+        errors.push(Error::new(
+            entry.source_id,
+            CompileError::new(
+                entry.span,
+                CompileErrorKind::MissingItem {
+                    item: entry.item.clone(),
+                },
+            ),
+        ));
 
         return Err(());
     }
