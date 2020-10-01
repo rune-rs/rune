@@ -24,8 +24,8 @@ impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
             }
         };
 
-        let captures = match &meta.kind {
-            CompileMetaKind::AsyncBlock { captures, .. } => captures,
+        let (item, captures) = match &meta.kind {
+            CompileMetaKind::AsyncBlock { item, captures, .. } => (item, captures),
             _ => {
                 return Err(CompileError::new(
                     span,
@@ -41,7 +41,6 @@ impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
             var.copy(&mut self.asm, span, format!("captures `{}`", ident.ident));
         }
 
-        let item = meta.item();
         let hash = Hash::type_hash(item);
         self.asm.push_with_comment(
             Inst::Call {

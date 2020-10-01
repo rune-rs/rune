@@ -32,25 +32,6 @@ pub struct CompileSource {
 }
 
 impl CompileMeta {
-    /// Get the item of the meta.
-    pub fn item(&self) -> &Item {
-        match &self.kind {
-            CompileMetaKind::UnitStruct { empty, .. } => &empty.item,
-            CompileMetaKind::TupleStruct { tuple, .. } => &tuple.item,
-            CompileMetaKind::Struct { object, .. } => &object.item,
-            CompileMetaKind::UnitVariant { empty, .. } => &empty.item,
-            CompileMetaKind::TupleVariant { tuple, .. } => &tuple.item,
-            CompileMetaKind::StructVariant { object, .. } => &object.item,
-            CompileMetaKind::Enum { item, .. } => item,
-            CompileMetaKind::Function { item, .. } => item,
-            CompileMetaKind::Closure { item, .. } => item,
-            CompileMetaKind::AsyncBlock { item, .. } => item,
-            CompileMetaKind::Macro { item, .. } => item,
-            CompileMetaKind::Const { item, .. } => item,
-            CompileMetaKind::ConstFn { item, .. } => item,
-        }
-    }
-
     /// Get the value type of the meta item.
     pub fn type_of(&self) -> Option<Type> {
         match &self.kind {
@@ -67,6 +48,7 @@ impl CompileMeta {
             CompileMetaKind::Macro { .. } => None,
             CompileMetaKind::Const { .. } => None,
             CompileMetaKind::ConstFn { .. } => None,
+            CompileMetaKind::Import { .. } => None,
         }
     }
 }
@@ -74,6 +56,9 @@ impl CompileMeta {
 impl fmt::Display for CompileMeta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
+            CompileMetaKind::Import { item } => {
+                write!(fmt, "import {}", item)?;
+            }
             CompileMetaKind::UnitStruct { empty, .. } => {
                 write!(fmt, "struct {}", empty.item)?;
             }
@@ -122,6 +107,13 @@ impl fmt::Display for CompileMeta {
 /// Compile-time metadata kind about a unit.
 #[derive(Debug, Clone)]
 pub enum CompileMetaKind {
+    /// An imported item.
+    ///
+    /// This is the result of a use statement.
+    Import {
+        /// An imported element.
+        item: Item,
+    },
     /// Metadata about an object.
     UnitStruct {
         /// The value type associated with this meta item.

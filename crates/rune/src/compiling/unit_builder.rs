@@ -538,10 +538,10 @@ impl UnitBuilder {
     }
 
     /// Declare a new struct.
-    pub(crate) fn insert_meta(&self, meta: CompileMeta) -> Result<(), InsertMetaError> {
+    pub(crate) fn insert_meta(&self, at: Item, meta: CompileMeta) -> Result<(), InsertMetaError> {
         let mut inner = self.inner.borrow_mut();
 
-        let item = match &meta.kind {
+        match &meta.kind {
             CompileMetaKind::UnitStruct { empty, .. } => {
                 let info = UnitFn::UnitStruct { hash: empty.hash };
 
@@ -580,8 +580,6 @@ impl UnitBuilder {
                     .debug_info_mut()
                     .functions
                     .insert(empty.hash, signature);
-
-                empty.item.clone()
             }
             CompileMetaKind::TupleStruct { tuple, .. } => {
                 let info = UnitFn::TupleStruct {
@@ -624,8 +622,6 @@ impl UnitBuilder {
                     .debug_info_mut()
                     .functions
                     .insert(tuple.hash, signature);
-
-                tuple.item.clone()
             }
             CompileMetaKind::Struct { object, .. } => {
                 let hash = Hash::type_hash(&object.item);
@@ -649,8 +645,6 @@ impl UnitBuilder {
                         existing: object.item.clone(),
                     });
                 }
-
-                object.item.clone()
             }
             CompileMetaKind::UnitVariant {
                 enum_item, empty, ..
@@ -695,8 +689,6 @@ impl UnitBuilder {
                     .debug_info_mut()
                     .functions
                     .insert(empty.hash, signature);
-
-                empty.item.clone()
             }
             CompileMetaKind::TupleVariant {
                 enum_item, tuple, ..
@@ -744,8 +736,6 @@ impl UnitBuilder {
                     .debug_info_mut()
                     .functions
                     .insert(tuple.hash, signature);
-
-                tuple.item.clone()
             }
             CompileMetaKind::StructVariant {
                 enum_item, object, ..
@@ -773,11 +763,9 @@ impl UnitBuilder {
                         existing: object.item.clone(),
                     });
                 }
-
-                object.item.clone()
             }
             CompileMetaKind::Enum { item, .. } => {
-                let hash = Hash::type_hash(item);
+                let hash = Hash::type_hash(&at);
 
                 let info = UnitTypeInfo {
                     hash,
@@ -789,18 +777,17 @@ impl UnitBuilder {
                         existing: item.clone(),
                     });
                 }
-
-                item.clone()
             }
-            CompileMetaKind::Function { item, .. } => item.clone(),
-            CompileMetaKind::Closure { item, .. } => item.clone(),
-            CompileMetaKind::AsyncBlock { item, .. } => item.clone(),
-            CompileMetaKind::Macro { item, .. } => item.clone(),
-            CompileMetaKind::Const { item, .. } => item.clone(),
-            CompileMetaKind::ConstFn { item, .. } => item.clone(),
-        };
+            CompileMetaKind::Import { .. } => (),
+            CompileMetaKind::Function { .. } => (),
+            CompileMetaKind::Closure { .. } => (),
+            CompileMetaKind::AsyncBlock { .. } => (),
+            CompileMetaKind::Macro { .. } => (),
+            CompileMetaKind::Const { .. } => (),
+            CompileMetaKind::ConstFn { .. } => (),
+        }
 
-        if let Some(existing) = inner.meta.insert(item, meta.clone()) {
+        if let Some(existing) = inner.meta.insert(at, meta.clone()) {
             return Err(InsertMetaError::MetaConflict {
                 current: meta,
                 existing,

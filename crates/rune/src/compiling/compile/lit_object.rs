@@ -95,9 +95,7 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                     _ => {
                         return Err(CompileError::new(
                             span,
-                            CompileErrorKind::UnsupportedLitObject {
-                                item: meta.item().clone(),
-                            },
+                            CompileErrorKind::UnsupportedLitObject { meta },
                         ));
                     }
                 };
