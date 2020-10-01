@@ -195,7 +195,7 @@ impl<'a> Compiler<'a> {
                             args: 0,
                         },
                         span,
-                        format!("empty `{}`", empty.item),
+                        meta.to_string(),
                     );
                 }
                 CompileMetaKind::TupleStruct { tuple, .. } if tuple.args == 0 => {
@@ -205,7 +205,7 @@ impl<'a> Compiler<'a> {
                             args: 0,
                         },
                         span,
-                        format!("tuple `{}`", tuple.item),
+                        meta.to_string(),
                     );
                 }
                 CompileMetaKind::UnitVariant { empty, .. } => {
@@ -215,7 +215,7 @@ impl<'a> Compiler<'a> {
                             args: 0,
                         },
                         span,
-                        format!("empty variant `{}`", empty.item),
+                        meta.to_string(),
                     );
                 }
                 CompileMetaKind::TupleVariant { tuple, .. } if tuple.args == 0 => {
@@ -225,38 +225,36 @@ impl<'a> Compiler<'a> {
                             args: 0,
                         },
                         span,
-                        format!("tuple variant `{}`", tuple.item),
+                        meta.to_string(),
                     );
                 }
                 CompileMetaKind::TupleStruct { tuple, .. } => {
                     self.asm.push_with_comment(
                         Inst::LoadFn { hash: tuple.hash },
                         span,
-                        format!("tuple `{}`", tuple.item),
+                        meta.to_string(),
                     );
                 }
                 CompileMetaKind::TupleVariant { tuple, .. } => {
                     self.asm.push_with_comment(
                         Inst::LoadFn { hash: tuple.hash },
                         span,
-                        format!("tuple variant `{}`", tuple.item),
+                        meta.to_string(),
                     );
                 }
-                CompileMetaKind::Function { type_of, item, .. } => {
+                CompileMetaKind::Function { type_of } => {
                     let hash = **type_of;
-                    self.asm.push_with_comment(
-                        Inst::LoadFn { hash },
-                        span,
-                        format!("fn `{}`", item),
-                    );
+                    self.asm
+                        .push_with_comment(Inst::LoadFn { hash }, span, meta.to_string());
                 }
                 CompileMetaKind::Const { const_value, .. } => {
                     self.compile((const_value, span))?;
                 }
                 _ => {
-                    return Err(CompileError::new(
+                    return Err(CompileError::expected_meta(
                         span,
-                        CompileErrorKind::UnsupportedValue { meta: meta.clone() },
+                        meta.clone(),
+                        "something that can be used as a value",
                     ));
                 }
             }
@@ -265,10 +263,7 @@ impl<'a> Compiler<'a> {
         }
 
         let type_of = meta.type_of().ok_or_else(|| {
-            CompileError::new(
-                span,
-                CompileErrorKind::UnsupportedType { meta: meta.clone() },
-            )
+            CompileError::expected_meta(span, meta.clone(), "something that has a type")
         })?;
 
         let hash = *type_of;
@@ -419,28 +414,29 @@ impl<'a> Compiler<'a> {
                 }
             };
 
-            let (item, args, type_check) = match &meta.kind {
-                CompileMetaKind::UnitStruct { empty, type_of, .. } => {
+            let (args, type_check) = match &meta.kind {
+                CompileMetaKind::UnitStruct { type_of, .. } => {
                     let type_check = TypeCheck::Type(**type_of);
-                    (&empty.item, 0, type_check)
+                    (0, type_check)
                 }
                 CompileMetaKind::TupleStruct { tuple, type_of, .. } => {
                     let type_check = TypeCheck::Type(**type_of);
-                    (&tuple.item, tuple.args, type_check)
+                    (tuple.args, type_check)
                 }
-                CompileMetaKind::UnitVariant { empty, type_of, .. } => {
+                CompileMetaKind::UnitVariant { type_of, .. } => {
                     let type_check = TypeCheck::Variant(**type_of);
-                    (&empty.item, 0, type_check)
+                    (0, type_check)
                 }
                 CompileMetaKind::TupleVariant { tuple, type_of, .. } => {
                     let type_check = TypeCheck::Variant(**type_of);
-                    (&tuple.item, tuple.args, type_check)
+                    (tuple.args, type_check)
                 }
                 _ => {
-                    return Err(CompileError::new(
+                    return Err(CompileError::expected_meta(
                         span,
-                        CompileErrorKind::UnsupportedMetaPattern { meta },
-                    ))
+                        meta,
+                        "type that can be used in a tuple pattern",
+                    ));
                 }
             };
 
@@ -458,7 +454,7 @@ impl<'a> Compiler<'a> {
                 ));
             }
 
-            match self.context.type_check_for(&item) {
+            match self.context.type_check_for(&meta.item) {
                 Some(type_check) => type_check,
                 None => type_check,
             }
@@ -569,9 +565,10 @@ impl<'a> Compiler<'a> {
                         (object, type_check)
                     }
                     _ => {
-                        return Err(CompileError::new(
+                        return Err(CompileError::expected_meta(
                             span,
-                            CompileErrorKind::UnsupportedMetaPattern { meta },
+                            meta,
+                            "type that can be used in an object pattern",
                         ));
                     }
                 };
@@ -580,9 +577,10 @@ impl<'a> Compiler<'a> {
                     Some(fields) => fields,
                     None => {
                         // NB: might want to describe that field composition is unknown because it is an external meta item.
-                        return Err(CompileError::new(
+                        return Err(CompileError::expected_meta(
                             span,
-                            CompileErrorKind::UnsupportedMetaPattern { meta },
+                            meta,
+                            "type that can be used in an object pattern",
                         ));
                     }
                 };
@@ -596,7 +594,7 @@ impl<'a> Compiler<'a> {
                             span,
                             CompileErrorKind::LitObjectNotField {
                                 field: key.to_string(),
-                                item: object.item.clone(),
+                                item: meta.item.clone(),
                             },
                         ));
                     }
@@ -668,23 +666,19 @@ impl<'a> Compiler<'a> {
         false_label: Label,
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
-        let (item, type_check) = match &meta.kind {
-            CompileMetaKind::UnitStruct { empty, type_of, .. } => {
-                (&empty.item, TypeCheck::Type(**type_of))
-            }
+        let type_check = match &meta.kind {
+            CompileMetaKind::UnitStruct { type_of, .. } => TypeCheck::Type(**type_of),
             CompileMetaKind::TupleStruct { tuple, type_of, .. } if tuple.args == 0 => {
-                (&tuple.item, TypeCheck::Type(**type_of))
+                TypeCheck::Type(**type_of)
             }
-            CompileMetaKind::UnitVariant { empty, type_of, .. } => {
-                (&empty.item, TypeCheck::Variant(**type_of))
-            }
+            CompileMetaKind::UnitVariant { type_of, .. } => TypeCheck::Variant(**type_of),
             CompileMetaKind::TupleVariant { tuple, type_of, .. } if tuple.args == 0 => {
-                (&tuple.item, TypeCheck::Variant(**type_of))
+                TypeCheck::Variant(**type_of)
             }
             _ => return Ok(false),
         };
 
-        let type_check = match self.context.type_check_for(item) {
+        let type_check = match self.context.type_check_for(&meta.item) {
             Some(type_check) => type_check,
             None => type_check,
         };

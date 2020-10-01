@@ -25,10 +25,8 @@ pub enum ContextError {
         name: &'static str,
     },
     /// A conflicting name.
-    #[error("conflicting item `{item}`, inserted `{current}` while `{existing}` already existed")]
+    #[error("conflicting meta {existing} while trying to insert {current}")]
     ConflictingMeta {
-        /// The item that conflicted
-        item: Item,
         /// The current meta we tried to insert.
         current: Box<CompileMeta>,
         /// The existing meta item.
@@ -368,10 +366,9 @@ impl Context {
     }
 
     /// Install the given meta.
-    fn install_meta(&mut self, item: Item, meta: CompileMeta) -> Result<(), ContextError> {
-        if let Some(existing) = self.meta.insert(item.clone(), meta.clone()) {
+    fn install_meta(&mut self, meta: CompileMeta) -> Result<(), ContextError> {
+        if let Some(existing) = self.meta.insert(meta.item.clone(), meta.clone()) {
             return Err(ContextError::ConflictingMeta {
-                item,
                 existing: Box::new(existing),
                 current: Box::new(meta),
             });
@@ -400,16 +397,14 @@ impl Context {
             },
         )?;
 
-        self.install_meta(
-            item.clone(),
-            CompileMeta {
-                kind: CompileMetaKind::Struct {
-                    type_of,
-                    object: CompileMetaStruct { item, fields: None },
-                },
-                source: None,
+        self.install_meta(CompileMeta {
+            item,
+            kind: CompileMetaKind::Struct {
+                type_of,
+                object: CompileMetaStruct { fields: None },
             },
-        )?;
+            source: None,
+        })?;
 
         Ok(())
     }
@@ -465,9 +460,9 @@ impl Context {
         self.meta.insert(
             item.clone(),
             CompileMeta {
+                item,
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(hash),
-                    item,
                 },
                 source: None,
             },
@@ -480,21 +475,22 @@ impl Context {
     fn install_macro(
         &mut self,
         module: &Module,
-        name: &Item,
+        item: &Item,
         m: &ModuleMacro,
     ) -> Result<(), ContextError> {
-        let name = module.path.join(name);
+        let item = module.path.join(item);
 
-        self.names.insert(&name);
+        self.names.insert(&item);
 
-        let hash = Hash::type_hash(&name);
+        let hash = Hash::type_hash(&item);
 
         self.macros.insert(hash, m.handler.clone());
 
         self.meta.insert(
-            name.clone(),
+            item.clone(),
             CompileMeta {
-                kind: CompileMetaKind::Macro { item: name },
+                item,
+                kind: CompileMetaKind::Macro,
                 source: None,
             },
         );
@@ -585,16 +581,13 @@ impl Context {
         let enum_item = module.path.join(&internal_enum.base_type);
         let enum_hash = Hash::type_hash(&enum_item);
 
-        self.install_meta(
-            enum_item.clone(),
-            CompileMeta {
-                kind: CompileMetaKind::Enum {
-                    type_of: Type::from(internal_enum.static_type),
-                    item: enum_item.clone(),
-                },
-                source: None,
+        self.install_meta(CompileMeta {
+            item: enum_item.clone(),
+            kind: CompileMetaKind::Enum {
+                type_of: Type::from(internal_enum.static_type),
             },
-        )?;
+            source: None,
+        })?;
 
         self.install_type_info(
             enum_hash,
@@ -620,22 +613,18 @@ impl Context {
                 },
             )?;
 
-            let tuple = CompileMetaTuple {
+            self.install_meta(CompileMeta {
                 item: item.clone(),
-                args: variant.args,
-                hash,
-            };
-
-            let meta = CompileMeta {
                 kind: CompileMetaKind::TupleVariant {
                     type_of: variant.type_of,
                     enum_item: enum_item.clone(),
-                    tuple,
+                    tuple: CompileMetaTuple {
+                        args: variant.args,
+                        hash,
+                    },
                 },
                 source: None,
-            };
-
-            self.install_meta(item.clone(), meta)?;
+            })?;
 
             let signature = ContextSignature::Function {
                 item,
@@ -670,14 +659,11 @@ impl Context {
         let type_of = <C::Return as TypeOf>::type_of();
         let hash = Hash::type_hash(&item);
 
-        let tuple = CompileMetaTuple {
-            item: item.clone(),
-            args,
-            hash,
-        };
+        let tuple = CompileMetaTuple { args, hash };
 
         let meta = match enum_item {
             Some(enum_item) => CompileMeta {
+                item: item.clone(),
                 kind: CompileMetaKind::TupleVariant {
                     type_of,
                     enum_item,
@@ -686,12 +672,13 @@ impl Context {
                 source: None,
             },
             None => CompileMeta {
+                item: item.clone(),
                 kind: CompileMetaKind::TupleStruct { type_of, tuple },
                 source: None,
             },
         };
 
-        self.install_meta(item.clone(), meta)?;
+        self.install_meta(meta)?;
 
         let constructor: Arc<Handler> =
             Arc::new(move |stack, args| constructor.fn_call(stack, args));

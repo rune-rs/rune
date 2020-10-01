@@ -81,10 +81,7 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
         let captures = match &meta.kind {
             CompileMetaKind::Closure { captures, .. } => captures,
             _ => {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::UnsupportedMetaClosure { meta: meta.clone() },
-                ));
+                return Err(CompileError::expected_meta(span, meta, "a closure"));
             }
         };
 

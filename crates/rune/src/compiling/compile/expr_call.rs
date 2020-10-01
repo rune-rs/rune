@@ -98,9 +98,8 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
         };
 
-        let item = match &meta.kind {
-            CompileMetaKind::UnitStruct { empty, .. }
-            | CompileMetaKind::UnitVariant { empty, .. } => {
+        match &meta.kind {
+            CompileMetaKind::UnitStruct { .. } | CompileMetaKind::UnitVariant { .. } => {
                 if 0 != expr_call.args.len() {
                     return Err(CompileError::new(
                         span,
@@ -111,8 +110,6 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                         },
                     ));
                 }
-
-                empty.item.clone()
             }
             CompileMetaKind::TupleStruct { tuple, .. }
             | CompileMetaKind::TupleVariant { tuple, .. } => {
@@ -136,10 +133,8 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                         self.context(),
                     );
                 }
-
-                tuple.item.clone()
             }
-            CompileMetaKind::Function { item, .. } => item.clone(),
+            CompileMetaKind::Function { .. } => (),
             CompileMetaKind::ConstFn { id, .. } => {
                 let from = self.query.item_for(expr_call)?.clone();
                 let const_fn = self.query.const_fn_for((expr_call.span(), *id))?;
@@ -157,11 +152,10 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
                 return Ok(());
             }
             _ => {
-                return Err(CompileError::new(
+                return Err(CompileError::expected_meta(
                     span,
-                    CompileErrorKind::MissingFunction {
-                        item: named.item.clone(),
-                    },
+                    meta,
+                    "something that can be called as a function",
                 ));
             }
         };
@@ -171,9 +165,9 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             self.scopes.decl_anon(span)?;
         }
 
-        let hash = Hash::type_hash(&item);
+        let hash = Hash::type_hash(&meta.item);
         self.asm
-            .push_with_comment(Inst::Call { hash, args }, span, format!("fn `{}`", item));
+            .push_with_comment(Inst::Call { hash, args }, span, meta.to_string());
 
         // NB: we put it here to preserve the call in case it has side effects.
         // But if we don't need the value, then pop it from the stack.

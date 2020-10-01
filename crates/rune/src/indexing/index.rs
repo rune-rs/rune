@@ -368,9 +368,9 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             });
 
             let meta = CompileMeta {
+                item: item.clone(),
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&*item)),
-                    item: item.clone(),
                 },
                 source: Some(CompileSource {
                     span,
@@ -381,7 +381,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
             self.query
                 .unit
-                .insert_meta(item.clone(), meta)
+                .insert_meta(meta)
                 .map_err(|e| CompileError::new(span, e))?;
         } else if is_toplevel {
             let item = self.items.item();
@@ -397,9 +397,9 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             });
 
             let meta = CompileMeta {
+                item: item.clone(),
                 kind: CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&*item)),
-                    item: item.clone(),
                 },
                 source: Some(CompileSource {
                     span,
@@ -410,7 +410,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
 
             self.query
                 .unit
-                .insert_meta(item.clone(), meta)
+                .insert_meta(meta)
                 .map_err(|e| CompileError::new(span, e))?;
         } else {
             self.query.index(

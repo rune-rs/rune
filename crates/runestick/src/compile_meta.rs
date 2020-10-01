@@ -14,6 +14,8 @@ pub struct CompileMetaCapture {
 /// Compile-time metadata about a unit.
 #[derive(Debug, Clone)]
 pub struct CompileMeta {
+    /// The item of the returned compile meta.
+    pub item: Item,
     /// The kind of the compile meta.
     pub kind: CompileMetaKind,
     /// The source of the meta.
@@ -38,13 +40,13 @@ impl CompileMeta {
             CompileMetaKind::UnitStruct { type_of, .. } => Some(*type_of),
             CompileMetaKind::TupleStruct { type_of, .. } => Some(*type_of),
             CompileMetaKind::Struct { type_of, .. } => Some(*type_of),
-            CompileMetaKind::UnitVariant { .. } => None,
-            CompileMetaKind::TupleVariant { .. } => None,
-            CompileMetaKind::StructVariant { .. } => None,
             CompileMetaKind::Enum { type_of, .. } => Some(*type_of),
             CompileMetaKind::Function { type_of, .. } => Some(*type_of),
             CompileMetaKind::Closure { type_of, .. } => Some(*type_of),
             CompileMetaKind::AsyncBlock { type_of, .. } => Some(*type_of),
+            CompileMetaKind::UnitVariant { .. } => None,
+            CompileMetaKind::TupleVariant { .. } => None,
+            CompileMetaKind::StructVariant { .. } => None,
             CompileMetaKind::Macro { .. } => None,
             CompileMetaKind::Const { .. } => None,
             CompileMetaKind::ConstFn { .. } => None,
@@ -56,47 +58,47 @@ impl CompileMeta {
 impl fmt::Display for CompileMeta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            CompileMetaKind::Import { item } => {
-                write!(fmt, "import {}", item)?;
+            CompileMetaKind::Import { .. } => {
+                write!(fmt, "import {}", self.item)?;
             }
-            CompileMetaKind::UnitStruct { empty, .. } => {
-                write!(fmt, "struct {}", empty.item)?;
+            CompileMetaKind::UnitStruct { .. } => {
+                write!(fmt, "struct {}", self.item)?;
             }
-            CompileMetaKind::TupleStruct { tuple, .. } => {
-                write!(fmt, "struct {}", tuple.item)?;
+            CompileMetaKind::TupleStruct { .. } => {
+                write!(fmt, "struct {}", self.item)?;
             }
-            CompileMetaKind::Struct { object, .. } => {
-                write!(fmt, "struct {}", object.item)?;
+            CompileMetaKind::Struct { .. } => {
+                write!(fmt, "struct {}", self.item)?;
             }
-            CompileMetaKind::UnitVariant { empty, .. } => {
-                write!(fmt, "variant {}", empty.item)?;
+            CompileMetaKind::UnitVariant { .. } => {
+                write!(fmt, "unit variant {}", self.item)?;
             }
-            CompileMetaKind::TupleVariant { tuple, .. } => {
-                write!(fmt, "variant {}", tuple.item)?;
+            CompileMetaKind::TupleVariant { .. } => {
+                write!(fmt, "variant {}", self.item)?;
             }
-            CompileMetaKind::StructVariant { object, .. } => {
-                write!(fmt, "variant {}", object.item)?;
+            CompileMetaKind::StructVariant { .. } => {
+                write!(fmt, "variant {}", self.item)?;
             }
-            CompileMetaKind::Enum { item, .. } => {
-                write!(fmt, "enum {}", item)?;
+            CompileMetaKind::Enum { .. } => {
+                write!(fmt, "enum {}", self.item)?;
             }
-            CompileMetaKind::Function { item, .. } => {
-                write!(fmt, "fn {}", item)?;
+            CompileMetaKind::Function { .. } => {
+                write!(fmt, "fn {}", self.item)?;
             }
-            CompileMetaKind::Closure { item, .. } => {
-                write!(fmt, "closure {}", item)?;
+            CompileMetaKind::Closure { .. } => {
+                write!(fmt, "closure {}", self.item)?;
             }
-            CompileMetaKind::AsyncBlock { item, .. } => {
-                write!(fmt, "async block {}", item)?;
+            CompileMetaKind::AsyncBlock { .. } => {
+                write!(fmt, "async block {}", self.item)?;
             }
-            CompileMetaKind::Macro { item, .. } => {
-                write!(fmt, "macro {}", item)?;
+            CompileMetaKind::Macro => {
+                write!(fmt, "macro {}", self.item)?;
             }
-            CompileMetaKind::Const { item, .. } => {
-                write!(fmt, "const {}", item)?;
+            CompileMetaKind::Const { .. } => {
+                write!(fmt, "const {}", self.item)?;
             }
-            CompileMetaKind::ConstFn { item, .. } => {
-                write!(fmt, "const fn {}", item)?;
+            CompileMetaKind::ConstFn { .. } => {
+                write!(fmt, "const fn {}", self.item)?;
             }
         }
 
@@ -111,8 +113,8 @@ pub enum CompileMetaKind {
     ///
     /// This is the result of a use statement.
     Import {
-        /// An imported element.
-        item: Item,
+        /// The imported item.
+        import: Item,
     },
     /// Metadata about an object.
     UnitStruct {
@@ -166,22 +168,16 @@ pub enum CompileMetaKind {
     Enum {
         /// The value type associated with this meta item.
         type_of: Type,
-        /// The item of the enum.
-        item: Item,
     },
     /// A function declaration.
     Function {
         /// The value type associated with this meta item.
         type_of: Type,
-        /// The item of the function declaration.
-        item: Item,
     },
     /// A closure.
     Closure {
         /// The value type associated with this meta item.
         type_of: Type,
-        /// The item of the closure.
-        item: Item,
         /// Sequence of captured variables.
         captures: Arc<Vec<CompileMetaCapture>>,
     },
@@ -189,8 +185,6 @@ pub enum CompileMetaKind {
     AsyncBlock {
         /// The span where the async block is declared.
         type_of: Type,
-        /// The item of the closure.
-        item: Item,
         /// Sequence of captured variables.
         captures: Arc<Vec<CompileMetaCapture>>,
     },
@@ -198,28 +192,19 @@ pub enum CompileMetaKind {
     Const {
         /// The evaluated constant value.
         const_value: ConstValue,
-        /// The item for the constant expression.
-        item: Item,
     },
     /// A constant function.
     ConstFn {
         /// Opaque identifier for the constant function.
         id: Id,
-        /// The item of the constant function.
-        item: Item,
     },
     /// A macro.
-    Macro {
-        /// The item of the macro.
-        item: Item,
-    },
+    Macro,
 }
 
 /// The metadata about a type.
 #[derive(Debug, Clone)]
 pub struct CompileMetaEmpty {
-    /// The path to the object.
-    pub item: Item,
     /// Hash of the constructor function.
     pub hash: Hash,
 }
@@ -227,8 +212,6 @@ pub struct CompileMetaEmpty {
 /// The metadata about a type.
 #[derive(Debug, Clone)]
 pub struct CompileMetaStruct {
-    /// The path to the object.
-    pub item: Item,
     /// Fields associated with the type.
     pub fields: Option<HashSet<String>>,
 }
@@ -236,8 +219,6 @@ pub struct CompileMetaStruct {
 /// The metadata about a variant.
 #[derive(Debug, Clone)]
 pub struct CompileMetaTuple {
-    /// The path to the tuple.
-    pub item: Item,
     /// The number of arguments the variant takes.
     pub args: usize,
     /// Hash of the constructor function.
