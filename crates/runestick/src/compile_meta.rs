@@ -58,8 +58,8 @@ impl CompileMeta {
 impl fmt::Display for CompileMeta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            CompileMetaKind::Import { .. } => {
-                write!(fmt, "import {}", self.item)?;
+            CompileMetaKind::Import { import, .. } => {
+                write!(fmt, "import {} (at: {})", import, self.item)?;
             }
             CompileMetaKind::UnitStruct { .. } => {
                 write!(fmt, "struct {}", self.item)?;

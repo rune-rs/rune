@@ -2,7 +2,7 @@
 
 use crate::ast;
 use crate::collections::HashMap;
-use crate::indexing::{Index as _, IndexScopes, Indexer};
+use crate::indexing::{Index as _, IndexScopes, Indexer, Visibility};
 use crate::query::{Query, QueryMod};
 use crate::shared::{Consts, Items};
 use crate::CompileResult;
@@ -161,6 +161,7 @@ impl<'a> Worker<'a> {
 /// Import to process.
 #[derive(Debug)]
 pub(crate) struct Import<'a> {
+    pub(crate) visibility: Visibility,
     pub(crate) item: &'a Item,
     pub(crate) source: &'a Source,
     pub(crate) source_id: usize,
@@ -252,6 +253,7 @@ impl Import<'_> {
                             for c in context.iter_components(&name) {
                                 unit.new_import(
                                     span,
+                                    self.visibility,
                                     self.item.clone(),
                                     name.extended(c),
                                     None::<&str>,
@@ -265,6 +267,7 @@ impl Import<'_> {
                         };
 
                         let wildcard_expander = ExpandUnitWildcard {
+                            visibility: self.visibility,
                             from: self.item.clone(),
                             name: name.clone(),
                             span,
@@ -308,7 +311,14 @@ impl Import<'_> {
                 None => None,
             };
 
-            unit.new_import(span, self.item.clone(), name, alias, self.source_id)?;
+            unit.new_import(
+                span,
+                self.visibility,
+                self.item.clone(),
+                name,
+                alias,
+                self.source_id,
+            )?;
         }
 
         Ok(())
@@ -317,6 +327,7 @@ impl Import<'_> {
 
 #[derive(Debug)]
 pub(crate) struct ExpandUnitWildcard {
+    visibility: Visibility,
     from: Item,
     name: Item,
     span: Span,
@@ -332,6 +343,7 @@ impl ExpandUnitWildcard {
                 let name = self.name.extended(c);
                 unit.new_import(
                     self.span,
+                    self.visibility,
                     self.from.clone(),
                     name,
                     None::<&str>,
