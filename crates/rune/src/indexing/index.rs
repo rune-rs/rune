@@ -5,7 +5,7 @@ use crate::load::{SourceLoader, Sources};
 use crate::macros::{MacroCompiler, MacroContext};
 use crate::parsing::Parse;
 use crate::query::{
-    Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query, Used,
+    Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query, QueryMod, Used,
 };
 use crate::shared::Items;
 use crate::worker::{Import, LoadFileKind, Task};
@@ -42,7 +42,7 @@ pub(crate) struct Indexer<'a> {
     pub(crate) items: Items,
     pub(crate) scopes: IndexScopes,
     /// The current module being indexed.
-    pub(crate) mod_item: Rc<Item>,
+    pub(crate) mod_item: Rc<QueryMod>,
     /// Set if we are inside of an impl block.
     pub(crate) impl_item: Option<Rc<Item>>,
     pub(crate) visitor: &'a mut dyn CompileVisitor,
@@ -190,7 +190,8 @@ impl<'a> Indexer<'a> {
 
         let item = self.items.item();
         let visibility = Visibility::from_ast(&item_mod.visibility)?;
-        item_mod.id = Some(self.query.insert_mod(&*item, visibility));
+        let (id, mod_item) = self.query.insert_mod(&*item, visibility);
+        item_mod.id = Some(id);
 
         let source = self.source_loader.load(root, &*item, span)?;
 
@@ -211,8 +212,8 @@ impl<'a> Indexer<'a> {
             kind: LoadFileKind::Module {
                 root: self.root.clone(),
             },
-            item: item.clone(),
             source_id,
+            mod_item,
         });
 
         Ok(())
@@ -244,13 +245,6 @@ impl Index<ast::File> for Indexer<'_> {
             }
 
             self.index(item)?;
-        }
-
-        // Insert the root module.
-        if self.mod_item.is_empty() {
-            let item = self.items.item();
-            debug_assert!(item.is_empty());
-            self.query.insert_mod(&*item, Visibility::Public);
         }
 
         Ok(())
@@ -1017,11 +1011,11 @@ impl Index<ast::Item> for Indexer<'_> {
                         let name = item_mod.name.resolve(&self.storage, &*self.source)?;
                         let _guard = self.items.push_name(name.as_ref());
 
-                        let module_item = Rc::new(self.items.item().clone());
                         let visibility = Visibility::from_ast(&item_mod.visibility)?;
-                        item_mod.id = Some(self.query.insert_mod(&module_item, visibility));
+                        let (id, mod_item) = self.query.insert_mod(&*self.items.item(), visibility);
+                        item_mod.id = Some(id);
 
-                        let replaced = std::mem::replace(&mut self.mod_item, module_item);
+                        let replaced = std::mem::replace(&mut self.mod_item, mod_item);
                         self.index(&mut *body.file)?;
                         self.mod_item = replaced;
                     }
@@ -1413,7 +1407,7 @@ impl Index<ast::LitTemplate> for Indexer<'_> {
             }
         }
 
-        lit_template.id = self.query.insert_template(template);
+        lit_template.id = Some(self.query.insert_template(template));
         Ok(())
     }
 }

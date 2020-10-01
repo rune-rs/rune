@@ -3,7 +3,7 @@
 use crate::ast;
 use crate::collections::HashMap;
 use crate::indexing::{Index as _, IndexScopes, Indexer};
-use crate::query::Query;
+use crate::query::{Query, QueryMod};
 use crate::shared::{Consts, Items};
 use crate::CompileResult;
 use crate::{
@@ -22,10 +22,10 @@ pub(crate) enum Task {
     LoadFile {
         /// The kind of loaded file.
         kind: LoadFileKind,
-        /// The item of the file to load.
-        item: Item,
         /// The source id of the item being loaded.
         source_id: SourceId,
+        /// The item of the file to load.
+        mod_item: Rc<QueryMod>,
     },
     /// Deferred action, since it requires all modules to be loaded to be able
     /// to discover all modules.
@@ -43,7 +43,6 @@ pub(crate) enum LoadFileKind {
 }
 
 pub(crate) struct Worker<'a> {
-    pub(crate) queue: VecDeque<Task>,
     context: &'a Context,
     pub(crate) sources: &'a mut Sources,
     options: &'a Options,
@@ -51,6 +50,8 @@ pub(crate) struct Worker<'a> {
     pub(crate) warnings: &'a mut Warnings,
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     pub(crate) source_loader: &'a mut dyn SourceLoader,
+    // Worker queue.
+    pub(crate) queue: VecDeque<Task>,
     pub(crate) query: Query,
     pub(crate) loaded: HashMap<Item, (SourceId, Span)>,
 }
@@ -58,7 +59,6 @@ pub(crate) struct Worker<'a> {
 impl<'a> Worker<'a> {
     /// Construct a new worker.
     pub(crate) fn new(
-        queue: VecDeque<Task>,
         context: &'a Context,
         sources: &'a mut Sources,
         options: &'a Options,
@@ -71,7 +71,6 @@ impl<'a> Worker<'a> {
         storage: Storage,
     ) -> Self {
         Self {
-            queue,
             context,
             sources,
             options,
@@ -79,6 +78,7 @@ impl<'a> Worker<'a> {
             warnings,
             visitor,
             source_loader,
+            queue: VecDeque::new(),
             query: Query::new(storage, unit, consts),
             loaded: HashMap::new(),
         }
@@ -90,10 +90,10 @@ impl<'a> Worker<'a> {
             match task {
                 Task::LoadFile {
                     kind,
-                    item,
                     source_id,
+                    mod_item,
                 } => {
-                    log::trace!("load file: {}", item);
+                    log::trace!("load file: {}", mod_item.item);
 
                     let source = match self.sources.get(source_id).cloned() {
                         Some(source) => source,
@@ -119,8 +119,8 @@ impl<'a> Worker<'a> {
                         LoadFileKind::Module { root } => root,
                     };
 
-                    log::trace!("index: {}", item);
-                    let items = Items::new(item.clone());
+                    log::trace!("index: {}", mod_item.item);
+                    let items = Items::new(mod_item.item.clone());
 
                     let mut indexer = Indexer {
                         root,
@@ -136,7 +136,7 @@ impl<'a> Worker<'a> {
                         warnings: self.warnings,
                         items,
                         scopes: IndexScopes::new(),
-                        mod_item: Rc::new(item.clone()),
+                        mod_item,
                         impl_item: Default::default(),
                         visitor: self.visitor,
                         source_loader: self.source_loader,
@@ -171,7 +171,7 @@ impl Import<'_> {
     /// Process the import, populating the unit.
     pub(crate) fn process(
         self,
-        mod_item: &Item,
+        mod_item: &Rc<QueryMod>,
         context: &Context,
         storage: &Storage,
         unit: &UnitBuilder,
@@ -217,7 +217,7 @@ impl Import<'_> {
                                 ));
                             }
 
-                            name = mod_item.clone();
+                            name = mod_item.item.clone();
                         }
                         ast::PathSegment::Ident(ident) => {
                             if initial {
@@ -239,7 +239,7 @@ impl Import<'_> {
                         }
                         ast::PathSegment::Super(super_token) => {
                             if initial {
-                                name = mod_item.clone();
+                                name = mod_item.item.clone();
                             }
 
                             name.pop().ok_or_else(|| {

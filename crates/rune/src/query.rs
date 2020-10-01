@@ -38,6 +38,12 @@ impl Used {
     }
 }
 
+impl Default for Used {
+    fn default() -> Self {
+        Self::Used
+    }
+}
+
 error! {
     /// An error raised during querying.
     #[derive(Debug)]
@@ -173,7 +179,7 @@ pub(crate) struct AsyncBlock {
 
 pub(crate) struct Const {
     /// The module item the constant is defined in.
-    pub(crate) mod_item: Rc<Item>,
+    pub(crate) mod_item: Rc<QueryMod>,
     /// The intermediate representation of the constant expression.
     pub(crate) ir: ir::Ir,
 }
@@ -225,7 +231,7 @@ pub(crate) struct IndexedEntry {
 /// Query information for a path.
 #[derive(Debug)]
 pub(crate) struct QueryPath {
-    pub(crate) mod_item: Rc<Item>,
+    pub(crate) mod_item: Rc<QueryMod>,
     pub(crate) impl_item: Option<Rc<Item>>,
     pub(crate) item: Item,
 }
@@ -235,7 +241,7 @@ pub(crate) struct QueryPath {
 pub(crate) struct QueryItem {
     pub(crate) id: Id,
     pub(crate) item: Item,
-    pub(crate) mod_item: Rc<Item>,
+    pub(crate) mod_item: Rc<QueryMod>,
     pub(crate) visibility: Visibility,
 }
 
@@ -307,7 +313,7 @@ impl Query {
     /// Insert path information.
     pub(crate) fn insert_path(
         &mut self,
-        mod_item: &Rc<Item>,
+        mod_item: &Rc<QueryMod>,
         impl_item: Option<&Rc<Item>>,
         item: &Item,
     ) -> Option<Id> {
@@ -323,7 +329,7 @@ impl Query {
     }
 
     /// Insert module and associated metadata.
-    pub(crate) fn insert_mod(&mut self, item: &Item, visibility: Visibility) -> Id {
+    pub(crate) fn insert_mod(&mut self, item: &Item, visibility: Visibility) -> (Id, Rc<QueryMod>) {
         let id = self.next_id.next().expect("ran out of ids");
 
         let query_mod = Rc::new(QueryMod {
@@ -332,7 +338,7 @@ impl Query {
         });
 
         self.modules.insert(item.clone(), query_mod.clone());
-        id
+        (id, query_mod)
     }
 
     /// Insert an item and return its Id.
@@ -340,7 +346,7 @@ impl Query {
         &mut self,
         span: Span,
         item: &Item,
-        mod_item: &Rc<Item>,
+        mod_item: &Rc<QueryMod>,
         visibility: Visibility,
     ) -> Result<(Id, Rc<QueryItem>), CompileError> {
         if let Some(existing) = self.items_rev.get(item) {
@@ -368,15 +374,15 @@ impl Query {
     }
 
     /// Insert a template and return its Id.
-    pub(crate) fn insert_template(&mut self, template: ast::Template) -> Option<Id> {
-        let id = self.next_id.next()?;
+    pub(crate) fn insert_template(&mut self, template: ast::Template) -> Id {
+        let id = self.next_id.next().expect("ran out of ids");
         self.templates.insert(id, Rc::new(template));
-        Some(id)
+        id
     }
 
     /// Insert an item and return its Id.
-    pub(crate) fn insert_const_fn(&mut self, item: &Rc<QueryItem>, ir_fn: ir::IrFn) -> Option<Id> {
-        let id = self.next_id.next()?;
+    pub(crate) fn insert_const_fn(&mut self, item: &Rc<QueryItem>, ir_fn: ir::IrFn) -> Id {
+        let id = self.next_id.next().expect("ran out of ids");
         self.const_fns.insert(
             id,
             Rc::new(QueryConstFn {
@@ -384,7 +390,7 @@ impl Query {
                 ir_fn,
             }),
         );
-        Some(id)
+        id
     }
 
     /// Get path information for the given ast.
@@ -688,7 +694,7 @@ impl Query {
             // NB: recursive queries might remove from `indexed`, so we expect
             // to miss things here.
             if let Some(meta) = self
-                .query_meta_with_use(span, None, &*item, Used::Unused)
+                .query_meta_with(span, None, &*item, Used::Unused)
                 .map_err(|e| (source_id, e))?
             {
                 visitor.visit_meta(source_id, &meta, span);
@@ -703,48 +709,19 @@ impl Query {
         &mut self,
         spanned: Span,
         from: Option<&QueryMod>,
-        item: &QueryItem,
-    ) -> Result<Option<CompileMeta>, QueryError> {
-        self.query_meta_with_use(spanned, from, item, Used::Used)
-    }
-
-    /// Public query meta which marks things as used.
-    pub(crate) fn query_meta_by_item(
-        &mut self,
-        spanned: Span,
-        from: Option<&Item>,
-        item: &Item,
-    ) -> Result<Option<CompileMeta>, QueryError> {
-        self.query_meta_with_use_by_item(spanned, from, item, Used::Used)
-    }
-
-    pub(crate) fn query_meta_with_use_by_item(
-        &mut self,
-        spanned: Span,
-        from: Option<&Item>,
         item: &Item,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        // NB: `from` is expected to be the module being queried from. We look
-        // it up here.
-        let from = match from {
-            Some(from) => match self.modules.get(from) {
-                Some(from) => Some(from.clone()),
-                None => return Ok(None),
-            },
-            None => None,
-        };
-
         let item = match self.items_rev.get(item) {
             Some(item) => item.clone(),
             None => return Ok(None),
         };
 
-        self.query_meta_with_use(spanned, from.as_deref(), &*item, used)
+        self.query_meta_with(spanned, from, &*item, used)
     }
 
-    /// Internal query meta with control over whether or not to mark things as unused.
-    pub(crate) fn query_meta_with_use(
+    /// Query the exact meta item without performing a reverse lookup for it.
+    pub(crate) fn query_meta_with(
         &mut self,
         spanned: Span,
         from: Option<&QueryMod>,
@@ -760,19 +737,23 @@ impl Query {
             return Ok(Some(meta));
         }
 
-        // See if there's an index entry we can construct.
+        // See if there's an index entry we can construct and insert.
         let entry = match self.indexed.remove(&item.item) {
             Some(entry) => entry,
             None => return Ok(None),
         };
 
-        Ok(Some(
-            self.build_indexed_entry(spanned, from, item, entry, used)?,
-        ))
+        let meta = self.build_indexed_entry(spanned, from, item, entry, used)?;
+
+        self.unit
+            .insert_meta(meta.clone())
+            .map_err(|error| QueryError::new(spanned, error))?;
+
+        Ok(Some(meta))
     }
 
     /// Build a single, indexed entry and return its metadata.
-    pub(crate) fn build_indexed_entry(
+    fn build_indexed_entry(
         &mut self,
         spanned: Span,
         from: Option<&QueryMod>,
@@ -781,7 +762,7 @@ impl Query {
         used: Used,
     ) -> Result<CompileMeta, QueryError> {
         let IndexedEntry {
-            span: entry_span,
+            span,
             indexed,
             source,
             source_id,
@@ -796,9 +777,9 @@ impl Query {
                 item: item.item.clone(),
             },
             Indexed::Variant(variant) => {
-                let enum_item = self.item_for((entry_span, variant.enum_id))?.clone();
+                let enum_item = self.item_for((span, variant.enum_id))?.clone();
                 // Assert that everything is built for the enum.
-                self.query_meta(spanned, from, &enum_item)?;
+                self.query_meta_with(spanned, from, &enum_item, Default::default())?;
                 self.variant_into_item_decl(
                     &item.item,
                     variant.ast.body,
@@ -896,7 +877,9 @@ impl Query {
 
                 let ir_fn = ir_compiler.compile(&c.item_fn)?;
 
-                let id = if used.is_unused() {
+                let id = self.insert_const_fn(&entry_item, ir_fn);
+
+                if used.is_unused() {
                     self.queue.push_back(BuildEntry {
                         span: c.item_fn.span(),
                         item: item.item.clone(),
@@ -905,11 +888,7 @@ impl Query {
                         source_id,
                         used,
                     });
-
-                    None
-                } else {
-                    self.insert_const_fn(&entry_item, ir_fn)
-                };
+                }
 
                 CompileMetaKind::ConstFn {
                     id,
@@ -918,20 +897,14 @@ impl Query {
             }
         };
 
-        let meta = CompileMeta {
+        Ok(CompileMeta {
             kind,
             source: Some(CompileSource {
-                span: entry_span,
+                span,
                 path,
                 source_id,
             }),
-        };
-
-        self.unit
-            .insert_meta(meta.clone())
-            .map_err(|error| QueryError::new(entry_span, error))?;
-
-        Ok(meta)
+        })
     }
 
     fn check_access_from(
@@ -940,7 +913,8 @@ impl Query {
         from: &QueryMod,
         item: &QueryItem,
     ) -> Result<(), QueryError> {
-        let (mut mod_item, suffix, is_strict_prefix) = from.item.module_difference(&item.mod_item);
+        let (mut mod_item, suffix, is_strict_prefix) =
+            from.item.module_difference(&item.mod_item.item);
 
         // NB: if we are an immediate parent module, we're allowed to peek into
         // a nested private module in one level of depth.
@@ -982,7 +956,7 @@ impl Query {
         if suffix_len == 0 || is_strict_prefix && suffix_len > 1 {
             match item.visibility {
                 Visibility::Inherited => {
-                    if !from.item.can_see_private_mod(&item.mod_item) {
+                    if !from.item.can_see_private_mod(&item.mod_item.item) {
                         return Err(QueryError::new(
                             spanned,
                             QueryErrorKind::NotVisible {
