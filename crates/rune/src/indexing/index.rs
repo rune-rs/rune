@@ -60,11 +60,12 @@ impl<'a> Indexer<'a> {
         let mut compiler = MacroCompiler {
             storage: self.query.storage.clone(),
             item: &*self.items.item(),
+            mod_item: &self.mod_item,
             macro_context: &mut macro_context,
             options: self.options,
             context: self.context,
-            unit: self.query.unit.clone(),
             source: self.source.clone(),
+            query: self.query,
         };
 
         Ok(compiler.eval_macro::<T>(ast)?)
@@ -194,7 +195,7 @@ impl<'a> Indexer<'a> {
 
         let item = self.items.item();
         let visibility = Visibility::from_ast(&item_mod.visibility)?;
-        let (id, mod_item) = self.query.insert_mod(&*item, visibility);
+        let (id, mod_item) = self.query.insert_mod(span, &*item, visibility)?;
         item_mod.id = Some(id);
 
         let source = self.source_loader.load(root, &*item, span)?;
@@ -1016,7 +1017,9 @@ impl Index<ast::Item> for Indexer<'_> {
                         let _guard = self.items.push_name(name.as_ref());
 
                         let visibility = Visibility::from_ast(&item_mod.visibility)?;
-                        let (id, mod_item) = self.query.insert_mod(&*self.items.item(), visibility);
+                        let (id, mod_item) =
+                            self.query
+                                .insert_mod(span, &*self.items.item(), visibility)?;
                         item_mod.id = Some(id);
 
                         let replaced = std::mem::replace(&mut self.mod_item, mod_item);

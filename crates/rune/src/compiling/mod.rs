@@ -19,9 +19,7 @@ mod unit_builder;
 pub use self::compile_error::{CompileError, CompileErrorKind, CompileResult};
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
 pub use self::scopes::Var;
-pub use self::unit_builder::{
-    ImportEntry, ImportKey, InsertMetaError, LinkerError, Named, UnitBuilder,
-};
+pub use self::unit_builder::{ImportEntry, ImportKey, InsertMetaError, LinkerError, UnitBuilder};
 use crate::parsing::Resolve as _;
 
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
@@ -87,7 +85,17 @@ pub fn compile_with_options(
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.sources.source_ids() {
-        let (_, mod_item) = worker.query.insert_mod(&Item::new(), Visibility::Public);
+        let (_, mod_item) =
+            match worker
+                .query
+                .insert_mod(Span::empty(), &Item::new(), Visibility::Public)
+            {
+                Ok(result) => result,
+                Err(error) => {
+                    errors.push(Error::new(source_id, error));
+                    return Err(());
+                }
+            };
 
         worker.queue.push_back(Task::LoadFile {
             kind: LoadFileKind::Root,

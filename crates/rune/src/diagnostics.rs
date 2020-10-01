@@ -330,6 +330,50 @@ impl EmitDiagnostics for Error {
                                 .with_message("previous import here"),
                         );
                     }
+                    CompileErrorKind::ImportCycle { path } => {
+                        let mut it = path.into_iter();
+                        let last = it.next_back();
+
+                        for (step, entry) in (1..).zip(it) {
+                            if let Some((span, source_id)) = entry.span {
+                                labels.push(
+                                    Label::secondary(source_id, span.start..span.end).with_message(
+                                        format!("step #{} for `{}`", step, entry.item),
+                                    ),
+                                );
+                            } else {
+                                let span = error.span();
+
+                                labels.push(
+                                    Label::secondary(self.source_id(), span.start..span.end)
+                                        .with_message(format!(
+                                            "step #{} in prelude for `{}`",
+                                            step, entry.item
+                                        )),
+                                );
+                            }
+                        }
+
+                        if let Some(entry) = last {
+                            if let Some((span, source_id)) = entry.span {
+                                labels.push(
+                                    Label::secondary(source_id, span.start..span.end).with_message(
+                                        format!("final step cycling back to `{}`", entry.item),
+                                    ),
+                                );
+                            } else {
+                                let span = error.span();
+
+                                labels.push(
+                                    Label::secondary(self.source_id(), span.start..span.end)
+                                        .with_message(format!(
+                                            "final step is in prelude for `{}`",
+                                            entry.item
+                                        )),
+                                );
+                            }
+                        }
+                    }
                     _ => (),
                 }
 

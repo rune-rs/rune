@@ -220,7 +220,7 @@ pub struct Context {
     /// Registered internal enums.
     internal_enums: HashSet<&'static StaticType>,
     /// All available names in the context.
-    names: Names,
+    names: Names<()>,
 }
 
 impl Context {
@@ -410,7 +410,7 @@ impl Context {
     }
 
     fn install_type_info(&mut self, hash: Hash, info: ContextTypeInfo) -> Result<(), ContextError> {
-        self.names.insert(&info.item);
+        self.names.insert(&info.item, ());
 
         // reverse lookup for types.
         if let Some(existing) = self.types_rev.insert(info.type_of, hash) {
@@ -439,7 +439,7 @@ impl Context {
         f: &ModuleFn,
     ) -> Result<(), ContextError> {
         let item = module.path.join(item);
-        self.names.insert(&item);
+        self.names.insert(&item, ());
 
         let hash = Hash::type_hash(&item);
 
@@ -480,7 +480,7 @@ impl Context {
     ) -> Result<(), ContextError> {
         let item = module.path.join(item);
 
-        self.names.insert(&item);
+        self.names.insert(&item, ());
 
         let hash = Hash::type_hash(&item);
 

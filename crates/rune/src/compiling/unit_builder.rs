@@ -3,20 +3,19 @@
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
-use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
 use crate::indexing::Visibility;
 use crate::query::QueryMod;
-use crate::CompileResult;
-use crate::{CompileError, CompileErrorKind, Error, Errors, Resolve as _, Spanned, Storage};
+use crate::{CompileError, CompileErrorKind, Error, Errors, Spanned};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
     Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst,
-    IntoComponent, Item, Label, Names, Rtti, Source, SourceId, Span, StaticString, Type, Unit,
-    UnitFn, UnitTypeInfo, VariantRtti,
+    IntoComponent, Item, Label, Names, Rtti, SourceId, Span, StaticString, Type, Unit, UnitFn,
+    UnitTypeInfo, VariantRtti,
 };
 use std::cell::{Ref, RefCell};
+use std::collections::HashSet;
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -399,113 +398,6 @@ impl UnitBuilder {
         Ok(new_slot)
     }
 
-    /// Lookup exact import.
-    #[allow(unused)]
-    pub(crate) fn get_import_for(&self, item: &Item) -> Option<Rc<ImportEntry>> {
-        let mut item = item.clone();
-        let last = item.pop()?;
-        let key = ImportKey::new(item, last);
-        Some(self.inner.borrow().imports.get(&key)?.clone())
-    }
-
-    /// Perform a path lookup on the current state of the unit.
-    pub(crate) fn find_named(
-        &self,
-        base: &Item,
-        mod_item: Option<&Rc<QueryMod>>,
-        impl_item: Option<&Item>,
-        path: &ast::Path,
-        storage: &Storage,
-        source: &Source,
-    ) -> CompileResult<Named> {
-        if let Some(global) = &path.global {
-            return Err(CompileError::internal(
-                global,
-                "global scopes are not supported yet",
-            ));
-        }
-
-        let inner = self.inner.borrow();
-        let mut in_self_type = false;
-
-        let (item, local) = match &path.first {
-            ast::PathSegment::Ident(ident) => {
-                let local = ident.resolve(storage, source)?;
-                (base.clone(), Some(local))
-            }
-            ast::PathSegment::Super(super_value) => {
-                let mut item = mod_item
-                    .ok_or_else(CompileError::unsupported_super(super_value))?
-                    .item
-                    .clone();
-
-                item.pop()
-                    .ok_or_else(CompileError::unsupported_super(super_value))?;
-
-                (item, None)
-            }
-            ast::PathSegment::SelfType(self_type) => {
-                let impl_item = impl_item.ok_or_else(|| {
-                    CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
-                })?;
-
-                in_self_type = true;
-                (impl_item.clone(), None)
-            }
-            ast::PathSegment::SelfValue(self_value) => {
-                let mod_item = mod_item
-                    .ok_or_else(|| {
-                        CompileError::new(self_value, CompileErrorKind::UnsupportedSelfValue)
-                    })?
-                    .item
-                    .clone();
-
-                (mod_item.clone(), None)
-            }
-            ast::PathSegment::Crate(..) => (Item::new(), None),
-        };
-
-        let (mut item, imported) = if let Some(local) = local {
-            match inner.lookup_import(&item, local.as_ref()) {
-                Some(path) => (path, true),
-                None => (Item::of(Some(local)), false),
-            }
-        } else {
-            (item, false)
-        };
-
-        for (_, segment) in &path.rest {
-            match segment {
-                ast::PathSegment::Ident(ident) => {
-                    item.push(ident.resolve(storage, source)?.as_ref());
-                }
-                ast::PathSegment::Super(super_token) => {
-                    if in_self_type {
-                        return Err(CompileError::new(
-                            super_token,
-                            CompileErrorKind::UnsupportedSuperInSelfType,
-                        ));
-                    }
-
-                    item.pop()
-                        .ok_or_else(CompileError::unsupported_super(super_token))?;
-                }
-                other => {
-                    return Err(CompileError::new(
-                        other,
-                        CompileErrorKind::ExpectedLeadingPathSegment,
-                    ));
-                }
-            }
-        }
-
-        Ok(Named {
-            imported,
-            local: path.global.is_none() && path.rest.is_empty(),
-            item,
-        })
-    }
-
     /// Declare a new import.
     pub(crate) fn new_import<S, A>(
         &self,
@@ -527,7 +419,13 @@ impl UnitBuilder {
             .map(IntoComponent::as_component_ref)
             .or_else(|| path.last())
         {
-            let key = ImportKey::new(at, last.into_component());
+            let item = at.extended(last);
+
+            if !inner.names.contains(&item) {
+                inner.names.insert(&item, NameKind::Use);
+            }
+
+            let key = ImportKey::new(at, last);
 
             let entry = Rc::new(ImportEntry {
                 visibility,
@@ -550,8 +448,15 @@ impl UnitBuilder {
     }
 
     /// Insert the given name into the unit.
-    pub(crate) fn insert_name(&self, item: &Item) {
-        self.inner.borrow_mut().names.insert(item);
+    pub(crate) fn insert_name(&self, spanned: Span, item: &Item) -> Result<(), CompileError> {
+        if let Some(NameKind::Other) = self.inner.borrow_mut().names.insert(item, NameKind::Other) {
+            return Err(CompileError::new(
+                spanned,
+                CompileErrorKind::ConflictingName { item: item.clone() },
+            ));
+        }
+
+        Ok(())
     }
 
     /// Declare a new struct.
@@ -793,7 +698,6 @@ impl UnitBuilder {
                     });
                 }
             }
-            CompileMetaKind::Import { .. } => (),
             CompileMetaKind::Function { .. } => (),
             CompileMetaKind::Closure { .. } => (),
             CompileMetaKind::AsyncBlock { .. } => (),
@@ -931,33 +835,53 @@ impl UnitBuilder {
             }
         }
     }
-}
 
-/// The result of calling [UnitBuilder::find_named].
-#[derive(Debug)]
-pub struct Named {
-    /// If the named item was imported.
-    pub imported: bool,
-    /// If the resolved value is local.
-    pub local: bool,
-    /// The path resolved to the given item.
-    pub item: Item,
-}
-
-impl Named {
-    /// Get the local identifier of this named.
-    pub fn as_local(&self) -> Option<&str> {
-        if self.local {
-            self.item.as_local()
-        } else {
-            None
-        }
+    /// Get the given import by name.
+    pub(crate) fn get_import(
+        &self,
+        spanned: Span,
+        item: &Item,
+    ) -> Result<Option<Item>, CompileError> {
+        self.inner.borrow().get_import(spanned, item)
     }
-}
 
-impl fmt::Display for Named {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.item, f)
+    /// Walk the names to find the first one that is contained in the unit.
+    pub(crate) fn walk_names(
+        &self,
+        spanned: Span,
+        mod_item: &QueryMod,
+        base: &Item,
+        local: &str,
+    ) -> Result<Option<Item>, CompileError> {
+        let inner = self.inner.borrow();
+
+        debug_assert!(base.starts_with(&mod_item.item));
+
+        let mut base = base.clone();
+
+        loop {
+            let item = base.extended(local);
+
+            if let Some(NameKind::Other) = inner.names.get(&item) {
+                return Ok(Some(item));
+            }
+
+            if let Some(item) = inner.get_import(spanned, &item)? {
+                return Ok(Some(item));
+            }
+
+            if mod_item.item == base || base.pop().is_none() {
+                break;
+            }
+        }
+
+        let key = ImportKey::prelude(local);
+
+        if let Some(entry) = inner.imports.get(&key) {
+            return Ok(Some(entry.item.clone()));
+        }
+
+        Ok(None)
     }
 }
 
@@ -972,6 +896,12 @@ pub enum LinkerError {
         /// Spans where the function is used.
         spans: Vec<(Span, usize)>,
     },
+}
+
+#[derive(Debug)]
+enum NameKind {
+    Use,
+    Other,
 }
 
 #[derive(Debug, Default)]
@@ -1017,7 +947,7 @@ struct Inner {
     /// A collection of required function hashes.
     required_functions: HashMap<Hash, Vec<(Span, usize)>>,
     /// All available names in the context.
-    names: Names,
+    names: Names<NameKind>,
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
 }
@@ -1028,28 +958,57 @@ impl Inner {
         self.debug.get_or_insert_with(Default::default)
     }
 
-    fn lookup_import(&self, base: &Item, local: &str) -> Option<Item> {
-        // Check for imports in current module.
-        if let Some(entry) = self.imports.get(&ImportKey::new(base.clone(), local)) {
-            return Some(entry.item.clone());
-        }
+    /// Get the given import by name.
+    fn get_import(&self, spanned: Span, item: &Item) -> Result<Option<Item>, CompileError> {
+        let mut visited = HashSet::new();
+        let mut path = Vec::new();
 
-        // Check prelude.
-        if let Some(entry) = self.imports.get(&ImportKey::prelude(local)) {
-            return Some(entry.item.clone());
-        }
+        let mut current = item.clone();
+        let mut matched = false;
 
-        let mut base = base.clone();
+        loop {
+            let mut item = current.clone();
 
-        while base.pop().is_some() {
-            let key = ImportKey::new(base.clone(), local);
+            let local = match item.pop() {
+                Some(local) => local,
+                None => return Ok(None),
+            };
 
-            if let Some(entry) = self.imports.get(&key) {
-                return Some(entry.item.clone());
+            let key = ImportKey::new(item, local);
+
+            if let Some(entry) = self.imports.get(&key).cloned() {
+                // NB: this happens when you have a superflous import, like:
+                // ```
+                // use std;
+                //
+                // std::option::Option::None
+                // ```
+                if entry.item == current {
+                    break;
+                }
+
+                path.push((*entry).clone());
+
+                if !visited.insert(entry.item.clone()) {
+                    return Err(CompileError::new(
+                        spanned,
+                        CompileErrorKind::ImportCycle { path },
+                    ));
+                }
+
+                matched = true;
+                current = entry.item.clone();
+                continue;
             }
+
+            break;
         }
 
-        None
+        if matched {
+            return Ok(Some(current));
+        }
+
+        Ok(None)
     }
 
     /// Translate the given assembly into instructions.

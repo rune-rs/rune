@@ -2,11 +2,10 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, Compile as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
-use crate::query::{Query, QueryConstFn, QueryItem, QueryPath, Used};
+use crate::query::{Named, Query, QueryConstFn, QueryItem, QueryPath, Used};
 use crate::CompileResult;
 use crate::{
-    CompileError, CompileErrorKind, Named, Options, Resolve as _, Spanned, Storage, UnitBuilder,
-    Warnings,
+    CompileError, CompileErrorKind, Options, Resolve as _, Spanned, Storage, UnitBuilder, Warnings,
 };
 use runestick::{
     CompileMeta, CompileMetaKind, ConstValue, Context, Inst, InstValue, Item, Label, Source, Span,
@@ -69,57 +68,23 @@ impl<'a> Compiler<'a> {
         query_path: &QueryPath,
         named: &Named,
     ) -> CompileResult<Option<CompileMeta>> {
-        log::trace!("lookup meta: {:?}", named);
+        log::trace!("lookup meta: {:?}", named.item);
 
-        // Imported items are expected to be "exact", and do not look upwards in
-        // blocks to find a matching item as is implemented after this if block.
-        if named.imported {
-            if let Some(meta) = self.query.query_meta(
-                spanned,
-                Some(&query_path.mod_item),
-                &named.item,
-                Default::default(),
-            )? {
-                log::trace!("found in query: {:?}", meta);
-                self.visitor.visit_meta(self.source_id, &meta, spanned);
-                return Ok(Some(meta));
-            }
-
-            if let Some(meta) = self.context.lookup_meta(&named.item) {
-                log::trace!("found in context: {:?}", meta);
-                self.visitor.visit_meta(self.source_id, &meta, spanned);
-                return Ok(Some(meta));
-            }
-
-            return Ok(None);
+        if let Some(meta) = self.query.query_meta(
+            spanned,
+            Some(&query_path.mod_item),
+            &named.item,
+            Default::default(),
+        )? {
+            log::trace!("found in query: {:?}", meta);
+            self.visitor.visit_meta(self.source_id, &meta, spanned);
+            return Ok(Some(meta));
         }
 
-        let mut b = query_path.item.clone();
-
-        loop {
-            let current = b.join(&named.item);
-            log::trace!("lookup meta (query): {}", current);
-
-            if let Some(meta) = self.query.query_meta(
-                spanned,
-                Some(&query_path.mod_item),
-                &current,
-                Default::default(),
-            )? {
-                log::trace!("found in query: {:?}", meta);
-                self.visitor.visit_meta(self.source_id, &meta, spanned);
-                return Ok(Some(meta));
-            }
-
-            if let Some(meta) = self.context.lookup_meta(&current) {
-                log::trace!("found in context: {:?}", meta);
-                self.visitor.visit_meta(self.source_id, &meta, spanned);
-                return Ok(Some(meta));
-            }
-
-            if b.pop().is_none() {
-                break;
-            }
+        if let Some(meta) = self.context.lookup_meta(&named.item) {
+            log::trace!("found in context: {:?}", meta);
+            self.visitor.visit_meta(self.source_id, &meta, spanned);
+            return Ok(Some(meta));
         }
 
         Ok(None)
@@ -278,21 +243,21 @@ impl<'a> Compiler<'a> {
 
     /// Convert a path to an item.
     pub(crate) fn convert_path_to_named(
-        &self,
+        &mut self,
         path: &ast::Path,
     ) -> CompileResult<(Rc<QueryPath>, Named)> {
-        let query_path = self.query.path_for(path)?;
+        let query_path = self.query.path_for(path)?.clone();
 
-        let item = self.unit.find_named(
+        let named = self.query.convert_path(
             &query_path.item,
-            Some(&query_path.mod_item),
+            &query_path.mod_item,
             query_path.impl_item.as_deref(),
             path,
             &self.storage,
             &*self.source,
         )?;
 
-        Ok((query_path.clone(), item))
+        Ok((query_path.clone(), named))
     }
 
     pub(crate) fn compile_condition(

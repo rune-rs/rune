@@ -50,7 +50,6 @@ impl CompileMeta {
             CompileMetaKind::Macro { .. } => None,
             CompileMetaKind::Const { .. } => None,
             CompileMetaKind::ConstFn { .. } => None,
-            CompileMetaKind::Import { .. } => None,
         }
     }
 }
@@ -58,9 +57,6 @@ impl CompileMeta {
 impl fmt::Display for CompileMeta {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            CompileMetaKind::Import { import, .. } => {
-                write!(fmt, "import {} (at: {})", import, self.item)?;
-            }
             CompileMetaKind::UnitStruct { .. } => {
                 write!(fmt, "struct {}", self.item)?;
             }
@@ -109,13 +105,6 @@ impl fmt::Display for CompileMeta {
 /// Compile-time metadata kind about a unit.
 #[derive(Debug, Clone)]
 pub enum CompileMetaKind {
-    /// An imported item.
-    ///
-    /// This is the result of a use statement.
-    Import {
-        /// The imported item.
-        import: Item,
-    },
     /// Metadata about an object.
     UnitStruct {
         /// The value type associated with this meta item.

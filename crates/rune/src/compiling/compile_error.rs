@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::compiling::{ImportKey, InsertMetaError};
+use crate::compiling::{ImportEntry, ImportKey, InsertMetaError};
 use crate::shared::Internal;
 use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
@@ -304,4 +304,8 @@ pub enum CompileErrorKind {
         expected: &'static str,
         meta: CompileMeta,
     },
+    #[error("cycle in import")]
+    ImportCycle { path: Vec<ImportEntry> },
+    #[error("tried to insert conflicting name: {item}")]
+    ConflictingName { item: Item },
 }

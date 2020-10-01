@@ -181,6 +181,11 @@ impl Item {
         }
     }
 
+    /// Test if current item starts with another.
+    pub fn starts_with(&self, other: &Self) -> bool {
+        self.content.starts_with(&other.content)
+    }
+
     /// Test if the current item can see another private module.
     pub fn can_see_private_mod(&self, other: &Self) -> bool {
         let mut a = self.iter();
