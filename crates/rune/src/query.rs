@@ -18,31 +18,10 @@ use runestick::{
     CompileMetaTuple, CompileSource, Hash, Item, Source, SourceId, Span, Type,
 };
 use std::collections::VecDeque;
+use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
-
-/// Indication whether a value is being evaluated because it's being used or not.
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum Used {
-    /// The value is not being used.
-    Unused,
-    /// The value is being used.
-    Used,
-}
-
-impl Used {
-    /// Test if this used indicates unuse.
-    pub(crate) fn is_unused(self) -> bool {
-        matches!(self, Self::Unused)
-    }
-}
-
-impl Default for Used {
-    fn default() -> Self {
-        Self::Used
-    }
-}
 
 error! {
     /// An error raised during querying.
@@ -104,161 +83,6 @@ pub enum QueryErrorKind {
     MissingRevId { id: Id },
     #[error("missing query meta for module {item}")]
     MissingMod { item: Item },
-}
-
-pub(crate) enum Indexed {
-    Enum,
-    Struct(Struct),
-    Variant(Variant),
-    Function(Function),
-    Closure(Closure),
-    AsyncBlock(AsyncBlock),
-    Const(Const),
-    ConstFn(ConstFn),
-}
-
-pub struct Struct {
-    /// The ast of the struct.
-    ast: ast::ItemStruct,
-}
-
-impl Struct {
-    /// Construct a new struct entry.
-    pub fn new(ast: ast::ItemStruct) -> Self {
-        Self { ast }
-    }
-}
-
-pub struct Variant {
-    /// Id of of the enum type.
-    enum_id: Id,
-    /// Ast for declaration.
-    ast: ast::ItemVariant,
-}
-
-impl Variant {
-    /// Construct a new variant.
-    pub fn new(enum_id: Id, ast: ast::ItemVariant) -> Self {
-        Self { enum_id, ast }
-    }
-}
-
-pub(crate) struct Function {
-    /// Ast for declaration.
-    pub(crate) ast: ast::ItemFn,
-    pub(crate) call: Call,
-}
-
-pub(crate) struct InstanceFunction {
-    /// Ast for the instance function.
-    pub(crate) ast: ast::ItemFn,
-    /// The item of the instance function.
-    pub(crate) impl_item: Rc<Item>,
-    /// The span of the instance function.
-    pub(crate) instance_span: Span,
-    pub(crate) call: Call,
-}
-
-pub(crate) struct Closure {
-    /// Ast for closure.
-    pub(crate) ast: ast::ExprClosure,
-    /// Captures.
-    pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
-    /// Calling convention used for closure.
-    pub(crate) call: Call,
-}
-
-pub(crate) struct AsyncBlock {
-    /// Ast for block.
-    pub(crate) ast: ast::Block,
-    /// Captures.
-    pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
-    /// Calling convention used for async block.
-    pub(crate) call: Call,
-}
-
-pub(crate) struct Const {
-    /// The module item the constant is defined in.
-    pub(crate) mod_item: Rc<QueryMod>,
-    /// The intermediate representation of the constant expression.
-    pub(crate) ir: ir::Ir,
-}
-
-pub(crate) struct ConstFn {
-    /// The const fn ast.
-    pub(crate) item_fn: ast::ItemFn,
-}
-
-/// An entry in the build queue.
-pub(crate) enum Build {
-    Function(Function),
-    InstanceFunction(InstanceFunction),
-    Closure(Closure),
-    AsyncBlock(AsyncBlock),
-    UnusedConst(Const),
-    UnusedConstFn(ConstFn),
-}
-
-/// An entry in the build queue.
-pub(crate) struct BuildEntry {
-    /// The span of the build entry.
-    pub(crate) span: Span,
-    /// The item of the build entry.
-    pub(crate) item: Item,
-    /// The build entry.
-    pub(crate) build: Build,
-    /// The source of the build entry.
-    pub(crate) source: Arc<Source>,
-    /// The source id of the build entry.
-    pub(crate) source_id: usize,
-    /// If the queued up entry was unused or not.
-    pub(crate) used: Used,
-}
-
-pub(crate) struct IndexedEntry {
-    /// The query item this indexed entry belongs to.
-    pub(crate) item: Rc<QueryItem>,
-    /// The source location of the indexed entry.
-    pub(crate) span: Span,
-    /// The source of the indexed entry.
-    pub(crate) source: Arc<Source>,
-    /// The source id of the indexed entry.
-    pub(crate) source_id: SourceId,
-    /// The entry data.
-    pub(crate) indexed: Indexed,
-}
-
-/// Query information for a path.
-#[derive(Debug)]
-pub(crate) struct QueryPath {
-    pub(crate) mod_item: Rc<QueryMod>,
-    pub(crate) impl_item: Option<Rc<Item>>,
-    pub(crate) item: Item,
-}
-
-/// Item and the module that the item belongs to.
-#[derive(Debug)]
-pub(crate) struct QueryItem {
-    pub(crate) id: Id,
-    pub(crate) item: Item,
-    pub(crate) mod_item: Rc<QueryMod>,
-    pub(crate) visibility: Visibility,
-}
-
-/// An indexed constant function.
-#[derive(Debug)]
-pub(crate) struct QueryConstFn {
-    /// The item of the const fn.
-    pub(crate) item: Rc<QueryItem>,
-    /// The compiled constant function.
-    pub(crate) ir_fn: ir::IrFn,
-}
-
-/// Module, its item and its visibility.
-#[derive(Debug)]
-pub(crate) struct QueryMod {
-    pub(crate) item: Item,
-    pub(crate) visibility: Visibility,
 }
 
 pub(crate) struct Query {
@@ -329,7 +153,12 @@ impl Query {
     }
 
     /// Insert module and associated metadata.
-    pub(crate) fn insert_mod(&mut self, item: &Item, visibility: Visibility) -> (Id, Rc<QueryMod>) {
+    pub(crate) fn insert_mod(
+        &mut self,
+        spanned: Span,
+        item: &Item,
+        visibility: Visibility,
+    ) -> Result<(Id, Rc<QueryMod>), CompileError> {
         let id = self.next_id.next().expect("ran out of ids");
 
         let query_mod = Rc::new(QueryMod {
@@ -337,8 +166,9 @@ impl Query {
             visibility,
         });
 
+        self.unit.insert_name(spanned, item)?;
         self.modules.insert(item.clone(), query_mod.clone());
-        (id, query_mod)
+        Ok((id, query_mod))
     }
 
     /// Insert an item and return its Id.
@@ -659,7 +489,7 @@ impl Query {
     /// Index the given element.
     pub fn index(&mut self, item: &Item, entry: IndexedEntry) -> Result<(), QueryError> {
         log::trace!("indexed: {}", item);
-        self.unit.insert_name(item);
+        self.unit.insert_name(entry.span, item)?;
 
         if let Some(old) = self.indexed.insert(item.clone(), entry) {
             return Err(QueryError::new(
@@ -728,34 +558,28 @@ impl Query {
         item: &QueryItem,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        let mut current = Some((from, item));
+        // Test for visibility if from is specified.
+        if let Some(from) = from {
+            self.check_access_from(spanned, from, item)?;
+        }
 
-        while let Some((from, item)) = current.take() {
-            // Test for visibility if from is specified.
-            if let Some(from) = from {
-                self.check_access_from(spanned, from, item)?;
-            }
-
-            if let Some(meta) = self.unit.lookup_meta(&item.item) {
-                return Ok(Some(meta));
-            }
-
-            // See if there's an index entry we can construct and insert.
-            let entry = match self.indexed.remove(&item.item) {
-                Some(entry) => entry,
-                None => return Ok(None),
-            };
-
-            let meta = self.build_indexed_entry(spanned, from, item, entry, used)?;
-
-            self.unit
-                .insert_meta(meta.clone())
-                .map_err(|error| QueryError::new(spanned, error))?;
-
+        if let Some(meta) = self.unit.lookup_meta(&item.item) {
             return Ok(Some(meta));
         }
 
-        Ok(None)
+        // See if there's an index entry we can construct and insert.
+        let entry = match self.indexed.remove(&item.item) {
+            Some(entry) => entry,
+            None => return Ok(None),
+        };
+
+        let meta = self.build_indexed_entry(spanned, from, item, entry, used)?;
+
+        self.unit
+            .insert_meta(meta.clone())
+            .map_err(|error| QueryError::new(spanned, error))?;
+
+        Ok(Some(meta))
     }
 
     /// Build a single, indexed entry and return its metadata.
@@ -1077,5 +901,298 @@ impl Query {
                 self.struct_body_meta(item, enum_item, source, st)?
             }
         })
+    }
+
+    /// Perform a path lookup on the current state of the unit.
+    pub(crate) fn convert_path(
+        &mut self,
+        base: &Item,
+        mod_item: &QueryMod,
+        impl_item: Option<&Item>,
+        path: &ast::Path,
+        storage: &Storage,
+        source: &Source,
+    ) -> Result<Named, CompileError> {
+        if let Some(global) = &path.global {
+            return Err(CompileError::internal(
+                global,
+                "global scopes are not supported yet",
+            ));
+        }
+
+        let mut in_self_type = false;
+        let mut local = None;
+
+        let mut item = match &path.first {
+            ast::PathSegment::Ident(ident) => {
+                let ident = ident.resolve(storage, source)?;
+
+                let item = if let Some(entry) =
+                    self.unit
+                        .walk_names(path.span(), mod_item, &base, ident.as_ref())?
+                {
+                    entry
+                } else {
+                    Item::of(&[ident.as_ref()])
+                };
+
+                if path.rest.is_empty() {
+                    local = Some(<Box<str>>::from(ident));
+                }
+
+                item
+            }
+            ast::PathSegment::Super(super_value) => {
+                let mut item = mod_item.item.clone();
+
+                item.pop()
+                    .ok_or_else(CompileError::unsupported_super(super_value))?;
+
+                item
+            }
+            ast::PathSegment::SelfType(self_type) => {
+                let impl_item = impl_item.ok_or_else(|| {
+                    CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
+                })?;
+
+                in_self_type = true;
+                impl_item.clone()
+            }
+            ast::PathSegment::SelfValue(..) => mod_item.item.clone(),
+            ast::PathSegment::Crate(..) => Item::new(),
+        };
+
+        for (_, segment) in &path.rest {
+            log::trace!("item = {}", item);
+
+            match segment {
+                ast::PathSegment::Ident(ident) => {
+                    let ident = ident.resolve(storage, source)?;
+                    item.push(ident.as_ref());
+
+                    if let Some(new) = self.unit.get_import(path.span(), &item)? {
+                        item = new;
+                    }
+                }
+                ast::PathSegment::Super(super_token) => {
+                    if in_self_type {
+                        return Err(CompileError::new(
+                            super_token,
+                            CompileErrorKind::UnsupportedSuperInSelfType,
+                        ));
+                    }
+
+                    item.pop()
+                        .ok_or_else(CompileError::unsupported_super(super_token))?;
+                }
+                other => {
+                    return Err(CompileError::new(
+                        other,
+                        CompileErrorKind::ExpectedLeadingPathSegment,
+                    ));
+                }
+            }
+        }
+
+        Ok(Named { local, item })
+    }
+}
+
+/// Indication whether a value is being evaluated because it's being used or not.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Used {
+    /// The value is not being used.
+    Unused,
+    /// The value is being used.
+    Used,
+}
+
+impl Used {
+    /// Test if this used indicates unuse.
+    pub(crate) fn is_unused(self) -> bool {
+        matches!(self, Self::Unused)
+    }
+}
+
+impl Default for Used {
+    fn default() -> Self {
+        Self::Used
+    }
+}
+
+pub(crate) enum Indexed {
+    Enum,
+    Struct(Struct),
+    Variant(Variant),
+    Function(Function),
+    Closure(Closure),
+    AsyncBlock(AsyncBlock),
+    Const(Const),
+    ConstFn(ConstFn),
+}
+
+pub struct Struct {
+    /// The ast of the struct.
+    ast: ast::ItemStruct,
+}
+
+impl Struct {
+    /// Construct a new struct entry.
+    pub fn new(ast: ast::ItemStruct) -> Self {
+        Self { ast }
+    }
+}
+
+pub struct Variant {
+    /// Id of of the enum type.
+    enum_id: Id,
+    /// Ast for declaration.
+    ast: ast::ItemVariant,
+}
+
+impl Variant {
+    /// Construct a new variant.
+    pub fn new(enum_id: Id, ast: ast::ItemVariant) -> Self {
+        Self { enum_id, ast }
+    }
+}
+
+pub(crate) struct Function {
+    /// Ast for declaration.
+    pub(crate) ast: ast::ItemFn,
+    pub(crate) call: Call,
+}
+
+pub(crate) struct InstanceFunction {
+    /// Ast for the instance function.
+    pub(crate) ast: ast::ItemFn,
+    /// The item of the instance function.
+    pub(crate) impl_item: Rc<Item>,
+    /// The span of the instance function.
+    pub(crate) instance_span: Span,
+    pub(crate) call: Call,
+}
+
+pub(crate) struct Closure {
+    /// Ast for closure.
+    pub(crate) ast: ast::ExprClosure,
+    /// Captures.
+    pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
+    /// Calling convention used for closure.
+    pub(crate) call: Call,
+}
+
+pub(crate) struct AsyncBlock {
+    /// Ast for block.
+    pub(crate) ast: ast::Block,
+    /// Captures.
+    pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
+    /// Calling convention used for async block.
+    pub(crate) call: Call,
+}
+
+pub(crate) struct Const {
+    /// The module item the constant is defined in.
+    pub(crate) mod_item: Rc<QueryMod>,
+    /// The intermediate representation of the constant expression.
+    pub(crate) ir: ir::Ir,
+}
+
+pub(crate) struct ConstFn {
+    /// The const fn ast.
+    pub(crate) item_fn: ast::ItemFn,
+}
+
+/// An entry in the build queue.
+pub(crate) enum Build {
+    Function(Function),
+    InstanceFunction(InstanceFunction),
+    Closure(Closure),
+    AsyncBlock(AsyncBlock),
+    UnusedConst(Const),
+    UnusedConstFn(ConstFn),
+}
+
+/// An entry in the build queue.
+pub(crate) struct BuildEntry {
+    /// The span of the build entry.
+    pub(crate) span: Span,
+    /// The item of the build entry.
+    pub(crate) item: Item,
+    /// The build entry.
+    pub(crate) build: Build,
+    /// The source of the build entry.
+    pub(crate) source: Arc<Source>,
+    /// The source id of the build entry.
+    pub(crate) source_id: usize,
+    /// If the queued up entry was unused or not.
+    pub(crate) used: Used,
+}
+
+pub(crate) struct IndexedEntry {
+    /// The query item this indexed entry belongs to.
+    pub(crate) item: Rc<QueryItem>,
+    /// The source location of the indexed entry.
+    pub(crate) span: Span,
+    /// The source of the indexed entry.
+    pub(crate) source: Arc<Source>,
+    /// The source id of the indexed entry.
+    pub(crate) source_id: SourceId,
+    /// The entry data.
+    pub(crate) indexed: Indexed,
+}
+
+/// Query information for a path.
+#[derive(Debug)]
+pub(crate) struct QueryPath {
+    pub(crate) mod_item: Rc<QueryMod>,
+    pub(crate) impl_item: Option<Rc<Item>>,
+    pub(crate) item: Item,
+}
+
+/// Item and the module that the item belongs to.
+#[derive(Debug)]
+pub(crate) struct QueryItem {
+    pub(crate) id: Id,
+    pub(crate) item: Item,
+    pub(crate) mod_item: Rc<QueryMod>,
+    pub(crate) visibility: Visibility,
+}
+
+/// An indexed constant function.
+#[derive(Debug)]
+pub(crate) struct QueryConstFn {
+    /// The item of the const fn.
+    pub(crate) item: Rc<QueryItem>,
+    /// The compiled constant function.
+    pub(crate) ir_fn: ir::IrFn,
+}
+
+/// Module, its item and its visibility.
+#[derive(Debug)]
+pub(crate) struct QueryMod {
+    pub(crate) item: Item,
+    pub(crate) visibility: Visibility,
+}
+
+/// The result of calling [Query::find_named].
+#[derive(Debug)]
+pub struct Named {
+    /// If the resolved value is local.
+    pub local: Option<Box<str>>,
+    /// The path resolved to the given item.
+    pub item: Item,
+}
+
+impl Named {
+    /// Get the local identifier of this named.
+    pub fn as_local(&self) -> Option<&str> {
+        self.local.as_deref()
+    }
+}
+
+impl fmt::Display for Named {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.item, f)
     }
 }

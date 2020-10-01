@@ -1,10 +1,10 @@
 //! Macro compiler.
 
 use crate::macros::{MacroContext, Storage, TokenStream};
+use crate::query::{Query, QueryMod};
 use crate::CompileResult;
 use crate::{
     ast, CompileError, CompileErrorKind, Options, Parse, ParseError, Parser, Spanned as _,
-    UnitBuilder,
 };
 use runestick::{Context, Hash, Item, Source};
 use std::sync::Arc;
@@ -12,11 +12,12 @@ use std::sync::Arc;
 pub(crate) struct MacroCompiler<'a> {
     pub(crate) storage: Storage,
     pub(crate) item: &'a Item,
+    pub(crate) mod_item: &'a QueryMod,
     pub(crate) macro_context: &'a mut MacroContext,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
-    pub(crate) unit: UnitBuilder,
     pub(crate) source: Arc<Source>,
+    pub(crate) query: &'a mut Query,
 }
 
 impl MacroCompiler<'_> {
@@ -36,9 +37,9 @@ impl MacroCompiler<'_> {
 
         // TODO: include information on the module the macro is being called
         // from.
-        let named = self.unit.find_named(
+        let named = self.query.convert_path(
             &self.item,
-            None,
+            self.mod_item,
             None,
             &macro_call.path,
             &self.storage,
@@ -52,9 +53,7 @@ impl MacroCompiler<'_> {
             None => {
                 return Err(CompileError::new(
                     span,
-                    CompileErrorKind::MissingMacro {
-                        item: named.item.clone(),
-                    },
+                    CompileErrorKind::MissingMacro { item: named.item },
                 ));
             }
         };

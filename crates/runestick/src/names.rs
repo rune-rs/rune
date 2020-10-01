@@ -2,21 +2,21 @@ use crate::collections::HashMap;
 use crate::{Component, ComponentRef, IntoComponent};
 use std::mem;
 
-#[derive(Default, Debug)]
-struct Node {
-    /// If this is a terminating node that can be imported or not..
-    term: bool,
-    /// The children of this node.
-    children: HashMap<Component, Node>,
-}
-
 /// A tree of names.
-#[derive(Default, Debug)]
-pub struct Names {
-    root: Node,
+#[derive(Debug)]
+pub struct Names<T> {
+    root: Node<T>,
 }
 
-impl Names {
+impl<T> Default for Names<T> {
+    fn default() -> Self {
+        Names {
+            root: Default::default(),
+        }
+    }
+}
+
+impl<T> Names<T> {
     /// Construct a collection of names.
     pub fn new() -> Self {
         Self::default()
@@ -29,13 +29,13 @@ impl Names {
     /// ```rust
     /// use runestick::Names;
     ///
-    /// let mut names = Names::new();
+    /// let mut names = Names::<()>::new();
     /// assert!(!names.contains(&["test"]));
-    /// assert!(names.insert(&["test"]));
+    /// assert!(names.insert(&["test"], ()).is_none());
     /// assert!(names.contains(&["test"]));
-    /// assert!(!names.insert(&["test"]));
+    /// assert!(names.insert(&["test"], ()).is_some());
     /// ```
-    pub fn insert<I>(&mut self, iter: I) -> bool
+    pub fn insert<I>(&mut self, iter: I, value: T) -> Option<T>
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -46,7 +46,7 @@ impl Names {
             current = current.children.entry(c.into_component()).or_default();
         }
 
-        !mem::replace(&mut current.term, true)
+        mem::replace(&mut current.term, Some(value))
     }
 
     /// Test if the given import exists.
@@ -56,18 +56,41 @@ impl Names {
     /// ```rust
     /// use runestick::Names;
     ///
-    /// let mut names = Names::new();
+    /// let mut names = Names::<()>::new();
     /// assert!(!names.contains(&["test"]));
-    /// assert!(names.insert(&["test"]));
+    /// assert!(names.insert(&["test"], ()).is_none());
     /// assert!(names.contains(&["test"]));
-    /// assert!(!names.insert(&["test"]));
+    /// assert!(names.insert(&["test"], ()).is_some());
     /// ```
     pub fn contains<I>(&self, iter: I) -> bool
     where
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        self.find_node(iter).map(|n| n.term).unwrap_or_default()
+        self.find_node(iter)
+            .map(|n| n.term.is_some())
+            .unwrap_or_default()
+    }
+
+    /// Get the given entry if it exists.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use runestick::Names;
+    ///
+    /// let mut names = Names::<()>::new();
+    /// assert!(names.get(&["test"]).is_none());
+    /// assert!(names.insert(&["test"], ()).is_none());
+    /// assert!(names.get(&["test"]).is_some());
+    /// assert!(names.insert(&["test"], ()).is_some());
+    /// ```
+    pub fn get<I>(&self, iter: I) -> Option<&T>
+    where
+        I: IntoIterator,
+        I::Item: IntoComponent,
+    {
+        self.find_node(iter).and_then(|n| n.term.as_ref())
     }
 
     /// Test if we contain the given prefix.
@@ -120,7 +143,7 @@ impl Names {
     }
 
     /// Find the node corresponding to the given path.
-    fn find_node<I>(&self, iter: I) -> Option<&Node>
+    fn find_node<I>(&self, iter: I) -> Option<&Node<T>>
     where
         I: IntoIterator,
         I::Item: IntoComponent,
@@ -133,5 +156,22 @@ impl Names {
         }
 
         Some(current)
+    }
+}
+
+#[derive(Debug)]
+struct Node<T> {
+    /// If this is a terminating node that can be imported or not..
+    term: Option<T>,
+    /// The children of this node.
+    children: HashMap<Component, Node<T>>,
+}
+
+impl<T> Default for Node<T> {
+    fn default() -> Self {
+        Self {
+            term: Default::default(),
+            children: Default::default(),
+        }
     }
 }
