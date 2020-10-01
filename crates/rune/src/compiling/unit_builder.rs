@@ -5,92 +5,17 @@
 
 use crate::collections::HashMap;
 use crate::compiling::{Assembly, AssemblyInst};
-use crate::indexing::Visibility;
-use crate::query::QueryMod;
+use crate::query::{ImportEntry, ImportKey};
 use crate::{CompileError, CompileErrorKind, Error, Errors, Spanned};
 use runestick::debug::{DebugArgs, DebugSignature};
 use runestick::{
-    Call, CompileMeta, CompileMetaKind, Component, Context, DebugInfo, DebugInst, Hash, Inst,
-    IntoComponent, Item, Label, Names, Rtti, SourceId, Span, StaticString, Type, Unit, UnitFn,
-    UnitTypeInfo, VariantRtti,
+    Call, CompileMeta, CompileMetaKind, Context, DebugInfo, DebugInst, Hash, Inst, Item, Label,
+    Rtti, Span, StaticString, Type, Unit, UnitFn, UnitTypeInfo, VariantRtti,
 };
-use std::cell::{Ref, RefCell};
-use std::collections::HashSet;
-use std::fmt;
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
-
-/// The key of an import.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ImportKey {
-    /// Where the import is located.
-    pub item: Option<Item>,
-    /// The component that is imported.
-    pub component: Component,
-}
-
-impl ImportKey {
-    /// Construct a new import key.
-    pub fn new<C>(item: Item, component: C) -> Self
-    where
-        C: IntoComponent,
-    {
-        Self {
-            item: Some(item),
-            component: component.into_component(),
-        }
-    }
-
-    /// Construct an import key for a single component.
-    pub fn prelude<C>(component: C) -> Self
-    where
-        C: IntoComponent,
-    {
-        Self {
-            item: None,
-            component: component.into_component(),
-        }
-    }
-}
-
-impl fmt::Display for ImportKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(item) = &self.item {
-            if !item.is_empty() {
-                write!(f, "{}::", item)?;
-            }
-        }
-
-        write!(f, "{}", self.component)
-    }
-}
-
-/// An imported entry.
-#[derive(Debug, Clone)]
-pub struct ImportEntry {
-    /// The visibility of the import.
-    pub visibility: Visibility,
-    /// The item being imported.
-    pub item: Item,
-    /// The span of the import.
-    pub span: Option<(Span, SourceId)>,
-}
-
-impl ImportEntry {
-    /// Construct an entry.
-    pub fn prelude<I>(iter: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
-        Self {
-            visibility: Visibility::Public,
-            item: Item::of(iter),
-            span: None,
-        }
-    }
-}
 
 /// Instructions from a single source file.
 #[derive(Debug, Default, Clone)]
@@ -197,6 +122,11 @@ impl UnitBuilder {
         }
     }
 
+    /// Clone the initial collection of imports from this unit.
+    pub(crate) fn imports(&self) -> HashMap<ImportKey, Rc<ImportEntry>> {
+        self.inner.borrow().imports.clone()
+    }
+
     /// Convert into a runtime unit, shedding our build metadata in the process.
     ///
     /// Returns `None` if the builder is still in use.
@@ -219,31 +149,6 @@ impl UnitBuilder {
             inner.variant_rtti,
             inner.debug,
         ))
-    }
-
-    /// Check if unit contains the given name by prefix.
-    pub(crate) fn contains_prefix(&self, item: &Item) -> bool {
-        self.inner.borrow().names.contains_prefix(item)
-    }
-
-    /// Access imports.
-    pub(crate) fn imports(&self) -> Ref<'_, HashMap<ImportKey, Rc<ImportEntry>>> {
-        let inner = self.inner.borrow();
-        Ref::map(inner, |inner| &inner.imports)
-    }
-
-    /// Iterate over known child components of the given name.
-    pub(crate) fn iter_components<I>(&self, iter: I) -> Vec<Component>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
-        let inner = self.inner.borrow();
-        inner
-            .names
-            .iter_components(iter)
-            .map(|c| c.into_component())
-            .collect::<Vec<_>>()
     }
 
     /// Access the meta for the given language item.
@@ -396,67 +301,6 @@ impl UnitBuilder {
         inner.static_object_keys.push(current);
         inner.static_object_keys_rev.insert(hash, new_slot);
         Ok(new_slot)
-    }
-
-    /// Declare a new import.
-    pub(crate) fn new_import<S, A>(
-        &self,
-        spanned: S,
-        visibility: Visibility,
-        at: Item,
-        path: Item,
-        alias: Option<A>,
-        source_id: usize,
-    ) -> Result<(), CompileError>
-    where
-        S: Spanned,
-        A: IntoComponent,
-    {
-        let mut inner = self.inner.borrow_mut();
-
-        if let Some(last) = alias
-            .as_ref()
-            .map(IntoComponent::as_component_ref)
-            .or_else(|| path.last())
-        {
-            let item = at.extended(last);
-
-            if !inner.names.contains(&item) {
-                inner.names.insert(&item, NameKind::Use);
-            }
-
-            let key = ImportKey::new(at, last);
-
-            let entry = Rc::new(ImportEntry {
-                visibility,
-                item: path.clone(),
-                span: Some((spanned.span(), source_id)),
-            });
-
-            if let Some(old) = inner.imports.insert(key.clone(), entry) {
-                // NB: don't error if we're overwriting prelude.
-                if let Some(existing) = old.span {
-                    return Err(CompileError::new(
-                        spanned,
-                        CompileErrorKind::ImportConflict { key, existing },
-                    ));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Insert the given name into the unit.
-    pub(crate) fn insert_name(&self, spanned: Span, item: &Item) -> Result<(), CompileError> {
-        if let Some(NameKind::Other) = self.inner.borrow_mut().names.insert(item, NameKind::Other) {
-            return Err(CompileError::new(
-                spanned,
-                CompileErrorKind::ConflictingName { item: item.clone() },
-            ));
-        }
-
-        Ok(())
     }
 
     /// Declare a new struct.
@@ -835,54 +679,6 @@ impl UnitBuilder {
             }
         }
     }
-
-    /// Get the given import by name.
-    pub(crate) fn get_import(
-        &self,
-        spanned: Span,
-        item: &Item,
-    ) -> Result<Option<Item>, CompileError> {
-        self.inner.borrow().get_import(spanned, item)
-    }
-
-    /// Walk the names to find the first one that is contained in the unit.
-    pub(crate) fn walk_names(
-        &self,
-        spanned: Span,
-        mod_item: &QueryMod,
-        base: &Item,
-        local: &str,
-    ) -> Result<Option<Item>, CompileError> {
-        let inner = self.inner.borrow();
-
-        debug_assert!(base.starts_with(&mod_item.item));
-
-        let mut base = base.clone();
-
-        loop {
-            let item = base.extended(local);
-
-            if let Some(NameKind::Other) = inner.names.get(&item) {
-                return Ok(Some(item));
-            }
-
-            if let Some(item) = inner.get_import(spanned, &item)? {
-                return Ok(Some(item));
-            }
-
-            if mod_item.item == base || base.pop().is_none() {
-                break;
-            }
-        }
-
-        let key = ImportKey::prelude(local);
-
-        if let Some(entry) = inner.imports.get(&key) {
-            return Ok(Some(entry.item.clone()));
-        }
-
-        Ok(None)
-    }
 }
 
 /// An error raised during linking.
@@ -898,21 +694,12 @@ pub enum LinkerError {
     },
 }
 
-#[derive(Debug)]
-enum NameKind {
-    Use,
-    Other,
-}
-
 #[derive(Debug, Default)]
 struct Inner {
+    /// Keys and entries associated with the unit.
+    imports: HashMap<ImportKey, Rc<ImportEntry>>,
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
-    /// All imports in the current unit.
-    ///
-    /// Only used to link against the current environment to make sure all
-    /// required units are present.
-    imports: HashMap<ImportKey, Rc<ImportEntry>>,
     /// Item metadata in the context.
     meta: HashMap<Item, CompileMeta>,
     /// Where functions are located in the collection of instructions.
@@ -946,8 +733,6 @@ struct Inner {
     label_count: usize,
     /// A collection of required function hashes.
     required_functions: HashMap<Hash, Vec<(Span, usize)>>,
-    /// All available names in the context.
-    names: Names<NameKind>,
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
 }
@@ -956,59 +741,6 @@ impl Inner {
     /// Insert and access debug information.
     fn debug_info_mut(&mut self) -> &mut DebugInfo {
         self.debug.get_or_insert_with(Default::default)
-    }
-
-    /// Get the given import by name.
-    fn get_import(&self, spanned: Span, item: &Item) -> Result<Option<Item>, CompileError> {
-        let mut visited = HashSet::new();
-        let mut path = Vec::new();
-
-        let mut current = item.clone();
-        let mut matched = false;
-
-        loop {
-            let mut item = current.clone();
-
-            let local = match item.pop() {
-                Some(local) => local,
-                None => return Ok(None),
-            };
-
-            let key = ImportKey::new(item, local);
-
-            if let Some(entry) = self.imports.get(&key).cloned() {
-                // NB: this happens when you have a superflous import, like:
-                // ```
-                // use std;
-                //
-                // std::option::Option::None
-                // ```
-                if entry.item == current {
-                    break;
-                }
-
-                path.push((*entry).clone());
-
-                if !visited.insert(entry.item.clone()) {
-                    return Err(CompileError::new(
-                        spanned,
-                        CompileErrorKind::ImportCycle { path },
-                    ));
-                }
-
-                matched = true;
-                current = entry.item.clone();
-                continue;
-            }
-
-            break;
-        }
-
-        if matched {
-            return Ok(Some(current));
-        }
-
-        Ok(None)
     }
 
     /// Translate the given assembly into instructions.

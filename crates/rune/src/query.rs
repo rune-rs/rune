@@ -15,7 +15,8 @@ use crate::{
 };
 use runestick::{
     Call, CompileMeta, CompileMetaCapture, CompileMetaEmpty, CompileMetaKind, CompileMetaStruct,
-    CompileMetaTuple, CompileSource, Hash, Item, Source, SourceId, Span, Type,
+    CompileMetaTuple, CompileSource, Component, ComponentRef, Hash, IntoComponent, Item, Names,
+    Source, SourceId, Span, Type,
 };
 use std::collections::VecDeque;
 use std::fmt;
@@ -89,6 +90,14 @@ pub(crate) struct Query {
     /// Next opaque id generated.
     next_id: Id,
     pub(crate) storage: Storage,
+    /// All imports in the current unit.
+    ///
+    /// Only used to link against the current environment to make sure all
+    /// required units are present.
+    imports: HashMap<ImportKey, Rc<ImportEntry>>,
+    /// All available names in the context.
+    names: Names<NameKind>,
+    /// Unit being built.
     pub(crate) unit: UnitBuilder,
     /// Cache of constants that have been expanded.
     pub(crate) consts: Consts,
@@ -121,6 +130,8 @@ impl Query {
         Self {
             next_id: Id::initial(),
             storage,
+            imports: unit.imports(),
+            names: Names::default(),
             unit,
             consts,
             queue: VecDeque::new(),
@@ -166,7 +177,7 @@ impl Query {
             visibility,
         });
 
-        self.unit.insert_name(spanned, item)?;
+        self.insert_name(spanned, item)?;
         self.modules.insert(item.clone(), query_mod.clone());
         Ok((id, query_mod))
     }
@@ -489,7 +500,7 @@ impl Query {
     /// Index the given element.
     pub fn index(&mut self, item: &Item, entry: IndexedEntry) -> Result<(), QueryError> {
         log::trace!("indexed: {}", item);
-        self.unit.insert_name(entry.span, item)?;
+        self.insert_name(entry.span, item)?;
 
         if let Some(old) = self.indexed.insert(item.clone(), entry) {
             return Err(QueryError::new(
@@ -928,8 +939,7 @@ impl Query {
                 let ident = ident.resolve(storage, source)?;
 
                 let item = if let Some(entry) =
-                    self.unit
-                        .walk_names(path.span(), mod_item, &base, ident.as_ref())?
+                    self.walk_names(path.span(), mod_item, &base, ident.as_ref())?
                 {
                     entry
                 } else {
@@ -970,7 +980,7 @@ impl Query {
                     let ident = ident.resolve(storage, source)?;
                     item.push(ident.as_ref());
 
-                    if let Some(new) = self.unit.get_import(path.span(), &item)? {
+                    if let Some(new) = self.get_import(path.span(), &item)? {
                         item = new;
                     }
                 }
@@ -995,6 +1005,182 @@ impl Query {
         }
 
         Ok(Named { local, item })
+    }
+
+    /// Insert the given name into the unit.
+    pub(crate) fn insert_name(&mut self, spanned: Span, item: &Item) -> Result<(), CompileError> {
+        if let Some(NameKind::Other) = self.names.insert(item, NameKind::Other) {
+            return Err(CompileError::new(
+                spanned,
+                CompileErrorKind::ConflictingName { item: item.clone() },
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Walk the names to find the first one that is contained in the unit.
+    pub(crate) fn walk_names(
+        &mut self,
+        spanned: Span,
+        mod_item: &QueryMod,
+        base: &Item,
+        local: &str,
+    ) -> Result<Option<Item>, CompileError> {
+        debug_assert!(base.starts_with(&mod_item.item));
+
+        let mut base = base.clone();
+
+        loop {
+            let item = base.extended(local);
+
+            if let Some(NameKind::Other) = self.names.get(&item) {
+                return Ok(Some(item));
+            }
+
+            if let Some(item) = self.get_import(spanned, &item)? {
+                return Ok(Some(item));
+            }
+
+            if mod_item.item == base || base.pop().is_none() {
+                break;
+            }
+        }
+
+        let key = ImportKey::prelude(local);
+
+        if let Some(entry) = self.imports.get(&key) {
+            return Ok(Some(entry.item.clone()));
+        }
+
+        Ok(None)
+    }
+
+    /// Get the given import by name.
+    pub(crate) fn get_import(
+        &mut self,
+        spanned: Span,
+        item: &Item,
+    ) -> Result<Option<Item>, CompileError> {
+        let mut visited = HashSet::new();
+        let mut path = Vec::new();
+
+        let mut current = item.clone();
+        let mut matched = false;
+
+        loop {
+            let mut item = current.clone();
+
+            let local = match item.pop() {
+                Some(local) => local,
+                None => return Ok(None),
+            };
+
+            let key = ImportKey::new(item, local);
+
+            if let Some(entry) = self.imports.get(&key).cloned() {
+                // NB: this happens when you have a superflous import, like:
+                // ```
+                // use std;
+                //
+                // std::option::Option::None
+                // ```
+                if entry.item == current {
+                    break;
+                }
+
+                path.push((*entry).clone());
+
+                if !visited.insert(entry.item.clone()) {
+                    return Err(CompileError::new(
+                        spanned,
+                        CompileErrorKind::ImportCycle { path },
+                    ));
+                }
+
+                matched = true;
+                current = entry.item.clone();
+                continue;
+            }
+
+            break;
+        }
+
+        if matched {
+            return Ok(Some(current));
+        }
+
+        Ok(None)
+    }
+
+    /// Declare a new import.
+    pub(crate) fn insert_import<A>(
+        &mut self,
+        spanned: Span,
+        visibility: Visibility,
+        at: Item,
+        path: Item,
+        alias: Option<A>,
+        source_id: usize,
+    ) -> Result<(), CompileError>
+    where
+        A: IntoComponent,
+    {
+        if let Some(last) = alias
+            .as_ref()
+            .map(IntoComponent::as_component_ref)
+            .or_else(|| path.last())
+        {
+            let item = at.extended(last);
+
+            if !self.names.contains(&item) {
+                self.names.insert(&item, NameKind::Use);
+            }
+
+            let key = ImportKey::new(at, last);
+
+            let entry = Rc::new(ImportEntry {
+                visibility,
+                item: path.clone(),
+                span: Some((spanned.span(), source_id)),
+            });
+
+            if let Some(old) = self.imports.insert(key.clone(), entry) {
+                // NB: don't error if we're overwriting prelude.
+                if let Some(existing) = old.span {
+                    return Err(CompileError::new(
+                        spanned,
+                        CompileErrorKind::ImportConflict { key, existing },
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Iterate over all imports.
+    pub(crate) fn imports<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (&'a ImportKey, &'a Rc<ImportEntry>)> {
+        self.imports.iter()
+    }
+
+    /// Check if unit contains the given name by prefix.
+    pub(crate) fn contains_prefix(&self, item: &Item) -> bool {
+        self.names.contains_prefix(item)
+    }
+
+    /// Iterate over known child components of the given name.
+    pub(crate) fn iter_components<'a, I: 'a>(
+        &'a self,
+        iter: I,
+    ) -> impl Iterator<Item = ComponentRef<'a>> + 'a
+    where
+        I: IntoIterator,
+        I::Item: IntoComponent,
+    {
+        self.names.iter_components(iter)
     }
 }
 
@@ -1194,5 +1380,82 @@ impl Named {
 impl fmt::Display for Named {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.item, f)
+    }
+}
+
+#[derive(Debug)]
+enum NameKind {
+    Use,
+    Other,
+}
+
+/// The key of an import.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ImportKey {
+    /// Where the import is located.
+    pub item: Option<Item>,
+    /// The component that is imported.
+    pub component: Component,
+}
+
+impl ImportKey {
+    /// Construct a new import key.
+    pub fn new<C>(item: Item, component: C) -> Self
+    where
+        C: IntoComponent,
+    {
+        Self {
+            item: Some(item),
+            component: component.into_component(),
+        }
+    }
+
+    /// Construct an import key for a single component.
+    pub fn prelude<C>(component: C) -> Self
+    where
+        C: IntoComponent,
+    {
+        Self {
+            item: None,
+            component: component.into_component(),
+        }
+    }
+}
+
+impl fmt::Display for ImportKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(item) = &self.item {
+            if !item.is_empty() {
+                write!(f, "{}::", item)?;
+            }
+        }
+
+        write!(f, "{}", self.component)
+    }
+}
+
+/// An imported entry.
+#[derive(Debug, Clone)]
+pub struct ImportEntry {
+    /// The visibility of the import.
+    pub visibility: Visibility,
+    /// The item being imported.
+    pub item: Item,
+    /// The span of the import.
+    pub span: Option<(Span, SourceId)>,
+}
+
+impl ImportEntry {
+    /// Construct an entry.
+    pub fn prelude<I>(iter: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: IntoComponent,
+    {
+        Self {
+            visibility: Visibility::Public,
+            item: Item::of(iter),
+            span: None,
+        }
     }
 }

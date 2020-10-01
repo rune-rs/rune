@@ -100,7 +100,7 @@ impl<'a> Indexer<'a> {
                         &self.mod_item,
                         &self.context,
                         &self.storage,
-                        &self.query.unit,
+                        self.query,
                         |expand| {
                             queue.push_back(Task::ExpandUnitWildcard(expand));
                         },
@@ -144,7 +144,7 @@ impl<'a> Indexer<'a> {
                         &self.mod_item,
                         self.context,
                         &self.storage,
-                        &self.query.unit,
+                        self.query,
                         |expand| {
                             queue.push_back(Task::ExpandUnitWildcard(expand));
                         },

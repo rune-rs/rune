@@ -149,7 +149,7 @@ impl<'a> Worker<'a> {
                 Task::ExpandUnitWildcard(expander) => {
                     let source_id = expander.source_id;
 
-                    if let Err(error) = expander.expand(&self.query.unit) {
+                    if let Err(error) = expander.expand(&mut self.query) {
                         self.errors.push(Error::new(source_id, error));
                     }
                 }
@@ -175,7 +175,7 @@ impl Import<'_> {
         mod_item: &Rc<QueryMod>,
         context: &Context,
         storage: &Storage,
-        unit: &UnitBuilder,
+        query: &mut Query,
         mut wildcard_expand: impl FnMut(ExpandUnitWildcard),
     ) -> CompileResult<()> {
         let mut queue = VecDeque::new();
@@ -251,7 +251,7 @@ impl Import<'_> {
                     ast::ItemUseSegment::Wildcard(star_token) => {
                         let was_in_context = if context.contains_prefix(&name) {
                             for c in context.iter_components(&name) {
-                                unit.new_import(
+                                query.insert_import(
                                     span,
                                     self.visibility,
                                     self.item.clone(),
@@ -311,7 +311,7 @@ impl Import<'_> {
                 None => None,
             };
 
-            unit.new_import(
+            query.insert_import(
                 span,
                 self.visibility,
                 self.item.clone(),
@@ -337,11 +337,17 @@ pub(crate) struct ExpandUnitWildcard {
 }
 
 impl ExpandUnitWildcard {
-    pub(crate) fn expand(self, unit: &UnitBuilder) -> CompileResult<()> {
-        if unit.contains_prefix(&self.name) {
-            for c in unit.iter_components(&self.name) {
+    pub(crate) fn expand(self, query: &mut Query) -> CompileResult<()> {
+        if query.contains_prefix(&self.name) {
+            let components = query
+                .iter_components(&self.name)
+                .map(|c| c.into_component())
+                .collect::<Vec<_>>();
+
+            for c in components {
                 let name = self.name.extended(c);
-                unit.new_import(
+
+                query.insert_import(
                     self.span,
                     self.visibility,
                     self.from.clone(),

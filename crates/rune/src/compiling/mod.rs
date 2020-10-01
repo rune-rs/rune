@@ -19,7 +19,7 @@ mod unit_builder;
 pub use self::compile_error::{CompileError, CompileErrorKind, CompileResult};
 pub use self::compile_visitor::{CompileVisitor, NoopCompileVisitor};
 pub use self::scopes::Var;
-pub use self::unit_builder::{ImportEntry, ImportKey, InsertMetaError, LinkerError, UnitBuilder};
+pub use self::unit_builder::{InsertMetaError, LinkerError, UnitBuilder};
 use crate::parsing::Resolve as _;
 
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
@@ -110,7 +110,7 @@ pub fn compile_with_options(
         return Err(());
     }
 
-    verify_imports(worker.errors, context, unit)?;
+    verify_imports(worker.errors, context, &worker.query)?;
 
     loop {
         while let Some(entry) = worker.query.queue.pop_front() {
@@ -322,9 +322,9 @@ where
     Ok(args)
 }
 
-fn verify_imports(errors: &mut Errors, context: &Context, unit: &UnitBuilder) -> Result<(), ()> {
-    for (_, entry) in &*unit.imports() {
-        if context.contains_prefix(&entry.item) || unit.contains_prefix(&entry.item) {
+fn verify_imports(errors: &mut Errors, context: &Context, query: &Query) -> Result<(), ()> {
+    for (_, entry) in query.imports() {
+        if context.contains_prefix(&entry.item) || query.contains_prefix(&entry.item) {
             continue;
         }
 
