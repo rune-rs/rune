@@ -292,7 +292,7 @@ pub enum CompileErrorKind {
     #[error("already imported `{key}`")]
     ImportConflict {
         key: ImportKey,
-        existing: (Span, SourceId),
+        existing: (SourceId, Span),
     },
     #[error("segment is only supported in the first position")]
     ExpectedLeadingPathSegment,

@@ -90,6 +90,8 @@ pub(crate) struct Query {
     /// Next opaque id generated.
     next_id: Id,
     pub(crate) storage: Storage,
+    /// Imports from the prelude.
+    prelude: HashMap<Box<str>, Item>,
     /// All imports in the current unit.
     ///
     /// Only used to link against the current environment to make sure all
@@ -130,7 +132,8 @@ impl Query {
         Self {
             next_id: Id::initial(),
             storage,
-            imports: unit.imports(),
+            prelude: unit.prelude(),
+            imports: Default::default(),
             names: Names::default(),
             unit,
             consts,
@@ -1047,10 +1050,8 @@ impl Query {
             }
         }
 
-        let key = ImportKey::prelude(local);
-
-        if let Some(entry) = self.imports.get(&key) {
-            return Ok(Some(entry.item.clone()));
+        if let Some(item) = self.prelude.get(local) {
+            return Ok(Some(item.clone()));
         }
 
         Ok(None)
@@ -1076,7 +1077,10 @@ impl Query {
                 None => return Ok(None),
             };
 
-            let key = ImportKey::new(item, local);
+            let key = ImportKey {
+                item,
+                component: local,
+            };
 
             if let Some(entry) = self.imports.get(&key).cloned() {
                 // NB: this happens when you have a superflous import, like:
@@ -1137,22 +1141,26 @@ impl Query {
                 self.names.insert(&item, NameKind::Use);
             }
 
-            let key = ImportKey::new(at, last);
+            let key = ImportKey {
+                item: at,
+                component: last.into_component(),
+            };
 
             let entry = Rc::new(ImportEntry {
+                source_id,
+                span: spanned.span(),
                 visibility,
                 item: path.clone(),
-                span: Some((spanned.span(), source_id)),
             });
 
             if let Some(old) = self.imports.insert(key.clone(), entry) {
-                // NB: don't error if we're overwriting prelude.
-                if let Some(existing) = old.span {
-                    return Err(CompileError::new(
-                        spanned,
-                        CompileErrorKind::ImportConflict { key, existing },
-                    ));
-                }
+                return Err(CompileError::new(
+                    spanned,
+                    CompileErrorKind::ImportConflict {
+                        key,
+                        existing: (old.source_id, old.span),
+                    },
+                ));
             }
         }
 
@@ -1393,69 +1401,26 @@ enum NameKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImportKey {
     /// Where the import is located.
-    pub item: Option<Item>,
+    pub item: Item,
     /// The component that is imported.
     pub component: Component,
 }
 
-impl ImportKey {
-    /// Construct a new import key.
-    pub fn new<C>(item: Item, component: C) -> Self
-    where
-        C: IntoComponent,
-    {
-        Self {
-            item: Some(item),
-            component: component.into_component(),
-        }
-    }
-
-    /// Construct an import key for a single component.
-    pub fn prelude<C>(component: C) -> Self
-    where
-        C: IntoComponent,
-    {
-        Self {
-            item: None,
-            component: component.into_component(),
-        }
-    }
-}
-
 impl fmt::Display for ImportKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(item) = &self.item {
-            if !item.is_empty() {
-                write!(f, "{}::", item)?;
-            }
-        }
-
-        write!(f, "{}", self.component)
+        write!(f, "{}::{}", self.item, self.component)
     }
 }
 
 /// An imported entry.
 #[derive(Debug, Clone)]
 pub struct ImportEntry {
+    /// The span of the import.
+    pub span: Span,
+    /// The source the entry belongs to.
+    pub source_id: SourceId,
     /// The visibility of the import.
     pub visibility: Visibility,
     /// The item being imported.
     pub item: Item,
-    /// The span of the import.
-    pub span: Option<(Span, SourceId)>,
-}
-
-impl ImportEntry {
-    /// Construct an entry.
-    pub fn prelude<I>(iter: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
-        Self {
-            visibility: Visibility::Public,
-            item: Item::of(iter),
-            span: None,
-        }
-    }
 }
