@@ -221,12 +221,9 @@ impl CompileBuildEntry<'_> {
                         )
                     })?;
 
-                let type_of = meta.type_of().ok_or_else(|| {
-                    CompileError::new(
-                        span,
-                        CompileErrorKind::UnsupportedInstanceFunction { meta: meta.clone() },
-                    )
-                })?;
+                let type_of = meta
+                    .type_of()
+                    .ok_or_else(|| CompileError::expected_meta(span, meta, "instance function"))?;
 
                 compiler.compile((f.ast, true))?;
 

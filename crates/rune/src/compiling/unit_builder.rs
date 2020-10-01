@@ -538,7 +538,7 @@ impl UnitBuilder {
     }
 
     /// Declare a new struct.
-    pub(crate) fn insert_meta(&self, at: Item, meta: CompileMeta) -> Result<(), InsertMetaError> {
+    pub(crate) fn insert_meta(&self, meta: CompileMeta) -> Result<(), InsertMetaError> {
         let mut inner = self.inner.borrow_mut();
 
         match &meta.kind {
@@ -546,13 +546,13 @@ impl UnitBuilder {
                 let info = UnitFn::UnitStruct { hash: empty.hash };
 
                 let signature = DebugSignature {
-                    path: empty.item.clone(),
+                    path: meta.item.clone(),
                     args: DebugArgs::EmptyArgs,
                 };
 
                 let rtti = Arc::new(Rtti {
                     hash: empty.hash,
-                    item: empty.item.clone(),
+                    item: meta.item.clone(),
                 });
 
                 if inner.rtti.insert(empty.hash, rtti).is_some() {
@@ -572,7 +572,7 @@ impl UnitBuilder {
 
                 if inner.types.insert(empty.hash, info).is_some() {
                     return Err(InsertMetaError::TypeConflict {
-                        existing: empty.item.clone(),
+                        existing: meta.item.clone(),
                     });
                 }
 
@@ -588,13 +588,13 @@ impl UnitBuilder {
                 };
 
                 let signature = DebugSignature {
-                    path: tuple.item.clone(),
+                    path: meta.item.clone(),
                     args: DebugArgs::TupleArgs(tuple.args),
                 };
 
                 let rtti = Arc::new(Rtti {
                     hash: tuple.hash,
-                    item: tuple.item.clone(),
+                    item: meta.item.clone(),
                 });
 
                 if inner.rtti.insert(tuple.hash, rtti).is_some() {
@@ -614,7 +614,7 @@ impl UnitBuilder {
 
                 if inner.types.insert(tuple.hash, info).is_some() {
                     return Err(InsertMetaError::TypeConflict {
-                        existing: tuple.item.clone(),
+                        existing: meta.item.clone(),
                     });
                 }
 
@@ -623,12 +623,12 @@ impl UnitBuilder {
                     .functions
                     .insert(tuple.hash, signature);
             }
-            CompileMetaKind::Struct { object, .. } => {
-                let hash = Hash::type_hash(&object.item);
+            CompileMetaKind::Struct { .. } => {
+                let hash = Hash::type_hash(&meta.item);
 
                 let rtti = Arc::new(Rtti {
                     hash,
-                    item: object.item.clone(),
+                    item: meta.item.clone(),
                 });
 
                 if inner.rtti.insert(hash, rtti).is_some() {
@@ -642,7 +642,7 @@ impl UnitBuilder {
 
                 if inner.types.insert(hash, info).is_some() {
                     return Err(InsertMetaError::TypeConflict {
-                        existing: object.item.clone(),
+                        existing: meta.item.clone(),
                     });
                 }
             }
@@ -654,7 +654,7 @@ impl UnitBuilder {
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash: empty.hash,
-                    item: empty.item.clone(),
+                    item: meta.item.clone(),
                 });
 
                 if inner.variant_rtti.insert(empty.hash, rtti).is_some() {
@@ -664,7 +664,7 @@ impl UnitBuilder {
                 let info = UnitFn::UnitVariant { hash: empty.hash };
 
                 let signature = DebugSignature {
-                    path: empty.item.clone(),
+                    path: meta.item.clone(),
                     args: DebugArgs::EmptyArgs,
                 };
 
@@ -681,7 +681,7 @@ impl UnitBuilder {
 
                 if inner.types.insert(empty.hash, info).is_some() {
                     return Err(InsertMetaError::TypeConflict {
-                        existing: empty.item.clone(),
+                        existing: meta.item.clone(),
                     });
                 }
 
@@ -698,7 +698,7 @@ impl UnitBuilder {
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash: tuple.hash,
-                    item: tuple.item.clone(),
+                    item: meta.item.clone(),
                 });
 
                 if inner.variant_rtti.insert(tuple.hash, rtti).is_some() {
@@ -711,7 +711,7 @@ impl UnitBuilder {
                 };
 
                 let signature = DebugSignature {
-                    path: tuple.item.clone(),
+                    path: meta.item.clone(),
                     args: DebugArgs::TupleArgs(tuple.args),
                 };
 
@@ -728,7 +728,7 @@ impl UnitBuilder {
 
                 if inner.types.insert(tuple.hash, info).is_some() {
                     return Err(InsertMetaError::TypeConflict {
-                        existing: tuple.item.clone(),
+                        existing: meta.item.clone(),
                     });
                 }
 
@@ -737,16 +737,14 @@ impl UnitBuilder {
                     .functions
                     .insert(tuple.hash, signature);
             }
-            CompileMetaKind::StructVariant {
-                enum_item, object, ..
-            } => {
-                let hash = Hash::type_hash(&object.item);
+            CompileMetaKind::StructVariant { enum_item, .. } => {
+                let hash = Hash::type_hash(&meta.item);
                 let enum_hash = Hash::type_hash(enum_item);
 
                 let rtti = Arc::new(VariantRtti {
                     enum_hash,
                     hash,
-                    item: object.item.clone(),
+                    item: meta.item.clone(),
                 });
 
                 if inner.variant_rtti.insert(hash, rtti).is_some() {
@@ -760,12 +758,12 @@ impl UnitBuilder {
 
                 if inner.types.insert(hash, info).is_some() {
                     return Err(InsertMetaError::TypeConflict {
-                        existing: object.item.clone(),
+                        existing: meta.item.clone(),
                     });
                 }
             }
-            CompileMetaKind::Enum { item, .. } => {
-                let hash = Hash::type_hash(&at);
+            CompileMetaKind::Enum { .. } => {
+                let hash = Hash::type_hash(&meta.item);
 
                 let info = UnitTypeInfo {
                     hash,
@@ -774,7 +772,7 @@ impl UnitBuilder {
 
                 if inner.types.insert(hash, info).is_some() {
                     return Err(InsertMetaError::TypeConflict {
-                        existing: item.clone(),
+                        existing: meta.item.clone(),
                     });
                 }
             }
@@ -787,7 +785,7 @@ impl UnitBuilder {
             CompileMetaKind::ConstFn { .. } => (),
         }
 
-        if let Some(existing) = inner.meta.insert(at, meta.clone()) {
+        if let Some(existing) = inner.meta.insert(meta.item.clone(), meta.clone()) {
             return Err(InsertMetaError::MetaConflict {
                 current: meta,
                 existing,

@@ -77,6 +77,14 @@ impl CompileError {
     {
         Self::new(spanned, CompileErrorKind::Experimental { msg })
     }
+
+    /// Error when we got mismatched meta.
+    pub fn expected_meta<S>(spanned: S, meta: CompileMeta, expected: &'static str) -> Self
+    where
+        S: Spanned,
+    {
+        Self::new(spanned, CompileErrorKind::ExpectedMeta { meta, expected })
+    }
 }
 
 impl From<Internal> for CompileError {
@@ -157,14 +165,6 @@ pub enum CompileErrorKind {
     UnsupportedModuleItem { item: Item },
     #[error("wildcard support not supported in this position")]
     UnsupportedWildcard,
-    #[error("`{meta}` is not a supported async block")]
-    UnsupportedAsyncBlock { meta: CompileMeta },
-    #[error("cannot declare instance functions for type `{meta}`")]
-    UnsupportedInstanceFunction { meta: CompileMeta },
-    #[error("`{meta}` cannot be used as a value")]
-    UnsupportedValue { meta: CompileMeta },
-    #[error("`{meta}` cannot be used as a type")]
-    UnsupportedType { meta: CompileMeta },
     #[error("`self` not supported here")]
     UnsupportedSelf,
     #[error("unsupported unary operator `{op}`")]
@@ -193,12 +193,6 @@ pub enum CompileErrorKind {
         expected: usize,
         actual: usize,
     },
-    #[error("`{meta}` cannot be used as a const")]
-    UnsupportedMetaConst { meta: CompileMeta },
-    #[error("`{meta}` is not supported in a pattern like this")]
-    UnsupportedMetaPattern { meta: CompileMeta },
-    #[error("`{meta}` is not supported as a closure")]
-    UnsupportedMetaClosure { meta: CompileMeta },
     #[error("item is not supported in a pattern")]
     UnsupportedPattern,
     #[error("not a valid binding")]
@@ -305,4 +299,9 @@ pub enum CompileErrorKind {
     ItemConflict { item: Item },
     #[error("visibility modifier not supported")]
     UnsupportedVisibility,
+    #[error("expected {expected} but got `{meta}`")]
+    ExpectedMeta {
+        expected: &'static str,
+        meta: CompileMeta,
+    },
 }

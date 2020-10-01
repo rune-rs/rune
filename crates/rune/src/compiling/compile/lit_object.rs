@@ -64,32 +64,22 @@ impl Compile<(&ast::LitObject, Needs)> for Compiler<'_> {
                 };
 
                 match &meta.kind {
-                    CompileMetaKind::UnitStruct { empty, .. } => {
-                        check_object_fields(Some(&HashSet::new()), check_keys, span, &empty.item)?;
+                    CompileMetaKind::UnitStruct { .. } => {
+                        check_object_fields(Some(&HashSet::new()), check_keys, span, &meta.item)?;
 
-                        let hash = Hash::type_hash(&empty.item);
+                        let hash = Hash::type_hash(&meta.item);
                         self.asm.push(Inst::UnitStruct { hash }, span);
                     }
                     CompileMetaKind::Struct { object, .. } => {
-                        check_object_fields(
-                            object.fields.as_ref(),
-                            check_keys,
-                            span,
-                            &object.item,
-                        )?;
+                        check_object_fields(object.fields.as_ref(), check_keys, span, &meta.item)?;
 
-                        let hash = Hash::type_hash(&object.item);
+                        let hash = Hash::type_hash(&meta.item);
                         self.asm.push(Inst::Struct { hash, slot }, span);
                     }
                     CompileMetaKind::StructVariant { object, .. } => {
-                        check_object_fields(
-                            object.fields.as_ref(),
-                            check_keys,
-                            span,
-                            &object.item,
-                        )?;
+                        check_object_fields(object.fields.as_ref(), check_keys, span, &meta.item)?;
 
-                        let hash = Hash::type_hash(&object.item);
+                        let hash = Hash::type_hash(&meta.item);
                         self.asm.push(Inst::StructVariant { hash, slot }, span);
                     }
                     _ => {

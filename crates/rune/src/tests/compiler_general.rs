@@ -4,7 +4,7 @@ use crate::testing::*;
 fn test_use_variant_as_type() {
     assert_compile_error! {
         r#"fn main() { Err(0) is Err }"#,
-        span, UnsupportedType { meta: CompileMeta { kind: CompileMetaKind::TupleVariant { .. }, .. } } => {
+        span, ExpectedMeta { meta: CompileMeta { kind: CompileMetaKind::TupleVariant { .. }, .. }, .. } => {
             assert_eq!(span, Span::new(22, 25));
         }
     };

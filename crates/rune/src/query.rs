@@ -746,7 +746,7 @@ impl Query {
         let meta = self.build_indexed_entry(spanned, from, item, entry, used)?;
 
         self.unit
-            .insert_meta(item.item.clone(), meta.clone())
+            .insert_meta(meta.clone())
             .map_err(|error| QueryError::new(spanned, error))?;
 
         Ok(Some(meta))
@@ -774,7 +774,6 @@ impl Query {
         let kind = match indexed {
             Indexed::Enum => CompileMetaKind::Enum {
                 type_of: Type::from(Hash::type_hash(&item.item)),
-                item: item.item.clone(),
             },
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for((span, variant.enum_id))?.clone();
@@ -802,7 +801,6 @@ impl Query {
 
                 CompileMetaKind::Function {
                     type_of: Type::from(Hash::type_hash(&item.item)),
-                    item: item.item.clone(),
                 }
             }
             Indexed::Closure(c) => {
@@ -819,7 +817,6 @@ impl Query {
 
                 CompileMetaKind::Closure {
                     type_of: Type::from(Hash::type_hash(&item.item)),
-                    item: item.item.clone(),
                     captures,
                 }
             }
@@ -837,7 +834,6 @@ impl Query {
 
                 CompileMetaKind::AsyncBlock {
                     type_of: Type::from(Hash::type_hash(&item.item)),
-                    item: item.item.clone(),
                     captures,
                 }
             }
@@ -863,10 +859,7 @@ impl Query {
                     });
                 }
 
-                CompileMetaKind::Const {
-                    const_value,
-                    item: item.item.clone(),
-                }
+                CompileMetaKind::Const { const_value }
             }
             Indexed::ConstFn(c) => {
                 let mut ir_compiler = IrCompiler {
@@ -890,14 +883,12 @@ impl Query {
                     });
                 }
 
-                CompileMetaKind::ConstFn {
-                    id,
-                    item: item.item.clone(),
-                }
+                CompileMetaKind::ConstFn { id }
             }
         };
 
         Ok(CompileMeta {
+            item: item.item.clone(),
             kind,
             source: Some(CompileSource {
                 span,
@@ -980,7 +971,6 @@ impl Query {
         let type_of = Type::from(Hash::type_hash(item));
 
         let empty = CompileMetaEmpty {
-            item: item.clone(),
             hash: Hash::type_hash(item),
         };
 
@@ -1004,7 +994,6 @@ impl Query {
         let type_of = Type::from(Hash::type_hash(item));
 
         let tuple = CompileMetaTuple {
-            item: item.clone(),
             args: tuple.len(),
             hash: Hash::type_hash(item),
         };
@@ -1037,7 +1026,6 @@ impl Query {
         }
 
         let object = CompileMetaStruct {
-            item: item.clone(),
             fields: Some(fields),
         };
 
