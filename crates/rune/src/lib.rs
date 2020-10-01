@@ -271,8 +271,8 @@ mod collections {
 }
 
 pub use self::compiling::{
-    CompileError, CompileErrorKind, CompileResult, CompileVisitor, ImportEntry, ImportKey,
-    LinkerError, NoopCompileVisitor, UnitBuilder, Var,
+    CompileError, CompileErrorKind, CompileResult, CompileVisitor, LinkerError, NoopCompileVisitor,
+    UnitBuilder, Var,
 };
 pub use self::ir::{IrError, IrErrorKind};
 pub use self::load::{
@@ -283,7 +283,7 @@ pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{MacroContext, Storage, ToTokens, TokenStream, TokenStreamIter};
 pub use self::options::Options;
 pub use self::parsing::{Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve};
-pub use self::query::{QueryError, QueryErrorKind};
+pub use self::query::{ImportEntry, ImportKey, QueryError, QueryErrorKind};
 pub use self::shared::{ScopeError, ScopeErrorKind};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use compiling::compile;

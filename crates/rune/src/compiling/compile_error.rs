@@ -1,5 +1,6 @@
 use crate::ast;
-use crate::compiling::{ImportEntry, ImportKey, InsertMetaError};
+use crate::compiling::InsertMetaError;
+use crate::query::{ImportEntry, ImportKey};
 use crate::shared::Internal;
 use crate::{
     IrError, IrErrorKind, ParseError, ParseErrorKind, QueryError, QueryErrorKind, Spanned,
