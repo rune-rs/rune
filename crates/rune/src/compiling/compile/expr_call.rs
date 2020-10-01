@@ -60,7 +60,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             return Ok(());
         };
 
-        let (query_path, named) = self.convert_path_to_named(path)?;
+        let named = self.convert_path_to_named(path)?;
 
         if let Some(name) = named.as_local() {
             let local = self
@@ -86,7 +86,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
         }
 
-        let meta = match self.lookup_meta(path.span(), &*query_path, &named)? {
+        let meta = match self.lookup_meta(path.span(), &named)? {
             Some(meta) => meta,
             None => {
                 return Err(CompileError::new(

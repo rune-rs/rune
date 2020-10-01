@@ -16,8 +16,13 @@ fn test_import_cycle() {
             Foo
         }             
         "#,
-        span, ImportCycle { .. } => {
+        span, QueryError { error } => {
             assert_eq!(span, Span::new(240, 243));
+
+            match *error {
+                ImportCycle { .. } => (),
+                other => panic!("unexpected query error: {:?}", other),
+            }
         }
     };
 }

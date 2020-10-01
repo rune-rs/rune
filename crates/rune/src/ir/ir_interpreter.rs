@@ -107,10 +107,7 @@ impl<'a> IrInterpreter<'a> {
                 return Ok(IrValue::from_const(const_value));
             }
 
-            if let Some(meta) = self
-                .query
-                .query_meta(spanned, Some(&self.mod_item), &item, used)?
-            {
+            if let Some(meta) = self.query.query_meta(spanned, &item, used)? {
                 match &meta.kind {
                     CompileMetaKind::Const { const_value, .. } => {
                         return Ok(IrValue::from_const(const_value.clone()));
@@ -157,10 +154,7 @@ impl<'a> IrInterpreter<'a> {
         let id = loop {
             let item = base.extended(target);
 
-            if let Some(meta) = self
-                .query
-                .query_meta(span, Some(&self.mod_item), &item, used)?
-            {
+            if let Some(meta) = self.query.query_meta(span, &item, used)? {
                 match &meta.kind {
                     CompileMetaKind::ConstFn { id, .. } => {
                         break *id;

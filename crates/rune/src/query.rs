@@ -2,7 +2,7 @@
 
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
-use crate::compiling::InsertMetaError;
+use crate::compiling::{ImportEntryStep, InsertMetaError};
 use crate::indexing::Visibility;
 use crate::ir::ir;
 use crate::ir::{IrBudget, IrInterpreter};
@@ -84,21 +84,15 @@ pub enum QueryErrorKind {
     MissingRevId { id: Id },
     #[error("missing query meta for module {item}")]
     MissingMod { item: Item },
+    #[error("cycle in import")]
+    ImportCycle { path: Vec<ImportEntryStep> },
 }
 
 pub(crate) struct Query {
     /// Next opaque id generated.
     next_id: Id,
+    imports: QueryImports,
     pub(crate) storage: Storage,
-    /// Imports from the prelude.
-    prelude: HashMap<Box<str>, Item>,
-    /// All imports in the current unit.
-    ///
-    /// Only used to link against the current environment to make sure all
-    /// required units are present.
-    imports: HashMap<ImportKey, Rc<ImportEntry>>,
-    /// All available names in the context.
-    names: Names<NameKind>,
     /// Unit being built.
     pub(crate) unit: UnitBuilder,
     /// Cache of constants that have been expanded.
@@ -110,16 +104,6 @@ pub(crate) struct Query {
     pub(crate) indexed: HashMap<Item, IndexedEntry>,
     /// Resolved templates.
     pub(crate) templates: HashMap<Id, Rc<ast::Template>>,
-    /// Associated between `id` and `Item`. Use to look up items through
-    /// `item_for` with an opaque id.
-    ///
-    /// These items are associated with AST elements, and encodoes the item path
-    /// that the AST element was indexed.
-    items: HashMap<Id, Rc<QueryItem>>,
-    /// Modules and associated metadata.
-    modules: HashMap<Item, Rc<QueryMod>>,
-    /// Reverse lookup for items to reduce the number of items used.
-    items_rev: HashMap<Item, Rc<QueryItem>>,
     /// Compiled constant functions.
     const_fns: HashMap<Id, Rc<QueryConstFn>>,
     /// Query paths.
@@ -131,18 +115,20 @@ impl Query {
     pub fn new(storage: Storage, unit: UnitBuilder, consts: Consts) -> Self {
         Self {
             next_id: Id::initial(),
+            imports: QueryImports {
+                prelude: unit.prelude(),
+                imports: Default::default(),
+                names: Names::default(),
+                items: HashMap::new(),
+                modules: HashMap::new(),
+                items_rev: HashMap::new(),
+            },
             storage,
-            prelude: unit.prelude(),
-            imports: Default::default(),
-            names: Names::default(),
             unit,
             consts,
             queue: VecDeque::new(),
             indexed: HashMap::new(),
             templates: HashMap::new(),
-            items: HashMap::new(),
-            modules: HashMap::new(),
-            items_rev: HashMap::new(),
             const_fns: HashMap::new(),
             query_paths: HashMap::new(),
         }
@@ -154,16 +140,23 @@ impl Query {
         mod_item: &Rc<QueryMod>,
         impl_item: Option<&Rc<Item>>,
         item: &Item,
-    ) -> Option<Id> {
+    ) -> Id {
         let query_path = Rc::new(QueryPath {
             mod_item: mod_item.clone(),
             impl_item: impl_item.cloned().clone(),
             item: item.clone(),
         });
 
-        let id = self.next_id.next()?;
+        let id = self.next_id.next().expect("ran out of ids");
         self.query_paths.insert(id, query_path);
-        Some(id)
+        id
+    }
+
+    /// Remove a reference to the given path by id.
+    pub(crate) fn remove_path_by_id(&mut self, id: Option<Id>) {
+        if let Some(id) = id {
+            self.query_paths.remove(&id);
+        }
     }
 
     /// Insert module and associated metadata.
@@ -180,8 +173,10 @@ impl Query {
             visibility,
         });
 
+        self.imports.modules.insert(item.clone(), query_mod.clone());
+
         self.insert_name(spanned, item)?;
-        self.modules.insert(item.clone(), query_mod.clone());
+        self.insert_item(spanned, item, &query_mod, visibility)?;
         Ok((id, query_mod))
     }
 
@@ -193,7 +188,7 @@ impl Query {
         mod_item: &Rc<QueryMod>,
         visibility: Visibility,
     ) -> Result<(Id, Rc<QueryItem>), CompileError> {
-        if let Some(existing) = self.items_rev.get(item) {
+        if let Some(existing) = self.imports.items_rev.get(item) {
             return Ok((existing.id, existing.clone()));
         }
 
@@ -206,14 +201,18 @@ impl Query {
             visibility,
         });
 
-        if let Some(..) = self.items_rev.insert(item.clone(), query_item.clone()) {
+        if let Some(..) = self
+            .imports
+            .items_rev
+            .insert(item.clone(), query_item.clone())
+        {
             return Err(CompileError::new(
                 span,
                 CompileErrorKind::ItemConflict { item: item.clone() },
             ));
         }
 
-        self.items.insert(id, query_item.clone());
+        self.imports.items.insert(id, query_item.clone());
         Ok((id, query_item))
     }
 
@@ -237,20 +236,6 @@ impl Query {
         id
     }
 
-    /// Get path information for the given ast.
-    pub(crate) fn path_for<T>(&self, ast: T) -> Result<&Rc<QueryPath>, QueryError>
-    where
-        T: Spanned + Opaque,
-    {
-        let id = ast.id();
-
-        let query_path = id
-            .and_then(|n| self.query_paths.get(&n))
-            .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingId { what: "path", id }))?;
-
-        Ok(query_path)
-    }
-
     /// Get the item for the given identifier.
     pub(crate) fn item_for<T>(&self, ast: T) -> Result<&Rc<QueryItem>, QueryError>
     where
@@ -259,7 +244,7 @@ impl Query {
         let id = ast.id();
 
         let item = id
-            .and_then(|n| self.items.get(&n))
+            .and_then(|n| self.imports.items.get(&n))
             .ok_or_else(|| QueryError::new(ast, QueryErrorKind::MissingId { what: "item", id }))?;
 
         Ok(item)
@@ -538,7 +523,7 @@ impl Query {
             // NB: recursive queries might remove from `indexed`, so we expect
             // to miss things here.
             if let Some(meta) = self
-                .query_meta_with(span, None, &*item, Used::Unused)
+                .query_meta_with(span, &*item, Used::Unused)
                 .map_err(|e| (source_id, e))?
             {
                 visitor.visit_meta(source_id, &meta, span);
@@ -552,31 +537,24 @@ impl Query {
     pub(crate) fn query_meta(
         &mut self,
         spanned: Span,
-        from: Option<&QueryMod>,
         item: &Item,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        let item = match self.items_rev.get(item) {
+        let item = match self.imports.items_rev.get(item) {
             Some(item) => item.clone(),
             None => return Ok(None),
         };
 
-        self.query_meta_with(spanned, from, &*item, used)
+        self.query_meta_with(spanned, &*item, used)
     }
 
     /// Query the exact meta item without performing a reverse lookup for it.
     pub(crate) fn query_meta_with(
         &mut self,
         spanned: Span,
-        from: Option<&QueryMod>,
         item: &QueryItem,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        // Test for visibility if from is specified.
-        if let Some(from) = from {
-            self.check_access_from(spanned, from, item)?;
-        }
-
         if let Some(meta) = self.unit.lookup_meta(&item.item) {
             return Ok(Some(meta));
         }
@@ -587,7 +565,7 @@ impl Query {
             None => return Ok(None),
         };
 
-        let meta = self.build_indexed_entry(spanned, from, item, entry, used)?;
+        let meta = self.build_indexed_entry(spanned, item, entry, used)?;
 
         self.unit
             .insert_meta(meta.clone())
@@ -600,7 +578,6 @@ impl Query {
     fn build_indexed_entry(
         &mut self,
         spanned: Span,
-        from: Option<&QueryMod>,
         item: &QueryItem,
         entry: IndexedEntry,
         used: Used,
@@ -622,7 +599,7 @@ impl Query {
             Indexed::Variant(variant) => {
                 let enum_item = self.item_for((span, variant.enum_id))?.clone();
                 // Assert that everything is built for the enum.
-                self.query_meta_with(spanned, from, &enum_item, Default::default())?;
+                self.query_meta_with(spanned, &enum_item, Default::default())?;
                 self.variant_into_item_decl(
                     &item.item,
                     variant.ast.body,
@@ -742,74 +719,6 @@ impl Query {
         })
     }
 
-    fn check_access_from(
-        &self,
-        spanned: Span,
-        from: &QueryMod,
-        item: &QueryItem,
-    ) -> Result<(), QueryError> {
-        let (mut mod_item, suffix, is_strict_prefix) =
-            from.item.module_difference(&item.mod_item.item);
-
-        // NB: if we are an immediate parent module, we're allowed to peek into
-        // a nested private module in one level of depth.
-        let mut permit_one_level = is_strict_prefix;
-        let mut suffix_len = 0;
-
-        for c in &suffix {
-            suffix_len += 1;
-            let permit_one_level = std::mem::take(&mut permit_one_level);
-
-            mod_item.push(c);
-
-            let m = self.modules.get(&mod_item).ok_or_else(|| {
-                QueryError::new(
-                    spanned,
-                    QueryErrorKind::MissingMod {
-                        item: mod_item.clone(),
-                    },
-                )
-            })?;
-
-            match m.visibility {
-                Visibility::Public => (),
-                Visibility::Crate => (),
-                Visibility::Inherited => {
-                    if !permit_one_level {
-                        return Err(QueryError::new(
-                            spanned,
-                            QueryErrorKind::NotVisibleMod {
-                                visibility: m.visibility,
-                                item: mod_item,
-                            },
-                        ));
-                    }
-                }
-            }
-        }
-
-        if suffix_len == 0 || is_strict_prefix && suffix_len > 1 {
-            match item.visibility {
-                Visibility::Inherited => {
-                    if !from.item.can_see_private_mod(&item.mod_item.item) {
-                        return Err(QueryError::new(
-                            spanned,
-                            QueryErrorKind::NotVisible {
-                                visibility: item.visibility,
-                                item: item.item.clone(),
-                                from: from.item.clone(),
-                            },
-                        ));
-                    }
-                }
-                Visibility::Public => (),
-                Visibility::Crate => (),
-            }
-        }
-
-        Ok(())
-    }
-
     /// Construct metadata for an empty body.
     fn unit_body_meta(&self, item: &Item, enum_item: Option<&Item>) -> CompileMetaKind {
         let type_of = Type::from(Hash::type_hash(item));
@@ -920,13 +829,23 @@ impl Query {
     /// Perform a path lookup on the current state of the unit.
     pub(crate) fn convert_path(
         &mut self,
-        base: &Item,
-        mod_item: &QueryMod,
-        impl_item: Option<&Item>,
         path: &ast::Path,
         storage: &Storage,
         source: &Source,
     ) -> Result<Named, CompileError> {
+        let id = path.id();
+
+        // NB: this rather awkward looking section is to permit the borrow
+        // checker to understand that we're borrowing distinct subfields of
+        // `Query`.
+        let qp = match id {
+            Some(id) => self.query_paths.get(&id),
+            None => None,
+        };
+
+        let qp = qp
+            .ok_or_else(|| QueryError::new(path, QueryErrorKind::MissingId { what: "path", id }))?;
+
         if let Some(global) = &path.global {
             return Err(CompileError::internal(
                 global,
@@ -936,14 +855,19 @@ impl Query {
 
         let mut in_self_type = false;
         let mut local = None;
+        let mut was_imported = false;
 
         let mut item = match &path.first {
             ast::PathSegment::Ident(ident) => {
                 let ident = ident.resolve(storage, source)?;
 
-                let item = if let Some(entry) =
-                    self.walk_names(path.span(), mod_item, &base, ident.as_ref())?
-                {
+                let item = if let Some(entry) = self.imports.walk_names(
+                    path.span(),
+                    &qp.mod_item,
+                    &qp.item,
+                    ident.as_ref(),
+                    &mut was_imported,
+                )? {
                     entry
                 } else {
                     Item::of(&[ident.as_ref()])
@@ -956,7 +880,7 @@ impl Query {
                 item
             }
             ast::PathSegment::Super(super_value) => {
-                let mut item = mod_item.item.clone();
+                let mut item = qp.mod_item.item.clone();
 
                 item.pop()
                     .ok_or_else(CompileError::unsupported_super(super_value))?;
@@ -964,14 +888,14 @@ impl Query {
                 item
             }
             ast::PathSegment::SelfType(self_type) => {
-                let impl_item = impl_item.ok_or_else(|| {
+                let impl_item = qp.impl_item.as_deref().ok_or_else(|| {
                     CompileError::new(self_type, CompileErrorKind::UnsupportedSelfType)
                 })?;
 
                 in_self_type = true;
                 impl_item.clone()
             }
-            ast::PathSegment::SelfValue(..) => mod_item.item.clone(),
+            ast::PathSegment::SelfValue(..) => qp.mod_item.item.clone(),
             ast::PathSegment::Crate(..) => Item::new(),
         };
 
@@ -983,7 +907,8 @@ impl Query {
                     let ident = ident.resolve(storage, source)?;
                     item.push(ident.as_ref());
 
-                    if let Some(new) = self.get_import(path.span(), &item)? {
+                    if let Some(new) = self.imports.get_import(&qp.mod_item, path.span(), &item)? {
+                        was_imported = true;
                         item = new;
                     }
                 }
@@ -1007,125 +932,40 @@ impl Query {
             }
         }
 
+        // Not imported, so we need to check immediate access here.
+        if !was_imported {
+            if let Some(item) = self.imports.items_rev.get(&item) {
+                self.imports
+                    .check_access_from(path.span(), &qp.mod_item, item)?;
+            }
+        }
+
         Ok(Named { local, item })
     }
 
     /// Insert the given name into the unit.
     pub(crate) fn insert_name(&mut self, spanned: Span, item: &Item) -> Result<(), CompileError> {
-        if let Some(NameKind::Other) = self.names.insert(item, NameKind::Other) {
+        if let Some(..) = self.imports.names.insert(item, NameKind::Other) {
             return Err(CompileError::new(
                 spanned,
-                CompileErrorKind::ConflictingName { item: item.clone() },
+                CompileErrorKind::ItemConflict { item: item.clone() },
             ));
         }
 
         Ok(())
     }
 
-    /// Walk the names to find the first one that is contained in the unit.
-    pub(crate) fn walk_names(
-        &mut self,
-        spanned: Span,
-        mod_item: &QueryMod,
-        base: &Item,
-        local: &str,
-    ) -> Result<Option<Item>, CompileError> {
-        debug_assert!(base.starts_with(&mod_item.item));
-
-        let mut base = base.clone();
-
-        loop {
-            let item = base.extended(local);
-
-            if let Some(NameKind::Other) = self.names.get(&item) {
-                return Ok(Some(item));
-            }
-
-            if let Some(item) = self.get_import(spanned, &item)? {
-                return Ok(Some(item));
-            }
-
-            if mod_item.item == base || base.pop().is_none() {
-                break;
-            }
-        }
-
-        if let Some(item) = self.prelude.get(local) {
-            return Ok(Some(item.clone()));
-        }
-
-        Ok(None)
-    }
-
-    /// Get the given import by name.
-    pub(crate) fn get_import(
-        &mut self,
-        spanned: Span,
-        item: &Item,
-    ) -> Result<Option<Item>, CompileError> {
-        let mut visited = HashSet::new();
-        let mut path = Vec::new();
-
-        let mut current = item.clone();
-        let mut matched = false;
-
-        loop {
-            let mut item = current.clone();
-
-            let local = match item.pop() {
-                Some(local) => local,
-                None => return Ok(None),
-            };
-
-            let key = ImportKey {
-                item,
-                component: local,
-            };
-
-            if let Some(entry) = self.imports.get(&key).cloned() {
-                // NB: this happens when you have a superflous import, like:
-                // ```
-                // use std;
-                //
-                // std::option::Option::None
-                // ```
-                if entry.item == current {
-                    break;
-                }
-
-                path.push((*entry).clone());
-
-                if !visited.insert(entry.item.clone()) {
-                    return Err(CompileError::new(
-                        spanned,
-                        CompileErrorKind::ImportCycle { path },
-                    ));
-                }
-
-                matched = true;
-                current = entry.item.clone();
-                continue;
-            }
-
-            break;
-        }
-
-        if matched {
-            return Ok(Some(current));
-        }
-
-        Ok(None)
-    }
-
     /// Declare a new import.
     pub(crate) fn insert_import<A>(
         &mut self,
         spanned: Span,
+        mod_item: &Rc<QueryMod>,
         visibility: Visibility,
         at: Item,
         path: Item,
         alias: Option<A>,
         source_id: usize,
+        wildcard: bool,
     ) -> Result<(), CompileError>
     where
         A: IntoComponent,
@@ -1137,8 +977,9 @@ impl Query {
         {
             let item = at.extended(last);
 
-            if !self.names.contains(&item) {
-                self.names.insert(&item, NameKind::Use);
+            // NB: wildcard expansions do not overwite local names.
+            if wildcard && self.imports.names.contains(&item) {
+                return Ok(());
             }
 
             let key = ImportKey {
@@ -1151,15 +992,25 @@ impl Query {
                 span: spanned.span(),
                 visibility,
                 item: path.clone(),
+                mod_item: mod_item.clone(),
             });
 
-            if let Some(old) = self.imports.insert(key.clone(), entry) {
+            if let Some(old) = self.imports.imports.insert(key.clone(), entry) {
                 return Err(CompileError::new(
                     spanned,
                     CompileErrorKind::ImportConflict {
                         key,
                         existing: (old.source_id, old.span),
                     },
+                ));
+            }
+
+            self.insert_item(spanned, &item, mod_item, visibility)?;
+
+            if let Some(..) = self.imports.names.insert(item.clone(), NameKind::Use) {
+                return Err(CompileError::new(
+                    spanned,
+                    CompileErrorKind::ItemConflict { item: item.clone() },
                 ));
             }
         }
@@ -1171,12 +1022,12 @@ impl Query {
     pub(crate) fn imports<'a>(
         &'a self,
     ) -> impl Iterator<Item = (&'a ImportKey, &'a Rc<ImportEntry>)> {
-        self.imports.iter()
+        self.imports.imports.iter()
     }
 
     /// Check if unit contains the given name by prefix.
     pub(crate) fn contains_prefix(&self, item: &Item) -> bool {
-        self.names.contains_prefix(item)
+        self.imports.names.contains_prefix(item)
     }
 
     /// Iterate over known child components of the given name.
@@ -1188,7 +1039,7 @@ impl Query {
         I: IntoIterator,
         I::Item: IntoComponent,
     {
-        self.names.iter_components(iter)
+        self.imports.names.iter_components(iter)
     }
 }
 
@@ -1423,4 +1274,227 @@ pub struct ImportEntry {
     pub visibility: Visibility,
     /// The item being imported.
     pub item: Item,
+    /// The module in which the imports is located.
+    pub(crate) mod_item: Rc<QueryMod>,
+}
+
+/// Broken out substruct of `Query` to handle imports.
+struct QueryImports {
+    /// Prelude from the prelude.
+    prelude: HashMap<Box<str>, Item>,
+    /// All imports in the current unit.
+    ///
+    /// Only used to link against the current environment to make sure all
+    /// required units are present.
+    imports: HashMap<ImportKey, Rc<ImportEntry>>,
+    /// All available names in the context.
+    names: Names<NameKind>,
+    /// Associated between `id` and `Item`. Use to look up items through
+    /// `item_for` with an opaque id.
+    ///
+    /// These items are associated with AST elements, and encodoes the item path
+    /// that the AST element was indexed.
+    items: HashMap<Id, Rc<QueryItem>>,
+    /// Modules and associated metadata.
+    modules: HashMap<Item, Rc<QueryMod>>,
+    /// Reverse lookup for items to reduce the number of items used.
+    items_rev: HashMap<Item, Rc<QueryItem>>,
+}
+
+impl QueryImports {
+    /// Walk the names to find the first one that is contained in the unit.
+    fn walk_names(
+        &mut self,
+        spanned: Span,
+        mod_item: &Rc<QueryMod>,
+        base: &Item,
+        local: &str,
+        was_imported: &mut bool,
+    ) -> Result<Option<Item>, CompileError> {
+        debug_assert!(base.starts_with(&mod_item.item));
+
+        let mut base = base.clone();
+
+        loop {
+            let item = base.extended(local);
+
+            if let Some(NameKind::Other) = self.names.get(&item) {
+                return Ok(Some(item));
+            }
+
+            if let Some(item) = self.get_import(mod_item, spanned, &item)? {
+                *was_imported = true;
+                return Ok(Some(item));
+            }
+
+            if mod_item.item == base || base.pop().is_none() {
+                break;
+            }
+        }
+
+        if let Some(item) = self.prelude.get(local) {
+            return Ok(Some(item.clone()));
+        }
+
+        Ok(None)
+    }
+
+    /// Get the given import by name.
+    pub(crate) fn get_import(
+        &mut self,
+        mod_item: &Rc<QueryMod>,
+        spanned: Span,
+        item: &Item,
+    ) -> Result<Option<Item>, QueryError> {
+        let mut visited = HashSet::new();
+        let mut path = Vec::new();
+
+        let mut current = item.clone();
+        let mut matched = false;
+        let mut from = mod_item.clone();
+
+        loop {
+            let mut item = current.clone();
+
+            let local = match item.pop() {
+                Some(local) => local,
+                None => return Ok(None),
+            };
+
+            let key = ImportKey {
+                item,
+                component: local,
+            };
+
+            if let Some(entry) = self.imports.get(&key).cloned() {
+                if entry.mod_item.item != from.item {
+                    match entry.visibility {
+                        // TODO: make this more sophisticated.
+                        Visibility::Public => (),
+                        visibility => {
+                            return Err(QueryError::new(
+                                spanned,
+                                QueryErrorKind::NotVisible {
+                                    visibility,
+                                    item: entry.item.clone(),
+                                    from: from.item.clone(),
+                                },
+                            ));
+                        }
+                    }
+                }
+
+                // NB: if it's not in here, it's imported in the prelude.
+                if let Some(item) = self.items_rev.get(&entry.item) {
+                    self.check_access_from(spanned, &*from, item)?;
+                    from = item.mod_item.clone();
+                }
+
+                // NB: this happens when you have a superflous import, like:
+                // ```
+                // use std;
+                //
+                // std::option::Option::None
+                // ```
+                if entry.item == current {
+                    break;
+                }
+
+                path.push(ImportEntryStep {
+                    span: entry.span,
+                    source_id: entry.source_id,
+                    visibility: entry.visibility,
+                    item: entry.item.clone(),
+                });
+
+                if !visited.insert(entry.item.clone()) {
+                    return Err(QueryError::new(
+                        spanned,
+                        QueryErrorKind::ImportCycle { path },
+                    ));
+                }
+
+                matched = true;
+                current = entry.item.clone();
+                continue;
+            }
+
+            break;
+        }
+
+        if matched {
+            return Ok(Some(current));
+        }
+
+        Ok(None)
+    }
+
+    /// Check that the given item is accessible from the given module.
+    fn check_access_from(
+        &self,
+        spanned: Span,
+        from: &QueryMod,
+        item: &QueryItem,
+    ) -> Result<(), QueryError> {
+        let (mut mod_item, suffix, is_strict_prefix) =
+            from.item.module_difference(&item.mod_item.item);
+
+        // NB: if we are an immediate parent module, we're allowed to peek into
+        // a nested private module in one level of depth.
+        let mut permit_one_level = is_strict_prefix;
+        let mut suffix_len = 0;
+
+        for c in &suffix {
+            suffix_len += 1;
+            let permit_one_level = std::mem::take(&mut permit_one_level);
+
+            mod_item.push(c);
+
+            let m = self.modules.get(&mod_item).ok_or_else(|| {
+                QueryError::new(
+                    spanned,
+                    QueryErrorKind::MissingMod {
+                        item: mod_item.clone(),
+                    },
+                )
+            })?;
+
+            match m.visibility {
+                Visibility::Public => (),
+                Visibility::Crate => (),
+                Visibility::Inherited => {
+                    if !permit_one_level {
+                        return Err(QueryError::new(
+                            spanned,
+                            QueryErrorKind::NotVisibleMod {
+                                visibility: m.visibility,
+                                item: mod_item,
+                            },
+                        ));
+                    }
+                }
+            }
+        }
+
+        if suffix_len == 0 || is_strict_prefix && suffix_len > 1 {
+            match item.visibility {
+                Visibility::Inherited => {
+                    if !from.item.can_see_private_mod(&item.mod_item.item) {
+                        return Err(QueryError::new(
+                            spanned,
+                            QueryErrorKind::NotVisible {
+                                visibility: item.visibility,
+                                item: item.item.clone(),
+                                from: from.item.clone(),
+                            },
+                        ));
+                    }
+                }
+                Visibility::Public => (),
+                Visibility::Crate => (),
+            }
+        }
+
+        Ok(())
+    }
 }
