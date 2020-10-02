@@ -178,4 +178,8 @@ pub enum ParseErrorKind {
     UnsupportedConst,
     #[error("expected block, closure, or `fn` after `async`")]
     UnsupportedAsync,
+    #[error("bad number literal")]
+    BadNumber,
+    #[error("expected identifier for object key")]
+    ExpectedObjectIdent,
 }

@@ -23,8 +23,7 @@ impl Eval<&ir::IrTemplate> for IrInterpreter<'_> {
 
                     match const_value {
                         IrValue::Integer(integer) => {
-                            let mut buffer = itoa::Buffer::new();
-                            buf.push_str(buffer.format(integer));
+                            write!(buf, "{}", integer).unwrap();
                         }
                         IrValue::Float(float) => {
                             let mut buffer = ryu::Buffer::new();

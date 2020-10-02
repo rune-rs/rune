@@ -305,11 +305,13 @@ impl<'a> Compiler<'a> {
         // that it is indeed a vector.
         self.asm.push(Inst::Copy { offset }, span);
 
+        let (is_open, count) = pat_items_count(&pat_vec.items)?;
+
         self.asm.push(
             Inst::MatchSequence {
                 type_check: TypeCheck::Vec,
-                len: pat_vec.items.len(),
-                exact: pat_vec.open_pattern.is_none(),
+                len: count,
+                exact: !is_open,
             },
             span,
         );
@@ -317,7 +319,7 @@ impl<'a> Compiler<'a> {
         self.asm
             .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
 
-        for (index, (pat, _)) in pat_vec.items.iter().enumerate() {
+        for (index, (pat, _)) in pat_vec.items.iter().take(count).enumerate() {
             let span = pat.span();
 
             let load = move |this: &mut Self, needs: Needs| {
@@ -388,10 +390,9 @@ impl<'a> Compiler<'a> {
                 }
             };
 
-            let count = pat_tuple.items.len();
-            let is_open = pat_tuple.open_pattern.is_some();
+            let (has_rest, count) = pat_items_count(&pat_tuple.items)?;
 
-            if !(args == count || count < args && is_open) {
+            if !(args == count || count < args && has_rest) {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::UnsupportedArgumentCount {
@@ -410,19 +411,21 @@ impl<'a> Compiler<'a> {
             TypeCheck::Tuple
         };
 
+        let (is_open, count) = pat_items_count(&pat_tuple.items)?;
+
         self.asm.push(Inst::Copy { offset }, span);
         self.asm.push(
             Inst::MatchSequence {
                 type_check,
-                len: pat_tuple.items.len(),
-                exact: pat_tuple.open_pattern.is_none(),
+                len: count,
+                exact: !is_open,
             },
             span,
         );
         self.asm
             .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
 
-        for (index, (pat, _)) in pat_tuple.items.iter().enumerate() {
+        for (index, (pat, _)) in pat_tuple.items.iter().take(count).enumerate() {
             let span = pat.span();
 
             let load = move |this: &mut Self, needs: Needs| {
@@ -460,13 +463,47 @@ impl<'a> Compiler<'a> {
         let mut keys_dup = HashMap::new();
         let mut keys = Vec::new();
 
-        for (item, _) in &pat_object.fields {
-            let span = item.span();
+        let mut bindings = Vec::new();
+        let (has_rest, count) = pat_items_count(&pat_object.items)?;
 
-            let source = self.source.clone();
-            let key = item.key.resolve(&self.storage, &*source)?;
+        for (pat, _) in pat_object.items.iter().take(count) {
+            let span = pat.span();
+
+            let key = match pat {
+                ast::Pat::PatBinding(binding) => {
+                    let key = binding.key.resolve(&self.storage, &*self.source)?;
+                    bindings.push(Binding::Binding(
+                        binding.span(),
+                        key.as_ref().into(),
+                        &*binding.pat,
+                    ));
+                    key
+                }
+                ast::Pat::PatPath(path) => {
+                    let ident = match path.path.try_as_ident() {
+                        Some(ident) => ident,
+                        None => {
+                            return Err(CompileError::new(
+                                span,
+                                CompileErrorKind::UnsupportedPattern,
+                            ));
+                        }
+                    };
+
+                    let key = ident.resolve(&self.storage, &*self.source)?;
+
+                    bindings.push(Binding::Ident(path.span(), key.as_ref().into()));
+                    key
+                }
+                _ => {
+                    return Err(CompileError::new(
+                        span,
+                        CompileErrorKind::UnsupportedPattern,
+                    ));
+                }
+            };
+
             string_slots.push(self.unit.new_static_string(span, &*key)?);
-            keys.push(key.to_string());
 
             if let Some(existing) = keys_dup.insert(key.to_string(), span) {
                 return Err(CompileError::new(
@@ -477,6 +514,8 @@ impl<'a> Compiler<'a> {
                     },
                 ));
             }
+
+            keys.push(key.to_string());
         }
 
         let keys = self.unit.new_static_object_keys(span, &keys[..])?;
@@ -533,15 +572,12 @@ impl<'a> Compiler<'a> {
                     }
                 };
 
-                for (field, _) in &pat_object.fields {
-                    let span = field.key.span();
-                    let key = field.key.resolve(&self.storage, &*self.source)?;
-
-                    if !fields.contains(&*key) {
+                for binding in &bindings {
+                    if !fields.contains(binding.key()) {
                         return Err(CompileError::new(
                             span,
                             CompileErrorKind::LitObjectNotField {
-                                field: key.to_string(),
+                                field: binding.key().to_string(),
                                 item: meta.item.clone(),
                             },
                         ));
@@ -560,7 +596,7 @@ impl<'a> Compiler<'a> {
             Inst::MatchObject {
                 type_check,
                 slot: keys,
-                exact: pat_object.open_pattern.is_none(),
+                exact: !has_rest,
             },
             span,
         );
@@ -568,40 +604,50 @@ impl<'a> Compiler<'a> {
         self.asm
             .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
 
-        for ((item, _), slot) in pat_object.fields.iter().zip(string_slots) {
-            let span = item.span();
+        for (binding, slot) in bindings.iter().zip(string_slots) {
+            let span = binding.span();
 
-            let load = move |this: &mut Self, needs: Needs| {
-                if needs.value() {
-                    this.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
+            match binding {
+                Binding::Binding(_, _, pat) => {
+                    let load = move |this: &mut Self, needs: Needs| {
+                        if needs.value() {
+                            this.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
+                        }
+
+                        Ok(())
+                    };
+
+                    self.compile_pat(&*pat, false_label, &load)?;
                 }
-
-                Ok(())
-            };
-
-            if let Some((_, pat)) = &item.binding {
-                // load the given vector index and declare it as a local variable.
-                self.compile_pat(&*pat, false_label, &load)?;
-                continue;
+                Binding::Ident(_, key) => {
+                    self.asm.push(Inst::ObjectIndexGetAt { offset, slot }, span);
+                    self.scopes.decl_var(key, span)?;
+                }
             }
-
-            // NB: only raw identifiers are supported as anonymous bindings
-            let ident = match &item.key {
-                ast::LitObjectKey::Ident(ident) => ident,
-                _ => {
-                    return Err(CompileError::new(
-                        span,
-                        CompileErrorKind::UnsupportedBinding,
-                    ))
-                }
-            };
-
-            load(self, Needs::Value)?;
-            let name = ident.resolve(&self.storage, &*self.source)?;
-            self.scopes.decl_var(name.as_ref(), span)?;
         }
 
-        Ok(())
+        return Ok(());
+
+        enum Binding<'a> {
+            Binding(Span, Box<str>, &'a ast::Pat),
+            Ident(Span, Box<str>),
+        }
+
+        impl Binding<'_> {
+            fn span(&self) -> Span {
+                match self {
+                    Self::Binding(span, _, _) => *span,
+                    Self::Ident(span, _) => *span,
+                }
+            }
+
+            fn key(&self) -> &str {
+                match self {
+                    Self::Binding(_, key, _) => key.as_ref(),
+                    Self::Ident(_, key) => key.as_ref(),
+                }
+            }
+        }
     }
 
     /// Compile a binding name that matches a known meta type.
@@ -678,70 +724,110 @@ impl<'a> Compiler<'a> {
                     return Ok(false);
                 }
 
-                return Err(CompileError::new(
+                Err(CompileError::new(
                     span,
                     CompileErrorKind::UnsupportedBinding,
-                ));
+                ))
             }
             ast::Pat::PatIgnore(..) => {
                 // ignore binding, but might still have side effects, so must
                 // call the load generator.
                 load(self, Needs::None)?;
-                return Ok(false);
+                Ok(false)
             }
-            ast::Pat::PatUnit(unit) => {
-                load(self, Needs::Value)?;
-                self.asm.push(Inst::IsUnit, unit.span());
-            }
-            ast::Pat::PatByte(lit_byte) => {
-                let byte = lit_byte.resolve(&self.storage, &*self.source)?;
-                load(self, Needs::Value)?;
-                self.asm.push(Inst::EqByte { byte }, lit_byte.span());
-            }
-            ast::Pat::PatChar(lit_char) => {
-                let character = lit_char.resolve(&self.storage, &*self.source)?;
-                load(self, Needs::Value)?;
-                self.asm
-                    .push(Inst::EqCharacter { character }, lit_char.span());
-            }
-            ast::Pat::PatNumber(number_literal) => {
-                let span = number_literal.span();
-                let number = number_literal.resolve(&self.storage, &*self.source)?;
-
-                let integer = match number {
-                    ast::Number::Integer(integer) => integer,
-                    ast::Number::Float(..) => {
-                        return Err(CompileError::new(
-                            span,
-                            CompileErrorKind::MatchFloatInPattern,
-                        ));
-                    }
-                };
-
-                load(self, Needs::Value)?;
-                self.asm.push(Inst::EqInteger { integer }, span);
-            }
-            ast::Pat::PatString(pat_string) => {
-                let span = pat_string.span();
-                let string = pat_string.resolve(&self.storage, &*self.source)?;
-                let slot = self.unit.new_static_string(span, &*string)?;
-                load(self, Needs::Value)?;
-                self.asm.push(Inst::EqStaticString { slot }, span);
-            }
+            ast::Pat::PatLit(pat_lit) => Ok(self.compile_pat_lit(pat_lit, false_label, load)?),
             ast::Pat::PatVec(pat_vec) => {
                 self.compile_pat_vec(pat_vec, false_label, &load)?;
-                return Ok(true);
+                Ok(true)
             }
             ast::Pat::PatTuple(pat_tuple) => {
                 self.compile_pat_tuple(pat_tuple, false_label, &load)?;
-                return Ok(true);
+                Ok(true)
             }
             ast::Pat::PatObject(object) => {
                 self.compile_pat_object(object, false_label, &load)?;
-                return Ok(true);
+                Ok(true)
             }
+            pat => Err(CompileError::new(pat, CompileErrorKind::UnsupportedPattern)),
+        }
+    }
+
+    pub(crate) fn compile_pat_lit(
+        &mut self,
+        pat_lit: &ast::PatLit,
+        false_label: Label,
+        load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
+    ) -> CompileResult<bool> {
+        loop {
+            match &*pat_lit.expr {
+                ast::Expr::ExprUnary(expr_unary) => match &*expr_unary.expr {
+                    ast::Expr::ExprLit(ast::ExprLit {
+                        lit: ast::Lit::Number(lit_number),
+                        ..
+                    }) => {
+                        let span = lit_number.span();
+                        let integer = lit_number
+                            .resolve(&self.storage, &*self.source)?
+                            .as_i64(pat_lit.span(), true)?;
+                        load(self, Needs::Value)?;
+                        self.asm.push(Inst::EqInteger { integer }, span);
+                        break;
+                    }
+                    _ => (),
+                },
+                ast::Expr::ExprLit(expr_lit) => match &expr_lit.lit {
+                    ast::Lit::Unit(unit) => {
+                        load(self, Needs::Value)?;
+                        self.asm.push(Inst::IsUnit, unit.span());
+                        break;
+                    }
+                    ast::Lit::Byte(lit_byte) => {
+                        let byte = lit_byte.resolve(&self.storage, &*self.source)?;
+                        load(self, Needs::Value)?;
+                        self.asm.push(Inst::EqByte { byte }, lit_byte.span());
+                        break;
+                    }
+                    ast::Lit::Char(lit_char) => {
+                        let character = lit_char.resolve(&self.storage, &*self.source)?;
+                        load(self, Needs::Value)?;
+                        self.asm
+                            .push(Inst::EqCharacter { character }, lit_char.span());
+                        break;
+                    }
+                    ast::Lit::Str(pat_string) => {
+                        let span = pat_string.span();
+                        let string = pat_string.resolve(&self.storage, &*self.source)?;
+                        let slot = self.unit.new_static_string(span, &*string)?;
+                        load(self, Needs::Value)?;
+                        self.asm.push(Inst::EqStaticString { slot }, span);
+                        break;
+                    }
+                    ast::Lit::Number(lit_number) => {
+                        let span = lit_number.span();
+                        let integer = lit_number
+                            .resolve(&self.storage, &*self.source)?
+                            .as_i64(pat_lit.span(), false)?;
+                        load(self, Needs::Value)?;
+                        self.asm.push(Inst::EqInteger { integer }, span);
+                        break;
+                    }
+                    ast::Lit::Bool(_) => {}
+                    ast::Lit::ByteStr(_) => {}
+                    ast::Lit::Object(_) => {}
+                    ast::Lit::Template(_) => {}
+                    ast::Lit::Tuple(_) => {}
+                    ast::Lit::Vec(_) => {}
+                },
+                _ => (),
+            }
+
+            return Err(CompileError::new(
+                pat_lit,
+                CompileErrorKind::UnsupportedPattern,
+            ));
         }
 
+        let span = pat_lit.span();
         self.asm
             .pop_and_jump_if_not(self.scopes.local_var_count(span)?, false_label, span);
         Ok(true)
@@ -826,4 +912,37 @@ impl<'a> Compiler<'a> {
         let value = interpreter.eval_value(&query_const_fn.ir_fn.ir, Used::Used)?;
         Ok(value.into_const(spanned)?)
     }
+}
+
+/// Test if the given pattern is open or not.
+fn pat_items_count<'a, I: 'a, U: 'a>(items: I) -> Result<(bool, usize), CompileError>
+where
+    I: IntoIterator<Item = &'a (ast::Pat, U)>,
+    I::IntoIter: DoubleEndedIterator,
+{
+    let mut it = items.into_iter();
+
+    let (is_open, mut count) = match it.next_back() {
+        Some((pat, _)) => {
+            if matches!(pat, ast::Pat::PatRest(..)) {
+                (true, 0)
+            } else {
+                (false, 1)
+            }
+        }
+        None => return Ok((false, 0)),
+    };
+
+    for (pat, _) in it {
+        if let ast::Pat::PatRest(rest) = pat {
+            return Err(CompileError::new(
+                rest,
+                CompileErrorKind::UnsupportedPattern,
+            ));
+        }
+
+        count += 1;
+    }
+
+    Ok((is_open, count))
 }

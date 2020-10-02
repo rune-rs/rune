@@ -3,10 +3,7 @@ use crate::testing::*;
 macro_rules! op_tests {
     ($lhs:literal $op:tt $rhs:literal = $out:expr) => {
         assert_eq! {
-            rune_s!(i64 => &format!(
-                r#"fn main() {{ let a = {lhs}; let b = {rhs}; a {op} b}}"#,
-                lhs = $lhs, rhs = $rhs, op = stringify!($op),
-            )),
+            rune!(i64 => fn main() { let a = $lhs; let b = $rhs; a $op b}),
             $out,
         };
 

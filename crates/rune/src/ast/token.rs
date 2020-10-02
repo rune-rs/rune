@@ -1,5 +1,5 @@
 use crate::shared::Description;
-use crate::{MacroContext, Spanned};
+use crate::{MacroContext, ParseError, ParseErrorKind, Spanned};
 use runestick::Span;
 use std::fmt;
 
@@ -25,21 +25,46 @@ impl Spanned for Token {
 }
 
 /// A resolved number literal.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Number {
     /// A float literal number.
     Float(f64),
     /// An integer literal number.
-    Integer(i64),
+    Integer(num::BigInt),
 }
 
 impl Number {
+    /// Convert into a 64-bit signed number.
+    pub fn as_i64(&self, spanned: Span, neg: bool) -> Result<i64, ParseError> {
+        use num::ToPrimitive as _;
+        use std::ops::Neg as _;
+
+        let number = match self {
+            Number::Float(_) => return Err(ParseError::new(spanned, ParseErrorKind::BadNumber)),
+            Number::Integer(n) => {
+                if neg {
+                    n.clone().neg().to_i64()
+                } else {
+                    n.to_i64()
+                }
+            }
+        };
+
+        match number {
+            Some(n) => Ok(n),
+            None => Err(ParseError::new(
+                spanned,
+                ParseErrorKind::BadNumberOutOfBounds,
+            )),
+        }
+    }
+
     /// Try to convert number into a tuple index.
-    pub fn into_tuple_index(self) -> Option<usize> {
-        use std::convert::TryFrom as _;
+    pub fn as_tuple_index(&self) -> Option<usize> {
+        use num::ToPrimitive as _;
 
         match self {
-            Self::Integer(n) if n >= 0 => usize::try_from(n).ok(),
+            Self::Integer(n) => n.to_usize(),
             _ => None,
         }
     }
@@ -51,9 +76,27 @@ impl From<f64> for Number {
     }
 }
 
+impl From<u32> for Number {
+    fn from(value: u32) -> Self {
+        Self::Integer(num::BigInt::from(value))
+    }
+}
+
+impl From<i32> for Number {
+    fn from(value: i32) -> Self {
+        Self::Integer(num::BigInt::from(value))
+    }
+}
+
+impl From<u64> for Number {
+    fn from(value: u64) -> Self {
+        Self::Integer(num::BigInt::from(value))
+    }
+}
+
 impl From<i64> for Number {
     fn from(value: i64) -> Self {
-        Self::Integer(value)
+        Self::Integer(num::BigInt::from(value))
     }
 }
 
@@ -159,8 +202,6 @@ where
 pub struct NumberSourceText {
     /// Indicates if it's a decimal number.
     pub is_fractional: bool,
-    /// Indicates if the number is negative.
-    pub is_negative: bool,
     /// The number literal kind.
     pub base: NumberBase,
 }

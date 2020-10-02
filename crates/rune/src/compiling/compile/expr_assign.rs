@@ -48,7 +48,7 @@ impl Compile<(&ast::ExprAssign, Needs)> for Compiler<'_> {
                     ast::ExprField::LitNumber(field) => {
                         let span = field.span();
                         let number = field.resolve(self.storage, &*self.source)?;
-                        let index = number.into_tuple_index().ok_or_else(|| {
+                        let index = number.as_tuple_index().ok_or_else(|| {
                             CompileError::new(
                                 span,
                                 CompileErrorKind::UnsupportedTupleIndex { number },

@@ -4,6 +4,8 @@ impl Eval<&ir::IrBinary> for IrInterpreter<'_> {
     type Output = IrValue;
 
     fn eval(&mut self, ir_binary: &ir::IrBinary, used: Used) -> Result<Self::Output, EvalOutcome> {
+        use std::ops::{Add, Mul, Shl, Shr, Sub};
+
         let span = ir_binary.span();
         self.budget.take(span)?;
 
@@ -13,50 +15,26 @@ impl Eval<&ir::IrBinary> for IrInterpreter<'_> {
         match (a, b) {
             (IrValue::Integer(a), IrValue::Integer(b)) => match ir_binary.op {
                 ir::IrBinaryOp::Add => {
-                    return Ok(checked_int(
-                        a,
-                        b,
-                        i64::checked_add,
-                        "integer overflow",
-                        span,
-                    )?);
+                    return Ok(IrValue::Integer(a.add(&b)));
                 }
                 ir::IrBinaryOp::Sub => {
-                    return Ok(checked_int(
-                        a,
-                        b,
-                        i64::checked_sub,
-                        "integer underflow",
-                        span,
-                    )?);
+                    return Ok(IrValue::Integer(a.sub(&b)));
                 }
                 ir::IrBinaryOp::Mul => {
-                    return Ok(checked_int(
-                        a,
-                        b,
-                        i64::checked_mul,
-                        "integer overflow",
-                        span,
-                    )?);
+                    return Ok(IrValue::Integer(a.mul(&b)));
                 }
                 ir::IrBinaryOp::Div => {
-                    return Ok(checked_int(
-                        a,
-                        b,
-                        i64::checked_div,
-                        "integer division by zero",
-                        span,
-                    )?);
+                    let number = a
+                        .checked_div(&b)
+                        .ok_or_else(|| IrError::custom(span, "division by zero"))?;
+                    return Ok(IrValue::Integer(number));
                 }
                 ir::IrBinaryOp::Shl => {
                     let b = u32::try_from(b).map_err(|_| {
                         IrError::custom(&ir_binary.rhs, "cannot be converted to shift operand")
                     })?;
 
-                    let n = a
-                        .checked_shl(b)
-                        .ok_or_else(|| IrError::custom(span, "integer shift overflow"))?;
-
+                    let n = a.shl(b);
                     return Ok(IrValue::Integer(n));
                 }
                 ir::IrBinaryOp::Shr => {
@@ -64,10 +42,7 @@ impl Eval<&ir::IrBinary> for IrInterpreter<'_> {
                         IrError::custom(&ir_binary.rhs, "cannot be converted to shift operand")
                     })?;
 
-                    let n = a
-                        .checked_shr(b)
-                        .ok_or_else(|| IrError::custom(span, "integer shift underflow"))?;
-
+                    let n = a.shr(b);
                     return Ok(IrValue::Integer(n));
                 }
                 ir::IrBinaryOp::Lt => return Ok(IrValue::Bool(a < b)),
@@ -95,15 +70,4 @@ impl Eval<&ir::IrBinary> for IrInterpreter<'_> {
 
         Err(EvalOutcome::not_const(span))
     }
-}
-
-fn checked_int(
-    a: i64,
-    b: i64,
-    op: impl FnOnce(i64, i64) -> Option<i64>,
-    msg: &'static str,
-    span: Span,
-) -> Result<IrValue, IrError> {
-    let n = op(a, b).ok_or_else(|| IrError::custom(span, msg))?;
-    Ok(IrValue::Integer(n))
 }

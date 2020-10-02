@@ -67,20 +67,18 @@ fn test_recursive_context_import() {
 
 #[test]
 fn test_recusive_wildcard() {
-    let result = rune_s! {
-        (bool, bool) => r#"
+    let result = rune! { (bool, bool) =>
         mod a {
             pub mod c { pub use std::option::Option as Baz; }
             pub mod b { pub use super::c::Baz as Bar; }
             pub use self::b::{Bar as Foo, Bar as Foo2};
         }
-        
+
         use self::a::*;
-        
+
         fn main() {
             (Foo::None is Option, Foo2::Some(2) is Option)
-        }             
-        "#
+        }
     };
 
     assert_eq!(result, (true, true));

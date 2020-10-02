@@ -181,7 +181,7 @@ fn compile_assign_binop(
                     let span = field.span();
 
                     let number = field.resolve(this.storage, &*this.source)?;
-                    let index = number.into_tuple_index().ok_or_else(|| {
+                    let index = number.as_tuple_index().ok_or_else(|| {
                         CompileError::new(span, CompileErrorKind::UnsupportedTupleIndex { number })
                     })?;
 

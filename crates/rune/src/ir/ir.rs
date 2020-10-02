@@ -379,59 +379,58 @@ impl IrAssignOp {
     where
         S: Copy + Spanned,
     {
-        match (target, operand) {
-            (IrValue::Integer(target), IrValue::Integer(operand)) => {
-                self.assign_int(spanned, target, operand)?;
-            }
-            _ => return Err(IrError::custom(spanned, "unsupported operands")),
+        match target {
+            IrValue::Integer(target) => match operand {
+                IrValue::Integer(operand) => {
+                    return Ok(self.assign_int(spanned, target, operand)?);
+                }
+                _ => (),
+            },
+            _ => (),
         }
 
-        Ok(())
+        return Err(IrError::custom(spanned, "unsupported operands"));
     }
 
     /// Perform the given assign operation.
-    fn assign_int<S>(self, spanned: S, target: &mut i64, operand: i64) -> Result<(), IrError>
+    fn assign_int<S>(
+        self,
+        spanned: S,
+        target: &mut num::BigInt,
+        operand: num::BigInt,
+    ) -> Result<(), IrError>
     where
         S: Copy + Spanned,
     {
         use std::convert::TryFrom;
+        use std::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
 
         match self {
             IrAssignOp::Add => {
-                *target = target
-                    .checked_add(operand)
-                    .ok_or_else(|| IrError::custom(spanned, "integer overflow"))?;
+                target.add_assign(operand);
             }
             IrAssignOp::Sub => {
-                *target = target
-                    .checked_sub(operand)
-                    .ok_or_else(|| IrError::custom(spanned, "integer underflow"))?;
+                target.sub_assign(operand);
             }
             IrAssignOp::Mul => {
-                *target = target
-                    .checked_mul(operand)
-                    .ok_or_else(|| IrError::custom(spanned, "integer overflow"))?;
+                target.mul_assign(operand);
             }
             IrAssignOp::Div => {
                 *target = target
-                    .checked_div(operand)
+                    .checked_div(&operand)
                     .ok_or_else(|| IrError::custom(spanned, "division by zero"))?;
             }
             IrAssignOp::Shl => {
                 let operand =
                     u32::try_from(operand).map_err(|_| IrError::custom(spanned, "bad operand"))?;
 
-                *target = target
-                    .checked_shl(operand)
-                    .ok_or_else(|| IrError::custom(spanned, "integer shift overflow"))?;
+                target.shl_assign(operand);
             }
             IrAssignOp::Shr => {
                 let operand =
                     u32::try_from(operand).map_err(|_| IrError::custom(spanned, "bad operand"))?;
 
-                *target = target
-                    .checked_shr(operand)
-                    .ok_or_else(|| IrError::custom(spanned, "integer shift underflow"))?;
+                target.shr_assign(operand);
             }
         }
 

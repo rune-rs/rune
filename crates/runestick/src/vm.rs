@@ -658,6 +658,26 @@ impl Vm {
     }
 
     #[inline]
+    fn op_neg(&mut self) -> Result<(), VmError> {
+        let value = self.stack.pop()?;
+
+        let value = match value {
+            Value::Float(value) => Value::from(-value),
+            Value::Integer(value) => Value::from(-value),
+            other => {
+                let operand = other.type_info()?;
+                return Err(VmError::from(VmErrorKind::UnsupportedUnaryOperation {
+                    op: "-",
+                    operand,
+                }));
+            }
+        };
+
+        self.stack.push(value);
+        Ok(())
+    }
+
+    #[inline]
     fn op_op(&mut self, op: InstOp) -> Result<(), VmError> {
         use std::convert::TryFrom as _;
 
@@ -2208,6 +2228,9 @@ impl Vm {
             match inst {
                 Inst::Not => {
                     self.op_not()?;
+                }
+                Inst::Neg => {
+                    self.op_neg()?;
                 }
                 Inst::Closure { hash, count } => {
                     self.op_closure(hash, count)?;

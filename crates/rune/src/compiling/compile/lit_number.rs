@@ -3,6 +3,8 @@ use crate::compiling::compile::prelude::*;
 /// Compile a literal number.
 impl Compile<(&ast::LitNumber, Needs)> for Compiler<'_> {
     fn compile(&mut self, (lit_number, needs): (&ast::LitNumber, Needs)) -> CompileResult<()> {
+        use num::ToPrimitive as _;
+
         let span = lit_number.span();
         log::trace!("LitNumber => {:?}", self.source.source(span));
 
@@ -19,7 +21,17 @@ impl Compile<(&ast::LitNumber, Needs)> for Compiler<'_> {
                 self.asm.push(Inst::float(number), span);
             }
             ast::Number::Integer(number) => {
-                self.asm.push(Inst::integer(number), span);
+                let n = match number.to_i64() {
+                    Some(n) => n,
+                    None => {
+                        return Err(CompileError::new(
+                            span,
+                            ParseErrorKind::BadNumberOutOfBounds,
+                        ));
+                    }
+                };
+
+                self.asm.push(Inst::integer(n), span);
             }
         }
 

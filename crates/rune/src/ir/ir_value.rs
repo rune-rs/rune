@@ -14,7 +14,7 @@ pub enum IrValue {
     /// A boolean constant value.
     Bool(bool),
     /// An integer constant.
-    Integer(i64),
+    Integer(num::BigInt),
     /// An float constant.
     Float(f64),
     /// A string constant designated by its slot.

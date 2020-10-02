@@ -5,7 +5,7 @@ use crate::testing::*;
 #[test]
 fn test_small_programs() {
     assert_eq!(rune!(u64 => fn main() { 42 }), 42u64);
-    assert_eq!(rune_s!(() => r#"fn main() {}"#), ());
+    assert_eq!(rune!(() => fn main() {}), ());
 
     assert_eq! {
         rune! { i64 =>
@@ -134,7 +134,7 @@ fn test_shadowing() {
 #[test]
 fn test_vectors() {
     assert_eq! {
-        rune_s!(() => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
+        rune!(() => fn main() { let v = [1, 2, 3, 4, 5]; }),
         (),
     };
 }
@@ -179,8 +179,8 @@ fn test_while() {
 #[test]
 fn test_loop() {
     assert_eq! {
-        rune_s! {
-            runestick::VecTuple<(i64, bool)> => r#"
+        rune! {
+            runestick::VecTuple<(i64, bool)> =>
             fn main() {
                 let a = 0;
 
@@ -194,7 +194,6 @@ fn test_loop() {
 
                 [a, value is unit]
             }
-            "#
         },
         runestick::VecTuple((10, true)),
     };

@@ -610,12 +610,12 @@ impl Index<ast::Pat> for Indexer<'_> {
             ast::Pat::PatTuple(pat_tuple) => {
                 self.index(pat_tuple)?;
             }
-            ast::Pat::PatByte(..) => (),
+            ast::Pat::PatBinding(pat_binding) => {
+                self.index(pat_binding)?;
+            }
             ast::Pat::PatIgnore(..) => (),
-            ast::Pat::PatNumber(..) => (),
-            ast::Pat::PatString(..) => (),
-            ast::Pat::PatUnit(..) => (),
-            ast::Pat::PatChar(..) => (),
+            ast::Pat::PatLit(..) => (),
+            ast::Pat::PatRest(..) => (),
         }
 
         Ok(())
@@ -632,9 +632,18 @@ impl Index<ast::PatTuple> for Indexer<'_> {
         }
 
         for (pat, _) in &mut pat_tuple.items {
-            self.index(&mut **pat)?;
+            self.index(pat)?;
         }
 
+        Ok(())
+    }
+}
+
+impl Index<ast::PatBinding> for Indexer<'_> {
+    fn index(&mut self, pat_binding: &mut ast::PatBinding) -> CompileResult<()> {
+        let span = pat_binding.span();
+        log::trace!("PatBinding => {:?}", self.source.source(span));
+        self.index(&mut *pat_binding.pat)?;
         Ok(())
     }
 }
@@ -651,17 +660,8 @@ impl Index<ast::PatObject> for Indexer<'_> {
             }
         }
 
-        for (field, _) in &mut pat_object.fields {
-            if let Some((_, pat)) = &mut field.binding {
-                self.index(pat)?;
-            } else {
-                match &mut field.key {
-                    ast::LitObjectKey::Ident(ident) => {
-                        self.index(ident)?;
-                    }
-                    ast::LitObjectKey::LitStr(..) => (),
-                }
-            }
+        for (pat, _) in &mut pat_object.items {
+            self.index(pat)?;
         }
 
         Ok(())
@@ -674,7 +674,7 @@ impl Index<ast::PatVec> for Indexer<'_> {
         log::trace!("PatVec => {:?}", self.source.source(span));
 
         for (pat, _) in &mut pat_vec.items {
-            self.index(&mut **pat)?;
+            self.index(pat)?;
         }
 
         Ok(())
