@@ -39,15 +39,14 @@ impl<'a> Resolve<'a> for LitNumber {
     type Output = ast::Number;
 
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<ast::Number, ParseError> {
-        use num::{Num as _, ToPrimitive as _};
-        use std::ops::Neg as _;
+        use num::Num as _;
         use std::str::FromStr as _;
 
         let span = self.token.span();
 
         let text = match self.source {
             ast::NumberSource::Synthetic(id) => match storage.get_number(id) {
-                Some(number) => return Ok(number),
+                Some(number) => return Ok(number.clone()),
                 None => {
                     return Err(ParseError::new(
                         span,
@@ -62,12 +61,6 @@ impl<'a> Resolve<'a> for LitNumber {
             .source(span)
             .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
 
-        let string = if text.is_negative {
-            &string[1..]
-        } else {
-            string
-        };
-
         if text.is_fractional {
             let number = f64::from_str(string).map_err(err_span(span))?;
             return Ok(ast::Number::Float(number));
@@ -80,19 +73,7 @@ impl<'a> Resolve<'a> for LitNumber {
             ast::NumberBase::Decimal => (0, 10),
         };
 
-        let number = num::BigUint::from_str_radix(&string[s..], radix).map_err(err_span(span))?;
-
-        let number = if text.is_negative {
-            num::BigInt::from(number).neg().to_i64()
-        } else {
-            number.to_i64()
-        };
-
-        let number = match number {
-            Some(n) => n,
-            None => return Err(ParseError::new(span, ParseErrorKind::BadNumberOutOfBounds)),
-        };
-
+        let number = num::BigInt::from_str_radix(&string[s..], radix).map_err(err_span(span))?;
         return Ok(ast::Number::Integer(number));
 
         fn err_span<E>(span: Span) -> impl Fn(E) -> ParseError {

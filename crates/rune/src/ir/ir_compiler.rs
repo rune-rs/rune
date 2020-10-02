@@ -50,7 +50,7 @@ impl<'a> IrCompiler<'a> {
                     ast::ExprField::LitNumber(number) => {
                         let number = self.resolve(number)?;
 
-                        if let Some(index) = number.into_tuple_index() {
+                        if let Some(index) = number.as_tuple_index() {
                             return Ok(ir::IrTarget {
                                 span: expr.span(),
                                 kind: ir::IrTargetKind::Index(Box::new(target), index),

@@ -7,18 +7,31 @@ impl Compile<(&ast::ExprUnary, Needs)> for Compiler<'_> {
         log::trace!("ExprUnary => {:?}", self.source.source(span));
 
         // NB: special unary expressions.
-        if let ast::UnaryOp::BorrowRef { .. } = expr_unary.op {
+        if let ast::UnOp::BorrowRef { .. } = expr_unary.op {
             return Err(CompileError::new(
                 expr_unary,
                 CompileErrorKind::UnsupportedRef,
             ));
         }
 
+        if let (ast::UnOp::Neg, ast::Expr::ExprLit(expr_lit)) = (expr_unary.op, &*expr_unary.expr) {
+            if let ast::Lit::Number(n) = &expr_lit.lit {
+                let n = n
+                    .resolve(&self.storage, &*self.source)?
+                    .as_i64(span, true)?;
+                self.asm.push(Inst::integer(n), span);
+                return Ok(());
+            }
+        }
+
         self.compile((&*expr_unary.expr, Needs::Value))?;
 
         match expr_unary.op {
-            ast::UnaryOp::Not { .. } => {
+            ast::UnOp::Not { .. } => {
                 self.asm.push(Inst::Not, span);
+            }
+            ast::UnOp::Neg { .. } => {
+                self.asm.push(Inst::Neg, span);
             }
             op => {
                 return Err(CompileError::new(

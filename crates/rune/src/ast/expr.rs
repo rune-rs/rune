@@ -17,6 +17,18 @@ impl ops::Deref for EagerBrace {
     }
 }
 
+/// Indicator that an expression should be parsed as an eager binary expression.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct EagerBinary(pub(crate) bool);
+
+impl ops::Deref for EagerBinary {
+    type Target = bool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// A rune expression.
 #[derive(Debug, Clone, ToTokens, Spanned, PartialEq, Eq)]
 pub enum Expr {
@@ -165,19 +177,25 @@ impl Expr {
     /// are arguments to statements immediately followed by blocks. Like `if`,
     /// `while`, and `match`.
     pub(crate) fn parse_without_eager_brace(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_with(parser, EagerBrace(false))
+        Self::parse_with(parser, EagerBrace(false), EagerBinary(true))
     }
 
     /// ull, configurable parsing of an expression.F
     pub(crate) fn parse_with(
         parser: &mut Parser<'_>,
         eager_brace: EagerBrace,
+        eager_binary: EagerBinary,
     ) -> Result<Self, ParseError> {
         let mut attributes = parser.parse()?;
 
         let expr = Self::parse_base(parser, &mut attributes, eager_brace)?;
         let expr = Self::parse_chain(parser, expr)?;
-        let expr = Self::parse_binary(parser, expr, 0, eager_brace)?;
+
+        let expr = if *eager_binary {
+            Self::parse_binary(parser, expr, 0, eager_brace)?
+        } else {
+            expr
+        };
 
         if let Some(span) = attributes.option_span() {
             return Err(ParseError::new(
@@ -229,7 +247,7 @@ impl Expr {
         }
 
         let open = parser.parse::<ast::OpenParen>()?;
-        let expr = ast::Expr::parse_with(parser, EagerBrace(true))?;
+        let expr = ast::Expr::parse_with(parser, EagerBrace(true), EagerBinary(true))?;
 
         if parser.peek::<ast::CloseParen>()? {
             return Ok(Expr::ExprGroup(ast::ExprGroup {
@@ -301,9 +319,13 @@ impl Expr {
                 parser,
                 take(attributes),
             )?),
-            ast::Kind::Bang | ast::Kind::Amp | ast::Kind::Star => Self::ExprUnary(
-                ast::ExprUnary::parse_with_meta(parser, take(attributes), eager_brace)?,
-            ),
+            ast::Kind::Bang | ast::Kind::Dash | ast::Kind::Amp | ast::Kind::Star => {
+                Self::ExprUnary(ast::ExprUnary::parse_with_meta(
+                    parser,
+                    take(attributes),
+                    eager_brace,
+                )?)
+            }
             ast::Kind::While => Self::ExprWhile(ast::ExprWhile::parse_with_meta(
                 parser,
                 take(attributes),
@@ -402,7 +424,7 @@ impl Expr {
                 }
                 ast::Kind::Eq => {
                     let eq = parser.parse()?;
-                    let rhs = Self::parse_with(parser, EagerBrace(true))?;
+                    let rhs = Self::parse_with(parser, EagerBrace(true), EagerBinary(true))?;
 
                     expr = Expr::ExprAssign(ast::ExprAssign {
                         attributes: expr.take_attributes(),
@@ -568,7 +590,7 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let out = Self::parse_with(parser, EagerBrace(true));
+        let out = Self::parse_with(parser, EagerBrace(true), EagerBinary(true));
         out
     }
 }

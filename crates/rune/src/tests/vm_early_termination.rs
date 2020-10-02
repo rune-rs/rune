@@ -1,87 +1,67 @@
 macro_rules! test_case {
-    ($kind:literal, $field:tt, $index:tt, $extra:literal) => {
+    (($($k:tt)*), $field:tt, $index:tt, $($extra:tt)*) => {
         assert_eq! {
-            rune_s!(bool => &format!(
-                r#"fn main() {{ let m = {kind}; m[return true]; false }} {extra}"#,
-                kind = $kind, extra = $extra,
-            )),
+            rune!(bool => fn main() { let m = $($k)*; m[return true]; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune_s!(bool => &format!(
-                r#"fn main() {{ let m = {kind}; m[return true] = 0; false }} {extra}"#,
-                kind = $kind, extra = $extra,
-            )),
+            rune!(bool => fn main() { let m = $($k)*; m[return true] = 0; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune_s!(bool => &format!(
-                r#"fn main() {{ let m = {kind}; m[{index}] = return true; false }} {extra}"#,
-                kind = $kind, index = stringify!($index), extra = $extra,
-            )),
+            rune!(bool => fn main() { let m = $($k)*; m[$index] = return true; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune_s!(bool => &format!(
-                r#"fn main() {{ let m = {kind}; m.{field} = return true; false }} {extra}"#,
-                kind = $kind, field = stringify!($field), extra = $extra,
-            )),
+            rune!(bool => fn main() { let m = $($k)*; m.$field = return true; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune_s!(bool => &format!(
-                r#"fn main() {{ {kind}[return true]; false }} {extra}"#,
-                kind = $kind, extra = $extra,
-            )),
+            rune!(bool => fn main() { $($k)*[return true]; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune_s!(bool => &format!(
-                r#"fn main() {{ {kind}[return true] = 0; false }} {extra}"#,
-                kind = $kind, extra = $extra,
-            )),
+            rune!(bool => fn main() { $($k)*[return true] = 0; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune_s!(bool => &format!(
-                r#"fn main() {{ {kind}[{index}] = return true; false }} {extra}"#,
-                kind = $kind, index = stringify!($index), extra = $extra,
-            )),
+            rune!(bool => fn main() { $($k)*[$index] = return true; false } $($extra)*),
             true,
         };
 
         assert_eq! {
-            rune_s!(bool => &format!(
-                r#"fn main() {{ {kind}.{field} = return true; false }} {extra}"#,
-                kind = $kind, field = stringify!($field), extra = $extra,
-            )),
+            rune!(bool => fn main() { $($k)*.$field = return true; false } $($extra)*),
             true,
         };
+    };
+
+    (($($k:tt)*), $field:tt, $index:tt) => {
+        test_case!(($($k)*), $field, $index,)
     };
 }
 
 #[test]
 fn test_object_like_early_term() {
-    test_case!("#{}", test, "test", "");
+    test_case!(( #{} ), test, "test");
 }
 
 #[test]
 fn test_tuple_like_early_term() {
-    test_case!("()", 0, 0, "");
+    test_case!((()), 0, 0);
 }
 
 #[test]
 fn test_typed_object_early_term() {
-    test_case!("Foo()", 0, 0, "struct Foo();");
+    test_case!((Foo()), 0, 0, struct Foo(););
 }
 
 #[test]
 fn test_typed_tuple_early_term() {
-    test_case!("Foo{test: 0}", test, "test", "struct Foo{test};");
+    test_case!(( Foo { test: 0 } ), test, "test", struct Foo { test };);
 }

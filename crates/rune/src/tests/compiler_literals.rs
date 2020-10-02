@@ -13,7 +13,7 @@ fn test_number_literals() {
     assert_compile_error! {
         r#"fn main() { -0aardvark }"#,
         span, ParseError { error: BadNumberLiteral { .. }} => {
-            assert_eq!(span, Span::new(12, 22));
+            assert_eq!(span, Span::new(13, 22));
         }
     };
 

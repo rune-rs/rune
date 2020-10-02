@@ -169,7 +169,7 @@ pub enum CompileErrorKind {
     #[error("`self` not supported here")]
     UnsupportedSelf,
     #[error("unsupported unary operator `{op}`")]
-    UnsupportedUnaryOp { op: ast::UnaryOp },
+    UnsupportedUnaryOp { op: ast::UnOp },
     #[error("unsupported binary operator `{op}`")]
     UnsupportedBinaryOp { op: ast::BinOp },
     #[error("{meta} is not an object")]
@@ -194,7 +194,7 @@ pub enum CompileErrorKind {
         expected: usize,
         actual: usize,
     },
-    #[error("item is not supported in a pattern")]
+    #[error("expression not supported here")]
     UnsupportedPattern,
     #[error("not a valid binding")]
     UnsupportedBinding,

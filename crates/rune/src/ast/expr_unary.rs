@@ -28,7 +28,7 @@ pub struct ExprUnary {
     pub expr: Box<ast::Expr>,
     /// The operation to apply.
     #[rune(skip)]
-    pub op: UnaryOp,
+    pub op: UnOp,
 }
 
 impl ExprUnary {
@@ -39,12 +39,16 @@ impl ExprUnary {
         eager_brace: EagerBrace,
     ) -> Result<Self, ParseError> {
         let op_token = parser.token_next()?;
-        let op = UnaryOp::from_token(op_token)?;
+        let op = UnOp::from_token(op_token)?;
 
         Ok(Self {
             attributes,
             op_token,
-            expr: Box::new(ast::Expr::parse_with(parser, eager_brace)?),
+            expr: Box::new(ast::Expr::parse_with(
+                parser,
+                eager_brace,
+                ast::expr::EagerBinary(false),
+            )?),
             op,
         })
     }
@@ -54,20 +58,23 @@ expr_parse!(ExprUnary, "try expression");
 
 /// A unary operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UnaryOp {
+pub enum UnOp {
     /// Not `!<thing>`.
     Not,
+    /// Negation `-<thing>`.
+    Neg,
     /// Reference `&<thing>`.
     BorrowRef,
     /// Dereference `*<thing>`.
     Deref,
 }
 
-impl UnaryOp {
+impl UnOp {
     /// Convert a unary operator from a token.
     pub fn from_token(token: ast::Token) -> Result<Self, ParseError> {
         match token.kind {
             ast::Kind::Bang => Ok(Self::Not),
+            ast::Kind::Dash => Ok(Self::Neg),
             ast::Kind::Amp => Ok(Self::BorrowRef),
             ast::Kind::Star => Ok(Self::Deref),
             _ => Err(ParseError::expected(token, "unary operator `!`")),
@@ -75,10 +82,11 @@ impl UnaryOp {
     }
 }
 
-impl fmt::Display for UnaryOp {
+impl fmt::Display for UnOp {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Not => write!(fmt, "!")?,
+            Self::Neg => write!(fmt, "-")?,
             Self::BorrowRef => write!(fmt, "&")?,
             Self::Deref => write!(fmt, "*")?,
         }

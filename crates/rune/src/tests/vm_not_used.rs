@@ -1,8 +1,7 @@
 #[test]
 fn test_not_used() {
     assert_eq! {
-        rune_s! {
-            () => r#"
+        rune! { () =>
             fn main() {
                 0;
                 4.1;
@@ -14,7 +13,6 @@ fn test_not_used() {
                 (1, 2, 3, 4);
                 #{"foo": 42, "bar": [1, 2, 3, 4]};
             }
-            "#
         },
         (),
     };

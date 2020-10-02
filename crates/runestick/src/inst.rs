@@ -92,6 +92,15 @@ pub enum Inst {
     /// => <bool>
     /// ```
     Not,
+    /// Negate the numerical value on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <number>
+    /// => <number>
+    /// ```
+    Neg,
     /// Construct a closure that takes the given number of arguments and
     /// captures `count` elements from the top of the stack.
     ///
@@ -236,7 +245,7 @@ pub enum Inst {
     /// => <value>
     /// ```
     ObjectIndexGetAt {
-        /// The slot offset to get the value to test from.
+        /// The slot offset to get the value to load from.
         offset: usize,
         /// The static string slot corresponding to the index to fetch.
         slot: usize,
@@ -936,6 +945,9 @@ impl fmt::Display for Inst {
             }
             Self::Not => {
                 write!(fmt, "not")?;
+            }
+            Self::Neg => {
+                write!(fmt, "neg")?;
             }
             Self::Call { hash, args } => {
                 write!(fmt, "call {}, {}", hash, args)?;

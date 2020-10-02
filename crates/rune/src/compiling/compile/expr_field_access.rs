@@ -30,11 +30,8 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
         loop {
             match &expr_field_access.expr_field {
                 ast::ExprField::LitNumber(n) => {
-                    let index = match n.resolve(&self.storage, &*self.source)? {
-                        ast::Number::Integer(n) if n >= 0 => match usize::try_from(n) {
-                            Ok(n) => n,
-                            Err(..) => break,
-                        },
+                    let index = match n.resolve(&self.storage, &*self.source)?.as_tuple_index() {
+                        Some(n) => n,
                         _ => break,
                     };
 

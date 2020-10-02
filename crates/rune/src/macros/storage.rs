@@ -78,7 +78,7 @@ impl Storage {
     /// Get the content of the number with the specified id.
     pub fn get_number(&self, id: usize) -> Option<ast::Number> {
         let inner = self.inner.borrow();
-        inner.numbers.get(id).copied()
+        inner.numbers.get(id).cloned()
     }
 }
 

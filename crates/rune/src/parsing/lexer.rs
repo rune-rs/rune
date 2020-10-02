@@ -99,7 +99,6 @@ impl<'a> Lexer<'a> {
         it: &mut I,
         c: char,
         start: usize,
-        is_negative: bool,
     ) -> Result<Option<ast::Token>, ParseError>
     where
         I: Clone + Iterator<Item = (usize, char)>,
@@ -148,7 +147,6 @@ impl<'a> Lexer<'a> {
         Ok(Some(ast::Token {
             kind: ast::Kind::LitNumber(ast::NumberSource::Text(ast::NumberSourceText {
                 is_fractional,
-                is_negative,
                 base,
             })),
             span: Span {
@@ -593,10 +591,6 @@ impl<'a> Lexer<'a> {
                             it.next();
                             break ast::Kind::Arrow;
                         }
-                        ('-', c @ '0'..='9') => {
-                            it.next();
-                            return self.next_number_literal(&mut it, c, start, true);
-                        }
                         ('b', '\'') => {
                             it.next();
                             it.next();
@@ -644,7 +638,7 @@ impl<'a> Lexer<'a> {
                         return self.next_ident(&mut it, start);
                     }
                     '0'..='9' => {
-                        return self.next_number_literal(&mut it, c, start, false);
+                        return self.next_number_literal(&mut it, c, start);
                     }
                     '"' => {
                         return self.next_lit_str(&mut it, start);
@@ -797,7 +791,6 @@ mod tests {
                 span: Span::new(14, 16),
                 kind: ast::Kind::LitNumber(ast::NumberSource::Text(ast::NumberSourceText {
                     is_fractional: false,
-                    is_negative: false,
                     base: ast::NumberBase::Decimal,
                 })),
             },

@@ -1,5 +1,5 @@
 use crate::{ast, Peek};
-use crate::{Parse, ParseError, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
 use runestick::Source;
 use std::borrow::Cow;
 
@@ -115,8 +115,8 @@ impl Parse for LitObjectFieldAssign {
 pub enum LitObjectKey {
     /// A literal string (with escapes).
     LitStr(ast::LitStr),
-    /// An identifier.
-    Ident(ast::Ident),
+    /// An path, usually an identifier.
+    Path(ast::Path),
 }
 
 /// Parse an object literal.
@@ -135,7 +135,7 @@ impl Parse for LitObjectKey {
 
         Ok(match token.kind {
             ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
-            ast::Kind::Ident(..) => Self::Ident(parser.parse()?),
+            ast::Kind::Ident(..) => Self::Path(parser.parse()?),
             _ => {
                 return Err(ParseError::expected(token, "literal object key"));
             }
@@ -149,7 +149,13 @@ impl<'a> Resolve<'a> for LitObjectKey {
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ParseError> {
         Ok(match self {
             Self::LitStr(lit_str) => lit_str.resolve(storage, source)?,
-            Self::Ident(ident) => ident.resolve(storage, source)?,
+            Self::Path(path) => {
+                let ident = path
+                    .try_as_ident()
+                    .ok_or_else(|| ParseError::new(path, ParseErrorKind::ExpectedObjectIdent))?;
+
+                ident.resolve(storage, source)?
+            }
         })
     }
 }

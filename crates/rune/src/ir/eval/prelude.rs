@@ -6,5 +6,5 @@ pub(crate) use crate::ir::IrInterpreter;
 pub(crate) use crate::ir::IrValue;
 pub(crate) use crate::query::Used;
 pub(crate) use crate::{IrError, Spanned};
-pub(crate) use runestick::{Shared, Span};
+pub(crate) use runestick::Shared;
 pub(crate) use std::convert::TryFrom;

@@ -3,6 +3,8 @@ use crate::compiling::compile::prelude::*;
 /// Call an async block.
 impl Compile<(&ConstValue, Span)> for Compiler<'_> {
     fn compile(&mut self, (const_value, span): (&ConstValue, Span)) -> CompileResult<()> {
+        use num::ToPrimitive as _;
+
         match const_value {
             ConstValue::Unit => {
                 self.asm.push(Inst::unit(), span);
@@ -14,7 +16,17 @@ impl Compile<(&ConstValue, Span)> for Compiler<'_> {
                 self.asm.push(Inst::char(*c), span);
             }
             ConstValue::Integer(n) => {
-                self.asm.push(Inst::integer(*n), span);
+                let n = match n.to_i64() {
+                    Some(n) => n,
+                    None => {
+                        return Err(CompileError::new(
+                            span,
+                            ParseErrorKind::BadNumberOutOfBounds,
+                        ));
+                    }
+                };
+
+                self.asm.push(Inst::integer(n), span);
             }
             ConstValue::Float(n) => {
                 self.asm.push(Inst::float(*n), span);
