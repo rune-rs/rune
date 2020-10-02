@@ -24,7 +24,6 @@ use std::sync::Arc;
 mod imports;
 mod query_error;
 
-pub use self::imports::ImportKey;
 pub use self::query_error::{QueryError, QueryErrorKind};
 
 use self::imports::{ImportEntry, NameKind};
@@ -111,6 +110,7 @@ impl Query {
         let id = self.next_id.next().expect("ran out of ids");
 
         let query_mod = Rc::new(QueryMod {
+            location: Location::new(source_id, spanned),
             item: item.clone(),
             visibility,
         });
@@ -788,19 +788,15 @@ impl Query {
 
         let mut in_self_type = false;
         let mut local = None;
-        let mut was_imported = false;
 
         let mut item = match &path.first {
             ast::PathSegment::Ident(ident) => {
                 let ident = ident.resolve(storage, source)?;
 
-                let item = if let Some(entry) = self.imports.walk_names(
-                    path.span(),
-                    &qp.mod_item,
-                    &qp.item,
-                    ident.as_ref(),
-                    &mut was_imported,
-                )? {
+                let item = if let Some(entry) =
+                    self.imports
+                        .walk_names(path.span(), &qp.mod_item, &qp.item, ident.as_ref())?
+                {
                     entry
                 } else {
                     Item::of(&[ident.as_ref()])
@@ -841,7 +837,6 @@ impl Query {
                     item.push(ident.as_ref());
 
                     if let Some(new) = self.imports.get_import(&qp.mod_item, path.span(), &item)? {
-                        was_imported = true;
                         item = new;
                     }
                 }
@@ -862,14 +857,6 @@ impl Query {
                         CompileErrorKind::ExpectedLeadingPathSegment,
                     ));
                 }
-            }
-        }
-
-        // Not imported, so we need to check immediate access here.
-        if !was_imported {
-            if let Some(item) = self.imports.items_rev.get(&item) {
-                self.imports
-                    .check_access_from(path.span(), &qp.mod_item, item)?;
             }
         }
 
@@ -901,7 +888,7 @@ impl Query {
     }
 
     /// Declare a new import.
-    pub(crate) fn insert_import<A>(
+    pub(crate) fn insert_import(
         &mut self,
         source_id: SourceId,
         spanned: Span,
@@ -909,69 +896,60 @@ impl Query {
         visibility: Visibility,
         at: Item,
         path: Item,
-        alias: Option<A>,
+        alias: Option<&str>,
         wildcard: bool,
-    ) -> Result<(), QueryError>
-    where
-        A: IntoComponent,
-    {
-        if let Some(last) = alias
+    ) -> Result<(), QueryError> {
+        let last = alias
             .as_ref()
             .map(IntoComponent::as_component_ref)
             .or_else(|| path.last())
-        {
-            let item = at.extended(last);
+            .ok_or_else(|| QueryError::new(spanned, QueryErrorKind::LastUseComponent))?;
 
-            // NB: wildcard expansions do not overwite local names.
-            if wildcard && self.imports.names.contains(&item) {
-                return Ok(());
-            }
+        let item = at.extended(last);
 
-            let key = ImportKey {
-                item: at,
-                component: last.into_component(),
-            };
+        // NB: wildcard expansions do not overwite local names.
+        if wildcard && self.imports.names.contains(&item) {
+            return Ok(());
+        }
 
-            let entry = Rc::new(ImportEntry {
-                location: Location::new(source_id, spanned.span()),
-                visibility,
-                item: path.clone(),
-                mod_item: mod_item.clone(),
-            });
+        let entry = Rc::new(ImportEntry {
+            location: Location::new(source_id, spanned.span()),
+            visibility,
+            name: item.clone(),
+            imported: path.clone(),
+            mod_item: mod_item.clone(),
+        });
 
-            if let Some(entry) = self.imports.imports.insert(key.clone(), entry) {
-                return Err(QueryError::new(
-                    spanned,
-                    QueryErrorKind::ImportConflict {
-                        key,
-                        other: entry.location,
-                    },
-                ));
-            }
+        if let Some(entry) = self.imports.imports.insert(item.clone(), entry) {
+            return Err(QueryError::new(
+                spanned,
+                QueryErrorKind::ImportConflict {
+                    item,
+                    other: entry.location,
+                },
+            ));
+        }
 
-            self.insert_item(source_id, spanned, &item, mod_item, visibility)?;
+        self.insert_item(source_id, spanned, &item, mod_item, visibility)?;
 
-            if let Some((_, other)) = self.imports.names.insert(
-                item.clone(),
-                (NameKind::Use, Location::new(source_id, spanned)),
-            ) {
-                return Err(QueryError::new(
-                    spanned,
-                    QueryErrorKind::ItemConflict {
-                        item: item.clone(),
-                        other,
-                    },
-                ));
-            }
+        if let Some((_, other)) = self.imports.names.insert(
+            item.clone(),
+            (NameKind::Use, Location::new(source_id, spanned)),
+        ) {
+            return Err(QueryError::new(
+                spanned,
+                QueryErrorKind::ItemConflict {
+                    item: item.clone(),
+                    other,
+                },
+            ));
         }
 
         Ok(())
     }
 
     /// Iterate over all imports.
-    pub(crate) fn imports<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (&'a ImportKey, &'a Rc<ImportEntry>)> {
+    pub(crate) fn imports<'a>(&'a self) -> impl Iterator<Item = (&'a Item, &'a Rc<ImportEntry>)> {
         self.imports.imports.iter()
     }
 
@@ -1163,6 +1141,7 @@ pub(crate) struct QueryConstFn {
 /// Module, its item and its visibility.
 #[derive(Debug)]
 pub(crate) struct QueryMod {
+    pub(crate) location: Location,
     pub(crate) item: Item,
     pub(crate) visibility: Visibility,
 }

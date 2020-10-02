@@ -89,3 +89,25 @@ fn test_recusive_wildcard() {
 
     assert_eq!(result, (true, true));
 }
+
+#[test]
+fn test_reexport_fn() {
+    let result = rune! {
+        i64 => r#"
+        pub mod a {
+            pub mod b {
+                pub fn out(n) { n + A }
+                const A = 1;
+            }
+        }
+
+        mod b { pub use crate::{a::b::out, a}; }
+
+        fn main() {
+            b::out(2) + b::a::b::out(4)
+        }          
+        "#
+    };
+
+    assert_eq!(result, 8);
+}

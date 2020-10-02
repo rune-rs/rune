@@ -329,7 +329,7 @@ where
 
 fn verify_imports(errors: &mut Errors, context: &Context, query: &Query) -> Result<(), ()> {
     for (_, entry) in query.imports() {
-        if context.contains_prefix(&entry.item) || query.contains_prefix(&entry.item) {
+        if context.contains_prefix(&entry.imported) || query.contains_prefix(&entry.imported) {
             continue;
         }
 
@@ -338,7 +338,7 @@ fn verify_imports(errors: &mut Errors, context: &Context, query: &Query) -> Resu
             CompileError::new(
                 entry.location.span,
                 CompileErrorKind::MissingItem {
-                    item: entry.item.clone(),
+                    item: entry.name.clone(),
                 },
             ),
         ));

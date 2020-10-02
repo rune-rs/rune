@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::{CompileError, CompileErrorKind, Spanned as _};
+use runestick::Item;
 use std::fmt;
 
 /// Information on the visibility of an item.
@@ -11,16 +12,21 @@ pub enum Visibility {
     Public,
     /// Something that is only visible in the current crate `pub(crate)`.
     Crate,
+    /// Visible in the parent crate.
+    Super,
+    /// Only visible in the same crate.
+    SelfValue,
 }
 
 impl Visibility {
-    pub fn from_ast(vis: &ast::Visibility) -> Result<Self, CompileError> {
+    /// Construct visibility from ast.
+    pub(crate) fn from_ast(vis: &ast::Visibility) -> Result<Self, CompileError> {
         let span = match vis {
             ast::Visibility::Inherited => return Ok(Self::Inherited),
-            ast::Visibility::Public(_) => return Ok(Self::Public),
-            ast::Visibility::Crate(_) => return Ok(Self::Crate),
-            ast::Visibility::Super(restrict) => restrict.span(),
-            ast::Visibility::SelfValue(restrict) => restrict.span(),
+            ast::Visibility::Public(..) => return Ok(Self::Public),
+            ast::Visibility::Crate(..) => return Ok(Self::Crate),
+            ast::Visibility::Super(..) => return Ok(Self::Super),
+            ast::Visibility::SelfValue(..) => return Ok(Self::SelfValue),
             ast::Visibility::In(restrict) => restrict.span(),
         };
 
@@ -28,6 +34,16 @@ impl Visibility {
             span,
             CompileErrorKind::UnsupportedVisibility,
         ))
+    }
+
+    /// Check if `from` can access `to` with the current visibility.
+    pub(crate) fn is_visible_to(self, from: &Item, to: &Item) -> bool {
+        match self {
+            Visibility::Inherited | Visibility::SelfValue => from.is_super_of(to, 1),
+            Visibility::Super => from.is_super_of(to, 2),
+            Visibility::Public => true,
+            Visibility::Crate => true,
+        }
     }
 }
 
@@ -37,6 +53,8 @@ impl fmt::Display for Visibility {
             Visibility::Inherited => write!(f, "private")?,
             Visibility::Public => write!(f, "pub")?,
             Visibility::Crate => write!(f, "pub(crate)")?,
+            Visibility::Super => write!(f, "pub(super)")?,
+            Visibility::SelfValue => write!(f, "pub(self)")?,
         }
 
         Ok(())

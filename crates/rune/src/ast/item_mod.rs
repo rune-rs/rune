@@ -1,6 +1,6 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
-use runestick::Id;
+use crate::{OptionSpanned as _, Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use runestick::{Id, Span};
 
 /// A module item.
 ///
@@ -38,6 +38,15 @@ pub struct ItemMod {
 }
 
 impl ItemMod {
+    /// Get the span of the mod name.
+    pub fn name_span(&self) -> Span {
+        if let Some(span) = self.visibility.option_span() {
+            span.join(self.name.span())
+        } else {
+            self.mod_.span().join(self.name.span())
+        }
+    }
+
     /// Parse a `mod` item with the given attributes
     pub fn parse_with_meta(
         parser: &mut Parser<'_>,

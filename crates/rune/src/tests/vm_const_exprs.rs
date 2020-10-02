@@ -216,10 +216,10 @@ fn test_const_fn_visibility() {
     }
 
     mod b {
-        fn out() {
+        pub(super) fn out() {
             crate::a::b::out(B)
         }
-    
+
         const B = 2;
     }
 

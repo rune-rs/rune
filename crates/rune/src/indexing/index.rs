@@ -200,9 +200,9 @@ impl<'a> Indexer<'a> {
 
         let item = self.items.item();
         let visibility = Visibility::from_ast(&item_mod.visibility)?;
-        let (id, mod_item) = self
-            .query
-            .insert_mod(self.source_id, span, &*item, visibility)?;
+        let (id, mod_item) =
+            self.query
+                .insert_mod(self.source_id, item_mod.name_span(), &*item, visibility)?;
         item_mod.id = Some(id);
 
         let source = self.source_loader.load(root, &*item, span)?;
@@ -1018,6 +1018,8 @@ impl Index<ast::Item> for Indexer<'_> {
                     ));
                 }
 
+                let name_span = item_mod.name_span();
+
                 match &mut item_mod.body {
                     ast::ItemModBody::EmptyBody(..) => {
                         self.handle_file_mod(item_mod)?;
@@ -1029,7 +1031,7 @@ impl Index<ast::Item> for Indexer<'_> {
                         let visibility = Visibility::from_ast(&item_mod.visibility)?;
                         let (id, mod_item) = self.query.insert_mod(
                             self.source_id,
-                            span,
+                            name_span,
                             &*self.items.item(),
                             visibility,
                         )?;

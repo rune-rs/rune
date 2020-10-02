@@ -1,6 +1,5 @@
 use crate::compiling::{ImportEntryStep, InsertMetaError};
 use crate::indexing::Visibility;
-use crate::query::ImportKey;
 use crate::shared::Location;
 use crate::{
     CompileError, CompileErrorKind, Id, IrError, IrErrorKind, ParseError, ParseErrorKind, Spanned,
@@ -56,12 +55,19 @@ pub enum QueryErrorKind {
     ItemConflict { item: Item, other: Location },
     #[error("item `{item}` with {visibility} visibility, is not accessible from here")]
     NotVisible {
+        chain: Vec<Location>,
+        location: Location,
         visibility: Visibility,
         item: Item,
         from: Item,
     },
     #[error("module `{item}` with {visibility} visibility, is not accessible from here")]
-    NotVisibleMod { visibility: Visibility, item: Item },
+    NotVisibleMod {
+        chain: Vec<Location>,
+        location: Location,
+        visibility: Visibility,
+        item: Item,
+    },
     #[error("missing reverse lookup for `{item}`")]
     MissingRevItem { item: Item },
     #[error("missing item for id {id:?}")]
@@ -70,6 +76,8 @@ pub enum QueryErrorKind {
     MissingMod { item: Item },
     #[error("cycle in import")]
     ImportCycle { path: Vec<ImportEntryStep> },
-    #[error("already imported `{key}`")]
-    ImportConflict { key: ImportKey, other: Location },
+    #[error("already imported `{item}`")]
+    ImportConflict { item: Item, other: Location },
+    #[error("missing last use component")]
+    LastUseComponent,
 }

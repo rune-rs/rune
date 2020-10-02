@@ -4,8 +4,7 @@ use crate::indexing::Visibility;
 use crate::query::{QueryError, QueryErrorKind, QueryItem, QueryMod};
 use crate::shared::Location;
 use crate::{CompileError, Id};
-use runestick::{Component, Item, Names, Span};
-use std::fmt;
+use runestick::{Item, Names, Span};
 use std::rc::Rc;
 
 /// Broken out substruct of `Query` to handle imports.
@@ -16,7 +15,7 @@ pub(crate) struct Imports {
     ///
     /// Only used to link against the current environment to make sure all
     /// required units are present.
-    pub(super) imports: HashMap<ImportKey, Rc<ImportEntry>>,
+    pub(super) imports: HashMap<Item, Rc<ImportEntry>>,
     /// All available names in the context.
     pub(super) names: Names<(NameKind, Location)>,
     /// Associated between `id` and `Item`. Use to look up items through
@@ -39,7 +38,6 @@ impl Imports {
         mod_item: &Rc<QueryMod>,
         base: &Item,
         local: &str,
-        was_imported: &mut bool,
     ) -> Result<Option<Item>, CompileError> {
         debug_assert!(base.starts_with(&mod_item.item));
 
@@ -53,7 +51,6 @@ impl Imports {
             }
 
             if let Some(item) = self.get_import(mod_item, spanned, &item)? {
-                *was_imported = true;
                 return Ok(Some(item));
             }
 
@@ -82,43 +79,22 @@ impl Imports {
         let mut current = item.clone();
         let mut matched = false;
         let mut from = mod_item.clone();
+        let mut chain = Vec::new();
 
         loop {
-            let mut item = current.clone();
+            if let Some(entry) = self.imports.get(&current).cloned() {
+                self.check_access_to(
+                    spanned,
+                    &*from,
+                    &mut chain,
+                    &entry.mod_item,
+                    entry.location,
+                    entry.visibility,
+                    &entry.name,
+                )?;
 
-            let local = match item.pop() {
-                Some(local) => local,
-                None => return Ok(None),
-            };
-
-            let key = ImportKey {
-                item,
-                component: local,
-            };
-
-            if let Some(entry) = self.imports.get(&key).cloned() {
-                if entry.mod_item.item != from.item {
-                    match entry.visibility {
-                        // TODO: make this more sophisticated.
-                        Visibility::Public => (),
-                        visibility => {
-                            return Err(QueryError::new(
-                                spanned,
-                                QueryErrorKind::NotVisible {
-                                    visibility,
-                                    item: entry.item.clone(),
-                                    from: from.item.clone(),
-                                },
-                            ));
-                        }
-                    }
-                }
-
-                // NB: if it's not in here, it's imported in the prelude.
-                if let Some(item) = self.items_rev.get(&entry.item) {
-                    self.check_access_from(spanned, &*from, item)?;
-                    from = item.mod_item.clone();
-                }
+                from = entry.mod_item.clone();
+                chain.push(entry.location);
 
                 // NB: this happens when you have a superflous import, like:
                 // ```
@@ -126,17 +102,17 @@ impl Imports {
                 //
                 // std::option::Option::None
                 // ```
-                if entry.item == current {
+                if entry.imported == current {
                     break;
                 }
 
                 path.push(ImportEntryStep {
                     location: entry.location,
                     visibility: entry.visibility,
-                    item: entry.item.clone(),
+                    item: entry.name.clone(),
                 });
 
-                if !visited.insert(entry.item.clone()) {
+                if !visited.insert(entry.imported.clone()) {
                     return Err(QueryError::new(
                         spanned,
                         QueryErrorKind::ImportCycle { path },
@@ -144,11 +120,23 @@ impl Imports {
                 }
 
                 matched = true;
-                current = entry.item.clone();
+                current = entry.imported.clone();
                 continue;
             }
 
             break;
+        }
+
+        if let Some(item) = self.items_rev.get(&current) {
+            self.check_access_to(
+                spanned,
+                &*from,
+                &mut chain,
+                &item.mod_item,
+                item.location,
+                item.visibility,
+                &item.item,
+            )?;
         }
 
         if matched {
@@ -159,87 +147,59 @@ impl Imports {
     }
 
     /// Check that the given item is accessible from the given module.
-    pub(crate) fn check_access_from(
+    pub(crate) fn check_access_to(
         &self,
         spanned: Span,
         from: &QueryMod,
-        item: &QueryItem,
+        chain: &mut Vec<Location>,
+        mod_item: &QueryMod,
+        location: Location,
+        visibility: Visibility,
+        item: &Item,
     ) -> Result<(), QueryError> {
-        let (mut mod_item, suffix, is_strict_prefix) =
-            from.item.module_difference(&item.mod_item.item);
+        let (common, tree) = from.item.ancestry(&mod_item.item);
+        let mut module = common.clone();
 
-        // NB: if we are an immediate parent module, we're allowed to peek into
-        // a nested private module in one level of depth.
-        let mut permit_one_level = is_strict_prefix;
-        let mut suffix_len = 0;
+        // Check each module from the common ancestrly to the module.
+        for c in &tree {
+            module.push(c);
 
-        for c in &suffix {
-            suffix_len += 1;
-            let permit_one_level = std::mem::take(&mut permit_one_level);
-
-            mod_item.push(c);
-
-            let m = self.modules.get(&mod_item).ok_or_else(|| {
+            let m = self.modules.get(&module).ok_or_else(|| {
                 QueryError::new(
                     spanned,
                     QueryErrorKind::MissingMod {
-                        item: mod_item.clone(),
+                        item: module.clone(),
                     },
                 )
             })?;
 
-            match m.visibility {
-                Visibility::Public => (),
-                Visibility::Crate => (),
-                Visibility::Inherited => {
-                    if !permit_one_level {
-                        return Err(QueryError::new(
-                            spanned,
-                            QueryErrorKind::NotVisibleMod {
-                                visibility: m.visibility,
-                                item: mod_item,
-                            },
-                        ));
-                    }
-                }
+            if !m.visibility.is_visible_to(&common, &module) {
+                return Err(QueryError::new(
+                    spanned,
+                    QueryErrorKind::NotVisibleMod {
+                        chain: std::mem::take(chain),
+                        location: m.location,
+                        visibility: m.visibility,
+                        item: module,
+                    },
+                ));
             }
         }
 
-        if suffix_len == 0 || is_strict_prefix && suffix_len > 1 {
-            match item.visibility {
-                Visibility::Inherited => {
-                    if !from.item.can_see_private_mod(&item.mod_item.item) {
-                        return Err(QueryError::new(
-                            spanned,
-                            QueryErrorKind::NotVisible {
-                                visibility: item.visibility,
-                                item: item.item.clone(),
-                                from: from.item.clone(),
-                            },
-                        ));
-                    }
-                }
-                Visibility::Public => (),
-                Visibility::Crate => (),
-            }
+        if !visibility.is_visible_to(&common, &mod_item.item) {
+            return Err(QueryError::new(
+                spanned,
+                QueryErrorKind::NotVisible {
+                    chain: std::mem::take(chain),
+                    location,
+                    visibility,
+                    item: item.clone(),
+                    from: from.item.clone(),
+                },
+            ));
         }
 
         Ok(())
-    }
-}
-
-/// The key of an import.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ImportKey {
-    /// Where the import is located.
-    pub item: Item,
-    /// The component that is imported.
-    pub component: Component,
-}
-
-impl fmt::Display for ImportKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}::{}", self.item, self.component)
     }
 }
 
@@ -251,7 +211,9 @@ pub struct ImportEntry {
     /// The visibility of the import.
     pub visibility: Visibility,
     /// The item being imported.
-    pub item: Item,
+    pub name: Item,
+    /// The item being imported.
+    pub imported: Item,
     /// The module in which the imports is located.
     pub(crate) mod_item: Rc<QueryMod>,
 }

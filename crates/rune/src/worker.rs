@@ -323,7 +323,7 @@ impl Import<'_> {
                     self.visibility,
                     self.item.clone(),
                     name,
-                    alias,
+                    alias.as_deref(),
                     false,
                 )?;
             }

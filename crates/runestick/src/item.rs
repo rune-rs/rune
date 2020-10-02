@@ -186,34 +186,33 @@ impl Item {
         self.content.starts_with(&other.content)
     }
 
-    /// Test if the current item can see another private module.
-    pub fn can_see_private_mod(&self, other: &Self) -> bool {
-        let mut a = self.iter();
-        let mut b = other.iter();
+    /// Test if current is immediate super of `other`.
+    pub fn is_super_of(&self, other: &Self, n: usize) -> bool {
+        if self == other {
+            return true;
+        }
 
-        while let Some(n) = b.next() {
-            let a = match a.next() {
-                Some(a) => a,
-                None => return false,
-            };
+        let mut it = other.iter();
 
-            // last component is allowed to be a mismatch.
-            if a != n {
+        for _ in 0..n {
+            if it.next_back().is_none() {
                 return false;
+            }
+
+            if self == it {
+                return true;
             }
         }
 
-        true
+        false
     }
 
-    /// Get the differing suffix from self to other.
+    /// Get the ancestry of one module to another.
     ///
     /// This returns three things:
     /// * The shared prefix between the current and the `other` path.
     /// * The suffix to get to the `other` path from the shared prefix.
-    /// * A boolean which if `true`, indicates that the current item is a strict
-    ///   prefix of `other`.
-    pub fn module_difference(&self, other: &Self) -> (Self, Self, bool) {
+    pub fn ancestry(&self, other: &Self) -> (Self, Self) {
         let mut a = self.iter();
         let mut b = other.iter();
 
@@ -228,7 +227,7 @@ impl Item {
                 } else {
                     suffix.push(v);
                     suffix.extend(b);
-                    return (shared, suffix, false);
+                    return (shared, suffix);
                 }
             }
 
@@ -237,7 +236,7 @@ impl Item {
         }
 
         suffix.extend(b);
-        (shared, suffix, true)
+        (shared, suffix)
     }
 }
 
@@ -408,6 +407,30 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
 
         self.content = content;
         Some(c)
+    }
+}
+
+impl PartialEq<Item> for Iter<'_> {
+    fn eq(&self, other: &Item) -> bool {
+        self.content == other.content
+    }
+}
+
+impl PartialEq<&Item> for Iter<'_> {
+    fn eq(&self, other: &&Item) -> bool {
+        self.content == other.content
+    }
+}
+
+impl PartialEq<Iter<'_>> for Item {
+    fn eq(&self, other: &Iter<'_>) -> bool {
+        self.content == other.content
+    }
+}
+
+impl PartialEq<Iter<'_>> for &Item {
+    fn eq(&self, other: &Iter<'_>) -> bool {
+        self.content == other.content
     }
 }
 
@@ -822,40 +845,40 @@ mod tests {
     }
 
     #[test]
-    fn test_can_see_private() {
-        assert!(Item::new().can_see_private_mod(&Item::new()));
-        assert!(!Item::new().can_see_private_mod(&Item::of(&["a"])));
+    fn test_is_super_of() {
+        assert!(Item::new().is_super_of(&Item::new(), 1));
+        assert!(!Item::of(&["a"]).is_super_of(&Item::new(), 1));
 
-        assert!(Item::of(&["a", "b"]).can_see_private_mod(&Item::of(&["a"])));
-        assert!(Item::of(&["a", "b"]).can_see_private_mod(&Item::of(&["a", "b"])));
-        assert!(!Item::of(&["a", "b"]).can_see_private_mod(&Item::of(&["a", "b", "c"])));
+        assert!(!Item::of(&["a", "b"]).is_super_of(&Item::of(&["a"]), 1));
+        assert!(Item::of(&["a", "b"]).is_super_of(&Item::of(&["a", "b"]), 1));
+        assert!(!Item::of(&["a"]).is_super_of(&Item::of(&["a", "b", "c"]), 1));
     }
 
     #[test]
-    fn test_module_difference() {
+    fn test_ancestry() {
         assert_eq!(
-            (Item::new(), Item::new(), true),
-            Item::new().module_difference(&Item::new())
+            (Item::new(), Item::new()),
+            Item::new().ancestry(&Item::new())
         );
 
         assert_eq!(
-            (Item::new(), Item::of(&["a"]), true),
-            Item::new().module_difference(&Item::of(&["a"]))
+            (Item::new(), Item::of(&["a"])),
+            Item::new().ancestry(&Item::of(&["a"]))
         );
 
         assert_eq!(
-            (Item::new(), Item::of(&["a", "b"]), true),
-            Item::new().module_difference(&Item::of(&["a", "b"]))
+            (Item::new(), Item::of(&["a", "b"])),
+            Item::new().ancestry(&Item::of(&["a", "b"]))
         );
 
         assert_eq!(
-            (Item::of(&["a"]), Item::of(&["b"]), false),
-            Item::of(&["a", "c"]).module_difference(&Item::of(&["a", "b"]))
+            (Item::of(&["a"]), Item::of(&["b"])),
+            Item::of(&["a", "c"]).ancestry(&Item::of(&["a", "b"]))
         );
 
         assert_eq!(
-            (Item::of(&["a", "b"]), Item::of(&["d", "e"]), false),
-            Item::of(&["a", "b", "c"]).module_difference(&Item::of(&["a", "b", "d", "e"]))
+            (Item::of(&["a", "b"]), Item::of(&["d", "e"])),
+            Item::of(&["a", "b", "c"]).ancestry(&Item::of(&["a", "b", "d", "e"]))
         );
     }
 }

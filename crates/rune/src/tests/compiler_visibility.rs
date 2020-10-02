@@ -7,7 +7,7 @@ fn test_working_visibility() {
         pub struct Foo;
     
         mod b {
-            fn hidden() { 42 }
+            pub(super) fn hidden() { 42 }
         }
     
         pub fn visible() { b::hidden() }
@@ -27,25 +27,50 @@ fn test_access_hidden() {
         r#"
         mod a {
             pub struct Foo;
-        
+
             mod b {
-                fn hidden() { 42 }
+                pub(super) fn hidden() { 42 }
             }
-        
+
             pub fn visible() { b::hidden() }
         }
-        
+
         fn main() {
             a::b::hidden()
         }        
         "#,
         span, QueryError { error } => {
-            assert_eq!(span, Span::new(228, 240));
-
-            match *error {
-                NotVisibleMod { .. } => (),
-                other => panic!("unexpected query error: {:?}", other),
-            }
+            assert_eq!(span, Span::new(215, 227));
+            assert_matches!(*error, NotVisibleMod { .. });
         }
     };
+}
+
+#[test]
+fn test_indirect_access() {
+    let result = rune! {
+        i64 => r#"
+        mod d {
+            mod a {
+                pub(super) mod b {
+                    pub(crate) mod c {
+                        pub struct Foo(n);
+                    }
+                }
+            }
+
+            pub mod e {
+                pub(crate) fn test() {
+                    crate::d::a::b::c::Foo(2)
+                }
+            }
+        }
+
+        fn main() {
+            d::e::test().0
+        }     
+        "#
+    };
+
+    assert_eq!(result, 2);
 }

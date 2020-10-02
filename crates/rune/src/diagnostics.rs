@@ -432,6 +432,40 @@ impl EmitDiagnostics for Error {
                             .with_message("previous import here"),
                     );
                 }
+                QueryErrorKind::NotVisible {
+                    chain,
+                    location: Location { source_id, span },
+                    ..
+                } => {
+                    for Location { source_id, span } in chain {
+                        labels.push(
+                            Label::secondary(*source_id, span.start..span.end)
+                                .with_message("re-exported here"),
+                        );
+                    }
+
+                    labels.push(
+                        Label::secondary(*source_id, span.start..span.end)
+                            .with_message("defined here"),
+                    );
+                }
+                QueryErrorKind::NotVisibleMod {
+                    chain,
+                    location: Location { source_id, span },
+                    ..
+                } => {
+                    for Location { source_id, span } in chain {
+                        labels.push(
+                            Label::secondary(*source_id, span.start..span.end)
+                                .with_message("re-exported here"),
+                        );
+                    }
+
+                    labels.push(
+                        Label::secondary(*source_id, span.start..span.end)
+                            .with_message("module defined here"),
+                    );
+                }
                 _ => (),
             }
 
