@@ -96,7 +96,7 @@ impl<'a> Indexer<'a> {
                     let import = Import {
                         visibility,
                         item: &*self.items.item(),
-                        source: &*self.source,
+                        source: &self.source,
                         source_id: self.source_id,
                         ast: item_use,
                     };
@@ -140,7 +140,7 @@ impl<'a> Indexer<'a> {
                     let import = Import {
                         visibility,
                         item: &*self.items.item(),
-                        source: &*self.source,
+                        source: &self.source,
                         source_id: self.source_id,
                         ast: item_use,
                     };
@@ -340,12 +340,8 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                     ));
                 }
 
-                self.query.index_const_fn(
-                    self.source_id,
-                    &item,
-                    self.source.clone(),
-                    decl_fn.clone(),
-                )?;
+                self.query
+                    .index_const_fn(&item, &self.source, decl_fn.clone())?;
 
                 return Ok(());
             }
@@ -368,8 +364,6 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 call: fun.call,
             };
 
-            let item = self.items.item();
-
             // NB: all instance functions must be pre-emptively built,
             // because statically we don't know if they will be used or
             // not.
@@ -382,9 +376,9 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             });
 
             let meta = CompileMeta {
-                item: item.clone(),
+                item: item.item.clone(),
                 kind: CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(&*item)),
+                    type_of: Type::from(Hash::type_hash(&item.item)),
                 },
                 source: Some(CompileSource {
                     span,
@@ -398,8 +392,6 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 .insert_meta(meta)
                 .map_err(|e| CompileError::new(span, e))?;
         } else if is_toplevel {
-            let item = self.items.item();
-
             // NB: immediately compile all toplevel functions.
             self.query.queue.push_back(BuildEntry {
                 location: Location::new(self.source_id, fun.ast.item_span()),
@@ -410,9 +402,9 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             });
 
             let meta = CompileMeta {
-                item: item.clone(),
+                item: item.item.clone(),
                 kind: CompileMetaKind::Function {
-                    type_of: Type::from(Hash::type_hash(&*item)),
+                    type_of: Type::from(Hash::type_hash(&item.item)),
                 },
                 source: Some(CompileSource {
                     span,
@@ -426,15 +418,11 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 .insert_meta(meta)
                 .map_err(|e| CompileError::new(span, e))?;
         } else {
-            self.query.index(
-                &item.item,
-                IndexedEntry {
-                    item: item.clone(),
-                    location: Location::new(self.source_id, span),
-                    source: self.source.clone(),
-                    indexed: Indexed::Function(fun),
-                },
-            )?;
+            self.query.index(IndexedEntry {
+                query_item: item.clone(),
+                source: self.source.clone(),
+                indexed: Indexed::Function(fun),
+            })?;
         }
 
         Ok(())
@@ -483,11 +471,10 @@ impl Index<ast::ExprBlock> for Indexer<'_> {
 
         self.query.index_async_block(
             &item,
+            &self.source,
             expr_block.block.clone(),
             captures,
             call,
-            self.source.clone(),
-            self.source_id,
         )?;
 
         Ok(())
@@ -885,12 +872,7 @@ impl Index<ast::Item> for Indexer<'_> {
                     visibility,
                 )?;
 
-                self.query.index_enum(
-                    self.source_id,
-                    item_enum.span(),
-                    &enum_item,
-                    self.source.clone(),
-                )?;
+                self.query.index_enum(&enum_item, &self.source)?;
 
                 for (variant, _) in &mut item_enum.variants {
                     if let Some(first) = variant.attributes.first() {
@@ -922,13 +904,8 @@ impl Index<ast::Item> for Indexer<'_> {
                     )?;
                     variant.id = Some(id);
 
-                    self.query.index_variant(
-                        self.source_id,
-                        &item,
-                        enum_id,
-                        variant.clone(),
-                        self.source.clone(),
-                    )?;
+                    self.query
+                        .index_variant(&item, &self.source, enum_id, variant.clone())?;
                 }
             }
             ast::Item::ItemStruct(item_struct) => {
@@ -966,12 +943,8 @@ impl Index<ast::Item> for Indexer<'_> {
                 )?;
                 item_struct.id = Some(id);
 
-                self.query.index_struct(
-                    self.source_id,
-                    &item,
-                    item_struct.clone(),
-                    self.source.clone(),
-                )?;
+                self.query
+                    .index_struct(&item, &self.source, item_struct.clone())?;
             }
             ast::Item::ItemFn(item_fn) => {
                 self.index(item_fn)?;
@@ -1067,12 +1040,8 @@ impl Index<ast::Item> for Indexer<'_> {
                 )?;
                 item_const.id = Some(id);
 
-                self.query.index_const(
-                    self.source_id,
-                    &item,
-                    self.source.clone(),
-                    item_const.clone(),
-                )?;
+                self.query
+                    .index_const(&item, &self.source, item_const.clone())?;
             }
             ast::Item::MacroCall(macro_call) => {
                 let out = self.expand_macro::<ast::Item>(macro_call)?;
@@ -1208,14 +1177,8 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
 
         expr_closure.id = Some(id);
 
-        self.query.index_closure(
-            &item,
-            expr_closure.clone(),
-            captures,
-            call,
-            self.source.clone(),
-            self.source_id,
-        )?;
+        self.query
+            .index_closure(&item, &self.source, expr_closure.clone(), captures, call)?;
 
         Ok(())
     }

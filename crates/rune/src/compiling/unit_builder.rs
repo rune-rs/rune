@@ -506,6 +506,7 @@ impl UnitBuilder {
             CompileMetaKind::Macro { .. } => (),
             CompileMetaKind::Const { .. } => (),
             CompileMetaKind::ConstFn { .. } => (),
+            CompileMetaKind::Import { .. } => (),
         }
 
         if let Some(existing) = inner.meta.insert(meta.item.clone(), meta.clone()) {

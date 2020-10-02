@@ -14,6 +14,7 @@ use runestick::{Context, Item, Source, SourceId, Span};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// A single task that can be fed to the worker.
 #[derive(Debug)]
@@ -163,7 +164,7 @@ impl<'a> Worker<'a> {
 pub(crate) struct Import<'a> {
     pub(crate) visibility: Visibility,
     pub(crate) item: &'a Item,
-    pub(crate) source: &'a Source,
+    pub(crate) source: &'a Arc<Source>,
     pub(crate) source_id: usize,
     pub(crate) ast: ast::ItemUse,
 }
@@ -257,6 +258,7 @@ impl Import<'_> {
                                 query.insert_import(
                                     self.source_id,
                                     span,
+                                    &self.source,
                                     mod_item,
                                     self.visibility,
                                     self.item.clone(),
@@ -277,6 +279,7 @@ impl Import<'_> {
                             name: name.clone(),
                             span,
                             source_id: self.source_id,
+                            source: self.source.clone(),
                             was_in_context,
                             mod_item: mod_item.clone(),
                         };
@@ -319,6 +322,7 @@ impl Import<'_> {
                 query.insert_import(
                     self.source_id,
                     span,
+                    &self.source,
                     mod_item,
                     self.visibility,
                     self.item.clone(),
@@ -339,6 +343,7 @@ pub(crate) struct ExpandUnitWildcard {
     from: Item,
     name: Item,
     source_id: SourceId,
+    source: Arc<Source>,
     span: Span,
     /// Indicates if any wildcards were expanded from context.
     was_in_context: bool,
@@ -359,6 +364,7 @@ impl ExpandUnitWildcard {
                 query.insert_import(
                     self.source_id,
                     self.span,
+                    &self.source,
                     &self.mod_item,
                     self.visibility,
                     self.from.clone(),

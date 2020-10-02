@@ -111,8 +111,6 @@ pub fn compile_with_options(
         return Err(());
     }
 
-    verify_imports(worker.errors, context, &worker.query)?;
-
     loop {
         while let Some(entry) = worker.query.queue.pop_front() {
             let source_id = entry.location.source_id;
@@ -203,8 +201,14 @@ impl CompileBuildEntry<'_> {
                 if used.is_unused() {
                     compiler.warnings.not_used(location.source_id, span, None);
                 } else {
-                    self.unit
-                        .new_function(location, item, count, asm, f.call, args)?;
+                    self.unit.new_function(
+                        location,
+                        item.item.clone(),
+                        count,
+                        asm,
+                        f.call,
+                        args,
+                    )?;
                 }
             }
             Build::InstanceFunction(f) => {
@@ -240,7 +244,7 @@ impl CompileBuildEntry<'_> {
                 } else {
                     self.unit.new_instance_function(
                         location,
-                        item,
+                        item.item.clone(),
                         type_of,
                         name.as_ref(),
                         count,
@@ -267,8 +271,14 @@ impl CompileBuildEntry<'_> {
                         .warnings
                         .not_used(location.source_id, location.span, None);
                 } else {
-                    self.unit
-                        .new_function(location, item, count, asm, c.call, args)?;
+                    self.unit.new_function(
+                        location,
+                        item.item.clone(),
+                        count,
+                        asm,
+                        c.call,
+                        args,
+                    )?;
                 }
             }
             Build::AsyncBlock(b) => {
@@ -282,17 +292,43 @@ impl CompileBuildEntry<'_> {
                         .warnings
                         .not_used(location.source_id, location.span, None);
                 } else {
-                    self.unit
-                        .new_function(location, item, args, asm, b.call, Vec::new())?;
+                    self.unit.new_function(
+                        location,
+                        item.item.clone(),
+                        args,
+                        asm,
+                        b.call,
+                        Vec::new(),
+                    )?;
                 }
             }
-            Build::UnusedConst(..) => {
+            Build::Unused => {
                 self.warnings
                     .not_used(location.source_id, location.span, None);
             }
-            Build::UnusedConstFn(..) => {
-                self.warnings
-                    .not_used(location.source_id, location.span, None);
+            Build::Import(import) => {
+                // Issue the import to check access.
+                let result =
+                    self.query
+                        .get_import(&item.mod_item, location.span, &import.target)?;
+
+                if used.is_unused() {
+                    self.warnings
+                        .not_used(location.source_id, location.span, None);
+                }
+
+                if let None = result {
+                    if !self.context.contains_prefix(&import.target)
+                        && !self.query.contains_module(&import.target)
+                    {
+                        return Err(CompileError::new(
+                            location.span,
+                            CompileErrorKind::MissingItem {
+                                item: item.item.clone(),
+                            },
+                        ));
+                    }
+                }
             }
         }
 
@@ -325,26 +361,4 @@ where
     }
 
     Ok(args)
-}
-
-fn verify_imports(errors: &mut Errors, context: &Context, query: &Query) -> Result<(), ()> {
-    for (_, entry) in query.imports() {
-        if context.contains_prefix(&entry.imported) || query.contains_prefix(&entry.imported) {
-            continue;
-        }
-
-        errors.push(Error::new(
-            entry.location.source_id,
-            CompileError::new(
-                entry.location.span,
-                CompileErrorKind::MissingItem {
-                    item: entry.name.clone(),
-                },
-            ),
-        ));
-
-        return Err(());
-    }
-
-    Ok(())
 }
