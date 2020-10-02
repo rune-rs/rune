@@ -1,7 +1,7 @@
 macro_rules! test_case {
     ($kind:literal, $field:tt, $index:tt, $extra:literal) => {
         assert_eq! {
-            rune!(bool => &format!(
+            rune_s!(bool => &format!(
                 r#"fn main() {{ let m = {kind}; m[return true]; false }} {extra}"#,
                 kind = $kind, extra = $extra,
             )),
@@ -9,7 +9,7 @@ macro_rules! test_case {
         };
 
         assert_eq! {
-            rune!(bool => &format!(
+            rune_s!(bool => &format!(
                 r#"fn main() {{ let m = {kind}; m[return true] = 0; false }} {extra}"#,
                 kind = $kind, extra = $extra,
             )),
@@ -17,7 +17,7 @@ macro_rules! test_case {
         };
 
         assert_eq! {
-            rune!(bool => &format!(
+            rune_s!(bool => &format!(
                 r#"fn main() {{ let m = {kind}; m[{index}] = return true; false }} {extra}"#,
                 kind = $kind, index = stringify!($index), extra = $extra,
             )),
@@ -25,7 +25,7 @@ macro_rules! test_case {
         };
 
         assert_eq! {
-            rune!(bool => &format!(
+            rune_s!(bool => &format!(
                 r#"fn main() {{ let m = {kind}; m.{field} = return true; false }} {extra}"#,
                 kind = $kind, field = stringify!($field), extra = $extra,
             )),
@@ -33,7 +33,7 @@ macro_rules! test_case {
         };
 
         assert_eq! {
-            rune!(bool => &format!(
+            rune_s!(bool => &format!(
                 r#"fn main() {{ {kind}[return true]; false }} {extra}"#,
                 kind = $kind, extra = $extra,
             )),
@@ -41,7 +41,7 @@ macro_rules! test_case {
         };
 
         assert_eq! {
-            rune!(bool => &format!(
+            rune_s!(bool => &format!(
                 r#"fn main() {{ {kind}[return true] = 0; false }} {extra}"#,
                 kind = $kind, extra = $extra,
             )),
@@ -49,7 +49,7 @@ macro_rules! test_case {
         };
 
         assert_eq! {
-            rune!(bool => &format!(
+            rune_s!(bool => &format!(
                 r#"fn main() {{ {kind}[{index}] = return true; false }} {extra}"#,
                 kind = $kind, index = stringify!($index), extra = $extra,
             )),
@@ -57,7 +57,7 @@ macro_rules! test_case {
         };
 
         assert_eq! {
-            rune!(bool => &format!(
+            rune_s!(bool => &format!(
                 r#"fn main() {{ {kind}.{field} = return true; false }} {extra}"#,
                 kind = $kind, field = stringify!($field), extra = $extra,
             )),

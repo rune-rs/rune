@@ -3,7 +3,7 @@ use crate::testing::*;
 macro_rules! op_tests {
     ($lhs:literal $op:tt $rhs:literal = $out:expr) => {
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"fn main() {{ let a = {lhs}; let b = {rhs}; a {op} b}}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -11,7 +11,7 @@ macro_rules! op_tests {
         };
 
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"fn main() {{ let a = {lhs}; let b = {rhs}; a {op}= b; a }}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -19,7 +19,7 @@ macro_rules! op_tests {
         };
 
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"struct Foo {{ padding, field }}; fn main() {{ let a = Foo{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -27,7 +27,7 @@ macro_rules! op_tests {
         };
 
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"enum Enum {{ Foo {{ padding, field }} }}; fn main() {{ let a = Enum::Foo {{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -35,7 +35,7 @@ macro_rules! op_tests {
         };
 
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"fn main() {{ let a = #{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -43,7 +43,7 @@ macro_rules! op_tests {
         };
 
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"fn main() {{ let a = (0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -51,7 +51,7 @@ macro_rules! op_tests {
         };
 
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"struct Foo(padding, a); fn main() {{ let a = Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -59,7 +59,7 @@ macro_rules! op_tests {
         };
 
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"enum Enum {{ Foo(padding, a) }}; fn main() {{ let a = Enum::Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -67,7 +67,7 @@ macro_rules! op_tests {
         };
 
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"fn main() {{ let a = Ok({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -75,7 +75,7 @@ macro_rules! op_tests {
         };
 
         assert_eq! {
-            rune!(i64 => &format!(
+            rune_s!(i64 => &format!(
                 r#"fn main() {{ let a = Some({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
                 lhs = $lhs, rhs = $rhs, op = stringify!($op),
             )),
@@ -163,10 +163,8 @@ fn test_bit_ops() {
 #[test]
 fn test_bitwise_not() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() { let a = 0b10100; !a }
-            "#
         },
         !0b10100,
     };

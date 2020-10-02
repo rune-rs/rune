@@ -29,8 +29,7 @@ fn test_import_cycle() {
 
 #[test]
 fn test_recursive_import() {
-    let result = rune! {
-        bool => r#"
+    let result = rune! { bool =>
         mod a {
             pub mod c { pub struct Baz; }
             pub mod b { pub use super::c::Baz as Bar; }
@@ -41,8 +40,7 @@ fn test_recursive_import() {
 
         fn main() {
             Foo is a::c::Baz
-        }                    
-        "#
+        }
     };
 
     assert!(result);
@@ -50,8 +48,7 @@ fn test_recursive_import() {
 
 #[test]
 fn test_recursive_context_import() {
-    let result = rune! {
-        bool => r#"
+    let result = rune! { bool =>
         mod a {
             pub mod c { pub use std::option::Option as Baz; }
             pub mod b { pub use super::c::Baz as Bar; }
@@ -62,8 +59,7 @@ fn test_recursive_context_import() {
 
         fn main() {
             Foo::None is Option
-        }                
-        "#
+        }
     };
 
     assert!(result);
@@ -71,7 +67,7 @@ fn test_recursive_context_import() {
 
 #[test]
 fn test_recusive_wildcard() {
-    let result = rune! {
+    let result = rune_s! {
         (bool, bool) => r#"
         mod a {
             pub mod c { pub use std::option::Option as Baz; }
@@ -92,8 +88,7 @@ fn test_recusive_wildcard() {
 
 #[test]
 fn test_reexport_fn() {
-    let result = rune! {
-        i64 => r#"
+    let result = rune! { i64 =>
         pub mod a {
             pub mod b {
                 pub fn out(n) { n + A }
@@ -105,8 +100,7 @@ fn test_reexport_fn() {
 
         fn main() {
             b::out(2) + b::a::b::out(4)
-        }          
-        "#
+        }
     };
 
     assert_eq!(result, 8);

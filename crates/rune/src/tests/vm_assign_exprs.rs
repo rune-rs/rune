@@ -2,10 +2,8 @@
 fn test_basic_assign() {
     assert_eq! {
         42,
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() { let a = 0; a = 42; a }
-            "#
         }
     };
 }
@@ -14,10 +12,8 @@ fn test_basic_assign() {
 fn test_assign_anon_object() {
     assert_eq! {
         42,
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() { let a = #{}; a.foo = #{}; a.foo.bar = 42; a.foo.bar }
-            "#
         }
     };
 }
@@ -26,10 +22,8 @@ fn test_assign_anon_object() {
 fn test_assign_anon_tuple() {
     assert_eq! {
         42,
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() { let a = ((0,),); (a.0).0 = 42; (a.0).0 }
-            "#
         }
     };
 }
@@ -38,8 +32,7 @@ fn test_assign_anon_tuple() {
 fn test_assign_struct() {
     assert_eq! {
         42,
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             struct Bar { padding, baz };
             struct Foo { bar, padding };
 
@@ -49,7 +42,6 @@ fn test_assign_struct() {
                 foo.bar.baz = 42;
                 foo.bar.baz
             }
-            "#
         }
     };
 }
@@ -58,8 +50,7 @@ fn test_assign_struct() {
 fn test_assign_tuple() {
     assert_eq! {
         42,
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             struct Bar(baz, padding);
             struct Foo(padding, bar);
 
@@ -69,7 +60,6 @@ fn test_assign_tuple() {
                 (foo.1).0 = 42;
                 (foo.1).0
             }
-            "#
         }
     };
 }
@@ -78,7 +68,7 @@ fn test_assign_tuple() {
 fn test_assign_assign_exprs() {
     assert_eq! {
         (4, (), ()),
-        rune! {
+        rune_s! {
             (i64, (), ()) => r#"
             fn main() {
                 let a = #{b: #{c: #{d: 1}}};

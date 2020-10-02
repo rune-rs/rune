@@ -2,8 +2,7 @@
 fn test_async_block() {
     assert_eq! {
         21,
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             async fn foo(value) {
                 let output = value.await;
                 output
@@ -13,7 +12,6 @@ fn test_async_block() {
                 let value = 42;
                 foo(async { value }).await / foo(async { 2 }).await
             }
-            "#
         }
     };
 }

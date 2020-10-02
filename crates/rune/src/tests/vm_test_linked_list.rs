@@ -1,25 +1,24 @@
 #[test]
 fn test_linked_list() {
     assert_eq! {
-        rune! {
-            Vec<i64> => r#"
-            /// An empty placeholder in a node.
+        rune! { Vec<i64> =>
+            // An empty placeholder in a node.
             struct Empty;
 
-            /// A single node in the linked list.
+            // A single node in the linked list.
             struct Node {
                 value,
                 next,
             }
 
-            /// The linked list.
+            // The linked list.
             struct List {
                 first,
                 last,
             }
 
             impl List {
-                /// Construct a new linked list.
+                // Construct a new linked list.
                 fn new() {
                     List {
                         first: Empty,
@@ -27,14 +26,14 @@ fn test_linked_list() {
                     }
                 }
 
-                /// Construct an iterator over the linked list.
+                // Construct an iterator over the linked list.
                 fn iter(self) {
                     Iter {
                         current: self.first,
                     }
                 }
 
-                /// Push an element to the back of the linked list.
+                // Push an element to the back of the linked list.
                 fn push_back(self, value) {
                     let prev = self.last;
 
@@ -56,7 +55,7 @@ fn test_linked_list() {
             }
 
             impl Iter {
-                /// Iterate over the next element.
+                // Iterate over the next element.
                 fn next(self) {
                     if self.current is Empty {
                         return None;
@@ -84,7 +83,6 @@ fn test_linked_list() {
 
                 out
             }
-            "#
         },
         vec![1, 2, 3],
     };

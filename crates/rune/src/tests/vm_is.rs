@@ -3,8 +3,7 @@ fn test_binop_override() {
     // The right hand side of the `is` expression requires a type, and therefore
     // won't be used as an empty tuple constructor.
     assert_eq! {
-        rune! {
-            (bool, bool, bool, bool) => r#"
+        rune! { (bool, bool, bool, bool) =>
             struct Timeout;
 
             fn main() {
@@ -17,7 +16,6 @@ fn test_binop_override() {
                     !(timeout is not Timeout),
                 )
             }
-            "#
         },
         (true, false, false, true),
     };

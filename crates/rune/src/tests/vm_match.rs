@@ -1,63 +1,53 @@
 #[test]
 fn test_path_type_match() {
     assert_eq! {
-        rune! {
-            bool => r#"
+        rune! { bool =>
             enum Custom { A, B(a) }
             fn main() {
                 match Custom::A { Custom::A => true, _ => false }
             }
-            "#
         },
         true,
     };
 
     assert_eq! {
-        rune! {
-            bool => r#"
+        rune! { bool =>
             enum Custom { A, B(a) }
             fn main() {
                 match Custom::B(0) { Custom::A => true, _ => false }
             }
-            "#
         },
         false,
     };
 
     assert_eq! {
-        rune! {
-            bool => r#"
+        rune! { bool =>
             enum Custom { A, B(a) }
             fn main() {
                 match Custom::B(0) { Custom::B(0) => true, _ => false }
             }
-            "#
         },
         true,
     };
 
     assert_eq! {
-        rune! {
-            bool => r#"
+        rune! { bool =>
             enum Custom { A, B { a } }
             fn main() {
                 match (Custom::B { a: 0 }) { Custom::B { a: 0 } => true, _ => false }
             }
-            "#
         },
         true,
     };
 
     assert_eq! {
-        rune! {
-            bool => r#"
+        rune! { bool =>
             enum Custom { A, B { a } }
             fn test(a) { a == 0 }
 
             fn main() {
                 match (Custom::B { a: 0 }) { Custom::B { a } if test(a) => true, _ => false }
             }
-            "#
         },
         true,
     };
@@ -66,8 +56,7 @@ fn test_path_type_match() {
 #[test]
 fn test_struct_matching() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             struct Foo { a, b }
 
             fn main() {
@@ -81,14 +70,12 @@ fn test_struct_matching() {
                     _ => 0,
                 }
             }
-            "#
         },
         3,
     };
 
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             struct Foo { a, b }
 
             fn main() {
@@ -104,7 +91,6 @@ fn test_struct_matching() {
                     _ => 0,
                 }
             }
-            "#
         },
         3,
     };

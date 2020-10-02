@@ -138,15 +138,37 @@ pub fn build(source: &str) -> runestick::Result<(Arc<runestick::Context>, Arc<ru
 ///
 /// # fn main() {
 /// assert_eq! {
-///     rune::rune!(bool => r#"fn main() { true || false }"#),
+///     rune::rune!(bool => fn main() { true || false }),
 ///     true,
 /// };
 /// # }
 /// ```
 #[macro_export]
-macro_rules! rune {
+macro_rules! rune_s {
     ($ty:ty => $source:expr) => {
         $crate::testing::run::<_, (), $ty>(&["main"], (), $source)
+            .expect("program to run successfully")
+    };
+}
+
+/// Same as [rune_s!] macro, except it takes a Rust token tree. This works
+/// fairly well because Rust and Rune has very similar token trees.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::testing::*;
+///
+/// # fn main() {
+/// assert_eq! {
+///     rune::rune!(bool => fn main() { true || false }),
+///     true,
+/// };
+/// # }
+#[macro_export]
+macro_rules! rune {
+    ($ty:ty => $($tt:tt)*) => {
+        $crate::testing::run::<_, (), $ty>(&["main"], (), stringify!($($tt)*))
             .expect("program to run successfully")
     };
 }
