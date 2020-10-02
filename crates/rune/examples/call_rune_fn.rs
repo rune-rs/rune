@@ -1,8 +1,7 @@
 use runestick::Function;
 
 fn main() -> runestick::Result<()> {
-    let function: Function = rune::rune! {
-        Function => r#"
+    let function: Function = rune::rune! { Function =>
         fn foo(a, b) {
             a + b
         }
@@ -10,7 +9,6 @@ fn main() -> runestick::Result<()> {
         fn main() {
             foo
         }
-        "#
     };
 
     println!("{}", function.call::<(i64, i64), i64>((1, 3))?);

@@ -3,8 +3,7 @@ use crate::testing::*;
 #[test]
 fn test_super_self_crate_mod() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             struct Foo;
 
             impl Foo {
@@ -28,7 +27,6 @@ fn test_super_self_crate_mod() {
             fn root() { 0b1 }
 
             fn main() { Foo::foo() }
-            "#
         },
         0b111111,
     };
@@ -37,8 +35,7 @@ fn test_super_self_crate_mod() {
 #[test]
 fn test_super_use() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             pub mod x {
                 pub mod y {
                     pub fn foo() {
@@ -54,7 +51,6 @@ fn test_super_use() {
             const VALUE = 1;
 
             fn main() { x::y::foo() }
-            "#
         },
         3,
     };

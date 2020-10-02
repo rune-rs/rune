@@ -1,7 +1,7 @@
 #[test]
 fn test_not_used() {
     assert_eq! {
-        rune! {
+        rune_s! {
             () => r#"
             fn main() {
                 0;

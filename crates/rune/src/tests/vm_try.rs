@@ -1,8 +1,7 @@
 #[test]
 fn test_unwrap() {
     assert_eq! {
-        rune! {
-            Result<i64, i64> => r#"
+        rune! { Result<i64, i64> =>
             fn foo(a, b) {
                 Ok(b / a)
             }
@@ -14,14 +13,12 @@ fn test_unwrap() {
             fn main() {
                 Ok(foo(2, 4)? + bar(3, 9)?)
             }
-            "#
         },
         Err(3),
     };
 
     assert_eq! {
-        rune! {
-            Result<i64, i64> => r#"
+        rune! { Result<i64, i64> =>
             fn foo(a, b) {
                 Ok(b / a)
             }
@@ -31,7 +28,6 @@ fn test_unwrap() {
                     Err(6 / 2)
                 }?)
             }
-            "#
         },
         Err(3),
     };

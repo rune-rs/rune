@@ -7,7 +7,7 @@ macro_rules! test_op {
 
         assert_eq!(
             $result,
-            rune!($ty => &program),
+            rune_s!($ty => &program),
             concat!("expected ", stringify!($result), " out of program `{}`"),
             program
         );
@@ -16,19 +16,16 @@ macro_rules! test_op {
 
 #[test]
 fn test_const_values() {
-    assert_eq!(
-        true,
-        rune!(bool => r#"const VALUE = true; fn main() { VALUE }"#)
-    );
+    assert_eq!(true, rune!(bool => const VALUE = true; fn main() { VALUE }));
 
     assert_eq!(
         "Hello World",
-        rune!(String => r#"const VALUE = "Hello World"; fn main() { VALUE }"#)
+        rune!(String => const VALUE = "Hello World"; fn main() { VALUE })
     );
 
     assert_eq!(
         "Hello World 1 1.0 true",
-        rune!(String => r#"
+        rune_s!(String => r#"
             const VALUE = `Hello {WORLD} {A} {B} {C}`;
             const WORLD = "World";
             const A = 1;
@@ -66,7 +63,7 @@ macro_rules! test_float_op {
 
         assert_eq!(
             $result,
-            rune!($ty => &program),
+            rune_s!($ty => &program),
             concat!("expected ", stringify!($result), " out of program `{}`"),
             program
         );
@@ -91,22 +88,22 @@ fn test_float_ops() {
 
 #[test]
 fn test_const_collections() {
-    let object = rune!(runestick::Object => "fn main() { VALUE } const VALUE = #{};");
+    let object = rune!(runestick::Object => fn main() { VALUE } const VALUE = #{};);
     assert!(object.is_empty());
 
-    let tuple = rune!(runestick::Tuple => "fn main() { VALUE } const VALUE = ();");
+    let tuple = rune!(runestick::Tuple => fn main() { VALUE } const VALUE = (););
     assert!(tuple.is_empty());
 
-    let tuple = rune!(runestick::Tuple => r#"fn main() { VALUE } const VALUE = ("Hello World",);"#);
+    let tuple = rune!(runestick::Tuple => fn main() { VALUE } const VALUE = ("Hello World",););
     assert_eq!(
         Some("Hello World"),
         tuple.get_value::<String>(0).unwrap().as_deref()
     );
 
-    let vec = rune!(runestick::Vec => "fn main() { VALUE } const VALUE = [];");
+    let vec = rune!(runestick::Vec => fn main() { VALUE } const VALUE = [];);
     assert!(vec.is_empty());
 
-    let vec = rune!(runestick::Vec => r#"fn main() { VALUE } const VALUE = ["Hello World"];"#);
+    let vec = rune!(runestick::Vec => fn main() { VALUE } const VALUE = ["Hello World"];);
     assert_eq!(
         Some("Hello World"),
         vec.get_value::<String>(0).unwrap().as_deref()
@@ -115,61 +112,62 @@ fn test_const_collections() {
 
 #[test]
 fn test_more_complexity() {
-    let result = rune!(i64 => r#"
-    const BASE = 10;
-    const LIMIT = 0b1 << 10;
+    let result = rune! { i64 =>
+        const BASE = 10;
+        const LIMIT = 0b1 << 10;
 
-    const VALUE = {
-        let timeout = BASE;
+        const VALUE = {
+            let timeout = BASE;
 
-        while timeout < LIMIT {
-            timeout *= 2;
-        }
+            while timeout < LIMIT {
+                timeout *= 2;
+            }
 
-        timeout
+            timeout
+        };
+
+        fn main() { VALUE }
     };
 
-    fn main() { VALUE }
-    "#);
     assert_eq!(result, 1280);
 }
 
 #[test]
 fn test_if_else() {
-    let result = rune!(i64 => r#"
-    const VALUE = { if true { 1 } else if true { 2 } else { 3 } };
-    fn main() { VALUE }
-    "#);
+    let result = rune! { i64 =>
+        const VALUE = { if true { 1 } else if true { 2 } else { 3 } };
+        fn main() { VALUE }
+    };
     assert_eq!(result, 1);
 
-    let result = rune!(i64 => r#"
-    const VALUE = { if false { 1 } else if true { 2 } else { 3 } };
-    fn main() { VALUE }
-    "#);
+    let result = rune! { i64 =>
+        const VALUE = { if false { 1 } else if true { 2 } else { 3 } };
+        fn main() { VALUE }
+    };
     assert_eq!(result, 2);
 
-    let result = rune!(i64 => r#"
-    const VALUE = { if false { 1 } else if false { 2 } else { 3 } };
-    fn main() { VALUE }
-    "#);
+    let result = rune! { i64 =>
+        const VALUE = { if false { 1 } else if false { 2 } else { 3 } };
+        fn main() { VALUE }
+    };
     assert_eq!(result, 3);
 }
 
 #[test]
 fn test_const_fn() {
-    let result = rune!(i64 => r#"
-    const VALUE = 2;
-    const fn foo(n) { n + VALUE }
+    let result = rune! { i64 =>
+        const VALUE = 2;
+        const fn foo(n) { n + VALUE }
 
-    fn main() {
-        const VALUE = 1;
-        foo(1 + 4 / 2 - VALUE) + foo(VALUE - 1)
-    }
-    "#);
+        fn main() {
+            const VALUE = 1;
+            foo(1 + 4 / 2 - VALUE) + foo(VALUE - 1)
+        }
+    };
 
     assert_eq!(result, 6);
 
-    let result = rune!(String => r#"
+    let result = rune_s! { String => r#"
     const VALUE = "baz";
 
     const fn foo(n) {
@@ -179,54 +177,54 @@ fn test_const_fn() {
     fn main() {
         foo(`bar {VALUE}`)
     }
-    "#);
+    "#};
 
     assert_eq!(result, "foo bar baz");
 
-    let result = rune!(String => r#"
-    const VALUE = foo("bar", "baz");
+    let result = rune_s! { String => r#"
+        const VALUE = foo("bar", "baz");
 
-    const fn foo(a, b) {
-        `foo {a} {b} {bar("biz")}`
-    }
-    
-    const fn bar(c) {
-        c
-    }
-    
-    fn main() {
-        VALUE
-    }    
-    "#);
+        const fn foo(a, b) {
+            `foo {a} {b} {bar("biz")}`
+        }
+        
+        const fn bar(c) {
+            c
+        }
+        
+        fn main() {
+            VALUE
+        }    
+    "#};
 
     assert_eq!(result, "foo bar baz biz");
 }
 
 #[test]
 fn test_const_fn_visibility() {
-    let result = rune!(i64 => r#"
-    pub mod a {
-        pub mod b {
-            pub const fn out(n) {
-                n + A
+    let result = rune! { i64 =>
+        pub mod a {
+            pub mod b {
+                pub const fn out(n) {
+                    n + A
+                }
+
+                const A = 1;
+            }
+        }
+
+        mod b {
+            pub(super) fn out() {
+                crate::a::b::out(B)
             }
 
-            const A = 1;
-        }
-    }
-
-    mod b {
-        pub(super) fn out() {
-            crate::a::b::out(B)
+            const B = 2;
         }
 
-        const B = 2;
-    }
-
-    fn main() {
-        b::out()
-    }   
-    "#);
+        fn main() {
+            b::out()
+        }
+    };
 
     assert_eq!(result, 3);
 }

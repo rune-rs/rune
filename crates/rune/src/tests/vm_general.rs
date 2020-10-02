@@ -4,12 +4,11 @@ use crate::testing::*;
 
 #[test]
 fn test_small_programs() {
-    assert_eq!(rune!(u64 => r#"fn main() { 42 }"#), 42u64);
-    assert_eq!(rune!(() => r#"fn main() {}"#), ());
+    assert_eq!(rune!(u64 => fn main() { 42 }), 42u64);
+    assert_eq!(rune_s!(() => r#"fn main() {}"#), ());
 
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() {
                 let a = 1;
                 let b = 2;
@@ -18,7 +17,6 @@ fn test_small_programs() {
                 let e = d / 3;
                 e
             }
-            "#
         },
         2,
     };
@@ -27,42 +25,42 @@ fn test_small_programs() {
 #[test]
 fn test_boolean_ops() {
     assert_eq! {
-        rune!(bool => r#"fn main() { true && true }"#),
+        rune!(bool => fn main() { true && true }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { true && false }"#),
+        rune!(bool => fn main() { true && false }),
         false,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { false && true }"#),
+        rune!(bool => fn main() { false && true }),
         false,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { false && false }"#),
+        rune!(bool => fn main() { false && false }),
         false,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { true || true }"#),
+        rune!(bool => fn main() { true || true }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { true || false }"#),
+        rune!(bool => fn main() { true || false }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { false || true }"#),
+        rune!(bool => fn main() { false || true }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { false || false }"#),
+        rune!(bool => fn main() { false || false }),
         false,
     };
 }
@@ -70,8 +68,7 @@ fn test_boolean_ops() {
 #[test]
 fn test_if() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() {
                 let n = 2;
 
@@ -81,14 +78,12 @@ fn test_if() {
                     0
                 }
             }
-            "#
         },
         0,
     };
 
     assert_eq! {
-        rune!{
-            i64 => r#"
+        rune!{ i64 =>
             fn main() {
                 let n = 6;
 
@@ -98,7 +93,6 @@ fn test_if() {
                     0
                 }
             }
-            "#
         },
         10,
     };
@@ -107,8 +101,7 @@ fn test_if() {
 #[test]
 fn test_block() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() {
                 let b = 10;
 
@@ -119,7 +112,6 @@ fn test_block() {
 
                 n + 1
             }
-            "#
         },
         21,
     };
@@ -128,14 +120,12 @@ fn test_block() {
 #[test]
 fn test_shadowing() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() {
                 let a = 10;
                 let a = a;
                 a
             }
-            "#
         },
         10,
     };
@@ -144,7 +134,7 @@ fn test_shadowing() {
 #[test]
 fn test_vectors() {
     assert_eq! {
-        rune!(() => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
+        rune_s!(() => "fn main() { let v = [1, 2, 3, 4, 5]; }"),
         (),
     };
 }
@@ -152,8 +142,7 @@ fn test_vectors() {
 #[test]
 fn test_while() {
     assert_eq! {
-        rune!{
-            i64 => r#"
+        rune!{ i64 =>
             fn main() {
                 let a = 0;
 
@@ -163,14 +152,12 @@ fn test_while() {
 
                 a
             }
-            "#
         },
         10,
     };
 
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() {
                 let a = 0;
 
@@ -184,7 +171,6 @@ fn test_while() {
 
                 a
             }
-            "#
         },
         10,
     };
@@ -193,7 +179,7 @@ fn test_while() {
 #[test]
 fn test_loop() {
     assert_eq! {
-        rune! {
+        rune_s! {
             runestick::VecTuple<(i64, bool)> => r#"
             fn main() {
                 let a = 0;
@@ -214,8 +200,7 @@ fn test_loop() {
     };
 
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() {
                 let n = 0;
 
@@ -229,7 +214,6 @@ fn test_loop() {
 
                 n
             }
-            "#
         },
         10,
     };
@@ -238,8 +222,7 @@ fn test_loop() {
 #[test]
 fn test_for() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             use std::iter::range;
 
             fn main() {
@@ -252,14 +235,12 @@ fn test_for() {
 
                 a
             }
-            "#
         },
         10,
     };
 
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             use std::iter::range;
 
             fn main() {
@@ -276,14 +257,12 @@ fn test_for() {
 
                 a
             }
-            "#
         },
         10,
     };
 
     assert_eq! {
-        rune! {
-            bool => r#"
+        rune! { bool =>
             use std::iter::range;
 
             fn main() {
@@ -300,7 +279,6 @@ fn test_for() {
 
                 a is unit
             }
-            "#
         },
         true,
     };
@@ -309,8 +287,7 @@ fn test_for() {
 #[test]
 fn test_return() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             use std::iter::range;
 
             fn main() {
@@ -322,7 +299,6 @@ fn test_return() {
 
                 0
             }
-            "#
         },
         10,
     };
@@ -331,92 +307,56 @@ fn test_return() {
 #[test]
 fn test_is() {
     assert_eq! {
-        rune!(bool => r#"
-        fn main() {
-            {} is Object
-        }"#),
+        rune! { bool =>
+            fn main() {
+                {} is Object
+            }
+        },
         false,
     };
 
-    assert_eq! {
-        rune!(bool => r#"fn main() { #{} is Object }"#),
-        true,
-    };
-
-    assert_eq! {
-        rune!(bool => r#"fn main() { () is unit }"#),
-        true,
-    };
-
-    assert_eq! {
-        rune!(bool => r#"fn foo() {} fn main() { foo() is unit }"#),
-        true,
-    };
-
-    assert_eq! {
-        rune!(bool => r#"fn main() { {} is unit }"#),
-        true,
-    };
-
-    assert_eq! {
-        rune!(bool => r#"fn main() { true is bool }"#),
-        true,
-    };
-    assert_eq! {
-        rune!(bool => r#"fn main() { 'a' is char }"#),
-        true,
-    };
-    assert_eq! {
-        rune!(bool => r#"fn main() { 42 is int }"#),
-        true,
-    };
-    assert_eq! {
-        rune!(bool => r#"fn main() { 42.1 is float }"#),
-        true,
-    };
-    assert_eq! {
-        rune!(bool => r#"fn main() { "hello" is String }"#),
-        true,
-    };
-    assert_eq! {
-        rune!(bool => r#"fn main() { #{"hello": "world"} is Object }"#),
-        true,
-    };
-    assert_eq! {
-        rune!(bool => r#"fn main() { ["hello", "world"] is Vec }"#),
-        true,
-    };
+    assert!(rune!(bool => fn main() { #{} is Object }));
+    assert!(rune!(bool => fn main() { () is unit }));
+    assert!(rune!(bool => fn foo() {} fn main() { foo() is unit }));
+    assert!(rune!(bool => fn main() { {} is unit }));
+    assert!(rune!(bool => fn main() { true is bool }));
+    assert!(rune!(bool => fn main() { 'a' is char }));
+    assert!(rune!(bool => fn main() { 42 is int }));
+    assert!(rune!(bool => fn main() { 42.1 is float }));
+    assert!(rune!(bool => fn main() { "hello" is String }));
+    assert!(rune!(bool => fn main() { #{"hello": "world"} is Object }));
+    assert!(rune!(bool => fn main() { ["hello", "world"] is Vec }));
 }
 
 #[test]
 fn test_match() {
     assert_eq! {
-        rune!(i64 => r#"fn main() { match 1 { _ => 10 } }"#),
+        rune!(i64 => fn main() { match 1 { _ => 10 } }),
         10,
     };
 
     assert_eq! {
-        rune!(i64 => r#"fn main() { match 10 { n => 10 } }"#),
+        rune!(i64 => fn main() { match 10 { n => 10 } }),
         10,
     };
 
     assert_eq! {
-        rune!(char => r#"fn main() { match 'a' { 'a' => 'b', n => n } }"#),
+        rune!(char => fn main() { match 'a' { 'a' => 'b', n => n } }),
         'b',
     };
 
     assert_eq! {
-        rune!(i64 => r#"fn main() { match 10 { n => n } }"#),
+        rune!(i64 => fn main() { match 10 { n => n } }),
         10,
     };
 
     assert_eq! {
-        rune!(i64 => r#"fn main() { match 10 { 10 => 5, n => n } }"#),
+        rune!(i64 => fn main() { match 10 { 10 => 5, n => n } }),
         5,
     };
 
     assert_eq! {
-        rune!(String => r#"fn main() { match "hello world" { "hello world" => "hello john", n => n } }"#),
+        rune!(String => fn main() { match "hello world" { "hello world" => "hello john", n => n } }),
         "hello john",
     };
 }
@@ -424,72 +364,72 @@ fn test_match() {
 #[test]
 fn test_vec_match() {
     assert_eq! {
-        rune!(bool => r#"fn main() { match [] { [..] => true } }"#),
+        rune!(bool => fn main() { match [] { [..] => true } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [] { [..] => true, _ => false } }"#),
+        rune!(bool => fn main() { match [] { [..] => true, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b } }"#),
+        rune!(bool => fn main() { match [1, 2] { [a, b] => a + 1 == b } }),
         true,
     };
 
     assert_eq! {
-        rune!(() => r#"fn main() { match [] { [a, b] => a + 1 == b } }"#),
+        rune!(() => fn main() { match [] { [a, b] => a + 1 == b } }),
         (),
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, 2] { [a, b] => a + 1 == b, _ => false } }"#),
+        rune!(bool => fn main() { match [1, 2] { [a, b] => a + 1 == b, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, 2] { [a, b, ..] => a + 1 == b, _ => false } }"#),
+        rune!(bool => fn main() { match [1, 2] { [a, b, ..] => a + 1 == b, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, 2] { [1, ..] => true, _ => false } }"#),
+        rune!(bool => fn main() { match [1, 2] { [1, ..] => true, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, 2] { [] => true, _ => false } }"#),
+        rune!(bool => fn main() { match [1, 2] { [] => true, _ => false } }),
         false,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, 2] { [1, 2] => true, _ => false } }"#),
+        rune!(bool => fn main() { match [1, 2] { [1, 2] => true, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, 2] { [1] => true, _ => false } }"#),
+        rune!(bool => fn main() { match [1, 2] { [1] => true, _ => false } }),
         false,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, [2, 3]] { [1, [2, ..]] => true, _ => false } }"#),
+        rune!(bool => fn main() { match [1, [2, 3]] { [1, [2, ..]] => true, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, []] { [1, [2, ..]] => true, _ => false } }"#),
+        rune!(bool => fn main() { match [1, []] { [1, [2, ..]] => true, _ => false } }),
         false,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, [2, 3]] { [1, [2, 3]] => true, _ => false } }"#),
+        rune!(bool => fn main() { match [1, [2, 3]] { [1, [2, 3]] => true, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match [1, [2, 4]] { [1, [2, 3]] => true, _ => false } }"#),
+        rune!(bool => fn main() { match [1, [2, 4]] { [1, [2, 3]] => true, _ => false } }),
         false,
     };
 }
@@ -497,37 +437,37 @@ fn test_vec_match() {
 #[test]
 fn test_object_match() {
     assert_eq! {
-        rune!(bool => r#"fn main() { match #{} { #{..} => true } }"#),
+        rune!(bool => fn main() { match #{} { #{..} => true } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match #{foo: true} { #{foo} => foo, _ => false } }"#),
+        rune!(bool => fn main() { match #{foo: true} { #{foo} => foo, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match #{} { #{..} => true, _ => false } }"#),
+        rune!(bool => fn main() { match #{} { #{..} => true, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v, ..} => v == 10, _ => false } }"#),
+        rune!(bool => fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v, ..} => v == 10, _ => false } }),
         true,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v} => v == 10, _ => false } }"#),
+        rune!(bool => fn main() { match #{"foo": 10, "bar": 0} { #{"foo": v} => v == 10, _ => false } }),
         false,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v} => v == 10, _ => false } }"#),
+        rune!(bool => fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v} => v == 10, _ => false } }),
         false,
     };
 
     assert_eq! {
-        rune!(bool => r#"fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v, ..} => v == 10, _ => false } }"#),
+        rune!(bool => fn main() { match #{"foo": 10, "bar": #{"baz": [1, 2]}} { #{"foo": v, ..} => v == 10, _ => false } }),
         true,
     };
 }
@@ -550,8 +490,7 @@ fn test_bad_pattern() {
 #[test]
 fn test_destructuring() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn foo(n) {
                 [n, n + 1]
             }
@@ -560,7 +499,6 @@ fn test_destructuring() {
                 let [a, b] = foo(3);
                 a + b
             }
-            "#
         },
         7,
     };
@@ -569,8 +507,7 @@ fn test_destructuring() {
 #[test]
 fn test_if_pattern() {
     assert_eq! {
-        rune! {
-            bool => r#"
+        rune! { bool =>
             fn main() {
                 if let [value] = [()] {
                     true
@@ -578,14 +515,12 @@ fn test_if_pattern() {
                     false
                 }
             }
-            "#
         },
         true,
     };
 
     assert_eq! {
-        rune! {
-            bool => r#"
+        rune! { bool =>
             fn main() {
                 if let [value] = [(), ()] {
                     true
@@ -593,14 +528,12 @@ fn test_if_pattern() {
                     false
                 }
             }
-            "#
         },
         false,
     };
 
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() {
                 let value = [(), (), 2];
 
@@ -612,7 +545,6 @@ fn test_if_pattern() {
                     3
                 }
             }
-            "#
         },
         2,
     };
@@ -621,8 +553,7 @@ fn test_if_pattern() {
 #[test]
 fn test_break_label() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             use std::iter::range;
 
             fn main() {
@@ -647,7 +578,6 @@ fn test_break_label() {
 
                 tail
             }
-            "#
         },
         77,
     };
@@ -656,14 +586,12 @@ fn test_break_label() {
 #[test]
 fn test_string_concat() {
     assert_eq! {
-        rune! {
-            String => r#"
+        rune! { String =>
             fn main() {
                 let foo = String::from_str("foo");
                 foo += "/bar" + "/baz";
                 foo
             }
-            "#
         },
         "foo/bar/baz",
     };
@@ -672,14 +600,12 @@ fn test_string_concat() {
 #[test]
 fn test_template_string() {
     assert_eq! {
-        rune! {
-            String => r#"
+        rune_s! { String => r#"
             fn main() {
                 let name = "John Doe";
                 `Hello {name}, I am {1 - 10} years old!`
             }
-            "#
-        },
+        "#},
         "Hello John Doe, I am -9 years old!",
     };
 
@@ -687,8 +613,7 @@ fn test_template_string() {
     // This tests that the temporary variables used during calculations do not
     // accidentally clobber the scope.
     assert_eq! {
-        rune! {
-            String => r#"
+        rune_s! { String => r#"
             fn main() {
                 let name = "John Doe";
 
@@ -698,8 +623,7 @@ fn test_template_string() {
                     a
                 }} years old!`
             }
-            "#
-        },
+        "#},
         "Hello John Doe, I am 22 years old!",
     };
 }
@@ -707,8 +631,7 @@ fn test_template_string() {
 #[test]
 fn test_variants_as_functions() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             enum Foo { A(a), B(b, c) }
 
             fn construct_tuple(tuple) {
@@ -723,7 +646,6 @@ fn test_variants_as_functions() {
                     _ => 0,
                 }
             }
-            "#
         },
         3,
     };
@@ -732,8 +654,7 @@ fn test_variants_as_functions() {
 #[test]
 fn test_iter_drop() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             fn main() {
                 let sum = 0;
                 let values = [1, 2, 3, 4];
@@ -760,7 +681,6 @@ fn test_iter_drop() {
 
                 sum
             }
-            "#
         },
         24,
     };
@@ -769,8 +689,7 @@ fn test_iter_drop() {
 #[test]
 fn test_async_fn() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             async fn foo(a, b) {
                 b / a
             }
@@ -782,7 +701,6 @@ fn test_async_fn() {
             async fn main() {
                 foo(2, 4).await + bar(2, 8)
             }
-            "#
         },
         6,
     };
@@ -791,7 +709,7 @@ fn test_async_fn() {
 #[test]
 fn test_complex_field_access() {
     assert_eq! {
-        rune! {
+        rune_s! {
             Option<i64> => r#"
             fn foo() {
                 #{hello: #{world: 42}}
@@ -809,8 +727,7 @@ fn test_complex_field_access() {
 #[test]
 fn test_index_get() {
     assert_eq! {
-        rune! {
-            i64 => r#"
+        rune! { i64 =>
             struct Named(a, b, c);
             enum Enum { Named(a, b, c) }
 
@@ -822,7 +739,6 @@ fn test_index_get() {
             fn main() {
                 (a())[1] + (b())[1] + (c())[1] + (d())[1] + (a()).2 + (b()).2 + (c()).2 + (d()).2
             }
-            "#
         },
         32,
     };
