@@ -4,7 +4,7 @@ use crate::shared::Location;
 use crate::{
     CompileError, CompileErrorKind, Id, IrError, IrErrorKind, ParseError, ParseErrorKind, Spanned,
 };
-use runestick::{Item, Span};
+use runestick::{CompileMeta, Item, Span};
 use thiserror::Error;
 
 error! {
@@ -51,7 +51,7 @@ pub enum QueryErrorKind {
     },
     #[error("missing {what} for id {id:?}")]
     MissingId { what: &'static str, id: Option<Id> },
-    #[error("tried to insert conflicting item `{item}`")]
+    #[error("conflicting item `{item}`")]
     ItemConflict { item: Item, other: Location },
     #[error("item `{item}` with {visibility} visibility, is not accessible from here")]
     NotVisible {
@@ -80,4 +80,8 @@ pub enum QueryErrorKind {
     ImportConflict { item: Item, other: Location },
     #[error("missing last use component")]
     LastUseComponent,
+    #[error("found indexed entry for `{item}`, but was not an import")]
+    NotIndexedImport { item: Item },
+    #[error("{meta} can't be used as an import")]
+    UnsupportedImportMeta { meta: CompileMeta },
 }

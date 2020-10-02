@@ -25,6 +25,36 @@ fn test_import_cycle() {
             }
         }
     };
+
+    assert_compile_error! {
+        r#"
+        mod b {
+            pub use super::a::Foo;
+        }
+        
+        mod a {
+            pub use super::b::Foo;
+        }
+        
+        fn main() {
+            a::Foo
+        }           
+        "#,
+        span, QueryError { error } => {
+            assert_eq!(span, Span::new(173, 179));
+
+            let path = match *error {
+                ImportCycle { path, .. } => path,
+                other => panic!("unexpected query error: {:?}", other),
+            };
+
+            assert_eq!(3, path.len());
+            assert_eq!(Span::new(107, 120), path[0].location.span);
+            assert_eq!(Span::new(37, 50), path[1].location.span);
+            assert_eq!(Span::new(107, 120), path[2].location.span);
+        }
+    };
+    
 }
 
 #[test]

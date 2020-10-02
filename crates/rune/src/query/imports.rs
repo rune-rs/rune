@@ -1,9 +1,8 @@
-use crate::collections::{HashMap, HashSet};
-use crate::compiling::ImportEntryStep;
+use crate::collections::HashMap;
 use crate::indexing::Visibility;
 use crate::query::{QueryError, QueryErrorKind, QueryItem, QueryMod};
 use crate::shared::Location;
-use crate::{CompileError, Id};
+use crate::Id;
 use runestick::{Item, Names, Span};
 use std::rc::Rc;
 
@@ -31,121 +30,6 @@ pub(crate) struct Imports {
 }
 
 impl Imports {
-    /// Walk the names to find the first one that is contained in the unit.
-    pub(crate) fn walk_names(
-        &mut self,
-        spanned: Span,
-        mod_item: &Rc<QueryMod>,
-        base: &Item,
-        local: &str,
-    ) -> Result<Option<Item>, CompileError> {
-        debug_assert!(base.starts_with(&mod_item.item));
-
-        let mut base = base.clone();
-
-        loop {
-            let item = base.extended(local);
-
-            if let Some((NameKind::Other, ..)) = self.names.get(&item) {
-                return Ok(Some(item));
-            }
-
-            if let Some(item) = self.get_import(mod_item, spanned, &item)? {
-                return Ok(Some(item));
-            }
-
-            if mod_item.item == base || base.pop().is_none() {
-                break;
-            }
-        }
-
-        if let Some(item) = self.prelude.get(local) {
-            return Ok(Some(item.clone()));
-        }
-
-        Ok(None)
-    }
-
-    /// Get the given import by name.
-    pub(crate) fn get_import(
-        &mut self,
-        mod_item: &Rc<QueryMod>,
-        spanned: Span,
-        item: &Item,
-    ) -> Result<Option<Item>, QueryError> {
-        let mut visited = HashSet::new();
-        let mut path = Vec::new();
-
-        let mut current = item.clone();
-        let mut matched = false;
-        let mut from = mod_item.clone();
-        let mut chain = Vec::new();
-
-        loop {
-            if let Some(entry) = self.imports.get(&current).cloned() {
-                self.check_access_to(
-                    spanned,
-                    &*from,
-                    &mut chain,
-                    &entry.mod_item,
-                    entry.location,
-                    entry.visibility,
-                    &entry.name,
-                )?;
-
-                from = entry.mod_item.clone();
-                chain.push(entry.location);
-
-                // NB: this happens when you have a superflous import, like:
-                // ```
-                // use std;
-                //
-                // std::option::Option::None
-                // ```
-                if entry.imported == current {
-                    break;
-                }
-
-                path.push(ImportEntryStep {
-                    location: entry.location,
-                    visibility: entry.visibility,
-                    item: entry.name.clone(),
-                });
-
-                if !visited.insert(entry.imported.clone()) {
-                    return Err(QueryError::new(
-                        spanned,
-                        QueryErrorKind::ImportCycle { path },
-                    ));
-                }
-
-                matched = true;
-                current = entry.imported.clone();
-                continue;
-            }
-
-            break;
-        }
-
-        if let Some(item) = self.items_rev.get(&current) {
-            self.check_access_to(
-                spanned,
-                &*from,
-                &mut chain,
-                &item.mod_item,
-                item.location,
-                item.visibility,
-                &item.item,
-            )?;
-        }
-
-        if matched {
-            return Ok(Some(current));
-        }
-
-        Ok(None)
-    }
-
     /// Check that the given item is accessible from the given module.
     pub(crate) fn check_access_to(
         &self,

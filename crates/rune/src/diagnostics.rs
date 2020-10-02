@@ -82,8 +82,7 @@ impl EmitDiagnostics for Warnings {
             let context = match &w.kind {
                 WarningKind::NotUsed { span, context } => {
                     labels.push(
-                        Label::primary(w.source_id, span.start..span.end)
-                            .with_message("value not used"),
+                        Label::primary(w.source_id, span.start..span.end).with_message("not used"),
                     );
 
                     *context
@@ -322,14 +321,14 @@ impl EmitDiagnostics for Error {
         fn format_compile_error(
             this: &Error,
             sources: &Sources,
-            span: Span,
+            error_span: Span,
             kind: &CompileErrorKind,
             labels: &mut Vec<Label<SourceId>>,
             notes: &mut Vec<String>,
         ) -> fmt::Result {
             match kind {
                 CompileErrorKind::QueryError { error } => {
-                    format_query_error(this, sources, span, error, labels, notes)?;
+                    format_query_error(this, sources, error_span, error, labels, notes)?;
                 }
                 CompileErrorKind::DuplicateObjectKey { existing, object } => {
                     labels.push(
@@ -361,7 +360,7 @@ impl EmitDiagnostics for Error {
 
                     let binding = sources
                         .source_at(this.source_id())
-                        .and_then(|s| s.source(span));
+                        .and_then(|s| s.source(error_span));
 
                     if let Some(binding) = binding {
                         let mut note = String::new();
@@ -378,17 +377,17 @@ impl EmitDiagnostics for Error {
         fn format_query_error(
             this: &Error,
             sources: &Sources,
-            span: Span,
+            error_span: Span,
             kind: &QueryErrorKind,
             labels: &mut Vec<Label<SourceId>>,
             notes: &mut Vec<String>,
         ) -> fmt::Result {
             match kind {
                 QueryErrorKind::CompileError { error } => {
-                    format_compile_error(this, sources, span, error, labels, notes)?;
+                    format_compile_error(this, sources, error_span, error, labels, notes)?;
                 }
                 QueryErrorKind::IrError { error } => {
-                    format_ir_error(this, sources, span, error, labels, notes)?;
+                    format_ir_error(this, sources, error_span, error, labels, notes)?;
                 }
                 QueryErrorKind::ImportCycle { path } => {
                     let mut it = path.into_iter();
@@ -475,14 +474,14 @@ impl EmitDiagnostics for Error {
         fn format_ir_error(
             this: &Error,
             sources: &Sources,
-            span: Span,
+            error_span: Span,
             kind: &IrErrorKind,
             labels: &mut Vec<Label<SourceId>>,
             notes: &mut Vec<String>,
         ) -> fmt::Result {
             match kind {
                 IrErrorKind::QueryError { error } => {
-                    format_query_error(this, sources, span, error, labels, notes)?;
+                    format_query_error(this, sources, error_span, error, labels, notes)?;
                 }
                 _ => (),
             }

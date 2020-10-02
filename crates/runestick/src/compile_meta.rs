@@ -50,6 +50,7 @@ impl CompileMeta {
             CompileMetaKind::Macro { .. } => None,
             CompileMetaKind::Const { .. } => None,
             CompileMetaKind::ConstFn { .. } => None,
+            CompileMetaKind::Import { .. } => None,
         }
     }
 }
@@ -95,6 +96,9 @@ impl fmt::Display for CompileMeta {
             }
             CompileMetaKind::ConstFn { .. } => {
                 write!(fmt, "const fn {}", self.item)?;
+            }
+            CompileMetaKind::Import { .. } => {
+                write!(fmt, "import {}", self.item)?;
             }
         }
 
@@ -189,6 +193,8 @@ pub enum CompileMetaKind {
     },
     /// A macro.
     Macro,
+    /// Purely an import.
+    Import,
 }
 
 /// The metadata about a type.
