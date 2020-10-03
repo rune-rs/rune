@@ -1,11 +1,12 @@
 use crate::Span;
+use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::slice;
 
 /// A single source file.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Clone)]
 pub struct Source {
     /// The name of the source.
     name: String,
@@ -163,6 +164,15 @@ impl Source {
         }
 
         (line, line_count)
+    }
+}
+
+impl fmt::Debug for Source {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Source")
+            .field("name", &self.name)
+            .field("path", &self.path)
+            .finish()
     }
 }
 

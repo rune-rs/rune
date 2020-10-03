@@ -2,9 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// A span corresponding to a range in the source file being parsed.
-#[derive(
-    Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Span {
     /// The start of the span in bytes.
     pub start: usize,
@@ -114,5 +112,14 @@ impl Span {
 impl fmt::Display for Span {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{}:{}", self.start, self.end)
+    }
+}
+
+impl fmt::Debug for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Span")
+            .field(&self.start)
+            .field(&self.end)
+            .finish()
     }
 }

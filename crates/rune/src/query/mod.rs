@@ -122,7 +122,7 @@ impl Query {
 
         self.imports.modules.insert(item.clone(), query_mod.clone());
 
-        self.insert_name(source_id, spanned, item, NameKind::Other)?;
+        self.insert_name(source_id, spanned, item, NameKind::Other, false)?;
         self.insert_new_item(source_id, spanned, item, &query_mod, visibility)?;
         Ok((id, query_mod))
     }
@@ -139,10 +139,6 @@ impl Query {
         }
     }
 
-    /// Inserts an item that *has* to be unique, else cause an error.
-    ///
-    /// This are not indexed and does not generate an ID, they're only visible
-    /// in reverse lookup.
     pub(crate) fn insert_new_item(
         &mut self,
         source_id: SourceId,
@@ -150,6 +146,22 @@ impl Query {
         item: &Item,
         mod_item: &Rc<QueryMod>,
         visibility: Visibility,
+    ) -> Result<Rc<QueryItem>, QueryError> {
+        self.internal_insert_new_item(source_id, spanned, item, mod_item, visibility, false)
+    }
+
+    /// Inserts an item that *has* to be unique, else cause an error.
+    ///
+    /// This are not indexed and does not generate an ID, they're only visible
+    /// in reverse lookup.
+    pub(crate) fn internal_insert_new_item(
+        &mut self,
+        source_id: SourceId,
+        spanned: Span,
+        item: &Item,
+        mod_item: &Rc<QueryMod>,
+        visibility: Visibility,
+        may_overwrite: bool,
     ) -> Result<Rc<QueryItem>, QueryError> {
         let id = self.next_id.next().expect("ran out of ids");
 
@@ -166,13 +178,15 @@ impl Query {
             .items_rev
             .insert(item.clone(), query_item.clone())
         {
-            return Err(QueryError::new(
-                spanned,
-                QueryErrorKind::ItemConflict {
-                    item: item.clone(),
-                    other: old.location,
-                },
-            ));
+            if !may_overwrite {
+                return Err(QueryError::new(
+                    spanned,
+                    QueryErrorKind::ItemConflict {
+                        item: item.clone(),
+                        other: old.location,
+                    },
+                ));
+            }
         }
 
         self.imports.items.insert(id, query_item.clone());
@@ -402,8 +416,13 @@ impl Query {
         Ok(())
     }
 
-    /// Index the given element.
+    /// Index the given entry.
     pub fn index(&mut self, entry: IndexedEntry) -> Result<(), QueryError> {
+        self.inner_index(entry, false)
+    }
+
+    /// Internal implementation for indexing an entry.
+    fn inner_index(&mut self, entry: IndexedEntry, may_overwrite: bool) -> Result<(), QueryError> {
         log::trace!("indexed: {}", entry.query_item.item);
 
         self.insert_name(
@@ -411,23 +430,20 @@ impl Query {
             entry.query_item.location.span,
             &entry.query_item.item,
             entry.indexed.as_name_kind(),
+            may_overwrite,
         )?;
 
         let span = entry.query_item.location.span;
 
         if let Some(old) = self.indexed.insert(entry.query_item.item.clone(), entry) {
-            match old.indexed {
-                // allow replacing of wildcard imports.
-                Indexed::Import(import) if import.wildcard => (),
-                _ => {
-                    return Err(QueryError::new(
-                        span,
-                        QueryErrorKind::ItemConflict {
-                            item: old.query_item.item.clone(),
-                            other: old.query_item.location,
-                        },
-                    ));
-                }
+            if !may_overwrite {
+                return Err(QueryError::new(
+                    span,
+                    QueryErrorKind::ItemConflict {
+                        item: old.query_item.item.clone(),
+                        other: old.query_item.location,
+                    },
+                ));
             }
         }
 
@@ -882,23 +898,21 @@ impl Query {
         spanned: Span,
         item: &Item,
         name_kind: NameKind,
+        may_overwrite: bool,
     ) -> Result<(), QueryError> {
-        if let Some((kind, other)) = self
+        if let Some((.., other)) = self
             .imports
             .names
             .insert(item, (name_kind, Location::new(source_id, spanned)))
         {
-            match kind {
-                NameKind::Wildcard => (),
-                _ => {
-                    return Err(QueryError::new(
-                        spanned,
-                        QueryErrorKind::ItemConflict {
-                            item: item.clone(),
-                            other,
-                        },
-                    ));
-                }
+            if !may_overwrite {
+                return Err(QueryError::new(
+                    spanned,
+                    QueryErrorKind::ItemConflict {
+                        item: item.clone(),
+                        other,
+                    },
+                ));
             }
         }
 
@@ -926,10 +940,10 @@ impl Query {
 
         let item = at.extended(last);
 
-        // NB: wildcard expansions do not overwite local names.
-        if wildcard && self.imports.names.contains(&item) {
-            return Ok(());
-        }
+        let may_overwrite = match may_overwrite(self, wildcard, &item) {
+            Some(may_overwrite) => may_overwrite,
+            None => return Ok(()),
+        };
 
         let entry = ImportEntry {
             location: Location::new(source_id, spanned.span()),
@@ -939,15 +953,48 @@ impl Query {
             mod_item: mod_item.clone(),
         };
 
-        let query_item = self.insert_new_item(source_id, spanned, &item, mod_item, visibility)?;
+        let query_item = self.internal_insert_new_item(
+            source_id,
+            spanned,
+            &item,
+            mod_item,
+            visibility,
+            may_overwrite,
+        )?;
 
-        self.index(IndexedEntry {
-            query_item,
-            indexed: Indexed::Import(Import { wildcard, entry }),
-            source: source.clone(),
-        })?;
+        self.inner_index(
+            IndexedEntry {
+                query_item,
+                indexed: Indexed::Import(Import { wildcard, entry }),
+                source: source.clone(),
+            },
+            may_overwrite,
+        )?;
 
-        Ok(())
+        return Ok(());
+
+        /// Indicates if the new import may overwrite an old one.
+        ///
+        /// Returns `None` if the import should not be inserted at all.
+        fn may_overwrite(this: &mut Query, wildcard: bool, item: &Item) -> Option<bool> {
+            // Wildcard expansions do not overwite local items. Wildcard expansions
+            // are always deferred to happen last in the indexing cycle, so this
+            // prevents them from overwriting existing names quite neatly.
+            // If wildcard imports do conflict, the last one declared will win.
+            if !wildcard {
+                return Some(false);
+            }
+
+            if let Some(entry) = this.indexed.get(&item) {
+                if let Indexed::Import(Import { wildcard: true, .. }) = &entry.indexed {
+                    return Some(true);
+                }
+
+                return None;
+            }
+
+            Some(false)
+        }
     }
 
     /// Check if unit contains the given name by prefix.
@@ -1187,6 +1234,7 @@ impl Default for Used {
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum Indexed {
     Enum,
     Struct(Struct),
@@ -1215,6 +1263,7 @@ impl Indexed {
     }
 }
 
+#[derive(Debug)]
 pub struct Import {
     /// The import entry.
     pub(crate) entry: ImportEntry,
@@ -1224,6 +1273,7 @@ pub struct Import {
     pub(crate) wildcard: bool,
 }
 
+#[derive(Debug)]
 pub struct Struct {
     /// The ast of the struct.
     ast: ast::ItemStruct,
@@ -1236,6 +1286,7 @@ impl Struct {
     }
 }
 
+#[derive(Debug)]
 pub struct Variant {
     /// Id of of the enum type.
     enum_id: Id,
@@ -1250,6 +1301,7 @@ impl Variant {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Function {
     /// Ast for declaration.
     pub(crate) ast: ast::ItemFn,
@@ -1266,6 +1318,7 @@ pub(crate) struct InstanceFunction {
     pub(crate) call: Call,
 }
 
+#[derive(Debug)]
 pub(crate) struct Closure {
     /// Ast for closure.
     pub(crate) ast: ast::ExprClosure,
@@ -1275,6 +1328,7 @@ pub(crate) struct Closure {
     pub(crate) call: Call,
 }
 
+#[derive(Debug)]
 pub(crate) struct AsyncBlock {
     /// Ast for block.
     pub(crate) ast: ast::Block,
@@ -1284,6 +1338,7 @@ pub(crate) struct AsyncBlock {
     pub(crate) call: Call,
 }
 
+#[derive(Debug)]
 pub(crate) struct Const {
     /// The module item the constant is defined in.
     pub(crate) mod_item: Rc<QueryMod>,
@@ -1291,6 +1346,7 @@ pub(crate) struct Const {
     pub(crate) ir: ir::Ir,
 }
 
+#[derive(Debug)]
 pub(crate) struct ConstFn {
     /// The const fn ast.
     pub(crate) item_fn: ast::ItemFn,
@@ -1320,6 +1376,7 @@ pub(crate) struct BuildEntry {
     pub(crate) used: Used,
 }
 
+#[derive(Debug)]
 pub(crate) struct IndexedEntry {
     /// The query item this indexed entry belongs to.
     pub(crate) query_item: Rc<QueryItem>,

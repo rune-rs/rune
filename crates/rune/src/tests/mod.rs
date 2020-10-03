@@ -38,3 +38,4 @@ mod vm_try;
 mod vm_tuples;
 mod vm_typed_tuple;
 mod vm_types;
+mod wildcard_imports;
