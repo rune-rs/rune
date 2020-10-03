@@ -519,6 +519,24 @@ impl UnitBuilder {
         Ok(())
     }
 
+    /// Insert meta without registering peripherals under the assumption that it
+    /// already has been registered.
+    pub(crate) fn insert_meta_without_peripherals(
+        &self,
+        meta: CompileMeta,
+    ) -> Result<(), InsertMetaError> {
+        let mut inner = self.inner.borrow_mut();
+
+        if let Some(existing) = inner.meta.insert(meta.item.clone(), meta.clone()) {
+            return Err(InsertMetaError::MetaConflict {
+                current: meta,
+                existing,
+            });
+        }
+
+        Ok(())
+    }
+
     /// Construct a new empty assembly associated with the current unit.
     pub(crate) fn new_assembly(&self, location: Location) -> Assembly {
         let label_count = self.inner.borrow().label_count;

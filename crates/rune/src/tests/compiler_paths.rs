@@ -79,7 +79,7 @@ fn test_import_conflict() {
         r#"use std::{option, option};"#,
         span, QueryError { error, .. } => {
             assert_eq!(span, Span::new(18, 24));
-            assert_matches!(&*error, ImportConflict { .. });
+            assert_matches!(&*error, ItemConflict { .. });
         }
     };
 }

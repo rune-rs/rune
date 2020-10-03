@@ -194,7 +194,10 @@ pub enum CompileMetaKind {
     /// A macro.
     Macro,
     /// Purely an import.
-    Import,
+    Import {
+        /// The imported target.
+        imported: Item,
+    },
 }
 
 /// The metadata about a type.

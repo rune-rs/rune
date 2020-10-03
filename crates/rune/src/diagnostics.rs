@@ -422,15 +422,6 @@ impl EmitDiagnostics for Error {
                             .with_message("previously defined here"),
                     );
                 }
-                QueryErrorKind::ImportConflict {
-                    other: Location { source_id, span },
-                    ..
-                } => {
-                    labels.push(
-                        Label::secondary(*source_id, span.start..span.end)
-                            .with_message("previous import here"),
-                    );
-                }
                 QueryErrorKind::NotVisible {
                     chain,
                     location: Location { source_id, span },

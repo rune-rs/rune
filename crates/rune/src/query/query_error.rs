@@ -51,7 +51,7 @@ pub enum QueryErrorKind {
     },
     #[error("missing {what} for id {id:?}")]
     MissingId { what: &'static str, id: Option<Id> },
-    #[error("conflicting item `{item}`")]
+    #[error("cannot define conflicting item `{item}`")]
     ItemConflict { item: Item, other: Location },
     #[error("item `{item}` with {visibility} visibility, is not accessible from here")]
     NotVisible {
@@ -76,8 +76,6 @@ pub enum QueryErrorKind {
     MissingMod { item: Item },
     #[error("cycle in import")]
     ImportCycle { path: Vec<ImportEntryStep> },
-    #[error("already imported `{item}`")]
-    ImportConflict { item: Item, other: Location },
     #[error("missing last use component")]
     LastUseComponent,
     #[error("found indexed entry for `{item}`, but was not an import")]

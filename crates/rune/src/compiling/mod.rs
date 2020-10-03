@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::indexing::Visibility;
 use crate::load::{FileSourceLoader, SourceLoader, Sources};
-use crate::query::{Build, BuildEntry, Query};
+use crate::query::{Build, BuildEntry, Query, Used};
 use crate::shared::Consts;
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Error, Errors, Options, Spanned as _, Storage, Warnings};
@@ -308,9 +308,12 @@ impl CompileBuildEntry<'_> {
             }
             Build::Import(import) => {
                 // Issue the import to check access.
-                let result =
-                    self.query
-                        .get_import(&item.mod_item, location.span, &import.target)?;
+                let result = self.query.get_import(
+                    &item.mod_item,
+                    location.span,
+                    &import.entry.imported,
+                    Used::Used,
+                )?;
 
                 if used.is_unused() {
                     self.warnings
@@ -318,8 +321,8 @@ impl CompileBuildEntry<'_> {
                 }
 
                 if let None = result {
-                    if !self.context.contains_prefix(&import.target)
-                        && !self.query.contains_module(&import.target)
+                    if !self.context.contains_prefix(&import.entry.imported)
+                        && !self.query.contains_module(&import.entry.imported)
                     {
                         return Err(CompileError::new(
                             location.span,
