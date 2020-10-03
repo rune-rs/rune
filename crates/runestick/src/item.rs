@@ -67,19 +67,6 @@ impl Item {
         }
     }
 
-    /// Indicate if this item is supposed to be unique or not.
-    pub fn is_unique(&self) -> bool {
-        let c = match self.last() {
-            Some(c) => c,
-            None => return true,
-        };
-
-        match c {
-            ComponentRef::Block(..) => false,
-            _ => true,
-        }
-    }
-
     /// Construct a new item path.
     pub fn of<I>(iter: I) -> Self
     where

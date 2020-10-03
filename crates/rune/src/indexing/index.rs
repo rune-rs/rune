@@ -279,6 +279,15 @@ impl Index<ast::ItemFn> for Indexer<'_> {
         let name = decl_fn.name.resolve(&self.storage, &*self.source)?;
         let _guard = self.items.push_name(name.as_ref());
 
+        let visibility = Visibility::from_ast(&decl_fn.visibility)?;
+        let item = self.query.insert_new_item(
+            self.source_id,
+            span,
+            &*self.items.item(),
+            &self.mod_item,
+            visibility,
+        )?;
+
         let kind = match (decl_fn.const_token, decl_fn.async_token) {
             (Some(const_token), Some(async_token)) => {
                 return Err(CompileError::new(
@@ -318,16 +327,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
         self.index(&mut decl_fn.body)?;
 
         let f = guard.into_function(span)?;
-
-        let visibility = Visibility::from_ast(&decl_fn.visibility)?;
-        let (id, item) = self.query.insert_item(
-            self.source_id,
-            span,
-            &*self.items.item(),
-            &self.mod_item,
-            visibility,
-        )?;
-        decl_fn.id = Some(id);
+        decl_fn.id = Some(item.id);
 
         let call = match Self::call(f.generator, f.kind) {
             Some(call) => call,
@@ -447,6 +447,16 @@ impl Index<ast::ExprBlock> for Indexer<'_> {
 
         let _guard = self.items.push_async_block();
         let guard = self.scopes.push_closure(IndexFnKind::Async);
+
+        let item = self.query.insert_new_item(
+            self.source_id,
+            span,
+            &*self.items.item(),
+            &self.mod_item,
+            Visibility::Inherited,
+        )?;
+        expr_block.block.id = Some(item.id);
+
         self.index(&mut expr_block.block)?;
 
         let c = guard.into_closure(span)?;
@@ -459,15 +469,6 @@ impl Index<ast::ExprBlock> for Indexer<'_> {
                 return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
             }
         };
-
-        let (id, item) = self.query.insert_item(
-            self.source_id,
-            span,
-            &*self.items.item(),
-            &self.mod_item,
-            Visibility::Inherited,
-        )?;
-        expr_block.block.id = Some(id);
 
         self.query.index_async_block(
             &item,
@@ -488,6 +489,14 @@ impl Index<ast::Block> for Indexer<'_> {
 
         let _guard = self.items.push_block();
         let _guard = self.scopes.push_scope();
+
+        self.query.insert_new_item(
+            self.source_id,
+            span,
+            &*self.items.item(),
+            &self.mod_item,
+            Visibility::Inherited,
+        )?;
 
         self.preprocess_stmts(&mut block.statements)?;
         let mut must_be_last = None;
@@ -864,7 +873,7 @@ impl Index<ast::Item> for Indexer<'_> {
                 let _guard = self.items.push_name(name.as_ref());
 
                 let visibility = Visibility::from_ast(&item_enum.visibility)?;
-                let (enum_id, enum_item) = self.query.insert_item(
+                let enum_item = self.query.insert_new_item(
                     self.source_id,
                     span,
                     &*self.items.item(),
@@ -895,17 +904,17 @@ impl Index<ast::Item> for Indexer<'_> {
                     let name = variant.name.resolve(&self.storage, &*self.source)?;
                     let _guard = self.items.push_name(name.as_ref());
 
-                    let (id, item) = self.query.insert_item(
+                    let item = self.query.insert_new_item(
                         self.source_id,
                         span,
                         &*self.items.item(),
                         &self.mod_item,
                         visibility,
                     )?;
-                    variant.id = Some(id);
+                    variant.id = Some(item.id);
 
                     self.query
-                        .index_variant(&item, &self.source, enum_id, variant.clone())?;
+                        .index_variant(&item, &self.source, enum_item.id, variant.clone())?;
                 }
             }
             ast::Item::ItemStruct(item_struct) => {
@@ -934,14 +943,14 @@ impl Index<ast::Item> for Indexer<'_> {
                 let _guard = self.items.push_name(ident.as_ref());
 
                 let visibility = Visibility::from_ast(&item_struct.visibility)?;
-                let (id, item) = self.query.insert_item(
+                let item = self.query.insert_new_item(
                     self.source_id,
                     span,
                     &*self.items.item(),
                     &self.mod_item,
                     visibility,
                 )?;
-                item_struct.id = Some(id);
+                item_struct.id = Some(item.id);
 
                 self.query
                     .index_struct(&item, &self.source, item_struct.clone())?;
@@ -1028,17 +1037,17 @@ impl Index<ast::Item> for Indexer<'_> {
                 let name = item_const.name.resolve(&self.storage, &*self.source)?;
                 let _guard = self.items.push_name(name.as_ref());
 
-                self.index(item_const)?;
-
-                let visibility = Visibility::from_ast(&item_const.visibility)?;
-                let (id, item) = self.query.insert_item(
+                let item = self.query.insert_new_item(
                     self.source_id,
                     span,
                     &*self.items.item(),
                     &self.mod_item,
-                    visibility,
+                    Visibility::from_ast(&item_const.visibility)?,
                 )?;
-                item_const.id = Some(id);
+
+                item_const.id = Some(item.id);
+
+                self.index(item_const)?;
 
                 self.query
                     .index_const(&item, &self.source, item_const.clone())?;
@@ -1141,6 +1150,16 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
         let guard = self.scopes.push_closure(kind);
         let span = expr_closure.span();
 
+        let item = self.query.insert_new_item(
+            self.source_id,
+            span,
+            &*self.items.item(),
+            &self.mod_item,
+            Visibility::Inherited,
+        )?;
+
+        expr_closure.id = Some(item.id);
+
         for (arg, _) in expr_closure.args.as_slice() {
             match arg {
                 ast::FnArg::SelfValue(s) => {
@@ -1166,16 +1185,6 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
                 return Err(CompileError::new(span, CompileErrorKind::ClosureKind));
             }
         };
-
-        let (id, item) = self.query.insert_item(
-            self.source_id,
-            span,
-            &*self.items.item(),
-            &self.mod_item,
-            Visibility::Inherited,
-        )?;
-
-        expr_closure.id = Some(id);
 
         self.query
             .index_closure(&item, &self.source, expr_closure.clone(), captures, call)?;
@@ -1323,15 +1332,7 @@ impl Index<ast::ExprCall> for Indexer<'_> {
         let span = expr_call.span();
         log::trace!("ExprCall => {:?}", self.source.source(span));
 
-        let (id, _) = self.query.insert_item(
-            self.source_id,
-            span,
-            &*self.items.item(),
-            &self.mod_item,
-            Visibility::Inherited,
-        )?;
-
-        expr_call.id = Some(id);
+        expr_call.id = Some(self.query.get_item_id(span, &*self.items.item())?);
 
         for (expr, _) in &mut expr_call.args {
             self.index(expr)?;

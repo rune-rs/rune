@@ -48,13 +48,11 @@ fn test_import_cycle() {
                 other => panic!("unexpected query error: {:?}", other),
             };
 
-            assert_eq!(3, path.len());
+            assert_eq!(2, path.len());
             assert_eq!(Span::new(107, 120), path[0].location.span);
             assert_eq!(Span::new(37, 50), path[1].location.span);
-            assert_eq!(Span::new(107, 120), path[2].location.span);
         }
     };
-    
 }
 
 #[test]

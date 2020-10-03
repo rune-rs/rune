@@ -359,7 +359,7 @@ impl<'a> Compiler<'a> {
                 None => {
                     return Err(CompileError::new(
                         span,
-                        CompileErrorKind::UnsupportedPattern,
+                        CompileErrorKind::UnsupportedPatternNoMeta,
                     ));
                 }
             };
@@ -485,7 +485,7 @@ impl<'a> Compiler<'a> {
                         None => {
                             return Err(CompileError::new(
                                 span,
-                                CompileErrorKind::UnsupportedPattern,
+                                CompileErrorKind::UnsupportedPatternExpr,
                             ));
                         }
                     };
@@ -498,7 +498,7 @@ impl<'a> Compiler<'a> {
                 _ => {
                     return Err(CompileError::new(
                         span,
-                        CompileErrorKind::UnsupportedPattern,
+                        CompileErrorKind::UnsupportedPatternExpr,
                     ));
                 }
             };
@@ -748,7 +748,10 @@ impl<'a> Compiler<'a> {
                 self.compile_pat_object(object, false_label, &load)?;
                 Ok(true)
             }
-            pat => Err(CompileError::new(pat, CompileErrorKind::UnsupportedPattern)),
+            pat => Err(CompileError::new(
+                pat,
+                CompileErrorKind::UnsupportedPatternExpr,
+            )),
         }
     }
 
@@ -823,7 +826,7 @@ impl<'a> Compiler<'a> {
 
             return Err(CompileError::new(
                 pat_lit,
-                CompileErrorKind::UnsupportedPattern,
+                CompileErrorKind::UnsupportedPatternExpr,
             ));
         }
 
@@ -937,7 +940,7 @@ where
         if let ast::Pat::PatRest(rest) = pat {
             return Err(CompileError::new(
                 rest,
-                CompileErrorKind::UnsupportedPattern,
+                CompileErrorKind::UnsupportedPatternRest,
             ));
         }
 

@@ -194,8 +194,14 @@ pub enum CompileErrorKind {
         expected: usize,
         actual: usize,
     },
-    #[error("expression not supported here")]
-    UnsupportedPattern,
+    #[error("{meta} is not supported here")]
+    UnsupportedPattern { meta: CompileMeta },
+    #[error("undefined types cannot be used as patterns")]
+    UnsupportedPatternNoMeta,
+    #[error("`..` is not supported in this location")]
+    UnsupportedPatternRest,
+    #[error("this kind of expression is not supported as a pattern")]
+    UnsupportedPatternExpr,
     #[error("not a valid binding")]
     UnsupportedBinding,
     #[error("floating point numbers cannot be used in patterns")]

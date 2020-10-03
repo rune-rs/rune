@@ -58,7 +58,6 @@ impl Query {
             next_id: Id::initial(),
             imports: imports::Imports {
                 prelude: unit.prelude(),
-                imports: Default::default(),
                 names: Names::default(),
                 items: HashMap::new(),
                 modules: HashMap::new(),
@@ -124,19 +123,34 @@ impl Query {
         self.imports.modules.insert(item.clone(), query_mod.clone());
 
         self.insert_name(source_id, spanned, item, NameKind::Other)?;
-        self.insert_item(source_id, spanned, item, &query_mod, visibility)?;
+        self.insert_new_item(source_id, spanned, item, &query_mod, visibility)?;
         Ok((id, query_mod))
     }
 
-    /// Insert an item and return its Id.
-    pub(crate) fn insert_item(
+    /// Get the id of an existing item.
+    pub(crate) fn get_item_id(&mut self, spanned: Span, item: &Item) -> Result<Id, QueryError> {
+        if let Some(existing) = self.imports.items_rev.get(item) {
+            Ok(existing.id)
+        } else {
+            Err(QueryError::new(
+                spanned,
+                QueryErrorKind::MissingRevItem { item: item.clone() },
+            ))
+        }
+    }
+
+    /// Inserts an item that *has* to be unique, else cause an error.
+    ///
+    /// This are not indexed and does not generate an ID, they're only visible
+    /// in reverse lookup.
+    pub(crate) fn insert_new_item(
         &mut self,
         source_id: SourceId,
         spanned: Span,
         item: &Item,
         mod_item: &Rc<QueryMod>,
         visibility: Visibility,
-    ) -> Result<(Id, Rc<QueryItem>), QueryError> {
+    ) -> Result<Rc<QueryItem>, QueryError> {
         let id = self.next_id.next().expect("ran out of ids");
 
         let query_item = Rc::new(QueryItem {
@@ -147,26 +161,22 @@ impl Query {
             visibility,
         });
 
-        // only insert unique items for reverse lookup, since they are the only
-        // addressable things that can be fetched.
-        if item.is_unique() && !self.imports.items_rev.contains_key(&item) {
-            if let Some(old) = self
-                .imports
-                .items_rev
-                .insert(item.clone(), query_item.clone())
-            {
-                return Err(QueryError::new(
-                    spanned,
-                    QueryErrorKind::ItemConflict {
-                        item: item.clone(),
-                        other: old.location,
-                    },
-                ));
-            }
+        if let Some(old) = self
+            .imports
+            .items_rev
+            .insert(item.clone(), query_item.clone())
+        {
+            return Err(QueryError::new(
+                spanned,
+                QueryErrorKind::ItemConflict {
+                    item: item.clone(),
+                    other: old.location,
+                },
+            ));
         }
 
         self.imports.items.insert(id, query_item.clone());
-        Ok((id, query_item))
+        Ok(query_item)
     }
 
     /// Insert a template and return its Id.
@@ -406,13 +416,19 @@ impl Query {
         let span = entry.query_item.location.span;
 
         if let Some(old) = self.indexed.insert(entry.query_item.item.clone(), entry) {
-            return Err(QueryError::new(
-                span,
-                QueryErrorKind::ItemConflict {
-                    item: old.query_item.item.clone(),
-                    other: old.query_item.location,
-                },
-            ));
+            match old.indexed {
+                // allow replacing of wildcard imports.
+                Indexed::Import(import) if import.wildcard => (),
+                _ => {
+                    return Err(QueryError::new(
+                        span,
+                        QueryErrorKind::ItemConflict {
+                            item: old.query_item.item.clone(),
+                            other: old.query_item.location,
+                        },
+                    ));
+                }
+            }
         }
 
         Ok(())
@@ -622,6 +638,8 @@ impl Query {
                 CompileMetaKind::ConstFn { id }
             }
             Indexed::Import(import) => {
+                let imported = import.entry.imported.clone();
+
                 if !import.wildcard {
                     self.queue.push_back(BuildEntry {
                         location: query_item.location,
@@ -632,7 +650,7 @@ impl Query {
                     });
                 }
 
-                CompileMetaKind::Import
+                CompileMetaKind::Import { imported }
             }
         };
 
@@ -782,9 +800,13 @@ impl Query {
             ast::PathSegment::Ident(ident) => {
                 let ident = ident.resolve(storage, source)?;
 
-                let item = if let Some(entry) =
-                    self.walk_names(path.span(), &qp.mod_item, &qp.item, ident.as_ref())?
-                {
+                let item = if let Some(entry) = self.walk_names(
+                    path.span(),
+                    &qp.mod_item,
+                    &qp.item,
+                    ident.as_ref(),
+                    Used::Used,
+                )? {
                     entry
                 } else {
                     Item::of(&[ident.as_ref()])
@@ -824,7 +846,9 @@ impl Query {
                     let ident = ident.resolve(storage, source)?;
                     item.push(ident.as_ref());
 
-                    if let Some(new) = self.get_import(&qp.mod_item, path.span(), &item)? {
+                    if let Some(new) =
+                        self.get_import(&qp.mod_item, path.span(), &item, Used::Used)?
+                    {
                         item = new;
                     }
                 }
@@ -859,18 +883,23 @@ impl Query {
         item: &Item,
         name_kind: NameKind,
     ) -> Result<(), QueryError> {
-        if let Some((_, other)) = self
+        if let Some((kind, other)) = self
             .imports
             .names
             .insert(item, (name_kind, Location::new(source_id, spanned)))
         {
-            return Err(QueryError::new(
-                spanned,
-                QueryErrorKind::ItemConflict {
-                    item: item.clone(),
-                    other,
-                },
-            ));
+            match kind {
+                NameKind::Wildcard => (),
+                _ => {
+                    return Err(QueryError::new(
+                        spanned,
+                        QueryErrorKind::ItemConflict {
+                            item: item.clone(),
+                            other,
+                        },
+                    ));
+                }
+            }
         }
 
         Ok(())
@@ -902,29 +931,19 @@ impl Query {
             return Ok(());
         }
 
-        let entry = Rc::new(ImportEntry {
+        let entry = ImportEntry {
             location: Location::new(source_id, spanned.span()),
             visibility,
             name: item.clone(),
             imported: target.clone(),
             mod_item: mod_item.clone(),
-        });
+        };
 
-        if let Some(entry) = self.imports.imports.insert(item.clone(), entry) {
-            return Err(QueryError::new(
-                spanned,
-                QueryErrorKind::ImportConflict {
-                    item,
-                    other: entry.location,
-                },
-            ));
-        }
-
-        let (_, query_item) = self.insert_item(source_id, spanned, &item, mod_item, visibility)?;
+        let query_item = self.insert_new_item(source_id, spanned, &item, mod_item, visibility)?;
 
         self.index(IndexedEntry {
             query_item,
-            indexed: Indexed::Import(Import { wildcard, target }),
+            indexed: Indexed::Import(Import { wildcard, entry }),
             source: source.clone(),
         })?;
 
@@ -955,6 +974,7 @@ impl Query {
         mod_item: &Rc<QueryMod>,
         base: &Item,
         local: &str,
+        used: Used,
     ) -> Result<Option<Item>, CompileError> {
         debug_assert!(base.starts_with(&mod_item.item));
 
@@ -967,7 +987,7 @@ impl Query {
                 return Ok(Some(item));
             }
 
-            if let Some(item) = self.get_import(mod_item, spanned, &item)? {
+            if let Some(item) = self.get_import(mod_item, spanned, &item, used)? {
                 return Ok(Some(item));
             }
 
@@ -989,8 +1009,9 @@ impl Query {
         mod_item: &Rc<QueryMod>,
         spanned: Span,
         item: &Item,
+        used: Used,
     ) -> Result<Option<Item>, QueryError> {
-        let mut visited = HashSet::new();
+        let mut visited = HashSet::<Item>::new();
         let mut path = Vec::new();
 
         let mut current = item.clone();
@@ -1005,72 +1026,99 @@ impl Query {
         loop {
             // already resolved query.
             if let Some(meta) = self.unit.lookup_meta(&current) {
-                current = meta.item.clone();
+                current = match &meta.kind {
+                    CompileMetaKind::Import { imported } => imported.clone(),
+                    _ => current,
+                };
+
                 matched = true;
                 matched_meta = Some(meta);
                 break;
             }
 
-            if let Some(entry) = self.imports.imports.get(&current).cloned() {
-                // resolve query.
-                if let Some(indexed) = self.indexed.remove(&current) {
-                    match indexed.indexed {
-                        Indexed::Import(..) => (),
-                        _ => {
-                            return Err(QueryError::new(
-                                spanned,
-                                QueryErrorKind::NotIndexedImport {
-                                    item: current.clone(),
-                                },
-                            ));
-                        }
-                    }
-                }
-
-                // NB: this happens when you have a superflous import, like:
-                // ```
-                // use std;
-                //
-                // std::option::Option::None
-                // ```
-                if entry.imported == current {
-                    break;
-                }
-
-                added.push(current.clone());
-
-                self.imports.check_access_to(
+            if visited.contains(&current) {
+                return Err(QueryError::new(
                     spanned,
-                    &*from,
-                    &mut chain,
-                    &entry.mod_item,
-                    entry.location,
-                    entry.visibility,
-                    &entry.name,
-                )?;
-
-                from = entry.mod_item.clone();
-                chain.push(entry.location);
-
-                path.push(ImportEntryStep {
-                    location: entry.location,
-                    visibility: entry.visibility,
-                    item: entry.name.clone(),
-                });
-
-                if !visited.insert(entry.imported.clone()) {
-                    return Err(QueryError::new(
-                        spanned,
-                        QueryErrorKind::ImportCycle { path },
-                    ));
-                }
-
-                matched = true;
-                current = entry.imported.clone();
-                continue;
+                    QueryErrorKind::ImportCycle { path },
+                ));
             }
 
-            break;
+            // resolve query.
+            let entry = match self.indexed.remove(&current) {
+                Some(entry) => match entry.indexed {
+                    Indexed::Import(entry) => entry.entry,
+                    indexed => {
+                        // NB: if we find another indexed entry, queue it up for
+                        // building and clone its built meta to the other
+                        // results.
+
+                        let entry = IndexedEntry {
+                            query_item: entry.query_item,
+                            source: entry.source,
+                            indexed,
+                        };
+
+                        let item = match self.imports.items_rev.get(&current) {
+                            Some(item) => item.clone(),
+                            None => {
+                                return Err(QueryError::new(
+                                    spanned,
+                                    QueryErrorKind::MissingRevItem { item: current },
+                                ))
+                            }
+                        };
+
+                        let meta = self.build_indexed_entry(spanned, &item, entry, used)?;
+
+                        self.unit
+                            .insert_meta(meta.clone())
+                            .map_err(|error| QueryError::new(spanned, error))?;
+
+                        matched = true;
+                        matched_meta = Some(meta);
+                        break;
+                    }
+                },
+                _ => {
+                    break;
+                }
+            };
+
+            self.imports.check_access_to(
+                spanned,
+                &*from,
+                &mut chain,
+                &entry.mod_item,
+                entry.location,
+                entry.visibility,
+                &entry.name,
+            )?;
+
+            added.push(current.clone());
+            let inserted = visited.insert(current.clone());
+            debug_assert!(inserted, "visited is checked just prior to this");
+            chain.push(entry.location);
+            path.push(ImportEntryStep {
+                location: entry.location,
+                visibility: entry.visibility,
+                item: entry.name.clone(),
+            });
+
+            from = entry.mod_item.clone();
+            matched = true;
+
+            // NB: this happens when you have a superflous import, like:
+            // ```
+            // use std;
+            //
+            // std::option::Option::None
+            // ```
+            if entry.imported == current {
+                println!("SUPERFLOUS IMPORT");
+                break;
+            }
+
+            current = entry.imported.clone();
         }
 
         if let Some(item) = self.imports.items_rev.get(&current) {
@@ -1089,10 +1137,22 @@ impl Query {
             if let Some(meta) = matched_meta {
                 for item in added {
                     self.unit
-                        .insert_meta(CompileMeta {
+                        .insert_meta_without_peripherals(CompileMeta {
                             item,
                             kind: meta.kind.clone(),
                             source: meta.source.clone(),
+                        })
+                        .map_err(|error| QueryError::new(spanned, error))?;
+                }
+            } else {
+                for item in added {
+                    self.unit
+                        .insert_meta_without_peripherals(CompileMeta {
+                            item,
+                            kind: CompileMetaKind::Import {
+                                imported: current.clone(),
+                            },
+                            source: None,
                         })
                         .map_err(|error| QueryError::new(spanned, error))?;
                 }
@@ -1143,19 +1203,25 @@ impl Indexed {
     /// Coerce into the kind of name that this indexed item is.
     fn as_name_kind(&self) -> NameKind {
         match self {
-            Self::Import(..) => NameKind::Use,
+            Self::Import(import) => {
+                if import.wildcard {
+                    NameKind::Wildcard
+                } else {
+                    NameKind::Use
+                }
+            }
             _ => NameKind::Other,
         }
     }
 }
 
 pub struct Import {
+    /// The import entry.
+    pub(crate) entry: ImportEntry,
     /// Indicates if the import is a wildcard or not.
     ///
     /// Wildcard imports do not cause unused warnings.
     pub(crate) wildcard: bool,
-    /// The target of the import.
-    pub(crate) target: Item,
 }
 
 pub struct Struct {

@@ -10,11 +10,6 @@ use std::rc::Rc;
 pub(crate) struct Imports {
     /// Prelude from the prelude.
     pub(super) prelude: HashMap<Box<str>, Item>,
-    /// All imports in the current unit.
-    ///
-    /// Only used to link against the current environment to make sure all
-    /// required units are present.
-    pub(super) imports: HashMap<Item, Rc<ImportEntry>>,
     /// All available names in the context.
     pub(super) names: Names<(NameKind, Location)>,
     /// Associated between `id` and `Item`. Use to look up items through
@@ -104,6 +99,7 @@ pub struct ImportEntry {
 
 #[derive(Debug)]
 pub(crate) enum NameKind {
+    Wildcard,
     Use,
     Other,
 }
