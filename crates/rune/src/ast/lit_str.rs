@@ -1,5 +1,7 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::{
+    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -7,10 +9,10 @@ use std::borrow::Cow;
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitStr {
     /// The token corresponding to the literal.
-    token: ast::Token,
+    pub token: ast::Token,
     /// The source of the literal string.
     #[rune(skip)]
-    source: ast::LitStrSource,
+    pub source: ast::LitStrSource,
 }
 
 impl LitStr {
@@ -35,6 +37,27 @@ impl LitStr {
         }
 
         Ok(buffer)
+    }
+}
+
+/// Parse a string literal.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::LitStr>("\"hello world\"");
+/// testing::roundtrip::<ast::LitStr>("\"hello\\nworld\"");
+/// ```
+impl Parse for LitStr {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let token = parser.token_next()?;
+
+        match token.kind {
+            ast::Kind::LitStr(source) => Ok(Self { token, source }),
+            _ => Err(ParseError::expected(token, "string literal")),
+        }
     }
 }
 
@@ -69,23 +92,10 @@ impl<'a> Resolve<'a> for LitStr {
     }
 }
 
-/// Parse a string literal.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::LitStr>("\"hello world\"");
-/// testing::roundtrip::<ast::LitStr>("\"hello\\nworld\"");
-/// ```
-impl Parse for LitStr {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
+impl ResolveOwned for LitStr {
+    type Owned = String;
 
-        match token.kind {
-            ast::Kind::LitStr(source) => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(token, "string literal")),
-        }
+    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+        Ok(self.resolve(storage, source)?.into_owned())
     }
 }

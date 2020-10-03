@@ -412,11 +412,10 @@ impl Module {
     }
 
     /// Register a native macro handler.
-    pub fn macro_<N, M, A, B, O>(&mut self, name: N, f: M) -> Result<(), ContextError>
+    pub fn macro_<N, M, A, O>(&mut self, name: N, f: M) -> Result<(), ContextError>
     where
-        M: 'static + Send + Sync + Copy + Fn(&mut A, &B) -> Result<O, crate::Error>,
+        M: 'static + Send + Sync + Copy + Fn(&A) -> Result<O, crate::Error>,
         A: any::Any,
-        B: any::Any,
         O: any::Any,
         N: IntoIterator,
         N::Item: IntoComponent,
@@ -427,28 +426,18 @@ impl Module {
             return Err(ContextError::ConflictingFunctionName { name });
         }
 
-        let handler: Arc<Macro> = Arc::new(move |a, b| {
-            let a = match a.downcast_mut::<A>() {
+        let handler: Arc<Macro> = Arc::new(move |a| {
+            let a = match a.downcast_ref::<A>() {
                 Some(a) => a,
                 None => {
                     return Err(crate::Error::msg(format!(
-                        "expected argument #0 `{}`",
+                        "expected argument #1 `{}`",
                         std::any::type_name::<A>()
                     )));
                 }
             };
 
-            let b = match b.downcast_ref::<B>() {
-                Some(b) => b,
-                None => {
-                    return Err(crate::Error::msg(format!(
-                        "expected argument #1 `{}`",
-                        std::any::type_name::<B>()
-                    )));
-                }
-            };
-
-            let output = f(a, b)?;
+            let output = f(a)?;
             Ok(Box::new(output))
         });
 

@@ -215,7 +215,7 @@ macro_rules! decl_tokens {
             }
 
             impl crate::ToTokens for $parser {
-                fn to_tokens(&self, _: &mut crate::MacroContext, stream: &mut crate::TokenStream) {
+                fn to_tokens(&self, _: &crate::MacroContext, stream: &mut crate::TokenStream) {
                     stream.push(self.token);
                 }
             }

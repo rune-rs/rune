@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
     pub(crate) storage: Storage,
-    pub(crate) macro_context: &'a mut MacroContext,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
     pub(crate) source: Arc<Source>,
@@ -53,8 +52,13 @@ impl MacroCompiler<'_> {
 
         let input_stream = &macro_call.stream;
 
-        self.macro_context.span = span;
-        let result = handler(self.macro_context, input_stream);
+        let macro_context = MacroContext {
+            source: self.source.clone(),
+            span,
+            storage: self.storage.clone(),
+        };
+
+        let result = crate::macros::with_context(macro_context, || handler(input_stream));
 
         let output = match result {
             Ok(output) => output,

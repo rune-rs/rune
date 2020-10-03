@@ -19,21 +19,21 @@ impl Storage {
     ///
     /// The number will be stored in this storage, and will be synthetic
     /// (rather than from the source).
-    pub fn insert_number<N>(&self, number: N) -> ast::Kind
+    pub fn insert_number<N>(&self, number: N) -> usize
     where
         ast::Number: From<N>,
     {
         let mut inner = self.inner.borrow_mut();
         let id = inner.numbers.len();
         inner.numbers.push(number.into());
-        ast::Kind::LitNumber(ast::NumberSource::Synthetic(id))
+        id
     }
 
     /// Insert the given text into storage and return its id.
     ///
     /// This will reuse old storage slots that already contains the given
     /// string.
-    pub fn insert_string(&self, string: &str) -> usize {
+    pub fn insert_str(&self, string: &str) -> usize {
         let mut inner = self.inner.borrow_mut();
 
         if let Some(id) = inner.strings_rev.get(string).copied() {
@@ -41,8 +41,26 @@ impl Storage {
         }
 
         let id = inner.strings.len();
-        inner.strings.push(string.to_string());
-        inner.strings_rev.insert(string.to_string(), id);
+        let string = string.to_owned();
+        inner.strings.push(string.clone());
+        inner.strings_rev.insert(string, id);
+        id
+    }
+
+    /// Insert the given owned string into storage and return its id.
+    ///
+    /// This will reuse old storage slots that already contains the given
+    /// string.
+    pub fn insert_string(&self, string: String) -> usize {
+        let mut inner = self.inner.borrow_mut();
+
+        if let Some(id) = inner.strings_rev.get(&string).copied() {
+            return id;
+        }
+
+        let id = inner.strings.len();
+        inner.strings.push(string.clone());
+        inner.strings_rev.insert(string, id);
         id
     }
 
@@ -63,10 +81,32 @@ impl Storage {
         id
     }
 
+    /// Get the content of the byte string with the specified id and apply the
+    /// given operation over it.
+    pub fn with_byte_string<F, O>(&self, id: usize, with: F) -> Option<O>
+    where
+        F: FnOnce(&[u8]) -> O,
+    {
+        let inner = self.inner.borrow();
+        let s = inner.byte_strings.get(id)?;
+        Some(with(s))
+    }
+
     /// Get the content of the string with the specified id.
     pub fn get_string(&self, id: usize) -> Option<String> {
         let inner = self.inner.borrow();
         inner.strings.get(id).cloned()
+    }
+
+    /// Get the content of the string with the specified id and apply the given
+    /// operation over it.
+    pub fn with_string<F, O>(&self, id: usize, with: F) -> Option<O>
+    where
+        F: FnOnce(&str) -> O,
+    {
+        let inner = self.inner.borrow();
+        let s = inner.strings.get(id)?;
+        Some(with(s))
     }
 
     /// Get the content of the byte string with the specified id.
@@ -79,6 +119,17 @@ impl Storage {
     pub fn get_number(&self, id: usize) -> Option<ast::Number> {
         let inner = self.inner.borrow();
         inner.numbers.get(id).cloned()
+    }
+
+    /// Get the content of the number with the specified id and apply the given
+    /// operation over it.
+    pub fn with_number<F, O>(&self, id: usize, with: F) -> Option<O>
+    where
+        F: FnOnce(&ast::Number) -> O,
+    {
+        let inner = self.inner.borrow();
+        let s = inner.numbers.get(id)?;
+        Some(with(s))
     }
 }
 

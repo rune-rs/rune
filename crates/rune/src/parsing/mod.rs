@@ -12,6 +12,6 @@ pub use self::parse::Parse;
 pub use self::parse_error::{ParseError, ParseErrorKind};
 pub use self::parser::Parser;
 pub use self::peek::Peek;
-pub use self::resolve::Resolve;
+pub use self::resolve::{Resolve, ResolveOwned};
 // TODO: remove re-export.
 pub use runestick::Id;

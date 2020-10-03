@@ -248,7 +248,7 @@ pub mod diagnostics;
 mod indexing;
 mod ir;
 mod load;
-mod macros;
+pub mod macros;
 mod options;
 mod parsing;
 mod query;
@@ -282,7 +282,9 @@ pub use self::load::{
 pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{MacroContext, Storage, ToTokens, TokenStream, TokenStreamIter};
 pub use self::options::Options;
-pub use self::parsing::{Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve};
+pub use self::parsing::{
+    Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, ResolveOwned,
+};
 pub use self::query::{QueryError, QueryErrorKind};
 pub use self::shared::{Location, ScopeError, ScopeErrorKind};
 pub use self::spanned::{OptionSpanned, Spanned};

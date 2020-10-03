@@ -75,6 +75,13 @@ impl UnitBuilder {
             Item::of(&["std", "option", "Option", "None"]),
         );
 
+        this.prelude
+            .insert("stringify".into(), Item::of(&["std", "core", "stringify"]));
+        this.prelude
+            .insert("assert".into(), Item::of(&["std", "test", "assert"]));
+        this.prelude
+            .insert("assert_eq".into(), Item::of(&["std", "test", "assert_eq"]));
+
         Self {
             inner: Rc::new(RefCell::new(this)),
         }

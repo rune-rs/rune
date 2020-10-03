@@ -8,7 +8,7 @@ fn main() {
     let other = bytes.clone();
     bytes.extend(other);
 
-    assert(bytes is Bytes, "bytes should be bytes");
+    assert!(bytes is Bytes, "bytes should be bytes");
     dbg(bytes);
 
     let vec = bytes.into_vec();

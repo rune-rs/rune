@@ -1,5 +1,7 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::{
+    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+};
 use runestick::Source;
 
 /// A character literal.
@@ -84,5 +86,13 @@ impl<'a> Resolve<'a> for LitChar {
         }
 
         Ok(c)
+    }
+}
+
+impl ResolveOwned for LitChar {
+    type Owned = char;
+
+    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+        Ok(self.resolve(storage, source)?)
     }
 }

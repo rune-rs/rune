@@ -1,5 +1,8 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, Spanned, Storage, ToTokens};
+use crate::{
+    Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, ResolveOwned, Spanned, Storage,
+    ToTokens,
+};
 use runestick::Source;
 use std::borrow::Cow;
 
@@ -63,5 +66,13 @@ impl<'a> Resolve<'a> for Label {
                 Ok(Cow::Owned(ident))
             }
         }
+    }
+}
+
+impl ResolveOwned for Label {
+    type Owned = String;
+
+    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+        Ok(self.resolve(storage, source)?.into_owned())
     }
 }

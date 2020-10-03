@@ -15,5 +15,4 @@ pub mod option;
 pub mod result;
 pub mod stream;
 pub mod string;
-pub mod test;
 pub mod vec;
