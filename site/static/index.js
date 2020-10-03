@@ -12,6 +12,7 @@ window.onload = () => {
         let runOnChange = rune.getAttribute("rune-run-on-change") === "true";
         let options = parseOptions(rune.getAttribute("rune-options") || "");
         let experimental = rune.getAttribute("rune-experimental") === "true";
+        let config = parseConfig(rune.getAttribute("rune-config"));
 
         let opts = {
             budget,
@@ -20,7 +21,8 @@ window.onload = () => {
             updateUrl,
             runOnChange,
             options,
-            experimental
+            experimental,
+            config,
         };
 
         editors.push(setupEditor(rune, opts));
@@ -45,6 +47,15 @@ function parseOptions(options) {
     }
 
     return output;
+}
+
+function parseConfig(config) {
+    if (!config) {
+        return {};
+    }
+
+    console.log(config);
+    return JSON.parse(config);
 }
 
 function filterPrelude(input) {
@@ -160,6 +171,7 @@ function setupEditor(element, opts) {
             options: opts.options,
             experimental: opts.experimental,
             instructions: !!(instructionsCheckbox && instructionsCheckbox.checked),
+            ...opts.config,
         };
 
         let result = null;

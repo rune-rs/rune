@@ -87,6 +87,9 @@ struct Config {
     /// Show instructions.
     #[serde(default)]
     instructions: bool,
+    /// Suppress text warnings.
+    #[serde(default)]
+    suppress_text_warnings: bool,
 }
 
 #[derive(Serialize)]
@@ -221,9 +224,11 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
 
     let mut writer = rune::termcolor::Buffer::no_color();
 
-    warnings
-        .emit_diagnostics(&mut writer, &sources)
-        .context("emitting to buffer should never fail")?;
+    if !config.suppress_text_warnings {
+        warnings
+            .emit_diagnostics(&mut writer, &sources)
+            .context("emitting to buffer should never fail")?;
+    }
 
     let unit = match result {
         Ok(unit) => Arc::new(unit),

@@ -4,6 +4,8 @@
     rune-run-button="{% if run %}true{% else %}false{% endif %}""
     rune-options="{% if options %}{{options}}{% endif %}""
     rune-experimental="{% if experimental %}true{% else %}false{% endif %}""
+    rune-instructions="{% if instructions %}{{instructions}}{% endif %}""
+    rune-config="{% if rune_config %}{{rune_config}}{% endif %}""
     >
     <div class="rune-editor">{{body | safe}}</div>
     <div class="rune-console">
