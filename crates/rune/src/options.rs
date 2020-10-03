@@ -95,7 +95,7 @@ impl Default for Options {
             link_checks: true,
             memoize_instance_fn: true,
             debug_info: true,
-            macros: false,
+            macros: true,
             bytecode: false,
         }
     }

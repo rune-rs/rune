@@ -2,7 +2,7 @@ use crate::ast;
 use crate::collections::HashMap;
 use crate::indexing::{IndexFnKind, IndexScopes, Visibility};
 use crate::load::{SourceLoader, Sources};
-use crate::macros::{MacroCompiler, MacroContext};
+use crate::macros::MacroCompiler;
 use crate::parsing::Parse;
 use crate::query::{
     Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query, QueryMod, Used,
@@ -60,11 +60,8 @@ impl<'a> Indexer<'a> {
                 .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
         ast.path.id = Some(id);
 
-        let mut macro_context = MacroContext::new(self.query.storage.clone(), self.source.clone());
-
         let mut compiler = MacroCompiler {
             storage: self.query.storage.clone(),
-            macro_context: &mut macro_context,
             options: self.options,
             context: self.context,
             source: self.source.clone(),

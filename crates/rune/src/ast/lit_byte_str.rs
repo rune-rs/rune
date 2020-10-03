@@ -1,5 +1,7 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::{
+    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -7,10 +9,10 @@ use std::borrow::Cow;
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitByteStr {
     /// The token corresponding to the literal.
-    token: ast::Token,
+    pub token: ast::Token,
     /// If the string literal is escaped.
     #[rune(skip)]
-    source: ast::LitStrSource,
+    pub source: ast::LitStrSource,
 }
 
 impl LitByteStr {
@@ -34,6 +36,27 @@ impl LitByteStr {
         }
 
         Ok(buffer)
+    }
+}
+
+/// Parse a string literal.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::LitByteStr>("b\"hello world\"");
+/// testing::roundtrip::<ast::LitByteStr>("b\"hello\\nworld\"");
+/// ```
+impl Parse for LitByteStr {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let token = parser.token_next()?;
+
+        match token.kind {
+            ast::Kind::LitByteStr(source) => Ok(Self { token, source }),
+            _ => Err(ParseError::expected(token, "literal byte string")),
+        }
     }
 }
 
@@ -73,23 +96,10 @@ impl<'a> Resolve<'a> for LitByteStr {
     }
 }
 
-/// Parse a string literal.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::LitByteStr>("b\"hello world\"");
-/// testing::roundtrip::<ast::LitByteStr>("b\"hello\\nworld\"");
-/// ```
-impl Parse for LitByteStr {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
+impl ResolveOwned for LitByteStr {
+    type Owned = Vec<u8>;
 
-        match token.kind {
-            ast::Kind::LitByteStr(source) => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(token, "literal byte string")),
-        }
+    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+        Ok(self.resolve(storage, source)?.into_owned())
     }
 }

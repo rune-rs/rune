@@ -99,9 +99,8 @@ pub enum ContextError {
 pub(crate) type Handler = dyn Fn(&mut Stack, usize) -> Result<(), VmError> + Send + Sync;
 
 /// A (type erased) macro handler.
-pub(crate) type Macro = dyn Fn(&mut dyn any::Any, &dyn any::Any) -> Result<Box<dyn any::Any>, crate::Error>
-    + Send
-    + Sync;
+pub(crate) type Macro =
+    dyn Fn(&dyn any::Any) -> Result<Box<dyn any::Any>, crate::Error> + Send + Sync;
 
 /// Information on a specific type.
 #[derive(Debug, Clone)]
@@ -252,7 +251,6 @@ impl Context {
         this.install(&crate::modules::string::module()?)?;
         this.install(&crate::modules::int::module()?)?;
         this.install(&crate::modules::float::module()?)?;
-        this.install(&crate::modules::test::module()?)?;
         this.install(&crate::modules::iter::module()?)?;
         this.install(&crate::modules::vec::module()?)?;
         this.install(&crate::modules::object::module()?)?;

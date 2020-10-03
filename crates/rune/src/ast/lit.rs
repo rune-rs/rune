@@ -29,6 +29,18 @@ pub enum Lit {
 }
 
 impl Lit {
+    /// Construct a new literal.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if it's called outside of a macro context.
+    pub fn new<T>(lit: T) -> Self
+    where
+        T: crate::macros::IntoLit,
+    {
+        crate::macros::current_context(|ctx| ctx.lit(lit))
+    }
+
     /// Test if this is an immediate literal in an expression.
     ///
     /// Here we only test for unambiguous literals which will not be caused by

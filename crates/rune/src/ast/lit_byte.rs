@@ -1,5 +1,7 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::{
+    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+};
 use runestick::Source;
 
 /// A byte literal.
@@ -90,5 +92,13 @@ impl<'a> Resolve<'a> for LitByte {
         }
 
         Ok(c)
+    }
+}
+
+impl ResolveOwned for LitByte {
+    type Owned = u8;
+
+    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+        Ok(self.resolve(storage, source)?)
     }
 }

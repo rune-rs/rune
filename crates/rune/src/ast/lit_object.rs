@@ -1,5 +1,8 @@
-use crate::{ast, Peek};
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::ast;
+use crate::{
+    Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, ResolveOwned, Spanned, Storage,
+    ToTokens,
+};
 use runestick::Source;
 use std::borrow::Cow;
 
@@ -143,6 +146,20 @@ impl Parse for LitObjectKey {
     }
 }
 
+/// A tag object to help peeking for anonymous object case to help
+/// differentiate anonymous objects and attributes when parsing block
+/// expressions.
+pub struct AnonymousLitObject;
+
+impl Peek for AnonymousLitObject {
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
+        matches!(
+            (peek!(t1).kind, peek!(t2).kind),
+            (ast::Kind::Pound, ast::Kind::Open(ast::Delimiter::Brace))
+        )
+    }
+}
+
 impl<'a> Resolve<'a> for LitObjectKey {
     type Output = Cow<'a, str>;
 
@@ -160,16 +177,10 @@ impl<'a> Resolve<'a> for LitObjectKey {
     }
 }
 
-/// A tag object to help peeking for anonymous object case to help
-/// differentiate anonymous objects and attributes when parsing block
-/// expressions.
-pub struct AnonymousLitObject;
+impl ResolveOwned for LitObjectKey {
+    type Owned = String;
 
-impl Peek for AnonymousLitObject {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        matches!(
-            (peek!(t1).kind, peek!(t2).kind),
-            (ast::Kind::Pound, ast::Kind::Open(ast::Delimiter::Brace))
-        )
+    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+        Ok(self.resolve(storage, source)?.into_owned())
     }
 }

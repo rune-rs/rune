@@ -1,15 +1,17 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::{
+    Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
+};
 use runestick::{Source, Span};
 
 /// A number literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct LitNumber {
     /// The token corresponding to the literal.
-    token: ast::Token,
+    pub token: ast::Token,
     /// The source of the number.
     #[rune(skip)]
-    source: ast::NumberSource,
+    pub source: ast::NumberSource,
 }
 
 /// Parse a number literal.
@@ -79,5 +81,13 @@ impl<'a> Resolve<'a> for LitNumber {
         fn err_span<E>(span: Span) -> impl Fn(E) -> ParseError {
             move |_| ParseError::new(span, ParseErrorKind::BadNumberLiteral)
         }
+    }
+}
+
+impl ResolveOwned for LitNumber {
+    type Owned = ast::Number;
+
+    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+        self.resolve(storage, source)
     }
 }

@@ -7,371 +7,389 @@
 /// * Labels, which must be created using [crate::MacroContext::label].
 /// * Template strings, which must be created using [crate::MacroContext::template_string].
 ///
-/// ## Interpolating values
+/// # Panics
+///
+/// Calling this macro will panic if called outside of a macro context.
+/// A macro context can be setup using [with_context](crate::macros::with_context).
+///
+/// ```rust
+/// use rune::macros::{with_context, MacroContext};
+/// let ctx = MacroContext::empty();
+///
+/// with_context(ctx, || {
+///     rune::quote!(hello self);
+/// });
+/// ```
+///
+/// # Interpolating values
 ///
 /// Values are interpolated with `#value`, or `#(value + 1)` for expressions.
 ///
-/// ## Iterators
+/// # Iterators
 ///
 /// Anything that can be used as an iterator can be iterated over with
 /// `#(iter)*`. A token can also be used to join inbetween each iteration, like
 /// `#(iter),*`.
 #[macro_export]
 macro_rules! quote {
-    ($ctx:expr => $($tt:tt)*) => {{
-        let mut stream = $ctx.token_stream();
+    ($($tt:tt)*) => {{
+        let mut stream = $crate::macros::TokenStream::empty();
 
         {
             let stream = &mut stream;
-            $crate::quote!(@push $ctx, stream => $($tt)*);
+            $crate::__quote_inner!(@push stream => $($tt)*);
         }
 
         stream
     }};
+}
 
-    (@wrap $ctx:expr, $s:expr, $variant:ident => $($tt:tt)*) => {{
-        $crate::ToTokens::to_tokens(&$crate::ast::Kind::Open($crate::ast::Delimiter::$variant), $ctx, $s);
-        $crate::quote!(@push $ctx, $s => $($tt)*);
-        $crate::ToTokens::to_tokens(&$crate::ast::Kind::Close($crate::ast::Delimiter::$variant), $ctx, $s);
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __quote_inner {
+    (@wrap $s:expr, $variant:ident => $($tt:tt)*) => {{
+        $crate::macros::to_tokens(&$crate::ast::Kind::Open($crate::ast::Delimiter::$variant), $s);
+        $crate::__quote_inner!(@push $s => $($tt)*);
+        $crate::macros::to_tokens(&$crate::ast::Kind::Close($crate::ast::Delimiter::$variant), $s);
     }};
 
-    (@token $ctx:expr, $s:expr, $variant:ident => $($tt:tt)*) => {{
-        $crate::ToTokens::to_tokens(&$crate::ast::Kind::$variant, $ctx, $s);
-        $crate::quote!(@push $ctx, $s => $($tt)*);
+    (@token $s:expr, $variant:ident => $($tt:tt)*) => {{
+        $crate::macros::to_tokens(&$crate::ast::Kind::$variant, $s);
+        $crate::__quote_inner!(@push $s => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => #$var:ident $($tt:tt)*) => {{
-        $crate::ToTokens::to_tokens(&$var, $ctx, $s);
-        $crate::quote!(@push $ctx, $s => $($tt)*);
+    (@push $s:expr => #$var:ident $($tt:tt)*) => {{
+        $crate::macros::to_tokens(&$var, $s);
+        $crate::__quote_inner!(@push $s => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => #($expr:expr) $repeat:tt * $($tt:tt)*) => {{
+    (@push $s:expr => #($expr:expr) $repeat:tt * $($tt:tt)*) => {{
         let mut it = std::iter::IntoIterator::into_iter($expr).peekable();
 
         while let Some(v) = it.next() {
-            $crate::ToTokens::to_tokens(&v, $ctx, $s);
+            $crate::macros::to_tokens(&v, $s);
 
             if it.peek().is_some() {
-                $crate::quote!(@push $ctx, $s => $repeat);
+                $crate::__quote_inner!(@push $s => $repeat);
             }
         }
 
-        $crate::quote!(@push $ctx, $s => $($tt)*);
+        $crate::__quote_inner!(@push $s => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => #($expr:expr)* $($tt:tt)*) => {{
+    (@push $s:expr => #($expr:expr)* $($tt:tt)*) => {{
         for v in $expr {
-            $crate::ToTokens::to_tokens(&v, $ctx, $s);
+            $crate::macros::to_tokens(&v, $s);
         }
 
-        $crate::quote!(@push $ctx, $s => $($tt)*);
+        $crate::__quote_inner!(@push $s => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => self $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, SelfValue => $($tt)*);
+    (@push $s:expr => self $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, SelfValue => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => macro $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Macro => $($tt)*);
+    (@push $s:expr => macro $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Macro => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => fn $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Fn => $($tt)*);
+    (@push $s:expr => fn $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Fn => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => enum $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Enum => $($tt)*);
+    (@push $s:expr => enum $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Enum => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => struct $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Struct => $($tt)*);
+    (@push $s:expr => struct $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Struct => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => is $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Is => $($tt)*);
+    (@push $s:expr => is $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Is => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => not $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Not => $($tt)*);
+    (@push $s:expr => not $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Not => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => let $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Let => $($tt)*);
+    (@push $s:expr => let $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Let => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => if $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, If => $($tt)*);
+    (@push $s:expr => if $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, If => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => match $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Match => $($tt)*);
+    (@push $s:expr => match $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Match => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => else $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Else => $($tt)*);
+    (@push $s:expr => else $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Else => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => use $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Use => $($tt)*);
+    (@push $s:expr => use $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Use => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => while $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, While => $($tt)*);
+    (@push $s:expr => while $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, While => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => loop $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Loop => $($tt)*);
+    (@push $s:expr => loop $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Loop => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => for $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, For => $($tt)*);
+    (@push $s:expr => for $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, For => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => in $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, In => $($tt)*);
+    (@push $s:expr => in $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, In => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => true $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, True => $($tt)*);
+    (@push $s:expr => true $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, True => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => false $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, False => $($tt)*);
+    (@push $s:expr => false $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, False => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => break $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Break => $($tt)*);
+    (@push $s:expr => break $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Break => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => yield $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Yield => $($tt)*);
+    (@push $s:expr => yield $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Yield => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => return $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Return => $($tt)*);
+    (@push $s:expr => return $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Return => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => await $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Await => $($tt)*);
+    (@push $s:expr => await $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Await => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => async $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Async => $($tt)*);
+    (@push $s:expr => async $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Async => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => select $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Select => $($tt)*);
+    (@push $s:expr => select $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Select => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => default $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Default => $($tt)*);
+    (@push $s:expr => default $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Default => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => impl $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Impl => $($tt)*);
+    (@push $s:expr => impl $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Impl => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => mod $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Mod => $($tt)*);
+    (@push $s:expr => mod $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Mod => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => # $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Pound => $($tt)*);
+    (@push $s:expr => # $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Pound => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => . $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Dot => $($tt)*);
+    (@push $s:expr => . $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Dot => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => :: $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, ColonColon => $($tt)*);
+    (@push $s:expr => :: $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, ColonColon => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => _ $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Underscore => $($tt)*);
+    (@push $s:expr => _ $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Underscore => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => , $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Comma => $($tt)*);
+    (@push $s:expr => , $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Comma => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => : $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Colon => $($tt)*);
+    (@push $s:expr => : $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Colon => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => ; $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, SemiColon => $($tt)*);
+    (@push $s:expr => ; $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, SemiColon => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => + $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Plus => $($tt)*);
+    (@push $s:expr => + $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Plus => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => - $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Dash => $($tt)*);
+    (@push $s:expr => - $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Dash => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => / $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Div => $($tt)*);
+    (@push $s:expr => / $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Div => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => * $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Star => $($tt)*);
+    (@push $s:expr => * $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Star => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => & $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Amp => $($tt)*);
+    (@push $s:expr => & $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Amp => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => = $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Eq => $($tt)*);
+    (@push $s:expr => = $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Eq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => == $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, EqEq => $($tt)*);
+    (@push $s:expr => == $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, EqEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => != $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, BangEq => $($tt)*);
+    (@push $s:expr => != $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, BangEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => => $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Rocket => $($tt)*);
+    (@push $s:expr => => $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Rocket => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => < $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Lt => $($tt)*);
+    (@push $s:expr => < $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Lt => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => > $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Gt => $($tt)*);
+    (@push $s:expr => > $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Gt => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => <= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, LtEq => $($tt)*);
+    (@push $s:expr => <= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, LtEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => >= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, GtEq => $($tt)*);
+    (@push $s:expr => >= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, GtEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => ! $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Bang => $($tt)*);
+    (@push $s:expr => ! $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Bang => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => ? $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, QuestionMark => $($tt)*);
+    (@push $s:expr => ? $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, QuestionMark => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => .. $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, DotDot => $($tt)*);
+    (@push $s:expr => .. $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, DotDot => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => && $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, AmpAmp => $($tt)*);
+    (@push $s:expr => && $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, AmpAmp => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => || $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, PipePipe => $($tt)*);
+    (@push $s:expr => || $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, PipePipe => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => | $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Pipe => $($tt)*);
+    (@push $s:expr => | $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Pipe => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => % $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Perc => $($tt)*);
+    (@push $s:expr => % $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Perc => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => << $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, LtLt => $($tt)*);
+    (@push $s:expr => << $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, LtLt => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => >> $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, GtGt => $($tt)*);
+    (@push $s:expr => >> $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, GtGt => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => ^ $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, Caret => $($tt)*);
+    (@push $s:expr => ^ $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, Caret => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => += $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, PlusEq => $($tt)*);
+    (@push $s:expr => += $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, PlusEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => -= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, DashEq => $($tt)*);
+    (@push $s:expr => -= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, DashEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => *= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, StarEq => $($tt)*);
+    (@push $s:expr => *= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, StarEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => /= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, SlashEq => $($tt)*);
+    (@push $s:expr => /= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, SlashEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => %= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, PercEq => $($tt)*);
+    (@push $s:expr => %= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, PercEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => %= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, PercEq => $($tt)*);
+    (@push $s:expr => %= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, PercEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => &= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, AmpEq => $($tt)*);
+    (@push $s:expr => &= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, AmpEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => ^= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, CaretEq => $($tt)*);
+    (@push $s:expr => ^= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, CaretEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => |= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, PipeEq => $($tt)*);
+    (@push $s:expr => |= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, PipeEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => <<= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, LtLtEq => $($tt)*);
+    (@push $s:expr => <<= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, LtLtEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => >>= $($tt:tt)*) => {{
-        $crate::quote!(@token $ctx, $s, GtGtEq => $($tt)*);
+    (@push $s:expr => >>= $($tt:tt)*) => {{
+        $crate::__quote_inner!(@token $s, GtGtEq => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => { $($tt:tt)* } $($rest:tt)*) => {{
-        $crate::quote!(@wrap $ctx, $s, Brace => $($tt)*);
-        $crate::quote!(@push $ctx, $s => $($rest)*);
+    (@push $s:expr => { $($tt:tt)* } $($rest:tt)*) => {{
+        $crate::__quote_inner!(@wrap $s, Brace => $($tt)*);
+        $crate::__quote_inner!(@push $s => $($rest)*);
     }};
 
-    (@push $ctx:expr, $s:expr => [ $($tt:tt)* ] $($rest:tt)*) => {{
-        $crate::quote!(@wrap $ctx, $s, Bracket => $($tt)*);
-        $crate::quote!(@push $ctx, $s => $($rest)*);
+    (@push $s:expr => [ $($tt:tt)* ] $($rest:tt)*) => {{
+        $crate::__quote_inner!(@wrap $s, Bracket => $($tt)*);
+        $crate::__quote_inner!(@push $s => $($rest)*);
     }};
 
-    (@push $ctx:expr, $s:expr => ( $($tt:tt)* ) $($rest:tt)*) => {{
-        $crate::quote!(@wrap $ctx, $s, Parenthesis => $($tt)*);
-        $crate::quote!(@push $ctx, $s => $($rest)*);
+    (@push $s:expr => ( $($tt:tt)* ) $($rest:tt)*) => {{
+        $crate::__quote_inner!(@wrap $s, Parenthesis => $($tt)*);
+        $crate::__quote_inner!(@push $s => $($rest)*);
     }};
 
-    (@push $ctx:expr, $s:expr => ( $($tt:tt)* ) $($rest:tt)*) => {{
-        $crate::quote!(@wrap $ctx, $s, Parenthesis => $($tt)*);
-        $crate::quote!(@push $ctx, $s => $($rest)*);
+    (@push $s:expr => ( $($tt:tt)* ) $($rest:tt)*) => {{
+        $crate::__quote_inner!(@wrap $s, Parenthesis => $($tt)*);
+        $crate::__quote_inner!(@push $s => $($rest)*);
     }};
 
-    (@push $ctx:expr, $s:expr => $ident:ident $($tt:tt)*) => {{
-        let kind = $ctx.ident(stringify!($ident));
-        $crate::ToTokens::to_tokens(&kind, $ctx, $s);
-        $crate::quote!(@push $ctx, $s => $($tt)*);
+    (@push $s:expr => $ident:ident $($tt:tt)*) => {{
+        let kind = $crate::ast::Ident::new(stringify!($ident));
+        $crate::macros::to_tokens(&kind, $s);
+        $crate::__quote_inner!(@push $s => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr => $lit:literal $($tt:tt)*) => {{
-        let token = $ctx.lit($lit);
-        $crate::ToTokens::to_tokens(&token, $ctx, $s);
-        $crate::quote!(@push $ctx, $s => $($tt)*);
+    (@push $s:expr => $lit:literal $($tt:tt)*) => {{
+        let token = $crate::ast::Lit::new($lit);
+        $crate::macros::to_tokens(&token, $s);
+        $crate::__quote_inner!(@push $s => $($tt)*);
     }};
 
-    (@push $ctx:expr, $s:expr =>) => {};
+    (@push $s:expr =>) => {};
 }
 
 #[cfg(test)]
@@ -390,136 +408,140 @@ mod tests {
 
     #[test]
     fn test_tokens() {
-        let ctx = &mut MacroContext::empty();
+        let ctx = MacroContext::empty();
 
-        assert_eq!(vec![token(SelfValue)], quote!(ctx => self));
-        assert_eq!(vec![token(Macro)], quote!(ctx => macro));
-        assert_eq!(vec![token(Fn)], quote!(ctx => fn));
-        assert_eq!(vec![token(Enum)], quote!(ctx => enum));
-        assert_eq!(vec![token(Struct)], quote!(ctx => struct));
-        assert_eq!(vec![token(Is)], quote!(ctx => is));
-        assert_eq!(vec![token(Not)], quote!(ctx => not));
-        assert_eq!(vec![token(Let)], quote!(ctx => let));
-        assert_eq!(vec![token(If)], quote!(ctx => if));
-        assert_eq!(vec![token(Match)], quote!(ctx => match));
-        assert_eq!(vec![token(Else)], quote!(ctx => else));
-        assert_eq!(vec![token(Use)], quote!(ctx => use));
-        assert_eq!(vec![token(While)], quote!(ctx => while));
-        assert_eq!(vec![token(Loop)], quote!(ctx => loop));
-        assert_eq!(vec![token(For)], quote!(ctx => for));
-        assert_eq!(vec![token(In)], quote!(ctx => in));
-        assert_eq!(vec![token(True)], quote!(ctx => true));
-        assert_eq!(vec![token(False)], quote!(ctx => false));
-        assert_eq!(vec![token(Break)], quote!(ctx => break));
-        assert_eq!(vec![token(Yield)], quote!(ctx => yield));
-        assert_eq!(vec![token(Return)], quote!(ctx => return));
-        assert_eq!(vec![token(Await)], quote!(ctx => await));
-        assert_eq!(vec![token(Async)], quote!(ctx => async));
-        assert_eq!(vec![token(Select)], quote!(ctx => select));
-        assert_eq!(vec![token(Default)], quote!(ctx => default));
-        assert_eq!(vec![token(Impl)], quote!(ctx => impl));
-        assert_eq!(vec![token(Mod)], quote!(ctx => mod));
-        assert_eq!(vec![token(Pound)], quote!(ctx => #));
-        assert_eq!(vec![token(Dot)], quote!(ctx => .));
-        assert_eq!(vec![token(ColonColon)], quote!(ctx => ::));
-        assert_eq!(vec![token(Underscore)], quote!(ctx => _));
-        assert_eq!(vec![token(Comma)], quote!(ctx => ,));
-        assert_eq!(vec![token(Colon)], quote!(ctx => :));
-        assert_eq!(vec![token(SemiColon)], quote!(ctx => ;));
-        assert_eq!(vec![token(Plus)], quote!(ctx => +));
-        assert_eq!(vec![token(Dash)], quote!(ctx => -));
-        assert_eq!(vec![token(Div)], quote!(ctx => /));
-        assert_eq!(vec![token(Star)], quote!(ctx => *));
-        assert_eq!(vec![token(Amp)], quote!(ctx => &));
-        assert_eq!(vec![token(Eq)], quote!(ctx => =));
-        assert_eq!(vec![token(EqEq)], quote!(ctx => ==));
-        assert_eq!(vec![token(BangEq)], quote!(ctx => !=));
-        assert_eq!(vec![token(Rocket)], quote!(ctx => =>));
-        assert_eq!(vec![token(Lt)], quote!(ctx => <));
-        assert_eq!(vec![token(Gt)], quote!(ctx => >));
-        assert_eq!(vec![token(LtEq)], quote!(ctx => <=));
-        assert_eq!(vec![token(GtEq)], quote!(ctx => >=));
-        assert_eq!(vec![token(Bang)], quote!(ctx => !));
-        assert_eq!(vec![token(QuestionMark)], quote!(ctx => ?));
-        assert_eq!(vec![token(DotDot)], quote!(ctx => ..));
-        assert_eq!(vec![token(AmpAmp)], quote!(ctx => &&));
-        assert_eq!(vec![token(PipePipe)], quote!(ctx => ||));
-        assert_eq!(vec![token(Pipe)], quote!(ctx => |));
-        assert_eq!(vec![token(Perc)], quote!(ctx => %));
-        assert_eq!(vec![token(LtLt)], quote!(ctx => <<));
-        assert_eq!(vec![token(GtGt)], quote!(ctx => >>));
-        assert_eq!(vec![token(Caret)], quote!(ctx => ^));
-        assert_eq!(vec![token(PlusEq)], quote!(ctx => +=));
-        assert_eq!(vec![token(DashEq)], quote!(ctx => -=));
-        assert_eq!(vec![token(StarEq)], quote!(ctx => *=));
-        assert_eq!(vec![token(SlashEq)], quote!(ctx => /=));
-        assert_eq!(vec![token(PercEq)], quote!(ctx => %=));
-        assert_eq!(vec![token(AmpEq)], quote!(ctx => &=));
-        assert_eq!(vec![token(CaretEq)], quote!(ctx => ^=));
-        assert_eq!(vec![token(PipeEq)], quote!(ctx => |=));
-        assert_eq!(vec![token(LtLtEq)], quote!(ctx => <<=));
-        assert_eq!(vec![token(GtGtEq)], quote!(ctx => >>=));
+        crate::macros::with_context(ctx, || {
+            assert_eq!(vec![token(SelfValue)], quote!(self));
+            assert_eq!(vec![token(Macro)], quote!(macro));
+            assert_eq!(vec![token(Fn)], quote!(fn));
+            assert_eq!(vec![token(Enum)], quote!(enum));
+            assert_eq!(vec![token(Struct)], quote!(struct));
+            assert_eq!(vec![token(Is)], quote!(is));
+            assert_eq!(vec![token(Not)], quote!(not));
+            assert_eq!(vec![token(Let)], quote!(let));
+            assert_eq!(vec![token(If)], quote!(if));
+            assert_eq!(vec![token(Match)], quote!(match));
+            assert_eq!(vec![token(Else)], quote!(else));
+            assert_eq!(vec![token(Use)], quote!(use));
+            assert_eq!(vec![token(While)], quote!(while));
+            assert_eq!(vec![token(Loop)], quote!(loop));
+            assert_eq!(vec![token(For)], quote!(for));
+            assert_eq!(vec![token(In)], quote!(in));
+            assert_eq!(vec![token(True)], quote!(true));
+            assert_eq!(vec![token(False)], quote!(false));
+            assert_eq!(vec![token(Break)], quote!(break));
+            assert_eq!(vec![token(Yield)], quote!(yield));
+            assert_eq!(vec![token(Return)], quote!(return));
+            assert_eq!(vec![token(Await)], quote!(await));
+            assert_eq!(vec![token(Async)], quote!(async));
+            assert_eq!(vec![token(Select)], quote!(select));
+            assert_eq!(vec![token(Default)], quote!(default));
+            assert_eq!(vec![token(Impl)], quote!(impl));
+            assert_eq!(vec![token(Mod)], quote!(mod));
+            assert_eq!(vec![token(Pound)], quote!(#));
+            assert_eq!(vec![token(Dot)], quote!(.));
+            assert_eq!(vec![token(ColonColon)], quote!(::));
+            assert_eq!(vec![token(Underscore)], quote!(_));
+            assert_eq!(vec![token(Comma)], quote!(,));
+            assert_eq!(vec![token(Colon)], quote!(:));
+            assert_eq!(vec![token(SemiColon)], quote!(;));
+            assert_eq!(vec![token(Plus)], quote!(+));
+            assert_eq!(vec![token(Dash)], quote!(-));
+            assert_eq!(vec![token(Div)], quote!(/));
+            assert_eq!(vec![token(Star)], quote!(*));
+            assert_eq!(vec![token(Amp)], quote!(&));
+            assert_eq!(vec![token(Eq)], quote!(=));
+            assert_eq!(vec![token(EqEq)], quote!(==));
+            assert_eq!(vec![token(BangEq)], quote!(!=));
+            assert_eq!(vec![token(Rocket)], quote!(=>));
+            assert_eq!(vec![token(Lt)], quote!(<));
+            assert_eq!(vec![token(Gt)], quote!(>));
+            assert_eq!(vec![token(LtEq)], quote!(<=));
+            assert_eq!(vec![token(GtEq)], quote!(>=));
+            assert_eq!(vec![token(Bang)], quote!(!));
+            assert_eq!(vec![token(QuestionMark)], quote!(?));
+            assert_eq!(vec![token(DotDot)], quote!(..));
+            assert_eq!(vec![token(AmpAmp)], quote!(&&));
+            assert_eq!(vec![token(PipePipe)], quote!(||));
+            assert_eq!(vec![token(Pipe)], quote!(|));
+            assert_eq!(vec![token(Perc)], quote!(%));
+            assert_eq!(vec![token(LtLt)], quote!(<<));
+            assert_eq!(vec![token(GtGt)], quote!(>>));
+            assert_eq!(vec![token(Caret)], quote!(^));
+            assert_eq!(vec![token(PlusEq)], quote!(+=));
+            assert_eq!(vec![token(DashEq)], quote!(-=));
+            assert_eq!(vec![token(StarEq)], quote!(*=));
+            assert_eq!(vec![token(SlashEq)], quote!(/=));
+            assert_eq!(vec![token(PercEq)], quote!(%=));
+            assert_eq!(vec![token(AmpEq)], quote!(&=));
+            assert_eq!(vec![token(CaretEq)], quote!(^=));
+            assert_eq!(vec![token(PipeEq)], quote!(|=));
+            assert_eq!(vec![token(LtLtEq)], quote!(<<=));
+            assert_eq!(vec![token(GtGtEq)], quote!(>>=));
+        });
     }
 
     #[test]
     fn test_synthetic() {
-        let ctx = &mut MacroContext::empty();
+        let ctx = MacroContext::empty();
 
-        assert_eq!(
-            vec![token(Ident(StringSource::Synthetic(0)))],
-            quote!(ctx => hello)
-        );
-        assert_eq!(
-            vec![token(LitByteStr(LitStrSource::Synthetic(0)))],
-            quote!(ctx => b"hello")
-        );
-        assert_eq!(
-            vec![token(LitStr(LitStrSource::Synthetic(0)))],
-            quote!(ctx => "hello")
-        );
-        assert_eq!(
-            vec![token(LitNumber(NumberSource::Synthetic(0)))],
-            quote!(ctx => 0)
-        );
-        assert_eq!(
-            vec![token(LitNumber(NumberSource::Synthetic(1)))],
-            quote!(ctx => 42.0)
-        );
-        assert_eq!(
-            vec![token(LitChar(CopySource::Inline('a')))],
-            quote!(ctx => 'a')
-        );
-        assert_eq!(
-            vec![token(LitByte(CopySource::Inline(b'a')))],
-            quote!(ctx => b'a')
-        );
+        crate::macros::with_context(ctx, || {
+            assert_eq!(
+                vec![token(Ident(StringSource::Synthetic(0)))],
+                quote!(hello)
+            );
+            assert_eq!(
+                vec![token(LitByteStr(LitStrSource::Synthetic(0)))],
+                quote!(b"hello")
+            );
+            assert_eq!(
+                vec![token(LitStr(LitStrSource::Synthetic(0)))],
+                quote!("hello")
+            );
+            assert_eq!(
+                vec![token(LitNumber(NumberSource::Synthetic(0)))],
+                quote!(0)
+            );
+            assert_eq!(
+                vec![token(LitNumber(NumberSource::Synthetic(1)))],
+                quote!(42.0)
+            );
+            assert_eq!(vec![token(LitChar(CopySource::Inline('a')))], quote!('a'));
+            assert_eq!(vec![token(LitByte(CopySource::Inline(b'a')))], quote!(b'a'));
+        });
     }
 
     #[test]
     fn test_iterator_iter() {
-        let ctx = &mut MacroContext::empty();
-        let iter = quote!(ctx => self struct enum);
+        let ctx = MacroContext::empty();
 
-        assert_eq!(
-            vec![token(SelfValue), token(Struct), token(Enum)],
-            quote!(ctx => #(iter)*)
-        );
+        crate::macros::with_context(ctx, || {
+            let iter = quote!(self struct enum);
+
+            assert_eq!(
+                vec![token(SelfValue), token(Struct), token(Enum)],
+                quote!(#(iter)*)
+            );
+        });
     }
 
     #[test]
     fn test_iterator_join() {
-        let ctx = &mut MacroContext::empty();
-        let iter = quote!(ctx => self struct enum);
+        let ctx = MacroContext::empty();
 
-        assert_eq!(
-            vec![
-                token(SelfValue),
-                token(Comma),
-                token(Struct),
-                token(Comma),
-                token(Enum)
-            ],
-            quote!(ctx => #(iter),*)
-        );
+        crate::macros::with_context(ctx, || {
+            let iter = quote!(self struct enum);
+
+            assert_eq!(
+                vec![
+                    token(SelfValue),
+                    token(Comma),
+                    token(Struct),
+                    token(Comma),
+                    token(Enum)
+                ],
+                quote!(#(iter),*)
+            );
+        });
     }
 }

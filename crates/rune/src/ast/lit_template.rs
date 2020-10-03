@@ -1,6 +1,9 @@
 use crate::ast;
 use crate::parsing::Opaque;
-use crate::{Id, Parse, ParseError, ParseErrorKind, Parser, Resolve, Spanned, Storage, ToTokens};
+use crate::{
+    Id, Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage,
+    ToTokens,
+};
 use runestick::{Source, Span};
 use std::borrow::Cow;
 
@@ -38,6 +41,31 @@ pub struct Template {
     pub(crate) has_expansions: bool,
     pub(crate) size_hint: usize,
     pub(crate) components: Vec<TemplateComponent>,
+}
+
+/// Parse a string literal.
+///
+/// # Examples
+///
+/// ```rust
+/// use rune::{testing, ast};
+///
+/// testing::roundtrip::<ast::LitTemplate>("`hello world`");
+/// testing::roundtrip::<ast::LitTemplate>("`hello\\n world`");
+/// ```
+impl Parse for LitTemplate {
+    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let token = parser.token_next()?;
+
+        match token.kind {
+            ast::Kind::LitTemplate(source) => Ok(LitTemplate {
+                id: Default::default(),
+                token,
+                source,
+            }),
+            _ => Err(ParseError::expected(token, "template literal")),
+        }
+    }
 }
 
 impl<'a> Resolve<'a> for LitTemplate {
@@ -132,27 +160,10 @@ impl<'a> Resolve<'a> for LitTemplate {
     }
 }
 
-/// Parse a string literal.
-///
-/// # Examples
-///
-/// ```rust
-/// use rune::{testing, ast};
-///
-/// testing::roundtrip::<ast::LitTemplate>("`hello world`");
-/// testing::roundtrip::<ast::LitTemplate>("`hello\\n world`");
-/// ```
-impl Parse for LitTemplate {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
+impl ResolveOwned for LitTemplate {
+    type Owned = Template;
 
-        match token.kind {
-            ast::Kind::LitTemplate(source) => Ok(LitTemplate {
-                id: Default::default(),
-                token,
-                source,
-            }),
-            _ => Err(ParseError::expected(token, "template literal")),
-        }
+    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
+        self.resolve(storage, source)
     }
 }
