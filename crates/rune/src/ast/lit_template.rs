@@ -85,9 +85,14 @@ impl<'a> Resolve<'a> for LitTemplate {
         while let Some((_, c)) = it.next() {
             match c {
                 '\\' => {
-                    let c =
-                        ast::utils::parse_char_escape(span, &mut it, ast::utils::WithBrace(true))?;
-                    buf.push(c);
+                    let c = ast::utils::parse_char_escape(
+                        span,
+                        &mut it,
+                        ast::utils::WithBrace(true),
+                        ast::utils::WithLineCont(true),
+                    )?;
+
+                    buf.extend(c);
                 }
                 '}' => {
                     return Err(ParseError::new(span, ParseErrorKind::UnexpectedCloseBrace));

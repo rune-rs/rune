@@ -175,7 +175,7 @@ impl IntoLit for &[u8] {
         let id = ctx.storage.insert_byte_string(self);
 
         ast::Token {
-            kind: ast::Kind::LitByteStr(ast::LitByteStrSource::Synthetic(id)),
+            kind: ast::Kind::LitByteStr(ast::LitStrSource::Synthetic(id)),
             span: ctx.span(),
         }
     }

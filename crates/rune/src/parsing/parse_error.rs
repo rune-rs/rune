@@ -62,11 +62,14 @@ pub enum ParseErrorKind {
     UnsupportedExprVisibility,
     /// Error encountered when we see a string escape sequence without a
     /// character being escaped.
-    #[error("expected escape")]
-    ExpectedStringEscape,
+    #[error("expected escape sequence")]
+    ExpectedEscape,
     /// Expected a string close but didn't see it.
     #[error("unterminated string literal")]
     UnterminatedStrLit,
+    /// Expected a byte string close but didn't see it.
+    #[error("unterminated byte string literal")]
+    UnterminatedByteStrLit,
     /// Encountered an unterminated character literal.
     #[error("unterminated character literal")]
     UnterminatedCharLit,

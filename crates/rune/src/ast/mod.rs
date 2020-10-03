@@ -168,8 +168,8 @@ pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVe
 pub use self::path::{Path, PathKind, PathSegment};
 pub use self::stmt::Stmt;
 pub use self::token::{
-    CopySource, Delimiter, Kind, LitByteStrSource, LitByteStrSourceText, LitStrSource,
-    LitStrSourceText, Number, NumberBase, NumberSource, NumberSourceText, StringSource, Token,
+    CopySource, Delimiter, Kind, LitStrSource, LitStrSourceText, Number, NumberBase, NumberSource,
+    NumberSourceText, StringSource, Token,
 };
 pub use self::vis::Visibility;
 

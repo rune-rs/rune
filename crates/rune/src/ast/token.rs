@@ -158,22 +158,6 @@ pub struct LitStrSourceText {
     pub escaped: bool,
 }
 
-/// The source of the literal byte string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum LitByteStrSource {
-    /// The literal source is from the source text.
-    Text(LitByteStrSourceText),
-    /// The source is synthetic (generated in a macro).
-    Synthetic(usize),
-}
-
-/// Configuration for a literal byte string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct LitByteStrSourceText {
-    /// Indicates if the byte string is escaped or not.
-    pub escaped: bool,
-}
-
 /// The source of a number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NumberSource {
@@ -299,7 +283,7 @@ kinds! {
     Label(StringSource), "A label, like `'loop`.",
     Let, "The `let` keyword.",
     LitByte(CopySource<u8>), "A byte literal.",
-    LitByteStr(LitByteStrSource), "A byte string literal, including escape sequences. Like `b\"hello\\nworld\"`.",
+    LitByteStr(LitStrSource), "A byte string literal, including escape sequences. Like `b\"hello\\nworld\"`.",
     LitChar(CopySource<char>), "A characer literal.",
     LitNumber(NumberSource), "A number literal, like `42` or `3.14` or `0xff`.",
     LitStr(LitStrSource), "A string literal, including escape sequences. Like `\"hello\\nworld\"`.",

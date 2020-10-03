@@ -16,19 +16,21 @@ pub struct LitStr {
 impl LitStr {
     fn parse_escaped(&self, span: Span, source: &str) -> Result<String, ParseError> {
         let mut buffer = String::with_capacity(source.len());
+
         let mut it = source
             .char_indices()
             .map(|(n, c)| (span.start + n, c))
             .peekable();
 
         while let Some((n, c)) = it.next() {
-            buffer.push(match c {
+            buffer.extend(match c {
                 '\\' => ast::utils::parse_char_escape(
                     span.with_start(n),
                     &mut it,
                     ast::utils::WithBrace(false),
+                    ast::utils::WithLineCont(true),
                 )?,
-                c => c,
+                c => Some(c),
             });
         }
 

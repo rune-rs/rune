@@ -16,8 +16,24 @@ impl ops::Deref for WithBrace {
     }
 }
 
+/// Indicates if we are parsing line continuations or not.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct WithLineCont(pub(super) bool);
+
+impl ops::Deref for WithLineCont {
+    type Target = bool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Parse a byte escape sequence.
-pub(super) fn parse_byte_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<u8, ParseError>
+pub(super) fn parse_byte_escape<I>(
+    span: Span,
+    it: &mut Peekable<I>,
+    with_line_cont: WithLineCont,
+) -> Result<Option<u8>, ParseError>
 where
     I: Iterator<Item = (usize, char)>,
 {
@@ -28,7 +44,18 @@ where
         }
     };
 
-    Ok(match c {
+    Ok(Some(match c {
+        '\n' | '\r' if *with_line_cont => {
+            while let Some((_, c)) = it.peek() {
+                if !char::is_whitespace(*c) {
+                    break;
+                }
+
+                it.next();
+            }
+
+            return Ok(None);
+        }
         '\'' => b'\'',
         '\"' => b'\"',
         'n' => b'\n',
@@ -55,7 +82,7 @@ where
             let span = span.with_end(n);
             return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
         }
-    })
+    }))
 }
 
 /// Parse a byte escape sequence.
@@ -63,7 +90,8 @@ pub(super) fn parse_char_escape<I>(
     span: Span,
     it: &mut Peekable<I>,
     with_brace: WithBrace,
-) -> Result<char, ParseError>
+    with_line_cont: WithLineCont,
+) -> Result<Option<char>, ParseError>
 where
     I: Iterator<Item = (usize, char)>,
 {
@@ -74,7 +102,18 @@ where
         }
     };
 
-    Ok(match c {
+    Ok(Some(match c {
+        '\n' | '\r' if *with_line_cont => {
+            while let Some((_, c)) = it.peek() {
+                if !char::is_whitespace(*c) {
+                    break;
+                }
+
+                it.next();
+            }
+
+            return Ok(None);
+        }
         '{' if *with_brace => '{',
         '}' if *with_brace => '}',
         '\'' => '\'',
@@ -105,7 +144,7 @@ where
             let span = span.with_end(n);
             return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
         }
-    })
+    }))
 }
 
 /// Parse a hex escape.

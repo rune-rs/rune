@@ -10,7 +10,7 @@ pub struct LitByteStr {
     token: ast::Token,
     /// If the string literal is escaped.
     #[rune(skip)]
-    source: ast::LitByteStrSource,
+    source: ast::LitStrSource,
 }
 
 impl LitByteStr {
@@ -23,9 +23,13 @@ impl LitByteStr {
             .peekable();
 
         while let Some((n, c)) = it.next() {
-            buffer.push(match c {
-                '\\' => ast::utils::parse_byte_escape(span.with_start(n), &mut it)?,
-                c => c as u8,
+            buffer.extend(match c {
+                '\\' => ast::utils::parse_byte_escape(
+                    span.with_start(n),
+                    &mut it,
+                    ast::utils::WithLineCont(true),
+                )?,
+                c => Some(c as u8),
             });
         }
 
@@ -40,8 +44,8 @@ impl<'a> Resolve<'a> for LitByteStr {
         let span = self.token.span();
 
         let text = match self.source {
-            ast::LitByteStrSource::Text(text) => text,
-            ast::LitByteStrSource::Synthetic(id) => {
+            ast::LitStrSource::Text(text) => text,
+            ast::LitStrSource::Synthetic(id) => {
                 let bytes = storage.get_byte_string(id).ok_or_else(|| {
                     ParseError::new(
                         span,

@@ -66,7 +66,18 @@ impl<'a> Resolve<'a> for LitByte {
         };
 
         let c = match c {
-            '\\' => ast::utils::parse_byte_escape(span.with_start(n), &mut it)?,
+            '\\' => {
+                let c = ast::utils::parse_byte_escape(
+                    span.with_start(n),
+                    &mut it,
+                    ast::utils::WithLineCont(false),
+                )?;
+
+                match c {
+                    Some(c) => c,
+                    None => return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral)),
+                }
+            }
             c if c.is_ascii() && !c.is_control() => c as u8,
             _ => {
                 return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral));

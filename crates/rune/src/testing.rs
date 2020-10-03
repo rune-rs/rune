@@ -10,8 +10,8 @@ use crate::{Error, Errors, Sources, UnitBuilder, Warnings};
 pub use futures_executor::block_on;
 pub use runestick::VmErrorKind::*;
 pub use runestick::{
-    CompileMeta, CompileMetaKind, ContextError, FromValue, Function, IntoComponent, Span, ToValue,
-    Value, VecTuple, VmError,
+    Bytes, CompileMeta, CompileMetaKind, ContextError, FromValue, Function, IntoComponent, Span,
+    ToValue, Value, VecTuple, VmError,
 };
 use runestick::{Item, Source, Unit};
 use std::sync::Arc;

@@ -62,11 +62,19 @@ impl<'a> Resolve<'a> for LitChar {
         };
 
         let c = match c {
-            '\\' => ast::utils::parse_char_escape(
-                span.with_start(n),
-                &mut it,
-                ast::utils::WithBrace(false),
-            )?,
+            '\\' => {
+                let c = ast::utils::parse_char_escape(
+                    span.with_start(n),
+                    &mut it,
+                    ast::utils::WithBrace(false),
+                    ast::utils::WithLineCont(false),
+                )?;
+
+                match c {
+                    Some(c) => c,
+                    None => return Err(ParseError::new(span, ParseErrorKind::BadCharLiteral)),
+                }
+            }
             c => c,
         };
 

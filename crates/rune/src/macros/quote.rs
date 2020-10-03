@@ -376,9 +376,7 @@ macro_rules! quote {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{
-        CopySource, Kind, LitByteStrSource, LitStrSource, NumberSource, StringSource, Token,
-    };
+    use crate::ast::{CopySource, Kind, LitStrSource, NumberSource, StringSource, Token};
     use crate::MacroContext;
     use runestick::Span;
     use Kind::*;
@@ -472,7 +470,7 @@ mod tests {
             quote!(ctx => hello)
         );
         assert_eq!(
-            vec![token(LitByteStr(LitByteStrSource::Synthetic(0)))],
+            vec![token(LitByteStr(LitStrSource::Synthetic(0)))],
             quote!(ctx => b"hello")
         );
         assert_eq!(

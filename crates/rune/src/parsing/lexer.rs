@@ -295,112 +295,39 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume a string literal.
-    fn next_lit_str<I>(
+    fn next_str(
         &mut self,
-        it: &mut I,
+        it: &mut (impl Iterator<Item = (usize, char)> + Clone),
         start: usize,
-    ) -> Result<Option<ast::Token>, ParseError>
-    where
-        I: Clone + Iterator<Item = (usize, char)>,
-    {
+        error_kind: impl FnOnce() -> ParseErrorKind + Copy,
+        kind: impl FnOnce(ast::LitStrSource) -> ast::Kind,
+    ) -> Result<Option<ast::Token>, ParseError> {
         let mut escaped = false;
 
         self.cursor = loop {
-            break match it.next() {
-                Some((_, c)) => match c {
-                    '"' => self.end_span(it),
-                    '\\' => match it.next() {
-                        Some(_) => {
-                            escaped = true;
-                            continue;
-                        }
-                        None => {
-                            let span = Span {
-                                start,
-                                end: self.source.len(),
-                            };
+            let (_, c) = it.next().ok_or_else(|| {
+                ParseError::new(Span::new(start, self.source.len()), error_kind())
+            })?;
 
-                            return Err(ParseError::new(
-                                span,
-                                ParseErrorKind::ExpectedStringEscape,
-                            ));
-                        }
-                    },
-                    _ => continue,
-                },
-                None => {
-                    let span = Span {
-                        start,
-                        end: self.source.len(),
-                    };
-
-                    return Err(ParseError::new(span, ParseErrorKind::UnterminatedStrLit));
+            match c {
+                '"' => break self.end_span(it),
+                '\\' => {
+                    if it.next().is_none() {
+                        return Err(ParseError::new(
+                            Span::new(start, self.source.len()),
+                            ParseErrorKind::ExpectedEscape,
+                        ));
+                    } else {
+                        escaped = true;
+                    }
                 }
-            };
+                _ => (),
+            }
         };
 
         Ok(Some(ast::Token {
-            kind: ast::Kind::LitStr(ast::LitStrSource::Text(ast::LitStrSourceText { escaped })),
-            span: Span {
-                start,
-                end: self.cursor,
-            },
-        }))
-    }
-
-    /// Consume a string literal.
-    fn next_lit_byte_str<I>(
-        &mut self,
-        it: &mut I,
-        start: usize,
-    ) -> Result<Option<ast::Token>, ParseError>
-    where
-        I: Clone + Iterator<Item = (usize, char)>,
-    {
-        let mut escaped = false;
-
-        self.cursor = loop {
-            break match it.next() {
-                Some((_, c)) => match c {
-                    '"' => self.end_span(it),
-                    '\\' => match it.next() {
-                        Some(_) => {
-                            escaped = true;
-                            continue;
-                        }
-                        None => {
-                            let span = Span {
-                                start,
-                                end: self.source.len(),
-                            };
-
-                            return Err(ParseError::new(
-                                span,
-                                ParseErrorKind::ExpectedStringEscape,
-                            ));
-                        }
-                    },
-                    _ => continue,
-                },
-                None => {
-                    let span = Span {
-                        start,
-                        end: self.source.len(),
-                    };
-
-                    return Err(ParseError::new(span, ParseErrorKind::UnterminatedStrLit));
-                }
-            };
-        };
-
-        Ok(Some(ast::Token {
-            kind: ast::Kind::LitByteStr(ast::LitByteStrSource::Text(ast::LitByteStrSourceText {
-                escaped,
-            })),
-            span: Span {
-                start,
-                end: self.cursor,
-            },
+            kind: kind(ast::LitStrSource::Text(ast::LitStrSourceText { escaped })),
+            span: Span::new(start, self.cursor),
         }))
     }
 
@@ -598,8 +525,12 @@ impl<'a> Lexer<'a> {
                         }
                         ('b', '"') => {
                             it.next();
-                            it.next();
-                            return self.next_lit_byte_str(&mut it, start);
+                            return self.next_str(
+                                &mut it,
+                                start,
+                                || ParseErrorKind::UnterminatedByteStrLit,
+                                ast::Kind::LitByteStr,
+                            );
                         }
                         _ => (),
                     }
@@ -641,7 +572,12 @@ impl<'a> Lexer<'a> {
                         return self.next_number_literal(&mut it, c, start);
                     }
                     '"' => {
-                        return self.next_lit_str(&mut it, start);
+                        return self.next_str(
+                            &mut it,
+                            start,
+                            || ParseErrorKind::UnterminatedStrLit,
+                            ast::Kind::LitStr,
+                        );
                     }
                     '`' => {
                         return self.next_template(&mut it, start);
@@ -815,10 +751,20 @@ mod tests {
     #[test]
     fn test_literals() {
         test_lexer! {
+            r#"b"""#,
+            ast::Token {
+                span: Span::new(0, 3),
+                kind: ast::Kind::LitByteStr(ast::LitStrSource::Text(ast::LitStrSourceText {
+                    escaped: false,
+                })),
+            },
+        };
+
+        test_lexer! {
             r#"b"hello world""#,
             ast::Token {
                 span: Span::new(0, 14),
-                kind: ast::Kind::LitByteStr(ast::LitByteStrSource::Text(ast::LitByteStrSourceText {
+                kind: ast::Kind::LitByteStr(ast::LitStrSource::Text(ast::LitStrSourceText {
                     escaped: false,
                 })),
             },
