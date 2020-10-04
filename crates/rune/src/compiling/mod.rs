@@ -112,7 +112,7 @@ pub fn compile_with_options(
     }
 
     loop {
-        while let Some(entry) = worker.query.queue.pop_front() {
+        while let Some(entry) = worker.query.next_build_entry() {
             let source_id = entry.location.source_id;
 
             let task = CompileBuildEntry {
@@ -121,6 +121,7 @@ pub fn compile_with_options(
                 storage: &storage,
                 unit,
                 warnings: worker.warnings,
+                consts: &worker.consts,
                 query: &mut worker.query,
                 entry,
                 visitor: worker.visitor,
@@ -155,6 +156,7 @@ struct CompileBuildEntry<'a> {
     storage: &'a Storage,
     unit: &'a UnitBuilder,
     warnings: &'a mut Warnings,
+    consts: &'a Consts,
     query: &'a mut Query,
     entry: BuildEntry,
     visitor: &'a mut dyn CompileVisitor,
@@ -177,6 +179,7 @@ impl CompileBuildEntry<'_> {
             source_id: location.source_id,
             source: source.clone(),
             context: self.context,
+            consts: self.consts,
             query: self.query,
             asm: &mut asm,
             unit: self.unit.clone(),

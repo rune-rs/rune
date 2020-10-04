@@ -3,6 +3,7 @@ use crate::collections::HashMap;
 use crate::compiling::{Assembly, Compile as _, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::query::{Named, Query, QueryConstFn, QueryItem, Used};
+use crate::shared::Consts;
 use crate::CompileResult;
 use crate::{
     CompileError, CompileErrorKind, Options, Resolve as _, Spanned, Storage, UnitBuilder, Warnings,
@@ -39,8 +40,10 @@ pub(crate) struct Compiler<'a> {
     pub(crate) storage: &'a Storage,
     /// The context we are compiling for.
     pub(crate) context: &'a Context,
+    /// Constants storage.
+    pub(crate) consts: &'a Consts,
     /// Query system to compile required items.
-    pub(crate) query: &'a mut Query,
+    pub(crate) query: &'a Query,
     /// The assembly we are generating.
     pub(crate) asm: &'a mut Assembly,
     /// The compilation unit we are compiling for.
@@ -884,10 +887,12 @@ impl<'a> Compiler<'a> {
             ));
         }
 
+        let mut ir_query = self.query.as_ir_query();
+
         let mut compiler = IrCompiler {
-            query: self.query,
-            source: &*self.source,
-            storage: self.storage,
+            storage: self.storage.clone(),
+            source: self.source.clone(),
+            query: &mut *ir_query,
         };
 
         let mut compiled = Vec::new();
@@ -902,7 +907,8 @@ impl<'a> Compiler<'a> {
             scopes: Default::default(),
             mod_item: from.mod_item.clone(),
             item: from.item.clone(),
-            query: self.query,
+            consts: self.consts.clone(),
+            query: &mut *ir_query,
         };
 
         for (ir, name) in compiled {

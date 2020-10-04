@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// State for constants processing.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Consts {
     inner: Rc<RefCell<Inner>>,
 }

@@ -51,9 +51,13 @@ pub(crate) struct Worker<'a> {
     pub(crate) warnings: &'a mut Warnings,
     pub(crate) visitor: &'a mut dyn CompileVisitor,
     pub(crate) source_loader: &'a mut dyn SourceLoader,
-    // Worker queue.
+    /// Constants storage.
+    pub(crate) consts: Consts,
+    /// Worker queue.
     pub(crate) queue: VecDeque<Task>,
+    /// Query engine.
     pub(crate) query: Query,
+    /// Files that have been loaded.
     pub(crate) loaded: HashMap<Item, (SourceId, Span)>,
 }
 
@@ -79,6 +83,7 @@ impl<'a> Worker<'a> {
             warnings,
             visitor,
             source_loader,
+            consts: consts.clone(),
             queue: VecDeque::new(),
             query: Query::new(storage, unit, consts),
             loaded: HashMap::new(),
@@ -125,9 +130,9 @@ impl<'a> Worker<'a> {
 
                     let mut indexer = Indexer {
                         root,
-                        storage: self.query.storage.clone(),
+                        storage: self.query.storage(),
                         loaded: &mut self.loaded,
-                        query: &mut self.query,
+                        query: self.query.clone(),
                         queue: &mut self.queue,
                         sources: self.sources,
                         context: self.context,
@@ -176,7 +181,7 @@ impl Import<'_> {
         mod_item: &Rc<QueryMod>,
         context: &Context,
         storage: &Storage,
-        query: &mut Query,
+        query: &Query,
         mut wildcard_expand: impl FnMut(ExpandUnitWildcard),
     ) -> CompileResult<()> {
         let mut queue = VecDeque::new();
@@ -353,10 +358,7 @@ pub(crate) struct ExpandUnitWildcard {
 impl ExpandUnitWildcard {
     pub(crate) fn expand(self, query: &mut Query) -> CompileResult<()> {
         if query.contains_prefix(&self.name) {
-            let components = query
-                .iter_components(&self.name)
-                .map(|c| c.into_component())
-                .collect::<Vec<_>>();
+            let components = query.iter_components(&self.name);
 
             for c in components {
                 let name = self.name.extended(c);

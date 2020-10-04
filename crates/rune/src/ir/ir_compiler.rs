@@ -1,25 +1,27 @@
 use crate::ir::ir;
-use crate::query::Query;
+use crate::ir::IrQuery;
+use crate::parsing::Opaque;
 use crate::{Resolve, Spanned, Storage};
 use runestick::{ConstValue, Source};
+use std::sync::Arc;
 
 use crate::ast;
 use crate::CompileError;
 
 /// A compiler that compiles AST into Rune IR.
 pub(crate) struct IrCompiler<'a> {
-    pub(crate) query: &'a Query,
-    pub(crate) storage: &'a Storage,
-    pub(crate) source: &'a Source,
+    pub(crate) storage: Storage,
+    pub(crate) source: Arc<Source>,
+    pub(crate) query: &'a mut dyn IrQuery,
 }
 
 impl<'a> IrCompiler<'a> {
     /// Resolve the given resolvable value.
-    pub(crate) fn resolve<T>(&self, value: &T) -> Result<T::Output, CompileError>
+    pub(crate) fn resolve<'s, T>(&'s self, value: &T) -> Result<T::Output, CompileError>
     where
-        T: Resolve<'a>,
+        T: Resolve<'s>,
     {
-        Ok(value.resolve(&self.storage, self.source)?)
+        Ok(value.resolve(&self.storage, &*self.source)?)
     }
 
     /// Resolve an ir target from an expression.
@@ -321,7 +323,7 @@ impl IrCompile<&ast::LitObject> for IrCompiler<'_> {
         let mut assignments = Vec::new();
 
         for (assign, _) in &lit_object.assignments {
-            let key = self.resolve(&assign.key)?;
+            let key = self.resolve(&assign.key)?.into_owned();
 
             let ir = if let Some((_, expr)) = &assign.assign {
                 self.compile(expr)?
@@ -431,7 +433,9 @@ impl IrCompile<&ast::LitTemplate> for IrCompiler<'_> {
         let span = lit_template.span();
         let mut components = Vec::new();
 
-        let template = self.query.template_for(lit_template)?;
+        let template = self
+            .query
+            .template_for(lit_template.span(), lit_template.id())?;
 
         for c in &template.components {
             match c {
