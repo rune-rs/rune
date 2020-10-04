@@ -116,11 +116,6 @@ impl UnitBuilder {
         ))
     }
 
-    /// Access the meta for the given language item.
-    pub(crate) fn lookup_meta(&self, name: &Item) -> Option<CompileMeta> {
-        self.inner.borrow().meta.get(name).cloned()
-    }
-
     /// Insert a static string and return its associated slot that can later be
     /// looked up through [lookup_string][Self::lookup_string].
     ///
@@ -269,7 +264,7 @@ impl UnitBuilder {
     }
 
     /// Declare a new struct.
-    pub(crate) fn insert_meta(&self, meta: CompileMeta) -> Result<(), InsertMetaError> {
+    pub(crate) fn insert_meta(&self, meta: &CompileMeta) -> Result<(), InsertMetaError> {
         let mut inner = self.inner.borrow_mut();
 
         match &meta.kind {
@@ -516,31 +511,6 @@ impl UnitBuilder {
             CompileMetaKind::Import { .. } => (),
         }
 
-        if let Some(existing) = inner.meta.insert(meta.item.clone(), meta.clone()) {
-            return Err(InsertMetaError::MetaConflict {
-                current: meta,
-                existing,
-            });
-        }
-
-        Ok(())
-    }
-
-    /// Insert meta without registering peripherals under the assumption that it
-    /// already has been registered.
-    pub(crate) fn insert_meta_without_peripherals(
-        &self,
-        meta: CompileMeta,
-    ) -> Result<(), InsertMetaError> {
-        let mut inner = self.inner.borrow_mut();
-
-        if let Some(existing) = inner.meta.insert(meta.item.clone(), meta.clone()) {
-            return Err(InsertMetaError::MetaConflict {
-                current: meta,
-                existing,
-            });
-        }
-
         Ok(())
     }
 
@@ -673,8 +643,6 @@ struct Inner {
     prelude: HashMap<Box<str>, Item>,
     /// The instructions contained in the source file.
     instructions: Vec<Inst>,
-    /// Item metadata in the context.
-    meta: HashMap<Item, CompileMeta>,
     /// Where functions are located in the collection of instructions.
     functions: HashMap<Hash, UnitFn>,
     /// Declared types.
@@ -842,13 +810,5 @@ pub enum InsertMetaError {
     TypeConflict {
         /// The path to the existing type.
         existing: Item,
-    },
-    /// Tried to add an item that already exists.
-    #[error("trying to insert `{current}` but conflicting meta `{existing}` already exists")]
-    MetaConflict {
-        /// The meta we tried to insert.
-        current: CompileMeta,
-        /// The existing item.
-        existing: CompileMeta,
     },
 }

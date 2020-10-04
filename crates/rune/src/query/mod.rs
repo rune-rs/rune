@@ -59,6 +59,7 @@ impl Query {
     pub fn new(storage: Storage, unit: UnitBuilder, consts: Consts) -> Self {
         Self {
             inner: Rc::new(RefCell::new(QueryInner {
+                meta: HashMap::new(),
                 next_id: Id::initial(),
                 imports: imports::Imports {
                     prelude: unit.prelude(),
@@ -88,12 +89,14 @@ impl Query {
 
     /// Insert the given compile meta.
     pub(crate) fn insert_meta(&self, spanned: Span, meta: CompileMeta) -> Result<(), QueryError> {
-        self.inner
-            .borrow()
+        let mut inner = self.inner.borrow_mut();
+
+        inner
             .unit
-            .insert_meta(meta)
+            .insert_meta(&meta)
             .map_err(|error| QueryError::new(spanned, error))?;
 
+        inner.insert_meta(spanned, meta)?;
         Ok(())
     }
 
@@ -594,6 +597,8 @@ impl Query {
 }
 
 struct QueryInner {
+    /// Resolved meta about every single item during a compilation.
+    meta: HashMap<Item, CompileMeta>,
     /// Next opaque id generated.
     next_id: Id,
     imports: imports::Imports,
@@ -777,14 +782,14 @@ impl QueryInner {
 
         loop {
             // already resolved query.
-            if let Some(meta) = self.unit.lookup_meta(&current) {
+            if let Some(meta) = self.meta.get(&current) {
                 current = match &meta.kind {
                     CompileMetaKind::Import { imported } => imported.clone(),
                     _ => current,
                 };
 
                 matched = true;
-                matched_meta = Some(meta);
+                matched_meta = Some(meta.clone());
                 break;
             }
 
@@ -823,8 +828,10 @@ impl QueryInner {
                         let meta = self.build_indexed_entry(spanned, &item, entry, used)?;
 
                         self.unit
-                            .insert_meta(meta.clone())
+                            .insert_meta(&meta)
                             .map_err(|error| QueryError::new(spanned, error))?;
+
+                        self.insert_meta(spanned, meta.clone())?;
 
                         matched = true;
                         matched_meta = Some(meta);
@@ -888,25 +895,27 @@ impl QueryInner {
         if matched {
             if let Some(meta) = matched_meta {
                 for item in added {
-                    self.unit
-                        .insert_meta_without_peripherals(CompileMeta {
+                    self.insert_meta(
+                        spanned,
+                        CompileMeta {
                             item,
                             kind: meta.kind.clone(),
                             source: meta.source.clone(),
-                        })
-                        .map_err(|error| QueryError::new(spanned, error))?;
+                        },
+                    )?
                 }
             } else {
                 for item in added {
-                    self.unit
-                        .insert_meta_without_peripherals(CompileMeta {
+                    self.insert_meta(
+                        spanned,
+                        CompileMeta {
                             item,
                             kind: CompileMetaKind::Import {
                                 imported: current.clone(),
                             },
                             source: None,
-                        })
-                        .map_err(|error| QueryError::new(spanned, error))?;
+                        },
+                    )?;
                 }
             }
 
@@ -939,8 +948,8 @@ impl QueryInner {
         item: &Rc<QueryItem>,
         used: Used,
     ) -> Result<Option<CompileMeta>, QueryError> {
-        if let Some(meta) = self.unit.lookup_meta(&item.item) {
-            return Ok(Some(meta));
+        if let Some(meta) = self.meta.get(&item.item) {
+            return Ok(Some(meta.clone()));
         }
 
         // See if there's an index entry we can construct and insert.
@@ -952,10 +961,31 @@ impl QueryInner {
         let meta = self.build_indexed_entry(spanned, item, entry, used)?;
 
         self.unit
-            .insert_meta(meta.clone())
+            .insert_meta(&meta)
             .map_err(|error| QueryError::new(spanned, error))?;
 
+        self.insert_meta(spanned, meta.clone())?;
         Ok(Some(meta))
+    }
+
+    /// Insert meta without registering peripherals under the assumption that it
+    /// already has been registered.
+    pub(crate) fn insert_meta(
+        &mut self,
+        spanned: Span,
+        meta: CompileMeta,
+    ) -> Result<(), QueryError> {
+        if let Some(existing) = self.meta.insert(meta.item.clone(), meta.clone()) {
+            return Err(QueryError::new(
+                spanned,
+                QueryErrorKind::MetaConflict {
+                    current: meta,
+                    existing,
+                },
+            ));
+        }
+
+        Ok(())
     }
 
     /// Walk the names to find the first one that is contained in the unit.
