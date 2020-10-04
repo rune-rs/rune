@@ -82,4 +82,12 @@ pub enum QueryErrorKind {
     NotIndexedImport { item: Item },
     #[error("{meta} can't be used as an import")]
     UnsupportedImportMeta { meta: CompileMeta },
+    /// Tried to add an item that already exists.
+    #[error("trying to insert `{current}` but conflicting meta `{existing}` already exists")]
+    MetaConflict {
+        /// The meta we tried to insert.
+        current: CompileMeta,
+        /// The existing item.
+        existing: CompileMeta,
+    },
 }
