@@ -1,4 +1,4 @@
-use crate::{Errors, Options, Sources, Warnings};
+use rune::{Errors, Options, Sources, Warnings};
 use runestick::{Any, AnyObj, Context, Module, Shared, Source, Value, Vm, VmError};
 use std::sync::Arc;
 
@@ -38,7 +38,7 @@ fn vm_test_references() {
 
     let mut errors = Errors::new();
 
-    let unit = crate::load_sources(
+    let unit = rune::load_sources(
         &context,
         &Options::default(),
         &mut sources,
@@ -80,7 +80,7 @@ fn vm_test_references_error() {
 
     let mut errors = Errors::new();
 
-    let unit = crate::load_sources(
+    let unit = rune::load_sources(
         &context,
         &Options::default(),
         &mut sources,

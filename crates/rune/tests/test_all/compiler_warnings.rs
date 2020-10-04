@@ -1,4 +1,4 @@
-use crate::testing::*;
+use rune::testing::*;
 
 #[test]
 fn test_let_pattern_might_panic() {

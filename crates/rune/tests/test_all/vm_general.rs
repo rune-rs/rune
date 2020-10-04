@@ -1,6 +1,6 @@
 #![allow(clippy::unit_cmp)]
 
-use crate::testing::*;
+use rune::testing::*;
 
 #[test]
 fn test_small_programs() {

@@ -1,6 +1,9 @@
 #[tokio::main]
 async fn main() -> runestick::Result<()> {
-    let (context, unit) = rune::testing::build(
+    let context = std::sync::Arc::new(rune_modules::default_context()?);
+
+    let unit = rune::testing::build(
+        &*context,
         r#"
         async fn main() {
             time::delay_for(time::Duration::from_secs(5)).await

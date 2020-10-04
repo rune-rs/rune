@@ -261,8 +261,6 @@ mod worker;
 #[cfg(any(test, feature = "testing"))]
 #[macro_use]
 pub mod testing;
-#[cfg(test)]
-pub mod tests;
 
 /// Internal collection re-export.
 mod collections {

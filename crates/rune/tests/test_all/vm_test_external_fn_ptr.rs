@@ -1,12 +1,16 @@
-use crate::testing::*;
+use rune::testing::*;
+use std::sync::Arc;
 
 #[test]
 fn test_external_function() -> runestick::Result<()> {
+    let context = Arc::new(rune_modules::default_context()?);
+
     // NB: here we test passing the function from one virtual machine instance
     // into another, making sure that the function holds everything it needs to
     // be called.
 
     let function: Function = run(
+        &context,
         &["main"],
         (),
         r#"
@@ -16,6 +20,7 @@ fn test_external_function() -> runestick::Result<()> {
     )?;
 
     let output: i64 = run(
+        &context,
         &["main"],
         (function,),
         r#"
@@ -29,11 +34,14 @@ fn test_external_function() -> runestick::Result<()> {
 
 #[test]
 fn test_external_generator() -> runestick::Result<()> {
+    let context = Arc::new(rune_modules::default_context()?);
+
     // NB: here we test passing the generator from one virtual machine instance
     // into another, making sure that the function holds everything it needs to
     // be called.
 
     let function: Function = run(
+        &context,
         &["main"],
         (),
         r#"
@@ -43,6 +51,7 @@ fn test_external_generator() -> runestick::Result<()> {
     )?;
 
     let output: (Option<i64>, Option<i64>) = run(
+        &context,
         &["main"],
         (function,),
         r#"

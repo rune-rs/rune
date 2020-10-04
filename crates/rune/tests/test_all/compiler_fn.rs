@@ -1,4 +1,4 @@
-use crate::testing::*;
+use rune::testing::*;
 
 #[test]
 fn test_fn_const_async() {

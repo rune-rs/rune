@@ -1,7 +1,10 @@
-use crate::testing::*;
+use rune::testing::*;
+use std::sync::Arc;
 
 #[test]
 fn test_function() {
+    let context = Arc::new(rune_modules::default_context().unwrap());
+
     // ptr to dynamic function.
     let function = rune! { Function =>
         fn foo(a, b) { a + b }
@@ -48,7 +51,13 @@ fn test_function() {
     assert!(matches!(value, Value::Integer(3)));
 
     // closure with captures
-    let function: Function = run(&["main"], (1i64, 2i64), r#"fn main(a, b) { || a + b }"#).unwrap();
+    let function: Function = run(
+        &context,
+        &["main"],
+        (1i64, 2i64),
+        r#"fn main(a, b) { || a + b }"#,
+    )
+    .unwrap();
 
     assert!(function.call::<_, Value>((1i64,)).is_err());
     let value: Value = function.call(()).unwrap();

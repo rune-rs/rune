@@ -1,4 +1,4 @@
-use crate::testing::*;
+use rune::testing::*;
 
 #[test]
 fn test_number_literals() {
@@ -12,14 +12,14 @@ fn test_number_literals() {
 
     assert_compile_error! {
         r#"fn main() { -0aardvark }"#,
-        span, ParseError { error: BadNumberLiteral { .. }} => {
+        span, CompileErrorKind::ParseError { error: BadNumberLiteral { .. }} => {
             assert_eq!(span, Span::new(13, 22));
         }
     };
 
     assert_compile_error! {
         r#"fn main() { -9223372036854775809 }"#,
-        span, ParseError { error: BadNumberOutOfBounds { .. }} => {
+        span, CompileErrorKind::ParseError { error: BadNumberOutOfBounds { .. }} => {
             assert_eq!(span, Span::new(12, 32));
         }
     };
@@ -27,14 +27,14 @@ fn test_number_literals() {
     assert_parse!(r#"fn main() { 9223372036854775807 }"#);
     assert_compile_error! {
         r#"fn main() { 9223372036854775808 }"#,
-        span, ParseError { error: BadNumberOutOfBounds { .. }} => {
+        span, CompileErrorKind::ParseError { error: BadNumberOutOfBounds { .. }} => {
             assert_eq!(span, Span::new(12, 31));
         }
     };
 
     assert_compile_error! {
         r#"fn main() { 0b1000000000000000000000000000000000000000000000000000000000000000 }"#,
-        span, ParseError { error: BadNumberOutOfBounds { .. }} => {
+        span, CompileErrorKind::ParseError { error: BadNumberOutOfBounds { .. }} => {
             assert_eq!(span, Span::new(12, 78));
         }
     };

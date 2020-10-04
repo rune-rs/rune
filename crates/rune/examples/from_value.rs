@@ -2,6 +2,7 @@
 
 use rune::testing::*;
 use runestick::{Any, FromValue, Mut, Ref};
+use std::sync::Arc;
 
 #[derive(Any, Debug, Default)]
 struct MyBytes {
@@ -15,9 +16,12 @@ struct Proxy {
 }
 
 fn main() -> runestick::Result<()> {
+    let context = Arc::new(rune_modules::default_context()?);
+
     let my_bytes = MyBytes::default();
 
     let mut proxy: Proxy = run(
+        &context,
         &["passthrough"],
         (my_bytes,),
         r#"

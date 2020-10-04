@@ -1,4 +1,4 @@
-use crate::testing::*;
+use rune::testing::*;
 use runestick::FromValue;
 
 #[test]
@@ -59,7 +59,7 @@ fn test_missing_dynamic_field() {
         }
         "#,
         MissingStructField { target, name } => {
-            assert_eq!(target, "rune::tests::vm_test_from_value_derive::test_missing_dynamic_field::ProxyStruct");
+            assert!(target.ends_with("::test_missing_dynamic_field::ProxyStruct"));
             assert_eq!(name, "missing");
         }
     );
@@ -76,7 +76,7 @@ fn test_missing_dynamic_field() {
         }
         "#,
         MissingTupleIndex { target, index } => {
-            assert_eq!(target, "rune::tests::vm_test_from_value_derive::test_missing_dynamic_field::ProxyTuple");
+            assert!(target.ends_with("::test_missing_dynamic_field::ProxyTuple"));
             assert_eq!(index, 1);
         }
     );

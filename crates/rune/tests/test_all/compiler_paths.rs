@@ -1,4 +1,4 @@
-use crate::testing::*;
+use rune::testing::*;
 
 #[test]
 fn test_super_self_crate_mod() {

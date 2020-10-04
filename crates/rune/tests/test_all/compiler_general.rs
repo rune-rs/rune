@@ -1,4 +1,4 @@
-use crate::testing::*;
+use rune::testing::*;
 
 #[test]
 fn test_use_variant_as_type() {
@@ -36,7 +36,7 @@ fn test_template_strings() {
 
     assert_compile_error! {
         r#"fn main() { `hello }` }"#,
-        span, ParseError { error: UnexpectedCloseBrace {} } => {
+        span, CompileErrorKind::ParseError { error: UnexpectedCloseBrace {} } => {
             assert_eq!(span, Span::new(13, 20));
         }
     };

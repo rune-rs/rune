@@ -1,4 +1,4 @@
-use crate::testing::*;
+use rune::testing::*;
 
 macro_rules! op_tests {
     ($lhs:literal $op:tt $rhs:literal = $out:expr) => {
