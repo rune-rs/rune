@@ -28,7 +28,7 @@ pub(crate) struct Indexer<'a> {
     /// Storage associated with the compilation.
     pub(crate) storage: Storage,
     pub(crate) loaded: &'a mut HashMap<Item, (SourceId, Span)>,
-    pub(crate) query: &'a mut Query,
+    pub(crate) query: Query,
     /// Imports to process.
     pub(crate) queue: &'a mut VecDeque<Task>,
     /// Source builders.
@@ -61,11 +61,11 @@ impl<'a> Indexer<'a> {
         ast.path.id = Some(id);
 
         let mut compiler = MacroCompiler {
-            storage: self.query.storage.clone(),
+            storage: self.query.storage(),
             options: self.options,
             context: self.context,
             source: self.source.clone(),
-            query: self.query,
+            query: self.query.clone(),
         };
 
         let expanded = compiler.eval_macro::<T>(ast)?;
@@ -102,7 +102,7 @@ impl<'a> Indexer<'a> {
                         &self.mod_item,
                         &self.context,
                         &self.storage,
-                        self.query,
+                        &self.query,
                         |expand| {
                             queue.push_back(Task::ExpandUnitWildcard(expand));
                         },
@@ -146,7 +146,7 @@ impl<'a> Indexer<'a> {
                         &self.mod_item,
                         self.context,
                         &self.storage,
-                        self.query,
+                        &self.query,
                         |expand| {
                             queue.push_back(Task::ExpandUnitWildcard(expand));
                         },
@@ -364,7 +364,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             // NB: all instance functions must be pre-emptively built,
             // because statically we don't know if they will be used or
             // not.
-            self.query.queue.push_back(BuildEntry {
+            self.query.push_build_entry(BuildEntry {
                 location: Location::new(self.source_id, f.ast.span()),
                 item: item.clone(),
                 build: Build::InstanceFunction(f),
@@ -384,13 +384,10 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 }),
             };
 
-            self.query
-                .unit
-                .insert_meta(meta)
-                .map_err(|e| CompileError::new(span, e))?;
+            self.query.insert_meta(span, meta)?;
         } else if is_toplevel {
             // NB: immediately compile all toplevel functions.
-            self.query.queue.push_back(BuildEntry {
+            self.query.push_build_entry(BuildEntry {
                 location: Location::new(self.source_id, fun.ast.item_span()),
                 item: item.clone(),
                 build: Build::Function(fun),
@@ -410,10 +407,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 }),
             };
 
-            self.query
-                .unit
-                .insert_meta(meta)
-                .map_err(|e| CompileError::new(span, e))?;
+            self.query.insert_meta(span, meta)?;
         } else {
             self.query.index(IndexedEntry {
                 query_item: item.clone(),

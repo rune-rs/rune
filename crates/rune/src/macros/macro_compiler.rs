@@ -14,7 +14,7 @@ pub(crate) struct MacroCompiler<'a> {
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
     pub(crate) source: Arc<Source>,
-    pub(crate) query: &'a mut Query,
+    pub(crate) query: Query,
 }
 
 impl MacroCompiler<'_> {
