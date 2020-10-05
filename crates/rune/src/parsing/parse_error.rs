@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::parsing::LexerMode;
 use crate::shared::Description;
 use crate::Spanned;
 use runestick::Span;
@@ -43,6 +44,11 @@ pub enum ParseErrorKind {
     /// Error raised when we encounter end-of-file but we didn't expect it.
     #[error("unexpected end-of-file")]
     UnexpectedEof,
+    #[error("bad lexer mode `{mode}`, expected `{expected}`")]
+    BadLexerMode {
+        mode: LexerMode,
+        expected: LexerMode,
+    },
     /// An expectation error.
     #[error("expected {expected}, but got `{actual}`")]
     Expected {
@@ -148,8 +154,8 @@ pub enum ParseErrorKind {
     #[error("bad byte escape")]
     BadByteEscape,
     /// When we encounter an invalid template literal.
-    #[error("invalid template literal")]
-    InvalidTemplateLiteral,
+    #[error("template expression unexpectedly ended")]
+    UnexpectedExprEnd,
     /// When we encounter an unescaped closing brace `}`.
     #[error("closing braces must be escaped inside of templates with `\\}}`")]
     UnexpectedCloseBrace,
@@ -185,4 +191,6 @@ pub enum ParseErrorKind {
     BadNumber,
     #[error("expected identifier for object key")]
     ExpectedObjectIdent,
+    #[error("expected template lexer mode")]
+    ExpectedTemplateMode,
 }

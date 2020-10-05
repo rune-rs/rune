@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{
     Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
 };
-use runestick::Source;
+use runestick::{Source, Span};
 
 /// A byte literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -60,7 +60,7 @@ impl<'a> Resolve<'a> for LitByte {
             .map(|(n, c)| (span.start + n, c))
             .peekable();
 
-        let (n, c) = match it.next() {
+        let (start, c) = match it.next() {
             Some(c) => c,
             None => {
                 return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral));
@@ -69,15 +69,24 @@ impl<'a> Resolve<'a> for LitByte {
 
         let c = match c {
             '\\' => {
-                let c = ast::utils::parse_byte_escape(
-                    span.with_start(n),
-                    &mut it,
-                    ast::utils::WithLineCont(false),
-                )?;
+                let c =
+                    match ast::utils::parse_byte_escape(&mut it, ast::utils::WithLineCont(false)) {
+                        Ok(c) => c,
+                        Err(kind) => {
+                            let end = it.next().map(|n| n.0).unwrap_or(span.end);
+                            return Err(ParseError::new(Span::new(start, end), kind));
+                        }
+                    };
 
                 match c {
                     Some(c) => c,
-                    None => return Err(ParseError::new(span, ParseErrorKind::BadByteLiteral)),
+                    None => {
+                        let end = it.next().map(|n| n.0).unwrap_or(span.end);
+                        return Err(ParseError::new(
+                            Span::new(start, end),
+                            ParseErrorKind::BadByteLiteral,
+                        ));
+                    }
                 }
             }
             c if c.is_ascii() && !c.is_control() => c as u8,

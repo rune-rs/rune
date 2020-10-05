@@ -6,7 +6,7 @@ mod parser;
 mod peek;
 mod resolve;
 
-pub use self::lexer::Lexer;
+pub use self::lexer::{Lexer, LexerMode};
 pub(crate) use self::opaque::Opaque;
 pub use self::parse::Parse;
 pub use self::parse_error::{ParseError, ParseErrorKind};

@@ -2,7 +2,7 @@ use crate::ast;
 use crate::{
     Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
 };
-use runestick::Source;
+use runestick::{Source, Span};
 
 /// A character literal.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -48,15 +48,17 @@ impl<'a> Resolve<'a> for LitChar {
         }
 
         let span = self.token.span();
+
         let string = source
             .source(span.narrow(1))
             .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
+
         let mut it = string
             .char_indices()
             .map(|(n, c)| (span.start + n, c))
             .peekable();
 
-        let (n, c) = match it.next() {
+        let (start, c) = match it.next() {
             Some(c) => c,
             None => {
                 return Err(ParseError::new(span, ParseErrorKind::BadCharLiteral));
@@ -65,16 +67,27 @@ impl<'a> Resolve<'a> for LitChar {
 
         let c = match c {
             '\\' => {
-                let c = ast::utils::parse_char_escape(
-                    span.with_start(n),
+                let c = match ast::utils::parse_char_escape(
                     &mut it,
                     ast::utils::WithBrace(false),
                     ast::utils::WithLineCont(false),
-                )?;
+                ) {
+                    Ok(c) => c,
+                    Err(kind) => {
+                        let end = it.next().map(|n| n.0).unwrap_or(span.end);
+                        return Err(ParseError::new(Span::new(start, end), kind));
+                    }
+                };
 
                 match c {
                     Some(c) => c,
-                    None => return Err(ParseError::new(span, ParseErrorKind::BadCharLiteral)),
+                    None => {
+                        let end = it.next().map(|n| n.0).unwrap_or(span.end);
+                        return Err(ParseError::new(
+                            Span::new(start, end),
+                            ParseErrorKind::BadCharLiteral,
+                        ));
+                    }
                 }
             }
             c => c,

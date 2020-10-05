@@ -64,7 +64,7 @@ impl Lit {
             ast::Kind::LitChar(_) => true,
             ast::Kind::LitStr(_) => true,
             ast::Kind::LitByteStr(_) => true,
-            ast::Kind::LitTemplate(_) => true,
+            ast::Kind::Template => true,
             ast::Kind::Open(ast::Delimiter::Bracket) => true,
             ast::Kind::Pound => match parser.token_peek2()?.map(|t| t.kind) {
                 Some(ast::Kind::Open(ast::Delimiter::Brace)) => true,
@@ -109,7 +109,7 @@ impl Parse for Lit {
                 ast::Kind::LitChar(_) => Lit::Char(parser.parse()?),
                 ast::Kind::LitStr(_) => Lit::Str(parser.parse()?),
                 ast::Kind::LitByteStr(_) => Lit::ByteStr(parser.parse()?),
-                ast::Kind::LitTemplate(_) => Lit::Template(parser.parse()?),
+                ast::Kind::Template => Lit::Template(parser.parse()?),
                 ast::Kind::Open(ast::Delimiter::Parenthesis) => {
                     match parser.token_peek2_eof()?.kind {
                         ast::Kind::Close(ast::Delimiter::Parenthesis) => Lit::Unit(parser.parse()?),

@@ -16,7 +16,53 @@ pub struct LitStr {
 }
 
 impl LitStr {
-    fn parse_escaped(&self, span: Span, source: &str) -> Result<String, ParseError> {
+    /// Resolve a template string.
+    pub(crate) fn resolve_template_string<'a>(
+        &self,
+        storage: &Storage,
+        source: &'a Source,
+    ) -> Result<Cow<'a, str>, ParseError> {
+        self.resolve_string(storage, source, ast::utils::WithBrace(true))
+    }
+
+    /// Resolve the given string with the specified configuration.
+    pub(crate) fn resolve_string<'a>(
+        &self,
+        storage: &Storage,
+        source: &'a Source,
+        with_brace: ast::utils::WithBrace,
+    ) -> Result<Cow<'a, str>, ParseError> {
+        let span = self.token.span();
+
+        let text = match self.source {
+            ast::LitStrSource::Text(text) => text,
+            ast::LitStrSource::Synthetic(id) => {
+                let bytes = storage.get_string(id).ok_or_else(|| {
+                    ParseError::new(span, ParseErrorKind::BadSyntheticId { kind: "string", id })
+                })?;
+
+                return Ok(Cow::Owned(bytes));
+            }
+        };
+
+        let span = if text.wrapped { span.narrow(1) } else { span };
+
+        let string = source
+            .source(span)
+            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
+
+        Ok(if text.escaped {
+            Cow::Owned(Self::parse_escaped(span, string, with_brace)?)
+        } else {
+            Cow::Borrowed(string)
+        })
+    }
+
+    fn parse_escaped(
+        span: Span,
+        source: &str,
+        with_brace: ast::utils::WithBrace,
+    ) -> Result<String, ParseError> {
         let mut buffer = String::with_capacity(source.len());
 
         let mut it = source
@@ -24,14 +70,19 @@ impl LitStr {
             .map(|(n, c)| (span.start + n, c))
             .peekable();
 
-        while let Some((n, c)) = it.next() {
+        while let Some((start, c)) = it.next() {
             buffer.extend(match c {
-                '\\' => ast::utils::parse_char_escape(
-                    span.with_start(n),
+                '\\' => match ast::utils::parse_char_escape(
                     &mut it,
-                    ast::utils::WithBrace(false),
+                    with_brace,
                     ast::utils::WithLineCont(true),
-                )?,
+                ) {
+                    Ok(c) => c,
+                    Err(kind) => {
+                        let end = it.next().map(|n| n.0).unwrap_or(span.end);
+                        return Err(ParseError::new(Span::new(start, end), kind));
+                    }
+                },
                 c => Some(c),
             });
         }
@@ -65,30 +116,7 @@ impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
     fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Cow<'a, str>, ParseError> {
-        let span = self.token.span();
-
-        let text = match self.source {
-            ast::LitStrSource::Text(text) => text,
-            ast::LitStrSource::Synthetic(id) => {
-                let bytes = storage.get_string(id).ok_or_else(|| {
-                    ParseError::new(span, ParseErrorKind::BadSyntheticId { kind: "string", id })
-                })?;
-
-                return Ok(Cow::Owned(bytes));
-            }
-        };
-
-        let span = span.narrow(1);
-
-        let string = source
-            .source(span)
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
-
-        Ok(if text.escaped {
-            Cow::Owned(self.parse_escaped(span, string)?)
-        } else {
-            Cow::Borrowed(string)
-        })
+        self.resolve_string(storage, source, ast::utils::WithBrace(false))
     }
 }
 

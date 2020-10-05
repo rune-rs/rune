@@ -12,23 +12,15 @@ pub struct Span {
 
 impl Span {
     /// Construct a new span.
-    pub fn new(start: usize, end: usize) -> Self {
+    pub const fn new(start: usize, end: usize) -> Self {
         Self { start, end }
     }
 
-    /// Return a span with a modified start position.
-    pub fn with_start(self, start: usize) -> Self {
+    /// Adjust the span with the given positive offset.
+    pub fn adjust(self, diff: usize) -> Self {
         Self {
-            start,
-            end: self.end,
-        }
-    }
-
-    /// Return a span with a modified end position.
-    pub fn with_end(self, end: usize) -> Self {
-        Self {
-            start: self.start,
-            end,
+            start: self.start.saturating_add(diff),
+            end: self.end.saturating_add(diff),
         }
     }
 

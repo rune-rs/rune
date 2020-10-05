@@ -1384,18 +1384,10 @@ impl Index<ast::LitTemplate> for Indexer<'_> {
         let span = lit_template.span();
         log::trace!("LitTemplate => {:?}", self.source.source(span));
 
-        let mut template = lit_template.resolve(&self.storage, &*self.source)?;
-
-        for c in &mut template.components {
-            match c {
-                ast::TemplateComponent::Expr(expr) => {
-                    self.index(&mut **expr)?;
-                }
-                ast::TemplateComponent::String(..) => (),
-            }
+        for (expr, _) in &mut lit_template.args {
+            self.index(expr)?;
         }
 
-        lit_template.id = Some(self.query.insert_template(template));
         Ok(())
     }
 }

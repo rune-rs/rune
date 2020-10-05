@@ -194,9 +194,15 @@ impl Token {
                 }
             },
             Kind::LitByteStr(s) => match s {
-                LitStrSource::Text(_) => {
-                    let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
-                    write!(f, "{}", s)?;
+                LitStrSource::Text(text) => {
+                    let span = if text.wrapped {
+                        self.span.narrow(1)
+                    } else {
+                        self.span
+                    };
+
+                    let s = ctx.source().source(span).ok_or_else(|| fmt::Error)?;
+                    write!(f, "b\"{}\"", s)?;
                 }
                 LitStrSource::Synthetic(id) => {
                     match ctx
@@ -230,24 +236,18 @@ impl Token {
                 }
             },
             Kind::LitStr(s) => match s {
-                LitStrSource::Text(..) => {
-                    let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
-                    write!(f, "{}", s)?;
+                LitStrSource::Text(text) => {
+                    let span = if text.wrapped {
+                        self.span.narrow(1)
+                    } else {
+                        self.span
+                    };
+
+                    let s = ctx.source().source(span).ok_or_else(|| fmt::Error)?;
+                    write!(f, "\"{}\"", s)?;
                 }
                 LitStrSource::Synthetic(id) => {
                     match ctx.storage().with_string(*id, |s| write!(f, "{:?}", s)) {
-                        Some(result) => result?,
-                        None => return Err(fmt::Error),
-                    }
-                }
-            },
-            Kind::LitTemplate(s) => match s {
-                LitStrSource::Text(..) => {
-                    let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
-                    write!(f, "{}", s)?;
-                }
-                LitStrSource::Synthetic(id) => {
-                    match ctx.storage().with_string(*id, |s| write!(f, "`{}`", s)) {
                         Some(result) => result?,
                         None => return Err(fmt::Error),
                     }
@@ -372,6 +372,9 @@ impl Token {
             }
             Kind::Super => {
                 write!(f, "super")?;
+            }
+            Kind::Template => {
+                write!(f, "template")?;
             }
             Kind::Tilde => {
                 write!(f, "~")?;
@@ -569,6 +572,8 @@ pub enum LitStrSource {
 pub struct LitStrSourceText {
     /// Indicates if the string is escaped or not.
     pub escaped: bool,
+    /// Indicated if the buffer is wrapped or not.
+    pub wrapped: bool,
 }
 
 /// The source of a number.
@@ -700,7 +705,6 @@ kinds! {
     LitChar(CopySource<char>), "A characer literal.",
     LitNumber(NumberSource), "A number literal, like `42` or `3.14` or `0xff`.",
     LitStr(LitStrSource), "A string literal, including escape sequences. Like `\"hello\\nworld\"`.",
-    LitTemplate(LitStrSource), "A template literal, including escape sequences. Like ``hello {name}``.",
     Loop, "The `loop` keyword.",
     Lt, "`<`.",
     LtEq, "`<=`.",
@@ -741,6 +745,7 @@ kinds! {
     Static, "The `static` keyword.",
     Struct, "The `struct` keyword.",
     Super, "The `super` keyword.",
+    Template, "The `template` keyword.",
     Tilde, "`~`.",
     True, "The `true` keyword.",
     TypeOf, "The `typeof` keyword.",
@@ -806,6 +811,7 @@ impl Kind {
             "static" => Self::Static,
             "struct" => Self::Struct,
             "super" => Self::Super,
+            "template" => Self::Template,
             "true" => Self::True,
             "typeof" => Self::TypeOf,
             "unsafe" => Self::Unsafe,
@@ -877,7 +883,6 @@ impl Kind {
             Self::LitChar { .. } => "char",
             Self::LitNumber { .. } => "number",
             Self::LitStr { .. } => "string",
-            Self::LitTemplate { .. } => "template",
             Self::Loop => "loop",
             Self::Lt => "<",
             Self::LtEq => "<=",
@@ -918,6 +923,7 @@ impl Kind {
             Self::Static => "static",
             Self::Struct => "struct",
             Self::Super => "super",
+            Self::Template => "template",
             Self::Tilde => "~",
             Self::True => "true",
             Self::TypeOf => "typeof",

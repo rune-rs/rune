@@ -27,20 +27,15 @@ pub struct Parser<'a> {
 impl<'a> Parser<'a> {
     /// Construct a new parser around the given source.
     pub fn new(source: &'a str) -> Self {
-        Self::new_with_start(source, 0)
+        Self::with_source(Source {
+            inner: SourceInner::Lexer(Lexer::new(source)),
+        })
     }
 
     /// Construct a parser from a token stream.
     pub fn from_token_stream(token_stream: &'a TokenStream) -> Self {
         Self::with_source(Source {
             inner: SourceInner::TokenStream(token_stream.iter()),
-        })
-    }
-
-    /// Construct a new parser around the given source.
-    pub(crate) fn new_with_start(source: &'a str, start: usize) -> Self {
-        Self::with_source(Source {
-            inner: SourceInner::Lexer(Lexer::new_with_start(source, start)),
         })
     }
 

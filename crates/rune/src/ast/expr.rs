@@ -614,7 +614,7 @@ impl Peek for Expr {
             ast::Kind::LitByte { .. } => true,
             ast::Kind::LitStr { .. } => true,
             ast::Kind::LitByteStr { .. } => true,
-            ast::Kind::LitTemplate { .. } => true,
+            ast::Kind::Template { .. } => true,
             ast::Kind::Open(ast::Delimiter::Parenthesis) => true,
             ast::Kind::Open(ast::Delimiter::Bracket) => true,
             ast::Kind::Open(ast::Delimiter::Brace) => true,

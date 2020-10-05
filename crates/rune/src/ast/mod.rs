@@ -158,7 +158,7 @@ pub use self::lit_object::{
     AnonymousLitObject, LitObject, LitObjectFieldAssign, LitObjectIdent, LitObjectKey,
 };
 pub use self::lit_str::LitStr;
-pub use self::lit_template::{LitTemplate, Template, TemplateComponent};
+pub use self::lit_template::LitTemplate;
 pub use self::lit_tuple::LitTuple;
 pub use self::lit_unit::LitUnit;
 pub use self::lit_vec::LitVec;
@@ -273,6 +273,7 @@ decl_tokens! {
     (SemiColon, "A semicolon `;`.", Kind::SemiColon),
     (Struct, "The `struct` keyword.", Kind::Struct),
     (Super, "The `super` keyword.", Kind::Super),
+    (Template, "The `template` keyword.", Kind::Template),
     (Try, "The `?` operator.", Kind::QuestionMark),
     (Underscore, "The underscore `_`.", Kind::Underscore),
     (Use, "The `use` keyword.", Kind::Use),

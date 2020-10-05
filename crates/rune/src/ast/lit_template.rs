@@ -1,49 +1,7 @@
 use crate::ast;
-use crate::parsing::Opaque;
-use crate::{
-    Id, Parse, ParseError, ParseErrorKind, Parser, Resolve, ResolveOwned, Spanned, Storage,
-    ToTokens,
-};
-use runestick::{Source, Span};
-use std::borrow::Cow;
+use crate::{Parse, Spanned, ToTokens};
 
-/// A string literal.
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
-pub struct LitTemplate {
-    /// Opaque identifier for the template.
-    #[rune(id)]
-    pub id: Option<Id>,
-    /// The token corresponding to the literal.
-    token: ast::Token,
-    /// The source string of the literal template.
-    #[rune(skip)]
-    source: ast::LitStrSource,
-}
-
-impl Opaque for LitTemplate {
-    fn id(&self) -> Option<Id> {
-        self.id
-    }
-}
-
-/// A single template component.
-#[derive(Debug, Clone)]
-pub enum TemplateComponent {
-    /// A literal string.
-    String(String),
-    /// An expression inside of the template. Like `{1 + 2}`.
-    Expr(Box<ast::Expr>),
-}
-
-/// A resolved and parsed string template.
-#[derive(Debug)]
-pub struct Template {
-    pub(crate) has_expansions: bool,
-    pub(crate) size_hint: usize,
-    pub(crate) components: Vec<TemplateComponent>,
-}
-
-/// Parse a string literal.
+/// A string template.
 ///
 /// # Examples
 ///
@@ -53,117 +11,10 @@ pub struct Template {
 /// testing::roundtrip::<ast::LitTemplate>("`hello world`");
 /// testing::roundtrip::<ast::LitTemplate>("`hello\\n world`");
 /// ```
-impl Parse for LitTemplate {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
-
-        match token.kind {
-            ast::Kind::LitTemplate(source) => Ok(LitTemplate {
-                id: Default::default(),
-                token,
-                source,
-            }),
-            _ => Err(ParseError::expected(token, "template literal")),
-        }
-    }
-}
-
-impl<'a> Resolve<'a> for LitTemplate {
-    type Output = Template;
-
-    fn resolve(&self, storage: &Storage, source: &'a Source) -> Result<Self::Output, ParseError> {
-        let span = self.token.span();
-
-        let (span, text) = match self.source {
-            ast::LitStrSource::Text(..) => {
-                let span = span.narrow(1);
-
-                let string = source
-                    .source(span)
-                    .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
-
-                (span, Cow::Borrowed(string))
-            }
-            ast::LitStrSource::Synthetic(id) => {
-                let string = storage.get_string(id).ok_or_else(|| {
-                    ParseError::new(
-                        span,
-                        ParseErrorKind::BadSyntheticId {
-                            kind: "template string",
-                            id,
-                        },
-                    )
-                })?;
-
-                (Span::new(0, string.len()), Cow::Owned(string))
-            }
-        };
-
-        let mut it = text
-            .char_indices()
-            .map(|(n, c)| (span.start + n, c))
-            .peekable();
-
-        let mut has_expansions = false;
-        let mut size_hint = 0;
-        let mut buf = String::new();
-
-        let mut components = Vec::new();
-
-        while let Some((_, c)) = it.next() {
-            match c {
-                '\\' => {
-                    let c = ast::utils::parse_char_escape(
-                        span,
-                        &mut it,
-                        ast::utils::WithBrace(true),
-                        ast::utils::WithLineCont(true),
-                    )?;
-
-                    buf.extend(c);
-                }
-                '}' => {
-                    return Err(ParseError::new(span, ParseErrorKind::UnexpectedCloseBrace));
-                }
-                '{' => {
-                    if !buf.is_empty() {
-                        size_hint += buf.len();
-                        components.push(TemplateComponent::String(buf.clone()));
-                        buf.clear();
-                    }
-
-                    let span = ast::utils::template_expr(span, &mut it)?;
-                    let source = &source.as_str()[..span.end];
-
-                    let mut parser = Parser::new_with_start(source, span.start);
-                    let expr = ast::Expr::parse(&mut parser)?;
-                    components.push(TemplateComponent::Expr(Box::new(expr)));
-                    has_expansions = true;
-                }
-                c => {
-                    buf.push(c);
-                }
-            }
-        }
-
-        if !buf.is_empty() {
-            size_hint += buf.len();
-            components.push(TemplateComponent::String(buf.clone()));
-            buf.clear();
-        }
-
-        Ok(Template {
-            has_expansions,
-            size_hint,
-            components,
-        })
-    }
-}
-
-impl ResolveOwned for LitTemplate {
-    type Owned = Template;
-
-    fn resolve_owned(&self, storage: &Storage, source: &Source) -> Result<Self::Owned, ParseError> {
-        self.resolve(storage, source)
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+pub struct LitTemplate {
+    /// The `template` keyword.
+    pub template: ast::Template,
+    /// Arguments to the template.
+    pub args: ast::Braced<ast::Expr, ast::Comma>,
 }
