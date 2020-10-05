@@ -125,27 +125,29 @@ impl<'a> Lexer<'a> {
     /// Consume a string literal.
     fn next_char_or_label(&mut self, start: usize) -> Result<Option<ast::Token>, ParseError> {
         let mut is_label = true;
-        let mut char_count = 0;
+        let mut count = 0;
 
         loop {
-            let c = match self.iter.peek() {
+            let (s, c) = match self.iter.peek_with_pos() {
                 Some(c) => c,
                 None => {
-                    if is_label {
-                        let span = self.iter.end_span(start);
-                        return Err(ParseError::new(span, ParseErrorKind::ExpectedCharClose));
-                    }
-
                     break;
                 }
             };
 
             match c {
                 '\\' => {
+                    self.iter.next();
+
+                    if self.iter.next().is_none() {
+                        return Err(ParseError::new(
+                            self.iter.span_from(s),
+                            ParseErrorKind::ExpectedEscape,
+                        ));
+                    }
+
                     is_label = false;
-                    self.iter.next();
-                    self.iter.next();
-                    char_count += 1;
+                    count += 1;
                 }
                 '\'' => {
                     is_label = false;
@@ -155,21 +157,31 @@ impl<'a> Lexer<'a> {
                 // components of labels.
                 '0'..='9' | 'a'..='z' => {
                     self.iter.next();
-                    char_count += 1;
+                    count += 1;
                 }
                 c if c.is_control() => {
                     let span = self.iter.span_from(start);
                     return Err(ParseError::new(span, ParseErrorKind::UnterminatedCharLit));
                 }
-                _ if is_label && char_count > 0 => {
+                _ if is_label && count > 0 => {
                     break;
                 }
                 _ => {
                     is_label = false;
                     self.iter.next();
-                    char_count += 1;
+                    count += 1;
                 }
             }
+        }
+
+        if count == 0 {
+            let span = self.iter.end_span(start);
+
+            if !is_label {
+                return Err(ParseError::new(span, ParseErrorKind::ExpectedCharClose));
+            }
+
+            return Err(ParseError::new(span, ParseErrorKind::ExpectedCharOrLabel));
         }
 
         if is_label {
@@ -188,7 +200,7 @@ impl<'a> Lexer<'a> {
     /// Consume a string literal.
     fn next_lit_byte(&mut self, start: usize) -> Result<Option<ast::Token>, ParseError> {
         loop {
-            let c = match self.iter.next() {
+            let (s, c) = match self.iter.next_with_pos() {
                 Some(c) => c,
                 None => {
                     return Err(ParseError::new(
@@ -200,7 +212,12 @@ impl<'a> Lexer<'a> {
 
             match c {
                 '\\' => {
-                    self.iter.next();
+                    if self.iter.next().is_none() {
+                        return Err(ParseError::new(
+                            self.iter.span_from(s),
+                            ParseErrorKind::ExpectedEscape,
+                        ));
+                    }
                 }
                 '\'' => {
                     break;
@@ -229,22 +246,24 @@ impl<'a> Lexer<'a> {
         let mut escaped = false;
 
         loop {
-            let c = self
-                .iter
-                .next()
-                .ok_or_else(|| ParseError::new(self.iter.span_from(start), error_kind()))?;
+            let (s, c) = match self.iter.next_with_pos() {
+                Some(next) => next,
+                None => {
+                    return Err(ParseError::new(self.iter.span_from(start), error_kind()));
+                }
+            };
 
             match c {
                 '"' => break,
                 '\\' => {
-                    if self.iter.peek().is_none() {
+                    if self.iter.next().is_none() {
                         return Err(ParseError::new(
-                            self.iter.end_span(start),
+                            self.iter.span_from(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
-                    } else {
-                        escaped = true;
                     }
+
+                    escaped = true;
                 }
                 _ => (),
             }
@@ -270,7 +289,7 @@ impl<'a> Lexer<'a> {
         let start = self.iter.pos();
         let mut escaped = false;
 
-        while let Some(c) = self.iter.peek() {
+        while let Some((s, c)) = self.iter.peek_with_pos() {
             match c {
                 '{' => {
                     let expressions = self.modes.expression_count(&self.iter, start)?;
@@ -325,12 +344,12 @@ impl<'a> Lexer<'a> {
 
                     if self.iter.next().is_none() {
                         return Err(ParseError::new(
-                            self.iter.end_span(start),
+                            self.iter.span_from(s),
                             ParseErrorKind::ExpectedEscape,
                         ));
-                    } else {
-                        escaped = true;
                     }
+
+                    escaped = true;
                 }
                 '`' => {
                     let span = self.iter.span_from(start);
@@ -613,7 +632,7 @@ impl<'a> Lexer<'a> {
                         return self.next_char_or_label(start);
                     }
                     _ => {
-                        let span = self.iter.end_span(start);
+                        let span = self.iter.span_from(start);
                         return Err(ParseError::new(span, ParseErrorKind::UnexpectedChar { c }));
                     }
                 };
@@ -667,9 +686,14 @@ impl<'a> SourceIter<'a> {
         Span::new(start, self.source.len())
     }
 
-    /// Peek the next cursor.
+    /// Peek the next index.
     fn peek(&self) -> Option<char> {
         self.chars.clone().next()
+    }
+
+    /// Peek the next character with position.
+    fn peek_with_pos(&self) -> Option<(usize, char)> {
+        self.clone().next_with_pos()
     }
 
     /// Next with position.

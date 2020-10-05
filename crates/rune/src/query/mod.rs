@@ -847,7 +847,6 @@ impl QueryInner {
             // std::option::Option::None
             // ```
             if entry.imported == current {
-                println!("SUPERFLOUS IMPORT");
                 break;
             }
 
