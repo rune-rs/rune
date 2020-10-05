@@ -5,7 +5,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::indexing::Visibility;
 use crate::ir::ir;
 use crate::ir::{IrBudget, IrInterpreter};
-use crate::ir::{IrCompile as _, IrCompiler, IrQuery};
+use crate::ir::{IrCompiler, IrQuery};
 use crate::parsing::Opaque;
 use crate::shared::{Consts, Location};
 use crate::{
@@ -175,6 +175,20 @@ impl Query {
         inner.insert_name(source_id, spanned, item, NameKind::Other, false)?;
         inner.insert_new_item(source_id, spanned, item, &query_mod, visibility, false)?;
         Ok((id, query_mod))
+    }
+
+    /// Get the item indexed item for the given item.
+    pub(crate) fn get_item(&self, spanned: Span, item: &Item) -> Result<Rc<QueryItem>, QueryError> {
+        let inner = self.inner.borrow();
+
+        if let Some(existing) = inner.imports.items_rev.get(item) {
+            Ok(existing.clone())
+        } else {
+            Err(QueryError::new(
+                spanned,
+                QueryErrorKind::MissingRevItem { item: item.clone() },
+            ))
+        }
     }
 
     /// Get the id of an existing item.
@@ -1304,7 +1318,7 @@ impl QueryInner {
 
 /// Indication whether a value is being evaluated because it's being used or not.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum Used {
+pub enum Used {
     /// The value is not being used.
     Unused,
     /// The value is being used.

@@ -1,18 +1,18 @@
 use crate::ir::eval::prelude::*;
 
-impl Eval<&ir::IrCondition> for IrInterpreter<'_> {
+impl IrEval for ir::IrCondition {
     type Output = bool;
 
     fn eval(
-        &mut self,
-        ir_condition: &ir::IrCondition,
+        &self,
+        interp: &mut IrInterpreter<'_>,
         used: Used,
-    ) -> Result<Self::Output, EvalOutcome> {
-        match ir_condition {
-            ir::IrCondition::Ir(ir) => Ok(ir.as_bool(self, used)?),
+    ) -> Result<Self::Output, IrEvalOutcome> {
+        match self {
+            ir::IrCondition::Ir(ir) => Ok(ir.as_bool(interp, used)?),
             ir::IrCondition::Let(ir_let) => {
-                let value = self.eval(&ir_let.ir, used)?;
-                Ok(ir_let.pat.matches(self, value, used, ir_condition)?)
+                let value = ir_let.ir.eval(interp, used)?;
+                Ok(ir_let.pat.matches(interp, value, used, self)?)
             }
         }
     }

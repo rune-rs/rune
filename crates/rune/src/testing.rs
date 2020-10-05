@@ -198,7 +198,7 @@ where
 {
     let mut parser = crate::parsing::Parser::new(source);
     let ast = parser.parse::<T>().expect("first parse");
-    parser.parse_eof().expect("first parse eof");
+    parser.eof().expect("first parse eof");
 
     let mut ctx = crate::macros::MacroContext::empty();
     let mut token_stream = crate::macros::TokenStream::empty();
@@ -206,7 +206,7 @@ where
     ast.to_tokens(&mut ctx, &mut token_stream);
     let mut parser = crate::parsing::Parser::from_token_stream(&token_stream);
     let ast2 = parser.parse::<T>().expect("second parse");
-    parser.parse_eof().expect("second parse eof");
+    parser.eof().expect("second parse eof");
 
     assert_eq!(ast, ast2);
     ast

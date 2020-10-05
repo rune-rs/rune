@@ -132,6 +132,7 @@ impl<'a> Worker<'a> {
                         root,
                         storage: self.query.storage(),
                         loaded: &mut self.loaded,
+                        consts: self.consts.clone(),
                         query: self.query.clone(),
                         queue: &mut self.queue,
                         sources: self.sources,

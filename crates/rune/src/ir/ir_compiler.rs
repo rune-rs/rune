@@ -3,19 +3,28 @@ use crate::ir::IrQuery;
 use crate::parsing::Opaque;
 use crate::{Resolve, Spanned, Storage};
 use runestick::{ConstValue, Source};
+use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::ast;
 use crate::CompileError;
 
 /// A compiler that compiles AST into Rune IR.
-pub(crate) struct IrCompiler<'a> {
+pub struct IrCompiler<'a> {
     pub(crate) storage: Storage,
     pub(crate) source: Arc<Source>,
     pub(crate) query: &'a mut dyn IrQuery,
 }
 
 impl<'a> IrCompiler<'a> {
+    /// Compile the given target.
+    pub(crate) fn compile<T>(&mut self, target: &T) -> Result<T::Output, CompileError>
+    where
+        T: IrCompile,
+    {
+        target.compile(self)
+    }
+
     /// Resolve the given resolvable value.
     pub(crate) fn resolve<'s, T>(&'s self, value: &T) -> Result<T::Output, CompileError>
     where
@@ -68,47 +77,56 @@ impl<'a> IrCompiler<'a> {
     }
 }
 
-pub(crate) trait IrCompile<T> {
+/// The trait for a type that can be compiled into intermediate representation.
+pub trait IrCompile {
     type Output;
 
-    fn compile(&mut self, value: T) -> Result<Self::Output, CompileError>;
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError>;
 }
 
-impl IrCompile<&ast::Expr> for IrCompiler<'_> {
+impl IrCompile for ast::Expr {
     type Output = ir::Ir;
 
-    fn compile(&mut self, expr: &ast::Expr) -> Result<Self::Output, CompileError> {
-        Ok(match expr {
-            ast::Expr::ExprGroup(expr_group) => self.compile(&*expr_group.expr)?,
-            ast::Expr::ExprBinary(expr_binary) => self.compile(expr_binary)?,
-            ast::Expr::ExprAssign(expr_assign) => self.compile(expr_assign)?,
-            ast::Expr::ExprCall(expr_call) => ir::Ir::new(expr.span(), self.compile(expr_call)?),
-            ast::Expr::ExprIf(expr_if) => ir::Ir::new(expr.span(), self.compile(expr_if)?),
-            ast::Expr::ExprLoop(expr_loop) => ir::Ir::new(expr.span(), self.compile(expr_loop)?),
-            ast::Expr::ExprWhile(expr_while) => ir::Ir::new(expr.span(), self.compile(expr_while)?),
-            ast::Expr::ExprLit(expr_lit) => self.compile(expr_lit)?,
-            ast::Expr::ExprBlock(expr_block) => {
-                ir::Ir::new(expr.span(), self.compile(&expr_block.block)?)
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        Ok(match self {
+            ast::Expr::ExprGroup(expr_group) => expr_group.expr.compile(compiler)?,
+            ast::Expr::ExprBinary(expr_binary) => expr_binary.compile(compiler)?,
+            ast::Expr::ExprAssign(expr_assign) => expr_assign.compile(compiler)?,
+            ast::Expr::ExprCall(expr_call) => {
+                ir::Ir::new(self.span(), expr_call.compile(compiler)?)
             }
-            ast::Expr::Path(path) => self.compile(path)?,
-            ast::Expr::ExprFieldAccess(..) => ir::Ir::new(expr, self.ir_target(expr)?),
-            ast::Expr::ExprBreak(expr_break) => ir::Ir::new(expr_break, self.compile(expr_break)?),
-            ast::Expr::ExprLet(expr_let) => ir::Ir::new(expr_let, self.compile(expr_let)?),
-            _ => return Err(CompileError::const_error(expr, "not supported yet")),
+            ast::Expr::ExprIf(expr_if) => ir::Ir::new(self.span(), expr_if.compile(compiler)?),
+            ast::Expr::ExprLoop(expr_loop) => {
+                ir::Ir::new(self.span(), expr_loop.compile(compiler)?)
+            }
+            ast::Expr::ExprWhile(expr_while) => {
+                ir::Ir::new(self.span(), expr_while.compile(compiler)?)
+            }
+            ast::Expr::ExprLit(expr_lit) => expr_lit.compile(compiler)?,
+            ast::Expr::ExprBlock(expr_block) => {
+                ir::Ir::new(self.span(), expr_block.block.compile(compiler)?)
+            }
+            ast::Expr::Path(path) => path.compile(compiler)?,
+            ast::Expr::ExprFieldAccess(..) => ir::Ir::new(self.span(), compiler.ir_target(self)?),
+            ast::Expr::ExprBreak(expr_break) => {
+                ir::Ir::new(expr_break, expr_break.compile(compiler)?)
+            }
+            ast::Expr::ExprLet(expr_let) => ir::Ir::new(expr_let, expr_let.compile(compiler)?),
+            _ => return Err(CompileError::const_error(self, "not supported yet")),
         })
     }
 }
 
-impl IrCompile<&ast::ItemFn> for IrCompiler<'_> {
+impl IrCompile for ast::ItemFn {
     type Output = ir::IrFn;
 
-    fn compile(&mut self, item_fn: &ast::ItemFn) -> Result<Self::Output, CompileError> {
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
         let mut args = Vec::new();
 
-        for (arg, _) in &item_fn.args {
+        for (arg, _) in &self.args {
             match arg {
                 ast::FnArg::Ident(ident) => {
-                    args.push(self.resolve(ident)?.into());
+                    args.push(compiler.resolve(ident)?.into());
                 }
                 _ => {
                     return Err(CompileError::const_error(
@@ -119,50 +137,50 @@ impl IrCompile<&ast::ItemFn> for IrCompiler<'_> {
             }
         }
 
-        let ir_scope = self.compile(&item_fn.body)?;
+        let ir_scope = self.body.compile(compiler)?;
 
         Ok(ir::IrFn {
-            span: item_fn.span(),
+            span: self.span(),
             args,
-            ir: ir::Ir::new(item_fn.span(), ir_scope),
+            ir: ir::Ir::new(self.span(), ir_scope),
         })
     }
 }
 
-impl IrCompile<&ast::ExprAssign> for IrCompiler<'_> {
+impl IrCompile for ast::ExprAssign {
     type Output = ir::Ir;
 
-    fn compile(&mut self, expr_assign: &ast::ExprAssign) -> Result<Self::Output, CompileError> {
-        let span = expr_assign.span();
-        let target = self.ir_target(&*expr_assign.lhs)?;
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
+        let target = compiler.ir_target(&*self.lhs)?;
 
         return Ok(ir::Ir::new(
             span,
             ir::IrSet {
                 span,
                 target,
-                value: Box::new(self.compile(&*expr_assign.rhs)?),
+                value: Box::new(self.rhs.compile(compiler)?),
             },
         ));
     }
 }
 
-impl IrCompile<&ast::ExprCall> for IrCompiler<'_> {
+impl IrCompile for ast::ExprCall {
     type Output = ir::IrCall;
 
-    fn compile(&mut self, expr_call: &ast::ExprCall) -> Result<Self::Output, CompileError> {
-        let span = expr_call.span();
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
 
         let mut args = Vec::new();
 
-        for (expr, _) in &expr_call.args {
-            args.push(self.compile(expr)?);
+        for (expr, _) in &self.args {
+            args.push(expr.compile(compiler)?);
         }
 
-        match &*expr_call.expr {
+        match &*self.expr {
             ast::Expr::Path(path) => {
                 if let Some(ident) = path.try_as_ident() {
-                    let target = self.resolve(ident)?;
+                    let target = compiler.resolve(ident)?;
 
                     return Ok(ir::IrCall {
                         span,
@@ -178,14 +196,14 @@ impl IrCompile<&ast::ExprCall> for IrCompiler<'_> {
     }
 }
 
-impl IrCompile<&ast::ExprBinary> for IrCompiler<'_> {
+impl IrCompile for ast::ExprBinary {
     type Output = ir::Ir;
 
-    fn compile(&mut self, expr_binary: &ast::ExprBinary) -> Result<Self::Output, CompileError> {
-        let span = expr_binary.span();
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
 
-        if expr_binary.op.is_assign() {
-            let op = match expr_binary.op {
+        if self.op.is_assign() {
+            let op = match self.op {
                 ast::BinOp::AddAssign => ir::IrAssignOp::Add,
                 ast::BinOp::SubAssign => ir::IrAssignOp::Sub,
                 ast::BinOp::MulAssign => ir::IrAssignOp::Mul,
@@ -194,29 +212,29 @@ impl IrCompile<&ast::ExprBinary> for IrCompiler<'_> {
                 ast::BinOp::ShrAssign => ir::IrAssignOp::Shr,
                 _ => {
                     return Err(CompileError::const_error(
-                        expr_binary.op_span(),
+                        self.op_span(),
                         "op not supported yet",
                     ))
                 }
             };
 
-            let target = self.ir_target(&*expr_binary.lhs)?;
+            let target = compiler.ir_target(&*self.lhs)?;
 
             return Ok(ir::Ir::new(
                 span,
                 ir::IrAssign {
                     span,
                     target,
-                    value: Box::new(self.compile(&*expr_binary.rhs)?),
+                    value: Box::new(self.rhs.compile(compiler)?),
                     op,
                 },
             ));
         }
 
-        let lhs = self.compile(&*expr_binary.lhs)?;
-        let rhs = self.compile(&*expr_binary.rhs)?;
+        let lhs = self.lhs.compile(compiler)?;
+        let rhs = self.rhs.compile(compiler)?;
 
-        let op = match expr_binary.op {
+        let op = match self.op {
             ast::BinOp::Add => ir::IrBinaryOp::Add,
             ast::BinOp::Sub => ir::IrBinaryOp::Sub,
             ast::BinOp::Mul => ir::IrBinaryOp::Mul,
@@ -230,14 +248,14 @@ impl IrCompile<&ast::ExprBinary> for IrCompiler<'_> {
             ast::BinOp::Gte => ir::IrBinaryOp::Gte,
             _ => {
                 return Err(CompileError::const_error(
-                    expr_binary.op_span(),
+                    self.op_span(),
                     "op not supported yet",
                 ))
             }
         };
 
         Ok(ir::Ir::new(
-            expr_binary.span(),
+            self.span(),
             ir::IrBinary {
                 span,
                 op,
@@ -248,21 +266,21 @@ impl IrCompile<&ast::ExprBinary> for IrCompiler<'_> {
     }
 }
 
-impl IrCompile<&ast::ExprLit> for IrCompiler<'_> {
+impl IrCompile for ast::ExprLit {
     type Output = ir::Ir;
 
-    fn compile(&mut self, expr_lit: &ast::ExprLit) -> Result<Self::Output, CompileError> {
-        let span = expr_lit.span();
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
 
-        Ok(match &expr_lit.lit {
+        Ok(match &self.lit {
             ast::Lit::Unit(..) => ir::Ir::new(span, ConstValue::Unit),
             ast::Lit::Bool(b) => ir::Ir::new(span, ConstValue::Bool(b.value)),
             ast::Lit::Str(s) => {
-                let s = self.resolve(s)?;
+                let s = compiler.resolve(s)?;
                 ir::Ir::new(span, ConstValue::String(s.as_ref().to_owned()))
             }
             ast::Lit::Number(n) => {
-                let n = self.resolve(n)?;
+                let n = compiler.resolve(n)?;
 
                 let const_value = match n {
                     ast::Number::Integer(n) => ConstValue::Integer(n),
@@ -271,62 +289,62 @@ impl IrCompile<&ast::ExprLit> for IrCompiler<'_> {
 
                 ir::Ir::new(span, const_value)
             }
-            ast::Lit::Template(lit_template) => ir::Ir::new(span, self.compile(lit_template)?),
-            ast::Lit::Vec(lit_vec) => ir::Ir::new(span, self.compile(lit_vec)?),
-            ast::Lit::Tuple(lit_tuple) => ir::Ir::new(span, self.compile(lit_tuple)?),
-            ast::Lit::Byte(lit_byte) => ir::Ir::new(span, self.compile(lit_byte)?),
-            ast::Lit::ByteStr(lit_byte_str) => ir::Ir::new(span, self.compile(lit_byte_str)?),
-            ast::Lit::Char(lit_char) => ir::Ir::new(span, self.compile(lit_char)?),
-            ast::Lit::Object(lit_object) => ir::Ir::new(span, self.compile(lit_object)?),
+            ast::Lit::Template(lit_template) => ir::Ir::new(span, lit_template.compile(compiler)?),
+            ast::Lit::Vec(lit_vec) => ir::Ir::new(span, lit_vec.compile(compiler)?),
+            ast::Lit::Tuple(lit_tuple) => ir::Ir::new(span, lit_tuple.compile(compiler)?),
+            ast::Lit::Byte(lit_byte) => ir::Ir::new(span, lit_byte.compile(compiler)?),
+            ast::Lit::ByteStr(lit_byte_str) => ir::Ir::new(span, lit_byte_str.compile(compiler)?),
+            ast::Lit::Char(lit_char) => ir::Ir::new(span, lit_char.compile(compiler)?),
+            ast::Lit::Object(lit_object) => ir::Ir::new(span, lit_object.compile(compiler)?),
         })
     }
 }
 
-impl IrCompile<&ast::LitTuple> for IrCompiler<'_> {
+impl IrCompile for ast::LitTuple {
     type Output = ir::IrTuple;
 
-    fn compile(&mut self, lit_tuple: &ast::LitTuple) -> Result<Self::Output, CompileError> {
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
         let mut items = Vec::new();
 
-        for (expr, _) in &lit_tuple.items {
-            items.push(self.compile(expr)?);
+        for (expr, _) in &self.items {
+            items.push(expr.compile(compiler)?);
         }
 
         Ok(ir::IrTuple {
-            span: lit_tuple.span(),
+            span: self.span(),
             items: items.into_boxed_slice(),
         })
     }
 }
 
-impl IrCompile<&ast::LitVec> for IrCompiler<'_> {
+impl IrCompile for ast::LitVec {
     type Output = ir::IrVec;
 
-    fn compile(&mut self, lit_vec: &ast::LitVec) -> Result<Self::Output, CompileError> {
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
         let mut items = Vec::new();
 
-        for (expr, _) in &lit_vec.items {
-            items.push(self.compile(expr)?);
+        for (expr, _) in &self.items {
+            items.push(expr.compile(compiler)?);
         }
 
         Ok(ir::IrVec {
-            span: lit_vec.span(),
+            span: self.span(),
             items: items.into_boxed_slice(),
         })
     }
 }
 
-impl IrCompile<&ast::LitObject> for IrCompiler<'_> {
+impl IrCompile for ast::LitObject {
     type Output = ir::IrObject;
 
-    fn compile(&mut self, lit_object: &ast::LitObject) -> Result<Self::Output, CompileError> {
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
         let mut assignments = Vec::new();
 
-        for (assign, _) in &lit_object.assignments {
-            let key = self.resolve(&assign.key)?.into_owned();
+        for (assign, _) in &self.assignments {
+            let key = compiler.resolve(&assign.key)?.into_owned();
 
             let ir = if let Some((_, expr)) = &assign.assign {
-                self.compile(expr)?
+                expr.compile(compiler)?
             } else {
                 ir::Ir::new(
                     assign,
@@ -341,60 +359,60 @@ impl IrCompile<&ast::LitObject> for IrCompiler<'_> {
         }
 
         Ok(ir::IrObject {
-            span: lit_object.span(),
+            span: self.span(),
             assignments: assignments.into_boxed_slice(),
         })
     }
 }
 
-impl IrCompile<&ast::LitByteStr> for IrCompiler<'_> {
+impl IrCompile for ast::LitByteStr {
     type Output = ConstValue;
 
-    fn compile(&mut self, lit_byte_str: &ast::LitByteStr) -> Result<Self::Output, CompileError> {
-        let byte_str = self.resolve(lit_byte_str)?;
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let byte_str = compiler.resolve(self)?;
         Ok(ConstValue::Bytes(byte_str.as_ref().to_vec()))
     }
 }
 
-impl IrCompile<&ast::LitByte> for IrCompiler<'_> {
+impl IrCompile for ast::LitByte {
     type Output = ConstValue;
 
-    fn compile(&mut self, lit_byte: &ast::LitByte) -> Result<Self::Output, CompileError> {
-        let b = self.resolve(lit_byte)?;
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let b = compiler.resolve(self)?;
         Ok(ConstValue::Byte(b))
     }
 }
 
-impl IrCompile<&ast::LitChar> for IrCompiler<'_> {
+impl IrCompile for ast::LitChar {
     type Output = ConstValue;
 
-    fn compile(&mut self, lit_char: &ast::LitChar) -> Result<Self::Output, CompileError> {
-        let c = self.resolve(lit_char)?;
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let c = compiler.resolve(self)?;
         Ok(ConstValue::Char(c))
     }
 }
 
-impl IrCompile<&ast::ExprBlock> for IrCompiler<'_> {
+impl IrCompile for ast::ExprBlock {
     type Output = ir::IrScope;
 
-    fn compile(&mut self, expr_block: &ast::ExprBlock) -> Result<Self::Output, CompileError> {
-        self.compile(&expr_block.block)
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        self.block.compile(compiler)
     }
 }
 
-impl IrCompile<&ast::Block> for IrCompiler<'_> {
+impl IrCompile for ast::Block {
     type Output = ir::IrScope;
 
-    fn compile(&mut self, block: &ast::Block) -> Result<Self::Output, CompileError> {
-        let span = block.span();
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
 
         let mut last = None::<(&ast::Expr, bool)>;
         let mut instructions = Vec::new();
 
-        for stmt in &block.statements {
+        for stmt in &self.statements {
             let (expr, term) = match stmt {
                 ast::Stmt::Local(local) => {
-                    instructions.push(self.compile(local)?);
+                    instructions.push(local.compile(compiler)?);
                     continue;
                 }
                 ast::Stmt::Expr(expr) => (expr, false),
@@ -403,16 +421,16 @@ impl IrCompile<&ast::Block> for IrCompiler<'_> {
             };
 
             if let Some((expr, _)) = std::mem::replace(&mut last, Some((expr, term))) {
-                instructions.push(self.compile(expr)?);
+                instructions.push(expr.compile(compiler)?);
             }
         }
 
         let last = if let Some((expr, term)) = last {
             if term {
-                instructions.push(self.compile(expr)?);
+                instructions.push(expr.compile(compiler)?);
                 None
             } else {
-                Some(Box::new(self.compile(expr)?))
+                Some(Box::new(expr.compile(compiler)?))
             }
         } else {
             None
@@ -426,16 +444,17 @@ impl IrCompile<&ast::Block> for IrCompiler<'_> {
     }
 }
 
-impl IrCompile<&ast::LitTemplate> for IrCompiler<'_> {
+impl IrCompile for ast::LitTemplate {
     type Output = ir::IrTemplate;
 
-    fn compile(&mut self, lit_template: &ast::LitTemplate) -> Result<Self::Output, CompileError> {
-        let span = lit_template.span();
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
         let mut components = Vec::new();
 
-        let template = self
-            .query
-            .template_for(lit_template.span(), lit_template.id())?;
+        let template = match self.id() {
+            Some(id) => compiler.query.template_for(self.span(), Some(id))?,
+            None => Rc::new(compiler.resolve(self)?),
+        };
 
         for c in &template.components {
             match c {
@@ -443,7 +462,7 @@ impl IrCompile<&ast::LitTemplate> for IrCompiler<'_> {
                     components.push(ir::IrTemplateComponent::String(string.clone().into()));
                 }
                 ast::TemplateComponent::Expr(expr) => {
-                    let ir = self.compile(&**expr)?;
+                    let ir = expr.compile(compiler)?;
                     components.push(ir::IrTemplateComponent::Ir(ir));
                 }
             }
@@ -453,14 +472,14 @@ impl IrCompile<&ast::LitTemplate> for IrCompiler<'_> {
     }
 }
 
-impl IrCompile<&ast::Path> for IrCompiler<'_> {
+impl IrCompile for ast::Path {
     type Output = ir::Ir;
 
-    fn compile(&mut self, path: &ast::Path) -> Result<Self::Output, CompileError> {
-        let span = path.span();
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
 
-        if let Some(name) = path.try_as_ident() {
-            let name = self.resolve(name)?;
+        if let Some(name) = self.try_as_ident() {
+            let name = compiler.resolve(name)?;
             return Ok(ir::Ir::new(span, <Box<str>>::from(name)));
         }
 
@@ -468,19 +487,19 @@ impl IrCompile<&ast::Path> for IrCompiler<'_> {
     }
 }
 
-impl IrCompile<&ast::ExprBreak> for IrCompiler<'_> {
+impl IrCompile for ast::ExprBreak {
     type Output = ir::IrBreak;
 
-    fn compile(&mut self, expr_break: &ast::ExprBreak) -> Result<Self::Output, CompileError> {
-        let span = expr_break.span();
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
 
-        let kind = match &expr_break.expr {
+        let kind = match &self.expr {
             Some(expr) => match expr {
                 ast::ExprBreakValue::Expr(expr) => {
-                    ir::IrBreakKind::Ir(Box::new(self.compile(&**expr)?))
+                    ir::IrBreakKind::Ir(Box::new(expr.compile(compiler)?))
                 }
                 ast::ExprBreakValue::Label(label) => {
-                    ir::IrBreakKind::Label(self.resolve(label)?.into())
+                    ir::IrBreakKind::Label(compiler.resolve(label)?.into())
                 }
             },
             None => ir::IrBreakKind::Inherent,
@@ -490,24 +509,24 @@ impl IrCompile<&ast::ExprBreak> for IrCompiler<'_> {
     }
 }
 
-impl IrCompile<&ast::ExprLet> for IrCompiler<'_> {
+impl IrCompile for ast::ExprLet {
     type Output = ir::IrDecl;
 
-    fn compile(&mut self, expr_let: &ast::ExprLet) -> Result<Self::Output, CompileError> {
-        Err(CompileError::const_error(expr_let, "not supported yet"))
+    fn compile(&self, _: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        Err(CompileError::const_error(self, "not supported yet"))
     }
 }
 
-impl IrCompile<&ast::Local> for IrCompiler<'_> {
+impl IrCompile for ast::Local {
     type Output = ir::Ir;
 
-    fn compile(&mut self, local: &ast::Local) -> Result<Self::Output, CompileError> {
-        let span = local.span();
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        let span = self.span();
 
         let name = loop {
-            match &local.pat {
+            match &self.pat {
                 ast::Pat::PatIgnore(_) => {
-                    return self.compile(&*local.expr);
+                    return self.expr.compile(compiler);
                 }
                 ast::Pat::PatPath(path) => match path.path.try_as_ident() {
                     Some(ident) => break ident,
@@ -523,22 +542,22 @@ impl IrCompile<&ast::Local> for IrCompiler<'_> {
             span,
             ir::IrDecl {
                 span,
-                name: self.resolve(name)?.into(),
-                value: Box::new(self.compile(&*local.expr)?),
+                name: compiler.resolve(name)?.into(),
+                value: Box::new(self.expr.compile(compiler)?),
             },
         ))
     }
 }
 
-impl IrCompile<&ast::Condition> for IrCompiler<'_> {
+impl IrCompile for ast::Condition {
     type Output = ir::IrCondition;
 
-    fn compile(&mut self, condition: &ast::Condition) -> Result<Self::Output, CompileError> {
-        match condition {
-            ast::Condition::Expr(expr) => Ok(ir::IrCondition::Ir(self.compile(&**expr)?)),
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        match self {
+            ast::Condition::Expr(expr) => Ok(ir::IrCondition::Ir(expr.compile(compiler)?)),
             ast::Condition::ExprLet(expr_let) => {
-                let pat = self.compile(&expr_let.pat)?;
-                let ir = self.compile(&*expr_let.expr)?;
+                let pat = expr_let.pat.compile(compiler)?;
+                let ir = expr_let.expr.compile(compiler)?;
 
                 Ok(ir::IrCondition::Let(ir::IrLet {
                     span: expr_let.span(),
@@ -550,44 +569,44 @@ impl IrCompile<&ast::Condition> for IrCompiler<'_> {
     }
 }
 
-impl IrCompile<&ast::Pat> for IrCompiler<'_> {
+impl IrCompile for ast::Pat {
     type Output = ir::IrPat;
 
-    fn compile(&mut self, pat: &ast::Pat) -> Result<Self::Output, CompileError> {
-        match pat {
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
+        match self {
             ast::Pat::PatIgnore(..) => return Ok(ir::IrPat::Ignore),
             ast::Pat::PatPath(path) => {
                 if let Some(ident) = path.path.try_as_ident() {
-                    let name = self.resolve(ident)?;
+                    let name = compiler.resolve(ident)?;
                     return Ok(ir::IrPat::Binding(name.into()));
                 }
             }
             _ => (),
         }
 
-        Err(CompileError::const_error(pat, "pattern not supported yet"))
+        Err(CompileError::const_error(self, "pattern not supported yet"))
     }
 }
 
-impl IrCompile<&ast::ExprIf> for IrCompiler<'_> {
+impl IrCompile for ast::ExprIf {
     type Output = ir::IrBranches;
 
-    fn compile(&mut self, expr_if: &ast::ExprIf) -> Result<Self::Output, CompileError> {
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
         let mut branches = Vec::new();
         let mut default_branch = None;
 
-        let condition = self.compile(&expr_if.condition)?;
-        let ir = self.compile(&*expr_if.block)?;
+        let condition = self.condition.compile(compiler)?;
+        let ir = self.block.compile(compiler)?;
         branches.push((condition, ir));
 
-        for expr_else_if in &expr_if.expr_else_ifs {
-            let condition = self.compile(&expr_else_if.condition)?;
-            let ir = self.compile(&*expr_else_if.block)?;
+        for expr_else_if in &self.expr_else_ifs {
+            let condition = expr_else_if.condition.compile(compiler)?;
+            let ir = expr_else_if.block.compile(compiler)?;
             branches.push((condition, ir));
         }
 
-        if let Some(expr_else) = &expr_if.expr_else {
-            let ir = self.compile(&*expr_else.block)?;
+        if let Some(expr_else) = &self.expr_else {
+            let ir = expr_else.block.compile(compiler)?;
             default_branch = Some(ir);
         }
 
@@ -598,34 +617,34 @@ impl IrCompile<&ast::ExprIf> for IrCompiler<'_> {
     }
 }
 
-impl IrCompile<&ast::ExprWhile> for IrCompiler<'_> {
+impl IrCompile for ast::ExprWhile {
     type Output = ir::IrLoop;
 
-    fn compile(&mut self, expr_while: &ast::ExprWhile) -> Result<Self::Output, CompileError> {
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
         Ok(ir::IrLoop {
-            span: expr_while.span(),
-            label: match &expr_while.label {
-                Some((label, _)) => Some(self.resolve(label)?.into()),
+            span: self.span(),
+            label: match &self.label {
+                Some((label, _)) => Some(compiler.resolve(label)?.into()),
                 None => None,
             },
-            condition: Some(Box::new(self.compile(&expr_while.condition)?)),
-            body: self.compile(&*expr_while.body)?,
+            condition: Some(Box::new(self.condition.compile(compiler)?)),
+            body: self.body.compile(compiler)?,
         })
     }
 }
 
-impl IrCompile<&ast::ExprLoop> for IrCompiler<'_> {
+impl IrCompile for &ast::ExprLoop {
     type Output = ir::IrLoop;
 
-    fn compile(&mut self, expr_loop: &ast::ExprLoop) -> Result<Self::Output, CompileError> {
+    fn compile(&self, compiler: &mut IrCompiler<'_>) -> Result<Self::Output, CompileError> {
         Ok(ir::IrLoop {
-            span: expr_loop.span(),
-            label: match &expr_loop.label {
-                Some((label, _)) => Some(self.resolve(label)?.into()),
+            span: self.span(),
+            label: match &self.label {
+                Some((label, _)) => Some(compiler.resolve(label)?.into()),
                 None => None,
             },
             condition: None,
-            body: self.compile(&*expr_loop.body)?,
+            body: self.body.compile(compiler)?,
         })
     }
 }

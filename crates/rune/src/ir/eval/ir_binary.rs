@@ -1,19 +1,23 @@
 use crate::ir::eval::prelude::*;
 
-impl Eval<&ir::IrBinary> for IrInterpreter<'_> {
+impl IrEval for ir::IrBinary {
     type Output = IrValue;
 
-    fn eval(&mut self, ir_binary: &ir::IrBinary, used: Used) -> Result<Self::Output, EvalOutcome> {
+    fn eval(
+        &self,
+        interp: &mut IrInterpreter<'_>,
+        used: Used,
+    ) -> Result<Self::Output, IrEvalOutcome> {
         use std::ops::{Add, Mul, Shl, Shr, Sub};
 
-        let span = ir_binary.span();
-        self.budget.take(span)?;
+        let span = self.span();
+        interp.budget.take(span)?;
 
-        let a = self.eval(&*ir_binary.lhs, used)?;
-        let b = self.eval(&*ir_binary.rhs, used)?;
+        let a = self.lhs.eval(interp, used)?;
+        let b = self.rhs.eval(interp, used)?;
 
         match (a, b) {
-            (IrValue::Integer(a), IrValue::Integer(b)) => match ir_binary.op {
+            (IrValue::Integer(a), IrValue::Integer(b)) => match self.op {
                 ir::IrBinaryOp::Add => {
                     return Ok(IrValue::Integer(a.add(&b)));
                 }
@@ -31,7 +35,7 @@ impl Eval<&ir::IrBinary> for IrInterpreter<'_> {
                 }
                 ir::IrBinaryOp::Shl => {
                     let b = u32::try_from(b).map_err(|_| {
-                        IrError::custom(&ir_binary.rhs, "cannot be converted to shift operand")
+                        IrError::custom(&self.rhs, "cannot be converted to shift operand")
                     })?;
 
                     let n = a.shl(b);
@@ -39,7 +43,7 @@ impl Eval<&ir::IrBinary> for IrInterpreter<'_> {
                 }
                 ir::IrBinaryOp::Shr => {
                     let b = u32::try_from(b).map_err(|_| {
-                        IrError::custom(&ir_binary.rhs, "cannot be converted to shift operand")
+                        IrError::custom(&self.rhs, "cannot be converted to shift operand")
                     })?;
 
                     let n = a.shr(b);
@@ -52,7 +56,7 @@ impl Eval<&ir::IrBinary> for IrInterpreter<'_> {
                 ir::IrBinaryOp::Gte => return Ok(IrValue::Bool(a >= b)),
             },
             (IrValue::Float(a), IrValue::Float(b)) => {
-                match ir_binary.op {
+                match self.op {
                     ir::IrBinaryOp::Add => return Ok(IrValue::Float(a + b)),
                     ir::IrBinaryOp::Sub => return Ok(IrValue::Float(a - b)),
                     ir::IrBinaryOp::Mul => return Ok(IrValue::Float(a * b)),
@@ -65,9 +69,28 @@ impl Eval<&ir::IrBinary> for IrInterpreter<'_> {
                     _ => (),
                 };
             }
+            (IrValue::String(a), IrValue::String(b)) => match self.op {
+                ir::IrBinaryOp::Add => {
+                    return Ok(IrValue::String(add_strings(span, &a, &b)?));
+                }
+                _ => (),
+            },
             _ => (),
         }
 
-        Err(EvalOutcome::not_const(span))
+        Err(IrEvalOutcome::not_const(span))
     }
+}
+
+fn add_strings(
+    span: Span,
+    a: &Shared<String>,
+    b: &Shared<String>,
+) -> Result<Shared<String>, IrError> {
+    let a = a.borrow_ref().map_err(|e| IrError::new(span, e))?;
+    let b = b.borrow_ref().map_err(|e| IrError::new(span, e))?;
+
+    let mut a = String::from(&*a);
+    a.push_str(&b);
+    Ok(Shared::new(a))
 }

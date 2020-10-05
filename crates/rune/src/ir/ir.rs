@@ -11,12 +11,12 @@ use runestick::{ConstValue, Span};
 macro_rules! decl_kind {
     (
         $(#[$meta:meta])*
-        pub(crate) enum $name:ident {
+        $vis:vis enum $name:ident {
             $($(#[$field_meta:meta])* $variant:ident($ty:ty)),* $(,)?
         }
     ) => {
         $(#[$meta])*
-        pub(crate) enum $name {
+        $vis enum $name {
             $($(#[$field_meta])* $variant($ty),)*
         }
 
@@ -32,7 +32,7 @@ macro_rules! decl_kind {
 
 /// A single operation in the Rune intermediate language.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct Ir {
+pub struct Ir {
     #[rune(span)]
     pub(crate) span: Span,
     pub(crate) kind: IrKind,
@@ -54,7 +54,7 @@ impl Ir {
 
 /// The target of a set operation.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrTarget {
+pub struct IrTarget {
     /// Span of the target.
     #[rune(span)]
     pub(crate) span: Span,
@@ -64,7 +64,7 @@ pub(crate) struct IrTarget {
 
 /// The kind of the target.
 #[derive(Debug, Clone)]
-pub(crate) enum IrTargetKind {
+pub enum IrTargetKind {
     /// A variable.
     Name(Box<str>),
     /// A field target.
@@ -76,7 +76,7 @@ pub(crate) enum IrTargetKind {
 decl_kind! {
     /// The kind of an intermediate operation.
     #[derive(Debug, Clone)]
-    pub(crate) enum IrKind {
+    pub enum IrKind {
         /// Push a scope with the given instructions.
         Scope(IrScope),
         /// A binary operation.
@@ -115,7 +115,7 @@ decl_kind! {
 
 /// An interpeted function.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrFn {
+pub struct IrFn {
     /// The span of the function.
     #[rune(span)]
     pub(crate) span: Span,
@@ -127,7 +127,7 @@ pub(crate) struct IrFn {
 
 /// Definition of a new variable scope.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrScope {
+pub struct IrScope {
     /// The span of the scope.
     #[rune(span)]
     pub(crate) span: Span,
@@ -139,7 +139,7 @@ pub(crate) struct IrScope {
 
 /// A binary operation.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrBinary {
+pub struct IrBinary {
     /// The span of the binary op.
     #[rune(span)]
     pub(crate) span: Span,
@@ -153,7 +153,7 @@ pub(crate) struct IrBinary {
 
 /// A local variable declaration.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrDecl {
+pub struct IrDecl {
     /// The span of the declaration.
     #[rune(span)]
     pub(crate) span: Span,
@@ -165,7 +165,7 @@ pub(crate) struct IrDecl {
 
 /// Set a target.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrSet {
+pub struct IrSet {
     /// The span of the set operation.
     #[rune(span)]
     pub(crate) span: Span,
@@ -177,7 +177,7 @@ pub(crate) struct IrSet {
 
 /// Assign a target.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrAssign {
+pub struct IrAssign {
     /// The span of the set operation.
     #[rune(span)]
     pub(crate) span: Span,
@@ -191,7 +191,7 @@ pub(crate) struct IrAssign {
 
 /// A string template.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrTemplate {
+pub struct IrTemplate {
     /// The span of the template.
     #[rune(span)]
     pub(crate) span: Span,
@@ -201,7 +201,7 @@ pub(crate) struct IrTemplate {
 
 /// A string template.
 #[derive(Debug, Clone)]
-pub(crate) enum IrTemplateComponent {
+pub enum IrTemplateComponent {
     /// An ir expression.
     Ir(Ir),
     /// A literal string.
@@ -210,7 +210,7 @@ pub(crate) enum IrTemplateComponent {
 
 /// Branch conditions in intermediate representation.
 #[derive(Debug, Clone)]
-pub(crate) struct IrBranches {
+pub struct IrBranches {
     /// branches and their associated conditions.
     pub(crate) branches: Vec<(IrCondition, IrScope)>,
     /// The default fallback branch.
@@ -219,7 +219,7 @@ pub(crate) struct IrBranches {
 
 /// The condition for a branch.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) enum IrCondition {
+pub enum IrCondition {
     /// A simple conditiona ir expression.
     Ir(Ir),
     /// A pattern match.
@@ -228,7 +228,7 @@ pub(crate) enum IrCondition {
 
 /// A pattern match.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrLet {
+pub struct IrLet {
     /// The span of the let condition.
     #[rune(span)]
     pub(crate) span: Span,
@@ -240,7 +240,7 @@ pub(crate) struct IrLet {
 
 /// A pattern.
 #[derive(Debug, Clone)]
-pub(crate) enum IrPat {
+pub enum IrPat {
     /// An ignore pattern `_`.
     Ignore,
     /// A named binding.
@@ -249,7 +249,7 @@ pub(crate) enum IrPat {
 
 /// A loop with an optional condition.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrLoop {
+pub struct IrLoop {
     /// The span of the loop.
     #[rune(span)]
     pub(crate) span: Span,
@@ -263,7 +263,7 @@ pub(crate) struct IrLoop {
 
 /// A break operation.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrBreak {
+pub struct IrBreak {
     /// The span of the break.
     #[rune(span)]
     pub(crate) span: Span,
@@ -273,7 +273,7 @@ pub(crate) struct IrBreak {
 
 /// The kind of a break expression.
 #[derive(Debug, Clone)]
-pub(crate) enum IrBreakKind {
+pub enum IrBreakKind {
     /// Break to the next loop.
     Inherent,
     /// Break to the given label.
@@ -284,7 +284,7 @@ pub(crate) enum IrBreakKind {
 
 /// Tuple expression.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrTuple {
+pub struct IrTuple {
     /// Span of the tuple.
     #[rune(span)]
     pub(crate) span: Span,
@@ -294,7 +294,7 @@ pub(crate) struct IrTuple {
 
 /// Object expression.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrObject {
+pub struct IrObject {
     /// Span of the object.
     #[rune(span)]
     pub(crate) span: Span,
@@ -304,7 +304,7 @@ pub(crate) struct IrObject {
 
 /// Call expressions.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrCall {
+pub struct IrCall {
     /// Span of the call.
     #[rune(span)]
     pub(crate) span: Span,
@@ -316,7 +316,7 @@ pub(crate) struct IrCall {
 
 /// Vector expression.
 #[derive(Debug, Clone, Spanned)]
-pub(crate) struct IrVec {
+pub struct IrVec {
     /// Span of the vector.
     #[rune(span)]
     pub(crate) span: Span,
@@ -326,7 +326,7 @@ pub(crate) struct IrVec {
 
 /// A binary operation.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum IrBinaryOp {
+pub enum IrBinaryOp {
     /// Add `+`.
     Add,
     /// Subtract `-`.
@@ -353,7 +353,7 @@ pub(crate) enum IrBinaryOp {
 
 /// An assign operation.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum IrAssignOp {
+pub enum IrAssignOp {
     /// `+=`.
     Add,
     /// `-=`.

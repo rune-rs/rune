@@ -21,16 +21,22 @@ mod ir_tuple;
 mod ir_vec;
 mod prelude;
 
-pub(crate) trait Eval<T> {
+/// The trait for something that can be evaluated in a constant context.
+pub trait IrEval {
+    /// The result of the evaluation.
     type Output;
 
     /// Evaluate the given type.
-    fn eval(&mut self, value: T, used: Used) -> Result<Self::Output, EvalOutcome>;
+    fn eval(
+        &self,
+        interp: &mut IrInterpreter<'_>,
+        used: Used,
+    ) -> Result<Self::Output, IrEvalOutcome>;
 }
 
 pub(crate) trait ConstAs {
     /// Process constant value as a boolean.
-    fn as_bool(self, compiler: &mut IrInterpreter<'_>, used: Used) -> Result<bool, EvalOutcome>;
+    fn as_bool(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<bool, IrEvalOutcome>;
 }
 
 pub(crate) trait Matches {
@@ -41,21 +47,21 @@ pub(crate) trait Matches {
         value: IrValue,
         used: Used,
         spanned: S,
-    ) -> Result<bool, EvalOutcome>
+    ) -> Result<bool, IrEvalOutcome>
     where
         S: Spanned;
 }
 
 impl<T> ConstAs for T
 where
-    for<'a> IrInterpreter<'a>: Eval<T, Output = IrValue>,
+    T: IrEval<Output = IrValue>,
     T: Spanned,
 {
-    fn as_bool(self, compiler: &mut IrInterpreter<'_>, used: Used) -> Result<bool, EvalOutcome> {
+    fn as_bool(&self, interp: &mut IrInterpreter<'_>, used: Used) -> Result<bool, IrEvalOutcome> {
         let span = self.span();
 
-        let value = compiler
-            .eval(self, used)?
+        let value = self
+            .eval(interp, used)?
             .into_bool()
             .map_err(|actual| IrError::expected::<_, bool>(span, &actual))?;
 
@@ -66,34 +72,35 @@ where
 impl Matches for IrPat {
     fn matches<S>(
         &self,
-        compiler: &mut IrInterpreter<'_>,
+        interp: &mut IrInterpreter<'_>,
         value: IrValue,
         _used: Used,
         spanned: S,
-    ) -> Result<bool, EvalOutcome>
+    ) -> Result<bool, IrEvalOutcome>
     where
         S: Spanned,
     {
         match self {
             IrPat::Ignore => Ok(true),
             IrPat::Binding(name) => {
-                compiler.scopes.decl(name, value, spanned)?;
+                interp.scopes.decl(name, value, spanned)?;
                 Ok(true)
             }
         }
     }
 }
 
-pub(crate) enum EvalOutcome {
-    /// Encountered ast that is not a constant expression.
+/// The outcome of a constant evaluation.
+pub enum IrEvalOutcome {
+    /// Encountered expression that is not a valid constant expression.
     NotConst(Span),
     /// A compile error.
     Error(IrError),
     /// Break until the next loop, or the optional label.
-    Break(Span, EvalBreak),
+    Break(Span, IrEvalBreak),
 }
 
-impl EvalOutcome {
+impl IrEvalOutcome {
     /// Encountered ast that is not a constant expression.
     pub(crate) fn not_const<S>(spanned: S) -> Self
     where
@@ -103,7 +110,7 @@ impl EvalOutcome {
     }
 }
 
-impl<T> From<T> for EvalOutcome
+impl<T> From<T> for IrEvalOutcome
 where
     IrError: From<T>,
 {
@@ -113,7 +120,7 @@ where
 }
 
 /// The value of a break.
-pub(crate) enum EvalBreak {
+pub enum IrEvalBreak {
     /// Break the next nested loop.
     Inherent,
     /// The break had a value.

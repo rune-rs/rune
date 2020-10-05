@@ -37,7 +37,7 @@ fn make_function(stream: &TokenStream) -> runestick::Result<TokenStream> {
     let ident = parser.parse::<ast::Ident>()?;
     let _ = parser.parse::<ast::Rocket>()?;
     let output = parser.parse::<ast::ExprBlock>()?;
-    parser.parse_eof()?;
+    parser.eof()?;
 
     Ok(rune::quote!(fn #ident() { #output }))
 }

@@ -1,12 +1,16 @@
 use crate::ir::eval::prelude::*;
 
-impl Eval<&ir::IrSet> for IrInterpreter<'_> {
+impl IrEval for ir::IrSet {
     type Output = IrValue;
 
-    fn eval(&mut self, ir_set: &ir::IrSet, used: Used) -> Result<Self::Output, EvalOutcome> {
-        self.budget.take(ir_set)?;
-        let value = self.eval(&*ir_set.value, used)?;
-        self.scopes.set_target(&ir_set.target, value)?;
+    fn eval(
+        &self,
+        interp: &mut IrInterpreter<'_>,
+        used: Used,
+    ) -> Result<Self::Output, IrEvalOutcome> {
+        interp.budget.take(self)?;
+        let value = self.value.eval(interp, used)?;
+        interp.scopes.set_target(&self.target, value)?;
         Ok(IrValue::Unit)
     }
 }

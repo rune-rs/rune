@@ -89,7 +89,7 @@ pub enum IrErrorKind {
         error: AccessError,
     },
     /// An access error raised during queries.
-    #[error("query error: {error}")]
+    #[error("{error}")]
     QueryError {
         /// The source error.
         #[source]
@@ -98,7 +98,7 @@ pub enum IrErrorKind {
     },
     /// Encountered an expression that is not supported as a constant
     /// expression.
-    #[error("not a constant expression")]
+    #[error("expected a constant expression")]
     NotConst,
     /// Trying to process a cycle of constants.
     #[error("constant cycle detected")]
@@ -154,4 +154,6 @@ pub enum IrErrorKind {
     FnNotFound,
     #[error("argument count mismatch, got {actual} but expected {expected}")]
     ArgumentCountMismatch { actual: usize, expected: usize },
+    #[error("can't perform constant evaluation in this context")]
+    MissingMacroQuery,
 }

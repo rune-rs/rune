@@ -60,7 +60,7 @@ pub(crate) fn assert_macro(
         })
     };
 
-    parser.parse_eof()?;
+    parser.eof()?;
     Ok(output)
 }
 
@@ -96,6 +96,6 @@ pub(crate) fn assert_eq_macro(
         })
     };
 
-    parser.parse_eof()?;
+    parser.eof()?;
     Ok(output)
 }

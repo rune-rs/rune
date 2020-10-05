@@ -26,6 +26,6 @@ pub(crate) fn stringy_math(stream: &TokenStream) -> runestick::Result<TokenStrea
         }
     }
 
-    parser.parse_eof()?;
+    parser.eof()?;
     Ok(output)
 }

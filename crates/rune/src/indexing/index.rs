@@ -7,7 +7,7 @@ use crate::parsing::Parse;
 use crate::query::{
     Build, BuildEntry, Function, Indexed, IndexedEntry, InstanceFunction, Query, QueryMod, Used,
 };
-use crate::shared::{Items, Location};
+use crate::shared::{Consts, Items, Location};
 use crate::worker::{Import, LoadFileKind, Task};
 use crate::{
     CompileError, CompileErrorKind, CompileResult, CompileVisitor, OptionSpanned as _, Options,
@@ -27,8 +27,12 @@ pub(crate) struct Indexer<'a> {
     pub(crate) root: Option<PathBuf>,
     /// Storage associated with the compilation.
     pub(crate) storage: Storage,
+    /// Loaded modules.
     pub(crate) loaded: &'a mut HashMap<Item, (SourceId, Span)>,
+    /// Query engine.
     pub(crate) query: Query,
+    /// Constants storage.
+    pub(crate) consts: Consts,
     /// Imports to process.
     pub(crate) queue: &'a mut VecDeque<Task>,
     /// Source builders.
@@ -60,12 +64,16 @@ impl<'a> Indexer<'a> {
                 .insert_path(&self.mod_item, self.impl_item.as_ref(), &*self.items.item());
         ast.path.id = Some(id);
 
+        let item = self.query.get_item(ast.span(), &*self.items.item())?;
+
         let mut compiler = MacroCompiler {
+            item,
             storage: self.query.storage(),
             options: self.options,
             context: self.context,
             source: self.source.clone(),
             query: self.query.clone(),
+            consts: self.consts.clone(),
         };
 
         let expanded = compiler.eval_macro::<T>(ast)?;

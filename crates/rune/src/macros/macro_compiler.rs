@@ -1,20 +1,24 @@
 //! Macro compiler.
 
-use crate::macros::{MacroContext, Storage, TokenStream};
-use crate::query::Query;
+use crate::macros::{EvaluationContext, MacroContext, Storage, TokenStream};
+use crate::query::{Query, QueryItem};
+use crate::shared::Consts;
 use crate::CompileResult;
 use crate::{
-    ast, CompileError, CompileErrorKind, Options, Parse, ParseError, Parser, Spanned as _,
+    ast, CompileError, CompileErrorKind, IrError, Options, Parse, ParseError, Parser, Spanned as _,
 };
 use runestick::{Context, Hash, Source};
+use std::rc::Rc;
 use std::sync::Arc;
 
 pub(crate) struct MacroCompiler<'a> {
+    pub(crate) item: Rc<QueryItem>,
     pub(crate) storage: Storage,
     pub(crate) options: &'a Options,
     pub(crate) context: &'a Context,
     pub(crate) source: Arc<Source>,
     pub(crate) query: Query,
+    pub(crate) consts: Consts,
 }
 
 impl MacroCompiler<'_> {
@@ -56,6 +60,11 @@ impl MacroCompiler<'_> {
             source: self.source.clone(),
             span,
             storage: self.storage.clone(),
+            eval_context: Some(EvaluationContext {
+                item: self.item.clone(),
+                query: self.query.clone(),
+                consts: self.consts.clone(),
+            }),
         };
 
         let result = crate::macros::with_context(macro_context, || handler(input_stream));
@@ -65,6 +74,16 @@ impl MacroCompiler<'_> {
             Err(error) => {
                 let error = match error.downcast::<ParseError>() {
                     Ok(error) => return Err(CompileError::from(error)),
+                    Err(error) => error,
+                };
+
+                let error = match error.downcast::<IrError>() {
+                    Ok(error) => return Err(CompileError::from(error)),
+                    Err(error) => error,
+                };
+
+                let error = match error.downcast::<CompileError>() {
+                    Ok(error) => return Err(error),
                     Err(error) => error,
                 };
 
@@ -104,7 +123,7 @@ impl MacroCompiler<'_> {
 
         let mut parser = Parser::from_token_stream(&token_stream);
         let output = parser.parse::<T>()?;
-        parser.parse_eof()?;
+        parser.eof()?;
         Ok(output)
     }
 }

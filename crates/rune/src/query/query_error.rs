@@ -31,19 +31,19 @@ pub enum QueryErrorKind {
         #[from]
         error: InsertMetaError,
     },
-    #[error("interpreter error: {error}")]
+    #[error("{error}")]
     IrError {
         #[source]
         #[from]
         error: Box<IrErrorKind>,
     },
-    #[error("compile error: {error}")]
+    #[error("{error}")]
     CompileError {
         #[source]
         #[from]
         error: Box<CompileErrorKind>,
     },
-    #[error("parse error: {error}")]
+    #[error("{error}")]
     ParseError {
         #[source]
         #[from]
