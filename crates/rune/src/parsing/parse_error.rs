@@ -85,6 +85,8 @@ pub enum ParseErrorKind {
     /// Expected a character to be closed.
     #[error("expected character literal to be closed")]
     ExpectedCharClose,
+    #[error("expected label or character")]
+    ExpectedCharOrLabel,
     /// Expected a byte to be closed.
     #[error("expected byte literal to be closed")]
     ExpectedByteClose,
