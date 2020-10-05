@@ -133,7 +133,6 @@ impl MacroContext {
         let mut ir_compiler = IrCompiler {
             storage: self.storage.clone(),
             source: self.source.clone(),
-            query: &mut *ir_query,
         };
 
         let output = ir_compiler.compile(target)?;
@@ -218,17 +217,6 @@ impl MacroContext {
         ast::Token {
             span: self.span,
             kind: ast::Kind::Label(ast::StringSource::Synthetic(id)),
-        }
-    }
-
-    /// Construct a new template string. This should be specified without the ``
-    /// ` `` delimiters, so `"foo"` instead of ``"`foo`" ``.
-    pub fn template_string(&self, string: &str) -> ast::Token {
-        let id = self.storage.insert_str(string);
-
-        ast::Token {
-            span: self.span,
-            kind: ast::Kind::LitTemplate(ast::LitStrSource::Synthetic(id)),
         }
     }
 }

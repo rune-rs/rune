@@ -1,12 +1,11 @@
 use crate::ast;
-use crate::{ParseError, ParseErrorKind};
-use runestick::Span;
+use crate::ParseErrorKind;
 use std::iter::Peekable;
 use std::ops;
 
 /// Indicates if we are parsing braces.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct WithBrace(pub(super) bool);
+pub(crate) struct WithBrace(pub(super) bool);
 
 impl ops::Deref for WithBrace {
     type Target = bool;
@@ -29,20 +28,11 @@ impl ops::Deref for WithLineCont {
 }
 
 /// Parse a byte escape sequence.
-pub(super) fn parse_byte_escape<I>(
-    span: Span,
-    it: &mut Peekable<I>,
+pub(super) fn parse_byte_escape(
+    it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
     with_line_cont: WithLineCont,
-) -> Result<Option<u8>, ParseError>
-where
-    I: Iterator<Item = (usize, char)>,
-{
-    let (n, c) = match it.next() {
-        Some(c) => c,
-        None => {
-            return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
-        }
-    };
+) -> Result<Option<u8>, ParseErrorKind> {
+    let (_, c) = it.next().ok_or_else(|| ParseErrorKind::BadEscapeSequence)?;
 
     Ok(Some(match c {
         '\n' | '\r' if *with_line_cont => {
@@ -64,43 +54,30 @@ where
         '\\' => b'\\',
         '0' => b'\0',
         'x' => {
-            let (result, span) = parse_hex_escape(span, it)?;
+            let result = parse_hex_escape(it)?;
 
             if result > 0xff {
-                return Err(ParseError::new(span, ParseErrorKind::UnsupportedByteEscape));
+                return Err(ParseErrorKind::UnsupportedByteEscape);
             }
 
             result as u8
         }
         'u' => {
-            return Err(ParseError::new(
-                span,
-                ParseErrorKind::UnicodeEscapeNotSupported,
-            ));
+            return Err(ParseErrorKind::UnicodeEscapeNotSupported);
         }
         _ => {
-            let span = span.with_end(n);
-            return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
+            return Err(ParseErrorKind::BadEscapeSequence);
         }
     }))
 }
 
 /// Parse a byte escape sequence.
-pub(super) fn parse_char_escape<I>(
-    span: Span,
-    it: &mut Peekable<I>,
+pub(super) fn parse_char_escape(
+    it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
     with_brace: WithBrace,
     with_line_cont: WithLineCont,
-) -> Result<Option<char>, ParseError>
-where
-    I: Iterator<Item = (usize, char)>,
-{
-    let (n, c) = match it.next() {
-        Some(c) => c,
-        None => {
-            return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
-        }
-    };
+) -> Result<Option<char>, ParseErrorKind> {
+    let (_, c) = it.next().ok_or_else(|| ParseErrorKind::BadEscapeSequence)?;
 
     Ok(Some(match c {
         '\n' | '\r' if *with_line_cont => {
@@ -124,140 +101,95 @@ where
         '\\' => '\\',
         '0' => '\0',
         'x' => {
-            let (result, span) = parse_hex_escape(span, it)?;
+            let result = parse_hex_escape(it)?;
 
             if result > 0x7f {
-                return Err(ParseError::new(
-                    span,
-                    ParseErrorKind::UnsupportedUnicodeByteEscape,
-                ));
+                return Err(ParseErrorKind::UnsupportedUnicodeByteEscape);
             }
 
             if let Some(c) = std::char::from_u32(result) {
                 c
             } else {
-                return Err(ParseError::new(span, ParseErrorKind::BadByteEscape));
+                return Err(ParseErrorKind::BadByteEscape);
             }
         }
-        'u' => parse_unicode_escape(span, it)?,
+        'u' => parse_unicode_escape(it)?,
         _ => {
-            let span = span.with_end(n);
-            return Err(ParseError::new(span, ParseErrorKind::BadEscapeSequence));
+            return Err(ParseErrorKind::BadEscapeSequence);
         }
     }))
 }
 
 /// Parse a hex escape.
-fn parse_hex_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<(u32, Span), ParseError>
-where
-    I: Iterator<Item = (usize, char)>,
-{
+fn parse_hex_escape(
+    it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
+) -> Result<u32, ParseErrorKind> {
     let mut result = 0u32;
 
     for _ in 0..2 {
-        let (_, c) = it
-            .next()
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadByteEscape))?;
-
-        let span = it.peek().map(|(n, _)| span.with_end(*n)).unwrap_or(span);
+        let (_, c) = it.next().ok_or_else(|| ParseErrorKind::BadByteEscape)?;
 
         result = result
             .checked_shl(4)
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadByteEscape))?;
+            .ok_or_else(|| ParseErrorKind::BadByteEscape)?;
 
         result += match c {
             '0'..='9' => c as u32 - '0' as u32,
             'a'..='f' => c as u32 - 'a' as u32 + 10,
             'A'..='F' => c as u32 - 'A' as u32 + 10,
-            _ => return Err(ParseError::new(span, ParseErrorKind::BadByteEscape)),
+            _ => return Err(ParseErrorKind::BadByteEscape),
         };
     }
 
-    let span = it.peek().map(|(n, _)| span.with_end(*n)).unwrap_or(span);
-    Ok((result, span))
+    Ok(result)
 }
 
 /// Parse a unicode escape.
-pub(super) fn parse_unicode_escape<I>(span: Span, it: &mut Peekable<I>) -> Result<char, ParseError>
-where
-    I: Iterator<Item = (usize, char)>,
-{
+pub(super) fn parse_unicode_escape(
+    it: &mut Peekable<impl Iterator<Item = (usize, char)>>,
+) -> Result<char, ParseErrorKind> {
     match it.next() {
         Some((_, '{')) => (),
-        _ => return Err(ParseError::new(span, ParseErrorKind::BadUnicodeEscape)),
+        _ => return Err(ParseErrorKind::BadUnicodeEscape),
     };
 
     let mut first = true;
     let mut result = 0u32;
 
     loop {
-        let (_, c) = it
-            .next()
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadUnicodeEscape))?;
-
-        let span = it.peek().map(|(n, _)| span.with_end(*n)).unwrap_or(span);
+        let (_, c) = it.next().ok_or_else(|| ParseErrorKind::BadUnicodeEscape)?;
 
         match c {
             '}' => {
                 if first {
-                    return Err(ParseError::new(span, ParseErrorKind::BadUnicodeEscape));
+                    return Err(ParseErrorKind::BadUnicodeEscape);
                 }
 
                 if let Some(c) = std::char::from_u32(result) {
                     return Ok(c);
                 }
 
-                return Err(ParseError::new(span, ParseErrorKind::BadUnicodeEscape));
+                return Err(ParseErrorKind::BadUnicodeEscape);
             }
             c => {
                 first = false;
 
-                result = result
-                    .checked_shl(4)
-                    .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadUnicodeEscape))?;
+                result = match result.checked_shl(4) {
+                    Some(result) => result,
+                    None => {
+                        return Err(ParseErrorKind::BadUnicodeEscape);
+                    }
+                };
 
                 result += match c {
                     '0'..='9' => c as u32 - '0' as u32,
                     'a'..='f' => c as u32 - 'a' as u32 + 10,
                     'A'..='F' => c as u32 - 'A' as u32 + 10,
                     _ => {
-                        return Err(ParseError::new(span, ParseErrorKind::BadUnicodeEscape));
+                        return Err(ParseErrorKind::BadUnicodeEscape);
                     }
                 };
             }
-        }
-    }
-}
-
-/// Find the span of an expression inside of a balanced collection of braces.
-///
-/// This is expected to start parsing immediately after an opening brace `{`.
-pub(crate) fn template_expr<I>(span: Span, it: &mut I) -> Result<Span, ParseError>
-where
-    I: Iterator<Item = (usize, char)>,
-{
-    let mut start = None;
-    let mut level = 1;
-
-    loop {
-        let (n, c) = it
-            .next()
-            .ok_or_else(|| ParseError::new(span, ParseErrorKind::InvalidTemplateLiteral))?;
-
-        if start.is_none() {
-            start = Some(n);
-        }
-
-        match c {
-            '{' => level += 1,
-            '}' => level -= 1,
-            _ => (),
-        }
-
-        if level == 0 {
-            let start = start
-                .ok_or_else(|| ParseError::new(span, ParseErrorKind::InvalidTemplateLiteral))?;
-            return Ok(Span::new(start, n));
         }
     }
 }
@@ -281,7 +213,6 @@ pub(crate) fn is_block_end(expr: &ast::Expr, comma: Option<&ast::Comma>) -> bool
 #[cfg(test)]
 mod tests {
     use super::{parse_hex_escape, parse_unicode_escape};
-    use runestick::Span;
 
     macro_rules! input {
         ($string:expr) => {
@@ -291,20 +222,20 @@ mod tests {
 
     #[test]
     fn test_parse_hex_escape() {
-        assert!(parse_hex_escape(Span::empty(), input!("a")).is_err());
+        assert!(parse_hex_escape(input!("a")).is_err());
 
-        let (c, _) = parse_hex_escape(Span::empty(), input!("7f")).unwrap();
+        let c = parse_hex_escape(input!("7f")).unwrap();
         assert_eq!(c, 0x7f);
     }
 
     #[test]
     fn test_parse_unicode_escape() {
-        parse_unicode_escape(Span::empty(), input!("{0}")).unwrap();
+        parse_unicode_escape(input!("{0}")).unwrap();
 
-        let c = parse_unicode_escape(Span::empty(), input!("{1F4AF}")).unwrap();
+        let c = parse_unicode_escape(input!("{1F4AF}")).unwrap();
         assert_eq!(c, '💯');
 
-        let c = parse_unicode_escape(Span::empty(), input!("{1f4af}")).unwrap();
+        let c = parse_unicode_escape(input!("{1f4af}")).unwrap();
         assert_eq!(c, '💯');
     }
 }

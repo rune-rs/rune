@@ -24,13 +24,17 @@ impl LitByteStr {
             .map(|(n, c)| (span.start + n, c))
             .peekable();
 
-        while let Some((n, c)) = it.next() {
+        while let Some((start, c)) = it.next() {
             buffer.extend(match c {
-                '\\' => ast::utils::parse_byte_escape(
-                    span.with_start(n),
-                    &mut it,
-                    ast::utils::WithLineCont(true),
-                )?,
+                '\\' => {
+                    match ast::utils::parse_byte_escape(&mut it, ast::utils::WithLineCont(true)) {
+                        Ok(c) => c,
+                        Err(kind) => {
+                            let end = it.next().map(|n| n.0).unwrap_or(span.end);
+                            return Err(ParseError::new(Span::new(start, end), kind));
+                        }
+                    }
+                }
                 c => Some(c as u8),
             });
         }

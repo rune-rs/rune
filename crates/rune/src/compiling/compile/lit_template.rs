@@ -6,42 +6,47 @@ impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {
         let span = lit_template.span();
         log::trace!("LitTemplate => {:?}", self.source.source(span));
 
-        // NB: Elide the entire literal if it's not needed.
-        if !needs.value() {
-            self.warnings.not_used(self.source_id, span, self.context());
-            return Ok(());
-        }
-
-        let template = self.query.template_for(lit_template)?.clone();
-
-        if !template.has_expansions {
-            self.warnings
-                .template_without_expansions(self.source_id, span, self.context());
-        }
-
         let expected = self.scopes.push_child(span)?;
+        let mut size_hint = 0;
+        let mut expansions = 0;
 
-        for c in &template.components {
-            match c {
-                ast::TemplateComponent::String(string) => {
-                    let slot = self.unit.new_static_string(span, &string)?;
+        for (expr, _) in &lit_template.args {
+            match expr {
+                ast::Expr::ExprLit(ast::ExprLit {
+                    lit: ast::Lit::Str(s),
+                    ..
+                }) => {
+                    let s = s.resolve_template_string(&self.storage, &self.source)?;
+                    size_hint += s.len();
+
+                    let slot = self.unit.new_static_string(span, &s)?;
                     self.asm.push(Inst::String { slot }, span);
                     self.scopes.decl_anon(span)?;
                 }
-                ast::TemplateComponent::Expr(expr) => {
-                    self.compile((&**expr, Needs::Value))?;
+                expr => {
+                    expansions += 1;
+                    self.compile((expr, Needs::Value))?;
                     self.scopes.decl_anon(span)?;
                 }
             }
         }
 
+        if expansions == 0 {
+            self.warnings
+                .template_without_expansions(self.source_id, span, self.context());
+        }
+
         self.asm.push(
             Inst::StringConcat {
-                len: template.components.len(),
-                size_hint: template.size_hint,
+                len: lit_template.args.len(),
+                size_hint,
             },
             span,
         );
+
+        if !needs.value() {
+            self.asm.push(Inst::Pop, span);
+        }
 
         let _ = self.scopes.pop(expected, span)?;
         Ok(())

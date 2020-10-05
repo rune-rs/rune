@@ -34,10 +34,10 @@ fn test_pointers() {
 fn test_template_strings() {
     assert_parse!(r#"fn main() { `hello \}` }"#);
 
-    assert_compile_error! {
+    assert_parse_error! {
         r#"fn main() { `hello }` }"#,
-        span, CompileErrorKind::ParseError { error: UnexpectedCloseBrace {} } => {
-            assert_eq!(span, Span::new(13, 20));
+        span, UnexpectedCloseBrace {} => {
+            assert_eq!(span, Span::new(19, 20));
         }
     };
 }

@@ -40,10 +40,6 @@ impl IrQuery for QueryInner {
         QueryInner::query_meta(self, spanned, item, used)
     }
 
-    fn template_for(&self, spanned: Span, id: Option<Id>) -> Result<Rc<ast::Template>, QueryError> {
-        QueryInner::template_for(self, spanned, id)
-    }
-
     fn const_fn_for(&self, spanned: Span, id: Option<Id>) -> Result<Rc<QueryConstFn>, QueryError> {
         QueryInner::const_fn_for(self, spanned, id)
     }
@@ -73,7 +69,6 @@ impl Query {
                 consts,
                 queue: VecDeque::new(),
                 indexed: HashMap::new(),
-                templates: HashMap::new(),
                 const_fns: HashMap::new(),
                 query_paths: HashMap::new(),
             })),
@@ -219,29 +214,12 @@ impl Query {
             .insert_new_item(source_id, spanned, item, mod_item, visibility, false)
     }
 
-    /// Insert a template and return its Id.
-    pub(crate) fn insert_template(&self, template: ast::Template) -> Id {
-        let mut inner = self.inner.borrow_mut();
-
-        let id = inner.next_id.next().expect("ran out of ids");
-        inner.templates.insert(id, Rc::new(template));
-        id
-    }
-
     /// Get the item for the given identifier.
     pub(crate) fn item_for<T>(&self, ast: T) -> Result<Rc<QueryItem>, QueryError>
     where
         T: Spanned + Opaque,
     {
         self.inner.borrow().item_for(ast.span(), ast.id())
-    }
-
-    /// Get the template for the given identifier.
-    pub(crate) fn template_for<T>(&self, ast: T) -> Result<Rc<ast::Template>, QueryError>
-    where
-        T: Spanned + Opaque,
-    {
-        self.inner.borrow().template_for(ast.span(), ast.id())
     }
 
     /// Get the constant function associated with the opaque.
@@ -271,7 +249,6 @@ impl Query {
         let mut ir_compiler = IrCompiler {
             storage: inner.storage.clone(),
             source: source.clone(),
-            query: &mut *inner,
         };
 
         let ir = ir_compiler.compile(&*item_const.expr)?;
@@ -626,8 +603,6 @@ struct QueryInner {
     /// Indexed items that can be queried for, which will queue up for them to
     /// be compiled.
     pub(crate) indexed: HashMap<Item, IndexedEntry>,
-    /// Resolved templates.
-    pub(crate) templates: HashMap<Id, Rc<ast::Template>>,
     /// Compiled constant functions.
     const_fns: HashMap<Id, Rc<QueryConstFn>>,
     /// Query paths.
@@ -642,21 +617,6 @@ impl QueryInner {
             .ok_or_else(|| QueryError::new(span, QueryErrorKind::MissingId { what: "item", id }))?;
 
         Ok(item.clone())
-    }
-
-    /// Get the template for the given identifier.
-    fn template_for(&self, spanned: Span, id: Option<Id>) -> Result<Rc<ast::Template>, QueryError> {
-        let template = id.and_then(|n| self.templates.get(&n)).ok_or_else(|| {
-            QueryError::new(
-                spanned,
-                QueryErrorKind::MissingId {
-                    what: "template",
-                    id,
-                },
-            )
-        })?;
-
-        Ok(template.clone())
     }
 
     /// Get the constant function associated with the opaque.
@@ -1253,7 +1213,6 @@ impl QueryInner {
                 let mut ir_compiler = IrCompiler {
                     storage: self.storage.clone(),
                     source: source.clone(),
-                    query: self,
                 };
 
                 let ir_fn = ir_compiler.compile(&c.item_fn)?;
