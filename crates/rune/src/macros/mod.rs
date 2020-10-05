@@ -7,7 +7,8 @@ mod quote;
 mod storage;
 mod token_stream;
 
-pub use self::functions::{resolve, stringify, to_tokens};
+pub use self::functions::{eval, resolve, stringify, to_tokens};
+pub(crate) use self::macro_context::EvaluationContext;
 pub use self::macro_context::{with_context, IntoLit, MacroContext};
 pub use self::storage::Storage;
 pub use self::token_stream::{ToTokens, TokenStream, TokenStreamIter};

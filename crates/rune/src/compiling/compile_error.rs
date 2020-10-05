@@ -105,13 +105,13 @@ impl From<Internal> for CompileError {
 pub enum CompileErrorKind {
     #[error("internal compiler error: {message}")]
     Internal { message: &'static str },
-    #[error("ir error: {error}")]
+    #[error("{error}")]
     IrError {
         #[source]
         #[from]
         error: Box<IrErrorKind>,
     },
-    #[error("query error: {error}")]
+    #[error("{error}")]
     QueryError {
         #[source]
         #[from]

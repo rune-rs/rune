@@ -1,23 +1,27 @@
 use crate::ir::eval::prelude::*;
 
-impl Eval<&ir::IrScope> for IrInterpreter<'_> {
+impl IrEval for ir::IrScope {
     type Output = IrValue;
 
-    fn eval(&mut self, ir_scope: &ir::IrScope, used: Used) -> Result<Self::Output, EvalOutcome> {
-        self.budget.take(ir_scope)?;
-        let guard = self.scopes.push();
+    fn eval(
+        &self,
+        interp: &mut IrInterpreter<'_>,
+        used: Used,
+    ) -> Result<Self::Output, IrEvalOutcome> {
+        interp.budget.take(self)?;
+        let guard = interp.scopes.push();
 
-        for ir in &ir_scope.instructions {
-            let _ = self.eval(ir, used)?;
+        for ir in &self.instructions {
+            let _ = ir.eval(interp, used)?;
         }
 
-        let value = if let Some(last) = &ir_scope.last {
-            self.eval(&**last, used)?
+        let value = if let Some(last) = &self.last {
+            last.eval(interp, used)?
         } else {
             IrValue::Unit
         };
 
-        self.scopes.pop(ir_scope, guard)?;
+        interp.scopes.pop(self, guard)?;
         Ok(value)
     }
 }

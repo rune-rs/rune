@@ -1,13 +1,17 @@
 use crate::ir::eval::prelude::*;
 
-impl Eval<&ir::IrVec> for IrInterpreter<'_> {
+impl IrEval for ir::IrVec {
     type Output = IrValue;
 
-    fn eval(&mut self, ir_vec: &ir::IrVec, used: Used) -> Result<Self::Output, EvalOutcome> {
-        let mut vec = Vec::with_capacity(ir_vec.items.len());
+    fn eval(
+        &self,
+        interp: &mut IrInterpreter<'_>,
+        used: Used,
+    ) -> Result<Self::Output, IrEvalOutcome> {
+        let mut vec = Vec::with_capacity(self.items.len());
 
-        for item in ir_vec.items.iter() {
-            vec.push(self.eval(item, used)?);
+        for item in self.items.iter() {
+            vec.push(item.eval(interp, used)?);
         }
 
         Ok(IrValue::Vec(Shared::new(vec)))

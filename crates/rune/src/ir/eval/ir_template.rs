@@ -1,25 +1,25 @@
 use crate::ir::eval::prelude::*;
 use std::fmt::Write as _;
 
-impl Eval<&ir::IrTemplate> for IrInterpreter<'_> {
+impl IrEval for &ir::IrTemplate {
     type Output = IrValue;
 
     fn eval(
-        &mut self,
-        ir_template: &ir::IrTemplate,
+        &self,
+        interp: &mut IrInterpreter<'_>,
         used: Used,
-    ) -> Result<Self::Output, EvalOutcome> {
-        self.budget.take(ir_template)?;
+    ) -> Result<Self::Output, IrEvalOutcome> {
+        interp.budget.take(self)?;
 
         let mut buf = String::new();
 
-        for component in &ir_template.components {
+        for component in &self.components {
             match component {
                 ir::IrTemplateComponent::String(string) => {
                     buf.push_str(&string);
                 }
                 ir::IrTemplateComponent::Ir(ir) => {
-                    let const_value = self.eval(ir, used)?;
+                    let const_value = ir.eval(interp, used)?;
 
                     match const_value {
                         IrValue::Integer(integer) => {
@@ -33,11 +33,11 @@ impl Eval<&ir::IrTemplate> for IrInterpreter<'_> {
                             write!(buf, "{}", b).unwrap();
                         }
                         IrValue::String(s) => {
-                            let s = s.borrow_ref().map_err(IrError::access(ir_template))?;
+                            let s = s.borrow_ref().map_err(IrError::access(self))?;
                             buf.push_str(&*s);
                         }
                         _ => {
-                            return Err(EvalOutcome::not_const(ir_template));
+                            return Err(IrEvalOutcome::not_const(self));
                         }
                     }
                 }

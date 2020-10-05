@@ -874,8 +874,6 @@ impl<'a> Compiler<'a> {
     where
         S: Copy + Spanned,
     {
-        use crate::ir::IrCompile;
-
         if query_const_fn.ir_fn.args.len() != args.len() {
             return Err(CompileError::new(
                 spanned,

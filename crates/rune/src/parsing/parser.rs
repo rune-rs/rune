@@ -149,7 +149,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Assert that the parser has reached its end-of-file.
-    pub fn parse_eof(&mut self) -> Result<(), ParseError> {
+    pub fn eof(&mut self) -> Result<(), ParseError> {
         if let Some(token) = self.p1? {
             return Err(ParseError::new(
                 token,

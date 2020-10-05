@@ -1,10 +1,20 @@
 //! Context for a macro.
 
 use crate::ast;
+use crate::compiling::CompileError;
+use crate::ir::{
+    IrBudget, IrCompile, IrCompiler, IrError, IrErrorKind, IrEval, IrEvalOutcome, IrInterpreter,
+};
 use crate::macros::{Storage, ToTokens, TokenStream};
+use crate::query;
+use crate::query::{QueryItem, Used};
+use crate::shared::Consts;
+use crate::Spanned;
+use query::Query;
 use runestick::{Source, Span};
 use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
 use std::sync::Arc;
 
 thread_local! {
@@ -78,6 +88,12 @@ where
     }
 }
 
+pub(crate) struct EvaluationContext {
+    pub(crate) query: Query,
+    pub(crate) item: Rc<QueryItem>,
+    pub(crate) consts: Consts,
+}
+
 /// Context for a running macro.
 pub struct MacroContext {
     /// The current source.
@@ -86,6 +102,8 @@ pub struct MacroContext {
     pub(crate) span: Span,
     /// Storage used in macro context.
     pub(crate) storage: Storage,
+    /// Query engine.
+    pub(crate) eval_context: Option<EvaluationContext>,
 }
 
 impl MacroContext {
@@ -95,15 +113,52 @@ impl MacroContext {
             source: Arc::new(Source::default()),
             span: Span::empty(),
             storage: Storage::default(),
+            eval_context: None,
         }
     }
 
-    /// Construct a new macro context.
-    pub fn new(storage: Storage, source: Arc<Source>) -> Self {
-        Self {
-            source,
-            span: Span::empty(),
-            storage,
+    /// Evaluate the given ast as a constant expression.
+    pub(crate) fn eval<T>(&self, target: &T) -> Result<<T::Output as IrEval>::Output, CompileError>
+    where
+        T: Spanned + IrCompile,
+        T::Output: IrEval,
+    {
+        let eval_context = self
+            .eval_context
+            .as_ref()
+            .ok_or_else(|| IrError::new(self.span, IrErrorKind::MissingMacroQuery))?;
+
+        let mut ir_query = eval_context.query.as_ir_query();
+
+        let mut ir_compiler = IrCompiler {
+            storage: self.storage.clone(),
+            source: self.source.clone(),
+            query: &mut *ir_query,
+        };
+
+        let output = ir_compiler.compile(target)?;
+
+        let mut ir_interpreter = IrInterpreter {
+            budget: IrBudget::new(1_000_000),
+            scopes: Default::default(),
+            mod_item: eval_context.item.mod_item.clone(),
+            item: eval_context.item.item.clone(),
+            consts: eval_context.consts.clone(),
+            query: &mut *ir_query,
+        };
+
+        match ir_interpreter.eval(&output, Used::Used) {
+            Ok(value) => Ok(value),
+            Err(e) => match e {
+                IrEvalOutcome::Error(error) => Err(CompileError::from(error)),
+                IrEvalOutcome::NotConst(span) => {
+                    Err(CompileError::new(span, Box::new(IrErrorKind::NotConst)))
+                }
+                IrEvalOutcome::Break(span, _) => Err(CompileError::new(
+                    span,
+                    Box::new(IrErrorKind::BreakOutsideOfLoop),
+                )),
+            },
         }
     }
 

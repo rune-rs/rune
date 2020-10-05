@@ -1,4 +1,4 @@
-use crate::ir::eval::{Eval as _, EvalOutcome};
+use crate::ir::eval::{IrEval, IrEvalOutcome};
 use crate::ir::ir;
 use crate::ir::{IrQuery, IrValue};
 use crate::query::{QueryMod, Used};
@@ -10,8 +10,8 @@ use std::rc::Rc;
 /// Ir Scopes.
 pub(crate) type IrScopes = crate::shared::Scopes<IrValue>;
 
-/// The compiler phase which evaluates constants.
-pub(crate) struct IrInterpreter<'a> {
+/// The interpreter that executed [Ir][crate::ir::Ir].
+pub struct IrInterpreter<'a> {
     /// A budget associated with the compiler, for how many expressions it's
     /// allowed to evaluate.
     pub(crate) budget: IrBudget,
@@ -28,6 +28,14 @@ pub(crate) struct IrInterpreter<'a> {
 }
 
 impl IrInterpreter<'_> {
+    /// Evaluate the given target.
+    pub(crate) fn eval<T>(&mut self, target: &T, used: Used) -> Result<T::Output, IrEvalOutcome>
+    where
+        T: IrEval,
+    {
+        target.eval(self, used)
+    }
+
     /// Outer evaluation for an expression which performs caching into `consts`.
     pub(crate) fn eval_const(&mut self, ir: &ir::Ir, used: Used) -> Result<ConstValue, IrError> {
         log::trace!("processing constant: {}", self.item);
@@ -43,13 +51,13 @@ impl IrInterpreter<'_> {
         let ir_value = match self.eval(ir, used) {
             Ok(ir_value) => ir_value,
             Err(outcome) => match outcome {
-                EvalOutcome::Error(error) => {
+                IrEvalOutcome::Error(error) => {
                     return Err(IrError::from(error));
                 }
-                EvalOutcome::NotConst(span) => {
+                IrEvalOutcome::NotConst(span) => {
                     return Err(IrError::new(span, IrErrorKind::NotConst))
                 }
-                EvalOutcome::Break(span, _) => {
+                IrEvalOutcome::Break(span, _) => {
                     return Err(IrError::from(IrError::new(
                         span,
                         IrErrorKind::BreakOutsideOfLoop,
@@ -76,9 +84,9 @@ impl IrInterpreter<'_> {
         match self.eval(ir, used) {
             Ok(ir_value) => Ok(ir_value),
             Err(outcome) => match outcome {
-                EvalOutcome::Error(error) => Err(IrError::from(error)),
-                EvalOutcome::NotConst(span) => Err(IrError::new(span, IrErrorKind::NotConst)),
-                EvalOutcome::Break(span, _) => Err(IrError::from(IrError::new(
+                IrEvalOutcome::Error(error) => Err(IrError::from(error)),
+                IrEvalOutcome::NotConst(span) => Err(IrError::new(span, IrErrorKind::NotConst)),
+                IrEvalOutcome::Break(span, _) => Err(IrError::from(IrError::new(
                     span,
                     IrErrorKind::BreakOutsideOfLoop,
                 ))),

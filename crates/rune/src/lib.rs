@@ -283,7 +283,7 @@ pub use self::options::Options;
 pub use self::parsing::{
     Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, ResolveOwned,
 };
-pub use self::query::{QueryError, QueryErrorKind};
+pub use self::query::{QueryError, QueryErrorKind, Used};
 pub use self::shared::{Location, ScopeError, ScopeErrorKind};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use compiling::compile;
@@ -301,6 +301,6 @@ where
 {
     let mut parser = Parser::new(source);
     let ast = parser.parse::<T>()?;
-    parser.parse_eof()?;
+    parser.eof()?;
     Ok(ast)
 }

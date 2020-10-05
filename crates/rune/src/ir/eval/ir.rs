@@ -1,32 +1,36 @@
 use crate::ir::eval::prelude::*;
 
-/// Eval the interior expression.
-impl Eval<&ir::Ir> for IrInterpreter<'_> {
+/// IrEval the interior expression.
+impl IrEval for ir::Ir {
     type Output = IrValue;
 
-    fn eval(&mut self, ir: &ir::Ir, used: Used) -> Result<Self::Output, EvalOutcome> {
-        self.budget.take(ir)?;
+    fn eval(
+        &self,
+        interp: &mut IrInterpreter<'_>,
+        used: Used,
+    ) -> Result<Self::Output, IrEvalOutcome> {
+        interp.budget.take(self)?;
 
-        match &ir.kind {
-            ir::IrKind::Scope(ir_scope) => self.eval(ir_scope, used),
-            ir::IrKind::Binary(ir_binary) => self.eval(ir_binary, used),
-            ir::IrKind::Decl(ir_decl) => self.eval(ir_decl, used),
-            ir::IrKind::Set(ir_set) => self.eval(ir_set, used),
-            ir::IrKind::Assign(ir_assign) => self.eval(ir_assign, used),
-            ir::IrKind::Template(ir_template) => self.eval(ir_template, used),
-            ir::IrKind::Name(name) => Ok(self.resolve_var(ir.span(), name.as_ref(), used)?),
-            ir::IrKind::Target(ir_target) => Ok(self.scopes.get_target(ir_target)?),
+        match &self.kind {
+            ir::IrKind::Scope(ir_scope) => ir_scope.eval(interp, used),
+            ir::IrKind::Binary(ir_binary) => ir_binary.eval(interp, used),
+            ir::IrKind::Decl(ir_decl) => ir_decl.eval(interp, used),
+            ir::IrKind::Set(ir_set) => ir_set.eval(interp, used),
+            ir::IrKind::Assign(ir_assign) => ir_assign.eval(interp, used),
+            ir::IrKind::Template(ir_template) => ir_template.eval(interp, used),
+            ir::IrKind::Name(name) => Ok(interp.resolve_var(self.span(), name.as_ref(), used)?),
+            ir::IrKind::Target(ir_target) => Ok(interp.scopes.get_target(ir_target)?),
             ir::IrKind::Value(const_value) => Ok(IrValue::from_const(const_value.clone())),
-            ir::IrKind::Branches(branches) => self.eval(branches, used),
-            ir::IrKind::Loop(ir_loop) => self.eval(ir_loop, used),
+            ir::IrKind::Branches(branches) => branches.eval(interp, used),
+            ir::IrKind::Loop(ir_loop) => ir_loop.eval(interp, used),
             ir::IrKind::Break(ir_break) => {
-                self.eval(ir_break, used)?;
+                ir_break.eval(interp, used)?;
                 Ok(IrValue::Unit)
             }
-            ir::IrKind::Vec(ir_vec) => self.eval(ir_vec, used),
-            ir::IrKind::Tuple(ir_tuple) => self.eval(ir_tuple, used),
-            ir::IrKind::Object(ir_object) => self.eval(ir_object, used),
-            ir::IrKind::Call(ir_call) => self.eval(ir_call, used),
+            ir::IrKind::Vec(ir_vec) => ir_vec.eval(interp, used),
+            ir::IrKind::Tuple(ir_tuple) => ir_tuple.eval(interp, used),
+            ir::IrKind::Object(ir_object) => ir_object.eval(interp, used),
+            ir::IrKind::Call(ir_call) => ir_call.eval(interp, used),
         }
     }
 }

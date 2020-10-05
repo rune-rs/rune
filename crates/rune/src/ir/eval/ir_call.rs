@@ -1,15 +1,19 @@
 use crate::ir::eval::prelude::*;
 
-impl Eval<&ir::IrCall> for IrInterpreter<'_> {
+impl IrEval for ir::IrCall {
     type Output = IrValue;
 
-    fn eval(&mut self, ir_call: &ir::IrCall, used: Used) -> Result<Self::Output, EvalOutcome> {
+    fn eval(
+        &self,
+        interp: &mut IrInterpreter<'_>,
+        used: Used,
+    ) -> Result<Self::Output, IrEvalOutcome> {
         let mut args = Vec::new();
 
-        for arg in &ir_call.args {
-            args.push(self.eval(arg, used)?);
+        for arg in &self.args {
+            args.push(arg.eval(interp, used)?);
         }
 
-        Ok(self.call_const_fn(ir_call, &*ir_call.target, args, used)?)
+        Ok(interp.call_const_fn(self, &self.target, args, used)?)
     }
 }
