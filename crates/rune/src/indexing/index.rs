@@ -418,7 +418,7 @@ impl Index<ast::ItemFn> for Indexer<'_> {
             self.query.insert_meta(span, meta)?;
         } else {
             self.query.index(IndexedEntry {
-                query_item: item.clone(),
+                query_item: item,
                 source: self.source.clone(),
                 indexed: Indexed::Function(fun),
             })?;
@@ -974,7 +974,7 @@ impl Index<ast::Item> for Indexer<'_> {
                     ));
                 }
 
-                for path_segment in item_impl.path.into_components() {
+                for path_segment in item_impl.path.as_components() {
                     let ident_segment = path_segment
                         .try_as_ident()
                         .ok_or_else(|| CompileError::internal_unsupported_path(path_segment))?;

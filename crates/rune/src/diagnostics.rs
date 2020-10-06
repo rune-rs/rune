@@ -390,7 +390,7 @@ impl EmitDiagnostics for Error {
                     format_ir_error(this, sources, error_span, error, labels, notes)?;
                 }
                 QueryErrorKind::ImportCycle { path } => {
-                    let mut it = path.into_iter();
+                    let mut it = path.iter();
                     let last = it.next_back();
 
                     for (step, entry) in (1..).zip(it) {

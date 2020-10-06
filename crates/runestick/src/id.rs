@@ -20,17 +20,21 @@ impl Id {
         Id(NonZeroUsize::new(1).unwrap())
     }
 
-    /// Return the next id based on the current. Returns `None` if the next ID
-    /// could not be generated.
-    pub fn next(&mut self) -> Option<Self> {
-        let next = self.0.get().checked_add(1).and_then(NonZeroUsize::new)?;
-        *self = Self(next);
-        Some(*self)
-    }
-
     /// Construct a new opaque identifier.
     pub fn new(index: usize) -> Option<Id> {
         NonZeroUsize::new(index).map(Self)
+    }
+}
+
+impl Iterator for Id {
+    type Item = Self;
+
+    /// Return the next id based on the current. Returns `None` if the next ID
+    /// could not be generated.
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.0.get().checked_add(1).and_then(NonZeroUsize::new)?;
+        *self = Self(next);
+        Some(*self)
     }
 }
 

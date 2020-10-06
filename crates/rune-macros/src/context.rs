@@ -124,14 +124,8 @@ impl Context {
         for attr in input {
             #[allow(clippy::never_loop)] // I guess this is on purpose?
             for meta in self.get_meta_items(attr, RUNE)? {
-                match meta {
-                    meta => {
-                        self.errors
-                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
-
-                        return None;
-                    }
-                }
+                self.errors
+                    .push(syn::Error::new_spanned(meta, "unsupported attribute"));
             }
         }
 

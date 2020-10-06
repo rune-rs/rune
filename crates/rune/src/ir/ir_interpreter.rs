@@ -58,10 +58,7 @@ impl IrInterpreter<'_> {
                     return Err(IrError::new(span, IrErrorKind::NotConst))
                 }
                 IrEvalOutcome::Break(span, _) => {
-                    return Err(IrError::from(IrError::new(
-                        span,
-                        IrErrorKind::BreakOutsideOfLoop,
-                    )))
+                    return Err(IrError::new(span, IrErrorKind::BreakOutsideOfLoop))
                 }
             },
         };
@@ -84,7 +81,7 @@ impl IrInterpreter<'_> {
         match self.eval(ir, used) {
             Ok(ir_value) => Ok(ir_value),
             Err(outcome) => match outcome {
-                IrEvalOutcome::Error(error) => Err(IrError::from(error)),
+                IrEvalOutcome::Error(error) => Err(error),
                 IrEvalOutcome::NotConst(span) => Err(IrError::new(span, IrErrorKind::NotConst)),
                 IrEvalOutcome::Break(span, _) => Err(IrError::from(IrError::new(
                     span,
@@ -210,9 +207,7 @@ impl IrScopes {
     /// Get the given target as mut.
     pub(crate) fn get_target(&mut self, ir_target: &ir::IrTarget) -> Result<IrValue, IrError> {
         match &ir_target.kind {
-            ir::IrTargetKind::Name(name) => {
-                return Ok(self.get_name(name, ir_target)?.clone());
-            }
+            ir::IrTargetKind::Name(name) => Ok(self.get_name(name, ir_target)?.clone()),
             ir::IrTargetKind::Field(ir_target, field) => {
                 let value = self.get_target(ir_target)?;
 

@@ -12,6 +12,11 @@ pub trait UnsafeToValue: Sized {
     type Guard: 'static;
 
     /// Convert into a value.
+    ///
+    /// # Safety
+    ///
+    /// The value returned must not be used after the guard associated with it
+    /// has been dropped.
     unsafe fn unsafe_to_value(self) -> Result<(Value, Self::Guard), VmError>;
 }
 

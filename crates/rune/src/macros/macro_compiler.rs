@@ -124,6 +124,7 @@ impl MacroCompiler<'_> {
         let mut parser = Parser::from_token_stream(&token_stream);
         let output = parser.parse::<T>()?;
         parser.eof()?;
+
         Ok(output)
     }
 }

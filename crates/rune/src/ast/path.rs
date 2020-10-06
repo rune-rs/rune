@@ -60,7 +60,7 @@ impl Path {
     }
 
     /// Iterate over all components in path.
-    pub fn into_components(&self) -> impl Iterator<Item = &'_ PathSegment> + '_ {
+    pub fn as_components(&self) -> impl Iterator<Item = &'_ PathSegment> + '_ {
         let mut first = Some(&self.first);
         let mut it = self.rest.iter();
 
@@ -157,15 +157,13 @@ impl Parse for PathSegment {
             ast::Kind::Ident(_) => Ok(PathSegment::Ident(parser.parse()?)),
             ast::Kind::Crate => Ok(PathSegment::Crate(parser.parse()?)),
             ast::Kind::Super => Ok(PathSegment::Super(parser.parse()?)),
-            _ => {
-                return Err(ParseError::new(
-                    token,
-                    ParseErrorKind::TokenMismatch {
-                        expected: ast::Kind::Ident(ast::StringSource::Text),
-                        actual: token.kind,
-                    },
-                ))
-            }
+            _ => Err(ParseError::new(
+                token,
+                ParseErrorKind::TokenMismatch {
+                    expected: ast::Kind::Ident(ast::StringSource::Text),
+                    actual: token.kind,
+                },
+            )),
         }
     }
 }

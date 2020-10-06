@@ -137,7 +137,7 @@ impl ToTokens for Punct {
         let mut it = self.0.chars();
         let last = it.next_back();
 
-        while let Some(c) = it.next() {
+        for c in it {
             let mut p = p::Punct::new(c, p::Spacing::Joint);
             p.set_span(span);
             stream.extend(Some(p::TokenTree::Punct(p)));

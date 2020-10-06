@@ -323,7 +323,7 @@ impl CompileBuildEntry<'_> {
                         .not_used(location.source_id, location.span, None);
                 }
 
-                if let None = result {
+                if result.is_none() {
                     if !self.context.contains_prefix(&import.entry.imported)
                         && !self.query.contains_module(&import.entry.imported)
                     {

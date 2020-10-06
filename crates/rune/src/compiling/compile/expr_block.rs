@@ -10,7 +10,7 @@ impl Compile<(&ast::ExprBlock, Needs)> for Compiler<'_> {
             return Ok(self.compile((&expr_block.block, needs))?);
         }
 
-        let item = self.query.item_for(&expr_block.block)?.clone();
+        let item = self.query.item_for(&expr_block.block)?;
 
         let meta = match self.lookup_exact_meta(span, &item.item)? {
             Some(meta) => meta,

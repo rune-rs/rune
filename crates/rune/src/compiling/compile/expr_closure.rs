@@ -63,7 +63,7 @@ impl Compile<(&ast::ExprClosure, Needs)> for Compiler<'_> {
             return Ok(());
         }
 
-        let item = self.query.item_for(expr_closure)?.clone();
+        let item = self.query.item_for(expr_closure)?;
         let hash = Hash::type_hash(&item.item);
 
         let meta = self

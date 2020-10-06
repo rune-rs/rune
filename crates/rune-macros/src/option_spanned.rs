@@ -184,7 +184,7 @@ impl Expander {
                     fields,
                     "named enum variants are not supported",
                 ));
-                return None;
+                None
             }
             syn::Fields::Unnamed(unnamed) => self.expand_variant_unnamed(variant, unnamed),
             syn::Fields::Unit => self.expand_variant_unit(variant),

@@ -63,12 +63,7 @@ impl Quote {
         let mut stack = Vec::new();
         stack.push((p::Delimiter::None, input.into_iter().peekable()));
 
-        loop {
-            let (_, it) = match stack.last_mut() {
-                Some(it) => it,
-                None => break,
-            };
-
+        while let Some((_, it)) = stack.last_mut() {
             let tt = match it.next() {
                 Some(tt) => tt,
                 None => {
@@ -129,10 +124,8 @@ impl Quote {
                     self.encode_to_tokens(ident.span(), &mut output, kind);
                 }
                 TokenTree::Punct(punct) => {
-                    if punct.as_char() == '#' {
-                        if self.try_parse_expansion(&punct, &mut output, it) {
-                            continue;
-                        }
+                    if punct.as_char() == '#' && self.try_parse_expansion(&punct, &mut output, it) {
+                        continue;
                     }
 
                     let mut buf = ['\0'; 3];
@@ -215,7 +208,7 @@ fn consume_punct<'o>(
         return;
     }
 
-    while let Some(o) = out.next() {
+    for o in out {
         let p = match it.peek() {
             Some(TokenTree::Punct(p)) => p,
             _ => break,

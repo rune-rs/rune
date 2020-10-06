@@ -26,6 +26,14 @@ impl From<Internal> for IrError {
     }
 }
 
+impl From<AccessError> for IrErrorKind {
+    fn from(error: AccessError) -> Self {
+        IrErrorKind::AccessError {
+            error: Box::new(error),
+        }
+    }
+}
+
 impl IrError {
     /// Construct a custom error.
     pub fn custom<S>(spanned: S, message: &'static str) -> Self
@@ -55,7 +63,7 @@ impl IrError {
     where
         S: Spanned,
     {
-        move |error| Self::new(spanned, IrErrorKind::AccessError { error })
+        move |error| Self::new(spanned, error)
     }
 }
 
@@ -78,7 +86,7 @@ pub enum IrErrorKind {
         /// The kind of the scope error.
         #[source]
         #[from]
-        error: ScopeErrorKind,
+        error: Box<ScopeErrorKind>,
     },
     /// An access error raised during compilation.
     #[error("access error: {error}")]
@@ -86,7 +94,7 @@ pub enum IrErrorKind {
         /// The source error.
         #[source]
         #[from]
-        error: AccessError,
+        error: Box<AccessError>,
     },
     /// An access error raised during queries.
     #[error("{error}")]
@@ -94,7 +102,7 @@ pub enum IrErrorKind {
         /// The source error.
         #[source]
         #[from]
-        error: QueryErrorKind,
+        error: Box<QueryErrorKind>,
     },
     /// Encountered an expression that is not supported as a constant
     /// expression.

@@ -150,14 +150,14 @@ impl IrCompile for ast::ExprAssign {
         let span = self.span();
         let target = compiler.ir_target(&*self.lhs)?;
 
-        return Ok(ir::Ir::new(
+        Ok(ir::Ir::new(
             span,
             ir::IrSet {
                 span,
                 target,
                 value: Box::new(self.rhs.compile(compiler)?),
             },
-        ));
+        ))
     }
 }
 
@@ -521,6 +521,7 @@ impl IrCompile for ast::Local {
     fn compile(&self, compiler: &mut IrCompiler) -> Result<Self::Output, CompileError> {
         let span = self.span();
 
+        #[allow(clippy::never_loop)]
         let name = loop {
             match &self.pat {
                 ast::Pat::PatIgnore(_) => {

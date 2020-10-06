@@ -127,14 +127,7 @@ impl<'a> Lexer<'a> {
         let mut is_label = true;
         let mut count = 0;
 
-        loop {
-            let (s, c) = match self.iter.peek_with_pos() {
-                Some(c) => c,
-                None => {
-                    break;
-                }
-            };
-
+        while let Some((s, c)) = self.iter.peek_with_pos() {
             match c {
                 '\\' => {
                     self.iter.next();
@@ -766,7 +759,7 @@ impl LexerModes {
             Some(LexerMode::Template(expression)) => Ok(expression),
             _ => {
                 let span = iter.span_from(start);
-                return Err(ParseError::new(span, ParseErrorKind::ExpectedTemplateMode));
+                Err(ParseError::new(span, ParseErrorKind::ExpectedTemplateMode))
             }
         }
     }

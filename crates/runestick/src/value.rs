@@ -865,7 +865,7 @@ impl crate::ToValue for Value {
 
 impl crate::ToValue for () {
     fn to_value(self) -> Result<Value, VmError> {
-        Ok(Value::from(self))
+        Ok(Value::from(()))
     }
 }
 

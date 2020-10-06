@@ -127,7 +127,7 @@ impl Query {
 
         let query_path = Rc::new(QueryPath {
             mod_item: mod_item.clone(),
-            impl_item: impl_item.cloned().clone(),
+            impl_item: impl_item.cloned(),
             item: item.clone(),
         });
 
@@ -1121,9 +1121,7 @@ impl QueryInner {
                 type_of: Type::from(Hash::type_hash(&item.item)),
             },
             Indexed::Variant(variant) => {
-                let enum_item = self
-                    .item_for(query_item.location.span, Some(variant.enum_id))?
-                    .clone();
+                let enum_item = self.item_for(query_item.location.span, Some(variant.enum_id))?;
 
                 // Assert that everything is built for the enum.
                 self.query_meta_with(spanned, &enum_item, Default::default())?;

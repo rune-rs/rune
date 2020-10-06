@@ -19,6 +19,14 @@ error! {
     impl From<ParseError>;
 }
 
+impl From<InsertMetaError> for QueryErrorKind {
+    fn from(error: InsertMetaError) -> Self {
+        QueryErrorKind::InsertMetaError {
+            error: Box::new(error),
+        }
+    }
+}
+
 /// Error raised during queries.
 #[allow(missing_docs)]
 #[derive(Debug, Error)]
@@ -29,7 +37,7 @@ pub enum QueryErrorKind {
     InsertMetaError {
         #[source]
         #[from]
-        error: InsertMetaError,
+        error: Box<InsertMetaError>,
     },
     #[error("{error}")]
     IrError {
@@ -47,7 +55,7 @@ pub enum QueryErrorKind {
     ParseError {
         #[source]
         #[from]
-        error: ParseErrorKind,
+        error: Box<ParseErrorKind>,
     },
     #[error("missing {what} for id {id:?}")]
     MissingId { what: &'static str, id: Option<Id> },

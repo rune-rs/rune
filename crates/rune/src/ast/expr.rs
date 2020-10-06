@@ -460,7 +460,7 @@ impl Expr {
                                     attributes: expr.take_attributes(),
                                     expr: Box::new(expr),
                                     dot,
-                                    expr_field: ast::ExprField::Ident(name.clone()),
+                                    expr_field: ast::ExprField::Ident(*name),
                                 });
 
                                 continue;
@@ -590,8 +590,7 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let out = Self::parse_with(parser, EagerBrace(true), EagerBinary(true));
-        out
+        Self::parse_with(parser, EagerBrace(true), EagerBinary(true))
     }
 }
 

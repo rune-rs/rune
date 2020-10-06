@@ -9,12 +9,13 @@ pub trait SourceLoader {
 }
 
 /// A filesystem-based source loader.
+#[derive(Default)]
 pub struct FileSourceLoader {}
 
 impl FileSourceLoader {
     /// Construct a new filesystem-based source loader.
     pub fn new() -> Self {
-        Self {}
+        Self::default()
     }
 }
 
@@ -65,15 +66,13 @@ impl SourceLoader for FileSourceLoader {
 
         match Source::from_path(path) {
             Ok(source) => Ok(source),
-            Err(error) => {
-                return Err(CompileError::new(
-                    span,
-                    CompileErrorKind::ModFileError {
-                        path: path.to_owned(),
-                        error,
-                    },
-                ));
-            }
+            Err(error) => Err(CompileError::new(
+                span,
+                CompileErrorKind::ModFileError {
+                    path: path.to_owned(),
+                    error,
+                },
+            )),
         }
     }
 }

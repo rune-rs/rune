@@ -764,6 +764,7 @@ impl<'a> Compiler<'a> {
         false_label: Label,
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
+        #[allow(clippy::never_loops)]
         loop {
             match &*pat_lit.expr {
                 ast::Expr::ExprUnary(expr_unary) => match &*expr_unary.expr {

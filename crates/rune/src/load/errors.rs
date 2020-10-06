@@ -1,7 +1,7 @@
 use crate::load::Error;
 
 /// A collection of errors.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Errors {
     errors: Vec<Error>,
 }
@@ -9,7 +9,7 @@ pub struct Errors {
 impl Errors {
     /// Construct a new collection of errors.
     pub fn new() -> Self {
-        Self { errors: Vec::new() }
+        Self::default()
     }
 
     /// Push an error to the collection.

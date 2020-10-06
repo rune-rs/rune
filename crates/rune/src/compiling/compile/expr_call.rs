@@ -136,7 +136,7 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
             }
             CompileMetaKind::Function { .. } => (),
             CompileMetaKind::ConstFn { id, .. } => {
-                let from = self.query.item_for(expr_call)?.clone();
+                let from = self.query.item_for(expr_call)?;
                 let const_fn = self.query.const_fn_for((expr_call.span(), *id))?;
 
                 let value = self.call_const_fn(

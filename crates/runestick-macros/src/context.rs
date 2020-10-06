@@ -104,16 +104,11 @@ impl Context {
         let output = FieldAttrs::default();
 
         for attr in attrs {
-            #[allow(clippy::never_loop)] // I guess this is on purpose?
-            for meta in self.get_rune_meta_items(attr)? {
-                match meta {
-                    meta => {
-                        self.errors
-                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
+            if let Some(meta) = self.get_rune_meta_items(attr)?.into_iter().next() {
+                self.errors
+                    .push(syn::Error::new_spanned(meta, "unsupported attribute"));
 
-                        return None;
-                    }
-                }
+                return None;
             }
         }
 

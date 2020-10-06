@@ -71,7 +71,6 @@ pub struct LoadSourcesError;
 ///     let mut writer = StandardStream::stderr(ColorChoice::Always);
 ///     warnings.emit_diagnostics(&mut writer, &sources)?;
 /// }
-///
 /// # Ok(())
 /// # }
 /// ```
@@ -139,7 +138,7 @@ pub fn load_sources_with_visitor(
         Some(unit) => Ok(unit),
         None => {
             errors.push(Error::internal(0, "unit builder is not exclusively held"));
-            return Err(LoadSourcesError);
+            Err(LoadSourcesError)
         }
     }
 }

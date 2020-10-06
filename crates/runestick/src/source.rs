@@ -57,6 +57,11 @@ impl Source {
         })
     }
 
+    /// Test if the source is empty.
+    pub fn is_empty(&self) -> bool {
+        self.source.is_empty()
+    }
+
     /// Get the length of the source.
     pub fn len(&self) -> usize {
         self.source.len()

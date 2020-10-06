@@ -379,17 +379,13 @@ impl IrAssignOp {
     where
         S: Copy + Spanned,
     {
-        match target {
-            IrValue::Integer(target) => match operand {
-                IrValue::Integer(operand) => {
-                    return Ok(self.assign_int(spanned, target, operand)?);
-                }
-                _ => (),
-            },
-            _ => (),
+        if let IrValue::Integer(target) = target {
+            if let IrValue::Integer(operand) = operand {
+                return Ok(self.assign_int(spanned, target, operand)?);
+            }
         }
 
-        return Err(IrError::custom(spanned, "unsupported operands"));
+        Err(IrError::custom(spanned, "unsupported operands"))
     }
 
     /// Perform the given assign operation.

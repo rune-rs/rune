@@ -200,10 +200,10 @@ where
     let ast = parser.parse::<T>().expect("first parse");
     parser.eof().expect("first parse eof");
 
-    let mut ctx = crate::macros::MacroContext::empty();
+    let ctx = crate::macros::MacroContext::empty();
     let mut token_stream = crate::macros::TokenStream::new();
 
-    ast.to_tokens(&mut ctx, &mut token_stream);
+    ast.to_tokens(&ctx, &mut token_stream);
     let mut parser = crate::parsing::Parser::from_token_stream(&token_stream);
     let ast2 = parser.parse::<T>().expect("second parse");
     parser.eof().expect("second parse eof");
