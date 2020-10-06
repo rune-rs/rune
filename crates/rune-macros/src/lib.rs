@@ -47,12 +47,11 @@
 
 extern crate proc_macro;
 
-use quote::quote;
-
 mod context;
 mod internals;
 mod option_spanned;
 mod parse;
+mod quote;
 mod spanned;
 mod to_tokens;
 
@@ -88,7 +87,52 @@ pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream
     derive.expand().unwrap_or_else(to_compile_errors).into()
 }
 
+/// Macro helper function for quoting the token stream as macro output.
+///
+/// Is capable of quoting everything in Rune, except for the following:
+/// * Pound signs (`#`), which can be inserted by using `#(ast::Pound)` instead.
+///   These are used in object literal, and are a limitiation in the quote macro
+///   because we use the pound sign to delimit variables.
+/// * Labels, which must be created using [crate::MacroContext::label].
+/// * Template strings, which must be created using [crate::MacroContext::template_string].
+///
+/// # Panics
+///
+/// Calling this macro will panic if called outside of a macro context.
+/// A macro context can be setup using [with_context](crate::macros::with_context).
+///
+/// ```rust
+/// use rune::macros::{with_context, MacroContext};
+/// let ctx = MacroContext::empty();
+///
+/// with_context(ctx, || {
+///     rune::quote!(hello self);
+/// });
+/// ```
+///
+/// # Interpolating values
+///
+/// Values are interpolated with `#value`, or `#(value + 1)` for expressions.
+///
+/// # Iterators
+///
+/// Anything that can be used as an iterator can be iterated over with
+/// `#(iter)*`. A token can also be used to join inbetween each iteration, like
+/// `#(iter),*`.
+#[proc_macro]
+pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = proc_macro2::TokenStream::from(input);
+    let parser = crate::quote::Quote::new();
+
+    let output = match parser.parse(input) {
+        Ok(output) => output,
+        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
+    };
+
+    output.into()
+}
+
 fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {
     let compile_errors = errors.iter().map(syn::Error::to_compile_error);
-    quote!(#(#compile_errors)*)
+    ::quote::quote!(#(#compile_errors)*)
 }

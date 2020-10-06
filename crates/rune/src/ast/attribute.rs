@@ -42,7 +42,7 @@ impl Parse for Attribute {
         let close;
 
         let mut level = 1;
-        let mut stream = Vec::new();
+        let mut input = TokenStream::new();
 
         loop {
             let token = parser.token_next()?;
@@ -60,7 +60,7 @@ impl Parse for Attribute {
                 break;
             }
 
-            stream.push(token);
+            input.push(token);
         }
 
         Ok(Attribute {
@@ -68,7 +68,7 @@ impl Parse for Attribute {
             style,
             open,
             path,
-            input: TokenStream::new(stream),
+            input,
             close,
         })
     }

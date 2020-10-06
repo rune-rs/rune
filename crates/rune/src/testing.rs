@@ -201,7 +201,7 @@ where
     parser.eof().expect("first parse eof");
 
     let mut ctx = crate::macros::MacroContext::empty();
-    let mut token_stream = crate::macros::TokenStream::empty();
+    let mut token_stream = crate::macros::TokenStream::new();
 
     ast.to_tokens(&mut ctx, &mut token_stream);
     let mut parser = crate::parsing::Parser::from_token_stream(&token_stream);

@@ -166,7 +166,7 @@ impl MacroContext {
     where
         T: ToTokens,
     {
-        let mut stream = TokenStream::empty();
+        let mut stream = TokenStream::new();
         tokens.to_tokens(self, &mut stream);
         Stringify { ctx: self, stream }
     }

@@ -8,8 +8,12 @@ members = [
     "crates/rune-macros",
     "crates/runestick-macros",
     "crates/runestick",
+]
+
+exclude = [
     "tools/builder",
     "tools/site",
+    "tools/generate",
 ]
 
 default-members = [

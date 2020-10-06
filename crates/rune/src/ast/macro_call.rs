@@ -80,7 +80,7 @@ impl MacroCall {
             bang,
             path,
             open,
-            stream: TokenStream::new(stream),
+            stream: TokenStream::from(stream),
             close,
         })
     }
