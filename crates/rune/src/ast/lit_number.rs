@@ -48,7 +48,7 @@ impl<'a> Resolve<'a> for LitNumber {
 
         let text = match self.source {
             ast::NumberSource::Synthetic(id) => match storage.get_number(id) {
-                Some(number) => return Ok(number.clone()),
+                Some(number) => return Ok(number),
                 None => {
                     return Err(ParseError::new(
                         span,

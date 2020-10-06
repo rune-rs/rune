@@ -323,17 +323,16 @@ impl CompileBuildEntry<'_> {
                         .not_used(location.source_id, location.span, None);
                 }
 
-                if result.is_none() {
-                    if !self.context.contains_prefix(&import.entry.imported)
-                        && !self.query.contains_module(&import.entry.imported)
-                    {
-                        return Err(CompileError::new(
-                            location.span,
-                            CompileErrorKind::MissingItem {
-                                item: item.item.clone(),
-                            },
-                        ));
-                    }
+                if result.is_none()
+                    && !self.context.contains_prefix(&import.entry.imported)
+                    && !self.query.contains_module(&import.entry.imported)
+                {
+                    return Err(CompileError::new(
+                        location.span,
+                        CompileErrorKind::MissingItem {
+                            item: item.item.clone(),
+                        },
+                    ));
                 }
             }
         }

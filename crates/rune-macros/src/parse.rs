@@ -96,7 +96,7 @@ impl Expander {
         named: &syn::FieldsNamed,
     ) -> Option<TokenStream> {
         let ident = &input.ident;
-        let mut attrs_field: Option<(usize, &syn::Field)> = None;
+        let mut attrs_field: Option<(usize, &syn::Ident)> = None;
         let mut fields = Vec::new();
 
         for (i, field) in named.named.iter().enumerate() {
@@ -109,9 +109,7 @@ impl Expander {
             }
 
             if attrs.attributes.is_some() {
-                if let Some((idx, attrs_field)) = &attrs_field {
-                    let attrs_ident = self.ctx.field_ident(attrs_field)?;
-
+                if let Some((idx, ident)) = &attrs_field {
                     self.ctx.errors.push(syn::Error::new_spanned(
                         field,
                         format!(
@@ -120,12 +118,13 @@ impl Expander {
                             occurrence was at field #{} `{}`.",
                             crate::internals::ATTRIBUTES,
                             idx,
-                            quote! { #attrs_ident }
+                            quote! { #ident }
                         ),
                     ));
                     return None;
                 } else {
-                    attrs_field = Some((i + 1, field));
+                    let ident = self.ctx.field_ident(field)?;
+                    attrs_field = Some((i + 1, ident));
                     continue;
                 }
             }
@@ -133,22 +132,20 @@ impl Expander {
             fields.push(quote_spanned! { field.span() => #ident: parser.parse()? })
         }
 
-        let attrs_ident: Option<syn::Ident> =
-            attrs_field.and_then(|(_, f)| self.ctx.field_ident(f).cloned());
         let parse = &self.ctx.parse;
         let parser = &self.ctx.parser;
         let parse_error = &self.ctx.parse_error;
 
-        if let Some(attrs_ident) = attrs_ident {
+        if let Some((_, attrs_ident)) = attrs_field {
             Some(quote_spanned! {
                 named.span() =>
                     impl #ident {
                         #[doc = "Parse #ident and attach the given attributes"]
                         pub fn parse_with_attributes(parser: &mut #parser<'_>,
-                                                     attributes: ::std::vec::Vec<crate::ast::Attribute>
+                                                     #attrs_ident: ::std::vec::Vec<crate::ast::Attribute>
                         ) -> Result<Self, #parse_error> {
                             Ok(Self {
-                                #attrs_ident: attributes,
+                                #attrs_ident,
                                 #(#fields,)*
                             })
                         }

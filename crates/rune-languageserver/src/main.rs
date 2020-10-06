@@ -80,7 +80,8 @@ async fn main() -> Result<()> {
     let mut it = env::args();
     it.next();
 
-    while let Some(arg) = it.next() {
+    #[allow(clippy::never_loop)]
+    for arg in it {
         match arg.as_str() {
             "--version" => {
                 println!("Rune language server {}", rune_languageserver::VERSION);

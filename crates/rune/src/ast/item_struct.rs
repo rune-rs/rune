@@ -128,7 +128,7 @@ impl Parse for ItemStructBody {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct Field {
     /// Attributes associated with field.
-    #[rune(iter, attributes)]
+    #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the field
     #[rune(optional)]

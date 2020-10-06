@@ -455,11 +455,8 @@ impl EmitDiagnostics for Error {
             labels: &mut Vec<Label<SourceId>>,
             notes: &mut Vec<String>,
         ) -> fmt::Result {
-            match kind {
-                IrErrorKind::QueryError { error } => {
-                    format_query_error(this, sources, error_span, error, labels, notes)?;
-                }
-                _ => (),
+            if let IrErrorKind::QueryError { error } = kind {
+                format_query_error(this, sources, error_span, error, labels, notes)?;
             }
 
             Ok(())

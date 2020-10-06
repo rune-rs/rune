@@ -168,6 +168,9 @@
 //! [support-serde]: https://github.com/rune-rs/rune/blob/master/crates/rune-modules/src/json.rs
 
 #![deny(missing_docs)]
+#![allow(clippy::enum_variant_names)]
+#![allow(clippy::never_loop)]
+#![allow(clippy::too_many_arguments)]
 
 macro_rules! error {
     (

@@ -46,6 +46,7 @@
 //! [Rune Language]: https://rune-rs.github.io
 
 #![deny(missing_docs)]
+#![allow(clippy::enum_variant_names)]
 
 mod any;
 mod context;

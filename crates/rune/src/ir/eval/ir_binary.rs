@@ -56,6 +56,7 @@ impl IrEval for ir::IrBinary {
                 ir::IrBinaryOp::Gte => return Ok(IrValue::Bool(a >= b)),
             },
             (IrValue::Float(a), IrValue::Float(b)) => {
+                #[allow(clippy::float_cmp)]
                 match self.op {
                     ir::IrBinaryOp::Add => return Ok(IrValue::Float(a + b)),
                     ir::IrBinaryOp::Sub => return Ok(IrValue::Float(a - b)),
@@ -69,12 +70,11 @@ impl IrEval for ir::IrBinary {
                     _ => (),
                 };
             }
-            (IrValue::String(a), IrValue::String(b)) => match self.op {
-                ir::IrBinaryOp::Add => {
+            (IrValue::String(a), IrValue::String(b)) => {
+                if let ir::IrBinaryOp::Add = self.op {
                     return Ok(IrValue::String(add_strings(span, &a, &b)?));
                 }
-                _ => (),
-            },
+            }
             _ => (),
         }
 

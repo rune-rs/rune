@@ -6,20 +6,17 @@ impl Compile<(&ast::Path, Needs)> for Compiler<'_> {
         let span = path.span();
         log::trace!("Path => {:?}", self.source.source(span));
 
-        match path.as_kind() {
-            Some(ast::PathKind::SelfValue) => {
-                let var = self
-                    .scopes
-                    .get_var("self", self.source_id, self.visitor, span)?;
+        if let Some(ast::PathKind::SelfValue) = path.as_kind() {
+            let var = self
+                .scopes
+                .get_var("self", self.source_id, self.visitor, span)?;
 
-                if !needs.value() {
-                    return Ok(());
-                }
-
-                var.copy(&mut self.asm, span, "self");
+            if !needs.value() {
                 return Ok(());
             }
-            _ => (),
+
+            var.copy(&mut self.asm, span, "self");
+            return Ok(());
         }
 
         // NB: do nothing if we don't need a value.

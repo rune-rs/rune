@@ -181,7 +181,7 @@ impl Parse for Pat {
             _ => (),
         }
 
-        return Err(ParseError::expected(token, "pattern"));
+        Err(ParseError::expected(token, "pattern"))
     }
 }
 

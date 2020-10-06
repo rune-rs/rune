@@ -173,19 +173,16 @@ impl IrCompile for ast::ExprCall {
             args.push(expr.compile(compiler)?);
         }
 
-        match &*self.expr {
-            ast::Expr::Path(path) => {
-                if let Some(ident) = path.try_as_ident() {
-                    let target = compiler.resolve(ident)?;
+        if let ast::Expr::Path(path) = &*self.expr {
+            if let Some(ident) = path.try_as_ident() {
+                let target = compiler.resolve(ident)?;
 
-                    return Ok(ir::IrCall {
-                        span,
-                        target: target.into(),
-                        args,
-                    });
-                }
+                return Ok(ir::IrCall {
+                    span,
+                    target: target.into(),
+                    args,
+                });
             }
-            _ => (),
         }
 
         Err(CompileError::const_error(span, "call not supported"))
@@ -521,16 +518,16 @@ impl IrCompile for ast::Local {
     fn compile(&self, compiler: &mut IrCompiler) -> Result<Self::Output, CompileError> {
         let span = self.span();
 
-        #[allow(clippy::never_loop)]
         let name = loop {
             match &self.pat {
                 ast::Pat::PatIgnore(_) => {
                     return self.expr.compile(compiler);
                 }
-                ast::Pat::PatPath(path) => match path.path.try_as_ident() {
-                    Some(ident) => break ident,
-                    None => (),
-                },
+                ast::Pat::PatPath(path) => {
+                    if let Some(ident) = path.path.try_as_ident() {
+                        break ident;
+                    }
+                }
                 _ => (),
             }
 

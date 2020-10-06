@@ -764,14 +764,14 @@ impl<'a> Compiler<'a> {
         false_label: Label,
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
-        #[allow(clippy::never_loops)]
         loop {
             match &*pat_lit.expr {
-                ast::Expr::ExprUnary(expr_unary) => match &*expr_unary.expr {
-                    ast::Expr::ExprLit(ast::ExprLit {
+                ast::Expr::ExprUnary(expr_unary) => {
+                    if let ast::Expr::ExprLit(ast::ExprLit {
                         lit: ast::Lit::Number(lit_number),
                         ..
-                    }) => {
+                    }) = &*expr_unary.expr
+                    {
                         let span = lit_number.span();
                         let integer = lit_number
                             .resolve(&self.storage, &*self.source)?
@@ -780,8 +780,7 @@ impl<'a> Compiler<'a> {
                         self.asm.push(Inst::EqInteger { integer }, span);
                         break;
                     }
-                    _ => (),
-                },
+                }
                 ast::Expr::ExprLit(expr_lit) => match &expr_lit.lit {
                     ast::Lit::Unit(unit) => {
                         load(self, Needs::Value)?;

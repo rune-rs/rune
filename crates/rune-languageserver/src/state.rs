@@ -97,10 +97,7 @@ impl State {
 
         let range = lsp::Range { start, end };
 
-        let location = lsp::Location {
-            uri: url.clone(),
-            range,
-        };
+        let location = lsp::Location { uri: url, range };
 
         log::trace!("go to location: {:?}", location);
         Some(location)
@@ -646,7 +643,7 @@ impl<'a> SourceLoader<'a> {
         let mut a = base.clone();
         a.push(&format!("{}.rn", last));
 
-        let mut b = base.clone();
+        let mut b = base;
         b.push(last);
         b.push("mod.rn");
 

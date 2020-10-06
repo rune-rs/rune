@@ -81,7 +81,10 @@ impl LitStr {
                 ) {
                     Ok(c) => c,
                     Err(kind) => {
-                        let end = it.next().map(|n| n.0).unwrap_or(span.end.into_usize());
+                        let end = it
+                            .next()
+                            .map(|n| n.0)
+                            .unwrap_or_else(|| span.end.into_usize());
                         return Err(ParseError::new(Span::new(start, end), kind));
                     }
                 },

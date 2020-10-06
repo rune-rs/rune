@@ -52,7 +52,7 @@ impl IrInterpreter<'_> {
             Ok(ir_value) => ir_value,
             Err(outcome) => match outcome {
                 IrEvalOutcome::Error(error) => {
-                    return Err(IrError::from(error));
+                    return Err(error);
                 }
                 IrEvalOutcome::NotConst(span) => {
                     return Err(IrError::new(span, IrErrorKind::NotConst))
@@ -83,10 +83,9 @@ impl IrInterpreter<'_> {
             Err(outcome) => match outcome {
                 IrEvalOutcome::Error(error) => Err(error),
                 IrEvalOutcome::NotConst(span) => Err(IrError::new(span, IrErrorKind::NotConst)),
-                IrEvalOutcome::Break(span, _) => Err(IrError::from(IrError::new(
-                    span,
-                    IrErrorKind::BreakOutsideOfLoop,
-                ))),
+                IrEvalOutcome::Break(span, _) => {
+                    Err(IrError::new(span, IrErrorKind::BreakOutsideOfLoop))
+                }
             },
         }
     }
