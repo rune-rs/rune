@@ -1,0 +1,384 @@
+- kind: keyword
+  variant: Abstract
+  doc: "The `abstract` keyword."
+  keyword: "abstract"
+- kind: keyword
+  variant: AlignOf
+  doc: "The `alignof` keyword."
+  keyword: "alignof"
+- kind: punct
+  variant: Amp
+  doc: "`&`."
+  punct: "&"
+- kind: punct
+  variant: AmpAmp
+  doc: "`&&`."
+  punct: "&&"
+- kind: punct
+  variant: AmpEq
+  doc: "`&=`."
+  punct: "&="
+- kind: punct
+  variant: Arrow
+  doc: "`->`."
+  punct: "->"
+- kind: keyword
+  variant: As
+  doc: "The `as` keyword."
+  keyword: "as"
+- kind: keyword
+  variant: Async
+  doc: "The `async` keyword."
+  keyword: "async"
+- kind: punct
+  variant: At
+  doc: "`@`."
+  punct: "@"
+- kind: keyword
+  variant: Await
+  doc: "The `await` keyword."
+  keyword: "await"
+- kind: punct
+  variant: Bang
+  doc: "`!`."
+  punct: "!"
+- kind: punct
+  variant: BangEq
+  doc: "`!=`."
+  punct: "!="
+- kind: keyword
+  variant: Become
+  doc: "The `become` keyword."
+  keyword: "become"
+- kind: keyword
+  variant: Break
+  doc: "The `break` keyword."
+  keyword: "break"
+- kind: punct
+  variant: Caret
+  doc: "`^`."
+  punct: "^"
+- kind: punct
+  variant: CaretEq
+  doc: "`^=`."
+  punct: "^="
+- kind: punct
+  variant: Colon
+  doc: "`:`."
+  punct: ":"
+- kind: punct
+  variant: ColonColon
+  doc: "`::`."
+  punct: "::"
+- kind: punct
+  variant: Comma
+  doc: "`,`."
+  punct: ","
+- kind: keyword
+  variant: Const
+  doc: "The `const` keyword."
+  keyword: "const"
+- kind: keyword
+  variant: Crate
+  doc: "The `crate` keyword."
+  keyword: "crate"
+- kind: punct
+  variant: Dash
+  doc: "`-`."
+  punct: "-"
+- kind: punct
+  variant: DashEq
+  doc: "`-=`."
+  punct: "-="
+- kind: keyword
+  variant: Default
+  doc: "The `default` keyword."
+  keyword: "default"
+- kind: punct
+  variant: Div
+  doc: "`/`."
+  punct: "/"
+- kind: keyword
+  variant: Do
+  doc: "The `do` keyword."
+  keyword: "do"
+- kind: punct
+  variant: Dollar
+  doc: "`$`."
+  punct: "$"
+- kind: punct
+  variant: Dot
+  doc: "`.`."
+  punct: "."
+- kind: punct
+  variant: DotDot
+  doc: "`..`."
+  punct: ".."
+- kind: keyword
+  variant: Else
+  doc: "The `else` keyword."
+  keyword: "else"
+- kind: keyword
+  variant: Enum
+  doc: "The `enum` keyword."
+  keyword: "enum"
+- kind: punct
+  variant: Eq
+  doc: "`=`."
+  punct: "="
+- kind: punct
+  variant: EqEq
+  doc: "`==`."
+  punct: "=="
+- kind: keyword
+  variant: Extern
+  doc: "The `extern` keyword."
+  keyword: "extern"
+- kind: keyword
+  variant: "False"
+  doc: "The `false` keyword."
+  keyword: "false"
+- kind: keyword
+  variant: Final
+  doc: "The `final` keyword."
+  keyword: "final"
+- kind: keyword
+  variant: Fn
+  doc: "The `fn` keyword."
+  keyword: "fn"
+- kind: keyword
+  variant: For
+  doc: "The `for` keyword."
+  keyword: "for"
+- kind: punct
+  variant: Gt
+  doc: "`>`."
+  punct: ">"
+- kind: punct
+  variant: GtEq
+  doc: "`>=`."
+  punct: ">="
+- kind: punct
+  variant: GtGt
+  doc: "`>>`."
+  punct: ">>"
+- kind: punct
+  variant: GtGtEq
+  doc: "`>>=`."
+  punct: ">>="
+- kind: keyword
+  variant: If
+  doc: "The `if` keyword."
+  keyword: "if"
+- kind: keyword
+  variant: Impl
+  doc: "The `impl` keyword."
+  keyword: "impl"
+- kind: keyword
+  variant: In
+  doc: "The `in` keyword."
+  keyword: "in"
+- kind: keyword
+  variant: Is
+  doc: "The `is` keyword."
+  keyword: "is"
+- kind: keyword
+  variant: Let
+  doc: "The `let` keyword."
+  keyword: "let"
+- kind: keyword
+  variant: Loop
+  doc: "The `loop` keyword."
+  keyword: "loop"
+- kind: punct
+  variant: Lt
+  doc: "`<`."
+  punct: "<"
+- kind: punct
+  variant: LtEq
+  doc: "`<=`."
+  punct: "<="
+- kind: punct
+  variant: LtLt
+  doc: "`<<`."
+  punct: "<<"
+- kind: punct
+  variant: LtLtEq
+  doc: "`<<=`."
+  punct: "<<="
+- kind: keyword
+  variant: Macro
+  doc: "The `macro` keyword."
+  keyword: "macro"
+- kind: keyword
+  variant: Match
+  doc: "The `match` keyword."
+  keyword: "match"
+- kind: keyword
+  variant: Mod
+  doc: "The `mod` keyword."
+  keyword: "mod"
+- kind: keyword
+  variant: Move
+  doc: "The `move` keyword."
+  keyword: "move"
+- kind: keyword
+  variant: Not
+  doc: "The `not` keyword."
+  keyword: "not"
+- kind: keyword
+  variant: OffsetOf
+  doc: "The `offsetof` keyword."
+  keyword: "offsetof"
+- kind: keyword
+  variant: Override
+  doc: "The `override` keyword."
+  keyword: "override"
+- kind: punct
+  variant: Perc
+  doc: "`%`."
+  punct: "%"
+- kind: punct
+  variant: PercEq
+  doc: "`%=`."
+  punct: "%="
+- kind: punct
+  variant: Pipe
+  doc: "`|`."
+  punct: "|"
+- kind: punct
+  variant: PipeEq
+  doc: "|=`."
+  punct: "|="
+- kind: punct
+  variant: PipePipe
+  doc: "`||`."
+  punct: "||"
+- kind: punct
+  variant: Plus
+  doc: "`+`."
+  punct: "+"
+- kind: punct
+  variant: PlusEq
+  doc: "`+=`."
+  punct: "+="
+- kind: punct
+  variant: Pound
+  doc: "`#`."
+  punct: "#"
+- kind: keyword
+  variant: Priv
+  doc: "The `priv` keyword."
+  keyword: "priv"
+- kind: keyword
+  variant: Proc
+  doc: "The `proc` keyword."
+  keyword: "proc"
+- kind: keyword
+  variant: Pub
+  doc: "The `pub` keyword."
+  keyword: "pub"
+- kind: keyword
+  variant: Pure
+  doc: "The `pure` keyword."
+  keyword: "pure"
+- kind: punct
+  variant: QuestionMark
+  doc: "`?`."
+  punct: "?"
+- kind: keyword
+  variant: Ref
+  doc: "The `ref` keyword."
+  keyword: "ref"
+- kind: keyword
+  variant: Return
+  doc: "The `return` keyword."
+  keyword: "return"
+- kind: punct
+  variant: Rocket
+  doc: "`=>`."
+  punct: "=>"
+- kind: keyword
+  variant: Select
+  doc: "The `select` keyword."
+  keyword: "select"
+- kind: keyword
+  variant: SelfType
+  doc: "The `Self` keyword."
+  keyword: "Self"
+- kind: keyword
+  variant: SelfValue
+  doc: "The `self` keyword."
+  keyword: "self"
+- kind: punct
+  variant: SemiColon
+  doc: "`;`."
+  punct: ";"
+- kind: keyword
+  variant: SizeOf
+  doc: "The `sizeof` keyword."
+  keyword: "sizeof"
+- kind: punct
+  variant: SlashEq
+  doc: "`/=`."
+  punct: "/="
+- kind: punct
+  variant: Star
+  doc: "`*`."
+  punct: "*"
+- kind: punct
+  variant: StarEq
+  doc: "`*=`."
+  punct: "*="
+- kind: keyword
+  variant: Static
+  doc: "The `static` keyword."
+  keyword: "static"
+- kind: keyword
+  variant: Struct
+  doc: "The `struct` keyword."
+  keyword: "struct"
+- kind: keyword
+  variant: Super
+  doc: "The `super` keyword."
+  keyword: "super"
+- kind: keyword
+  variant: Template
+  doc: "The `template` keyword."
+  keyword: "template"
+- kind: punct
+  variant: Tilde
+  doc: "`~`."
+  punct: "~"
+- kind: keyword
+  variant: "True"
+  doc: "The `true` keyword."
+  keyword: "true"
+- kind: keyword
+  variant: TypeOf
+  doc: "The `typeof` keyword."
+  keyword: "typeof"
+- kind: punct
+  variant: Underscore
+  doc: "`_`."
+  punct: "_"
+- kind: keyword
+  variant: Unsafe
+  doc: "The `unsafe` keyword."
+  keyword: "unsafe"
+- kind: keyword
+  variant: Use
+  doc: "The `use` keyword."
+  keyword: "use"
+- kind: keyword
+  variant: Virtual
+  doc: "The `virtual` keyword."
+  keyword: "virtual"
+- kind: keyword
+  variant: While
+  doc: "The `while` keyword."
+  keyword: "while"
+- kind: keyword
+  variant: Yield
+  doc: "The `yield` keyword."
+  keyword: "yield"

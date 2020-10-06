@@ -39,7 +39,7 @@ fn make_function(stream: &TokenStream) -> runestick::Result<TokenStream> {
     let output = parser.parse::<ast::ExprBlock>()?;
     parser.eof()?;
 
-    Ok(rune::quote!(fn #ident() { #output }))
+    Ok(rune::quote!(fn #ident() { #output }).into_token_stream())
 }
 
 /// Construct the `std::experiments` module, which contains experiments.

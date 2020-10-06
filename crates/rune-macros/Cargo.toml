@@ -19,6 +19,9 @@ syn = { version = "1.0.31", features = ["full"] }
 quote = "1.0.3"
 proc-macro2 = { version = "1.0.10", features = ["span-locations"] }
 
+[dev-dependencies]
+rune = {version = "0.6.16", path = "../rune"}
+
 [lib]
 proc-macro = true
 path = "src/lib.rs"

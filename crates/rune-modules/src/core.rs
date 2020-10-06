@@ -38,7 +38,7 @@ pub(crate) fn stringify_macro(
 ) -> runestick::Result<TokenStream> {
     let lit = macros::stringify(stream);
     let lit = ast::Lit::new(lit);
-    Ok(quote!(#lit))
+    Ok(quote!(#lit).into_token_stream())
 }
 
 /// Implementation for the `println!` macro.
@@ -49,5 +49,5 @@ pub(crate) fn println_macro(
     let expr = parser.parse::<ast::Expr>()?;
     let _ = macros::eval(&expr)?;
     parser.eof()?;
-    Ok(quote!())
+    Ok(quote!().into_token_stream())
 }

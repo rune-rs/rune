@@ -61,7 +61,7 @@ pub(crate) fn assert_macro(
     };
 
     parser.eof()?;
-    Ok(output)
+    Ok(output.into_token_stream())
 }
 
 /// Implementation for the `assert!` macro.
@@ -97,5 +97,5 @@ pub(crate) fn assert_eq_macro(
     };
 
     parser.eof()?;
-    Ok(output)
+    Ok(output.into_token_stream())
 }

@@ -288,6 +288,7 @@ pub use self::shared::{Location, ScopeError, ScopeErrorKind};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use compiling::compile;
 
+pub use rune_macros::quote;
 pub(crate) use rune_macros::{OptionSpanned, Parse, Spanned, ToTokens};
 
 #[cfg(feature = "diagnostics")]

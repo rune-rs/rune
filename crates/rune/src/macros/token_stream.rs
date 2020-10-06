@@ -5,20 +5,25 @@ use std::fmt;
 use std::slice;
 
 /// A token stream.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TokenStream {
     stream: Vec<Token>,
 }
 
 impl TokenStream {
     /// Construct an empty token stream for testing.
-    pub fn empty() -> Self {
-        Self { stream: Vec::new() }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    /// Construct a new token stream with the specified end span.
-    pub fn new(stream: Vec<Token>) -> Self {
-        Self { stream }
+    /// Construct a token stream from tokens.
+    pub fn from_to_tokens<T>(tokens: T) -> Self
+    where
+        T: ToTokens,
+    {
+        let mut this = Self::new();
+        crate::macros::to_tokens(&tokens, &mut this);
+        this
     }
 
     /// Push the current token to the stream.
@@ -47,6 +52,12 @@ impl TokenStream {
         Kinds {
             stream: &self.stream,
         }
+    }
+}
+
+impl From<Vec<Token>> for TokenStream {
+    fn from(stream: Vec<Token>) -> Self {
+        Self { stream }
     }
 }
 
@@ -101,7 +112,7 @@ impl IntoIterator for TokenStream {
 }
 
 /// Trait for things that can be turned into tokens.
-pub trait ToTokens {
+pub trait ToTokens: Sized {
     /// Turn the current item into tokens.
     fn to_tokens(&self, context: &MacroContext, stream: &mut TokenStream);
 }
