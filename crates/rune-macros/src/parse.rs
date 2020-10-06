@@ -1,4 +1,4 @@
-use crate::context::Context;
+use crate::context::{Context, ParseKind};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
@@ -96,8 +96,14 @@ impl Expander {
         named: &syn::FieldsNamed,
     ) -> Option<TokenStream> {
         let ident = &input.ident;
-        let mut attrs_field: Option<(usize, &syn::Ident)> = None;
         let mut fields = Vec::new();
+
+        let mut meta_args = Vec::new();
+        let mut meta_parse = Vec::new();
+        let mut meta_fields = Vec::new();
+
+        let derive_attrs = self.ctx.parse_derive_attributes(&input.attrs)?;
+        let mut skipped = 0;
 
         for (i, field) in named.named.iter().enumerate() {
             let attrs = self.ctx.parse_field_attributes(&field.attrs)?;
@@ -105,26 +111,29 @@ impl Expander {
 
             if attrs.id.is_some() {
                 fields.push(quote_spanned! { field.span() => #ident: Default::default() });
+                skipped += 1;
                 continue;
             }
 
-            if attrs.attributes.is_some() {
-                if let Some((idx, ident)) = &attrs_field {
+            if attrs.meta.is_some() {
+                if i - skipped != meta_fields.len() {
                     self.ctx.errors.push(syn::Error::new_spanned(
                         field,
                         format!(
-                            "only one field may have `#[rune({})]`, \
-                            but field is second occurrence within this struct. The first \
-                            occurrence was at field #{} `{}`.",
-                            crate::internals::ATTRIBUTES,
-                            idx,
-                            quote! { #ident }
+                            "The first sequence of fields may have `#[rune({})]`, \
+                            but field is outside of that sequence.",
+                            crate::internals::META,
                         ),
                     ));
                     return None;
                 } else {
                     let ident = self.ctx.field_ident(field)?;
-                    attrs_field = Some((i + 1, ident));
+                    let ty = &field.ty;
+                    meta_args.push(quote_spanned!(field.span() => #ident: #ty));
+                    meta_parse
+                        .push(quote_spanned!(field.span() => let #ident: #ty = parser.parse()?));
+                    fields.push(quote_spanned! { field.span() => #ident });
+                    meta_fields.push(ident);
                     continue;
                 }
             }
@@ -136,30 +145,38 @@ impl Expander {
         let parser = &self.ctx.parser;
         let parse_error = &self.ctx.parse_error;
 
-        if let Some((_, attrs_ident)) = attrs_field {
+        let inner = if let ParseKind::MetaOnly = derive_attrs.parse {
+            None
+        } else {
             Some(quote_spanned! {
                 named.span() =>
+                impl #parse for #ident {
+                    fn parse(parser: &mut #parser<'_>) -> Result<Self, #parse_error> {
+                        #(#meta_parse;)*
+                        Self::parse_with_meta(parser, #(#meta_fields,)*)
+                     }
+                }
+            })
+        };
+
+        let output = if !meta_args.is_empty() {
+            quote_spanned! {
+                named.span() =>
                     impl #ident {
-                        #[doc = "Parse #ident and attach the given attributes"]
-                        pub fn parse_with_attributes(parser: &mut #parser<'_>,
-                                                     #attrs_ident: ::std::vec::Vec<crate::ast::Attribute>
-                        ) -> Result<Self, #parse_error> {
+                        #[doc = "Parse #ident and attach the given meta"]
+                        pub fn parse_with_meta(parser: &mut #parser<'_>, #(#meta_args,)*)
+                            -> Result<Self, #parse_error>
+                        {
                             Ok(Self {
-                                #attrs_ident,
                                 #(#fields,)*
                             })
                         }
                     }
 
-                    impl #parse for #ident {
-                        fn parse(parser: &mut #parser<'_>) -> Result<Self, #parse_error> {
-                            let attributes: ::std::vec::Vec<crate::ast::Attribute> = parser.parse()?;
-                            Self::parse_with_attributes(parser, attributes)
-                         }
-                    }
-            })
+                    #inner
+            }
         } else {
-            Some(quote_spanned! {
+            quote_spanned! {
                 named.span() =>
                     impl #parse for #ident {
                         fn parse(parser: &mut #parser<'_>) -> Result<Self, #parse_error> {
@@ -168,7 +185,9 @@ impl Expander {
                             })
                          }
                     }
-            })
-        }
+            }
+        };
+
+        Some(output)
     }
 }

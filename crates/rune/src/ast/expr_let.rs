@@ -27,8 +27,8 @@ pub struct ExprLet {
 }
 
 impl ExprLet {
-    /// Parse with the given attributes.
-    pub fn parse_with_attributes(
+    /// Parse with the given meta.
+    pub fn parse_with_meta(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {

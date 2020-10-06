@@ -73,7 +73,7 @@ impl Parse for Stmt {
                 return Err(ParseError::expected(path.first, "expected let statement"));
             }
 
-            let local = ast::Local::parse_with_attributes(parser, take(&mut attributes))?;
+            let local = ast::Local::parse_with_meta(parser, take(&mut attributes))?;
             ast::Stmt::Local(local)
         } else {
             let expr = ast::Expr::parse_with_meta(parser, &mut attributes, path)?;

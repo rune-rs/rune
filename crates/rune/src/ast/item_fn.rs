@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Id, ParseError, Parser, Peek, Spanned, ToTokens};
+use crate::{Id, Parse, Peek, Spanned, ToTokens};
 use runestick::Span;
 
 /// A function item.
@@ -38,22 +38,23 @@ use runestick::Span;
 /// assert!(item.async_token.is_none());
 /// assert!(item.const_token.is_some());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[rune(parse = "meta_only")]
 pub struct ItemFn {
     /// Opaque identifier for fn item.
     #[rune(id)]
     pub id: Option<Id>,
     /// The attributes for the fn
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `fn` item
-    #[rune(optional)]
+    #[rune(optional, meta)]
     pub visibility: ast::Visibility,
     /// The optional `const` keyword.
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub const_token: Option<ast::Const>,
     /// The optional `async` keyword.
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub async_token: Option<ast::Async>,
     /// The `fn` token.
     pub fn_: ast::Fn,
@@ -78,27 +79,6 @@ impl ItemFn {
     /// Test if function is an instance fn.
     pub fn is_instance(&self) -> bool {
         matches!(self.args.first(), Some((ast::FnArg::SelfValue(..), _)))
-    }
-
-    /// Parse a `fn` item with the given meta
-    pub fn parse_with_meta(
-        parser: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
-        visibility: ast::Visibility,
-        const_token: Option<ast::Const>,
-        async_token: Option<ast::Async>,
-    ) -> Result<Self, ParseError> {
-        Ok(Self {
-            id: Default::default(),
-            attributes,
-            visibility,
-            const_token,
-            async_token,
-            fn_: parser.parse()?,
-            name: parser.parse()?,
-            args: parser.parse()?,
-            body: parser.parse()?,
-        })
     }
 }
 

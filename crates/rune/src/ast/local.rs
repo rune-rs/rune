@@ -14,7 +14,7 @@ use crate::{Parse, Spanned, ToTokens};
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct Local {
     /// The attributes for the let expression
-    #[rune(iter, attributes)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The `let` keyword.
     pub let_token: ast::Let,

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{ParseError, Parser, Spanned, ToTokens};
+use crate::{Parse, Spanned, ToTokens};
 
 /// A `while` loop: `while [expr] { ... }`.
 ///
@@ -12,13 +12,14 @@ use crate::{ParseError, Parser, Spanned, ToTokens};
 /// testing::roundtrip::<ast::ExprWhile>("'label: while x {}");
 /// testing::roundtrip::<ast::ExprWhile>("#[attr] 'label: while x {}");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[rune(parse = "meta_only")]
 pub struct ExprWhile {
     /// The attributes for the `while` loop
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// A label for the while loop.
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub label: Option<(ast::Label, ast::Colon)>,
     /// The `while` keyword.
     pub while_token: ast::While,
@@ -26,23 +27,6 @@ pub struct ExprWhile {
     pub condition: ast::Condition,
     /// The body of the while loop.
     pub body: Box<ast::Block>,
-}
-
-impl ExprWhile {
-    /// Parse the `while` with the given attributes and label.
-    pub(crate) fn parse_with_meta(
-        parser: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
-        label: Option<(ast::Label, ast::Colon)>,
-    ) -> Result<Self, ParseError> {
-        Ok(ExprWhile {
-            attributes,
-            label,
-            while_token: parser.parse()?,
-            condition: parser.parse()?,
-            body: parser.parse()?,
-        })
-    }
 }
 
 expr_parse!(ExprWhile, "while expression");

@@ -14,16 +14,17 @@ use crate::{Id, OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 /// testing::roundtrip::<ast::ItemStruct>("struct Foo { #[default_value = 1] a, b, c }");
 /// testing::roundtrip::<ast::ItemStruct>("#[alpha] struct Foo ( #[default_value = \"x\" ] a, b, c )");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[rune(parse = "meta_only")]
 pub struct ItemStruct {
     /// Opaque identifier of the struct.
     #[rune(id)]
     pub id: Option<Id>,
     /// The attributes for the struct
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `struct` item
-    #[rune(optional)]
+    #[rune(optional, meta)]
     pub visibility: ast::Visibility,
     /// The `struct` keyword.
     pub struct_: ast::Struct,
@@ -38,22 +39,6 @@ impl ItemStruct {
     /// If the struct declaration needs to be terminated with a semicolon.
     pub fn needs_semi_colon(&self) -> bool {
         self.body.needs_semi_colon()
-    }
-
-    /// Parse a `struct` item with the given attributes
-    pub fn parse_with_meta(
-        parser: &mut Parser,
-        attributes: Vec<ast::Attribute>,
-        visibility: ast::Visibility,
-    ) -> Result<Self, ParseError> {
-        Ok(Self {
-            id: Default::default(),
-            attributes,
-            visibility,
-            struct_: parser.parse()?,
-            ident: parser.parse()?,
-            body: parser.parse()?,
-        })
     }
 }
 

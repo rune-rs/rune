@@ -13,13 +13,14 @@ use crate::{Id, OptionSpanned, Parse, ParseError, Parser, Spanned, ToTokens};
 /// testing::roundtrip::<ast::ItemEnum>("#[repr(Rune)] enum Foo { Bar(a), Baz(b), #[default_value = \"zombie\"] Empty() }");
 /// testing::roundtrip::<ast::ItemEnum>("pub enum Color { Blue, Red, Green }");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[rune(parse = "meta_only")]
 pub struct ItemEnum {
     /// The attributes for the enum block
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `enum` item
-    #[rune(optional)]
+    #[rune(optional, meta)]
     pub visibility: ast::Visibility,
     /// The `enum` token.
     pub enum_token: ast::Enum,
@@ -27,23 +28,6 @@ pub struct ItemEnum {
     pub name: ast::Ident,
     /// Variants in the enum.
     pub variants: ast::Braced<ItemVariant, ast::Comma>,
-}
-
-impl ItemEnum {
-    /// Parse a `enum` item with the given attributes
-    pub fn parse_with_meta(
-        parser: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
-        visibility: ast::Visibility,
-    ) -> Result<Self, ParseError> {
-        Ok(Self {
-            attributes,
-            visibility,
-            enum_token: parser.parse()?,
-            name: parser.parse()?,
-            variants: parser.parse()?,
-        })
-    }
 }
 
 item_parse!(ItemEnum, "enum item");

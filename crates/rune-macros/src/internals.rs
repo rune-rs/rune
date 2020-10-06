@@ -10,8 +10,9 @@ pub const ID: Symbol = Symbol("id");
 pub const SKIP: Symbol = Symbol("skip");
 pub const ITER: Symbol = Symbol("iter");
 pub const OPTIONAL: Symbol = Symbol("optional");
-pub const ATTRIBUTES: Symbol = Symbol("attributes");
+pub const META: Symbol = Symbol("meta");
 pub const SPAN: Symbol = Symbol("span");
+pub const PARSE: Symbol = Symbol("parse");
 
 impl PartialEq<Symbol> for syn::Ident {
     fn eq(&self, word: &Symbol) -> bool {

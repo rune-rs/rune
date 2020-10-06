@@ -75,7 +75,7 @@ impl Expander {
 
     /// Expand on a struct.
     fn expand_enum(&mut self, input: &syn::DeriveInput, st: &syn::DataEnum) -> Option<TokenStream> {
-        let _ = self.ctx.pase_derive_attributes(&input.attrs)?;
+        let _ = self.ctx.parse_derive_attributes(&input.attrs)?;
 
         let mut impl_spanned = Vec::new();
 

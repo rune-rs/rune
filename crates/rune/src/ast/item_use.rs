@@ -14,34 +14,19 @@ use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 /// testing::roundtrip::<ast::ItemUse>("#[macro_use] use foo::bar::baz");
 /// testing::roundtrip::<ast::ItemUse>("#[macro_use] pub(crate) use foo::bar::baz");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[rune(parse = "meta_only")]
 pub struct ItemUse {
     /// The attributes on use item
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `use` item
-    #[rune(optional)]
+    #[rune(optional, meta)]
     pub visibility: ast::Visibility,
     /// The use token.
     pub use_token: ast::Use,
     /// Item path.
     pub path: ItemUsePath,
-}
-
-impl ItemUse {
-    /// Parse a `use` item with the given attributes
-    pub fn parse_with_meta(
-        parser: &mut Parser,
-        attributes: Vec<ast::Attribute>,
-        visibility: ast::Visibility,
-    ) -> Result<Self, ParseError> {
-        Ok(Self {
-            attributes,
-            visibility,
-            use_token: parser.parse()?,
-            path: parser.parse()?,
-        })
-    }
 }
 
 item_parse!(ItemUse, "use item");

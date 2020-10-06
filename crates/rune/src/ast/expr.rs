@@ -297,7 +297,7 @@ impl Expr {
         }
 
         if ast::Lit::peek_in_expr(parser)? {
-            return Ok(ast::Expr::ExprLit(ast::ExprLit::parse_with_attributes(
+            return Ok(ast::Expr::ExprLit(ast::ExprLit::parse_with_meta(
                 parser,
                 take(attributes),
             )?));
@@ -341,14 +341,10 @@ impl Expr {
                 take(attributes),
                 take(&mut label),
             )?),
-            ast::Kind::Let => Self::ExprLet(ast::ExprLet::parse_with_attributes(
-                parser,
-                take(attributes),
-            )?),
-            ast::Kind::If => Self::ExprIf(ast::ExprIf::parse_with_attributes(
-                parser,
-                take(attributes),
-            )?),
+            ast::Kind::Let => {
+                Self::ExprLet(ast::ExprLet::parse_with_meta(parser, take(attributes))?)
+            }
+            ast::Kind::If => Self::ExprIf(ast::ExprIf::parse_with_meta(parser, take(attributes))?),
             ast::Kind::Match => Self::ExprMatch(ast::ExprMatch::parse_with_attributes(
                 parser,
                 take(attributes),
@@ -361,18 +357,15 @@ impl Expr {
                 attributes: take(attributes),
                 block: parser.parse()?,
             }),
-            ast::Kind::Break => Self::ExprBreak(ast::ExprBreak::parse_with_attributes(
-                parser,
-                take(attributes),
-            )?),
-            ast::Kind::Yield => Self::ExprYield(ast::ExprYield::parse_with_attributes(
-                parser,
-                take(attributes),
-            )?),
-            ast::Kind::Return => Self::ExprReturn(ast::ExprReturn::parse_with_attributes(
-                parser,
-                take(attributes),
-            )?),
+            ast::Kind::Break => {
+                Self::ExprBreak(ast::ExprBreak::parse_with_meta(parser, take(attributes))?)
+            }
+            ast::Kind::Yield => {
+                Self::ExprYield(ast::ExprYield::parse_with_meta(parser, take(attributes))?)
+            }
+            ast::Kind::Return => {
+                Self::ExprReturn(ast::ExprReturn::parse_with_meta(parser, take(attributes))?)
+            }
             _ => {
                 return Err(ParseError::expected(t, "expression"));
             }

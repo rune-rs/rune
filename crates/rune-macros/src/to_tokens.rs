@@ -56,7 +56,7 @@ impl Expander {
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
     ) -> Option<TokenStream> {
-        let _ = self.ctx.pase_derive_attributes(&input.attrs)?;
+        let _ = self.ctx.parse_derive_attributes(&input.attrs)?;
         let inner = self.expand_struct_fields(input, &st.fields)?;
 
         Some(quote! {
@@ -66,7 +66,7 @@ impl Expander {
 
     /// Expand on a struct.
     fn expand_enum(&mut self, input: &syn::DeriveInput, st: &syn::DataEnum) -> Option<TokenStream> {
-        let _ = self.ctx.pase_derive_attributes(&input.attrs)?;
+        let _ = self.ctx.parse_derive_attributes(&input.attrs)?;
 
         let mut impl_into_tokens = Vec::new();
 

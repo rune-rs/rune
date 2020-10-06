@@ -18,16 +18,17 @@ use runestick::{Id, Span};
 /// assert_eq!(item.attributes.len(), 0);
 /// assert!(matches!(item.body, ast::ItemModBody::InlineBody(..)));
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[rune(parse = "meta_only")]
 pub struct ItemMod {
     /// The id of the module item.
     #[rune(id)]
     pub id: Option<Id>,
     /// The *inner* attributes are applied to the module  `#[cfg(test)] mod tests {  }`
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The visibility of the `mod` item
-    #[rune(optional)]
+    #[rune(optional, meta)]
     pub visibility: ast::Visibility,
     /// The `mod` keyword.
     pub mod_: ast::Mod,
@@ -45,22 +46,6 @@ impl ItemMod {
         } else {
             self.mod_.span().join(self.name.span())
         }
-    }
-
-    /// Parse a `mod` item with the given attributes
-    pub fn parse_with_meta(
-        parser: &mut Parser<'_>,
-        attributes: Vec<ast::Attribute>,
-        visibility: ast::Visibility,
-    ) -> Result<Self, ParseError> {
-        Ok(Self {
-            id: Default::default(),
-            attributes,
-            visibility,
-            mod_: parser.parse()?,
-            name: parser.parse()?,
-            body: parser.parse()?,
-        })
     }
 }
 

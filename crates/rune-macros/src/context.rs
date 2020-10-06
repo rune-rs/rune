@@ -5,6 +5,7 @@ use quote::quote_spanned;
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned as _;
 use syn::Meta::*;
+use syn::MetaNameValue;
 use syn::NestedMeta::*;
 
 /// Parsed `#[rune(..)]` field attributes.
@@ -19,8 +20,8 @@ pub(crate) struct FieldAttrs {
     skip: Option<Span>,
     /// `#[rune(optional)]`
     pub(crate) optional: Option<Span>,
-    /// `#[rune(attributes)]`
-    pub(crate) attributes: Option<Span>,
+    /// `#[rune(meta)]`
+    pub(crate) meta: Option<Span>,
     /// A single field marked with `#[rune(span)]`.
     pub(crate) span: Option<Span>,
 }
@@ -32,9 +33,27 @@ impl FieldAttrs {
     }
 }
 
+/// The parsing implementations to build.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ParseKind {
+    /// Generate default functions.
+    Default,
+    /// Only generate meta parse function.
+    MetaOnly,
+}
+
+impl Default for ParseKind {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
 /// Parsed ast derive attributes.
 #[derive(Default)]
-pub(crate) struct DeriveAttrs {}
+pub(crate) struct DeriveAttrs {
+    /// The parse kind to build.
+    pub(crate) parse: ParseKind,
+}
 
 pub(crate) struct Context {
     pub(crate) errors: Vec<syn::Error>,
@@ -115,17 +134,45 @@ impl Context {
     }
 
     /// Parse field attributes.
-    pub(crate) fn pase_derive_attributes(
+    pub(crate) fn parse_derive_attributes(
         &mut self,
         input: &[syn::Attribute],
     ) -> Option<DeriveAttrs> {
-        let attrs = DeriveAttrs::default();
+        let mut attrs = DeriveAttrs::default();
 
         for attr in input {
             #[allow(clippy::never_loop)] // I guess this is on purpose?
             for meta in self.get_meta_items(attr, RUNE)? {
-                self.errors
-                    .push(syn::Error::new_spanned(meta, "unsupported attribute"));
+                match &meta {
+                    // Parse `#[rune(id)]`
+                    Meta(NameValue(MetaNameValue {
+                        path,
+                        lit: syn::Lit::Str(s),
+                        ..
+                    })) if *path == PARSE => {
+                        let parse = match s.value().as_str() {
+                            "meta_only" => ParseKind::MetaOnly,
+                            other => {
+                                self.errors.push(syn::Error::new_spanned(
+                                    meta,
+                                    format!(
+                                        "unsupported `#[rune(parse = ..)]` argument `{}`",
+                                        other
+                                    ),
+                                ));
+                                return None;
+                            }
+                        };
+
+                        attrs.parse = parse;
+                    }
+                    meta => {
+                        self.errors
+                            .push(syn::Error::new_spanned(meta, "unsupported attribute"));
+
+                        return None;
+                    }
+                }
             }
         }
 
@@ -160,8 +207,8 @@ impl Context {
                         attrs.optional = Some(meta.span());
                     }
                     // Parse `#[rune(attributes)]`
-                    Meta(Path(word)) if *word == ATTRIBUTES => {
-                        attrs.attributes = Some(meta.span());
+                    Meta(Path(word)) if *word == META => {
+                        attrs.meta = Some(meta.span());
                     }
                     // Parse `#[rune(span)]`
                     Meta(Path(word)) if *word == SPAN => {

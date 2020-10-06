@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, Peek, Spanned, ToTokens};
 
 /// An if statement: `if cond { true } else { false }`
 ///
@@ -14,10 +14,11 @@ use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
 /// testing::roundtrip::<ast::ExprIf>("if let v = v {  }");
 /// testing::roundtrip::<ast::ExprIf>("#[attr] if 1 {} else {}");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
+#[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
+#[rune(parse = "meta_only")]
 pub struct ExprIf {
     /// The `attributes` of the if statement
-    #[rune(iter)]
+    #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The `if` token.
     pub if_: ast::If,
@@ -33,34 +34,6 @@ pub struct ExprIf {
     pub expr_else: Option<ExprElse>,
 }
 
-impl ExprIf {
-    /// Parse an if statement attaching the given attributes
-    pub fn parse_with_attributes(
-        parser: &mut Parser,
-        attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
-        let if_ = parser.parse()?;
-        let condition = parser.parse()?;
-        let block = parser.parse()?;
-        let mut expr_else_ifs = Vec::new();
-
-        while parser.peek::<ast::Else>()? && parser.peek2::<ast::If>()? {
-            expr_else_ifs.push(parser.parse()?);
-        }
-
-        let expr_else = parser.parse()?;
-
-        Ok(ExprIf {
-            attributes,
-            if_,
-            condition,
-            block,
-            expr_else_ifs,
-            expr_else,
-        })
-    }
-}
-
 expr_parse!(ExprIf, "if expression");
 
 /// An else branch of an if expression.
@@ -74,6 +47,15 @@ pub struct ExprElseIf {
     pub condition: ast::Condition,
     /// The body of the else statement.
     pub block: Box<ast::Block>,
+}
+
+impl Peek for ExprElseIf {
+    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
+        matches!(
+            (peek!(t1).kind, peek!(t2).kind),
+            (ast::Kind::Else, ast::Kind::If)
+        )
+    }
 }
 
 /// An else branch of an if expression.
