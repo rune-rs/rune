@@ -74,7 +74,7 @@ impl Source {
 
     /// Fetch source for the given span.
     pub fn source(&self, span: Span) -> Option<&'_ str> {
-        self.get(span.start..span.end)
+        self.get(span.range())
     }
 
     ///  et the given range from the source.

@@ -65,9 +65,11 @@ impl LitStr {
     ) -> Result<String, ParseError> {
         let mut buffer = String::with_capacity(source.len());
 
+        let start = span.start.into_usize();
+
         let mut it = source
             .char_indices()
-            .map(|(n, c)| (span.start + n, c))
+            .map(|(n, c)| (start + n, c))
             .peekable();
 
         while let Some((start, c)) = it.next() {
@@ -79,7 +81,7 @@ impl LitStr {
                 ) {
                     Ok(c) => c,
                     Err(kind) => {
-                        let end = it.next().map(|n| n.0).unwrap_or(span.end);
+                        let end = it.next().map(|n| n.0).unwrap_or(span.end.into_usize());
                         return Err(ParseError::new(Span::new(start, end), kind));
                     }
                 },

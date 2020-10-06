@@ -55,9 +55,11 @@ impl<'a> Resolve<'a> for LitByte {
             .source(span.trim_start(2).trim_end(1))
             .ok_or_else(|| ParseError::new(span, ParseErrorKind::BadSlice))?;
 
+        let start = span.start.into_usize();
+
         let mut it = string
             .char_indices()
-            .map(|(n, c)| (span.start + n, c))
+            .map(|(n, c)| (start + n, c))
             .peekable();
 
         let (start, c) = match it.next() {
@@ -73,7 +75,7 @@ impl<'a> Resolve<'a> for LitByte {
                     match ast::utils::parse_byte_escape(&mut it, ast::utils::WithLineCont(false)) {
                         Ok(c) => c,
                         Err(kind) => {
-                            let end = it.next().map(|n| n.0).unwrap_or(span.end);
+                            let end = it.next().map(|n| n.0).unwrap_or(span.end.into_usize());
                             return Err(ParseError::new(Span::new(start, end), kind));
                         }
                     };
@@ -81,7 +83,7 @@ impl<'a> Resolve<'a> for LitByte {
                 match c {
                     Some(c) => c,
                     None => {
-                        let end = it.next().map(|n| n.0).unwrap_or(span.end);
+                        let end = it.next().map(|n| n.0).unwrap_or(span.end.into_usize());
                         return Err(ParseError::new(
                             Span::new(start, end),
                             ParseErrorKind::BadByteLiteral,

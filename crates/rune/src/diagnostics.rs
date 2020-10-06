@@ -81,15 +81,13 @@ impl EmitDiagnostics for Warnings {
         for w in self {
             let context = match &w.kind {
                 WarningKind::NotUsed { span, context } => {
-                    labels.push(
-                        Label::primary(w.source_id, span.start..span.end).with_message("not used"),
-                    );
+                    labels.push(Label::primary(w.source_id, span.range()).with_message("not used"));
 
                     *context
                 }
                 WarningKind::LetPatternMightPanic { span, context } => {
                     labels.push(
-                        Label::primary(w.source_id, span.start..span.end)
+                        Label::primary(w.source_id, span.range())
                             .with_message("let binding might panic"),
                     );
 
@@ -108,7 +106,7 @@ impl EmitDiagnostics for Warnings {
                 }
                 WarningKind::TemplateWithoutExpansions { span, context } => {
                     labels.push(
-                        Label::primary(w.source_id, span.start..span.end)
+                        Label::primary(w.source_id, span.range())
                             .with_message("template string without expansions like `{1 + 2}`"),
                     );
 
@@ -119,11 +117,9 @@ impl EmitDiagnostics for Warnings {
                     variant,
                     context,
                 } => {
-                    labels.push(
-                        Label::secondary(w.source_id, span.start..span.end).with_message(
-                            "constructing this variant could be done without parentheses",
-                        ),
-                    );
+                    labels.push(Label::secondary(w.source_id, span.range()).with_message(
+                        "constructing this variant could be done without parentheses",
+                    ));
 
                     let variant = sources
                         .source_at(w.source_id)
@@ -139,7 +135,7 @@ impl EmitDiagnostics for Warnings {
                 }
                 WarningKind::UnecessarySemiColon { span } => {
                     labels.push(
-                        Label::primary(w.source_id, span.start..span.end)
+                        Label::primary(w.source_id, span.range())
                             .with_message("unnecessary semicolon"),
                     );
 
@@ -149,8 +145,7 @@ impl EmitDiagnostics for Warnings {
 
             if let Some(context) = context {
                 labels.push(
-                    Label::secondary(w.source_id, context.start..context.end)
-                        .with_message("in this context"),
+                    Label::secondary(w.source_id, context.range()).with_message("in this context"),
                 );
             }
         }
@@ -219,8 +214,7 @@ impl EmitDiagnostics for VmError {
         let source_id = debug_inst.source_id;
         let span = debug_inst.span;
 
-        labels
-            .push(Label::primary(source_id, span.start..span.end).with_message(error.to_string()));
+        labels.push(Label::primary(source_id, span.range()).with_message(error.to_string()));
 
         let diagnostic = Diagnostic::error()
             .with_message("virtual machine error")
@@ -259,7 +253,7 @@ impl EmitDiagnostics for Error {
 
                         for (span, source_id) in spans {
                             labels.push(
-                                Label::primary(*source_id, span.start..span.end)
+                                Label::primary(*source_id, span.range())
                                     .with_message("called here."),
                             );
                         }
@@ -305,9 +299,7 @@ impl EmitDiagnostics for Error {
         };
 
         if let Some(e) = self.kind().source() {
-            labels.push(
-                Label::primary(self.source_id(), span.start..span.end).with_message(e.to_string()),
-            );
+            labels.push(Label::primary(self.source_id(), span.range()).with_message(e.to_string()));
         }
 
         let diagnostic = Diagnostic::error()
@@ -332,12 +324,12 @@ impl EmitDiagnostics for Error {
                 }
                 CompileErrorKind::DuplicateObjectKey { existing, object } => {
                     labels.push(
-                        Label::secondary(this.source_id(), existing.start..existing.end)
+                        Label::secondary(this.source_id(), existing.range())
                             .with_message("previously defined here"),
                     );
 
                     labels.push(
-                        Label::secondary(this.source_id(), object.start..object.end)
+                        Label::secondary(this.source_id(), object.range())
                             .with_message("object being defined here"),
                     );
                 }
@@ -345,16 +337,13 @@ impl EmitDiagnostics for Error {
                     let (existing_source_id, existing_span) = *existing;
 
                     labels.push(
-                        Label::secondary(
-                            existing_source_id,
-                            existing_span.start..existing_span.end,
-                        )
-                        .with_message("previously loaded here"),
+                        Label::secondary(existing_source_id, existing_span.range())
+                            .with_message("previously loaded here"),
                     );
                 }
                 CompileErrorKind::ExpectedBlockSemiColon { followed_span } => {
                     labels.push(
-                        Label::secondary(this.source_id(), followed_span.start..followed_span.end)
+                        Label::secondary(this.source_id(), followed_span.range())
                             .with_message("because this immediately follows"),
                     );
 
@@ -395,21 +384,18 @@ impl EmitDiagnostics for Error {
 
                     for (step, entry) in (1..).zip(it) {
                         labels.push(
-                            Label::secondary(
-                                entry.location.source_id,
-                                entry.location.span.start..entry.location.span.end,
-                            )
-                            .with_message(format!("step #{} for `{}`", step, entry.item)),
+                            Label::secondary(entry.location.source_id, entry.location.span.range())
+                                .with_message(format!("step #{} for `{}`", step, entry.item)),
                         );
                     }
 
                     if let Some(entry) = last {
                         labels.push(
-                            Label::secondary(
-                                entry.location.source_id,
-                                entry.location.span.start..entry.location.span.end,
-                            )
-                            .with_message(format!("final step cycling back to `{}`", entry.item)),
+                            Label::secondary(entry.location.source_id, entry.location.span.range())
+                                .with_message(format!(
+                                    "final step cycling back to `{}`",
+                                    entry.item
+                                )),
                         );
                     }
                 }
@@ -418,7 +404,7 @@ impl EmitDiagnostics for Error {
                     ..
                 } => {
                     labels.push(
-                        Label::secondary(*source_id, span.start..span.end)
+                        Label::secondary(*source_id, span.range())
                             .with_message("previously defined here"),
                     );
                 }
@@ -429,14 +415,13 @@ impl EmitDiagnostics for Error {
                 } => {
                     for Location { source_id, span } in chain {
                         labels.push(
-                            Label::secondary(*source_id, span.start..span.end)
+                            Label::secondary(*source_id, span.range())
                                 .with_message("re-exported here"),
                         );
                     }
 
                     labels.push(
-                        Label::secondary(*source_id, span.start..span.end)
-                            .with_message("defined here"),
+                        Label::secondary(*source_id, span.range()).with_message("defined here"),
                     );
                 }
                 QueryErrorKind::NotVisibleMod {
@@ -446,13 +431,13 @@ impl EmitDiagnostics for Error {
                 } => {
                     for Location { source_id, span } in chain {
                         labels.push(
-                            Label::secondary(*source_id, span.start..span.end)
+                            Label::secondary(*source_id, span.range())
                                 .with_message("re-exported here"),
                         );
                     }
 
                     labels.push(
-                        Label::secondary(*source_id, span.start..span.end)
+                        Label::secondary(*source_id, span.range())
                             .with_message("module defined here"),
                     );
                 }
@@ -486,7 +471,7 @@ impl EmitDiagnostics for Error {
 pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
     let line_starts = source.line_starts();
 
-    let line = match line_starts.binary_search(&span.start) {
+    let line = match line_starts.binary_search(&span.start.into_usize()) {
         Ok(n) => n,
         Err(n) => n.saturating_sub(1),
     };
@@ -500,7 +485,14 @@ pub fn line_for(source: &Source, span: Span) -> Option<(usize, &str, Span)> {
         source.get(start..)?
     };
 
-    Some((line, s, Span::new(span.start - start, span.end - start)))
+    Some((
+        line,
+        s,
+        Span::new(
+            span.start.into_usize() - start,
+            span.end.into_usize() - start,
+        ),
+    ))
 }
 
 /// Trait to dump the instructions of a unit to the given writer.
@@ -589,10 +581,10 @@ impl EmitSource for Source {
 
         if let Some((count, line, span)) = diagnostics {
             let line = line.trim_end();
-            let end = usize::min(span.end, line.len());
+            let end = usize::min(span.end.into_usize(), line.len());
 
-            let before = &line[0..span.start];
-            let inner = &line[span.start..end];
+            let before = &line[0..span.start.into_usize()];
+            let inner = &line[span.start.into_usize()..end];
             let after = &line[end..];
 
             write!(out, "  {}:{: <3} - {}", self.name(), count + 1, before,)?;

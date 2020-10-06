@@ -105,6 +105,30 @@ mod vm_error;
 mod vm_execution;
 mod vm_halt;
 
+/// Construct a span that can be used during pattern matching.
+///
+/// # Examples
+///
+/// ```rust
+/// use runestick::{Span, span};
+///
+/// let s = Span::new(0, 10);
+///
+/// assert!(match s {
+///     span!(0, 10) => true,
+///     _ => false,
+/// });
+/// ```
+#[macro_export]
+macro_rules! span {
+    ($start:expr, $end:expr) => {
+        $crate::Span {
+            start: $crate::ByteIndex($start),
+            end: $crate::ByteIndex($end),
+        }
+    };
+}
+
 /// The identifier of a source file.
 pub type SourceId = usize;
 
@@ -132,7 +156,7 @@ pub use self::named::Named;
 pub use self::raw_str::RawStr;
 pub use self::select::Select;
 pub use self::source::Source;
-pub use self::span::Span;
+pub use self::span::{ByteIndex, IntoByteIndex, Span};
 pub use self::spanned_error::SpannedError;
 pub use self::static_string::StaticString;
 pub use self::static_type::{

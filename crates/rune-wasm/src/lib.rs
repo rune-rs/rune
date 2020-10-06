@@ -212,8 +212,9 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
         let span = warning.span();
 
         if let Some(source) = sources.get(warning.source_id) {
-            let start = Position::from(source.position_to_unicode_line_char(span.start));
-            let end = Position::from(source.position_to_unicode_line_char(span.end));
+            let start =
+                Position::from(source.position_to_unicode_line_char(span.start.into_usize()));
+            let end = Position::from(source.position_to_unicode_line_char(span.end.into_usize()));
 
             diagnostics.push(Diagnostic {
                 kind: DiagnosticKind::Warning,
@@ -241,10 +242,12 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                         rune::ErrorKind::ParseError(error) => {
                             let span = error.span();
 
-                            let start =
-                                Position::from(source.position_to_unicode_line_char(span.start));
-                            let end =
-                                Position::from(source.position_to_unicode_line_char(span.end));
+                            let start = Position::from(
+                                source.position_to_unicode_line_char(span.start.into_usize()),
+                            );
+                            let end = Position::from(
+                                source.position_to_unicode_line_char(span.end.into_usize()),
+                            );
 
                             diagnostics.push(Diagnostic {
                                 kind: DiagnosticKind::Error,
@@ -256,10 +259,12 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                         rune::ErrorKind::CompileError(error) => {
                             let span = error.span();
 
-                            let start =
-                                Position::from(source.position_to_unicode_line_char(span.start));
-                            let end =
-                                Position::from(source.position_to_unicode_line_char(span.end));
+                            let start = Position::from(
+                                source.position_to_unicode_line_char(span.start.into_usize()),
+                            );
+                            let end = Position::from(
+                                source.position_to_unicode_line_char(span.end.into_usize()),
+                            );
 
                             diagnostics.push(Diagnostic {
                                 kind: DiagnosticKind::Error,
@@ -271,10 +276,12 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                         rune::ErrorKind::QueryError(error) => {
                             let span = error.span();
 
-                            let start =
-                                Position::from(source.position_to_unicode_line_char(span.start));
-                            let end =
-                                Position::from(source.position_to_unicode_line_char(span.end));
+                            let start = Position::from(
+                                source.position_to_unicode_line_char(span.start.into_usize()),
+                            );
+                            let end = Position::from(
+                                source.position_to_unicode_line_char(span.end.into_usize()),
+                            );
 
                             diagnostics.push(Diagnostic {
                                 kind: DiagnosticKind::Error,
@@ -287,10 +294,11 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                             rune::LinkerError::MissingFunction { hash, spans } => {
                                 for (span, _) in spans {
                                     let start = Position::from(
-                                        source.position_to_unicode_line_char(span.start),
+                                        source
+                                            .position_to_unicode_line_char(span.start.into_usize()),
                                     );
                                     let end = Position::from(
-                                        source.position_to_unicode_line_char(span.end),
+                                        source.position_to_unicode_line_char(span.end.into_usize()),
                                     );
 
                                     diagnostics.push(Diagnostic {
@@ -365,10 +373,11 @@ async fn inner_compile(input: String, config: JsValue) -> Result<CompileResult, 
                     if let Some(inst) = debug.instruction_at(ip) {
                         if let Some(source) = sources.get(inst.source_id) {
                             let start = Position::from(
-                                source.position_to_unicode_line_char(inst.span.start),
+                                source.position_to_unicode_line_char(inst.span.start.into_usize()),
                             );
-                            let end =
-                                Position::from(source.position_to_unicode_line_char(inst.span.end));
+                            let end = Position::from(
+                                source.position_to_unicode_line_char(inst.span.end.into_usize()),
+                            );
 
                             diagnostics.push(Diagnostic {
                                 kind: DiagnosticKind::Error,

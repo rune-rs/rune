@@ -23,13 +23,13 @@ impl<'a> Lexer<'a> {
     /// ```rust
     /// use rune::Lexer;
     /// use rune::ast;
-    /// use runestick::Span;
+    /// use runestick::span;
     ///
     /// assert_eq! {
     ///     Lexer::new("fn").next().unwrap().unwrap(),
     ///     ast::Token {
     ///         kind: ast::Kind::Fn,
-    ///         span: Span { start: 0, end: 2 },
+    ///         span: span!(0, 2),
     ///     }
     /// };
     ///
@@ -37,7 +37,7 @@ impl<'a> Lexer<'a> {
     ///     Lexer::new("name").next().unwrap().unwrap(),
     ///     ast::Token {
     ///         kind: ast::Kind::Ident(ast::StringSource::Text),
-    ///         span: Span { start: 0, end: 4 },
+    ///         span: span!(0, 4),
     ///     }
     /// };
     /// ```
@@ -660,8 +660,9 @@ impl<'a> SourceIter<'a> {
 
     /// Get the source from the given start, to the current position.
     fn source_from(&self, start: usize) -> (&'a str, Span) {
-        let span = self.span_from(start);
-        (&self.source[start..span.end], span)
+        let end = self.pos();
+        let span = Span::new(start, end);
+        (&self.source[start..end], span)
     }
 
     /// Get the current point span.
@@ -802,16 +803,7 @@ impl fmt::Display for LexerMode {
 mod tests {
     use super::Lexer;
     use crate::ast;
-    use runestick::Span;
-
-    macro_rules! span {
-        ($start:expr, $end:expr) => {
-            Span {
-                start: $start,
-                end: $end,
-            }
-        };
-    }
+    use runestick::span;
 
     macro_rules! test_lexer {
         ($source:expr $(, $pat:pat)* $(,)?) => {{
