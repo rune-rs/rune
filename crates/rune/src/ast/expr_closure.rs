@@ -34,7 +34,7 @@ pub struct ExprClosure {
     /// Arguments to the closure.
     pub args: ExprClosureArgs,
     /// The body of the closure.
-    pub body: Box<ast::Expr>,
+    pub body: ast::Expr,
 }
 
 impl ExprClosure {
@@ -49,20 +49,20 @@ impl ExprClosure {
 
     /// Parse the closure attaching the given attributes
     pub fn parse_with_attributes_and_async(
-        parser: &mut Parser<'_>,
+        p: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
         async_token: Option<T![async]>,
     ) -> Result<Self, ParseError> {
-        let args = if let Some(token) = parser.parse::<Option<T![||]>>()? {
+        let args = if let Some(token) = p.parse::<Option<T![||]>>()? {
             ExprClosureArgs::Empty { token }
         } else {
-            let open = parser.parse()?;
+            let open = p.parse()?;
             let mut args = Vec::new();
 
-            while !parser.peek::<T![|]>()? {
-                let arg = parser.parse()?;
+            while !p.peek::<T![|]>()? {
+                let arg = p.parse()?;
 
-                let comma = parser.parse::<Option<T![,]>>()?;
+                let comma = p.parse::<Option<T![,]>>()?;
                 let is_end = comma.is_none();
                 args.push((arg, comma));
 
@@ -71,7 +71,7 @@ impl ExprClosure {
                 }
             }
 
-            let close = parser.parse()?;
+            let close = p.parse()?;
 
             ExprClosureArgs::List { open, args, close }
         };
@@ -81,7 +81,7 @@ impl ExprClosure {
             attributes,
             async_token,
             args,
-            body: Box::new(parser.parse()?),
+            body: p.parse()?,
         })
     }
 }

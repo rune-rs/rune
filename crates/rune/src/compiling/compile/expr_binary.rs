@@ -19,8 +19,8 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
         if expr_binary.op.is_assign() {
             compile_assign_binop(
                 self,
-                &*expr_binary.lhs,
-                &*expr_binary.rhs,
+                &expr_binary.lhs,
+                &expr_binary.rhs,
                 expr_binary.op,
                 needs,
             )?;
@@ -31,8 +31,8 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
         if expr_binary.op.is_conditional() {
             compile_conditional_binop(
                 self,
-                &*expr_binary.lhs,
-                &*expr_binary.rhs,
+                &expr_binary.lhs,
+                &expr_binary.rhs,
                 expr_binary.op,
                 needs,
             )?;
@@ -42,10 +42,10 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
 
         // NB: need to declare these as anonymous local variables so that they
         // get cleaned up in case there is an early break (return, try, ...).
-        self.compile((&*expr_binary.lhs, Needs::Value))?;
+        self.compile((&expr_binary.lhs, Needs::Value))?;
         self.scopes.decl_anon(span)?;
 
-        self.compile((&*expr_binary.rhs, rhs_needs_of(expr_binary.op)))?;
+        self.compile((&expr_binary.rhs, rhs_needs_of(expr_binary.op)))?;
         self.scopes.decl_anon(span)?;
 
         let inst = match expr_binary.op {
@@ -166,7 +166,7 @@ fn compile_assign_binop(
         }
         // <expr>.<field> <op> <value>
         ast::Expr::ExprFieldAccess(field_access) => {
-            this.compile((&*field_access.expr, Needs::Value))?;
+            this.compile((&field_access.expr, Needs::Value))?;
             this.compile((rhs, Needs::Value))?;
 
             // field assignment

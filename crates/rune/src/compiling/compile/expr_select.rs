@@ -34,7 +34,7 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
         }
 
         for (_, branch) in &branches {
-            self.compile((&*branch.expr, Needs::Value))?;
+            self.compile((&branch.expr, Needs::Value))?;
         }
 
         self.asm.push(Inst::Select { len }, span);
@@ -86,14 +86,14 @@ impl Compile<(&ast::ExprSelect, Needs)> for Compiler<'_> {
             }
 
             // Set up a new scope with the binding.
-            self.compile((&*branch.body, needs))?;
+            self.compile((&branch.body, needs))?;
             self.clean_last_scope(span, expected, needs)?;
             self.asm.jump(end_label, span);
         }
 
         if let Some((branch, label)) = default_branch {
             self.asm.label(label)?;
-            self.compile((&*branch.body, needs))?;
+            self.compile((&branch.body, needs))?;
         }
 
         self.asm.label(end_label)?;

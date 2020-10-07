@@ -14,7 +14,7 @@ impl Compile<(&ast::ExprUnary, Needs)> for Compiler<'_> {
             ));
         }
 
-        if let (ast::UnOp::Neg, ast::Expr::ExprLit(expr_lit)) = (expr_unary.op, &*expr_unary.expr) {
+        if let (ast::UnOp::Neg, ast::Expr::ExprLit(expr_lit)) = (expr_unary.op, &expr_unary.expr) {
             if let ast::Lit::Number(n) = &expr_lit.lit {
                 let n = n
                     .resolve(&self.storage, &*self.source)?
@@ -24,7 +24,7 @@ impl Compile<(&ast::ExprUnary, Needs)> for Compiler<'_> {
             }
         }
 
-        self.compile((&*expr_unary.expr, Needs::Value))?;
+        self.compile((&expr_unary.expr, Needs::Value))?;
 
         match expr_unary.op {
             ast::UnOp::Not { .. } => {

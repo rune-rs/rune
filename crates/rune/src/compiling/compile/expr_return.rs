@@ -18,7 +18,7 @@ impl Compile<(&ast::ExprReturn, Needs)> for Compiler<'_> {
         let total_var_count = self.scopes.total_var_count(span)?;
 
         if let Some(expr) = &return_expr.expr {
-            self.compile((&**expr, Needs::Value))?;
+            self.compile((expr, Needs::Value))?;
             self.locals_clean(total_var_count, span);
             self.asm.push(Inst::Return, span);
         } else {

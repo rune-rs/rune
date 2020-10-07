@@ -28,7 +28,7 @@ pub struct ExprFor {
     /// The `in` keyword.
     pub in_: T![in],
     /// Expression producing the iterator.
-    pub iter: Box<ast::Expr>,
+    pub iter: ast::Expr,
     /// The body of the loop.
     pub body: Box<ast::Block>,
 }
@@ -46,7 +46,7 @@ impl ExprFor {
             for_token: parser.parse()?,
             var: parser.parse()?,
             in_: parser.parse()?,
-            iter: Box::new(ast::Expr::parse_without_eager_brace(parser)?),
+            iter: ast::Expr::parse_without_eager_brace(parser)?,
             body: parser.parse()?,
         })
     }

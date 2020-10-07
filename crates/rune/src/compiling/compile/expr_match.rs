@@ -7,7 +7,7 @@ impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_> {
 
         let expected_scopes = self.scopes.push_child(span)?;
 
-        self.compile((&*expr_match.expr, Needs::Value))?;
+        self.compile((&expr_match.expr, Needs::Value))?;
         // Offset of the expression.
         let offset = self.scopes.decl_anon(span)?;
 
@@ -39,7 +39,7 @@ impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_> {
                 let scope = self.scopes.child(span)?;
                 let guard = self.scopes.push(scope);
 
-                self.compile((&**condition, Needs::Value))?;
+                self.compile((condition, Needs::Value))?;
                 self.clean_last_scope(span, guard, Needs::Value)?;
                 let scope = self.scopes.pop(parent_guard, span)?;
 
@@ -74,7 +74,7 @@ impl Compile<(&ast::ExprMatch, Needs)> for Compiler<'_> {
             self.asm.label(*label)?;
 
             let expected = self.scopes.push(scope.clone());
-            self.compile((&*branch.body, needs))?;
+            self.compile((&branch.body, needs))?;
             self.clean_last_scope(span, expected, needs)?;
 
             if it.peek().is_some() {

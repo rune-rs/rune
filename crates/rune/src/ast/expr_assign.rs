@@ -8,11 +8,11 @@ pub struct ExprAssign {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The expression being awaited.
-    pub lhs: Box<ast::Expr>,
+    pub lhs: ast::Expr,
     /// The equals sign `=`.
     pub eq: T![=],
     /// The value.
-    pub rhs: Box<ast::Expr>,
+    pub rhs: ast::Expr,
 }
 
 expr_parse!(ExprAssign, "assign expression");

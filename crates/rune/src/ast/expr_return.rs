@@ -19,7 +19,7 @@ pub struct ExprReturn {
     pub return_token: T![return],
     /// An optional expression to return.
     #[rune(iter)]
-    pub expr: Option<Box<ast::Expr>>,
+    pub expr: Option<ast::Expr>,
 }
 
 expr_parse!(ExprReturn, "return expression");

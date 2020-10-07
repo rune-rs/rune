@@ -7,7 +7,7 @@ impl Compile<(&ast::ExprYield, Needs)> for Compiler<'_> {
         log::trace!("ExprYield => {:?}", self.source.source(span));
 
         if let Some(expr) = &expr_yield.expr {
-            self.compile((&**expr, Needs::Value))?;
+            self.compile((expr, Needs::Value))?;
             self.asm.push(Inst::Yield, span);
         } else {
             self.asm.push(Inst::YieldUnit, span);

@@ -6,10 +6,10 @@ impl Compile<(&ast::ExprAssign, Needs)> for Compiler<'_> {
         let span = expr_assign.span();
         log::trace!("ExprAssign => {:?}", self.source.source(span));
 
-        let supported = match &*expr_assign.lhs {
+        let supported = match &expr_assign.lhs {
             // <var> = <value>
             ast::Expr::Path(path) if path.rest.is_empty() => {
-                self.compile((&*expr_assign.rhs, Needs::Value))?;
+                self.compile((&expr_assign.rhs, Needs::Value))?;
 
                 let segment = path
                     .first
@@ -32,10 +32,10 @@ impl Compile<(&ast::ExprAssign, Needs)> for Compiler<'_> {
                         let slot = index.resolve(self.storage, &*self.source)?;
                         let slot = self.unit.new_static_string(index, slot.as_ref())?;
 
-                        self.compile((&*expr_assign.rhs, Needs::Value))?;
+                        self.compile((&expr_assign.rhs, Needs::Value))?;
                         self.scopes.decl_anon(expr_assign.rhs.span())?;
 
-                        self.compile((&*field_access.expr, Needs::Value))?;
+                        self.compile((&field_access.expr, Needs::Value))?;
                         self.scopes.decl_anon(span)?;
 
                         self.asm.push(Inst::String { slot }, span);
@@ -55,10 +55,10 @@ impl Compile<(&ast::ExprAssign, Needs)> for Compiler<'_> {
                             )
                         })?;
 
-                        self.compile((&*expr_assign.rhs, Needs::Value))?;
+                        self.compile((&expr_assign.rhs, Needs::Value))?;
                         self.scopes.decl_anon(expr_assign.rhs.span())?;
 
-                        self.compile((&*field_access.expr, Needs::Value))?;
+                        self.compile((&field_access.expr, Needs::Value))?;
                         self.asm.push(Inst::TupleIndexSet { index }, span);
                         self.scopes.undecl_anon(span, 1)?;
                         true
@@ -69,13 +69,13 @@ impl Compile<(&ast::ExprAssign, Needs)> for Compiler<'_> {
                 let span = expr_index_get.span();
                 log::trace!("ExprIndexSet => {:?}", self.source.source(span));
 
-                self.compile((&*expr_assign.rhs, Needs::Value))?;
+                self.compile((&expr_assign.rhs, Needs::Value))?;
                 self.scopes.decl_anon(span)?;
 
-                self.compile((&*expr_index_get.target, Needs::Value))?;
+                self.compile((&expr_index_get.target, Needs::Value))?;
                 self.scopes.decl_anon(span)?;
 
-                self.compile((&*expr_index_get.index, Needs::Value))?;
+                self.compile((&expr_index_get.index, Needs::Value))?;
                 self.scopes.decl_anon(span)?;
 
                 self.asm.push(Inst::IndexSet, span);

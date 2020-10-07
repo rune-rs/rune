@@ -172,7 +172,7 @@ pub(crate) struct Import<'a> {
     pub(crate) item: &'a Item,
     pub(crate) source: &'a Arc<Source>,
     pub(crate) source_id: usize,
-    pub(crate) ast: ast::ItemUse,
+    pub(crate) ast: Box<ast::ItemUse>,
 }
 
 impl Import<'_> {

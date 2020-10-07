@@ -148,7 +148,7 @@ impl IrCompile for ast::ExprAssign {
 
     fn compile(&self, compiler: &mut IrCompiler) -> Result<Self::Output, CompileError> {
         let span = self.span();
-        let target = compiler.ir_target(&*self.lhs)?;
+        let target = compiler.ir_target(&self.lhs)?;
 
         Ok(ir::Ir::new(
             span,
@@ -173,7 +173,7 @@ impl IrCompile for ast::ExprCall {
             args.push(expr.compile(compiler)?);
         }
 
-        if let ast::Expr::Path(path) = &*self.expr {
+        if let ast::Expr::Path(path) = &self.expr {
             if let Some(ident) = path.try_as_ident() {
                 let target = compiler.resolve(ident)?;
 
@@ -211,7 +211,7 @@ impl IrCompile for ast::ExprBinary {
                 }
             };
 
-            let target = compiler.ir_target(&*self.lhs)?;
+            let target = compiler.ir_target(&self.lhs)?;
 
             return Ok(ir::Ir::new(
                 span,
@@ -445,22 +445,24 @@ impl IrCompile for ast::LitTemplate {
         let mut components = Vec::new();
 
         for (expr, _) in &self.args {
-            match expr {
-                ast::Expr::ExprLit(ast::ExprLit {
+            if let ast::Expr::ExprLit(expr_lit) = expr {
+                if let ast::ExprLit {
                     lit: ast::Lit::Str(s),
                     ..
-                }) => {
+                } = &**expr_lit
+                {
                     let s = s.resolve_template_string(&compiler.storage, &compiler.source)?;
 
                     components.push(ir::IrTemplateComponent::String(
                         s.into_owned().into_boxed_str(),
                     ));
-                }
-                expr => {
-                    let ir = expr.compile(compiler)?;
-                    components.push(ir::IrTemplateComponent::Ir(ir));
+
+                    continue;
                 }
             }
+
+            let ir = expr.compile(compiler)?;
+            components.push(ir::IrTemplateComponent::Ir(ir));
         }
 
         Ok(ir::IrTemplate { span, components })
@@ -629,7 +631,7 @@ impl IrCompile for ast::ExprWhile {
     }
 }
 
-impl IrCompile for &ast::ExprLoop {
+impl IrCompile for ast::ExprLoop {
     type Output = ir::IrLoop;
 
     fn compile(&self, compiler: &mut IrCompiler) -> Result<Self::Output, CompileError> {

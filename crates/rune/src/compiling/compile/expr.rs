@@ -12,70 +12,70 @@ impl Compile<(&ast::Expr, Needs)> for Compiler<'_> {
 
         match expr {
             ast::Expr::Path(path) => {
-                self.compile((path, needs))?;
+                self.compile((&**path, needs))?;
             }
             ast::Expr::ExprWhile(expr_while) => {
-                self.compile((expr_while, needs))?;
+                self.compile((&**expr_while, needs))?;
             }
             ast::Expr::ExprFor(expr_for) => {
-                self.compile((expr_for, needs))?;
+                self.compile((&**expr_for, needs))?;
             }
             ast::Expr::ExprLoop(expr_loop) => {
-                self.compile((expr_loop, needs))?;
+                self.compile((&**expr_loop, needs))?;
             }
             ast::Expr::ExprLet(expr_let) => {
-                self.compile((expr_let, needs))?;
+                self.compile((&**expr_let, needs))?;
             }
             ast::Expr::ExprGroup(expr) => {
-                self.compile((&*expr.expr, needs))?;
+                self.compile((&expr.expr, needs))?;
             }
             ast::Expr::ExprUnary(expr_unary) => {
-                self.compile((expr_unary, needs))?;
+                self.compile((&**expr_unary, needs))?;
             }
             ast::Expr::ExprAssign(expr_assign) => {
-                self.compile((expr_assign, needs))?;
+                self.compile((&**expr_assign, needs))?;
             }
             ast::Expr::ExprBinary(expr_binary) => {
-                self.compile((expr_binary, needs))?;
+                self.compile((&**expr_binary, needs))?;
             }
             ast::Expr::ExprIf(expr_if) => {
-                self.compile((expr_if, needs))?;
+                self.compile((&**expr_if, needs))?;
             }
             ast::Expr::ExprIndex(expr_index_get) => {
-                self.compile((expr_index_get, needs))?;
+                self.compile((&**expr_index_get, needs))?;
             }
             ast::Expr::ExprBreak(expr_break) => {
-                self.compile(expr_break)?;
+                self.compile(&**expr_break)?;
             }
             ast::Expr::ExprYield(expr_yield) => {
-                self.compile((expr_yield, needs))?;
+                self.compile((&**expr_yield, needs))?;
             }
             ast::Expr::ExprBlock(expr_block) => {
-                self.compile((expr_block, needs))?;
+                self.compile((&**expr_block, needs))?;
             }
             ast::Expr::ExprReturn(expr_return) => {
-                self.compile((expr_return, needs))?;
+                self.compile((&**expr_return, needs))?;
             }
             ast::Expr::ExprMatch(expr_match) => {
-                self.compile((expr_match, needs))?;
+                self.compile((&**expr_match, needs))?;
             }
             ast::Expr::ExprAwait(expr_await) => {
-                self.compile((expr_await, needs))?;
+                self.compile((&**expr_await, needs))?;
             }
             ast::Expr::ExprTry(expr_try) => {
-                self.compile((expr_try, needs))?;
+                self.compile((&**expr_try, needs))?;
             }
             ast::Expr::ExprSelect(expr_select) => {
-                self.compile((expr_select, needs))?;
+                self.compile((&**expr_select, needs))?;
             }
             ast::Expr::ExprCall(expr_call) => {
-                self.compile((expr_call, needs))?;
+                self.compile((&**expr_call, needs))?;
             }
             ast::Expr::ExprFieldAccess(expr_field_access) => {
-                self.compile((expr_field_access, needs))?;
+                self.compile((&**expr_field_access, needs))?;
             }
             ast::Expr::ExprClosure(expr_closure) => {
-                self.compile((expr_closure, needs))?;
+                self.compile((&**expr_closure, needs))?;
             }
             ast::Expr::ExprLit(expr_lit) => match &expr_lit.lit {
                 ast::Lit::Unit(lit_unit) => {

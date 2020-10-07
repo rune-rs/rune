@@ -25,7 +25,7 @@ pub struct ExprUnary {
     /// Token associated with operator.
     pub op_token: ast::Token,
     /// The expression of the operation.
-    pub expr: Box<ast::Expr>,
+    pub expr: ast::Expr,
     /// The operation to apply.
     #[rune(skip)]
     pub op: UnOp,
@@ -44,12 +44,12 @@ impl ExprUnary {
         Ok(Self {
             attributes,
             op_token,
-            expr: Box::new(ast::Expr::parse_with(
+            expr: ast::Expr::parse_with(
                 parser,
                 eager_brace,
                 ast::expr::EagerBinary(false),
                 ast::expr::Callable(true),
-            )?),
+            )?,
             op,
         })
     }

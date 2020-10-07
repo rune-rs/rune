@@ -258,7 +258,7 @@ impl<'a> Compiler<'a> {
             ast::Condition::Expr(expr) => {
                 let span = expr.span();
 
-                self.compile((&**expr, Needs::Value))?;
+                self.compile((expr, Needs::Value))?;
                 self.asm.jump_if(then_label, span);
 
                 Ok(self.scopes.child(span)?)
@@ -272,7 +272,7 @@ impl<'a> Compiler<'a> {
                 let expected = self.scopes.push(scope);
 
                 let load = |this: &mut Self, needs: Needs| {
-                    this.compile((&*expr_let.expr, needs))?;
+                    this.compile((&expr_let.expr, needs))?;
                     Ok(())
                 };
 
@@ -765,20 +765,22 @@ impl<'a> Compiler<'a> {
         load: &dyn Fn(&mut Self, Needs) -> CompileResult<()>,
     ) -> CompileResult<bool> {
         loop {
-            match &*pat_lit.expr {
+            match &pat_lit.expr {
                 ast::Expr::ExprUnary(expr_unary) => {
-                    if let ast::Expr::ExprLit(ast::ExprLit {
-                        lit: ast::Lit::Number(lit_number),
-                        ..
-                    }) = &*expr_unary.expr
-                    {
-                        let span = lit_number.span();
-                        let integer = lit_number
-                            .resolve(&self.storage, &*self.source)?
-                            .as_i64(pat_lit.span(), true)?;
-                        load(self, Needs::Value)?;
-                        self.asm.push(Inst::EqInteger { integer }, span);
-                        break;
+                    if let ast::Expr::ExprLit(expr_lit) = &expr_unary.expr {
+                        if let ast::ExprLit {
+                            lit: ast::Lit::Number(lit_number),
+                            ..
+                        } = &**expr_lit
+                        {
+                            let span = lit_number.span();
+                            let integer = lit_number
+                                .resolve(&self.storage, &*self.source)?
+                                .as_i64(pat_lit.span(), true)?;
+                            load(self, Needs::Value)?;
+                            self.asm.push(Inst::EqInteger { integer }, span);
+                            break;
+                        }
                     }
                 }
                 ast::Expr::ExprLit(expr_lit) => match &expr_lit.lit {

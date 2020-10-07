@@ -13,7 +13,7 @@ use std::mem::take;
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Stmt {
     /// A local declaration.
-    Local(ast::Local),
+    Local(Box<ast::Local>),
     /// A declaration.
     Item(ast::Item, #[rune(iter)] Option<T![;]>),
     /// An expression.
@@ -67,7 +67,7 @@ impl Parse for Stmt {
                 return Err(ParseError::expected(&path.first, "expected let statement"));
             }
 
-            let local = ast::Local::parse_with_meta(p, take(&mut attributes))?;
+            let local = Box::new(ast::Local::parse_with_meta(p, take(&mut attributes))?);
             ast::Stmt::Local(local)
         } else {
             let expr =

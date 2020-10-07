@@ -30,7 +30,7 @@ pub struct ItemConst {
     /// The equals token.
     pub eq: T![=],
     /// The optional body of the module declaration.
-    pub expr: Box<ast::Expr>,
+    pub expr: ast::Expr,
 }
 
 item_parse!(ItemConst, "constant item");

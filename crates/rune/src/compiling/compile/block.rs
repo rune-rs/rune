@@ -36,7 +36,7 @@ impl Compile<(&ast::Block, Needs)> for Compiler<'_> {
         for stmt in &block.statements {
             let (expr, term) = match stmt {
                 ast::Stmt::Local(local) => {
-                    self.compile((local, Needs::None))?;
+                    self.compile((&**local, Needs::None))?;
                     continue;
                 }
                 ast::Stmt::Expr(expr) => (expr, false),

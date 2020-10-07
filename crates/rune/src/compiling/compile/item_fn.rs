@@ -1,7 +1,7 @@
 use crate::compiling::compile::prelude::*;
 
-impl Compile<(ast::ItemFn, bool)> for Compiler<'_> {
-    fn compile(&mut self, (fn_decl, instance_fn): (ast::ItemFn, bool)) -> CompileResult<()> {
+impl Compile<(&ast::ItemFn, bool)> for Compiler<'_> {
+    fn compile(&mut self, (fn_decl, instance_fn): (&ast::ItemFn, bool)) -> CompileResult<()> {
         let span = fn_decl.span();
         log::trace!("ItemFn => {:?}", self.source.source(span));
 

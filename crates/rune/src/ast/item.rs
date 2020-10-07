@@ -5,22 +5,22 @@ use crate::{OptionSpanned as _, Parse, ParseError, Parser, Peeker, Spanned, ToTo
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Item {
     /// A use declaration.
-    ItemUse(ast::ItemUse),
+    ItemUse(Box<ast::ItemUse>),
     /// A function declaration.
     // large variant, so boxed
-    ItemFn(ast::ItemFn),
+    ItemFn(Box<ast::ItemFn>),
     /// An enum declaration.
-    ItemEnum(ast::ItemEnum),
+    ItemEnum(Box<ast::ItemEnum>),
     /// A struct declaration.
-    ItemStruct(ast::ItemStruct),
+    ItemStruct(Box<ast::ItemStruct>),
     /// An impl declaration.
-    ItemImpl(ast::ItemImpl),
+    ItemImpl(Box<ast::ItemImpl>),
     /// A module declaration.
-    ItemMod(ast::ItemMod),
+    ItemMod(Box<ast::ItemMod>),
     /// A const declaration.
-    ItemConst(ast::ItemConst),
+    ItemConst(Box<ast::ItemConst>),
     /// A macro call expanding into an item.
-    MacroCall(ast::MacroCall),
+    MacroCall(Box<ast::MacroCall>),
 }
 
 impl Item {
@@ -94,55 +94,55 @@ impl Item {
         use std::mem::take;
 
         let item = if let Some(path) = path {
-            Self::MacroCall(ast::MacroCall::parse_with_meta_path(
+            Self::MacroCall(Box::new(ast::MacroCall::parse_with_meta_path(
                 p,
                 take(&mut attributes),
                 path,
-            )?)
+            )?))
         } else {
             let mut const_token = p.parse::<Option<T![const]>>()?;
             let mut async_token = p.parse::<Option<T![async]>>()?;
 
             let item = match p.nth(0)? {
-                K![use] => Self::ItemUse(ast::ItemUse::parse_with_meta(
+                K![use] => Self::ItemUse(Box::new(ast::ItemUse::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
-                )?),
-                K![enum] => Self::ItemEnum(ast::ItemEnum::parse_with_meta(
+                )?)),
+                K![enum] => Self::ItemEnum(Box::new(ast::ItemEnum::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
-                )?),
-                K![struct] => Self::ItemStruct(ast::ItemStruct::parse_with_meta(
+                )?)),
+                K![struct] => Self::ItemStruct(Box::new(ast::ItemStruct::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
-                )?),
-                K![impl] => Self::ItemImpl(ast::ItemImpl::parse_with_attributes(
+                )?)),
+                K![impl] => Self::ItemImpl(Box::new(ast::ItemImpl::parse_with_attributes(
                     p,
                     take(&mut attributes),
-                )?),
-                K![fn] => Self::ItemFn(ast::ItemFn::parse_with_meta(
+                )?)),
+                K![fn] => Self::ItemFn(Box::new(ast::ItemFn::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
                     take(&mut const_token),
                     take(&mut async_token),
-                )?),
-                K![mod] => Self::ItemMod(ast::ItemMod::parse_with_meta(
+                )?)),
+                K![mod] => Self::ItemMod(Box::new(ast::ItemMod::parse_with_meta(
                     p,
                     take(&mut attributes),
                     take(&mut visibility),
-                )?),
+                )?)),
                 K![ident] => {
                     if let Some(const_token) = const_token.take() {
-                        Self::ItemConst(ast::ItemConst::parse_with_meta(
+                        Self::ItemConst(Box::new(ast::ItemConst::parse_with_meta(
                             p,
                             take(&mut attributes),
                             take(&mut visibility),
                             const_token,
-                        )?)
+                        )?))
                     } else {
                         Self::MacroCall(p.parse()?)
                     }

@@ -13,43 +13,53 @@ impl Compile<(&ast::ExprCall, Needs)> for Compiler<'_> {
         // or expand the expression.
         #[allow(clippy::never_loop)]
         let path = loop {
-            match &*expr_call.expr {
+            let expr = &expr_call.expr;
+
+            let use_expr = match expr {
                 ast::Expr::Path(path) => {
                     log::trace!("ExprCall(Path) => {:?}", self.source.source(span));
                     break path;
                 }
-                ast::Expr::ExprFieldAccess(ast::ExprFieldAccess {
-                    expr,
-                    expr_field: ast::ExprField::Ident(ident),
-                    ..
-                }) => {
-                    log::trace!(
-                        "ExprCall(ExprFieldAccess) => {:?}",
-                        self.source.source(span)
-                    );
+                ast::Expr::ExprFieldAccess(expr_field_access) => {
+                    if let ast::ExprFieldAccess {
+                        expr,
+                        expr_field: ast::ExprField::Ident(ident),
+                        ..
+                    } = &**expr_field_access
+                    {
+                        log::trace!(
+                            "ExprCall(ExprFieldAccess) => {:?}",
+                            self.source.source(span)
+                        );
 
-                    self.compile((&**expr, Needs::Value))?;
-
-                    for (expr, _) in &expr_call.args {
                         self.compile((expr, Needs::Value))?;
-                        self.scopes.decl_anon(span)?;
-                    }
 
-                    let ident = ident.resolve(&self.storage, &*self.source)?;
-                    let hash = Hash::instance_fn_name(ident.as_ref());
-                    self.asm.push(Inst::CallInstance { hash, args }, span);
+                        for (expr, _) in &expr_call.args {
+                            self.compile((expr, Needs::Value))?;
+                            self.scopes.decl_anon(span)?;
+                        }
+
+                        let ident = ident.resolve(&self.storage, &*self.source)?;
+                        let hash = Hash::instance_fn_name(ident.as_ref());
+                        self.asm.push(Inst::CallInstance { hash, args }, span);
+                        false
+                    } else {
+                        true
+                    }
                 }
-                expr => {
-                    log::trace!("ExprCall(Other) => {:?}", self.source.source(span));
+                _ => true,
+            };
 
-                    for (expr, _) in &expr_call.args {
-                        self.compile((expr, Needs::Value))?;
-                        self.scopes.decl_anon(span)?;
-                    }
+            if use_expr {
+                log::trace!("ExprCall(Other) => {:?}", self.source.source(span));
 
+                for (expr, _) in &expr_call.args {
                     self.compile((expr, Needs::Value))?;
-                    self.asm.push(Inst::CallFn { args }, span);
+                    self.scopes.decl_anon(span)?;
                 }
+
+                self.compile((expr, Needs::Value))?;
+                self.asm.push(Inst::CallFn { args }, span);
             }
 
             if !needs.value() {

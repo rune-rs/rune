@@ -8,11 +8,11 @@ pub struct ExprIndex {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The target of the index set.
-    pub target: Box<ast::Expr>,
+    pub target: ast::Expr,
     /// The opening bracket.
     pub open: T!['['],
     /// The indexing expression.
-    pub index: Box<ast::Expr>,
+    pub index: ast::Expr,
     /// The closening bracket.
     pub close: T![']'],
 }

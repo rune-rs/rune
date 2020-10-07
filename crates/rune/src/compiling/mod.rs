@@ -199,7 +199,7 @@ impl CompileBuildEntry<'_> {
                 let span = f.ast.span();
                 let count = f.ast.args.len();
                 compiler.contexts.push(span);
-                compiler.compile((f.ast, false))?;
+                compiler.compile((&*f.ast, false))?;
 
                 if used.is_unused() {
                     compiler.warnings.not_used(location.source_id, span, None);
@@ -240,7 +240,7 @@ impl CompileBuildEntry<'_> {
                     .type_of()
                     .ok_or_else(|| CompileError::expected_meta(span, meta, "instance function"))?;
 
-                compiler.compile((f.ast, true))?;
+                compiler.compile((&*f.ast, true))?;
 
                 if used.is_unused() {
                     compiler.warnings.not_used(location.source_id, span, None);
@@ -267,7 +267,7 @@ impl CompileBuildEntry<'_> {
                 let count = c.ast.args.len();
                 let span = c.ast.span();
                 compiler.contexts.push(span);
-                compiler.compile((c.ast, &c.captures[..]))?;
+                compiler.compile((&*c.ast, &c.captures[..]))?;
 
                 if used.is_unused() {
                     compiler

@@ -14,7 +14,7 @@ impl Compile<(&ast::ExprFor, Needs)> for Compiler<'_> {
 
         let (iter_offset, loop_scope_expected) = {
             let loop_scope_expected = self.scopes.push_child(span)?;
-            self.compile((&*expr_for.iter, Needs::Value))?;
+            self.compile((&expr_for.iter, Needs::Value))?;
 
             let iter_offset = self.scopes.decl_anon(span)?;
             self.asm.push_with_comment(

@@ -29,7 +29,7 @@ expr_parse!(ExprBreak, "break expression");
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum ExprBreakValue {
     /// Breaking a value out of a loop.
-    Expr(Box<ast::Expr>),
+    Expr(ast::Expr),
     /// Break and jump to the given label.
     Label(ast::Label),
 }
@@ -38,7 +38,7 @@ impl Parse for ExprBreakValue {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
         Ok(match p.nth(0)? {
             K!['label] => Self::Label(p.parse()?),
-            _ => Self::Expr(Box::new(p.parse()?)),
+            _ => Self::Expr(p.parse()?),
         })
     }
 }
