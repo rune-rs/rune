@@ -76,7 +76,7 @@ impl Parse for Pat {
         let attributes = p.parse::<Vec<ast::Attribute>>()?;
 
         match p.nth(0)? {
-            ast::Kind::LitStr(..) => {
+            K![str] => {
                 let lit_str = p.parse::<ast::LitStr>()?;
 
                 return Ok(if p.peek::<T![:]>()? {
@@ -132,10 +132,7 @@ impl Parse for Pat {
                     items: p.parse()?,
                 }))
             }
-            ast::Kind::LitByte { .. }
-            | ast::Kind::LitChar { .. }
-            | ast::Kind::LitNumber { .. }
-            | K![-] => {
+            K![byte] | K![char] | K![number] | K![-] => {
                 let expr: ast::Expr = p.parse()?;
 
                 match &expr {
@@ -170,7 +167,7 @@ impl Parse for Pat {
                     underscore: p.parse()?,
                 }))
             }
-            K![ident(..)] => return Ok(Self::parse_ident(p, attributes)?),
+            K![ident] => return Ok(Self::parse_ident(p, attributes)?),
             _ => (),
         }
 
@@ -185,11 +182,11 @@ impl Peek for Pat {
             K!['['] => true,
             K![#] => true,
             K![_] => true,
-            ast::Kind::LitByte { .. } => true,
-            ast::Kind::LitChar { .. } => true,
-            ast::Kind::LitNumber { .. } => true,
-            ast::Kind::LitStr { .. } => true,
-            ast::Kind::Ident(..) => true,
+            K![byte] => true,
+            K![char] => true,
+            K![number] => true,
+            K![str] => true,
+            K![ident] => true,
             _ => false,
         }
     }

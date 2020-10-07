@@ -37,7 +37,7 @@ pub enum ExprBreakValue {
 impl Parse for ExprBreakValue {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
         Ok(match p.nth(0)? {
-            ast::Kind::Label(..) => Self::Label(p.parse()?),
+            K!['label] => Self::Label(p.parse()?),
             _ => Self::Expr(Box::new(p.parse()?)),
         })
     }
@@ -46,7 +46,7 @@ impl Parse for ExprBreakValue {
 impl Peek for ExprBreakValue {
     fn peek(p: &mut Peeker<'_>) -> bool {
         match p.nth(0) {
-            ast::Kind::Label(..) => true,
+            K!['label] => true,
             _ => ast::Expr::peek(p),
         }
     }

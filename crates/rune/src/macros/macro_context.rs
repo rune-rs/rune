@@ -234,7 +234,7 @@ impl IntoLit for i32 {
 
         ast::Lit::Number(ast::LitNumber {
             token: ast::Token {
-                kind: ast::Kind::LitNumber(source),
+                kind: ast::Kind::Number(source),
                 span: ctx.span(),
             },
             source,
@@ -249,7 +249,7 @@ impl IntoLit for i64 {
 
         ast::Lit::Number(ast::LitNumber {
             token: ast::Token {
-                kind: ast::Kind::LitNumber(source),
+                kind: ast::Kind::Number(source),
                 span: ctx.span(),
             },
             source,
@@ -264,7 +264,7 @@ impl IntoLit for f64 {
 
         ast::Lit::Number(ast::LitNumber {
             token: ast::Token {
-                kind: ast::Kind::LitNumber(source),
+                kind: ast::Kind::Number(source),
                 span: ctx.span(),
             },
             source,
@@ -278,7 +278,7 @@ impl IntoLit for char {
 
         ast::Lit::Char(ast::LitChar {
             token: ast::Token {
-                kind: ast::Kind::LitChar(source),
+                kind: ast::Kind::Char(source),
                 span: ctx.span(),
             },
             source,
@@ -292,7 +292,7 @@ impl IntoLit for u8 {
 
         ast::Lit::Byte(ast::LitByte {
             token: ast::Token {
-                kind: ast::Kind::LitByte(source),
+                kind: ast::Kind::Byte(source),
                 span: ctx.span(),
             },
             source,
@@ -303,11 +303,11 @@ impl IntoLit for u8 {
 impl IntoLit for &str {
     fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
         let id = ctx.storage.insert_str(self);
-        let source = ast::LitStrSource::Synthetic(id);
+        let source = ast::StrSource::Synthetic(id);
 
         ast::Lit::Str(ast::LitStr {
             token: ast::Token {
-                kind: ast::Kind::LitStr(ast::LitStrSource::Synthetic(id)),
+                kind: ast::Kind::Str(ast::StrSource::Synthetic(id)),
                 span: ctx.span(),
             },
             source,
@@ -324,11 +324,11 @@ impl IntoLit for &String {
 impl IntoLit for String {
     fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
         let id = ctx.storage.insert_string(self);
-        let source = ast::LitStrSource::Synthetic(id);
+        let source = ast::StrSource::Synthetic(id);
 
         ast::Lit::Str(ast::LitStr {
             token: ast::Token {
-                kind: ast::Kind::LitStr(source),
+                kind: ast::Kind::Str(source),
                 span: ctx.span(),
             },
             source,
@@ -340,11 +340,11 @@ impl IntoLit for &[u8] {
     fn into_lit(self, ctx: &MacroContext) -> ast::Lit {
         let id = ctx.storage.insert_byte_string(self);
 
-        let source = ast::LitStrSource::Synthetic(id);
+        let source = ast::StrSource::Synthetic(id);
 
         ast::Lit::ByteStr(ast::LitByteStr {
             token: ast::Token {
-                kind: ast::Kind::LitByteStr(source),
+                kind: ast::Kind::ByteStr(source),
                 span: ctx.span(),
             },
             source,

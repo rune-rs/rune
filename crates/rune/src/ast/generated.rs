@@ -26,13 +26,7 @@ impl parsing::Parse for Abstract {
 
         match token.kind {
             ast::Kind::Abstract => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Abstract,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "abstract")),
         }
     }
 }
@@ -68,13 +62,7 @@ impl parsing::Parse for AlignOf {
 
         match token.kind {
             ast::Kind::AlignOf => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::AlignOf,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "alignof")),
         }
     }
 }
@@ -110,13 +98,7 @@ impl parsing::Parse for Amp {
 
         match token.kind {
             ast::Kind::Amp => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Amp,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "&")),
         }
     }
 }
@@ -152,13 +134,7 @@ impl parsing::Parse for AmpAmp {
 
         match token.kind {
             ast::Kind::AmpAmp => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::AmpAmp,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "&&")),
         }
     }
 }
@@ -194,13 +170,7 @@ impl parsing::Parse for AmpEq {
 
         match token.kind {
             ast::Kind::AmpEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::AmpEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "&=")),
         }
     }
 }
@@ -236,13 +206,7 @@ impl parsing::Parse for Arrow {
 
         match token.kind {
             ast::Kind::Arrow => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Arrow,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "->")),
         }
     }
 }
@@ -278,13 +242,7 @@ impl parsing::Parse for As {
 
         match token.kind {
             ast::Kind::As => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::As,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "as")),
         }
     }
 }
@@ -320,13 +278,7 @@ impl parsing::Parse for Async {
 
         match token.kind {
             ast::Kind::Async => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Async,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "async")),
         }
     }
 }
@@ -362,13 +314,7 @@ impl parsing::Parse for At {
 
         match token.kind {
             ast::Kind::At => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::At,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "@")),
         }
     }
 }
@@ -404,13 +350,7 @@ impl parsing::Parse for Await {
 
         match token.kind {
             ast::Kind::Await => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Await,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "await")),
         }
     }
 }
@@ -446,13 +386,7 @@ impl parsing::Parse for Bang {
 
         match token.kind {
             ast::Kind::Bang => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Bang,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "!")),
         }
     }
 }
@@ -488,13 +422,7 @@ impl parsing::Parse for BangEq {
 
         match token.kind {
             ast::Kind::BangEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::BangEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "!=")),
         }
     }
 }
@@ -530,13 +458,7 @@ impl parsing::Parse for Become {
 
         match token.kind {
             ast::Kind::Become => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Become,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "become")),
         }
     }
 }
@@ -572,13 +494,7 @@ impl parsing::Parse for Break {
 
         match token.kind {
             ast::Kind::Break => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Break,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "break")),
         }
     }
 }
@@ -614,13 +530,7 @@ impl parsing::Parse for Caret {
 
         match token.kind {
             ast::Kind::Caret => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Caret,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "^")),
         }
     }
 }
@@ -656,13 +566,7 @@ impl parsing::Parse for CaretEq {
 
         match token.kind {
             ast::Kind::CaretEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::CaretEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "^=")),
         }
     }
 }
@@ -698,13 +602,7 @@ impl parsing::Parse for Colon {
 
         match token.kind {
             ast::Kind::Colon => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Colon,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, ":")),
         }
     }
 }
@@ -740,13 +638,7 @@ impl parsing::Parse for ColonColon {
 
         match token.kind {
             ast::Kind::ColonColon => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::ColonColon,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "::")),
         }
     }
 }
@@ -782,13 +674,7 @@ impl parsing::Parse for Comma {
 
         match token.kind {
             ast::Kind::Comma => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Comma,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, ",")),
         }
     }
 }
@@ -824,13 +710,7 @@ impl parsing::Parse for Const {
 
         match token.kind {
             ast::Kind::Const => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Const,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "const")),
         }
     }
 }
@@ -866,13 +746,7 @@ impl parsing::Parse for Crate {
 
         match token.kind {
             ast::Kind::Crate => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Crate,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "crate")),
         }
     }
 }
@@ -908,13 +782,7 @@ impl parsing::Parse for Dash {
 
         match token.kind {
             ast::Kind::Dash => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Dash,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "-")),
         }
     }
 }
@@ -950,13 +818,7 @@ impl parsing::Parse for DashEq {
 
         match token.kind {
             ast::Kind::DashEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::DashEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "-=")),
         }
     }
 }
@@ -992,13 +854,7 @@ impl parsing::Parse for Default {
 
         match token.kind {
             ast::Kind::Default => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Default,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "default")),
         }
     }
 }
@@ -1034,13 +890,7 @@ impl parsing::Parse for Div {
 
         match token.kind {
             ast::Kind::Div => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Div,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "/")),
         }
     }
 }
@@ -1076,13 +926,7 @@ impl parsing::Parse for Do {
 
         match token.kind {
             ast::Kind::Do => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Do,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "do")),
         }
     }
 }
@@ -1118,13 +962,7 @@ impl parsing::Parse for Dollar {
 
         match token.kind {
             ast::Kind::Dollar => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Dollar,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "$")),
         }
     }
 }
@@ -1160,13 +998,7 @@ impl parsing::Parse for Dot {
 
         match token.kind {
             ast::Kind::Dot => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Dot,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, ".")),
         }
     }
 }
@@ -1202,13 +1034,7 @@ impl parsing::Parse for DotDot {
 
         match token.kind {
             ast::Kind::DotDot => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::DotDot,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "..")),
         }
     }
 }
@@ -1244,13 +1070,7 @@ impl parsing::Parse for Else {
 
         match token.kind {
             ast::Kind::Else => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Else,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "else")),
         }
     }
 }
@@ -1286,13 +1106,7 @@ impl parsing::Parse for Enum {
 
         match token.kind {
             ast::Kind::Enum => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Enum,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "enum")),
         }
     }
 }
@@ -1328,13 +1142,7 @@ impl parsing::Parse for Eq {
 
         match token.kind {
             ast::Kind::Eq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Eq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "=")),
         }
     }
 }
@@ -1370,13 +1178,7 @@ impl parsing::Parse for EqEq {
 
         match token.kind {
             ast::Kind::EqEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::EqEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "==")),
         }
     }
 }
@@ -1412,13 +1214,7 @@ impl parsing::Parse for Extern {
 
         match token.kind {
             ast::Kind::Extern => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Extern,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "extern")),
         }
     }
 }
@@ -1454,13 +1250,7 @@ impl parsing::Parse for False {
 
         match token.kind {
             ast::Kind::False => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::False,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "false")),
         }
     }
 }
@@ -1496,13 +1286,7 @@ impl parsing::Parse for Final {
 
         match token.kind {
             ast::Kind::Final => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Final,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "final")),
         }
     }
 }
@@ -1538,13 +1322,7 @@ impl parsing::Parse for Fn {
 
         match token.kind {
             ast::Kind::Fn => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Fn,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "fn")),
         }
     }
 }
@@ -1580,13 +1358,7 @@ impl parsing::Parse for For {
 
         match token.kind {
             ast::Kind::For => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::For,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "for")),
         }
     }
 }
@@ -1622,13 +1394,7 @@ impl parsing::Parse for Gt {
 
         match token.kind {
             ast::Kind::Gt => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Gt,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, ">")),
         }
     }
 }
@@ -1664,13 +1430,7 @@ impl parsing::Parse for GtEq {
 
         match token.kind {
             ast::Kind::GtEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::GtEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, ">=")),
         }
     }
 }
@@ -1706,13 +1466,7 @@ impl parsing::Parse for GtGt {
 
         match token.kind {
             ast::Kind::GtGt => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::GtGt,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, ">>")),
         }
     }
 }
@@ -1748,13 +1502,7 @@ impl parsing::Parse for GtGtEq {
 
         match token.kind {
             ast::Kind::GtGtEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::GtGtEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, ">>=")),
         }
     }
 }
@@ -1790,13 +1538,7 @@ impl parsing::Parse for If {
 
         match token.kind {
             ast::Kind::If => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::If,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "if")),
         }
     }
 }
@@ -1832,13 +1574,7 @@ impl parsing::Parse for Impl {
 
         match token.kind {
             ast::Kind::Impl => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Impl,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "impl")),
         }
     }
 }
@@ -1874,13 +1610,7 @@ impl parsing::Parse for In {
 
         match token.kind {
             ast::Kind::In => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::In,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "in")),
         }
     }
 }
@@ -1916,13 +1646,7 @@ impl parsing::Parse for Is {
 
         match token.kind {
             ast::Kind::Is => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Is,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "is")),
         }
     }
 }
@@ -1958,13 +1682,7 @@ impl parsing::Parse for Let {
 
         match token.kind {
             ast::Kind::Let => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Let,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "let")),
         }
     }
 }
@@ -2000,13 +1718,7 @@ impl parsing::Parse for Loop {
 
         match token.kind {
             ast::Kind::Loop => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Loop,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "loop")),
         }
     }
 }
@@ -2042,13 +1754,7 @@ impl parsing::Parse for Lt {
 
         match token.kind {
             ast::Kind::Lt => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Lt,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "<")),
         }
     }
 }
@@ -2084,13 +1790,7 @@ impl parsing::Parse for LtEq {
 
         match token.kind {
             ast::Kind::LtEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::LtEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "<=")),
         }
     }
 }
@@ -2126,13 +1826,7 @@ impl parsing::Parse for LtLt {
 
         match token.kind {
             ast::Kind::LtLt => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::LtLt,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "<<")),
         }
     }
 }
@@ -2168,13 +1862,7 @@ impl parsing::Parse for LtLtEq {
 
         match token.kind {
             ast::Kind::LtLtEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::LtLtEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "<<=")),
         }
     }
 }
@@ -2210,13 +1898,7 @@ impl parsing::Parse for Macro {
 
         match token.kind {
             ast::Kind::Macro => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Macro,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "macro")),
         }
     }
 }
@@ -2252,13 +1934,7 @@ impl parsing::Parse for Match {
 
         match token.kind {
             ast::Kind::Match => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Match,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "match")),
         }
     }
 }
@@ -2294,13 +1970,7 @@ impl parsing::Parse for Mod {
 
         match token.kind {
             ast::Kind::Mod => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Mod,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "mod")),
         }
     }
 }
@@ -2336,13 +2006,7 @@ impl parsing::Parse for Move {
 
         match token.kind {
             ast::Kind::Move => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Move,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "move")),
         }
     }
 }
@@ -2378,13 +2042,7 @@ impl parsing::Parse for Not {
 
         match token.kind {
             ast::Kind::Not => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Not,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "not")),
         }
     }
 }
@@ -2420,13 +2078,7 @@ impl parsing::Parse for OffsetOf {
 
         match token.kind {
             ast::Kind::OffsetOf => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::OffsetOf,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "offsetof")),
         }
     }
 }
@@ -2462,13 +2114,7 @@ impl parsing::Parse for Override {
 
         match token.kind {
             ast::Kind::Override => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Override,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "override")),
         }
     }
 }
@@ -2504,13 +2150,7 @@ impl parsing::Parse for Perc {
 
         match token.kind {
             ast::Kind::Perc => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Perc,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "%")),
         }
     }
 }
@@ -2546,13 +2186,7 @@ impl parsing::Parse for PercEq {
 
         match token.kind {
             ast::Kind::PercEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::PercEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "%=")),
         }
     }
 }
@@ -2588,13 +2222,7 @@ impl parsing::Parse for Pipe {
 
         match token.kind {
             ast::Kind::Pipe => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Pipe,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "|")),
         }
     }
 }
@@ -2630,13 +2258,7 @@ impl parsing::Parse for PipeEq {
 
         match token.kind {
             ast::Kind::PipeEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::PipeEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "|=")),
         }
     }
 }
@@ -2672,13 +2294,7 @@ impl parsing::Parse for PipePipe {
 
         match token.kind {
             ast::Kind::PipePipe => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::PipePipe,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "||")),
         }
     }
 }
@@ -2714,13 +2330,7 @@ impl parsing::Parse for Plus {
 
         match token.kind {
             ast::Kind::Plus => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Plus,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "+")),
         }
     }
 }
@@ -2756,13 +2366,7 @@ impl parsing::Parse for PlusEq {
 
         match token.kind {
             ast::Kind::PlusEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::PlusEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "+=")),
         }
     }
 }
@@ -2798,13 +2402,7 @@ impl parsing::Parse for Pound {
 
         match token.kind {
             ast::Kind::Pound => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Pound,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "#")),
         }
     }
 }
@@ -2840,13 +2438,7 @@ impl parsing::Parse for Priv {
 
         match token.kind {
             ast::Kind::Priv => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Priv,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "priv")),
         }
     }
 }
@@ -2882,13 +2474,7 @@ impl parsing::Parse for Proc {
 
         match token.kind {
             ast::Kind::Proc => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Proc,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "proc")),
         }
     }
 }
@@ -2924,13 +2510,7 @@ impl parsing::Parse for Pub {
 
         match token.kind {
             ast::Kind::Pub => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Pub,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "pub")),
         }
     }
 }
@@ -2966,13 +2546,7 @@ impl parsing::Parse for Pure {
 
         match token.kind {
             ast::Kind::Pure => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Pure,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "pure")),
         }
     }
 }
@@ -3008,13 +2582,7 @@ impl parsing::Parse for QuestionMark {
 
         match token.kind {
             ast::Kind::QuestionMark => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::QuestionMark,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "?")),
         }
     }
 }
@@ -3050,13 +2618,7 @@ impl parsing::Parse for Ref {
 
         match token.kind {
             ast::Kind::Ref => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Ref,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "ref")),
         }
     }
 }
@@ -3092,13 +2654,7 @@ impl parsing::Parse for Return {
 
         match token.kind {
             ast::Kind::Return => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Return,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "return")),
         }
     }
 }
@@ -3134,13 +2690,7 @@ impl parsing::Parse for Rocket {
 
         match token.kind {
             ast::Kind::Rocket => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Rocket,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "=>")),
         }
     }
 }
@@ -3176,13 +2726,7 @@ impl parsing::Parse for Select {
 
         match token.kind {
             ast::Kind::Select => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Select,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "select")),
         }
     }
 }
@@ -3218,13 +2762,7 @@ impl parsing::Parse for SelfType {
 
         match token.kind {
             ast::Kind::SelfType => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::SelfType,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "Self")),
         }
     }
 }
@@ -3260,13 +2798,7 @@ impl parsing::Parse for SelfValue {
 
         match token.kind {
             ast::Kind::SelfValue => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::SelfValue,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "self")),
         }
     }
 }
@@ -3302,13 +2834,7 @@ impl parsing::Parse for SemiColon {
 
         match token.kind {
             ast::Kind::SemiColon => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::SemiColon,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, ";")),
         }
     }
 }
@@ -3344,13 +2870,7 @@ impl parsing::Parse for SizeOf {
 
         match token.kind {
             ast::Kind::SizeOf => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::SizeOf,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "sizeof")),
         }
     }
 }
@@ -3386,13 +2906,7 @@ impl parsing::Parse for SlashEq {
 
         match token.kind {
             ast::Kind::SlashEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::SlashEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "/=")),
         }
     }
 }
@@ -3428,13 +2942,7 @@ impl parsing::Parse for Star {
 
         match token.kind {
             ast::Kind::Star => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Star,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "*")),
         }
     }
 }
@@ -3470,13 +2978,7 @@ impl parsing::Parse for StarEq {
 
         match token.kind {
             ast::Kind::StarEq => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::StarEq,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "*=")),
         }
     }
 }
@@ -3512,13 +3014,7 @@ impl parsing::Parse for Static {
 
         match token.kind {
             ast::Kind::Static => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Static,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "static")),
         }
     }
 }
@@ -3554,13 +3050,7 @@ impl parsing::Parse for Struct {
 
         match token.kind {
             ast::Kind::Struct => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Struct,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "struct")),
         }
     }
 }
@@ -3596,13 +3086,7 @@ impl parsing::Parse for Super {
 
         match token.kind {
             ast::Kind::Super => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Super,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "super")),
         }
     }
 }
@@ -3638,13 +3122,7 @@ impl parsing::Parse for Template {
 
         match token.kind {
             ast::Kind::Template => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Template,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "template")),
         }
     }
 }
@@ -3680,13 +3158,7 @@ impl parsing::Parse for Tilde {
 
         match token.kind {
             ast::Kind::Tilde => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Tilde,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "~")),
         }
     }
 }
@@ -3722,13 +3194,7 @@ impl parsing::Parse for True {
 
         match token.kind {
             ast::Kind::True => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::True,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "true")),
         }
     }
 }
@@ -3764,13 +3230,7 @@ impl parsing::Parse for TypeOf {
 
         match token.kind {
             ast::Kind::TypeOf => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::TypeOf,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "typeof")),
         }
     }
 }
@@ -3806,13 +3266,7 @@ impl parsing::Parse for Underscore {
 
         match token.kind {
             ast::Kind::Underscore => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Underscore,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "_")),
         }
     }
 }
@@ -3848,13 +3302,7 @@ impl parsing::Parse for Unsafe {
 
         match token.kind {
             ast::Kind::Unsafe => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Unsafe,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "unsafe")),
         }
     }
 }
@@ -3890,13 +3338,7 @@ impl parsing::Parse for Use {
 
         match token.kind {
             ast::Kind::Use => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Use,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "use")),
         }
     }
 }
@@ -3932,13 +3374,7 @@ impl parsing::Parse for Virtual {
 
         match token.kind {
             ast::Kind::Virtual => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Virtual,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "virtual")),
         }
     }
 }
@@ -3974,13 +3410,7 @@ impl parsing::Parse for While {
 
         match token.kind {
             ast::Kind::While => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::While,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "while")),
         }
     }
 }
@@ -4016,13 +3446,7 @@ impl parsing::Parse for Yield {
 
         match token.kind {
             ast::Kind::Yield => Ok(Self { token }),
-            _ => Err(parsing::ParseError::new(
-                token,
-                parsing::ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Yield,
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(parsing::ParseError::expected(token, "yield")),
         }
     }
 }
@@ -4356,7 +3780,20 @@ macro_rules! T {
 /// Helper macro to reference a specific token kind, or short sequence of kinds.
 #[macro_export]
 macro_rules! K {
+    (ident) => { $crate::ast::Kind::Ident(..) };
     (ident ($($tt:tt)*)) => { $crate::ast::Kind::Ident($($tt)*) };
+    ('label) => { $crate::ast::Kind::Label(..) };
+    ('label ($($tt:tt)*)) => { $crate::ast::Kind::Label($($tt)*) };
+    (str) => { $crate::ast::Kind::Str(..) };
+    (str ($($tt:tt)*)) => { $crate::ast::Kind::Str($($tt)*) };
+    (bytestr) => { $crate::ast::Kind::ByteStr(..) };
+    (bytestr ($($tt:tt)*)) => { $crate::ast::Kind::ByteStr($($tt)*) };
+    (char) => { $crate::ast::Kind::Char(..) };
+    (char ($($tt:tt)*)) => { $crate::ast::Kind::Char($($tt)*) };
+    (byte) => { $crate::ast::Kind::Byte(..) };
+    (byte ($($tt:tt)*)) => { $crate::ast::Kind::Byte($($tt)*) };
+    (number) => { $crate::ast::Kind::Number(..) };
+    (number ($($tt:tt)*)) => { $crate::ast::Kind::Number($($tt)*) };
     ('(') => { $crate::ast::Kind::Open($crate::ast::Delimiter::Parenthesis) };
     (')') => { $crate::ast::Kind::Close($crate::ast::Delimiter::Parenthesis) };
     ('[') => { $crate::ast::Kind::Open($crate::ast::Delimiter::Bracket) };
@@ -4477,15 +3914,15 @@ pub enum Kind {
     /// A label, like `'loop`.
     Label(ast::StringSource),
     /// A byte literal.
-    LitByte(ast::CopySource<u8>),
+    Byte(ast::CopySource<u8>),
     /// A byte string literal, including escape sequences. Like `b"hello\nworld"`.
-    LitByteStr(ast::LitStrSource),
+    ByteStr(ast::StrSource),
     /// A characer literal.
-    LitChar(ast::CopySource<char>),
+    Char(ast::CopySource<char>),
     /// A number literal, like `42` or `3.14` or `0xff`.
-    LitNumber(ast::NumberSource),
+    Number(ast::NumberSource),
     /// A string literal, including escape sequences. Like `"hello\nworld"`.
-    LitStr(ast::LitStrSource),
+    Str(ast::StrSource),
     /// The `abstract` keyword.
     Abstract,
     /// The `alignof` keyword.
@@ -4755,11 +4192,11 @@ impl Kind {
             Self::Open(delimiter) => delimiter.open(),
             Self::Ident(..) => "ident",
             Self::Label(..) => "label",
-            Self::LitByte { .. } => "byte",
-            Self::LitByteStr { .. } => "byte string",
-            Self::LitChar { .. } => "char",
-            Self::LitNumber { .. } => "number",
-            Self::LitStr { .. } => "string",
+            Self::Byte { .. } => "byte",
+            Self::ByteStr { .. } => "byte string",
+            Self::Char { .. } => "char",
+            Self::Number { .. } => "number",
+            Self::Str { .. } => "string",
             Self::Abstract => "abstract",
             Self::AlignOf => "alignof",
             Self::Amp => "&",

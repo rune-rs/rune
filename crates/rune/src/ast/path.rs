@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::parsing::Opaque;
-use crate::{Id, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Spanned, ToTokens};
+use crate::{Id, Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
@@ -150,32 +150,26 @@ impl PathSegment {
 
 impl Parse for PathSegment {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
-        match p.nth(0)? {
-            K![Self] => Ok(PathSegment::SelfType(p.parse()?)),
-            K![self] => Ok(PathSegment::SelfValue(p.parse()?)),
-            K![ident(..)] => Ok(PathSegment::Ident(p.parse()?)),
-            K![crate] => Ok(PathSegment::Crate(p.parse()?)),
-            K![super] => Ok(PathSegment::Super(p.parse()?)),
+        let segment = match p.nth(0)? {
+            K![Self] => Self::SelfType(p.parse()?),
+            K![self] => Self::SelfValue(p.parse()?),
+            K![ident] => Self::Ident(p.parse()?),
+            K![crate] => Self::Crate(p.parse()?),
+            K![super] => Self::Super(p.parse()?),
             _ => {
-                let t = p.token(0)?;
-
-                Err(ParseError::new(
-                    t,
-                    ParseErrorKind::TokenMismatch {
-                        expected: ast::Kind::Ident(ast::StringSource::Text),
-                        actual: t.kind,
-                    },
-                ))
+                return Err(ParseError::expected(p.token(0)?, "path segment"));
             }
-        }
+        };
+
+        Ok(segment)
     }
 }
 
 impl Peek for PathSegment {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        matches! {
+        matches!(
             p.nth(0),
-            K![Self] | K![self] | K![crate] | K![super] | K![ident(..)]
-        }
+            K![Self] | K![self] | K![crate] | K![super] | K![ident]
+        )
     }
 }

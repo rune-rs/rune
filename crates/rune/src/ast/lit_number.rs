@@ -31,7 +31,7 @@ impl Parse for LitNumber {
         let token = parser.next()?;
 
         match token.kind {
-            ast::Kind::LitNumber(source) => Ok(LitNumber { source, token }),
+            K![number(source)] => Ok(LitNumber { source, token }),
             _ => Err(ParseError::expected(token, "number")),
         }
     }

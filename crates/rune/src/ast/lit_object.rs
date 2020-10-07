@@ -49,7 +49,7 @@ impl Parse for LitObject {
 impl Peek for LitObject {
     fn peek(p: &mut Peeker<'_>) -> bool {
         match (p.nth(0), p.nth(1)) {
-            (K![ident(_)], K!['{']) => true,
+            (K![ident], K!['{']) => true,
             (K![#], K!['{']) => true,
             _ => false,
         }
@@ -133,8 +133,8 @@ pub enum LitObjectKey {
 impl Parse for LitObjectKey {
     fn parse(p: &mut Parser) -> Result<Self, ParseError> {
         Ok(match p.nth(0)? {
-            ast::Kind::LitStr { .. } => Self::LitStr(p.parse()?),
-            K![ident(..)] => Self::Path(p.parse()?),
+            K![str] => Self::LitStr(p.parse()?),
+            K![ident] => Self::Path(p.parse()?),
             _ => {
                 return Err(ParseError::expected(p.token(0)?, "literal object key"));
             }

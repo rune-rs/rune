@@ -1,6 +1,6 @@
 //! AST for the Rune language.
 
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek};
+use crate::{Parse, ParseError, Parser, Peek};
 use runestick::Span;
 
 #[macro_use]
@@ -157,13 +157,13 @@ pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVe
 pub use self::path::{Path, PathKind, PathSegment};
 pub use self::stmt::Stmt;
 pub use self::token::{
-    CopySource, Delimiter, LitStrSource, LitStrSourceText, Number, NumberBase, NumberSource,
-    NumberSourceText, StringSource, Token,
+    CopySource, Delimiter, Number, NumberBase, NumberSource, NumberText, StrSource, StrText,
+    StringSource, Token,
 };
 pub use self::vis::Visibility;
 
 macro_rules! decl_tokens {
-    ($(($parser:ident, $doc:expr, $($kind:tt)*),)*) => {
+    ($(($parser:ident, $name:literal, $doc:expr, $($kind:tt)*),)*) => {
         $(
             #[doc = $doc]
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -186,10 +186,7 @@ macro_rules! decl_tokens {
                         $($kind)* => Ok(Self {
                             token,
                         }),
-                        _ => Err(ParseError::new(token, ParseErrorKind::TokenMismatch {
-                            expected: $($kind)*,
-                            actual: token.kind,
-                        })),
+                        _ => Err(ParseError::expected(token, $name)),
                     }
                 }
             }
@@ -210,12 +207,12 @@ macro_rules! decl_tokens {
 }
 
 decl_tokens! {
-    (CloseBrace, "An closing brace `}`.", Kind::Close(Delimiter::Brace)),
-    (CloseBracket, "An open bracket `]`.", Kind::Close(Delimiter::Bracket)),
-    (CloseParen, "An closing parenthesis `)`.", Kind::Close(Delimiter::Parenthesis)),
-    (OpenBrace, "An opening brace `{`.", Kind::Open(Delimiter::Brace)),
-    (OpenBracket, "An open bracket `[`.", Kind::Open(Delimiter::Bracket)),
-    (OpenParen, "An opening parenthesis `(`.", Kind::Open(Delimiter::Parenthesis)),
+    (CloseBrace, "An closing brace `}`.", "closing brace", Kind::Close(Delimiter::Brace)),
+    (CloseBracket, "An open bracket `]`.", "closing bracket", Kind::Close(Delimiter::Bracket)),
+    (CloseParen, "An closing parenthesis `)`.", "closing parenthesis", Kind::Close(Delimiter::Parenthesis)),
+    (OpenBrace, "An opening brace `{`.", "opening brace", Kind::Open(Delimiter::Brace)),
+    (OpenBracket, "An open bracket `[`.", "opening bracket", Kind::Open(Delimiter::Bracket)),
+    (OpenParen, "An opening parenthesis `(`.", "opening parenthesis", Kind::Open(Delimiter::Parenthesis)),
 }
 
 #[cfg(test)]

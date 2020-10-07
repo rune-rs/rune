@@ -27,7 +27,7 @@ impl Parse for FnArg {
         Ok(match p.nth(0)? {
             K![self] => Self::SelfValue(p.parse()?),
             K![_] => Self::Ignore(p.parse()?),
-            K![ident(..)] => Self::Ident(p.parse()?),
+            K![ident] => Self::Ident(p.parse()?),
             _ => {
                 return Err(ParseError::expected(
                     p.token(0)?,

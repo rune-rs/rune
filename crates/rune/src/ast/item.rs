@@ -137,7 +137,7 @@ impl Item {
                     take(&mut attributes),
                     take(&mut visibility),
                 )?),
-                K![ident(..)] => {
+                K![ident] => {
                     if let Some(const_token) = const_token.take() {
                         Self::ItemConst(ast::ItemConst::parse_with_meta(
                             p,
@@ -169,17 +169,11 @@ impl Item {
         };
 
         if let Some(span) = attributes.option_span() {
-            return Err(ParseError::new(
-                span,
-                ParseErrorKind::UnsupportedItemAttributes,
-            ));
+            return Err(ParseError::unsupported(span, "attribute"));
         }
 
         if let Some(span) = visibility.option_span() {
-            return Err(ParseError::new(
-                span,
-                ParseErrorKind::UnsupportedItemVisibility,
-            ));
+            return Err(ParseError::unsupported(span, "visibility modifier"));
         }
 
         Ok(item)

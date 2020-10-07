@@ -61,10 +61,7 @@ impl Parse for Stmt {
         }
 
         if let Some(span) = visibility.option_span() {
-            return Err(ParseError::new(
-                span,
-                ParseErrorKind::UnsupportedExprVisibility,
-            ));
+            return Err(ParseError::unsupported(span, "visibility modifier"));
         }
 
         let stmt = if let K![let] = p.nth(0)? {

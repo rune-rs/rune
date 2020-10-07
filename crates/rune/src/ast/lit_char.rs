@@ -32,7 +32,7 @@ impl Parse for LitChar {
         let token = parser.next()?;
 
         match token.kind {
-            ast::Kind::LitChar(source) => Ok(LitChar { token, source }),
+            K![char(source)] => Ok(LitChar { token, source }),
             _ => Err(ParseError::expected(token, "char")),
         }
     }

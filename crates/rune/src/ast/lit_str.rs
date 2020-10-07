@@ -12,7 +12,7 @@ pub struct LitStr {
     pub token: ast::Token,
     /// The source of the literal string.
     #[rune(skip)]
-    pub source: ast::LitStrSource,
+    pub source: ast::StrSource,
 }
 
 impl LitStr {
@@ -35,8 +35,8 @@ impl LitStr {
         let span = self.token.span();
 
         let text = match self.source {
-            ast::LitStrSource::Text(text) => text,
-            ast::LitStrSource::Synthetic(id) => {
+            ast::StrSource::Text(text) => text,
+            ast::StrSource::Synthetic(id) => {
                 let bytes = storage.get_string(id).ok_or_else(|| {
                     ParseError::new(span, ParseErrorKind::BadSyntheticId { kind: "string", id })
                 })?;
@@ -111,7 +111,7 @@ impl Parse for LitStr {
         let token = parser.next()?;
 
         match token.kind {
-            ast::Kind::LitStr(source) => Ok(Self { token, source }),
+            K![str(source)] => Ok(Self { token, source }),
             _ => Err(ParseError::expected(token, "string literal")),
         }
     }

@@ -12,7 +12,7 @@ pub struct LitByteStr {
     pub token: ast::Token,
     /// If the string literal is escaped.
     #[rune(skip)]
-    pub source: ast::LitStrSource,
+    pub source: ast::StrSource,
 }
 
 impl LitByteStr {
@@ -63,7 +63,7 @@ impl Parse for LitByteStr {
         let token = parser.next()?;
 
         match token.kind {
-            ast::Kind::LitByteStr(source) => Ok(Self { token, source }),
+            K![bytestr(source)] => Ok(Self { token, source }),
             _ => Err(ParseError::expected(token, "literal byte string")),
         }
     }
@@ -76,8 +76,8 @@ impl<'a> Resolve<'a> for LitByteStr {
         let span = self.token.span();
 
         let text = match self.source {
-            ast::LitStrSource::Text(text) => text,
-            ast::LitStrSource::Synthetic(id) => {
+            ast::StrSource::Text(text) => text,
+            ast::StrSource::Synthetic(id) => {
                 let bytes = storage.get_byte_string(id).ok_or_else(|| {
                     ParseError::new(
                         span,

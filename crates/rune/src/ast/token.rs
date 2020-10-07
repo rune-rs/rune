@@ -20,135 +20,6 @@ impl Token {
                 // NB: marker tokens can't be formatted.
                 return Err(fmt::Error);
             }
-            Kind::Abstract => {
-                write!(f, "abstract")?;
-            }
-            Kind::AlignOf => {
-                write!(f, "alignof")?;
-            }
-            Kind::Amp => {
-                write!(f, "&")?;
-            }
-            Kind::AmpAmp => {
-                write!(f, "&&")?;
-            }
-            Kind::AmpEq => {
-                write!(f, "&=")?;
-            }
-            Kind::Arrow => {
-                write!(f, "=>")?;
-            }
-            Kind::As => {
-                write!(f, "as")?;
-            }
-            Kind::Async => {
-                write!(f, "async")?;
-            }
-            Kind::At => {
-                write!(f, "at")?;
-            }
-            Kind::Await => {
-                write!(f, "await")?;
-            }
-            Kind::Bang => {
-                write!(f, "!")?;
-            }
-            Kind::BangEq => {
-                write!(f, "!=")?;
-            }
-            Kind::Become => {
-                write!(f, "become")?;
-            }
-            Kind::Break => {
-                write!(f, "break")?;
-            }
-            Kind::Caret => {
-                write!(f, "^")?;
-            }
-            Kind::CaretEq => {
-                write!(f, "^=")?;
-            }
-            Kind::Close(d) => {
-                write!(f, "{}", d.close())?;
-            }
-            Kind::Colon => {
-                write!(f, ":")?;
-            }
-            Kind::ColonColon => {
-                write!(f, "::")?;
-            }
-            Kind::Comma => {
-                write!(f, ",")?;
-            }
-            Kind::Const => {
-                write!(f, "const")?;
-            }
-            Kind::Crate => {
-                write!(f, "crate")?;
-            }
-            Kind::Dash => {
-                write!(f, "-")?;
-            }
-            Kind::DashEq => {
-                write!(f, "-=")?;
-            }
-            Kind::Default => {
-                write!(f, "default")?;
-            }
-            Kind::Div => {
-                write!(f, "/")?;
-            }
-            Kind::Do => {
-                write!(f, "do")?;
-            }
-            Kind::Dollar => {
-                write!(f, "$")?;
-            }
-            Kind::Dot => {
-                write!(f, ".")?;
-            }
-            Kind::DotDot => {
-                write!(f, "..")?;
-            }
-            Kind::Else => {
-                write!(f, "else")?;
-            }
-            Kind::Enum => {
-                write!(f, "enum")?;
-            }
-            Kind::Eq => {
-                write!(f, "=")?;
-            }
-            Kind::EqEq => {
-                write!(f, "==")?;
-            }
-            Kind::Extern => {
-                write!(f, "extern")?;
-            }
-            Kind::False => {
-                write!(f, "false")?;
-            }
-            Kind::Final => {
-                write!(f, "final")?;
-            }
-            Kind::Fn => {
-                write!(f, "fn")?;
-            }
-            Kind::For => {
-                write!(f, "for")?;
-            }
-            Kind::Gt => {
-                write!(f, ">")?;
-            }
-            Kind::GtEq => {
-                write!(f, ">=")?;
-            }
-            Kind::GtGt => {
-                write!(f, ">>")?;
-            }
-            Kind::GtGtEq => {
-                write!(f, ">>=")?;
-            }
             Kind::Ident(s) => match s {
                 StringSource::Text => {
                     let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
@@ -161,18 +32,6 @@ impl Token {
                     }
                 }
             },
-            Kind::If => {
-                write!(f, "if")?;
-            }
-            Kind::Impl => {
-                write!(f, "impl")?;
-            }
-            Kind::In => {
-                write!(f, "in")?;
-            }
-            Kind::Is => {
-                write!(f, "is")?;
-            }
             Kind::Label(s) => match s {
                 StringSource::Text => {
                     let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
@@ -185,10 +44,7 @@ impl Token {
                     }
                 }
             },
-            Kind::Let => {
-                write!(f, "let")?;
-            }
-            Kind::LitByte(s) => match s {
+            Kind::Byte(s) => match s {
                 CopySource::Text => {
                     let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
                     write!(f, "{}", s)?;
@@ -197,8 +53,8 @@ impl Token {
                     write!(f, "{:?}", b)?;
                 }
             },
-            Kind::LitByteStr(s) => match s {
-                LitStrSource::Text(text) => {
+            Kind::ByteStr(s) => match s {
+                StrSource::Text(text) => {
                     let span = if text.wrapped {
                         self.span.narrow(1)
                     } else {
@@ -208,7 +64,7 @@ impl Token {
                     let s = ctx.source().source(span).ok_or_else(|| fmt::Error)?;
                     write!(f, "b\"{}\"", s)?;
                 }
-                LitStrSource::Synthetic(id) => {
+                StrSource::Synthetic(id) => {
                     match ctx
                         .storage()
                         .with_byte_string(*id, |bytes| write!(f, "{}", FormatBytes(bytes)))
@@ -218,7 +74,7 @@ impl Token {
                     }
                 }
             },
-            Kind::LitChar(s) => match s {
+            Kind::Char(s) => match s {
                 CopySource::Text => {
                     let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
                     write!(f, "{}", s)?;
@@ -227,7 +83,7 @@ impl Token {
                     write!(f, "{:?}", c)?;
                 }
             },
-            Kind::LitNumber(s) => match s {
+            Kind::Number(s) => match s {
                 NumberSource::Text(_) => {
                     let s = ctx.source().source(self.span).ok_or_else(|| fmt::Error)?;
                     write!(f, "{}", s)?;
@@ -239,8 +95,8 @@ impl Token {
                     }
                 }
             },
-            Kind::LitStr(s) => match s {
-                LitStrSource::Text(text) => {
+            Kind::Str(s) => match s {
+                StrSource::Text(text) => {
                     let span = if text.wrapped {
                         self.span.narrow(1)
                     } else {
@@ -250,162 +106,15 @@ impl Token {
                     let s = ctx.source().source(span).ok_or_else(|| fmt::Error)?;
                     write!(f, "\"{}\"", s)?;
                 }
-                LitStrSource::Synthetic(id) => {
+                StrSource::Synthetic(id) => {
                     match ctx.storage().with_string(*id, |s| write!(f, "{:?}", s)) {
                         Some(result) => result?,
                         None => return Err(fmt::Error),
                     }
                 }
             },
-            Kind::Loop => {
-                write!(f, "loop")?;
-            }
-            Kind::Lt => {
-                write!(f, "<")?;
-            }
-            Kind::LtEq => {
-                write!(f, "<=")?;
-            }
-            Kind::LtLt => {
-                write!(f, "<<")?;
-            }
-            Kind::LtLtEq => {
-                write!(f, "<<=")?;
-            }
-            Kind::Macro => {
-                write!(f, "macro")?;
-            }
-            Kind::Match => {
-                write!(f, "match")?;
-            }
-            Kind::Mod => {
-                write!(f, "mod")?;
-            }
-            Kind::Move => {
-                write!(f, "move")?;
-            }
-            Kind::Not => {
-                write!(f, "not")?;
-            }
-            Kind::OffsetOf => {
-                write!(f, "offsetof")?;
-            }
-            Kind::Open(d) => {
-                write!(f, "{}", d.open())?;
-            }
-            Kind::Override => {
-                write!(f, "override")?;
-            }
-            Kind::Perc => {
-                write!(f, "%")?;
-            }
-            Kind::PercEq => {
-                write!(f, "%=")?;
-            }
-            Kind::Pipe => {
-                write!(f, "|")?;
-            }
-            Kind::PipeEq => {
-                write!(f, "|=")?;
-            }
-            Kind::PipePipe => {
-                write!(f, "||")?;
-            }
-            Kind::Plus => {
-                write!(f, "+")?;
-            }
-            Kind::PlusEq => {
-                write!(f, "+=")?;
-            }
-            Kind::Pound => {
-                write!(f, "#")?;
-            }
-            Kind::Priv => {
-                write!(f, "priv")?;
-            }
-            Kind::Proc => {
-                write!(f, "proc")?;
-            }
-            Kind::Pub => {
-                write!(f, "pub")?;
-            }
-            Kind::Pure => {
-                write!(f, "pure")?;
-            }
-            Kind::QuestionMark => {
-                write!(f, "?")?;
-            }
-            Kind::Ref => {
-                write!(f, "ref")?;
-            }
-            Kind::Return => {
-                write!(f, "return")?;
-            }
-            Kind::Rocket => {
-                write!(f, "=>")?;
-            }
-            Kind::Select => {
-                write!(f, "select")?;
-            }
-            Kind::SelfType => {
-                write!(f, "Self")?;
-            }
-            Kind::SelfValue => {
-                write!(f, "self")?;
-            }
-            Kind::SemiColon => {
-                write!(f, ";")?;
-            }
-            Kind::SizeOf => {
-                write!(f, "sizeof")?;
-            }
-            Kind::SlashEq => {
-                write!(f, "/=")?;
-            }
-            Kind::Star => {
-                write!(f, "*")?;
-            }
-            Kind::StarEq => {
-                write!(f, "*=")?;
-            }
-            Kind::Static => {
-                write!(f, "static")?;
-            }
-            Kind::Struct => {
-                write!(f, "struct")?;
-            }
-            Kind::Super => {
-                write!(f, "super")?;
-            }
-            Kind::Template => {
-                write!(f, "template")?;
-            }
-            Kind::Tilde => {
-                write!(f, "~")?;
-            }
-            Kind::True => {
-                write!(f, "true")?;
-            }
-            Kind::TypeOf => {
-                write!(f, "typeof")?;
-            }
-            Kind::Underscore => {
-                write!(f, "_")?;
-            }
-            Kind::Unsafe => {
-                write!(f, "unsafe")?;
-            }
-            Kind::Use => {
-                write!(f, "use")?;
-            }
-            Kind::Virtual => {
-                write!(f, "virtual")?;
-            }
-            Kind::While => {
-                write!(f, "while")?;
-            }
-            Kind::Yield => {
-                write!(f, "yield")?;
+            other => {
+                write!(f, "{}", other)?;
             }
         }
 
@@ -564,16 +273,16 @@ pub enum StringSource {
 
 /// The source of the literal string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum LitStrSource {
+pub enum StrSource {
     /// The literal string source is from the source text.
-    Text(LitStrSourceText),
+    Text(StrText),
     /// The string source is synthetic (generated in a macro).
     Synthetic(usize),
 }
 
 /// Configuration for a literal string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct LitStrSourceText {
+pub struct StrText {
     /// Indicates if the string is escaped or not.
     pub escaped: bool,
     /// Indicated if the buffer is wrapped or not.
@@ -585,7 +294,7 @@ pub struct LitStrSourceText {
 pub enum NumberSource {
     /// The number is from the source text (and need to be parsed while it's
     /// being resolved).
-    Text(NumberSourceText),
+    Text(NumberText),
     /// The number is synthetic, and stored in the specified slot.
     Synthetic(usize),
 }
@@ -605,7 +314,7 @@ where
 
 /// Configuration of a text number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NumberSourceText {
+pub struct NumberText {
     /// Indicates if it's a decimal number.
     pub is_fractional: bool,
     /// The number literal kind.

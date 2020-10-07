@@ -33,20 +33,14 @@ impl Parse for Ident {
 
         match token.kind {
             ast::Kind::Ident(source) => Ok(Self { token, source }),
-            _ => Err(ParseError::new(
-                token,
-                ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Ident(ast::StringSource::Text),
-                    actual: token.kind,
-                },
-            )),
+            _ => Err(ParseError::expected(token, "ident")),
         }
     }
 }
 
 impl Peek for Ident {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        matches!(p.nth(0), K![ident(..)])
+        matches!(p.nth(0), K![ident])
     }
 }
 

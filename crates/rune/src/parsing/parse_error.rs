@@ -29,20 +29,32 @@ impl ParseError {
             },
         }
     }
+
+    /// Construct an unsupported error.
+    pub(crate) fn unsupported<T, E>(actual: T, what: E) -> Self
+    where
+        T: Spanned,
+        E: Description,
+    {
+        Self {
+            span: actual.span(),
+            kind: ParseErrorKind::Unsupported {
+                what: what.description(),
+            },
+        }
+    }
 }
 
 /// Error when parsing.
 #[derive(Debug, Clone, Copy, Error)]
 #[allow(missing_docs)]
 pub enum ParseErrorKind {
-    /// Error raised when we expect and end-of-file but it didn't happen.
-    #[error("expected end-of-file, but got token `{actual}`")]
-    ExpectedEof {
-        /// Kind of the token encountered instead of end-of-file.
-        actual: ast::Kind,
-    },
-    /// Error raised when we encounter end-of-file but we didn't expect it.
-    #[error("unexpected end-of-file")]
+    /// Error raised when we expected end of file but encountered something
+    /// else.
+    #[error("expected end of file, but got `{actual}`")]
+    ExpectedEof { actual: ast::Kind },
+    /// Error raised when we didn't expect end of file but encountered it.
+    #[error("unexpected end of file")]
     UnexpectedEof,
     #[error("bad lexer mode `{mode}`, expected `{expected}`")]
     BadLexerMode {
@@ -58,14 +70,8 @@ pub enum ParseErrorKind {
         actual: ast::Kind,
     },
     /// The given item does not support an attribute, like `#[foo]`.
-    #[error("item does not support attributes")]
-    UnsupportedItemAttributes,
-    /// The given item does not support a visibility modifier, like `pub`.
-    #[error("item does not support visibility")]
-    UnsupportedItemVisibility,
-    /// When we try to use a visibility modifer for an expression.
-    #[error("visibility modifier is not supported for expressions")]
-    UnsupportedExprVisibility,
+    #[error("{what} is not supported")]
+    Unsupported { what: &'static str },
     /// Error encountered when we see a string escape sequence without a
     /// character being escaped.
     #[error("expected escape sequence")]
@@ -93,14 +99,6 @@ pub enum ParseErrorKind {
     /// Expected a string template to be closed, but it wasn't.
     #[error("expected string template to be closed")]
     ExpectedTemplateClose,
-    /// Encountered an unexpected token.
-    #[error("token mismatch, expected `{expected}` but was `{actual}`")]
-    TokenMismatch {
-        /// The kind of the expected token we saw.
-        expected: ast::Kind,
-        /// The kind of the actual token we saw.
-        actual: ast::Kind,
-    },
     /// Encountered an unexpected character.
     #[error("unexpected character `{c}`")]
     UnexpectedChar {

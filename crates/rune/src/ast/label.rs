@@ -17,25 +17,19 @@ pub struct Label {
 }
 
 impl Parse for Label {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.next()?;
+    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let token = p.next()?;
 
         match token.kind {
-            ast::Kind::Label(kind) => Ok(Self { token, kind }),
-            _ => Err(ParseError::new(
-                token,
-                ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Label(ast::StringSource::Text),
-                    actual: token.kind,
-                },
-            )),
+            K!['label(kind)] => Ok(Self { token, kind }),
+            _ => Err(ParseError::expected(token, "label")),
         }
     }
 }
 
 impl Peek for Label {
     fn peek(p: &mut Peeker<'_>) -> bool {
-        matches!(p.nth(0), ast::Kind::Label(..))
+        matches!(p.nth(0), K!['label])
     }
 }
 

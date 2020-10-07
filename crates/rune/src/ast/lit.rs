@@ -52,11 +52,11 @@ impl Lit {
     pub(crate) fn peek_in_expr(p: &mut Peeker<'_>) -> bool {
         match p.nth(0) {
             K![true] | K![false] => true,
-            ast::Kind::LitByte(_) => true,
-            ast::Kind::LitNumber(_) => true,
-            ast::Kind::LitChar(_) => true,
-            ast::Kind::LitStr(_) => true,
-            ast::Kind::LitByteStr(_) => true,
+            K![byte] => true,
+            K![number] => true,
+            K![char] => true,
+            K![str] => true,
+            K![bytestr] => true,
             K![template] => true,
             K!['['] => true,
             K![#] => matches!(p.nth(1), K!['{']),
@@ -89,11 +89,11 @@ impl Parse for Lit {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
         match p.nth(0)? {
             K![true] | K![false] => return Ok(Lit::Bool(p.parse()?)),
-            ast::Kind::LitByte(_) => return Ok(Lit::Byte(p.parse()?)),
-            ast::Kind::LitNumber(_) => return Ok(Lit::Number(p.parse()?)),
-            ast::Kind::LitChar(_) => return Ok(Lit::Char(p.parse()?)),
-            ast::Kind::LitStr(_) => return Ok(Lit::Str(p.parse()?)),
-            ast::Kind::LitByteStr(_) => return Ok(Lit::ByteStr(p.parse()?)),
+            K![byte(_)] => return Ok(Lit::Byte(p.parse()?)),
+            K![number(_)] => return Ok(Lit::Number(p.parse()?)),
+            K![char(_)] => return Ok(Lit::Char(p.parse()?)),
+            K![str(_)] => return Ok(Lit::Str(p.parse()?)),
+            K![bytestr(_)] => return Ok(Lit::ByteStr(p.parse()?)),
             K![template] => return Ok(Lit::Template(p.parse()?)),
             K!['('] => {
                 return Ok(match p.nth(1)? {
@@ -102,7 +102,7 @@ impl Parse for Lit {
                 });
             }
             K!['['] => return Ok(Lit::Vec(p.parse()?)),
-            K![#] | K![ident(..)] => match p.nth(1)? {
+            K![#] | K![ident] => match p.nth(1)? {
                 K!['{'] => return Ok(Lit::Object(p.parse()?)),
                 _ => (),
             },

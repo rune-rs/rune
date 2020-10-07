@@ -32,7 +32,7 @@ impl Parse for LitByte {
         let token = parser.next()?;
 
         Ok(match token.kind {
-            ast::Kind::LitByte(source) => LitByte { token, source },
+            K![byte(source)] => LitByte { token, source },
             _ => {
                 return Err(ParseError::expected(token, "byte"));
             }

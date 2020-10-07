@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{OptionSpanned, Parse, ParseError, ParseErrorKind, Parser, ToTokens};
+use crate::{OptionSpanned, Parse, ParseError, Parser, ToTokens};
 
 /// A parsed file.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens)]
@@ -116,17 +116,11 @@ impl Parse for File {
 
         // meta without items. maybe use different error kind?
         if let Some(span) = item_attributes.option_span() {
-            return Err(ParseError::new(
-                span,
-                ParseErrorKind::UnsupportedItemAttributes,
-            ));
+            return Err(ParseError::unsupported(span, "attributes"));
         }
 
         if let Some(span) = item_visibility.option_span() {
-            return Err(ParseError::new(
-                span,
-                ParseErrorKind::UnsupportedItemVisibility,
-            ));
+            return Err(ParseError::unsupported(span, "visibility"));
         }
 
         Ok(Self { attributes, items })

@@ -1,4 +1,4 @@
-use rune::ast::{CopySource, Delimiter, Kind, LitStrSource, NumberSource, StringSource, Token};
+use rune::ast::{CopySource, Delimiter, Kind, NumberSource, StrSource, StringSource, Token};
 use rune::macros::{with_context, MacroContext};
 use rune::quote;
 
@@ -129,12 +129,12 @@ fn test_synthetic() {
 
     with_context(ctx, || {
         assert_quote!([Ident(StringSource::Synthetic(0))], quote!(hello));
-        assert_quote!([LitByteStr(LitStrSource::Synthetic(0))], quote!(b"hello"));
-        assert_quote!([LitStr(LitStrSource::Synthetic(0))], quote!("hello"));
-        assert_quote!([LitNumber(NumberSource::Synthetic(0))], quote!(0));
-        assert_quote!([LitNumber(NumberSource::Synthetic(1))], quote!(42.0));
-        assert_quote!([LitChar(CopySource::Inline('a'))], quote!('a'));
-        assert_quote!([LitByte(CopySource::Inline(b'a'))], quote!(b'a'));
+        assert_quote!([ByteStr(StrSource::Synthetic(0))], quote!(b"hello"));
+        assert_quote!([Str(StrSource::Synthetic(0))], quote!("hello"));
+        assert_quote!([Number(NumberSource::Synthetic(0))], quote!(0));
+        assert_quote!([Number(NumberSource::Synthetic(1))], quote!(42.0));
+        assert_quote!([Char(CopySource::Inline('a'))], quote!('a'));
+        assert_quote!([Byte(CopySource::Inline(b'a'))], quote!(b'a'));
     });
 }
 
@@ -176,7 +176,7 @@ fn test_object() {
                 Open(Delimiter::Brace),
                 Ident(StringSource::Synthetic(0)),
                 Colon,
-                LitNumber(NumberSource::Synthetic(0)),
+                Number(NumberSource::Synthetic(0)),
                 Close(Delimiter::Brace),
             ],
             quote!(#{test: 42})

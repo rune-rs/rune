@@ -1,5 +1,3 @@
-use std::test::assert;
-
 fn main() {
     let values = #{};
     values["first"] = "bar";

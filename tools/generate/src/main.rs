@@ -29,24 +29,31 @@ enum Token {
 }
 
 impl Token {
+    fn name(&self) -> &str {
+        match self {
+            Self::Keyword(k) => &k.keyword,
+            Self::Punct(p) => &p.punct,
+        }
+    }
+
     fn doc(&self) -> &str {
         match self {
-            Token::Keyword(k) => &k.doc,
-            Token::Punct(p) => &p.doc,
+            Self::Keyword(k) => &k.doc,
+            Self::Punct(p) => &p.doc,
         }
     }
 
     fn variant(&self) -> &str {
         match self {
-            Token::Keyword(k) => &k.variant,
-            Token::Punct(p) => &p.variant,
+            Self::Keyword(k) => &k.variant,
+            Self::Punct(p) => &p.variant,
         }
     }
 
     fn desc(&self) -> &str {
         match self {
-            Token::Keyword(k) => &k.keyword,
-            Token::Punct(p) => &p.punct,
+            Self::Keyword(k) => &k.keyword,
+            Self::Punct(p) => &p.punct,
         }
     }
 }
@@ -103,12 +110,11 @@ fn main() -> Result<()> {
     let fmt_result = &rust::import("std::fmt", "Result");
     let formatter = &rust::import("std::fmt", "Formatter");
     let kind = &rust::import("crate::ast", "Kind");
-    let lit_str_source = &rust::import("crate::ast", "LitStrSource");
+    let lit_str_source = &rust::import("crate::ast", "StrSource");
     let macro_context= &rust::import("crate::macros", "MacroContext");
     let number_source = &rust::import("crate::ast", "NumberSource");
     let parse = &rust::import("crate::parsing", "Parse");
     let parse_error = &rust::import("crate::parsing", "ParseError");
-    let parse_error_kind = &rust::import("crate::parsing", "ParseErrorKind");
     let parser = &rust::import("crate::parsing", "Parser");
     let peeker = &rust::import("crate::parsing", "Peeker");
     let peek = &rust::import("crate::parsing", "Peek");
@@ -147,10 +153,7 @@ fn main() -> Result<()> {
                             #kind::#(t.variant()) => Ok(Self {
                                 token,
                             }),
-                            _ => Err(#parse_error::new(token, #parse_error_kind::TokenMismatch {
-                                expected: #kind::#(t.variant()),
-                                actual: token.kind,
-                            })),
+                            _ => Err(#parse_error::expected(token, #(quoted(t.name())))),
                         }
                     }
                 }
@@ -189,7 +192,20 @@ fn main() -> Result<()> {
             #("/// Helper macro to reference a specific token kind, or short sequence of kinds.")
             #[macro_export]
             macro_rules! K {
+                (ident) => { $crate::ast::Kind::Ident(..) };
                 (ident ($($tt:tt)*)) => { $crate::ast::Kind::Ident($($tt)*) };
+                ('label) => { $crate::ast::Kind::Label(..) };
+                ('label ($($tt:tt)*)) => { $crate::ast::Kind::Label($($tt)*) };
+                (str) => { $crate::ast::Kind::Str(..) };
+                (str ($($tt:tt)*)) => { $crate::ast::Kind::Str($($tt)*) };
+                (bytestr) => { $crate::ast::Kind::ByteStr(..) };
+                (bytestr ($($tt:tt)*)) => { $crate::ast::Kind::ByteStr($($tt)*) };
+                (char) => { $crate::ast::Kind::Char(..) };
+                (char ($($tt:tt)*)) => { $crate::ast::Kind::Char($($tt)*) };
+                (byte) => { $crate::ast::Kind::Byte(..) };
+                (byte ($($tt:tt)*)) => { $crate::ast::Kind::Byte($($tt)*) };
+                (number) => { $crate::ast::Kind::Number(..) };
+                (number ($($tt:tt)*)) => { $crate::ast::Kind::Number($($tt)*) };
                 ('(') => { $crate::ast::Kind::Open($crate::ast::Delimiter::Parenthesis) };
                 (')') => { $crate::ast::Kind::Close($crate::ast::Delimiter::Parenthesis) };
                 ('[') => { $crate::ast::Kind::Open($crate::ast::Delimiter::Bracket) };
@@ -220,15 +236,15 @@ fn main() -> Result<()> {
                 #("/// A label, like `'loop`.")
                 Label(#string_source),
                 #("/// A byte literal.")
-                LitByte(#copy_source<u8>),
+                Byte(#copy_source<u8>),
                 #("/// A byte string literal, including escape sequences. Like `b\"hello\\nworld\"`.")
-                LitByteStr(#lit_str_source),
+                ByteStr(#lit_str_source),
                 #("/// A characer literal.")
-                LitChar(#copy_source<char>),
+                Char(#copy_source<char>),
                 #("/// A number literal, like `42` or `3.14` or `0xff`.")
-                LitNumber(#number_source),
+                Number(#number_source),
                 #("/// A string literal, including escape sequences. Like `\"hello\\nworld\"`.")
-                LitStr(#lit_str_source),
+                Str(#lit_str_source),
                 #(for t in &tokens join(#<push>) =>
                     #(format!("/// {}", t.doc()))
                     #(t.variant()),
@@ -259,11 +275,11 @@ fn main() -> Result<()> {
                         Self::Open(delimiter) => delimiter.open(),
                         Self::Ident(..) => "ident",
                         Self::Label(..) => "label",
-                        Self::LitByte { .. } => "byte",
-                        Self::LitByteStr { .. } => "byte string",
-                        Self::LitChar { .. } => "char",
-                        Self::LitNumber { .. } => "number",
-                        Self::LitStr { .. } => "string",
+                        Self::Byte { .. } => "byte",
+                        Self::ByteStr { .. } => "byte string",
+                        Self::Char { .. } => "char",
+                        Self::Number { .. } => "number",
+                        Self::Str { .. } => "string",
                         #(for t in &tokens join (#<push>) => Self::#(t.variant()) => #(quoted(t.desc())),)
                     }
                 }
