@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{OptionSpanned as _, Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use crate::{OptionSpanned as _, Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 use runestick::{Id, Span};
 
 /// A module item.
@@ -31,7 +31,7 @@ pub struct ItemMod {
     #[rune(optional, meta)]
     pub visibility: ast::Visibility,
     /// The `mod` keyword.
-    pub mod_: ast::Mod,
+    pub mod_token: T![mod],
     /// The name of the mod.
     pub name: ast::Ident,
     /// The optional body of the module declaration.
@@ -44,7 +44,7 @@ impl ItemMod {
         if let Some(span) = self.visibility.option_span() {
             span.join(self.name.span())
         } else {
-            self.mod_.span().join(self.name.span())
+            self.mod_token.span().join(self.name.span())
         }
     }
 }
@@ -55,18 +55,16 @@ item_parse!(ItemMod, "mod item");
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum ItemModBody {
     /// An empty body terminated by a semicolon.
-    EmptyBody(ast::SemiColon),
+    EmptyBody(T![;]),
     /// An inline body.
     InlineBody(ItemInlineBody),
 }
 
 impl Parse for ItemModBody {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let t = parser.token_peek_eof()?;
-
-        Ok(match t.kind {
-            ast::Kind::Open(ast::Delimiter::Brace) => Self::InlineBody(parser.parse()?),
-            _ => Self::EmptyBody(parser.parse()?),
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        Ok(match p.nth(0)? {
+            K!['{'] => Self::InlineBody(p.parse()?),
+            _ => Self::EmptyBody(p.parse()?),
         })
     }
 }
@@ -75,15 +73,15 @@ impl Parse for ItemModBody {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ItemInlineBody {
     /// The open brace.
-    pub open: ast::OpenBrace,
+    pub open: T!['{'],
     /// A nested "file" declaration.
     pub file: Box<ast::File>,
     /// The close brace.
-    pub close: ast::CloseBrace,
+    pub close: T!['}'],
 }
 
 impl Peek for ItemInlineBody {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        ast::OpenBrace::peek(t1, t2)
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        <T!['{']>::peek(p)
     }
 }

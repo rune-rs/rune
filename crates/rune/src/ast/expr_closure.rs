@@ -30,7 +30,7 @@ pub struct ExprClosure {
     pub attributes: Vec<ast::Attribute>,
     /// If the closure is async or not.
     #[rune(iter)]
-    pub async_token: Option<ast::Async>,
+    pub async_token: Option<T![async]>,
     /// Arguments to the closure.
     pub args: ExprClosureArgs,
     /// The body of the closure.
@@ -51,18 +51,18 @@ impl ExprClosure {
     pub fn parse_with_attributes_and_async(
         parser: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
-        async_token: Option<ast::Async>,
+        async_token: Option<T![async]>,
     ) -> Result<Self, ParseError> {
-        let args = if let Some(token) = parser.parse::<Option<ast::Or>>()? {
+        let args = if let Some(token) = parser.parse::<Option<T![||]>>()? {
             ExprClosureArgs::Empty { token }
         } else {
             let open = parser.parse()?;
             let mut args = Vec::new();
 
-            while !parser.peek::<ast::Pipe>()? {
+            while !parser.peek::<T![|]>()? {
                 let arg = parser.parse()?;
 
-                let comma = parser.parse::<Option<ast::Comma>>()?;
+                let comma = parser.parse::<Option<T![,]>>()?;
                 let is_end = comma.is_none();
                 args.push((arg, comma));
 
@@ -98,15 +98,15 @@ expr_parse!(ExprClosure, "closure expression");
 pub enum ExprClosureArgs {
     Empty {
         /// The `||` token.
-        token: ast::Or,
+        token: T![||],
     },
     List {
         /// The opening pipe for the argument group.
-        open: ast::Pipe,
+        open: T![|],
         /// The arguments of the function.
-        args: Vec<(ast::FnArg, Option<ast::Comma>)>,
+        args: Vec<(ast::FnArg, Option<T![,]>)>,
         /// The closening pipe for the argument group.
-        close: ast::Pipe,
+        close: T![|],
     },
 }
 
@@ -120,7 +120,7 @@ impl ExprClosureArgs {
     }
 
     /// Iterate over all arguments.
-    pub fn as_slice(&self) -> &[(ast::FnArg, Option<ast::Comma>)] {
+    pub fn as_slice(&self) -> &[(ast::FnArg, Option<T![,]>)] {
         match self {
             Self::Empty { .. } => &[],
             Self::List { args, .. } => &args[..],

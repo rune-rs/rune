@@ -198,7 +198,7 @@ pub(super) fn parse_unicode_escape(
 /// body in a match expression.
 ///
 /// This determines if a comma is necessary or not after the expression.
-pub(crate) fn is_block_end(expr: &ast::Expr, comma: Option<&ast::Comma>) -> bool {
+pub(crate) fn is_block_end(expr: &ast::Expr, comma: Option<&T![,]>) -> bool {
     match (expr, comma) {
         (ast::Expr::ExprBlock(..), _) => false,
         (ast::Expr::ExprFor(..), _) => false,

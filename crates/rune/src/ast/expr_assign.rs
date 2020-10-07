@@ -10,7 +10,7 @@ pub struct ExprAssign {
     /// The expression being awaited.
     pub lhs: Box<ast::Expr>,
     /// The equals sign `=`.
-    pub eq: ast::Eq,
+    pub eq: T![=],
     /// The value.
     pub rhs: Box<ast::Expr>,
 }

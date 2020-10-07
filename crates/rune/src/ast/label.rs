@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, ResolveOwned, Spanned, Storage,
-    ToTokens,
+    Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveOwned, Spanned,
+    Storage, ToTokens,
 };
 use runestick::Source;
 use std::borrow::Cow;
@@ -18,7 +18,7 @@ pub struct Label {
 
 impl Parse for Label {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
+        let token = parser.next()?;
 
         match token.kind {
             ast::Kind::Label(kind) => Ok(Self { token, kind }),
@@ -34,11 +34,8 @@ impl Parse for Label {
 }
 
 impl Peek for Label {
-    fn peek(p1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        match p1 {
-            Some(p1) => matches!(p1.kind, ast::Kind::Label(..)),
-            _ => false,
-        }
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        matches!(p.nth(0), ast::Kind::Label(..))
     }
 }
 

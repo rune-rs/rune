@@ -20,9 +20,9 @@ pub struct ExprWhile {
     pub attributes: Vec<ast::Attribute>,
     /// A label for the while loop.
     #[rune(iter, meta)]
-    pub label: Option<(ast::Label, ast::Colon)>,
+    pub label: Option<(ast::Label, T![:])>,
     /// The `while` keyword.
-    pub while_token: ast::While,
+    pub while_token: T![while],
     /// The name of the binding.
     pub condition: ast::Condition,
     /// The body of the while loop.

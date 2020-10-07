@@ -16,7 +16,7 @@ pub struct ExprReturn {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The return token.
-    pub return_token: ast::Return,
+    pub return_token: T![return],
     /// An optional expression to return.
     #[rune(iter)]
     pub expr: Option<Box<ast::Expr>>,

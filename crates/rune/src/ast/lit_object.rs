@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, ResolveOwned, Spanned, Storage,
-    ToTokens,
+    Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveOwned, Spanned,
+    Storage, ToTokens,
 };
 use runestick::Source;
 use std::borrow::Cow;
@@ -12,18 +12,18 @@ pub struct LitObject {
     /// An object identifier.
     pub ident: LitObjectIdent,
     /// Assignments in the object.
-    pub assignments: ast::Braced<LitObjectFieldAssign, ast::Comma>,
+    pub assignments: ast::Braced<LitObjectFieldAssign, T![,]>,
 }
 
 impl LitObject {
     /// Parse a literal object with the given path.
     pub fn parse_with_ident(
-        parser: &mut Parser<'_>,
+        p: &mut Parser<'_>,
         ident: ast::LitObjectIdent,
     ) -> Result<Self, ParseError> {
         Ok(Self {
             ident,
-            assignments: parser.parse()?,
+            assignments: p.parse()?,
         })
     }
 }
@@ -40,17 +40,17 @@ impl LitObject {
 /// testing::roundtrip::<ast::LitObject>("#{\"foo\": 42,}");
 /// ```
 impl Parse for LitObject {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let ident = parser.parse()?;
-        Self::parse_with_ident(parser, ident)
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        let ident = p.parse()?;
+        Self::parse_with_ident(p, ident)
     }
 }
 
 impl Peek for LitObject {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        match (peek!(t1).kind, peek!(t2).kind) {
-            (ast::Kind::Ident(_), ast::Kind::Open(ast::Delimiter::Brace))
-            | (ast::Kind::Pound, ast::Kind::Open(ast::Delimiter::Brace)) => true,
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        match (p.nth(0), p.nth(1)) {
+            (K![ident(_)], K!['{']) => true,
+            (K![#], K!['{']) => true,
             _ => false,
         }
     }
@@ -60,18 +60,16 @@ impl Peek for LitObject {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum LitObjectIdent {
     /// An anonymous object.
-    Anonymous(ast::Hash),
+    Anonymous(T![#]),
     /// A named object.
     Named(ast::Path),
 }
 
 impl Parse for LitObjectIdent {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let token = parser.token_peek_eof()?;
-
-        Ok(match token.kind {
-            ast::Kind::Pound => Self::Anonymous(parser.parse()?),
-            _ => Self::Named(parser.parse()?),
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        Ok(match p.nth(0)? {
+            K![#] => Self::Anonymous(p.parse()?),
+            _ => Self::Named(p.parse()?),
         })
     }
 }
@@ -83,7 +81,7 @@ pub struct LitObjectFieldAssign {
     pub key: LitObjectKey,
     /// The assigned expression of the field.
     #[rune(iter)]
-    pub assign: Option<(ast::Colon, ast::Expr)>,
+    pub assign: Option<(T![:], ast::Expr)>,
 }
 
 /// Parse an object literal.
@@ -98,12 +96,12 @@ pub struct LitObjectFieldAssign {
 /// testing::roundtrip::<ast::LitObjectFieldAssign>("\"foo\": 42");
 /// ```
 impl Parse for LitObjectFieldAssign {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let key = parser.parse()?;
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        let key = p.parse()?;
 
-        let assign = if parser.peek::<ast::Colon>()? {
-            let colon = parser.parse()?;
-            let expr = parser.parse::<ast::Expr>()?;
+        let assign = if p.peek::<T![:]>()? {
+            let colon = p.parse()?;
+            let expr = p.parse::<ast::Expr>()?;
             Some((colon, expr))
         } else {
             None
@@ -133,14 +131,12 @@ pub enum LitObjectKey {
 /// testing::roundtrip::<ast::LitObjectKey>("\"foo \\n bar\"");
 /// ```
 impl Parse for LitObjectKey {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let token = parser.token_peek_eof()?;
-
-        Ok(match token.kind {
-            ast::Kind::LitStr { .. } => Self::LitStr(parser.parse()?),
-            ast::Kind::Ident(..) => Self::Path(parser.parse()?),
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        Ok(match p.nth(0)? {
+            ast::Kind::LitStr { .. } => Self::LitStr(p.parse()?),
+            K![ident(..)] => Self::Path(p.parse()?),
             _ => {
-                return Err(ParseError::expected(token, "literal object key"));
+                return Err(ParseError::expected(p.token(0)?, "literal object key"));
             }
         })
     }
@@ -152,11 +148,8 @@ impl Parse for LitObjectKey {
 pub struct AnonymousLitObject;
 
 impl Peek for AnonymousLitObject {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        matches!(
-            (peek!(t1).kind, peek!(t2).kind),
-            (ast::Kind::Pound, ast::Kind::Open(ast::Delimiter::Brace))
-        )
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        matches!((p.nth(0), p.nth(1)), (K![#], K!['{']))
     }
 }
 

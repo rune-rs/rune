@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 
 /// The unit literal `()`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -22,12 +22,12 @@ pub struct LitBool {
 /// testing::roundtrip::<ast::LitBool>("false");
 /// ```
 impl Parse for LitBool {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        let token = p.next()?;
 
         let value = match token.kind {
-            ast::Kind::True => true,
-            ast::Kind::False => false,
+            K![true] => true,
+            K![false] => false,
             _ => {
                 return Err(ParseError::expected(
                     token,
@@ -41,7 +41,7 @@ impl Parse for LitBool {
 }
 
 impl Peek for LitBool {
-    fn peek(p1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        matches!(peek!(p1).kind, ast::Kind::True | ast::Kind::False)
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        matches!(p.nth(0), K![true] | K![false])
     }
 }

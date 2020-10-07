@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::parsing::Opaque;
-use crate::{Id, Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens};
+use crate::{Id, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Spanned, ToTokens};
 
 /// A path, where each element is separated by a `::`.
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
@@ -10,15 +10,15 @@ pub struct Path {
     pub id: Option<Id>,
     /// The optional leading colon `::` indicating global scope.
     #[rune(iter)]
-    pub global: Option<ast::Scope>,
+    pub global: Option<T![::]>,
     /// The first component in the path.
     pub first: PathSegment,
     /// The rest of the components in the path.
     #[rune(iter)]
-    pub rest: Vec<(ast::Scope, PathSegment)>,
+    pub rest: Vec<(T![::], PathSegment)>,
     /// Trailing scope.
     #[rune(iter)]
-    pub trailing: Option<ast::Scope>,
+    pub trailing: Option<T![::]>,
 }
 
 impl Path {
@@ -81,8 +81,8 @@ impl Opaque for Path {
 }
 
 impl Peek for Path {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        matches!(peek!(t1).kind, ast::Kind::ColonColon) || PathSegment::peek(t1, t2)
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        matches!(p.nth(0), K![::]) || PathSegment::peek(p)
     }
 }
 
@@ -99,15 +99,15 @@ pub enum PathKind {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum PathSegment {
     /// A path segment that contains `Self`.
-    SelfType(ast::SelfType),
+    SelfType(T![Self]),
     /// A path segment that contains `self`.
-    SelfValue(ast::SelfValue),
+    SelfValue(T![self]),
     /// A path segment that is an identifier.
     Ident(ast::Ident),
     /// The `crate` keyword used as a path segment.
-    Crate(ast::Crate),
+    Crate(T![crate]),
     /// The `super` keyword use as a path segment.
-    Super(ast::Super),
+    Super(T![super]),
 }
 
 impl From<PathSegment> for ast::Kind {
@@ -149,30 +149,33 @@ impl PathSegment {
 }
 
 impl Parse for PathSegment {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_peek_eof()?;
-        match token.kind {
-            ast::Kind::SelfType => Ok(PathSegment::SelfType(parser.parse()?)),
-            ast::Kind::SelfValue => Ok(PathSegment::SelfValue(parser.parse()?)),
-            ast::Kind::Ident(_) => Ok(PathSegment::Ident(parser.parse()?)),
-            ast::Kind::Crate => Ok(PathSegment::Crate(parser.parse()?)),
-            ast::Kind::Super => Ok(PathSegment::Super(parser.parse()?)),
-            _ => Err(ParseError::new(
-                token,
-                ParseErrorKind::TokenMismatch {
-                    expected: ast::Kind::Ident(ast::StringSource::Text),
-                    actual: token.kind,
-                },
-            )),
+    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+        match p.nth(0)? {
+            K![Self] => Ok(PathSegment::SelfType(p.parse()?)),
+            K![self] => Ok(PathSegment::SelfValue(p.parse()?)),
+            K![ident(..)] => Ok(PathSegment::Ident(p.parse()?)),
+            K![crate] => Ok(PathSegment::Crate(p.parse()?)),
+            K![super] => Ok(PathSegment::Super(p.parse()?)),
+            _ => {
+                let t = p.token(0)?;
+
+                Err(ParseError::new(
+                    t,
+                    ParseErrorKind::TokenMismatch {
+                        expected: ast::Kind::Ident(ast::StringSource::Text),
+                        actual: t.kind,
+                    },
+                ))
+            }
         }
     }
 }
 
 impl Peek for PathSegment {
-    fn peek(t1: Option<ast::Token>, _t2: Option<ast::Token>) -> bool {
+    fn peek(p: &mut Peeker<'_>) -> bool {
         matches! {
-            peek!(t1).kind,
-            ast::Kind::SelfType | ast::Kind::SelfValue | ast::Kind::Crate | ast::Kind::Super | ast::Kind::Ident(_)
+            p.nth(0),
+            K![Self] | K![self] | K![crate] | K![super] | K![ident(..)]
         }
     }
 }

@@ -23,11 +23,11 @@ pub struct Block {
     #[rune(id)]
     pub id: Option<Id>,
     /// The close brace.
-    pub open: ast::OpenBrace,
+    pub open: T!['{'],
     /// Statements in the block.
     pub statements: Vec<ast::Stmt>,
     /// The close brace.
-    pub close: ast::CloseBrace,
+    pub close: T!['}'],
 }
 
 impl Opaque for Block {
@@ -88,7 +88,7 @@ impl Parse for Block {
 
         let open = parser.parse()?;
 
-        while !parser.peek::<ast::CloseBrace>()? {
+        while !parser.peek::<T!['}']>()? {
             statements.push(parser.parse()?);
         }
 

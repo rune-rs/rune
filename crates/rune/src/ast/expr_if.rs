@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, Peek, Spanned, ToTokens};
+use crate::{Parse, Peek, Peeker, Spanned, ToTokens};
 
 /// An if statement: `if cond { true } else { false }`
 ///
@@ -21,7 +21,7 @@ pub struct ExprIf {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The `if` token.
-    pub if_: ast::If,
+    pub if_: T![if],
     /// The condition to the if statement.
     pub condition: ast::Condition,
     /// The body of the if statement.
@@ -40,9 +40,9 @@ expr_parse!(ExprIf, "if expression");
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprElseIf {
     /// The `else` token.
-    pub else_: ast::Else,
+    pub else_: T![else],
     /// The `if` token.
-    pub if_: ast::If,
+    pub if_: T![if],
     /// The condition for the branch.
     pub condition: ast::Condition,
     /// The body of the else statement.
@@ -50,11 +50,8 @@ pub struct ExprElseIf {
 }
 
 impl Peek for ExprElseIf {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        matches!(
-            (peek!(t1).kind, peek!(t2).kind),
-            (ast::Kind::Else, ast::Kind::If)
-        )
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        matches!((p.nth(0), p.nth(1)), (K![else], K![if]))
     }
 }
 
@@ -62,13 +59,13 @@ impl Peek for ExprElseIf {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprElse {
     /// The `else` token.
-    pub else_: ast::Else,
+    pub else_: T![else],
     /// The body of the else statement.
     pub block: Box<ast::Block>,
 }
 
 impl Peek for ExprElse {
-    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        matches!(peek!(t1).kind, ast::Kind::Else)
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        matches!(p.nth(0), K![else])
     }
 }

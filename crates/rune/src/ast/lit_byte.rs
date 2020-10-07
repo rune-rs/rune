@@ -29,7 +29,7 @@ pub struct LitByte {
 /// ```
 impl Parse for LitByte {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
+        let token = parser.next()?;
 
         Ok(match token.kind {
             ast::Kind::LitByte(source) => LitByte { token, source },

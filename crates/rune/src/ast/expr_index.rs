@@ -10,11 +10,11 @@ pub struct ExprIndex {
     /// The target of the index set.
     pub target: Box<ast::Expr>,
     /// The opening bracket.
-    pub open: ast::OpenBracket,
+    pub open: T!['['],
     /// The indexing expression.
     pub index: Box<ast::Expr>,
     /// The closening bracket.
-    pub close: ast::CloseBracket,
+    pub close: T![']'],
 }
 
 expr_parse!(ExprIndex, "index expression");

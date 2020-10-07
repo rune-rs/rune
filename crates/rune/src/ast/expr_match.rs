@@ -18,15 +18,15 @@ pub struct ExprMatch {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `match` token.
-    pub match_: ast::Match,
+    pub match_: T![match],
     /// The expression who's result we match over.
     pub expr: Box<ast::Expr>,
     /// The open brace of the match.
-    pub open: ast::OpenBrace,
+    pub open: T!['{'],
     /// Branches.
-    pub branches: Vec<(ExprMatchBranch, Option<ast::Comma>)>,
+    pub branches: Vec<(ExprMatchBranch, Option<T![,]>)>,
     /// The close brace of the match.
-    pub close: ast::CloseBrace,
+    pub close: T!['}'],
 }
 
 impl ExprMatch {
@@ -44,7 +44,7 @@ impl ExprMatch {
 
         while !parser.peek::<ast::CloseBrace>()? {
             let branch = parser.parse::<ExprMatchBranch>()?;
-            let comma = parser.parse::<Option<ast::Comma>>()?;
+            let comma = parser.parse::<Option<T![,]>>()?;
             let is_end = ast::utils::is_block_end(&*branch.body, comma.as_ref());
             branches.push((branch, comma));
 
@@ -82,9 +82,9 @@ pub struct ExprMatchBranch {
     /// The pattern to match.
     pub pat: ast::Pat,
     /// The branch condition.
-    pub condition: Option<(ast::If, Box<ast::Expr>)>,
+    pub condition: Option<(T![if], Box<ast::Expr>)>,
     /// The rocket token.
-    pub rocket: ast::Rocket,
+    pub rocket: T![=>],
     /// The body of the match.
     pub body: Box<ast::Expr>,
 }

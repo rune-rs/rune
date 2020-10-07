@@ -869,7 +869,7 @@ impl<'a> Compiler<'a> {
         meta: &CompileMeta,
         from: &QueryItem,
         query_const_fn: &QueryConstFn,
-        args: &[(ast::Expr, Option<ast::Comma>)],
+        args: &[(ast::Expr, Option<T![,]>)],
     ) -> Result<ConstValue, CompileError>
     where
         S: Copy + Spanned,

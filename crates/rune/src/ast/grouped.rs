@@ -147,11 +147,11 @@ grouped! {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{testing, ast};
+    /// use rune::{T, testing, ast};
     ///
-    /// testing::roundtrip::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, \"two\")");
-    /// testing::roundtrip::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2,)");
-    /// testing::roundtrip::<ast::Parenthesized<ast::Expr, ast::Comma>>("(1, 2, foo())");
+    /// testing::roundtrip::<ast::Parenthesized<ast::Expr, T![,]>>("(1, \"two\")");
+    /// testing::roundtrip::<ast::Parenthesized<ast::Expr, T![,]>>("(1, 2,)");
+    /// testing::roundtrip::<ast::Parenthesized<ast::Expr, T![,]>>("(1, 2, foo())");
     /// ```
     Parenthesized { parenthesized, ast::OpenParen, ast::CloseParen }
 }
@@ -162,11 +162,11 @@ grouped! {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{testing, ast};
+    /// use rune::{T, testing, ast};
     ///
-    /// testing::roundtrip::<ast::Bracketed<ast::Expr, ast::Comma>>("[1, \"two\"]");
-    /// testing::roundtrip::<ast::Bracketed<ast::Expr, ast::Comma>>("[1, 2,]");
-    /// testing::roundtrip::<ast::Bracketed<ast::Expr, ast::Comma>>("[1, 2, foo()]");
+    /// testing::roundtrip::<ast::Bracketed<ast::Expr, T![,]>>("[1, \"two\"]");
+    /// testing::roundtrip::<ast::Bracketed<ast::Expr, T![,]>>("[1, 2,]");
+    /// testing::roundtrip::<ast::Bracketed<ast::Expr, T![,]>>("[1, 2, foo()]");
     /// ```
     Bracketed { bracketed, ast::OpenBracket, ast::CloseBracket }
 }
@@ -177,11 +177,11 @@ grouped! {
     /// # Examples
     ///
     /// ```rust
-    /// use rune::{testing, ast};
+    /// use rune::{T, testing, ast};
     ///
-    /// testing::roundtrip::<ast::Braced<ast::Expr, ast::Comma>>("{1, \"two\"}");
-    /// testing::roundtrip::<ast::Braced<ast::Expr, ast::Comma>>("{1, 2,}");
-    /// testing::roundtrip::<ast::Braced<ast::Expr, ast::Comma>>("{1, 2, foo()}");
+    /// testing::roundtrip::<ast::Braced<ast::Expr, T![,]>>("{1, \"two\"}");
+    /// testing::roundtrip::<ast::Braced<ast::Expr, T![,]>>("{1, 2,}");
+    /// testing::roundtrip::<ast::Braced<ast::Expr, T![,]>>("{1, 2, foo()}");
     /// ```
     Braced { braced, ast::OpenBrace, ast::CloseBrace }
 }

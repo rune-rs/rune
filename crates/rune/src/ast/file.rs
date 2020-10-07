@@ -9,7 +9,7 @@ pub struct File {
     pub attributes: Vec<ast::Attribute>,
     /// All the declarations in a file.
     #[rune(iter)]
-    pub items: Vec<(ast::Item, Option<ast::SemiColon>)>,
+    pub items: Vec<(ast::Item, Option<T![;]>)>,
 }
 
 impl OptionSpanned for File {
@@ -84,38 +84,34 @@ impl OptionSpanned for File {
 // TODO: this is a false positive: https://github.com/rust-lang/rust-clippy/issues/5879
 #[allow(clippy::needless_doctest_main)]
 impl Parse for File {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
+    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
         let mut attributes = vec![];
 
         // only allow outer attributes at the top of a file
-        while parser.peek::<ast::attribute::OuterAttribute>()? {
-            attributes.push(parser.parse()?);
+        while p.peek::<ast::attribute::OuterAttribute>()? {
+            attributes.push(p.parse()?);
         }
 
         let mut items = Vec::new();
 
-        let mut item_attributes = parser.parse()?;
-        let mut item_visibility = parser.parse()?;
-        let mut path = parser.parse::<Option<ast::Path>>()?;
+        let mut item_attributes = p.parse()?;
+        let mut item_visibility = p.parse()?;
+        let mut path = p.parse::<Option<ast::Path>>()?;
 
-        while path.is_some() || ast::Item::peek_as_item(parser, path.as_ref())? {
-            let item: ast::Item = ast::Item::parse_with_meta_path(
-                parser,
-                item_attributes,
-                item_visibility,
-                path.take(),
-            )?;
+        while path.is_some() || ast::Item::peek_as_item(p.peeker(), path.as_ref()) {
+            let item: ast::Item =
+                ast::Item::parse_with_meta_path(p, item_attributes, item_visibility, path.take())?;
 
-            let semi_colon = if item.needs_semi_colon() || parser.peek::<ast::SemiColon>()? {
-                Some(parser.parse::<ast::SemiColon>()?)
+            let semi_colon = if item.needs_semi_colon() || p.peek::<T![;]>()? {
+                Some(p.parse::<T![;]>()?)
             } else {
                 None
             };
 
             items.push((item, semi_colon));
-            item_attributes = parser.parse()?;
-            item_visibility = parser.parse()?;
-            path = parser.parse()?;
+            item_attributes = p.parse()?;
+            item_visibility = p.parse()?;
+            path = p.parse()?;
         }
 
         // meta without items. maybe use different error kind?

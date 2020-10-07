@@ -28,7 +28,7 @@ pub struct LitNumber {
 /// ```
 impl Parse for LitNumber {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
+        let token = parser.next()?;
 
         match token.kind {
             ast::Kind::LitNumber(source) => Ok(LitNumber { source, token }),

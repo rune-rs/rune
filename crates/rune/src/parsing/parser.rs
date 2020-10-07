@@ -1,8 +1,9 @@
-use crate::ast::Token;
+use crate::ast::{Kind, Token};
 use crate::macros::{TokenStream, TokenStreamIter};
 use crate::parsing::{Lexer, Parse, ParseError, ParseErrorKind, Peek};
 use crate::OptionSpanned as _;
 use runestick::Span;
+use std::collections::VecDeque;
 use std::fmt;
 
 /// Parser for the rune language.
@@ -17,10 +18,7 @@ use std::fmt;
 /// ```
 #[derive(Debug)]
 pub struct Parser<'a> {
-    pub(crate) source: Source<'a>,
-    p1: Result<Option<Token>, ParseError>,
-    p2: Result<Option<Token>, ParseError>,
-    p3: Result<Option<Token>, ParseError>,
+    peeker: Peeker<'a>,
     span: Option<Span>,
 }
 
@@ -40,18 +38,15 @@ impl<'a> Parser<'a> {
     }
 
     /// Construct a new parser with a source.
-    fn with_source(mut source: Source<'a>) -> Self {
+    fn with_source(source: Source<'a>) -> Self {
         let span = source.span();
 
-        let p1 = source.next();
-        let p2 = source.next();
-        let p3 = source.next();
-
         Self {
-            source,
-            p1,
-            p2,
-            p3,
+            peeker: Peeker {
+                source,
+                buf: VecDeque::new(),
+                error: None,
+            },
             span,
         }
     }
@@ -65,71 +60,40 @@ impl<'a> Parser<'a> {
     }
 
     /// Peek for the given token.
-    pub fn peek<T>(&self) -> Result<bool, ParseError>
+    pub fn peek<T>(&mut self) -> Result<bool, ParseError>
     where
         T: Peek,
     {
-        Ok(T::peek(self.p1?, self.p2?))
-    }
-
-    /// Peek for the given token.
-    pub fn peek2<T>(&self) -> Result<bool, ParseError>
-    where
-        T: Peek,
-    {
-        Ok(T::peek(self.p2?, self.p3?))
-    }
-
-    /// Peek the current token.
-    pub fn token_peek(&mut self) -> Result<Option<Token>, ParseError> {
-        self.p1
-    }
-
-    /// Peek the next token.
-    pub fn token_peek2(&mut self) -> Result<Option<Token>, ParseError> {
-        self.p2
-    }
-
-    /// Peek the next two tokens.
-    pub fn token_peek_pair(&mut self) -> Result<Option<(Token, Option<Token>)>, ParseError> {
-        Ok(match self.p1? {
-            Some(p1) => Some((p1, self.p2?)),
-            None => None,
-        })
-    }
-
-    /// Consume the next token from the lexer.
-    pub fn token_next(&mut self) -> Result<Token, ParseError> {
-        let token = std::mem::replace(&mut self.p3, self.source.next());
-        let token = std::mem::replace(&mut self.p2, token);
-        let token = std::mem::replace(&mut self.p1, token);
-
-        match token? {
-            Some(token) => Ok(token),
-            None => Err(ParseError::new(
-                self.span.unwrap_or_default().end(),
-                ParseErrorKind::UnexpectedEof,
-            )),
+        if let Some(error) = self.peeker.error.take() {
+            return Err(error);
         }
-    }
 
-    /// Peek the current token from the lexer but treat a missing token as an
-    /// unexpected end-of-file.
-    pub fn token_peek_eof(&mut self) -> Result<Token, ParseError> {
-        match self.p1? {
-            Some(token) => Ok(token),
-            None => Err(ParseError::new(
-                self.span.unwrap_or_default().end(),
-                ParseErrorKind::UnexpectedEof,
-            )),
+        let result = T::peek(&mut self.peeker);
+
+        if let Some(error) = self.peeker.error.take() {
+            return Err(error);
         }
+
+        Ok(result)
     }
 
-    /// Peek the next token from the lexer but treat a missing token as an
-    /// unexpected end-of-file.
-    pub fn token_peek2_eof(&mut self) -> Result<Token, ParseError> {
-        match self.p2? {
-            Some(token) => Ok(token),
+    /// Access the interior peeker of the parser.
+    pub fn peeker(&mut self) -> &mut Peeker<'a> {
+        &mut self.peeker
+    }
+
+    /// Consume the next token from the parser.
+    pub fn next(&mut self) -> Result<Token, ParseError> {
+        if let Some(error) = self.peeker.error.take() {
+            return Err(error);
+        }
+
+        if let Some(t) = self.peeker.buf.pop_front() {
+            return Ok(t);
+        }
+
+        match self.peeker.source.next()? {
+            Some(t) => Ok(t),
             None => Err(ParseError::new(
                 self.span.unwrap_or_default().end(),
                 ParseErrorKind::UnexpectedEof,
@@ -139,13 +103,13 @@ impl<'a> Parser<'a> {
 
     /// Test if the parser is at end-of-file, after which there is no more input
     /// to parse.
-    pub fn is_eof(&self) -> Result<bool, ParseError> {
-        Ok(self.p1?.is_none())
+    pub fn is_eof(&mut self) -> Result<bool, ParseError> {
+        Ok(self.peeker.at(0)?.is_none())
     }
 
     /// Assert that the parser has reached its end-of-file.
     pub fn eof(&mut self) -> Result<(), ParseError> {
-        if let Some(token) = self.p1? {
+        if let Some(token) = self.peeker.at(0)? {
             return Err(ParseError::new(
                 token,
                 ParseErrorKind::ExpectedEof { actual: token.kind },
@@ -153,6 +117,77 @@ impl<'a> Parser<'a> {
         }
 
         Ok(())
+    }
+
+    /// Peek the token kind at the given position.
+    pub fn nth(&mut self, n: usize) -> Result<Kind, ParseError> {
+        if let Some(t) = self.peeker.at(n)? {
+            Ok(t.kind)
+        } else {
+            Ok(Kind::Eof)
+        }
+    }
+
+    /// Get the span at the given position.
+    pub fn token(&mut self, n: usize) -> Result<Token, ParseError> {
+        if let Some(t) = self.peeker.at(n)? {
+            Ok(t)
+        } else {
+            Ok(Token {
+                kind: Kind::Eof,
+                span: self.span.unwrap_or_default(),
+            })
+        }
+    }
+}
+
+/// Construct used to peek a parser.
+#[derive(Debug)]
+pub struct Peeker<'a> {
+    pub(crate) source: Source<'a>,
+    buf: VecDeque<Token>,
+    // NB: parse errors encountered during peeking.
+    error: Option<ParseError>,
+}
+
+impl<'a> Peeker<'a> {
+    /// Peek the token kind at the given position.
+    pub fn nth(&mut self, n: usize) -> Kind {
+        // Error tripped already, this peeker returns nothing but errors from
+        // here on out.
+        if self.error.is_some() {
+            return Kind::Error;
+        }
+
+        match self.at(n) {
+            Ok(t) => match t {
+                Some(t) => t.kind,
+                None => Kind::Eof,
+            },
+            Err(error) => {
+                self.error = Some(error);
+                Kind::Error
+            }
+        }
+    }
+
+    /// Make sure there are at least `n` items in the buffer, and return the
+    /// item at that point.
+    fn at(&mut self, n: usize) -> Result<Option<Token>, ParseError> {
+        if let Some(error) = self.error.take() {
+            return Err(error);
+        }
+
+        while self.buf.len() <= n {
+            let token = match self.source.next()? {
+                Some(token) => token,
+                None => break,
+            };
+
+            self.buf.push_back(token);
+        }
+
+        Ok(self.buf.get(n).copied())
     }
 }
 

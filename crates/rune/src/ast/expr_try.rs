@@ -10,7 +10,7 @@ pub struct ExprTry {
     /// The expression being awaited.
     pub expr: Box<ast::Expr>,
     /// The try operator `?`.
-    pub try_token: ast::Try,
+    pub try_token: T![?],
 }
 
 expr_parse!(ExprTry, "try expression");

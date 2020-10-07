@@ -14,7 +14,7 @@ use crate::{Parse, Spanned, ToTokens};
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct LitTemplate {
     /// The `template` keyword.
-    pub template: ast::Template,
+    pub template: T![template],
     /// Arguments to the template.
-    pub args: ast::Braced<ast::Expr, ast::Comma>,
+    pub args: ast::Braced<ast::Expr, T![,]>,
 }

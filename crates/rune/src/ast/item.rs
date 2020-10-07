@@ -1,5 +1,7 @@
 use crate::ast;
-use crate::{OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens};
+use crate::{
+    OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Peeker, Spanned, ToTokens,
+};
 
 /// A declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -65,33 +67,28 @@ impl Item {
     }
 
     /// Test if declaration is suitable inside of a file.
-    pub fn peek_as_item(
-        parser: &mut Parser<'_>,
-        path: Option<&ast::Path>,
-    ) -> Result<bool, ParseError> {
-        let (t1, t2) = peek!(parser.token_peek_pair()?, Ok(false));
-
+    pub fn peek_as_item(p: &mut Peeker<'_>, path: Option<&ast::Path>) -> bool {
         if path.is_some() {
             // Macro call.
-            return Ok(matches!(t1.kind, ast::Kind::Bang));
+            return matches!(p.nth(0), K![!]);
         }
 
-        Ok(match t1.kind {
-            ast::Kind::Use => true,
-            ast::Kind::Enum => true,
-            ast::Kind::Struct => true,
-            ast::Kind::Impl => true,
-            ast::Kind::Async => matches!(peek!(t2, Ok(false)).kind, ast::Kind::Fn),
-            ast::Kind::Fn => true,
-            ast::Kind::Mod => true,
-            ast::Kind::Const => true,
+        match p.nth(0) {
+            K![use] => true,
+            K![enum] => true,
+            K![struct] => true,
+            K![impl] => true,
+            K![async] => matches!(p.nth(1), K![fn]),
+            K![fn] => true,
+            K![mod] => true,
+            K![const] => true,
             _ => false,
-        })
+        }
     }
 
     /// Parse an Item attaching the given meta and optional path.
     pub fn parse_with_meta_path(
-        parser: &mut Parser,
+        p: &mut Parser<'_>,
         mut attributes: Vec<ast::Attribute>,
         mut visibility: ast::Visibility,
         path: Option<ast::Path>,
@@ -100,62 +97,61 @@ impl Item {
 
         let item = if let Some(path) = path {
             Self::MacroCall(ast::MacroCall::parse_with_meta_path(
-                parser,
+                p,
                 take(&mut attributes),
                 path,
             )?)
         } else {
-            let mut const_token = parser.parse::<Option<ast::Const>>()?;
-            let mut async_token = parser.parse::<Option<ast::Async>>()?;
-            let t = parser.token_peek_eof()?;
+            let mut const_token = p.parse::<Option<T![const]>>()?;
+            let mut async_token = p.parse::<Option<T![async]>>()?;
 
-            let item = match t.kind {
-                ast::Kind::Use => Self::ItemUse(ast::ItemUse::parse_with_meta(
-                    parser,
+            let item = match p.nth(0)? {
+                K![use] => Self::ItemUse(ast::ItemUse::parse_with_meta(
+                    p,
                     take(&mut attributes),
                     take(&mut visibility),
                 )?),
-                ast::Kind::Enum => Self::ItemEnum(ast::ItemEnum::parse_with_meta(
-                    parser,
+                K![enum] => Self::ItemEnum(ast::ItemEnum::parse_with_meta(
+                    p,
                     take(&mut attributes),
                     take(&mut visibility),
                 )?),
-                ast::Kind::Struct => Self::ItemStruct(ast::ItemStruct::parse_with_meta(
-                    parser,
+                K![struct] => Self::ItemStruct(ast::ItemStruct::parse_with_meta(
+                    p,
                     take(&mut attributes),
                     take(&mut visibility),
                 )?),
-                ast::Kind::Impl => Self::ItemImpl(ast::ItemImpl::parse_with_attributes(
-                    parser,
+                K![impl] => Self::ItemImpl(ast::ItemImpl::parse_with_attributes(
+                    p,
                     take(&mut attributes),
                 )?),
-                ast::Kind::Fn => Self::ItemFn(ast::ItemFn::parse_with_meta(
-                    parser,
+                K![fn] => Self::ItemFn(ast::ItemFn::parse_with_meta(
+                    p,
                     take(&mut attributes),
                     take(&mut visibility),
                     take(&mut const_token),
                     take(&mut async_token),
                 )?),
-                ast::Kind::Mod => Self::ItemMod(ast::ItemMod::parse_with_meta(
-                    parser,
+                K![mod] => Self::ItemMod(ast::ItemMod::parse_with_meta(
+                    p,
                     take(&mut attributes),
                     take(&mut visibility),
                 )?),
-                ast::Kind::Ident { .. } => {
+                K![ident(..)] => {
                     if let Some(const_token) = const_token.take() {
                         Self::ItemConst(ast::ItemConst::parse_with_meta(
-                            parser,
+                            p,
                             take(&mut attributes),
                             take(&mut visibility),
                             const_token,
                         )?)
                     } else {
-                        Self::MacroCall(parser.parse()?)
+                        Self::MacroCall(p.parse()?)
                     }
                 }
                 _ => {
                     return Err(ParseError::expected(
-                        t,
+                        p.token(0)?,
                         "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
                     ))
                 }
@@ -191,10 +187,10 @@ impl Item {
 }
 
 impl Parse for Item {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let attributes = parser.parse()?;
-        let visibility = parser.parse()?;
-        let path = parser.parse()?;
-        Self::parse_with_meta_path(parser, attributes, visibility, path)
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        let attributes = p.parse()?;
+        let visibility = p.parse()?;
+        let path = p.parse()?;
+        Self::parse_with_meta_path(p, attributes, visibility, path)
     }
 }

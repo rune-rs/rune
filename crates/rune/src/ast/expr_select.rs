@@ -29,29 +29,29 @@ pub struct ExprSelect {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `select` keyword.
-    pub select: ast::Select,
+    pub select: T![select],
     /// The open brace.
-    pub open: ast::OpenBrace,
+    pub open: T!['{'],
     /// The branches of the select.
-    pub branches: Vec<(ExprSelectBranch, Option<ast::Comma>)>,
+    pub branches: Vec<(ExprSelectBranch, Option<T![,]>)>,
     /// The close brace.
-    pub close: ast::CloseBrace,
+    pub close: T!['}'],
 }
 
 impl ExprSelect {
     /// Parse the `select` expression and attach the given attributes
     pub fn parse_with_attributes(
-        parser: &mut Parser<'_>,
+        p: &mut Parser<'_>,
         attributes: Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
-        let select = parser.parse()?;
-        let open = parser.parse()?;
+        let select = p.parse()?;
+        let open = p.parse()?;
 
         let mut branches = Vec::new();
 
-        while !parser.peek::<ast::CloseBrace>()? {
-            let branch = ExprSelectBranch::parse(parser)?;
-            let comma = parser.parse::<Option<ast::Comma>>()?;
+        while !p.peek::<T!['}']>()? {
+            let branch = ExprSelectBranch::parse(p)?;
+            let comma = p.parse::<Option<T![,]>>()?;
             let is_end = utils::is_block_end(branch.expr(), comma.as_ref());
             branches.push((branch, comma));
 
@@ -60,7 +60,7 @@ impl ExprSelect {
             }
         }
 
-        let close = parser.parse()?;
+        let close = p.parse()?;
 
         Ok(Self {
             attributes,
@@ -94,11 +94,11 @@ impl ExprSelectBranch {
 }
 
 impl Parse for ExprSelectBranch {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(if parser.peek::<ast::Default>()? {
-            Self::Default(parser.parse()?)
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        Ok(if p.peek::<T![default]>()? {
+            Self::Default(p.parse()?)
         } else {
-            Self::Pat(parser.parse()?)
+            Self::Pat(p.parse()?)
         })
     }
 }
@@ -109,11 +109,11 @@ pub struct ExprSelectPatBranch {
     /// The identifier to bind the result to.
     pub pat: ast::Pat,
     /// `=`.
-    pub eq: ast::Eq,
+    pub eq: T![=],
     /// The expression that should evaluate to a future.
     pub expr: Box<ast::Expr>,
     /// `=>`.
-    pub rocket: ast::Rocket,
+    pub rocket: T![=>],
     /// The body of the expression.
     pub body: Box<ast::Expr>,
 }
@@ -122,9 +122,9 @@ pub struct ExprSelectPatBranch {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct ExprDefaultBranch {
     /// The `default` keyword.
-    pub default: ast::Default,
+    pub default: T![default],
     /// `=>`.
-    pub rocket: ast::Rocket,
+    pub rocket: T![=>],
     /// The body of the expression.
     pub body: Box<ast::Expr>,
 }

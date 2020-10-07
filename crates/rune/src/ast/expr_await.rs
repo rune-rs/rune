@@ -20,9 +20,9 @@ pub struct ExprAwait {
     /// The expression being awaited.
     pub expr: Box<ast::Expr>,
     /// The dot separating the expression.
-    pub dot: ast::Dot,
+    pub dot: T![.],
     /// The await token.
-    pub await_: ast::Await,
+    pub await_token: T![await],
 }
 
 expr_parse!(ExprAwait, ".await expression");

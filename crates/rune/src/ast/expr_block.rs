@@ -25,7 +25,7 @@ pub struct ExprBlock {
     pub attributes: Vec<ast::Attribute>,
     /// The optional async token.
     #[rune(iter)]
-    pub async_token: Option<ast::Async>,
+    pub async_token: Option<T![async]>,
     /// The close brace.
     pub block: ast::Block,
 }

@@ -15,5 +15,5 @@ use crate::{Parse, Spanned, ToTokens};
 #[derive(Debug, Clone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 pub struct LitVec {
     /// Items in the vector.
-    pub items: ast::Bracketed<ast::Expr, ast::Comma>,
+    pub items: ast::Bracketed<ast::Expr, T![,]>,
 }
