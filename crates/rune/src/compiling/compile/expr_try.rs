@@ -8,7 +8,7 @@ impl Compile<(&ast::ExprTry, Needs)> for Compiler<'_> {
 
         let not_error = self.asm.new_label("try_not_error");
 
-        self.compile((&*expr_try.expr, Needs::Value))?;
+        self.compile((&expr_try.expr, Needs::Value))?;
         self.asm.push(Inst::Dup, span);
         self.asm.push(Inst::IsValue, span);
         self.asm.jump_if(not_error, span);

@@ -6,7 +6,7 @@ impl Compile<(&ast::ExprAwait, Needs)> for Compiler<'_> {
         let span = expr_await.span();
         log::trace!("ExprAwait => {:?}", self.source.source(span));
 
-        self.compile((&*expr_await.expr, Needs::Value))?;
+        self.compile((&expr_await.expr, Needs::Value))?;
         self.asm.push(Inst::Await, span);
 
         if !needs.value() {

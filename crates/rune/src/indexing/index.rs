@@ -346,14 +346,14 @@ impl Index<ast::ItemFn> for Indexer<'_> {
                 }
 
                 self.query
-                    .index_const_fn(&item, &self.source, decl_fn.clone())?;
+                    .index_const_fn(&item, &self.source, Box::new(decl_fn.clone()))?;
 
                 return Ok(());
             }
         };
 
         let fun = Function {
-            ast: decl_fn.clone(),
+            ast: Box::new(decl_fn.clone()),
             call,
         };
 
@@ -512,7 +512,7 @@ impl Index<ast::Block> for Indexer<'_> {
 
             match stmt {
                 ast::Stmt::Local(local) => {
-                    self.index(local)?;
+                    self.index(&mut **local)?;
                 }
                 ast::Stmt::Item(item, semi) => {
                     if let Some(semi) = semi {
@@ -556,7 +556,7 @@ impl Index<ast::Local> for Indexer<'_> {
         }
 
         self.index(&mut local.pat)?;
-        self.index(&mut *local.expr)?;
+        self.index(&mut local.expr)?;
         Ok(())
     }
 }
@@ -567,7 +567,7 @@ impl Index<ast::ExprLet> for Indexer<'_> {
         log::trace!("ExprLet => {:?}", self.source.source(span));
 
         self.index(&mut expr_let.pat)?;
-        self.index(&mut *expr_let.expr)?;
+        self.index(&mut expr_let.expr)?;
         Ok(())
     }
 }
@@ -687,77 +687,77 @@ impl Index<ast::Expr> for Indexer<'_> {
 
         match expr {
             ast::Expr::Path(path) => {
-                self.index(path)?;
+                self.index(&mut **path)?;
             }
             ast::Expr::ExprLet(expr_let) => {
-                self.index(expr_let)?;
+                self.index(&mut **expr_let)?;
             }
             ast::Expr::ExprBlock(block) => {
-                self.index(block)?;
+                self.index(&mut **block)?;
             }
             ast::Expr::ExprGroup(expr) => {
-                self.index(&mut *expr.expr)?;
+                self.index(&mut expr.expr)?;
             }
             ast::Expr::ExprIf(expr_if) => {
-                self.index(expr_if)?;
+                self.index(&mut **expr_if)?;
             }
             ast::Expr::ExprAssign(expr_assign) => {
-                self.index(expr_assign)?;
+                self.index(&mut **expr_assign)?;
             }
             ast::Expr::ExprBinary(expr_binary) => {
-                self.index(expr_binary)?;
+                self.index(&mut **expr_binary)?;
             }
             ast::Expr::ExprMatch(expr_if) => {
-                self.index(expr_if)?;
+                self.index(&mut **expr_if)?;
             }
             ast::Expr::Item(decl) => {
-                self.index(decl)?;
+                self.index(&mut **decl)?;
             }
             ast::Expr::ExprClosure(expr_closure) => {
-                self.index(expr_closure)?;
+                self.index(&mut **expr_closure)?;
             }
             ast::Expr::ExprWhile(expr_while) => {
-                self.index(expr_while)?;
+                self.index(&mut **expr_while)?;
             }
             ast::Expr::ExprLoop(expr_loop) => {
-                self.index(expr_loop)?;
+                self.index(&mut **expr_loop)?;
             }
             ast::Expr::ExprFor(expr_for) => {
-                self.index(expr_for)?;
+                self.index(&mut **expr_for)?;
             }
             ast::Expr::ExprFieldAccess(expr_field_access) => {
-                self.index(expr_field_access)?;
+                self.index(&mut **expr_field_access)?;
             }
             ast::Expr::ExprUnary(expr_unary) => {
-                self.index(expr_unary)?;
+                self.index(&mut **expr_unary)?;
             }
             ast::Expr::ExprIndex(expr_index_get) => {
-                self.index(expr_index_get)?;
+                self.index(&mut **expr_index_get)?;
             }
             ast::Expr::ExprBreak(expr_break) => {
-                self.index(expr_break)?;
+                self.index(&mut **expr_break)?;
             }
             ast::Expr::ExprYield(expr_yield) => {
-                self.index(expr_yield)?;
+                self.index(&mut **expr_yield)?;
             }
             ast::Expr::ExprReturn(expr_return) => {
-                self.index(expr_return)?;
+                self.index(&mut **expr_return)?;
             }
             ast::Expr::ExprAwait(expr_await) => {
-                self.index(expr_await)?;
+                self.index(&mut **expr_await)?;
             }
             ast::Expr::ExprTry(expr_try) => {
-                self.index(expr_try)?;
+                self.index(&mut **expr_try)?;
             }
             ast::Expr::ExprSelect(expr_select) => {
-                self.index(expr_select)?;
+                self.index(&mut **expr_select)?;
             }
             // ignored because they have no effect on indexing.
             ast::Expr::ExprCall(expr_call) => {
-                self.index(expr_call)?;
+                self.index(&mut **expr_call)?;
             }
             ast::Expr::ExprLit(expr_lit) => {
-                self.index(expr_lit)?;
+                self.index(&mut **expr_lit)?;
             }
             // NB: macros have nothing to index, they don't export language
             // items.
@@ -798,8 +798,8 @@ impl Index<ast::ExprAssign> for Indexer<'_> {
         let span = expr_binary.span();
         log::trace!("ExprAssign => {:?}", self.source.source(span));
 
-        self.index(&mut *expr_binary.lhs)?;
-        self.index(&mut *expr_binary.rhs)?;
+        self.index(&mut expr_binary.lhs)?;
+        self.index(&mut expr_binary.rhs)?;
         Ok(())
     }
 }
@@ -809,8 +809,8 @@ impl Index<ast::ExprBinary> for Indexer<'_> {
         let span = expr_binary.span();
         log::trace!("ExprBinary => {:?}", self.source.source(span));
 
-        self.index(&mut *expr_binary.lhs)?;
-        self.index(&mut *expr_binary.rhs)?;
+        self.index(&mut expr_binary.lhs)?;
+        self.index(&mut expr_binary.rhs)?;
         Ok(())
     }
 }
@@ -820,16 +820,16 @@ impl Index<ast::ExprMatch> for Indexer<'_> {
         let span = expr_match.span();
         log::trace!("ExprMatch => {:?}", self.source.source(span));
 
-        self.index(&mut *expr_match.expr)?;
+        self.index(&mut expr_match.expr)?;
 
         for (branch, _) in &mut expr_match.branches {
             if let Some((_, condition)) = &mut branch.condition {
-                self.index(&mut **condition)?;
+                self.index(condition)?;
             }
 
             let _guard = self.scopes.push_scope();
             self.index(&mut branch.pat)?;
-            self.index(&mut *branch.body)?;
+            self.index(&mut branch.body)?;
         }
 
         Ok(())
@@ -843,7 +843,7 @@ impl Index<ast::Condition> for Indexer<'_> {
 
         match condition {
             ast::Condition::Expr(expr) => {
-                self.index(&mut **expr)?;
+                self.index(expr)?;
             }
             ast::Condition::ExprLet(expr_let) => {
                 self.index(&mut **expr_let)?;
@@ -955,7 +955,7 @@ impl Index<ast::Item> for Indexer<'_> {
                     .index_struct(&item, &self.source, item_struct.clone())?;
             }
             ast::Item::ItemFn(item_fn) => {
-                self.index(item_fn)?;
+                self.index(&mut **item_fn)?;
             }
             ast::Item::ItemImpl(item_impl) => {
                 if let Some(first) = item_impl.attributes.first() {
@@ -1046,7 +1046,7 @@ impl Index<ast::Item> for Indexer<'_> {
 
                 item_const.id = Some(item.id);
 
-                self.index(item_const)?;
+                self.index(&mut **item_const)?;
 
                 self.query
                     .index_const(&item, &self.source, item_const.clone())?;
@@ -1066,7 +1066,7 @@ impl Index<ast::Item> for Indexer<'_> {
 
 impl Index<ast::ItemConst> for Indexer<'_> {
     fn index(&mut self, item_const: &mut ast::ItemConst) -> CompileResult<()> {
-        self.index(&mut *item_const.expr)?;
+        self.index(&mut item_const.expr)?;
         Ok(())
     }
 }
@@ -1125,7 +1125,7 @@ impl Index<ast::ExprFor> for Indexer<'_> {
         log::trace!("ExprFor => {:?}", self.source.source(span));
 
         // NB: creating the iterator is evaluated in the parent scope.
-        self.index(&mut *expr_for.iter)?;
+        self.index(&mut expr_for.iter)?;
 
         let _guard = self.scopes.push_scope();
         self.index(&mut expr_for.var)?;
@@ -1172,7 +1172,7 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
             }
         }
 
-        self.index(&mut *expr_closure.body)?;
+        self.index(&mut expr_closure.body)?;
 
         let c = guard.into_closure(span)?;
 
@@ -1185,8 +1185,13 @@ impl Index<ast::ExprClosure> for Indexer<'_> {
             }
         };
 
-        self.query
-            .index_closure(&item, &self.source, expr_closure.clone(), captures, call)?;
+        self.query.index_closure(
+            &item,
+            &self.source,
+            Box::new(expr_closure.clone()),
+            captures,
+            call,
+        )?;
 
         Ok(())
     }
@@ -1197,7 +1202,7 @@ impl Index<ast::ExprFieldAccess> for Indexer<'_> {
         let span = expr_field_access.span();
         log::trace!("ExprIndexSet => {:?}", self.source.source(span));
 
-        self.index(&mut *expr_field_access.expr)?;
+        self.index(&mut expr_field_access.expr)?;
         Ok(())
     }
 }
@@ -1207,7 +1212,7 @@ impl Index<ast::ExprUnary> for Indexer<'_> {
         let span = expr_unary.span();
         log::trace!("ExprUnary => {:?}", self.source.source(span));
 
-        self.index(&mut *expr_unary.expr)?;
+        self.index(&mut expr_unary.expr)?;
         Ok(())
     }
 }
@@ -1217,8 +1222,8 @@ impl Index<ast::ExprIndex> for Indexer<'_> {
         let span = expr_index_get.span();
         log::trace!("ExprIndex => {:?}", self.source.source(span));
 
-        self.index(&mut *expr_index_get.index)?;
-        self.index(&mut *expr_index_get.target)?;
+        self.index(&mut expr_index_get.index)?;
+        self.index(&mut expr_index_get.target)?;
         Ok(())
     }
 }
@@ -1231,7 +1236,7 @@ impl Index<ast::ExprBreak> for Indexer<'_> {
         if let Some(expr) = &mut expr_break.expr {
             match expr {
                 ast::ExprBreakValue::Expr(expr) => {
-                    self.index(&mut **expr)?;
+                    self.index(expr)?;
                 }
                 ast::ExprBreakValue::Label(..) => (),
             }
@@ -1250,7 +1255,7 @@ impl Index<ast::ExprYield> for Indexer<'_> {
         self.scopes.mark_yield(span)?;
 
         if let Some(expr) = &mut expr_yield.expr {
-            self.index(&mut **expr)?;
+            self.index(expr)?;
         }
 
         Ok(())
@@ -1262,7 +1267,7 @@ impl Index<ast::ExprReturn> for Indexer<'_> {
         let span = expr_return.span();
         log::trace!("ExprReturn => {:?}", self.source.source(span));
 
-        if let Some(expr) = expr_return.expr.as_deref_mut() {
+        if let Some(expr) = &mut expr_return.expr {
             self.index(expr)?;
         }
 
@@ -1277,7 +1282,7 @@ impl Index<ast::ExprAwait> for Indexer<'_> {
 
         let span = expr_await.span();
         self.scopes.mark_await(span)?;
-        self.index(&mut *expr_await.expr)?;
+        self.index(&mut expr_await.expr)?;
         Ok(())
     }
 }
@@ -1287,7 +1292,7 @@ impl Index<ast::ExprTry> for Indexer<'_> {
         let span = expr_try.span();
         log::trace!("ExprTry => {:?}", self.source.source(span));
 
-        self.index(&mut *expr_try.expr)?;
+        self.index(&mut expr_try.expr)?;
         Ok(())
     }
 }
@@ -1305,11 +1310,11 @@ impl Index<ast::ExprSelect> for Indexer<'_> {
             match branch {
                 ast::ExprSelectBranch::Pat(pat) => {
                     // NB: expression to evaluate future is evaled in parent scope.
-                    self.index(&mut *pat.expr)?;
+                    self.index(&mut pat.expr)?;
 
                     let _guard = self.scopes.push_scope();
                     self.index(&mut pat.pat)?;
-                    self.index(&mut *pat.body)?;
+                    self.index(&mut pat.body)?;
                 }
                 ast::ExprSelectBranch::Default(def) => {
                     default_branch = Some(def);
@@ -1319,7 +1324,7 @@ impl Index<ast::ExprSelect> for Indexer<'_> {
 
         if let Some(def) = default_branch {
             let _guard = self.scopes.push_scope();
-            self.index(&mut *def.body)?;
+            self.index(&mut def.body)?;
         }
 
         Ok(())
@@ -1337,7 +1342,7 @@ impl Index<ast::ExprCall> for Indexer<'_> {
             self.index(expr)?;
         }
 
-        self.index(&mut *expr_call.expr)?;
+        self.index(&mut expr_call.expr)?;
         Ok(())
     }
 }

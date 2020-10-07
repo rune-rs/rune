@@ -240,7 +240,7 @@ impl Query {
         &self,
         query_item: &Rc<QueryItem>,
         source: &Arc<Source>,
-        item_const: ast::ItemConst,
+        item_const: Box<ast::ItemConst>,
     ) -> Result<(), QueryError> {
         log::trace!("new const: {:?}", query_item.item);
 
@@ -251,7 +251,7 @@ impl Query {
             source: source.clone(),
         };
 
-        let ir = ir_compiler.compile(&*item_const.expr)?;
+        let ir = ir_compiler.compile(&item_const.expr)?;
 
         inner.index(
             IndexedEntry {
@@ -273,7 +273,7 @@ impl Query {
         &self,
         query_item: &Rc<QueryItem>,
         source: &Arc<Source>,
-        item_fn: ast::ItemFn,
+        item_fn: Box<ast::ItemFn>,
     ) -> Result<(), QueryError> {
         log::trace!("new const fn: {:?}", query_item.item);
 
@@ -314,7 +314,7 @@ impl Query {
         &self,
         query_item: &Rc<QueryItem>,
         source: &Arc<Source>,
-        ast: ast::ItemStruct,
+        ast: Box<ast::ItemStruct>,
     ) -> Result<(), QueryError> {
         log::trace!("new struct: {:?}", query_item.item);
 
@@ -357,7 +357,7 @@ impl Query {
         &self,
         query_item: &Rc<QueryItem>,
         source: &Arc<Source>,
-        ast: ast::ExprClosure,
+        ast: Box<ast::ExprClosure>,
         captures: Arc<Vec<CompileMetaCapture>>,
         call: Call,
     ) -> Result<(), QueryError> {
@@ -1212,7 +1212,7 @@ impl QueryInner {
                     source: source.clone(),
                 };
 
-                let ir_fn = ir_compiler.compile(&c.item_fn)?;
+                let ir_fn = ir_compiler.compile(&*c.item_fn)?;
 
                 let id = self.insert_const_fn(&query_item, ir_fn);
 
@@ -1336,12 +1336,12 @@ pub struct Import {
 #[derive(Debug)]
 pub struct Struct {
     /// The ast of the struct.
-    ast: ast::ItemStruct,
+    ast: Box<ast::ItemStruct>,
 }
 
 impl Struct {
     /// Construct a new struct entry.
-    pub fn new(ast: ast::ItemStruct) -> Self {
+    pub fn new(ast: Box<ast::ItemStruct>) -> Self {
         Self { ast }
     }
 }
@@ -1364,13 +1364,13 @@ impl Variant {
 #[derive(Debug)]
 pub(crate) struct Function {
     /// Ast for declaration.
-    pub(crate) ast: ast::ItemFn,
+    pub(crate) ast: Box<ast::ItemFn>,
     pub(crate) call: Call,
 }
 
 pub(crate) struct InstanceFunction {
     /// Ast for the instance function.
-    pub(crate) ast: ast::ItemFn,
+    pub(crate) ast: Box<ast::ItemFn>,
     /// The item of the instance function.
     pub(crate) impl_item: Rc<Item>,
     /// The span of the instance function.
@@ -1381,7 +1381,7 @@ pub(crate) struct InstanceFunction {
 #[derive(Debug)]
 pub(crate) struct Closure {
     /// Ast for closure.
-    pub(crate) ast: ast::ExprClosure,
+    pub(crate) ast: Box<ast::ExprClosure>,
     /// Captures.
     pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
     /// Calling convention used for closure.
@@ -1409,7 +1409,7 @@ pub(crate) struct Const {
 #[derive(Debug)]
 pub(crate) struct ConstFn {
     /// The const fn ast.
-    pub(crate) item_fn: ast::ItemFn,
+    pub(crate) item_fn: Box<ast::ItemFn>,
 }
 
 /// An entry in the build queue.

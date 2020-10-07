@@ -50,19 +50,19 @@ impl Parse for Pat {
             K![byte] => {
                 return Ok(Self::PatLit(PatLit {
                     attributes,
-                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Byte(p.parse()?))),
+                    expr: ast::Expr::from_lit(ast::Lit::Byte(p.parse()?)),
                 }));
             }
             K![char] => {
                 return Ok(Self::PatLit(PatLit {
                     attributes,
-                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Char(p.parse()?))),
+                    expr: ast::Expr::from_lit(ast::Lit::Char(p.parse()?)),
                 }));
             }
             K![bytestr] => {
                 return Ok(Self::PatLit(PatLit {
                     attributes,
-                    expr: Box::new(ast::Expr::from_lit(ast::Lit::ByteStr(p.parse()?))),
+                    expr: ast::Expr::from_lit(ast::Lit::ByteStr(p.parse()?)),
                 }));
             }
             K![str] => {
@@ -75,14 +75,14 @@ impl Parse for Pat {
                     }),
                     _ => Self::PatLit(PatLit {
                         attributes,
-                        expr: Box::new(ast::Expr::from_lit(ast::Lit::Str(p.parse()?))),
+                        expr: ast::Expr::from_lit(ast::Lit::Str(p.parse()?)),
                     }),
                 });
             }
             K![number] => {
                 return Ok(Self::PatLit(PatLit {
                     attributes,
-                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Number(p.parse()?))),
+                    expr: ast::Expr::from_lit(ast::Lit::Number(p.parse()?)),
                 }));
             }
             K![..] => {
@@ -95,7 +95,7 @@ impl Parse for Pat {
                 return Ok(match p.nth(1)? {
                     K![')'] => Self::PatLit(PatLit {
                         attributes,
-                        expr: Box::new(ast::Expr::from_lit(ast::Lit::Unit(p.parse()?))),
+                        expr: ast::Expr::from_lit(ast::Lit::Unit(p.parse()?)),
                     }),
                     _ => Self::PatTuple(PatTuple {
                         attributes,
@@ -121,10 +121,7 @@ impl Parse for Pat {
                 let expr: ast::Expr = p.parse()?;
 
                 if expr.is_lit() {
-                    return Ok(Self::PatLit(PatLit {
-                        attributes,
-                        expr: Box::new(expr),
-                    }));
+                    return Ok(Self::PatLit(PatLit { attributes, expr }));
                 }
             }
             K![_] => {
@@ -185,7 +182,7 @@ pub struct PatLit {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The literal expression.
-    pub expr: Box<ast::Expr>,
+    pub expr: ast::Expr,
 }
 
 /// The rest pattern `..` and associated attributes.

@@ -111,11 +111,11 @@ pub struct ExprSelectPatBranch {
     /// `=`.
     pub eq: T![=],
     /// The expression that should evaluate to a future.
-    pub expr: Box<ast::Expr>,
+    pub expr: ast::Expr,
     /// `=>`.
     pub rocket: T![=>],
     /// The body of the expression.
-    pub body: Box<ast::Expr>,
+    pub body: ast::Expr,
 }
 
 /// A single selection branch.
@@ -126,5 +126,5 @@ pub struct ExprDefaultBranch {
     /// `=>`.
     pub rocket: T![=>],
     /// The body of the expression.
-    pub body: Box<ast::Expr>,
+    pub body: ast::Expr,
 }

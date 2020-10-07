@@ -47,55 +47,55 @@ impl ops::Deref for Callable {
 #[derive(Debug, Clone, ToTokens, Spanned, PartialEq, Eq)]
 pub enum Expr {
     /// An path expression.
-    Path(ast::Path),
+    Path(Box<ast::Path>),
     /// A declaration.
-    Item(ast::Item),
+    Item(Box<ast::Item>),
     /// An assign expression.
-    ExprAssign(ast::ExprAssign),
+    ExprAssign(Box<ast::ExprAssign>),
     /// A while loop.
-    ExprWhile(ast::ExprWhile),
+    ExprWhile(Box<ast::ExprWhile>),
     /// An unconditional loop.
-    ExprLoop(ast::ExprLoop),
+    ExprLoop(Box<ast::ExprLoop>),
     /// An for loop.
-    ExprFor(ast::ExprFor),
+    ExprFor(Box<ast::ExprFor>),
     /// A let expression.
-    ExprLet(ast::ExprLet),
+    ExprLet(Box<ast::ExprLet>),
     /// An if expression.
-    ExprIf(ast::ExprIf),
+    ExprIf(Box<ast::ExprIf>),
     /// An match expression.
-    ExprMatch(ast::ExprMatch),
+    ExprMatch(Box<ast::ExprMatch>),
     /// A function call,
-    ExprCall(ast::ExprCall),
+    ExprCall(Box<ast::ExprCall>),
     /// A macro call,
-    MacroCall(ast::MacroCall),
+    MacroCall(Box<ast::MacroCall>),
     /// A field access on an expression.
-    ExprFieldAccess(ast::ExprFieldAccess),
+    ExprFieldAccess(Box<ast::ExprFieldAccess>),
     /// A grouped expression.
-    ExprGroup(ast::ExprGroup),
+    ExprGroup(Box<ast::ExprGroup>),
     /// A binary expression.
-    ExprBinary(ast::ExprBinary),
+    ExprBinary(Box<ast::ExprBinary>),
     /// A unary expression.
-    ExprUnary(ast::ExprUnary),
+    ExprUnary(Box<ast::ExprUnary>),
     /// An index set operation.
-    ExprIndex(ast::ExprIndex),
+    ExprIndex(Box<ast::ExprIndex>),
     /// A break expression.
-    ExprBreak(ast::ExprBreak),
+    ExprBreak(Box<ast::ExprBreak>),
     /// A yield expression.
-    ExprYield(ast::ExprYield),
+    ExprYield(Box<ast::ExprYield>),
     /// A block as an expression.
-    ExprBlock(ast::ExprBlock),
+    ExprBlock(Box<ast::ExprBlock>),
     /// A return statement.
-    ExprReturn(ast::ExprReturn),
+    ExprReturn(Box<ast::ExprReturn>),
     /// An await expression.
-    ExprAwait(ast::ExprAwait),
+    ExprAwait(Box<ast::ExprAwait>),
     /// Try expression.
-    ExprTry(ast::ExprTry),
+    ExprTry(Box<ast::ExprTry>),
     /// A select expression.
-    ExprSelect(ast::ExprSelect),
+    ExprSelect(Box<ast::ExprSelect>),
     /// A closure expression.
-    ExprClosure(ast::ExprClosure),
+    ExprClosure(Box<ast::ExprClosure>),
     /// A literal expression.
-    ExprLit(ast::ExprLit),
+    ExprLit(Box<ast::ExprLit>),
 }
 
 impl Expr {
@@ -196,20 +196,29 @@ impl Expr {
     /// * Unary expressions which are the negate operation.
     pub fn is_lit(&self) -> bool {
         match self {
-            ast::Expr::ExprLit(..) => true,
-            ast::Expr::ExprUnary(ast::ExprUnary {
-                op: ast::UnOp::Neg,
-                expr,
-                ..
-            }) => matches!(
-                &**expr,
-                ast::Expr::ExprLit(ast::ExprLit {
-                    lit: ast::Lit::Number(..),
+            ast::Expr::ExprLit(..) => return true,
+            ast::Expr::ExprUnary(expr_unary) => {
+                if let ast::ExprUnary {
+                    op: ast::UnOp::Neg,
+                    expr,
                     ..
-                })
-            ),
-            _ => false,
+                } = &**expr_unary
+                {
+                    if let ast::Expr::ExprLit(expr) = expr {
+                        return matches!(
+                            &**expr,
+                            ast::ExprLit {
+                                lit: ast::Lit::Number(..),
+                                ..
+                            }
+                        );
+                    }
+                }
+            }
+            _ => (),
         }
+
+        false
     }
 
     /// Parse an expression without an eager brace.
@@ -256,21 +265,19 @@ impl Expr {
         if *eager_brace && p.peek::<T!['{']>()? {
             let ident = ast::LitObjectIdent::Named(path);
 
-            return Ok(Self::ExprLit(ast::ExprLit {
+            return Ok(Self::ExprLit(Box::new(ast::ExprLit {
                 attributes: take(attributes),
                 lit: ast::Lit::Object(ast::LitObject::parse_with_ident(p, ident)?),
-            }));
+            })));
         }
 
         if p.peek::<T![!]>()? {
-            return Ok(Self::MacroCall(ast::MacroCall::parse_with_meta_path(
-                p,
-                std::mem::take(attributes),
-                path,
-            )?));
+            return Ok(Self::MacroCall(Box::new(
+                ast::MacroCall::parse_with_meta_path(p, std::mem::take(attributes), path)?,
+            )));
         }
 
-        Ok(Self::Path(path))
+        Ok(Self::Path(Box::new(path)))
     }
 
     /// Parsing something that opens with a parenthesis.
@@ -279,30 +286,30 @@ impl Expr {
         attributes: &mut Vec<ast::Attribute>,
     ) -> Result<Self, ParseError> {
         if p.peek::<T![()]>()? {
-            return Ok(Self::ExprLit(ast::ExprLit {
+            return Ok(Self::ExprLit(Box::new(ast::ExprLit {
                 attributes: take(attributes),
                 lit: p.parse()?,
-            }));
+            })));
         }
 
         let open = p.parse::<ast::OpenParen>()?;
         let expr = ast::Expr::parse_with(p, EagerBrace(true), EagerBinary(true), Callable(true))?;
 
         if p.peek::<T![')']>()? {
-            return Ok(Expr::ExprGroup(ast::ExprGroup {
+            return Ok(Expr::ExprGroup(Box::new(ast::ExprGroup {
                 attributes: take(attributes),
                 open,
-                expr: Box::new(expr),
+                expr,
                 close: p.parse()?,
-            }));
+            })));
         }
 
         let tuple = ast::LitTuple::parse_from_first_expr(p, open, expr)?;
 
-        Ok(Expr::ExprLit(ast::ExprLit {
+        Ok(Expr::ExprLit(Box::new(ast::ExprLit {
             attributes: take(attributes),
             lit: ast::Lit::Tuple(tuple),
-        }))
+        })))
     }
 
     pub(crate) fn parse_with_meta(
@@ -337,58 +344,72 @@ impl Expr {
         }
 
         if ast::Lit::peek_in_expr(p.peeker()) {
-            return Ok(ast::Expr::ExprLit(ast::ExprLit::parse_with_meta(
+            return Ok(ast::Expr::ExprLit(Box::new(ast::ExprLit::parse_with_meta(
                 p,
                 take(attributes),
-            )?));
+            )?)));
         }
 
         let mut label = p.parse::<Option<(ast::Label, T![:])>>()?;
         let mut async_token = p.parse::<Option<T![async]>>()?;
 
         let expr = match p.nth(0)? {
-            K![||] | K![|] => Self::ExprClosure(ast::ExprClosure::parse_with_attributes_and_async(
-                p,
-                take(attributes),
-                take(&mut async_token),
-            )?),
-            K![select] => {
-                Self::ExprSelect(ast::ExprSelect::parse_with_attributes(p, take(attributes))?)
+            K![||] | K![|] => {
+                Self::ExprClosure(Box::new(ast::ExprClosure::parse_with_attributes_and_async(
+                    p,
+                    take(attributes),
+                    take(&mut async_token),
+                )?))
             }
-            K![!] | K![-] | K![&] | K![*] => Self::ExprUnary(ast::ExprUnary::parse_with_meta(
+            K![select] => Self::ExprSelect(Box::new(ast::ExprSelect::parse_with_attributes(
                 p,
                 take(attributes),
-                eager_brace,
-            )?),
-            K![while] => Self::ExprWhile(ast::ExprWhile::parse_with_meta(
-                p,
-                take(attributes),
-                take(&mut label),
-            )?),
-            K![loop] => Self::ExprLoop(ast::ExprLoop::parse_with_meta(
+            )?)),
+            K![!] | K![-] | K![&] | K![*] => Self::ExprUnary(Box::new(
+                ast::ExprUnary::parse_with_meta(p, take(attributes), eager_brace)?,
+            )),
+            K![while] => Self::ExprWhile(Box::new(ast::ExprWhile::parse_with_meta(
                 p,
                 take(attributes),
                 take(&mut label),
-            )?),
-            K![for] => Self::ExprFor(ast::ExprFor::parse_with_meta(
+            )?)),
+            K![loop] => Self::ExprLoop(Box::new(ast::ExprLoop::parse_with_meta(
                 p,
                 take(attributes),
                 take(&mut label),
-            )?),
-            K![let] => Self::ExprLet(ast::ExprLet::parse_with_meta(p, take(attributes))?),
-            K![if] => Self::ExprIf(ast::ExprIf::parse_with_meta(p, take(attributes))?),
-            K![match] => {
-                Self::ExprMatch(ast::ExprMatch::parse_with_attributes(p, take(attributes))?)
-            }
+            )?)),
+            K![for] => Self::ExprFor(Box::new(ast::ExprFor::parse_with_meta(
+                p,
+                take(attributes),
+                take(&mut label),
+            )?)),
+            K![let] => Self::ExprLet(Box::new(ast::ExprLet::parse_with_meta(
+                p,
+                take(attributes),
+            )?)),
+            K![if] => Self::ExprIf(Box::new(ast::ExprIf::parse_with_meta(p, take(attributes))?)),
+            K![match] => Self::ExprMatch(Box::new(ast::ExprMatch::parse_with_attributes(
+                p,
+                take(attributes),
+            )?)),
             K!['('] => Self::parse_open_paren(p, attributes)?,
-            K!['{'] => Self::ExprBlock(ast::ExprBlock {
+            K!['{'] => Self::ExprBlock(Box::new(ast::ExprBlock {
                 async_token: take(&mut async_token),
                 attributes: take(attributes),
                 block: p.parse()?,
-            }),
-            K![break] => Self::ExprBreak(ast::ExprBreak::parse_with_meta(p, take(attributes))?),
-            K![yield] => Self::ExprYield(ast::ExprYield::parse_with_meta(p, take(attributes))?),
-            K![return] => Self::ExprReturn(ast::ExprReturn::parse_with_meta(p, take(attributes))?),
+            })),
+            K![break] => Self::ExprBreak(Box::new(ast::ExprBreak::parse_with_meta(
+                p,
+                take(attributes),
+            )?)),
+            K![yield] => Self::ExprYield(Box::new(ast::ExprYield::parse_with_meta(
+                p,
+                take(attributes),
+            )?)),
+            K![return] => Self::ExprReturn(Box::new(ast::ExprReturn::parse_with_meta(
+                p,
+                take(attributes),
+            )?)),
             _ => {
                 return Err(ParseError::expected(&p.tok_at(0)?, "expression"));
             }
@@ -416,72 +437,72 @@ impl Expr {
 
             match p.nth(0)? {
                 K!['['] if is_callable => {
-                    expr = Self::ExprIndex(ast::ExprIndex {
+                    expr = Self::ExprIndex(Box::new(ast::ExprIndex {
                         attributes: expr.take_attributes(),
-                        target: Box::new(expr),
+                        target: expr,
                         open: p.parse()?,
                         index: p.parse()?,
                         close: p.parse()?,
-                    });
+                    }));
                 }
                 // Chained function call.
                 K!['('] if is_callable => {
                     let args = p.parse::<ast::Parenthesized<ast::Expr, T![,]>>()?;
 
-                    expr = Expr::ExprCall(ast::ExprCall {
+                    expr = Expr::ExprCall(Box::new(ast::ExprCall {
                         id: Default::default(),
                         attributes: expr.take_attributes(),
-                        expr: Box::new(expr),
+                        expr,
                         args,
-                    });
+                    }));
                 }
                 K![?] => {
-                    expr = Expr::ExprTry(ast::ExprTry {
+                    expr = Expr::ExprTry(Box::new(ast::ExprTry {
                         attributes: expr.take_attributes(),
-                        expr: Box::new(expr),
+                        expr,
                         try_token: p.parse()?,
-                    });
+                    }));
                 }
                 K![=] => {
                     let eq = p.parse()?;
                     let rhs =
                         Self::parse_with(p, EagerBrace(true), EagerBinary(true), Callable(true))?;
 
-                    expr = Expr::ExprAssign(ast::ExprAssign {
+                    expr = Expr::ExprAssign(Box::new(ast::ExprAssign {
                         attributes: expr.take_attributes(),
-                        lhs: Box::new(expr),
+                        lhs: expr,
                         eq,
-                        rhs: Box::new(rhs),
-                    });
+                        rhs,
+                    }));
                 }
                 K![.] => {
                     match p.nth(1)? {
                         // <expr>.await
                         K![await] => {
-                            expr = Expr::ExprAwait(ast::ExprAwait {
+                            expr = Expr::ExprAwait(Box::new(ast::ExprAwait {
                                 attributes: expr.take_attributes(),
-                                expr: Box::new(expr),
+                                expr,
                                 dot: p.parse()?,
                                 await_token: p.parse()?,
-                            });
+                            }));
                         }
                         // <expr>.field
                         K![ident] => {
-                            expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
+                            expr = Expr::ExprFieldAccess(Box::new(ast::ExprFieldAccess {
                                 attributes: expr.take_attributes(),
-                                expr: Box::new(expr),
+                                expr,
                                 dot: p.parse()?,
                                 expr_field: ast::ExprField::Ident(p.parse()?),
-                            });
+                            }));
                         }
                         // tuple access: <expr>.<number>
                         K![number] => {
-                            expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
+                            expr = Expr::ExprFieldAccess(Box::new(ast::ExprFieldAccess {
                                 attributes: expr.take_attributes(),
-                                expr: Box::new(expr),
+                                expr,
                                 dot: p.parse()?,
                                 expr_field: ast::ExprField::LitNumber(p.parse()?),
-                            });
+                            }));
                         }
                         _ => {
                             return Err(ParseError::new(
@@ -536,14 +557,14 @@ impl Expr {
                 lookahead_tok = ast::BinOp::from_peeker(p.peeker());
             }
 
-            lhs = Expr::ExprBinary(ast::ExprBinary {
+            lhs = Expr::ExprBinary(Box::new(ast::ExprBinary {
                 attributes: Vec::new(),
-                lhs: Box::new(lhs),
+                lhs,
                 t1,
                 t2,
-                rhs: Box::new(rhs),
+                rhs,
                 op,
-            });
+            }));
         }
 
         Ok(lhs)
@@ -551,10 +572,10 @@ impl Expr {
 
     /// Internal function to construct a literal expression.
     pub(crate) fn from_lit(lit: ast::Lit) -> Self {
-        Self::ExprLit(ast::ExprLit {
+        Self::ExprLit(Box::new(ast::ExprLit {
             attributes: Vec::new(),
             lit,
-        })
+        }))
     }
 }
 

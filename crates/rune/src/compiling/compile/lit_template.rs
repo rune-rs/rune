@@ -11,24 +11,25 @@ impl Compile<(&ast::LitTemplate, Needs)> for Compiler<'_> {
         let mut expansions = 0;
 
         for (expr, _) in &lit_template.args {
-            match expr {
-                ast::Expr::ExprLit(ast::ExprLit {
+            if let ast::Expr::ExprLit(expr_lit) = expr {
+                if let ast::ExprLit {
                     lit: ast::Lit::Str(s),
                     ..
-                }) => {
+                } = &**expr_lit
+                {
                     let s = s.resolve_template_string(&self.storage, &self.source)?;
                     size_hint += s.len();
 
                     let slot = self.unit.new_static_string(span, &s)?;
                     self.asm.push(Inst::String { slot }, span);
                     self.scopes.decl_anon(span)?;
-                }
-                expr => {
-                    expansions += 1;
-                    self.compile((expr, Needs::Value))?;
-                    self.scopes.decl_anon(span)?;
+                    continue;
                 }
             }
+
+            expansions += 1;
+            self.compile((expr, Needs::Value))?;
+            self.scopes.decl_anon(span)?;
         }
 
         if expansions == 0 {

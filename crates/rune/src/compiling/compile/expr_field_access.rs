@@ -14,7 +14,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
         // e.g. inspect if it compiles down to a local access instead of
         // climbing the ast like we do here.
         #[allow(clippy::single_match)]
-        match (&*expr_field_access.expr, &expr_field_access.expr_field) {
+        match (&expr_field_access.expr, &expr_field_access.expr_field) {
             (ast::Expr::Path(path), ast::ExprField::LitNumber(n)) => {
                 if try_immediate_field_access_optimization(self, span, path, n, needs)? {
                     return Ok(());
@@ -23,7 +23,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
             _ => (),
         }
 
-        self.compile((&*expr_field_access.expr, Needs::Value))?;
+        self.compile((&expr_field_access.expr, Needs::Value))?;
 
         // This loop is actually useful.
         #[allow(clippy::never_loop)]

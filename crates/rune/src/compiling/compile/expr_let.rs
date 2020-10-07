@@ -8,7 +8,7 @@ impl Compile<(&ast::ExprLet, Needs)> for Compiler<'_> {
 
         let load = |this: &mut Compiler, needs: Needs| {
             // NB: assignments "move" the value being assigned.
-            this.compile((&*expr_let.expr, needs))?;
+            this.compile((&expr_let.expr, needs))?;
             Ok(())
         };
 

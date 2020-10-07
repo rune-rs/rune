@@ -8,7 +8,7 @@ pub struct ExprTry {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The expression being awaited.
-    pub expr: Box<ast::Expr>,
+    pub expr: ast::Expr,
     /// The try operator `?`.
     pub try_token: T![?],
 }

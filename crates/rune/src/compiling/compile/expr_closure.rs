@@ -1,10 +1,10 @@
 use crate::compiling::compile::prelude::*;
 
 /// Compile the body of a closure function.
-impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
+impl Compile<(&ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
     fn compile(
         &mut self,
-        (expr_closure, captures): (ast::ExprClosure, &[CompileMetaCapture]),
+        (expr_closure, captures): (&ast::ExprClosure, &[CompileMetaCapture]),
     ) -> CompileResult<()> {
         let span = expr_closure.span();
         log::trace!("ExprClosure => {:?}", self.source.source(span));
@@ -39,7 +39,7 @@ impl Compile<(ast::ExprClosure, &[CompileMetaCapture])> for Compiler<'_> {
             self.scopes.total_var_count(span)?
         };
 
-        self.compile((&*expr_closure.body, Needs::Value))?;
+        self.compile((&expr_closure.body, Needs::Value))?;
 
         if count != 0 {
             self.asm.push(Inst::Clean { count }, span);

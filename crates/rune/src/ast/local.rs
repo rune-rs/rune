@@ -25,16 +25,16 @@ pub struct Local {
     pub eq: T![=],
     /// The expression the binding is assigned to.
     #[rune(parse_with = "parse_expr")]
-    pub expr: Box<ast::Expr>,
+    pub expr: ast::Expr,
     /// Trailing semicolon of the local.
     pub semi: T![;],
 }
 
-fn parse_expr(p: &mut Parser<'_>) -> Result<Box<ast::Expr>, ParseError> {
-    Ok(Box::new(ast::Expr::parse_with(
+fn parse_expr(p: &mut Parser<'_>) -> Result<ast::Expr, ParseError> {
+    Ok(ast::Expr::parse_with(
         p,
         ast::expr::EagerBrace(true),
         ast::expr::EagerBinary(true),
         ast::expr::Callable(true),
-    )?))
+    )?)
 }

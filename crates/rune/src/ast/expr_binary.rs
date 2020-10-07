@@ -10,13 +10,13 @@ pub struct ExprBinary {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The left-hand side of a binary operation.
-    pub lhs: Box<ast::Expr>,
+    pub lhs: ast::Expr,
     /// Token associated with operator.
     pub t1: ast::Token,
     /// Token associated with optional second part of operator.
     pub t2: Option<ast::Token>,
     /// The right-hand side of a binary operation.
-    pub rhs: Box<ast::Expr>,
+    pub rhs: ast::Expr,
     /// The operation to apply.
     #[rune(skip)]
     pub op: BinOp,

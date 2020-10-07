@@ -21,7 +21,7 @@ impl Compile<&ast::ExprBreak> for Compiler<'_> {
         let (last_loop, to_drop, has_value) = if let Some(expr) = &expr_break.expr {
             match expr {
                 ast::ExprBreakValue::Expr(expr) => {
-                    self.compile((&**expr, current_loop.needs))?;
+                    self.compile((expr, current_loop.needs))?;
                     (current_loop, current_loop.drop.into_iter().collect(), true)
                 }
                 ast::ExprBreakValue::Label(label) => {

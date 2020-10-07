@@ -8,10 +8,10 @@ impl Compile<(&ast::ExprIndex, Needs)> for Compiler<'_> {
 
         let guard = self.scopes.push_child(span)?;
 
-        self.compile((&*expr_index_get.target, Needs::Value))?;
+        self.compile((&expr_index_get.target, Needs::Value))?;
         self.scopes.decl_anon(span)?;
 
-        self.compile((&*expr_index_get.index, Needs::Value))?;
+        self.compile((&expr_index_get.index, Needs::Value))?;
         self.scopes.decl_anon(span)?;
 
         self.asm.push(Inst::IndexGet, span);

@@ -8,7 +8,7 @@ pub struct ExprFieldAccess {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The expr where the field is being accessed.
-    pub expr: Box<ast::Expr>,
+    pub expr: ast::Expr,
     /// The parsed dot separator.
     pub dot: T![.],
     /// The field being accessed.

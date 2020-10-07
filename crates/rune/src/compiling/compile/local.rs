@@ -8,7 +8,7 @@ impl Compile<(&ast::Local, Needs)> for Compiler<'_> {
 
         let load = |this: &mut Compiler, needs: Needs| {
             // NB: assignments "move" the value being assigned.
-            this.compile((&*local.expr, needs))?;
+            this.compile((&local.expr, needs))?;
             Ok(())
         };
 

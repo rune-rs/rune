@@ -20,7 +20,7 @@ pub struct ExprCall {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The name of the function being called.
-    pub expr: Box<ast::Expr>,
+    pub expr: ast::Expr,
     /// The arguments of the function call.
     pub args: ast::Parenthesized<ast::Expr, T![,]>,
 }

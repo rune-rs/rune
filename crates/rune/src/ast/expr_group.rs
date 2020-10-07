@@ -19,7 +19,7 @@ pub struct ExprGroup {
     /// The open parenthesis.
     pub open: ast::OpenParen,
     /// The grouped expression.
-    pub expr: Box<ast::Expr>,
+    pub expr: ast::Expr,
     /// The close parenthesis.
     pub close: ast::CloseParen,
 }
