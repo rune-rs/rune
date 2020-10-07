@@ -64,7 +64,7 @@ impl Parse for LitByteStr {
 
         match token.kind {
             K![bytestr(source)] => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(token, "literal byte string")),
+            _ => Err(ParseError::expected(&token, "literal byte string")),
         }
     }
 }

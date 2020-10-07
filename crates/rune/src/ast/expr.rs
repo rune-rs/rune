@@ -198,10 +198,7 @@ impl Expr {
         };
 
         if let Some(span) = attributes.option_span() {
-            return Err(ParseError::new(
-                span,
-                ParseErrorKind::AttributesNotSupported,
-            ));
+            return Err(ParseError::unsupported(span, "attributes"));
         }
 
         Ok(expr)
@@ -350,16 +347,16 @@ impl Expr {
             K![yield] => Self::ExprYield(ast::ExprYield::parse_with_meta(p, take(attributes))?),
             K![return] => Self::ExprReturn(ast::ExprReturn::parse_with_meta(p, take(attributes))?),
             _ => {
-                return Err(ParseError::expected(p.token(0)?, "expression"));
+                return Err(ParseError::expected(&p.token(0)?, "expression"));
             }
         };
 
         if let Some(span) = label.option_span() {
-            return Err(ParseError::new(span, ParseErrorKind::UnsupportedLabel));
+            return Err(ParseError::unsupported(span, "label"));
         }
 
         if let Some(span) = async_token.option_span() {
-            return Err(ParseError::new(span, ParseErrorKind::UnsupportedAsync));
+            return Err(ParseError::unsupported(span, "async modifier"));
         }
 
         Ok(expr)
@@ -458,10 +455,7 @@ impl Expr {
                         other => other.span(),
                     };
 
-                    return Err(ParseError::new(
-                        span,
-                        ParseErrorKind::UnsupportedFieldAccess,
-                    ));
+                    return Err(ParseError::new(span, ParseErrorKind::BadFieldAccess));
                 }
                 _ => break,
             }

@@ -36,7 +36,7 @@ impl MacroCall {
             ast::Kind::Open(delim) => delim,
             _ => {
                 return Err(ParseError::expected(
-                    open,
+                    &open,
                     "macro call delimiter `(`, `[`, or `{`",
                 ));
             }

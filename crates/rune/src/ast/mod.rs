@@ -15,7 +15,7 @@ macro_rules! expr_parse {
 
                 match crate::ast::Expr::parse(p)? {
                     crate::ast::Expr::$ty(expr) => Ok(expr),
-                    _ => Err(crate::ParseError::expected(t, $expected)),
+                    _ => Err(crate::ParseError::expected(&t, $expected)),
                 }
             }
         }
@@ -30,7 +30,7 @@ macro_rules! item_parse {
 
                 match crate::ast::Item::parse(p)? {
                     crate::ast::Item::$ty(item) => Ok(item),
-                    _ => Err(crate::ParseError::expected(t, $expected)),
+                    _ => Err(crate::ParseError::expected(&t, $expected)),
                 }
             }
         }
@@ -186,7 +186,7 @@ macro_rules! decl_tokens {
                         $($kind)* => Ok(Self {
                             token,
                         }),
-                        _ => Err(ParseError::expected(token, $name)),
+                        _ => Err(ParseError::expected(&token, $name)),
                     }
                 }
             }

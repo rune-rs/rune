@@ -1,4 +1,5 @@
 use crate::ast::Kind;
+use crate::shared::Description;
 use crate::{MacroContext, ParseError, ParseErrorKind, Spanned};
 use runestick::Span;
 use std::fmt;
@@ -150,6 +151,12 @@ impl crate::ToTokens for Token {
 impl Spanned for Token {
     fn span(&self) -> Span {
         self.span
+    }
+}
+
+impl Description for &Token {
+    fn description(self) -> &'static str {
+        self.kind.description()
     }
 }
 

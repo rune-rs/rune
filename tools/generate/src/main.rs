@@ -153,7 +153,7 @@ fn main() -> Result<()> {
                             #kind::#(t.variant()) => Ok(Self {
                                 token,
                             }),
-                            _ => Err(#parse_error::expected(token, #(quoted(t.name())))),
+                            _ => Err(#parse_error::expected(&token, #(quoted(t.name())))),
                         }
                     }
                 }
@@ -300,7 +300,7 @@ fn main() -> Result<()> {
                 }
             }
 
-            impl #description for Kind {
+            impl #description for &Kind {
                 fn description(self) -> &'static str {
                     self.as_str()
                 }

@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::{
-    OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Spanned, ToTokens,
-};
+use crate::{OptionSpanned as _, Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 use std::mem::take;
 
 /// A statement within a block.
@@ -66,7 +64,7 @@ impl Parse for Stmt {
 
         let stmt = if let K![let] = p.nth(0)? {
             if let Some(path) = path {
-                return Err(ParseError::expected(path.first, "expected let statement"));
+                return Err(ParseError::expected(&path.first, "expected let statement"));
             }
 
             let local = ast::Local::parse_with_meta(p, take(&mut attributes))?;
@@ -82,10 +80,7 @@ impl Parse for Stmt {
         };
 
         if let Some(span) = attributes.option_span() {
-            return Err(ParseError::new(
-                span,
-                ParseErrorKind::AttributesNotSupported,
-            ));
+            return Err(ParseError::unsupported(span, "attributes"));
         }
 
         Ok(stmt)

@@ -57,13 +57,13 @@ pub(super) fn parse_byte_escape(
             let result = parse_hex_escape(it)?;
 
             if result > 0xff {
-                return Err(ParseErrorKind::UnsupportedByteEscape);
+                return Err(ParseErrorKind::BadHexEscapeByte);
             }
 
             result as u8
         }
         'u' => {
-            return Err(ParseErrorKind::UnicodeEscapeNotSupported);
+            return Err(ParseErrorKind::BadUnicodeEscapeInByteString);
         }
         _ => {
             return Err(ParseErrorKind::BadEscapeSequence);
@@ -104,7 +104,7 @@ pub(super) fn parse_char_escape(
             let result = parse_hex_escape(it)?;
 
             if result > 0x7f {
-                return Err(ParseErrorKind::UnsupportedUnicodeByteEscape);
+                return Err(ParseErrorKind::BadHexEscapeChar);
             }
 
             if let Some(c) = std::char::from_u32(result) {

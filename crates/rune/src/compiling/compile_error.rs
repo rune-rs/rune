@@ -187,7 +187,7 @@ pub enum CompileErrorKind {
     #[error("unsupported select pattern")]
     UnsupportedSelectPattern,
     #[error("unsupported field access")]
-    UnsupportedFieldAccess,
+    BadFieldAccess,
     #[error("wrong number of arguments, expected `{expected}` but got `{actual}`")]
     UnsupportedArgumentCount {
         meta: CompileMeta,

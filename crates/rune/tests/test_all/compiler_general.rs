@@ -36,7 +36,7 @@ fn test_template_strings() {
 
     assert_parse_error! {
         r#"fn main() { `hello }` }"#,
-        span, UnexpectedCloseBrace {} => {
+        span, BadCloseBrace {} => {
             assert_eq!(span, Span::new(19, 20));
         }
     };

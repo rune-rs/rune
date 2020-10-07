@@ -60,10 +60,7 @@ impl Compile<(&ast::ExprFieldAccess, Needs)> for Compiler<'_> {
             }
         }
 
-        Err(CompileError::new(
-            span,
-            CompileErrorKind::UnsupportedFieldAccess,
-        ))
+        Err(CompileError::new(span, CompileErrorKind::BadFieldAccess))
     }
 }
 

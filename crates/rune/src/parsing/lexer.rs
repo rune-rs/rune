@@ -327,7 +327,7 @@ impl<'a> Lexer<'a> {
 
                     return Err(ParseError::new(
                         self.iter.span_from(start),
-                        ParseErrorKind::UnexpectedCloseBrace,
+                        ParseErrorKind::BadCloseBrace,
                     ));
                 }
                 '\\' => {
@@ -734,12 +734,12 @@ impl LexerModes {
 
     /// Pop the expected lexer mode.
     fn pop(&mut self, iter: &SourceIter<'_>, expected: LexerMode) -> Result<(), ParseError> {
-        let mode = self.modes.pop().unwrap_or_default();
+        let actual = self.modes.pop().unwrap_or_default();
 
-        if mode != expected {
+        if actual != expected {
             return Err(ParseError::new(
                 iter.point_span(),
-                ParseErrorKind::BadLexerMode { mode, expected },
+                ParseErrorKind::BadLexerMode { actual, expected },
             ));
         }
 
@@ -756,7 +756,13 @@ impl LexerModes {
             Some(LexerMode::Template(expression)) => Ok(expression),
             _ => {
                 let span = iter.span_from(start);
-                Err(ParseError::new(span, ParseErrorKind::ExpectedTemplateMode))
+                Err(ParseError::new(
+                    span,
+                    ParseErrorKind::BadLexerMode {
+                        actual: LexerMode::default(),
+                        expected: LexerMode::Template(0),
+                    },
+                ))
             }
         }
     }
@@ -779,15 +785,11 @@ impl Default for LexerMode {
 impl fmt::Display for LexerMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LexerMode::Default(level) => {
-                if *level > 0 {
-                    write!(f, "default in template ({})", level)?;
-                } else {
-                    write!(f, "default")?;
-                }
+            LexerMode::Default(..) => {
+                write!(f, "default")?;
             }
-            LexerMode::Template(expressions) => {
-                write!(f, "template {}", expressions)?;
+            LexerMode::Template(..) => {
+                write!(f, "template")?;
             }
         }
 

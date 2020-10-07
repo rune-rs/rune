@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::parsing::Opaque;
+use crate::shared::Description;
 use crate::{Id, Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 
 /// A path, where each element is separated by a `::`.
@@ -86,6 +87,12 @@ impl Peek for Path {
     }
 }
 
+impl Description for &Path {
+    fn description(self) -> &'static str {
+        "path"
+    }
+}
+
 /// An identified path kind.
 pub enum PathKind {
     /// A path that is the `self` value.
@@ -157,7 +164,7 @@ impl Parse for PathSegment {
             K![crate] => Self::Crate(p.parse()?),
             K![super] => Self::Super(p.parse()?),
             _ => {
-                return Err(ParseError::expected(p.token(0)?, "path segment"));
+                return Err(ParseError::expected(&p.token(0)?, "path segment"));
             }
         };
 
@@ -171,5 +178,11 @@ impl Peek for PathSegment {
             p.nth(0),
             K![Self] | K![self] | K![crate] | K![super] | K![ident]
         )
+    }
+}
+
+impl Description for &PathSegment {
+    fn description(self) -> &'static str {
+        "path segment"
     }
 }

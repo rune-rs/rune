@@ -33,7 +33,7 @@ impl Parse for Ident {
 
         match token.kind {
             ast::Kind::Ident(source) => Ok(Self { token, source }),
-            _ => Err(ParseError::expected(token, "ident")),
+            _ => Err(ParseError::expected(&token, "ident")),
         }
     }
 }

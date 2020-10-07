@@ -22,7 +22,7 @@ impl Parse for Label {
 
         match token.kind {
             K!['label(kind)] => Ok(Self { token, kind }),
-            _ => Err(ParseError::expected(token, "label")),
+            _ => Err(ParseError::expected(&token, "label")),
         }
     }
 }

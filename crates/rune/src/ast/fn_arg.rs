@@ -30,7 +30,7 @@ impl Parse for FnArg {
             K![ident] => Self::Ident(p.parse()?),
             _ => {
                 return Err(ParseError::expected(
-                    p.token(0)?,
+                    &p.token(0)?,
                     "expected function argument",
                 ))
             }

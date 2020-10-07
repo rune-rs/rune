@@ -1,7 +1,5 @@
 use crate::ast;
-use crate::{
-    OptionSpanned as _, Parse, ParseError, ParseErrorKind, Parser, Peeker, Spanned, ToTokens,
-};
+use crate::{OptionSpanned as _, Parse, ParseError, Parser, Peeker, Spanned, ToTokens};
 
 /// A declaration.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -151,18 +149,18 @@ impl Item {
                 }
                 _ => {
                     return Err(ParseError::expected(
-                        p.token(0)?,
+                        &p.token(0)?,
                         "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
                     ))
                 }
             };
 
             if let Some(span) = const_token.option_span() {
-                return Err(ParseError::new(span, ParseErrorKind::UnsupportedConst));
+                return Err(ParseError::unsupported(span, "const modifier"));
             }
 
             if let Some(span) = async_token.option_span() {
-                return Err(ParseError::new(span, ParseErrorKind::UnsupportedAsync));
+                return Err(ParseError::unsupported(span, "async modifier"));
             }
 
             item

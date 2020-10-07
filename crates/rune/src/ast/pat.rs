@@ -171,7 +171,7 @@ impl Parse for Pat {
             _ => (),
         }
 
-        Err(ParseError::expected(p.token(0)?, "pattern"))
+        Err(ParseError::expected(&p.token(0)?, "pattern"))
     }
 }
 

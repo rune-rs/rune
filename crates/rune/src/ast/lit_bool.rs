@@ -30,7 +30,7 @@ impl Parse for LitBool {
             K![false] => false,
             _ => {
                 return Err(ParseError::expected(
-                    token,
+                    &token,
                     "boolean literal `true` or `false`",
                 ));
             }

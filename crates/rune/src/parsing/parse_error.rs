@@ -15,17 +15,16 @@ error! {
 
 impl ParseError {
     /// Construct an expectation error.
-    pub(crate) fn expected<T, E>(actual: T, expected: E) -> Self
+    pub(crate) fn expected<A, E>(actual: A, expected: E) -> Self
     where
-        T: Spanned,
-        ast::Kind: From<T>,
+        A: Description + Spanned,
         E: Description,
     {
         Self {
             span: actual.span(),
             kind: ParseErrorKind::Expected {
+                actual: actual.description(),
                 expected: expected.description(),
-                actual: ast::Kind::from(actual),
             },
         }
     }
@@ -49,148 +48,79 @@ impl ParseError {
 #[derive(Debug, Clone, Copy, Error)]
 #[allow(missing_docs)]
 pub enum ParseErrorKind {
-    /// Error raised when we expected end of file but encountered something
-    /// else.
     #[error("expected end of file, but got `{actual}`")]
     ExpectedEof { actual: ast::Kind },
-    /// Error raised when we didn't expect end of file but encountered it.
     #[error("unexpected end of file")]
     UnexpectedEof,
-    #[error("bad lexer mode `{mode}`, expected `{expected}`")]
+    #[error("bad lexer mode `{actual}`, expected `{expected}`")]
     BadLexerMode {
-        mode: LexerMode,
+        actual: LexerMode,
         expected: LexerMode,
     },
-    /// An expectation error.
     #[error("expected {expected}, but got `{actual}`")]
     Expected {
-        /// Description of what we expected.
+        actual: &'static str,
         expected: &'static str,
-        /// The actual kind seen.
-        actual: ast::Kind,
     },
-    /// The given item does not support an attribute, like `#[foo]`.
     #[error("{what} is not supported")]
     Unsupported { what: &'static str },
-    /// Error encountered when we see a string escape sequence without a
-    /// character being escaped.
     #[error("expected escape sequence")]
     ExpectedEscape,
-    /// Expected a string close but didn't see it.
     #[error("unterminated string literal")]
     UnterminatedStrLit,
-    /// Expected a byte string close but didn't see it.
     #[error("unterminated byte string literal")]
     UnterminatedByteStrLit,
-    /// Encountered an unterminated character literal.
     #[error("unterminated character literal")]
     UnterminatedCharLit,
-    /// Encountered an unterminated byte literal.
     #[error("unterminated byte literal")]
     UnterminatedByteLit,
-    /// Expected a character to be closed.
     #[error("expected character literal to be closed")]
     ExpectedCharClose,
     #[error("expected label or character")]
     ExpectedCharOrLabel,
-    /// Expected a byte to be closed.
     #[error("expected byte literal to be closed")]
     ExpectedByteClose,
-    /// Expected a string template to be closed, but it wasn't.
-    #[error("expected string template to be closed")]
-    ExpectedTemplateClose,
-    /// Encountered an unexpected character.
     #[error("unexpected character `{c}`")]
-    UnexpectedChar {
-        /// Character encountered.
-        c: char,
-    },
-    /// Expression group required to break precedence.
+    UnexpectedChar { c: char },
     #[error("group required in expression to determine precedence")]
     PrecedenceGroupRequired,
-    /// Attempt to read a slice which doesn't exist.
     #[error("tried to read bad slice from source")]
     BadSlice,
-    /// Attempt to get a value for a synthetic identifier.
     #[error("tried to get bad synthetic identifier `{id}` for {kind}")]
-    BadSyntheticId {
-        /// The kind of id we tried to fetch.
-        kind: &'static str,
-        /// The identifier that was bad.
-        id: usize,
-    },
-    /// Encountered a bad string escape sequence.
+    BadSyntheticId { kind: &'static str, id: usize },
     #[error("bad escape sequence")]
     BadEscapeSequence,
-    /// Tried to resolve an illegal number literal.
     #[error("number literal not valid")]
     BadNumberLiteral,
-    /// Number out of bounds.
     #[error("number literal out of bounds `-9223372036854775808` to `9223372036854775807`")]
     BadNumberOutOfBounds,
-    /// A bad character literal.
     #[error("bad character literal")]
     BadCharLiteral,
-    /// A bad byte literal.
     #[error("bad byte literal")]
     BadByteLiteral,
-    /// We tried to parse a unicode escape in a byte sequence.
     #[error("unicode escapes are not supported as a byte or byte string")]
-    UnicodeEscapeNotSupported,
-    /// Error when we encounter a bad unicode escape.
+    BadUnicodeEscapeInByteString,
     #[error("bad unicode escape")]
     BadUnicodeEscape,
-    /// Error when we encounter a bad byte escape in bounds.
     #[error(
         "this form of character escape may only be used with characters in the range [\\x00-\\x7f]"
     )]
-    UnsupportedUnicodeByteEscape,
-    /// Error when we encounter a bad byte escape in bounds.
+    BadHexEscapeChar,
     #[error(
         "this form of byte escape may only be used with characters in the range [\\x00-\\xff]"
     )]
-    UnsupportedByteEscape,
-    /// Error when we encounter a bad byte escape.
+    BadHexEscapeByte,
     #[error("bad byte escape")]
     BadByteEscape,
-    /// When we encounter an invalid template literal.
-    #[error("template expression unexpectedly ended")]
-    UnexpectedExprEnd,
-    /// When we encounter an unescaped closing brace `}`.
     #[error("closing braces must be escaped inside of templates with `\\}}`")]
-    UnexpectedCloseBrace,
-    /// When we encounter an expression that cannot be used in a chained manner.
+    BadCloseBrace,
     #[error("unsupported field access")]
-    UnsupportedFieldAccess,
-    /// Trying to use an expression as async when it's not supported.
-    #[error("not supported as an async expression")]
-    UnsupportedAsyncExpr,
-    /// Expected a macro close delimiter.
+    BadFieldAccess,
     #[error("expected close delimiter `{expected}`, but got `{actual}`")]
     ExpectedMacroCloseDelimiter {
-        /// The delimiter we expected.
         expected: ast::Kind,
-        /// The delimiter we saw.
         actual: ast::Kind,
     },
-    /// Encountered a position with attributes for which it is not supported.
-    #[error("attributes not supported in this position")]
-    AttributesNotSupported,
-    /// Encountered when we expect inner attributes.
-    #[error("expected inner attribute")]
-    ExpectedInnerAttribute,
-    #[error("item needs to be terminated by a semi-colon `;`")]
-    ItemNeedsSemi,
-    #[error("expected `while`, `for`, `loop` after a label")]
-    UnsupportedLabel,
-    #[error("expected block, or `fn` after `const`")]
-    UnsupportedConst,
-    #[error("expected block, closure, or `fn` after `async`")]
-    UnsupportedAsync,
     #[error("bad number literal")]
     BadNumber,
-    #[error("expected identifier for object key")]
-    ExpectedObjectIdent,
-    #[error("expected template lexer mode")]
-    ExpectedTemplateMode,
 }

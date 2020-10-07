@@ -33,7 +33,7 @@ impl Parse for LitChar {
 
         match token.kind {
             K![char(source)] => Ok(LitChar { token, source }),
-            _ => Err(ParseError::expected(token, "char")),
+            _ => Err(ParseError::expected(&token, "char")),
         }
     }
 }

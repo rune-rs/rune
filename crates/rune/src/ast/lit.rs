@@ -110,7 +110,7 @@ impl Parse for Lit {
         }
 
         Err(ParseError::expected(
-            p.next()?,
+            &p.next()?,
             r#"expected literal like `"Hello World"` or 42"#,
         ))
     }

@@ -77,7 +77,7 @@ impl UnOp {
             K![-] => Ok(Self::Neg),
             K![&] => Ok(Self::BorrowRef),
             K![*] => Ok(Self::Deref),
-            _ => Err(ParseError::expected(t, "unary operator, like `!` or `-`")),
+            _ => Err(ParseError::expected(&t, "unary operator, like `!` or `-`")),
         }
     }
 }

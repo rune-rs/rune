@@ -34,7 +34,7 @@ impl Parse for LitByte {
         Ok(match token.kind {
             K![byte(source)] => LitByte { token, source },
             _ => {
-                return Err(ParseError::expected(token, "byte"));
+                return Err(ParseError::expected(&token, "byte"));
             }
         })
     }

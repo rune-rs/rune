@@ -32,7 +32,7 @@ impl Parse for LitNumber {
 
         match token.kind {
             K![number(source)] => Ok(LitNumber { source, token }),
-            _ => Err(ParseError::expected(token, "number")),
+            _ => Err(ParseError::expected(&token, "number")),
         }
     }
 }

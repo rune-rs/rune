@@ -1,7 +1,6 @@
 use crate::ast;
 use crate::{
-    Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveOwned, Spanned,
-    Storage, ToTokens,
+    Parse, ParseError, Parser, Peek, Peeker, Resolve, ResolveOwned, Spanned, Storage, ToTokens,
 };
 use runestick::Source;
 use std::borrow::Cow;
@@ -136,7 +135,7 @@ impl Parse for LitObjectKey {
             K![str] => Self::LitStr(p.parse()?),
             K![ident] => Self::Path(p.parse()?),
             _ => {
-                return Err(ParseError::expected(p.token(0)?, "literal object key"));
+                return Err(ParseError::expected(&p.token(0)?, "literal object key"));
             }
         })
     }
@@ -160,9 +159,12 @@ impl<'a> Resolve<'a> for LitObjectKey {
         Ok(match self {
             Self::LitStr(lit_str) => lit_str.resolve(storage, source)?,
             Self::Path(path) => {
-                let ident = path
-                    .try_as_ident()
-                    .ok_or_else(|| ParseError::new(path, ParseErrorKind::ExpectedObjectIdent))?;
+                let ident = match path.try_as_ident() {
+                    Some(ident) => ident,
+                    None => {
+                        return Err(ParseError::expected(path, "object key"));
+                    }
+                };
 
                 ident.resolve(storage, source)?
             }

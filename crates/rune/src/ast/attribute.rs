@@ -1,7 +1,6 @@
 use crate::ast;
-use crate::{
-    Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Spanned, ToTokens, TokenStream,
-};
+use crate::shared::Description;
+use crate::{Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens, TokenStream};
 
 /// Attribute like `#[derive(Debug)]`
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -86,6 +85,15 @@ impl Peek for Attribute {
     }
 }
 
+impl Description for &Attribute {
+    fn description(self) -> &'static str {
+        match &self.style {
+            AttrStyle::Inner => "inner attribute",
+            AttrStyle::Outer(_) => "outer attribute",
+        }
+    }
+}
+
 /// Whether or not the attribute is an outer `#!` or inner `#` attribute
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ToTokens)]
 pub enum AttrStyle {
@@ -114,9 +122,9 @@ impl Parse for InnerAttribute {
 
         match attribute.style {
             AttrStyle::Inner => Ok(Self(attribute)),
-            _ => Err(ParseError::new(
-                attribute.span(),
-                ParseErrorKind::ExpectedInnerAttribute,
+            _ => Err(ParseError::expected(
+                &attribute,
+                "inner attribute like `#![allow(unused)]`",
             )),
         }
     }
