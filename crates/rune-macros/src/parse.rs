@@ -115,30 +115,35 @@ impl Expander {
                 continue;
             }
 
-            if attrs.meta.is_some() {
-                if i - skipped != meta_fields.len() {
-                    self.ctx.errors.push(syn::Error::new_spanned(
-                        field,
-                        format!(
-                            "The first sequence of fields may have `#[rune({})]`, \
-                            but field is outside of that sequence.",
-                            crate::internals::META,
-                        ),
-                    ));
-                    return None;
-                } else {
-                    let ident = self.ctx.field_ident(field)?;
-                    let ty = &field.ty;
-                    meta_args.push(quote_spanned!(field.span() => #ident: #ty));
-                    meta_parse
-                        .push(quote_spanned!(field.span() => let #ident: #ty = parser.parse()?));
-                    fields.push(quote_spanned! { field.span() => #ident });
-                    meta_fields.push(ident);
-                    continue;
-                }
+            let parse_impl = if let Some(parse_with) = attrs.parse_with {
+                quote_spanned!(field.span() => #parse_with(parser)?)
+            } else {
+                quote_spanned!(field.span() => parser.parse()?)
+            };
+
+            if attrs.meta.is_none() {
+                fields.push(quote_spanned! { field.span() => #ident: #parse_impl });
+                continue;
             }
 
-            fields.push(quote_spanned! { field.span() => #ident: parser.parse()? })
+            if i - skipped != meta_fields.len() {
+                self.ctx.errors.push(syn::Error::new_spanned(
+                    field,
+                    format!(
+                        "The first sequence of fields may have `#[rune({})]`, \
+                        but field is outside of that sequence.",
+                        crate::internals::META,
+                    ),
+                ));
+                return None;
+            }
+
+            let ident = self.ctx.field_ident(field)?;
+            let ty = &field.ty;
+            meta_args.push(quote_spanned!(field.span() => #ident: #ty));
+            meta_parse.push(quote_spanned!(field.span() => let #ident: #ty = #parse_impl));
+            fields.push(quote_spanned! { field.span() => #ident });
+            meta_fields.push(ident);
         }
 
         let parse = &self.ctx.parse;

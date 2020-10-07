@@ -135,7 +135,7 @@ impl Parse for LitObjectKey {
             K![str] => Self::LitStr(p.parse()?),
             K![ident] => Self::Path(p.parse()?),
             _ => {
-                return Err(ParseError::expected(&p.token(0)?, "literal object key"));
+                return Err(ParseError::expected(&p.tok_at(0)?, "literal object key"));
             }
         })
     }

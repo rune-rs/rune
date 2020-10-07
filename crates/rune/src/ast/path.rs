@@ -164,7 +164,7 @@ impl Parse for PathSegment {
             K![crate] => Self::Crate(p.parse()?),
             K![super] => Self::Super(p.parse()?),
             _ => {
-                return Err(ParseError::expected(&p.token(0)?, "path segment"));
+                return Err(ParseError::expected(&p.tok_at(0)?, "path segment"));
             }
         };
 

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 
 /// A local variable declaration `let <pattern> = <expr>;`
 ///
@@ -10,6 +10,7 @@ use crate::{Parse, Spanned, ToTokens};
 ///
 /// testing::roundtrip::<ast::Local>("let x = 1;");
 /// testing::roundtrip::<ast::Local>("#[attr] let a = f();");
+/// testing::roundtrip::<ast::Local>("let a = b{}().foo[0].await;");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Parse, Spanned)]
 pub struct Local {
@@ -23,7 +24,17 @@ pub struct Local {
     /// The equality keyword.
     pub eq: T![=],
     /// The expression the binding is assigned to.
+    #[rune(parse_with = "parse_expr")]
     pub expr: Box<ast::Expr>,
     /// Trailing semicolon of the local.
     pub semi: T![;],
+}
+
+fn parse_expr(p: &mut Parser<'_>) -> Result<Box<ast::Expr>, ParseError> {
+    Ok(Box::new(ast::Expr::parse_with(
+        p,
+        ast::expr::EagerBrace(true),
+        ast::expr::EagerBinary(true),
+        ast::expr::Callable(true),
+    )?))
 }

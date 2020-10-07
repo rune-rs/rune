@@ -149,7 +149,7 @@ impl Item {
                 }
                 _ => {
                     return Err(ParseError::expected(
-                        &p.token(0)?,
+                        &p.tok_at(0)?,
                         "`fn`, `mod`, `struct`, `enum`, `use`, or macro call",
                     ))
                 }

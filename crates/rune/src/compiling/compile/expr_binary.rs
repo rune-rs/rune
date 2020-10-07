@@ -86,7 +86,7 @@ impl Compile<(&ast::ExprBinary, Needs)> for Compiler<'_> {
             self.asm.push(Inst::Pop, span);
         }
 
-        self.scopes.undecl_anon(2, span)?;
+        self.scopes.undecl_anon(span, 2)?;
         Ok(())
     }
 }

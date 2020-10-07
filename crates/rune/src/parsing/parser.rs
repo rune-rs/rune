@@ -5,6 +5,7 @@ use crate::OptionSpanned as _;
 use runestick::Span;
 use std::collections::VecDeque;
 use std::fmt;
+use std::ops;
 
 /// Parser for the rune language.
 ///
@@ -28,6 +29,11 @@ impl<'a> Parser<'a> {
         Self::with_source(Source {
             inner: SourceInner::Lexer(Lexer::new(source)),
         })
+    }
+
+    /// Get the span for the given range offset of tokens.
+    pub fn span(&mut self, range: ops::Range<usize>) -> Span {
+        self.span_at(range.start).join(self.span_at(range.end))
     }
 
     /// Construct a parser from a token stream.
@@ -128,16 +134,25 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Get the span at the given position.
-    pub fn token(&mut self, n: usize) -> Result<Token, ParseError> {
-        if let Some(t) = self.peeker.at(n)? {
-            Ok(t)
+    /// Get the span for the given offset.
+    pub fn span_at(&mut self, n: usize) -> Span {
+        if let Ok(Some(t)) = self.peeker.at(n) {
+            t.span
         } else {
-            Ok(Token {
-                kind: Kind::Eof,
-                span: self.span.unwrap_or_default(),
-            })
+            self.span.unwrap_or_default().end()
         }
+    }
+
+    /// Get the span at the given position.
+    pub fn tok_at(&mut self, n: usize) -> Result<Token, ParseError> {
+        Ok(if let Some(t) = self.peeker.at(n)? {
+            t
+        } else {
+            Token {
+                kind: Kind::Eof,
+                span: self.span.unwrap_or_default().end(),
+            }
+        })
     }
 }
 

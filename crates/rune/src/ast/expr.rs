@@ -6,7 +6,7 @@ use std::mem::take;
 use std::ops;
 
 /// Indicator that an expression should be parsed with an eager brace.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct EagerBrace(pub(crate) bool);
 
 impl ops::Deref for EagerBrace {
@@ -22,6 +22,20 @@ impl ops::Deref for EagerBrace {
 pub(crate) struct EagerBinary(pub(crate) bool);
 
 impl ops::Deref for EagerBinary {
+    type Target = bool;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Indicates if an expression can be called. By default, this depends on if the
+/// expression is a block expression (no) or not (yes). This allows the caller
+/// to contextually override that behavior.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Callable(pub(crate) bool);
+
+impl ops::Deref for Callable {
     type Target = bool;
 
     fn deref(&self) -> &Self::Target {
@@ -99,12 +113,16 @@ impl Expr {
         }
     }
 
-    /// Test if expression should be chained by default.
-    pub fn is_chainable(&self) -> bool {
+    /// Indicates if an expression is callable unless it's permitted by an
+    /// override.
+    pub fn is_callable(&self, callable: bool) -> bool {
         match self {
-            Self::ExprWhile(..) => false,
-            Self::ExprLoop(..) => false,
-            Self::ExprFor(..) => false,
+            Self::ExprWhile(_) => false,
+            Self::ExprLoop(_) => callable,
+            Self::ExprFor(_) => false,
+            Self::ExprIf(_) => callable,
+            Self::ExprMatch(_) => callable,
+            Self::ExprSelect(_) => callable,
             _ => true,
         }
     }
@@ -171,13 +189,36 @@ impl Expr {
         }
     }
 
+    /// Check if this expression is a literal expression.
+    ///
+    /// There are exactly two kinds of literal expressions:
+    /// * Ones that are ExprLit
+    /// * Unary expressions which are the negate operation.
+    pub fn is_lit(&self) -> bool {
+        match self {
+            ast::Expr::ExprLit(..) => true,
+            ast::Expr::ExprUnary(ast::ExprUnary {
+                op: ast::UnOp::Neg,
+                expr,
+                ..
+            }) => matches!(
+                &**expr,
+                ast::Expr::ExprLit(ast::ExprLit {
+                    lit: ast::Lit::Number(..),
+                    ..
+                })
+            ),
+            _ => false,
+        }
+    }
+
     /// Parse an expression without an eager brace.
     ///
     /// This is used to solve a syntax ambiguity when parsing expressions that
     /// are arguments to statements immediately followed by blocks. Like `if`,
     /// `while`, and `match`.
     pub(crate) fn parse_without_eager_brace(p: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_with(p, EagerBrace(false), EagerBinary(true))
+        Self::parse_with(p, EagerBrace(false), EagerBinary(true), Callable(true))
     }
 
     /// ull, configurable parsing of an expression.F
@@ -185,11 +226,12 @@ impl Expr {
         p: &mut Parser<'_>,
         eager_brace: EagerBrace,
         eager_binary: EagerBinary,
+        callable: Callable,
     ) -> Result<Self, ParseError> {
         let mut attributes = p.parse()?;
 
         let expr = Self::parse_base(p, &mut attributes, eager_brace)?;
-        let expr = Self::parse_chain(p, expr)?;
+        let expr = Self::parse_chain(p, expr, callable)?;
 
         let expr = if *eager_binary {
             Self::parse_binary(p, expr, 0, eager_brace)?
@@ -244,7 +286,7 @@ impl Expr {
         }
 
         let open = p.parse::<ast::OpenParen>()?;
-        let expr = ast::Expr::parse_with(p, EagerBrace(true), EagerBinary(true))?;
+        let expr = ast::Expr::parse_with(p, EagerBrace(true), EagerBinary(true), Callable(true))?;
 
         if p.peek::<T![')']>()? {
             return Ok(Expr::ExprGroup(ast::ExprGroup {
@@ -267,6 +309,7 @@ impl Expr {
         p: &mut Parser<'_>,
         attributes: &mut Vec<ast::Attribute>,
         path: Option<ast::Path>,
+        callable: Callable,
     ) -> Result<Self, ParseError> {
         let lhs = if let Some(path) = path {
             Self::parse_with_meta_path(p, attributes, path, EagerBrace(true))?
@@ -274,7 +317,7 @@ impl Expr {
             Self::parse_base(p, attributes, EagerBrace(true))?
         };
 
-        let lhs = Self::parse_chain(p, lhs)?;
+        let lhs = Self::parse_chain(p, lhs, callable)?;
         Ok(Self::parse_binary(p, lhs, 0, EagerBrace(true))?)
     }
 
@@ -347,7 +390,7 @@ impl Expr {
             K![yield] => Self::ExprYield(ast::ExprYield::parse_with_meta(p, take(attributes))?),
             K![return] => Self::ExprReturn(ast::ExprReturn::parse_with_meta(p, take(attributes))?),
             _ => {
-                return Err(ParseError::expected(&p.token(0)?, "expression"));
+                return Err(ParseError::expected(&p.tok_at(0)?, "expression"));
             }
         };
 
@@ -363,12 +406,16 @@ impl Expr {
     }
 
     /// Parse an expression chain.
-    fn parse_chain(p: &mut Parser<'_>, mut expr: Self) -> Result<Self, ParseError> {
+    fn parse_chain(
+        p: &mut Parser<'_>,
+        mut expr: Self,
+        callable: Callable,
+    ) -> Result<Self, ParseError> {
         while !p.is_eof()? {
-            let is_chainable = expr.is_chainable();
+            let is_callable = expr.is_callable(*callable);
 
             match p.nth(0)? {
-                K!['['] if is_chainable => {
+                K!['['] if is_callable => {
                     expr = Self::ExprIndex(ast::ExprIndex {
                         attributes: expr.take_attributes(),
                         target: Box::new(expr),
@@ -378,7 +425,7 @@ impl Expr {
                     });
                 }
                 // Chained function call.
-                K!['('] if is_chainable => {
+                K!['('] if is_callable => {
                     let args = p.parse::<ast::Parenthesized<ast::Expr, T![,]>>()?;
 
                     expr = Expr::ExprCall(ast::ExprCall {
@@ -397,7 +444,8 @@ impl Expr {
                 }
                 K![=] => {
                     let eq = p.parse()?;
-                    let rhs = Self::parse_with(p, EagerBrace(true), EagerBinary(true))?;
+                    let rhs =
+                        Self::parse_with(p, EagerBrace(true), EagerBinary(true), Callable(true))?;
 
                     expr = Expr::ExprAssign(ast::ExprAssign {
                         attributes: expr.take_attributes(),
@@ -407,55 +455,41 @@ impl Expr {
                     });
                 }
                 K![.] => {
-                    let dot = p.parse()?;
-
-                    if matches!(p.nth(0)?, K![await]) {
-                        expr = Expr::ExprAwait(ast::ExprAwait {
-                            attributes: expr.take_attributes(),
-                            expr: Box::new(expr),
-                            dot,
-                            await_token: p.parse()?,
-                        });
-
-                        continue;
-                    }
-
-                    let next = Expr::parse_base(p, &mut vec![], EagerBrace(false))?;
-
-                    let span = match next {
-                        Expr::Path(path) => {
-                            let span = path.span();
-
-                            if let Some(name) = path.try_as_ident() {
-                                expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
-                                    attributes: expr.take_attributes(),
-                                    expr: Box::new(expr),
-                                    dot,
-                                    expr_field: ast::ExprField::Ident(*name),
-                                });
-
-                                continue;
-                            }
-
-                            span
+                    match p.nth(1)? {
+                        // <expr>.await
+                        K![await] => {
+                            expr = Expr::ExprAwait(ast::ExprAwait {
+                                attributes: expr.take_attributes(),
+                                expr: Box::new(expr),
+                                dot: p.parse()?,
+                                await_token: p.parse()?,
+                            });
                         }
-                        Expr::ExprLit(ast::ExprLit {
-                            lit: ast::Lit::Number(n),
-                            attributes,
-                        }) if attributes.is_empty() => {
+                        // <expr>.field
+                        K![ident] => {
                             expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
                                 attributes: expr.take_attributes(),
                                 expr: Box::new(expr),
-                                dot,
-                                expr_field: ast::ExprField::LitNumber(n),
+                                dot: p.parse()?,
+                                expr_field: ast::ExprField::Ident(p.parse()?),
                             });
-
-                            continue;
                         }
-                        other => other.span(),
-                    };
-
-                    return Err(ParseError::new(span, ParseErrorKind::BadFieldAccess));
+                        // tuple access: <expr>.<number>
+                        K![number] => {
+                            expr = Expr::ExprFieldAccess(ast::ExprFieldAccess {
+                                attributes: expr.take_attributes(),
+                                expr: Box::new(expr),
+                                dot: p.parse()?,
+                                expr_field: ast::ExprField::LitNumber(p.parse()?),
+                            });
+                        }
+                        _ => {
+                            return Err(ParseError::new(
+                                p.span(0..1),
+                                ParseErrorKind::BadFieldAccess,
+                            ));
+                        }
+                    }
                 }
                 _ => break,
             }
@@ -482,7 +516,7 @@ impl Expr {
             let (t1, t2) = op.advance(p)?;
 
             let rhs = Self::parse_base(p, &mut vec![], eager_brace)?;
-            let mut rhs = Self::parse_chain(p, rhs)?;
+            let mut rhs = Self::parse_chain(p, rhs, Callable(false))?;
 
             lookahead_tok = ast::BinOp::from_peeker(p.peeker());
 
@@ -513,6 +547,14 @@ impl Expr {
         }
 
         Ok(lhs)
+    }
+
+    /// Internal function to construct a literal expression.
+    pub(crate) fn from_lit(lit: ast::Lit) -> Self {
+        Self::ExprLit(ast::ExprLit {
+            attributes: Vec::new(),
+            lit,
+        })
     }
 }
 
@@ -554,7 +596,7 @@ impl Expr {
 /// ```
 impl Parse for Expr {
     fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Self::parse_with(p, EagerBrace(true), EagerBinary(true))
+        Self::parse_with(p, EagerBrace(true), EagerBinary(true), Callable(true))
     }
 }
 

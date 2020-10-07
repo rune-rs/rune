@@ -15,7 +15,7 @@ impl Compile<(&ast::ExprIndex, Needs)> for Compiler<'_> {
         self.scopes.decl_anon(span)?;
 
         self.asm.push(Inst::IndexGet, span);
-        self.scopes.undecl_anon(2, span)?;
+        self.scopes.undecl_anon(span, 2)?;
 
         // NB: we still need to perform the operation since it might have side
         // effects, but pop the result in case a value is not needed.

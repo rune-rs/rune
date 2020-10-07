@@ -70,7 +70,8 @@ impl Parse for Stmt {
             let local = ast::Local::parse_with_meta(p, take(&mut attributes))?;
             ast::Stmt::Local(local)
         } else {
-            let expr = ast::Expr::parse_with_meta(p, &mut attributes, path)?;
+            let expr =
+                ast::Expr::parse_with_meta(p, &mut attributes, path, ast::expr::Callable(false))?;
 
             if p.peek::<T![;]>()? {
                 ast::Stmt::Semi(expr, p.parse()?)

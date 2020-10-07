@@ -48,6 +48,7 @@ impl ExprUnary {
                 parser,
                 eager_brace,
                 ast::expr::EagerBinary(false),
+                ast::expr::Callable(true),
             )?),
             op,
         })
