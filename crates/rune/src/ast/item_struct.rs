@@ -27,7 +27,7 @@ pub struct ItemStruct {
     #[rune(optional, meta)]
     pub visibility: ast::Visibility,
     /// The `struct` keyword.
-    pub struct_: ast::Struct,
+    pub struct_token: T![struct],
     /// The identifier of the struct declaration.
     pub ident: ast::Ident,
     /// The body of the struct.
@@ -50,9 +50,9 @@ pub enum ItemStructBody {
     /// An empty struct declaration.
     UnitBody,
     /// A tuple struct body.
-    TupleBody(ast::Parenthesized<Field, ast::Comma>),
+    TupleBody(ast::Parenthesized<Field, T![,]>),
     /// A regular struct body.
-    StructBody(ast::Braced<Field, ast::Comma>),
+    StructBody(ast::Braced<Field, T![,]>),
 }
 
 impl ItemStructBody {
@@ -62,7 +62,7 @@ impl ItemStructBody {
     }
 
     /// Iterate over the fields of the body.
-    pub fn fields(&self) -> impl Iterator<Item = &'_ (Field, Option<ast::Comma>)> {
+    pub fn fields(&self) -> impl Iterator<Item = &'_ (Field, Option<T![,]>)> {
         match self {
             ItemStructBody::UnitBody => IntoIterator::into_iter(&[]),
             ItemStructBody::TupleBody(body) => body.iter(),
@@ -91,10 +91,10 @@ impl ItemStructBody {
 /// testing::roundtrip::<ast::ItemStructBody>("()");
 /// ```
 impl Parse for ItemStructBody {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        Ok(match parser.token_peek()?.map(|t| t.kind) {
-            Some(ast::Kind::Open(ast::Delimiter::Parenthesis)) => Self::TupleBody(parser.parse()?),
-            Some(ast::Kind::Open(ast::Delimiter::Brace)) => Self::StructBody(parser.parse()?),
+    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(match p.nth(0)? {
+            K!['('] => Self::TupleBody(p.parse()?),
+            K!['{'] => Self::StructBody(p.parse()?),
             _ => Self::UnitBody,
         })
     }

@@ -244,6 +244,7 @@ macro_rules! error {
     }
 }
 
+#[macro_use]
 pub mod ast;
 mod compiling;
 #[cfg(feature = "diagnostics")]
@@ -284,7 +285,7 @@ pub use self::load::{FileSourceLoader, SourceLoader, Sources};
 pub use self::macros::{MacroContext, Storage, ToTokens, TokenStream, TokenStreamIter};
 pub use self::options::Options;
 pub use self::parsing::{
-    Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Resolve, ResolveOwned,
+    Id, Lexer, Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Resolve, ResolveOwned,
 };
 pub use self::query::{QueryError, QueryErrorKind, Used};
 pub use self::shared::{Location, ScopeError, ScopeErrorKind};

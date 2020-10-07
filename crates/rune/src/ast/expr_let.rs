@@ -17,11 +17,11 @@ pub struct ExprLet {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `let` keyword.
-    pub let_token: ast::Let,
+    pub let_token: T![let],
     /// The name of the binding.
     pub pat: ast::Pat,
     /// The equality keyword.
-    pub eq: ast::Eq,
+    pub eq: T![=],
     /// The expression the binding is assigned to.
     pub expr: Box<ast::Expr>,
 }

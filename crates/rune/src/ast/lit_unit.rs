@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, Peek, Spanned, ToTokens};
+use crate::{Parse, Peek, Peeker, Spanned, ToTokens};
 
 /// The unit literal `()`.
 ///
@@ -19,13 +19,7 @@ pub struct LitUnit {
 }
 
 impl Peek for LitUnit {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        matches! {
-            (peek!(t1).kind, peek!(t2).kind),
-            (
-                ast::Kind::Open(ast::Delimiter::Parenthesis),
-                ast::Kind::Close(ast::Delimiter::Parenthesis),
-            )
-        }
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        matches!((p.nth(0), p.nth(1)), (K!['('], K![')']))
     }
 }

@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Id, Parse, Peek, Spanned, ToTokens};
+use crate::{Id, Parse, Peek, Peeker, Spanned, ToTokens};
 use runestick::Span;
 
 /// A function item.
@@ -52,16 +52,16 @@ pub struct ItemFn {
     pub visibility: ast::Visibility,
     /// The optional `const` keyword.
     #[rune(iter, meta)]
-    pub const_token: Option<ast::Const>,
+    pub const_token: Option<T![const]>,
     /// The optional `async` keyword.
     #[rune(iter, meta)]
-    pub async_token: Option<ast::Async>,
+    pub async_token: Option<T![async]>,
     /// The `fn` token.
-    pub fn_: ast::Fn,
+    pub fn_token: T![fn],
     /// The name of the function.
     pub name: ast::Ident,
     /// The arguments of the function.
-    pub args: ast::Parenthesized<ast::FnArg, ast::Comma>,
+    pub args: ast::Parenthesized<ast::FnArg, T![,]>,
     /// The body of the function.
     pub body: ast::Block,
 }
@@ -72,7 +72,7 @@ impl ItemFn {
         if let Some(async_token) = &self.async_token {
             async_token.span().join(self.args.span())
         } else {
-            self.fn_.span().join(self.args.span())
+            self.fn_token.span().join(self.args.span())
         }
     }
 
@@ -85,10 +85,12 @@ impl ItemFn {
 item_parse!(ItemFn, "function item");
 
 impl Peek for ItemFn {
-    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        matches!(
-            peek!(t1).kind,
-            ast::Kind::Fn | ast::Kind::Async | ast::Kind::Const
-        )
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        match (p.nth(0), p.nth(1)) {
+            (K![fn], _) => true,
+            (K![async], K![fn]) => true,
+            (K![const], K![fn]) => true,
+            _ => false,
+        }
     }
 }

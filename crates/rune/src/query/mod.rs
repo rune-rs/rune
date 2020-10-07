@@ -1525,7 +1525,7 @@ fn unit_body_meta(item: &Item, enum_item: Option<&Item>) -> CompileMetaKind {
 fn tuple_body_meta(
     item: &Item,
     enum_item: Option<&Item>,
-    tuple: ast::Parenthesized<ast::Field, ast::Comma>,
+    tuple: ast::Parenthesized<ast::Field, T![,]>,
 ) -> CompileMetaKind {
     let type_of = Type::from(Hash::type_hash(item));
 
@@ -1550,7 +1550,7 @@ fn struct_body_meta(
     enum_item: Option<&Item>,
     storage: &Storage,
     source: &Source,
-    st: ast::Braced<ast::Field, ast::Comma>,
+    st: ast::Braced<ast::Field, T![,]>,
 ) -> Result<CompileMetaKind, QueryError> {
     let type_of = Type::from(Hash::type_hash(item));
 

@@ -21,9 +21,9 @@ pub struct ExprLoop {
     pub attributes: Vec<ast::Attribute>,
     /// A label followed by a colon.
     #[rune(iter, meta)]
-    pub label: Option<(ast::Label, ast::Colon)>,
+    pub label: Option<(ast::Label, T![:])>,
     /// The `loop` keyword.
-    pub loop_: ast::Loop,
+    pub loop_token: T![loop],
     /// The body of the loop.
     pub body: Box<ast::Block>,
 }

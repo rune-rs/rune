@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 
 /// A `break` statement: `break [expr]`.
 ///
@@ -17,7 +17,7 @@ pub struct ExprBreak {
     #[rune(iter, meta)]
     pub attributes: Vec<ast::Attribute>,
     /// The return token.
-    pub break_token: ast::Break,
+    pub break_token: T![break],
     /// An optional expression to break with.
     #[rune(iter)]
     pub expr: Option<ExprBreakValue>,
@@ -35,21 +35,19 @@ pub enum ExprBreakValue {
 }
 
 impl Parse for ExprBreakValue {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_peek_eof()?;
-
-        Ok(match token.kind {
-            ast::Kind::Label(..) => Self::Label(parser.parse()?),
-            _ => Self::Expr(Box::new(parser.parse()?)),
+    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(match p.nth(0)? {
+            ast::Kind::Label(..) => Self::Label(p.parse()?),
+            _ => Self::Expr(Box::new(p.parse()?)),
         })
     }
 }
 
 impl Peek for ExprBreakValue {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        match t1.map(|t| t.kind) {
-            Some(ast::Kind::Label(..)) => true,
-            _ => ast::Expr::peek(t1, t2),
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        match p.nth(0) {
+            ast::Kind::Label(..) => true,
+            _ => ast::Expr::peek(p),
         }
     }
 }

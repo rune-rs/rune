@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 
 /// A pattern match.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -30,18 +30,13 @@ impl Pat {
     ) -> Result<Self, ParseError> {
         let path: ast::Path = parser.parse()?;
 
-        let t = match parser.token_peek()? {
-            Some(t) => t,
-            None => return Ok(Self::PatPath(ast::PatPath { attributes, path })),
-        };
-
-        Ok(match t.kind {
-            ast::Kind::Open(ast::Delimiter::Parenthesis) => Self::PatTuple(PatTuple {
+        Ok(match parser.nth(0)? {
+            K!['('] => Self::PatTuple(PatTuple {
                 attributes,
                 path: Some(path),
                 items: parser.parse()?,
             }),
-            ast::Kind::Open(ast::Delimiter::Brace) => {
+            K!['{'] => {
                 let ident = ast::LitObjectIdent::Named(path);
 
                 Self::PatObject(PatObject {
@@ -50,7 +45,7 @@ impl Pat {
                     items: parser.parse()?,
                 })
             }
-            ast::Kind::Colon => Self::PatBinding(PatBinding {
+            K![:] => Self::PatBinding(PatBinding {
                 attributes,
                 key: ast::LitObjectKey::Path(path),
                 colon: parser.parse()?,
@@ -77,21 +72,19 @@ impl Pat {
 /// testing::roundtrip::<ast::Pat>("Foo(n)");
 /// ```
 impl Parse for Pat {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_peek_eof()?;
+    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let attributes = p.parse::<Vec<ast::Attribute>>()?;
 
-        let attributes = parser.parse::<Vec<ast::Attribute>>()?;
-
-        match token.kind {
+        match p.nth(0)? {
             ast::Kind::LitStr(..) => {
-                let lit_str = parser.parse::<ast::LitStr>()?;
+                let lit_str = p.parse::<ast::LitStr>()?;
 
-                return Ok(if parser.peek::<ast::Colon>()? {
+                return Ok(if p.peek::<T![:]>()? {
                     Self::PatBinding(PatBinding {
                         attributes,
                         key: ast::LitObjectKey::LitStr(lit_str),
-                        colon: parser.parse()?,
-                        pat: parser.parse()?,
+                        colon: p.parse()?,
+                        pat: p.parse()?,
                     })
                 } else {
                     Self::PatLit(PatLit {
@@ -103,47 +96,47 @@ impl Parse for Pat {
                     })
                 });
             }
-            ast::Kind::DotDot => {
+            K![..] => {
                 return Ok(Self::PatRest(PatRest {
                     attributes,
-                    dot_dot: parser.parse()?,
+                    dot_dot: p.parse()?,
                 }))
             }
-            ast::Kind::Open(ast::Delimiter::Parenthesis) => {
-                return Ok(if parser.peek::<ast::LitUnit>()? {
+            K!['('] => {
+                return Ok(if p.peek::<ast::LitUnit>()? {
                     Self::PatLit(PatLit {
                         attributes,
                         expr: Box::new(ast::Expr::ExprLit(ast::ExprLit {
                             attributes: vec![],
-                            lit: ast::Lit::Unit(parser.parse()?),
+                            lit: ast::Lit::Unit(p.parse()?),
                         })),
                     })
                 } else {
                     Self::PatTuple(PatTuple {
                         attributes,
                         path: None,
-                        items: parser.parse()?,
+                        items: p.parse()?,
                     })
                 });
             }
-            ast::Kind::Open(ast::Delimiter::Bracket) => {
+            K!['['] => {
                 return Ok(Self::PatVec(PatVec {
                     attributes,
-                    items: parser.parse()?,
+                    items: p.parse()?,
                 }))
             }
-            ast::Kind::Pound => {
+            K![#] => {
                 return Ok(Self::PatObject(PatObject {
                     attributes,
-                    ident: parser.parse()?,
-                    items: parser.parse()?,
+                    ident: p.parse()?,
+                    items: p.parse()?,
                 }))
             }
             ast::Kind::LitByte { .. }
             | ast::Kind::LitChar { .. }
             | ast::Kind::LitNumber { .. }
-            | ast::Kind::Dash => {
-                let expr: ast::Expr = parser.parse()?;
+            | K![-] => {
+                let expr: ast::Expr = p.parse()?;
 
                 match &expr {
                     ast::Expr::ExprLit(..) => {
@@ -171,31 +164,31 @@ impl Parse for Pat {
                     _ => (),
                 }
             }
-            ast::Kind::Underscore => {
+            K![_] => {
                 return Ok(Self::PatIgnore(PatIgnore {
                     attributes,
-                    underscore: parser.parse()?,
+                    underscore: p.parse()?,
                 }))
             }
-            ast::Kind::Ident(..) => return Ok(Self::parse_ident(parser, attributes)?),
+            K![ident(..)] => return Ok(Self::parse_ident(p, attributes)?),
             _ => (),
         }
 
-        Err(ParseError::expected(token, "pattern"))
+        Err(ParseError::expected(p.token(0)?, "pattern"))
     }
 }
 
 impl Peek for Pat {
-    fn peek(t1: Option<ast::Token>, _: Option<ast::Token>) -> bool {
-        match peek!(t1).kind {
-            ast::Kind::Open(ast::Delimiter::Parenthesis) => true,
-            ast::Kind::Open(ast::Delimiter::Bracket) => true,
-            ast::Kind::Pound => true,
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        match p.nth(0) {
+            K!['('] => true,
+            K!['['] => true,
+            K![#] => true,
+            K![_] => true,
             ast::Kind::LitByte { .. } => true,
             ast::Kind::LitChar { .. } => true,
             ast::Kind::LitNumber { .. } => true,
             ast::Kind::LitStr { .. } => true,
-            ast::Kind::Underscore => true,
             ast::Kind::Ident(..) => true,
             _ => false,
         }
@@ -219,7 +212,7 @@ pub struct PatRest {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The rest token `..`.
-    pub dot_dot: ast::DotDot,
+    pub dot_dot: T![..],
 }
 
 /// An array pattern.
@@ -229,7 +222,7 @@ pub struct PatVec {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// Bracketed patterns.
-    pub items: ast::Bracketed<ast::Pat, ast::Comma>,
+    pub items: ast::Bracketed<ast::Pat, T![,]>,
 }
 
 /// A tuple pattern.
@@ -242,7 +235,7 @@ pub struct PatTuple {
     #[rune(iter)]
     pub path: Option<ast::Path>,
     /// The items in the tuple.
-    pub items: ast::Parenthesized<ast::Pat, ast::Comma>,
+    pub items: ast::Parenthesized<ast::Pat, T![,]>,
 }
 
 /// An object pattern.
@@ -254,7 +247,7 @@ pub struct PatObject {
     /// The identifier of the object pattern.
     pub ident: ast::LitObjectIdent,
     /// The fields matched against.
-    pub items: ast::Braced<Pat, ast::Comma>,
+    pub items: ast::Braced<Pat, T![,]>,
 }
 
 /// An object item.
@@ -266,7 +259,7 @@ pub struct PatBinding {
     /// The key of an object.
     pub key: ast::LitObjectKey,
     /// The colon separator for the binding.
-    pub colon: ast::Colon,
+    pub colon: T![:],
     /// What the binding is to.
     pub pat: Box<ast::Pat>,
 }
@@ -288,5 +281,5 @@ pub struct PatIgnore {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The ignore token`_`.
-    pub underscore: ast::Underscore,
+    pub underscore: T![_],
 }

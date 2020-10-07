@@ -24,11 +24,11 @@ pub struct ItemConst {
     pub visibility: ast::Visibility,
     /// The `const` keyword.
     #[rune(meta)]
-    pub const_token: ast::Const,
+    pub const_token: T![const],
     /// The name of the constant.
     pub name: ast::Ident,
     /// The equals token.
-    pub eq: ast::Eq,
+    pub eq: T![=],
     /// The optional body of the module declaration.
     pub expr: Box<ast::Expr>,
 }

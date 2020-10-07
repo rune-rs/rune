@@ -60,7 +60,7 @@ impl LitByteStr {
 /// ```
 impl Parse for LitByteStr {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_next()?;
+        let token = parser.next()?;
 
         match token.kind {
             ast::Kind::LitByteStr(source) => Ok(Self { token, source }),

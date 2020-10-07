@@ -3,28 +3,17 @@
 use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek};
 use runestick::Span;
 
-/// A helper macro to implement [`Peek`].
-macro_rules! peek {
-    ($expr:expr) => {
-        peek!($expr, false)
-    };
-
-    ($expr:expr, $default:expr) => {
-        match $expr {
-            Some(value) => value,
-            None => return $default,
-        }
-    };
-}
+#[macro_use]
+/// Generated modules.
+pub mod generated;
 
 macro_rules! expr_parse {
     ($ty:ident, $expected:literal) => {
         impl crate::Parse for $ty {
-            fn parse(parser: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
-                let t = parser.token_peek_eof()?;
-                let expr = crate::ast::Expr::parse(parser)?;
+            fn parse(p: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
+                let t = p.token(0)?;
 
-                match expr {
+                match crate::ast::Expr::parse(p)? {
                     crate::ast::Expr::$ty(expr) => Ok(expr),
                     _ => Err(crate::ParseError::expected(t, $expected)),
                 }
@@ -36,11 +25,10 @@ macro_rules! expr_parse {
 macro_rules! item_parse {
     ($ty:ident, $expected:literal) => {
         impl crate::Parse for $ty {
-            fn parse(parser: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
-                let t = parser.token_peek_eof()?;
-                let expr = crate::ast::Item::parse(parser)?;
+            fn parse(p: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
+                let t = p.token(0)?;
 
-                match expr {
+                match crate::ast::Item::parse(p)? {
                     crate::ast::Item::$ty(item) => Ok(item),
                     _ => Err(crate::ParseError::expected(t, $expected)),
                 }
@@ -137,6 +125,7 @@ pub use self::expr_while::ExprWhile;
 pub use self::expr_yield::ExprYield;
 pub use self::file::File;
 pub use self::fn_arg::FnArg;
+pub use self::generated::Kind;
 pub use self::grouped::{Braced, Bracketed, Parenthesized};
 pub use self::ident::Ident;
 pub use self::item::Item;
@@ -168,7 +157,7 @@ pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVe
 pub use self::path::{Path, PathKind, PathSegment};
 pub use self::stmt::Stmt;
 pub use self::token::{
-    CopySource, Delimiter, Kind, LitStrSource, LitStrSourceText, Number, NumberBase, NumberSource,
+    CopySource, Delimiter, LitStrSource, LitStrSourceText, Number, NumberBase, NumberSource,
     NumberSourceText, StringSource, Token,
 };
 pub use self::vis::Visibility;
@@ -191,7 +180,7 @@ macro_rules! decl_tokens {
 
             impl Parse for $parser {
                 fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-                    let token = parser.token_next()?;
+                    let token = parser.next()?;
 
                     match token.kind {
                         $($kind)* => Ok(Self {
@@ -206,11 +195,8 @@ macro_rules! decl_tokens {
             }
 
             impl Peek for $parser {
-                fn peek(p1: Option<Token>, _: Option<Token>) -> bool {
-                    match p1 {
-                        Some(p1) => matches!(p1.kind, $($kind)*),
-                        _ => false,
-                    }
+                fn peek(p: &mut $crate::parsing::Peeker<'_>) -> bool {
+                    matches!(p.nth(0), $($kind)*)
                 }
             }
 
@@ -224,61 +210,12 @@ macro_rules! decl_tokens {
 }
 
 decl_tokens! {
-    (And, "And `&&` operator.", Kind::AmpAmp),
-    (As, "The `as` keyword.", Kind::As),
-    (Async, "The `async` keyword.", Kind::Async),
-    (Await, "The `await` keyword.", Kind::Await),
-    (Bang, "The `!` operator.", Kind::Bang),
-    (Break, "The `break` keyword.", Kind::Break),
     (CloseBrace, "An closing brace `}`.", Kind::Close(Delimiter::Brace)),
     (CloseBracket, "An open bracket `]`.", Kind::Close(Delimiter::Bracket)),
     (CloseParen, "An closing parenthesis `)`.", Kind::Close(Delimiter::Parenthesis)),
-    (Colon, "A colon `:`.", Kind::Colon),
-    (Comma, "A comma `,`.", Kind::Comma),
-    (Const, "The `const` keyword.", Kind::Const),
-    (Crate, "The `crate` keyword.", Kind::Crate),
-    (Default, "The `default` keyword.", Kind::Default),
-    (Dot, "A dot `.`.", Kind::Dot),
-    (DotDot, "Two dots `..`.", Kind::DotDot),
-    (Else, "The `else` keyword.", Kind::Else),
-    (Enum, "The `enum` keyword.", Kind::Enum),
-    (Eq, "An equals sign `=`.", Kind::Eq),
-    (Extern, "The `extern` keyword.", Kind::Extern),
-    (Fn, "The `fn` keyword.", Kind::Fn),
-    (For, "The `for` keyword.", Kind::For),
-    (Hash, "The hash `#`.", Kind::Pound),
-    (If, "The `if` keyword.", Kind::If),
-    (Impl, "The `impl` keyword", Kind::Impl),
-    (In, "The `in` keyword.", Kind::In),
-    (Is, "The `is` keyword.", Kind::Is),
-    (Let, "The `let` keyword.", Kind::Let),
-    (Loop, "The `loop` keyword.", Kind::Loop),
-    (Match, "The `match` keyword.", Kind::Match),
-    (Mod, "The `mod` keyword.", Kind::Mod),
-    (Mul, "Multiply `*` operator.", Kind::Star),
-    (Not, "The `!` operator.", Kind::Not),
     (OpenBrace, "An opening brace `{`.", Kind::Open(Delimiter::Brace)),
     (OpenBracket, "An open bracket `[`.", Kind::Open(Delimiter::Bracket)),
     (OpenParen, "An opening parenthesis `(`.", Kind::Open(Delimiter::Parenthesis)),
-    (Or, "Or `||` operator.", Kind::PipePipe),
-    (Pipe, "A pipe `|`.", Kind::Pipe),
-    (Priv, "The `priv` keyword.", Kind::Priv),
-    (Pub, "The `pub` keyword.", Kind::Pub),
-    (Return, "The `return` keyword.", Kind::Return),
-    (Rocket, "The rocket `=>`.", Kind::Rocket),
-    (Scope, "A scope `::` declaration.", Kind::ColonColon),
-    (Select, "The `select` keyword.", Kind::Select),
-    (SelfType, "The `Self` type.", Kind::SelfType),
-    (SelfValue, "The `self` keyword.", Kind::SelfValue),
-    (SemiColon, "A semicolon `;`.", Kind::SemiColon),
-    (Struct, "The `struct` keyword.", Kind::Struct),
-    (Super, "The `super` keyword.", Kind::Super),
-    (Template, "The `template` keyword.", Kind::Template),
-    (Try, "The `?` operator.", Kind::QuestionMark),
-    (Underscore, "The underscore `_`.", Kind::Underscore),
-    (Use, "The `use` keyword.", Kind::Use),
-    (While, "The `while` keyword.", Kind::While),
-    (Yield, "The `yield` keyword.", Kind::Yield),
 }
 
 #[cfg(test)]

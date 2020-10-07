@@ -10,7 +10,7 @@ pub struct ExprFieldAccess {
     /// The expr where the field is being accessed.
     pub expr: Box<ast::Expr>,
     /// The parsed dot separator.
-    pub dot: ast::Dot,
+    pub dot: T![.],
     /// The field being accessed.
     pub expr_field: ExprField,
 }

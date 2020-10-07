@@ -38,7 +38,7 @@ impl ExprUnary {
         attributes: Vec<ast::Attribute>,
         eager_brace: EagerBrace,
     ) -> Result<Self, ParseError> {
-        let op_token = parser.token_next()?;
+        let op_token = parser.next()?;
         let op = UnOp::from_token(op_token)?;
 
         Ok(Self {
@@ -71,13 +71,13 @@ pub enum UnOp {
 
 impl UnOp {
     /// Convert a unary operator from a token.
-    pub fn from_token(token: ast::Token) -> Result<Self, ParseError> {
-        match token.kind {
-            ast::Kind::Bang => Ok(Self::Not),
-            ast::Kind::Dash => Ok(Self::Neg),
-            ast::Kind::Amp => Ok(Self::BorrowRef),
-            ast::Kind::Star => Ok(Self::Deref),
-            _ => Err(ParseError::expected(token, "unary operator `!`")),
+    pub fn from_token(t: ast::Token) -> Result<Self, ParseError> {
+        match t.kind {
+            K![!] => Ok(Self::Not),
+            K![-] => Ok(Self::Neg),
+            K![&] => Ok(Self::BorrowRef),
+            K![*] => Ok(Self::Deref),
+            _ => Err(ParseError::expected(t, "unary operator, like `!` or `-`")),
         }
     }
 }

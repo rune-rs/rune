@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 
 /// A use item.
 ///
@@ -24,7 +24,7 @@ pub struct ItemUse {
     #[rune(optional, meta)]
     pub visibility: ast::Visibility,
     /// The use token.
-    pub use_token: ast::Use,
+    pub use_token: T![use],
     /// Item path.
     pub path: ItemUsePath,
 }
@@ -48,15 +48,15 @@ item_parse!(ItemUse, "use item");
 pub struct ItemUsePath {
     /// Global prefix.
     #[rune(iter)]
-    pub global: Option<ast::Scope>,
+    pub global: Option<T![::]>,
     /// The first use component.
     pub first: ItemUseSegment,
     /// Optional segments.
     #[rune(iter)]
-    pub segments: Vec<(ast::Scope, ItemUseSegment)>,
+    pub segments: Vec<(T![::], ItemUseSegment)>,
     /// The alias of the import.
     #[rune(iter)]
-    pub alias: Option<(ast::As, ast::Ident)>,
+    pub alias: Option<(T![as], ast::Ident)>,
 }
 
 /// A use component.
@@ -65,26 +65,23 @@ pub enum ItemUseSegment {
     /// A path segment.
     PathSegment(ast::PathSegment),
     /// A wildcard import.
-    Wildcard(ast::Mul),
+    Wildcard(T![*]),
     /// A grouped import.
-    Group(ast::Braced<ast::ItemUsePath, ast::Comma>),
+    Group(ast::Braced<ast::ItemUsePath, T![,]>),
 }
 
 impl Peek for ItemUseSegment {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        matches!(
-            peek!(t1).kind,
-            ast::Kind::Star | ast::Kind::Open(ast::Delimiter::Brace)
-        ) || ast::PathSegment::peek(t1, t2)
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        matches!(p.nth(0), K![*] | K!['[']) || ast::PathSegment::peek(p)
     }
 }
 
 impl Parse for ItemUseSegment {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(match parser.token_peek_eof()?.kind {
-            ast::Kind::Star => Self::Wildcard(parser.parse()?),
-            ast::Kind::Open(ast::Delimiter::Brace) => Self::Group(parser.parse()?),
-            _ => Self::PathSegment(parser.parse()?),
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        Ok(match p.nth(0)? {
+            K![*] => Self::Wildcard(p.parse()?),
+            K!['{'] => Self::Group(p.parse()?),
+            _ => Self::PathSegment(p.parse()?),
         })
     }
 }

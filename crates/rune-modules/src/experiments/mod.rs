@@ -21,6 +21,7 @@
 //! ```
 
 use rune::ast;
+use rune::T;
 use rune::{Parser, TokenStream};
 
 mod stringy_math_macro;
@@ -35,7 +36,7 @@ fn make_function(stream: &TokenStream) -> runestick::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream);
 
     let ident = parser.parse::<ast::Ident>()?;
-    let _ = parser.parse::<ast::Rocket>()?;
+    let _ = parser.parse::<T![=>]>()?;
     let output = parser.parse::<ast::ExprBlock>()?;
     parser.eof()?;
 

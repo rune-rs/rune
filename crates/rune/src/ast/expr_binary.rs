@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Peek, Spanned, ToTokens};
+use crate::{ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 use runestick::Span;
 use std::fmt;
 
@@ -166,59 +166,53 @@ impl BinOp {
     }
 
     /// Convert from a token.
-    pub(super) fn from_token(
-        (t1, t2): (ast::Token, Option<ast::Token>),
-    ) -> Option<(BinOp, ast::Token, Option<ast::Token>)> {
-        let op = match t1.kind {
-            ast::Kind::Plus => Self::Add,
-            ast::Kind::Dash => Self::Sub,
-            ast::Kind::Div => Self::Div,
-            ast::Kind::Star => Self::Mul,
-            ast::Kind::Perc => Self::Rem,
-            ast::Kind::EqEq => Self::Eq,
-            ast::Kind::BangEq => Self::Neq,
-            ast::Kind::Lt => Self::Lt,
-            ast::Kind::Gt => Self::Gt,
-            ast::Kind::LtEq => Self::Lte,
-            ast::Kind::GtEq => Self::Gte,
-            ast::Kind::Is => {
-                if let Some(t2) = t2 {
-                    if let ast::Kind::Not = t2.kind {
-                        return Some((Self::IsNot, t1, Some(t2)));
-                    }
-                }
-
-                Self::Is
-            }
-            ast::Kind::AmpAmp => Self::And,
-            ast::Kind::PipePipe => Self::Or,
-            ast::Kind::LtLt => Self::Shl,
-            ast::Kind::GtGt => Self::Shr,
-            ast::Kind::Amp => Self::BitAnd,
-            ast::Kind::Caret => Self::BitXor,
-            ast::Kind::Pipe => Self::BitOr,
-            ast::Kind::PlusEq => Self::AddAssign,
-            ast::Kind::DashEq => Self::SubAssign,
-            ast::Kind::StarEq => Self::MulAssign,
-            ast::Kind::SlashEq => Self::DivAssign,
-            ast::Kind::PercEq => Self::RemAssign,
-            ast::Kind::AmpEq => Self::BitAndAssign,
-            ast::Kind::CaretEq => Self::BitXorAssign,
-            ast::Kind::PipeEq => Self::BitOrAssign,
-            ast::Kind::LtLtEq => Self::ShlAssign,
-            ast::Kind::GtGtEq => Self::ShrAssign,
+    pub(super) fn from_peeker(p: &mut Peeker<'_>) -> Option<BinOp> {
+        Some(match p.nth(0) {
+            K![+] => Self::Add,
+            K![-] => Self::Sub,
+            K![*] => Self::Mul,
+            K![/] => Self::Div,
+            K![%] => Self::Rem,
+            K![==] => Self::Eq,
+            K![!=] => Self::Neq,
+            K![<] => Self::Lt,
+            K![>] => Self::Gt,
+            K![<=] => Self::Lte,
+            K![>=] => Self::Gte,
+            ast::Kind::Is => match p.nth(1) {
+                K![not] => Self::IsNot,
+                _ => Self::Is,
+            },
+            K![&&] => Self::And,
+            K![||] => Self::Or,
+            K![<<] => Self::Shl,
+            K![>>] => Self::Shr,
+            K![&] => Self::BitAnd,
+            K![^] => Self::BitXor,
+            K![|] => Self::BitOr,
+            K![+=] => Self::AddAssign,
+            K![-=] => Self::SubAssign,
+            K![*=] => Self::MulAssign,
+            K![/=] => Self::DivAssign,
+            K![%=] => Self::RemAssign,
+            K![&=] => Self::BitAndAssign,
+            K![^=] => Self::BitXorAssign,
+            K![|=] => Self::BitOrAssign,
+            K![<<=] => Self::ShlAssign,
+            K![>>=] => Self::ShrAssign,
             _ => return None,
-        };
-
-        Some((op, t1, None))
+        })
     }
 
     /// Get how many tokens to advance for this operator.
-    pub(crate) fn advance(&self) -> usize {
-        match self {
-            Self::IsNot => 2,
-            _ => 1,
-        }
+    pub(crate) fn advance(
+        &self,
+        p: &mut Parser<'_>,
+    ) -> Result<(ast::Token, Option<ast::Token>), ParseError> {
+        Ok(match self {
+            Self::IsNot => (p.next()?, Some(p.next()?)),
+            _ => (p.next()?, None),
+        })
     }
 }
 
@@ -260,10 +254,7 @@ impl fmt::Display for BinOp {
 }
 
 impl Peek for BinOp {
-    fn peek(p1: Option<ast::Token>, p2: Option<ast::Token>) -> bool {
-        match p1 {
-            Some(p1) => Self::from_token((p1, p2)).is_some(),
-            None => false,
-        }
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        Self::from_peeker(p).is_some()
     }
 }

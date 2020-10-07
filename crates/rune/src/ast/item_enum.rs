@@ -23,11 +23,11 @@ pub struct ItemEnum {
     #[rune(optional, meta)]
     pub visibility: ast::Visibility,
     /// The `enum` token.
-    pub enum_token: ast::Enum,
+    pub enum_token: T![enum],
     /// The name of the enum.
     pub name: ast::Ident,
     /// Variants in the enum.
-    pub variants: ast::Braced<ItemVariant, ast::Comma>,
+    pub variants: ast::Braced<ItemVariant, T![,]>,
 }
 
 item_parse!(ItemEnum, "enum item");
@@ -54,14 +54,14 @@ pub enum ItemVariantBody {
     /// An empty enum body.
     UnitBody,
     /// A tuple struct body.
-    TupleBody(ast::Parenthesized<ast::Field, ast::Comma>),
+    TupleBody(ast::Parenthesized<ast::Field, T![,]>),
     /// A regular struct body.
-    StructBody(ast::Braced<ast::Field, ast::Comma>),
+    StructBody(ast::Braced<ast::Field, T![,]>),
 }
 
 impl ItemVariantBody {
     /// Iterate over the fields of the body.
-    pub fn fields(&self) -> impl Iterator<Item = &'_ (ast::Field, Option<ast::Comma>)> {
+    pub fn fields(&self) -> impl Iterator<Item = &'_ (ast::Field, Option<T![,]>)> {
         match self {
             ItemVariantBody::UnitBody => IntoIterator::into_iter(&[]),
             ItemVariantBody::TupleBody(body) => body.iter(),
@@ -83,12 +83,10 @@ impl ItemVariantBody {
 /// testing::roundtrip::<ast::ItemVariantBody>("{ a, #[debug(skip)] b, c }");
 /// ```
 impl Parse for ItemVariantBody {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let token = parser.token_peek()?;
-
-        Ok(match token.map(|t| t.kind) {
-            Some(ast::Kind::Open(ast::Delimiter::Parenthesis)) => Self::TupleBody(parser.parse()?),
-            Some(ast::Kind::Open(ast::Delimiter::Brace)) => Self::StructBody(parser.parse()?),
+    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+        Ok(match p.nth(0)? {
+            K!['('] => Self::TupleBody(p.parse()?),
+            K!['{'] => Self::StructBody(p.parse()?),
             _ => Self::UnitBody,
         })
     }

@@ -7,13 +7,13 @@ pub enum Visibility {
     /// An inherited visibility level, this usually means private.
     Inherited,
     /// An unrestricted public visibility level: `pub`.
-    Public(ast::Pub),
+    Public(T![pub]),
     /// Crate visibility `pub(crate)`.
-    Crate(VisibilityRestrict<ast::Crate>),
+    Crate(VisibilityRestrict<T![crate]>),
     /// Super visibility `pub(super)`.
-    Super(VisibilityRestrict<ast::Super>),
+    Super(VisibilityRestrict<T![super]>),
     /// Self visibility `pub(self)`.
-    SelfValue(VisibilityRestrict<ast::SelfValue>),
+    SelfValue(VisibilityRestrict<T![self]>),
     /// In visibility `pub(in path)`.
     In(VisibilityRestrict<VisibilityIn>),
 }
@@ -75,7 +75,7 @@ impl Default for Visibility {
 /// ```
 impl Parse for Visibility {
     fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let pub_token = match parser.parse::<Option<ast::Pub>>()? {
+        let pub_token = match parser.parse::<Option<T![pub]>>()? {
             Some(pub_token) => pub_token,
             None => return Ok(Self::Inherited),
         };
@@ -85,8 +85,8 @@ impl Parse for Visibility {
             None => return Ok(Self::Public(pub_token)),
         };
 
-        Ok(match parser.token_peek_eof()?.kind {
-            ast::Kind::In => Self::In(VisibilityRestrict {
+        Ok(match parser.nth(0)? {
+            K![in] => Self::In(VisibilityRestrict {
                 pub_token,
                 open,
                 restriction: VisibilityIn {
@@ -95,13 +95,13 @@ impl Parse for Visibility {
                 },
                 close: parser.parse()?,
             }),
-            ast::Kind::Super => Self::Super(VisibilityRestrict {
+            K![super] => Self::Super(VisibilityRestrict {
                 pub_token,
                 open,
                 restriction: parser.parse()?,
                 close: parser.parse()?,
             }),
-            ast::Kind::SelfValue => Self::SelfValue(VisibilityRestrict {
+            K![self] => Self::SelfValue(VisibilityRestrict {
                 pub_token,
                 open,
                 restriction: parser.parse()?,
@@ -121,7 +121,7 @@ impl Parse for Visibility {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct VisibilityIn {
     /// The `in` keyword.
-    pub in_token: ast::In,
+    pub in_token: T![in],
     /// The path the restriction applies to.
     pub path: ast::Path,
 }
@@ -130,7 +130,7 @@ pub struct VisibilityIn {
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct VisibilityRestrict<T> {
     /// `pub` keyword.
-    pub pub_token: ast::Pub,
+    pub pub_token: ast::generated::Pub,
     /// Opening paren `(`.
     pub open: ast::OpenParen,
     /// The restriction.

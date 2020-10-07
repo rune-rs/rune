@@ -1,9 +1,7 @@
+use crate::ast::Kind;
 use crate::{MacroContext, ParseError, ParseErrorKind, Spanned};
 use runestick::Span;
 use std::fmt;
-
-mod generated;
-pub use self::generated::Kind;
 
 /// A single token encountered during parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +16,10 @@ impl Token {
     /// Format the current token to a formatter.
     pub fn token_fmt(&self, ctx: &MacroContext, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
+            Kind::Eof | Kind::Error => {
+                // NB: marker tokens can't be formatted.
+                return Err(fmt::Error);
+            }
             Kind::Abstract => {
                 write!(f, "abstract")?;
             }

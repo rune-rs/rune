@@ -1,22 +1,24 @@
 use crate::ast;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Peek, Spanned, ToTokens, TokenStream};
+use crate::{
+    Parse, ParseError, ParseErrorKind, Parser, Peek, Peeker, Spanned, ToTokens, TokenStream,
+};
 
 /// Attribute like `#[derive(Debug)]`
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub struct Attribute {
     /// The `#` character
-    pub hash: ast::Hash,
+    pub hash: T![#],
     /// Specify if the attribute is outer `#!` or inner `#`
     pub style: AttrStyle,
     /// The `[` character
-    pub open: ast::OpenBracket,
+    pub open: T!['['],
     /// The path of the attribute
     pub path: ast::Path,
     /// The input to the input of the attribute
     #[rune(optional)]
     pub input: TokenStream,
     /// The `]` character
-    pub close: ast::CloseBracket,
+    pub close: T![']'],
 }
 
 /// Parsing an Attribute
@@ -33,11 +35,11 @@ pub struct Attribute {
 /// testing::roundtrip::<ast::Attribute>("#[x+1]");
 /// ```
 impl Parse for Attribute {
-    fn parse(parser: &mut Parser<'_>) -> Result<Self, ParseError> {
-        let hash = parser.parse()?;
-        let style = parser.parse()?;
-        let open = parser.parse()?;
-        let path = parser.parse()?;
+    fn parse(p: &mut Parser<'_>) -> Result<Self, ParseError> {
+        let hash = p.parse()?;
+        let style = p.parse()?;
+        let open = p.parse()?;
+        let path = p.parse()?;
 
         let close;
 
@@ -45,11 +47,11 @@ impl Parse for Attribute {
         let mut input = TokenStream::new();
 
         loop {
-            let token = parser.token_next()?;
+            let token = p.next()?;
 
             match token.kind {
-                ast::Kind::Open(ast::Delimiter::Bracket) => level += 1,
-                ast::Kind::Close(ast::Delimiter::Bracket) => {
+                K!['['] => level += 1,
+                K![']'] => {
                     level -= 1;
                 }
                 _ => (),
@@ -75,13 +77,10 @@ impl Parse for Attribute {
 }
 
 impl Peek for Attribute {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        let t1 = t1.as_ref().map(|t1| t1.kind);
-        let t2 = t2.as_ref().map(|t2| t2.kind);
-
-        match (t1, t2) {
-            (Some(ast::Kind::Pound), Some(ast::Kind::Bang))
-            | (Some(ast::Kind::Pound), Some(ast::Kind::Open(ast::Delimiter::Bracket))) => true,
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        match (p.nth(0), p.nth(1)) {
+            (K![#], K![!]) => true,
+            (K![#], K!['[']) => true,
             _ => false,
         }
     }
@@ -93,13 +92,13 @@ pub enum AttrStyle {
     /// `#`
     Inner,
     /// `#!`
-    Outer(ast::Bang),
+    Outer(T![!]),
 }
 
 impl Parse for AttrStyle {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        Ok(if parser.peek::<ast::Bang>()? {
-            Self::Outer(parser.parse()?)
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        Ok(if p.peek::<T![!]>()? {
+            Self::Outer(p.parse()?)
         } else {
             Self::Inner
         })
@@ -110,8 +109,8 @@ impl Parse for AttrStyle {
 pub(crate) struct InnerAttribute(pub(crate) Attribute);
 
 impl Parse for InnerAttribute {
-    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        let attribute: Attribute = parser.parse()?;
+    fn parse(p: &mut Parser) -> Result<Self, ParseError> {
+        let attribute: Attribute = p.parse()?;
 
         match attribute.style {
             AttrStyle::Inner => Ok(Self(attribute)),
@@ -128,12 +127,9 @@ impl Parse for InnerAttribute {
 pub struct OuterAttribute;
 
 impl Peek for OuterAttribute {
-    fn peek(t1: Option<ast::Token>, t2: Option<ast::Token>) -> bool {
-        let kind1 = t1.map(|t| t.kind);
-        let kind2 = t2.map(|t| t.kind);
-
-        match (kind1, kind2) {
-            (Some(ast::Kind::Pound), Some(ast::Kind::Bang)) => true,
+    fn peek(p: &mut Peeker<'_>) -> bool {
+        match (p.nth(0), p.nth(1)) {
+            (K![#], K![!]) => true,
             _ => false,
         }
     }

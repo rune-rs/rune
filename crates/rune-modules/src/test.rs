@@ -20,6 +20,7 @@
 //! # }
 //! ```
 
+use rune::T;
 use rune::ast;
 use rune::macros::stringify;
 use rune::{quote, Parser, TokenStream};
@@ -39,7 +40,7 @@ pub(crate) fn assert_macro(
     let mut parser = Parser::from_token_stream(stream);
     let expr = parser.parse::<ast::Expr>()?;
 
-    let comma = parser.parse::<Option<ast::Comma>>()?;
+    let comma = parser.parse::<Option<T![,]>>()?;
 
     let message = if comma.is_some() {
         parser.parse::<Option<ast::Expr>>()?
@@ -70,10 +71,10 @@ pub(crate) fn assert_eq_macro(
 ) -> runestick::Result<TokenStream> {
     let mut parser = Parser::from_token_stream(stream);
     let left = parser.parse::<ast::Expr>()?;
-    parser.parse::<ast::Comma>()?;
+    parser.parse::<T![,]>()?;
     let right = parser.parse::<ast::Expr>()?;
 
-    let comma = parser.parse::<Option<ast::Comma>>()?;
+    let comma = parser.parse::<Option<T![,]>>()?;
 
     let message = if comma.is_some() {
         parser.parse::<Option<ast::Expr>>()?

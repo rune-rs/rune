@@ -15,7 +15,7 @@ use crate::{Parse, ParseError, Parser, Spanned, ToTokens};
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned, Parse)]
 pub struct LitTuple {
     /// Items in the tuple.
-    pub items: ast::Parenthesized<ast::Expr, ast::Comma>,
+    pub items: ast::Parenthesized<ast::Expr, T![,]>,
 }
 
 impl LitTuple {

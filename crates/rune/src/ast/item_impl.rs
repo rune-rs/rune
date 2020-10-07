@@ -19,15 +19,15 @@ pub struct ItemImpl {
     #[rune(iter)]
     pub attributes: Vec<ast::Attribute>,
     /// The `impl` keyword.
-    pub impl_: ast::Impl,
+    pub impl_: T![impl],
     /// Path of the implementation.
     pub path: ast::Path,
     /// The open brace.
-    pub open: ast::OpenBrace,
+    pub open: T!['{'],
     /// The collection of functions.
     pub functions: Vec<ast::ItemFn>,
     /// The close brace.
-    pub close: ast::CloseBrace,
+    pub close: T!['}'],
 }
 
 impl ItemImpl {

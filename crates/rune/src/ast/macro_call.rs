@@ -10,7 +10,7 @@ pub struct MacroCall {
     /// The expression being called over.
     pub path: ast::Path,
     /// Bang operator `!`.
-    pub bang: ast::Bang,
+    pub bang: T![!],
     /// Opening token.
     pub open: ast::Token,
     /// The tokens provided to the macro.
@@ -30,7 +30,7 @@ impl MacroCall {
         let bang = parser.parse()?;
 
         let mut level = 1;
-        let open = parser.token_next()?;
+        let open = parser.next()?;
 
         let delim = match open.kind {
             ast::Kind::Open(delim) => delim,
@@ -47,7 +47,7 @@ impl MacroCall {
         let mut stream = Vec::new();
 
         loop {
-            let token = parser.token_next()?;
+            let token = parser.next()?;
 
             match token.kind {
                 ast::Kind::Open(..) => level += 1,

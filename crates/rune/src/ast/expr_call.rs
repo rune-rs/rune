@@ -22,7 +22,7 @@ pub struct ExprCall {
     /// The name of the function being called.
     pub expr: Box<ast::Expr>,
     /// The arguments of the function call.
-    pub args: ast::Parenthesized<ast::Expr, ast::Comma>,
+    pub args: ast::Parenthesized<ast::Expr, T![,]>,
 }
 
 expr_parse!(ExprCall, "call expression");

@@ -88,7 +88,7 @@ impl<'a> Indexer<'a> {
     /// If these produce uses, these are processed, and so forth.
     fn preprocess_items(
         &mut self,
-        items: &mut Vec<(ast::Item, Option<ast::SemiColon>)>,
+        items: &mut Vec<(ast::Item, Option<T![;]>)>,
     ) -> Result<(), CompileError> {
         let mut queue = items.drain(..).collect::<VecDeque<_>>();
 
