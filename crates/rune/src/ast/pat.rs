@@ -22,40 +22,6 @@ pub enum Pat {
     PatRest(PatRest),
 }
 
-impl Pat {
-    /// Parse a pattern with a starting identifier.
-    pub fn parse_ident(
-        parser: &mut Parser,
-        attributes: Vec<ast::Attribute>,
-    ) -> Result<Self, ParseError> {
-        let path: ast::Path = parser.parse()?;
-
-        Ok(match parser.nth(0)? {
-            K!['('] => Self::PatTuple(PatTuple {
-                attributes,
-                path: Some(path),
-                items: parser.parse()?,
-            }),
-            K!['{'] => {
-                let ident = ast::LitObjectIdent::Named(path);
-
-                Self::PatObject(PatObject {
-                    attributes,
-                    ident,
-                    items: parser.parse()?,
-                })
-            }
-            K![:] => Self::PatBinding(PatBinding {
-                attributes,
-                key: ast::LitObjectKey::Path(path),
-                colon: parser.parse()?,
-                pat: parser.parse()?,
-            }),
-            _ => Self::PatPath(PatPath { attributes, path }),
-        })
-    }
-}
-
 /// Parsing a block expression.
 ///
 /// # Examples
@@ -64,8 +30,13 @@ impl Pat {
 /// use rune::{testing, ast};
 ///
 /// testing::roundtrip::<ast::Pat>("()");
-/// testing::roundtrip::<ast::Pat>("1");
+/// testing::roundtrip::<ast::Pat>("42");
+/// testing::roundtrip::<ast::Pat>("-42");
+/// testing::roundtrip::<ast::Pat>("3.1415");
+/// testing::roundtrip::<ast::Pat>("-3.1415");
+/// testing::roundtrip::<ast::Pat>("b'a'");
 /// testing::roundtrip::<ast::Pat>("'a'");
+/// testing::roundtrip::<ast::Pat>("b\"hello world\"");
 /// testing::roundtrip::<ast::Pat>("\"hello world\"");
 /// testing::roundtrip::<ast::Pat>("var");
 /// testing::roundtrip::<ast::Pat>("_");
@@ -76,25 +47,43 @@ impl Parse for Pat {
         let attributes = p.parse::<Vec<ast::Attribute>>()?;
 
         match p.nth(0)? {
+            K![byte] => {
+                return Ok(Self::PatLit(PatLit {
+                    attributes,
+                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Byte(p.parse()?))),
+                }));
+            }
+            K![char] => {
+                return Ok(Self::PatLit(PatLit {
+                    attributes,
+                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Char(p.parse()?))),
+                }));
+            }
+            K![bytestr] => {
+                return Ok(Self::PatLit(PatLit {
+                    attributes,
+                    expr: Box::new(ast::Expr::from_lit(ast::Lit::ByteStr(p.parse()?))),
+                }));
+            }
             K![str] => {
-                let lit_str = p.parse::<ast::LitStr>()?;
-
-                return Ok(if p.peek::<T![:]>()? {
-                    Self::PatBinding(PatBinding {
+                return Ok(match p.nth(1)? {
+                    K![:] => Self::PatBinding(PatBinding {
                         attributes,
-                        key: ast::LitObjectKey::LitStr(lit_str),
+                        key: ast::LitObjectKey::LitStr(p.parse()?),
                         colon: p.parse()?,
                         pat: p.parse()?,
-                    })
-                } else {
-                    Self::PatLit(PatLit {
+                    }),
+                    _ => Self::PatLit(PatLit {
                         attributes,
-                        expr: Box::new(ast::Expr::ExprLit(ast::ExprLit {
-                            attributes: vec![],
-                            lit: ast::Lit::Str(lit_str),
-                        })),
-                    })
+                        expr: Box::new(ast::Expr::from_lit(ast::Lit::Str(p.parse()?))),
+                    }),
                 });
+            }
+            K![number] => {
+                return Ok(Self::PatLit(PatLit {
+                    attributes,
+                    expr: Box::new(ast::Expr::from_lit(ast::Lit::Number(p.parse()?))),
+                }));
             }
             K![..] => {
                 return Ok(Self::PatRest(PatRest {
@@ -103,20 +92,16 @@ impl Parse for Pat {
                 }))
             }
             K!['('] => {
-                return Ok(if p.peek::<ast::LitUnit>()? {
-                    Self::PatLit(PatLit {
+                return Ok(match p.nth(1)? {
+                    K![')'] => Self::PatLit(PatLit {
                         attributes,
-                        expr: Box::new(ast::Expr::ExprLit(ast::ExprLit {
-                            attributes: vec![],
-                            lit: ast::Lit::Unit(p.parse()?),
-                        })),
-                    })
-                } else {
-                    Self::PatTuple(PatTuple {
+                        expr: Box::new(ast::Expr::from_lit(ast::Lit::Unit(p.parse()?))),
+                    }),
+                    _ => Self::PatTuple(PatTuple {
                         attributes,
                         path: None,
                         items: p.parse()?,
-                    })
+                    }),
                 });
             }
             K!['['] => {
@@ -132,33 +117,14 @@ impl Parse for Pat {
                     items: p.parse()?,
                 }))
             }
-            K![byte] | K![char] | K![number] | K![-] => {
+            K![-] => {
                 let expr: ast::Expr = p.parse()?;
 
-                match &expr {
-                    ast::Expr::ExprLit(..) => {
-                        return Ok(Self::PatLit(PatLit {
-                            attributes,
-                            expr: Box::new(expr),
-                        }));
-                    }
-                    ast::Expr::ExprUnary(ast::ExprUnary {
-                        op: ast::UnOp::Neg,
-                        expr: unary_expr,
-                        ..
-                    }) => {
-                        if let ast::Expr::ExprLit(ast::ExprLit {
-                            lit: ast::Lit::Number(..),
-                            ..
-                        }) = &**unary_expr
-                        {
-                            return Ok(Self::PatLit(PatLit {
-                                attributes,
-                                expr: Box::new(expr),
-                            }));
-                        }
-                    }
-                    _ => (),
+                if expr.is_lit() {
+                    return Ok(Self::PatLit(PatLit {
+                        attributes,
+                        expr: Box::new(expr),
+                    }));
                 }
             }
             K![_] => {
@@ -167,11 +133,33 @@ impl Parse for Pat {
                     underscore: p.parse()?,
                 }))
             }
-            K![ident] => return Ok(Self::parse_ident(p, attributes)?),
+            K![ident] => {
+                let path = p.parse::<ast::Path>()?;
+
+                return Ok(match p.nth(0)? {
+                    K!['('] => Self::PatTuple(PatTuple {
+                        attributes,
+                        path: Some(path),
+                        items: p.parse()?,
+                    }),
+                    K!['{'] => Self::PatObject(PatObject {
+                        attributes,
+                        ident: ast::LitObjectIdent::Named(path),
+                        items: p.parse()?,
+                    }),
+                    K![:] => Self::PatBinding(PatBinding {
+                        attributes,
+                        key: ast::LitObjectKey::Path(path),
+                        colon: p.parse()?,
+                        pat: p.parse()?,
+                    }),
+                    _ => Self::PatPath(PatPath { attributes, path }),
+                });
+            }
             _ => (),
         }
 
-        Err(ParseError::expected(&p.token(0)?, "pattern"))
+        Err(ParseError::expected(&p.tok_at(0)?, "pattern"))
     }
 }
 
@@ -180,12 +168,10 @@ impl Peek for Pat {
         match p.nth(0) {
             K!['('] => true,
             K!['['] => true,
-            K![#] => true,
+            K![#] => matches!(p.nth(1), K!['{']),
             K![_] => true,
-            K![byte] => true,
-            K![char] => true,
-            K![number] => true,
-            K![str] => true,
+            K![byte] | K![char] | K![number] | K![str] => true,
+            K![-] => matches!(p.nth(1), K![number]),
             K![ident] => true,
             _ => false,
         }

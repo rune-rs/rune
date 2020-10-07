@@ -42,7 +42,7 @@ impl Compile<(&ast::ExprAssign, Needs)> for Compiler<'_> {
                         self.scopes.decl_anon(span)?;
 
                         self.asm.push(Inst::IndexSet, span);
-                        self.scopes.undecl_anon(3, span)?;
+                        self.scopes.undecl_anon(span, 3)?;
                         true
                     }
                     ast::ExprField::LitNumber(field) => {
@@ -60,7 +60,7 @@ impl Compile<(&ast::ExprAssign, Needs)> for Compiler<'_> {
 
                         self.compile((&*field_access.expr, Needs::Value))?;
                         self.asm.push(Inst::TupleIndexSet { index }, span);
-                        self.scopes.undecl_anon(1, span)?;
+                        self.scopes.undecl_anon(span, 1)?;
                         true
                     }
                 }
@@ -79,7 +79,7 @@ impl Compile<(&ast::ExprAssign, Needs)> for Compiler<'_> {
                 self.scopes.decl_anon(span)?;
 
                 self.asm.push(Inst::IndexSet, span);
-                self.scopes.undecl_anon(3, span)?;
+                self.scopes.undecl_anon(span, 3)?;
                 true
             }
             _ => false,

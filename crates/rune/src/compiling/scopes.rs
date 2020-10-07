@@ -125,7 +125,7 @@ impl Scope {
     }
 
     /// Undeclare the last anonymous variable.
-    pub(crate) fn undecl_anon(&mut self, n: usize, span: Span) -> CompileResult<()> {
+    pub(crate) fn undecl_anon(&mut self, span: Span, n: usize) -> CompileResult<()> {
         for _ in 0..n {
             self.anon.pop();
         }
@@ -229,8 +229,8 @@ impl Scopes {
     }
 
     /// Declare an anonymous variable.
-    pub(crate) fn undecl_anon(&mut self, n: usize, span: Span) -> CompileResult<()> {
-        self.last_mut(span)?.undecl_anon(n, span)
+    pub(crate) fn undecl_anon(&mut self, span: Span, n: usize) -> CompileResult<()> {
+        self.last_mut(span)?.undecl_anon(span, n)
     }
 
     /// Push a scope and return an index.

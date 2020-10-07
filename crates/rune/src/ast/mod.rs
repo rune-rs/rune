@@ -11,7 +11,7 @@ macro_rules! expr_parse {
     ($ty:ident, $expected:literal) => {
         impl crate::Parse for $ty {
             fn parse(p: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
-                let t = p.token(0)?;
+                let t = p.tok_at(0)?;
 
                 match crate::ast::Expr::parse(p)? {
                     crate::ast::Expr::$ty(expr) => Ok(expr),
@@ -26,7 +26,7 @@ macro_rules! item_parse {
     ($ty:ident, $expected:literal) => {
         impl crate::Parse for $ty {
             fn parse(p: &mut crate::Parser<'_>) -> Result<Self, crate::ParseError> {
-                let t = p.token(0)?;
+                let t = p.tok_at(0)?;
 
                 match crate::ast::Item::parse(p)? {
                     crate::ast::Item::$ty(item) => Ok(item),

@@ -24,6 +24,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) meta: Option<Span>,
     /// A single field marked with `#[rune(span)]`.
     pub(crate) span: Option<Span>,
+    /// Custom parser `#[rune(parse_with = "..")]`.
+    pub(crate) parse_with: Option<syn::Ident>,
 }
 
 impl FieldAttrs {
@@ -213,6 +215,25 @@ impl Context {
                     // Parse `#[rune(span)]`
                     Meta(Path(word)) if *word == SPAN => {
                         attrs.span = Some(meta.span());
+                    }
+                    // Parse `#[rune(parse_with = "..")]`.
+                    Meta(NameValue(MetaNameValue {
+                        path,
+                        lit: syn::Lit::Str(s),
+                        ..
+                    })) if *path == PARSE_WITH => {
+                        if let Some(old) = attrs.parse_with {
+                            let mut error = syn::Error::new_spanned(
+                                path,
+                                "#[rune(parse_with = \"..\")] can only be used once",
+                            );
+
+                            error.combine(syn::Error::new_spanned(old, "previously defined here"));
+                            self.errors.push(error);
+                            return None;
+                        }
+
+                        attrs.parse_with = Some(syn::Ident::new(&s.value(), s.span()));
                     }
                     meta => {
                         self.errors

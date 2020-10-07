@@ -10,6 +10,8 @@ pub enum Lit {
     Bool(ast::LitBool),
     /// A byte literal
     Byte(ast::LitByte),
+    /// A string literal
+    Str(ast::LitStr),
     /// A byte string literal
     ByteStr(ast::LitByteStr),
     /// A character literal
@@ -18,8 +20,6 @@ pub enum Lit {
     Number(ast::LitNumber),
     /// An object literal
     Object(ast::LitObject),
-    /// A string literal
-    Str(ast::LitStr),
     /// A template literal
     Template(ast::LitTemplate),
     /// A tuple literal
@@ -72,17 +72,19 @@ impl Lit {
 /// ```rust
 /// use rune::{testing, ast};
 ///
+/// testing::roundtrip::<ast::Lit>("()");
 /// testing::roundtrip::<ast::Lit>("true");
+/// testing::roundtrip::<ast::Lit>("false");
 /// testing::roundtrip::<ast::Lit>("'🔥'");
 /// testing::roundtrip::<ast::Lit>("b'4'");
 /// testing::roundtrip::<ast::Lit>("b\"bytes\"");
 /// testing::roundtrip::<ast::Lit>("1.2");
+/// testing::roundtrip::<ast::Lit>("42");
 /// testing::roundtrip::<ast::Lit>("#{\"foo\": b\"bar\"}");
 /// testing::roundtrip::<ast::Lit>("Disco {\"never_died\": true }");
 /// testing::roundtrip::<ast::Lit>("\"mary had a little lamb\"");
 /// testing::roundtrip::<ast::Lit>("`{taco_tuesday}`");
 /// testing::roundtrip::<ast::Lit>("(false, 1, 'n')");
-/// testing::roundtrip::<ast::Lit>("()");
 /// testing::roundtrip::<ast::Lit>("[false, 1, 'b']");
 /// ```
 impl Parse for Lit {

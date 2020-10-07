@@ -80,6 +80,20 @@ fn test_capture_fn_arg() {
             fn main() { {let a = || test; a()}({let b = || 2; b()}, {let c = || 6; c()}) }
         }
     };
+
+    assert_eq! {
+        (2, 6),
+        rune! { (i64, i64) =>
+            fn main() { ({let b = || 2; b()}, {let c = || 6; c()}) }
+        }
+    };
+
+    assert_eq! {
+        vec![2, 6],
+        rune! { Vec<i64> =>
+            fn main() { [{let b = || 2; b()}, {let c = || 6; c()}] }
+        }
+    };
 }
 
 #[test]

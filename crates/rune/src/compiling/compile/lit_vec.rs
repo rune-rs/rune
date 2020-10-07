@@ -10,21 +10,18 @@ impl Compile<(&ast::LitVec, Needs)> for Compiler<'_> {
 
         for (expr, _) in &lit_vec.items {
             self.compile((expr, Needs::Value))?;
-
-            // Evaluate the expressions one by one, then pop them to cause any
-            // side effects (without creating an object).
-            if !needs.value() {
-                self.asm.push(Inst::Pop, span);
-            }
-        }
-
-        // No need to create a vector if it's not needed.
-        if !needs.value() {
-            self.warnings.not_used(self.source_id, span, self.context());
-            return Ok(());
+            self.scopes.decl_anon(expr.span())?;
         }
 
         self.asm.push(Inst::Vec { count }, span);
+        self.scopes.undecl_anon(span, lit_vec.items.len())?;
+
+        // Evaluate the expressions one by one, then pop them to cause any
+        // side effects (without creating an object).
+        if !needs.value() {
+            self.asm.push(Inst::Pop, span);
+        }
+
         Ok(())
     }
 }

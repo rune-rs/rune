@@ -150,9 +150,7 @@ impl fmt::Debug for Span {
 }
 
 /// A single index in a [Span], like the start or ending index.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct ByteIndex(#[doc(hidden)] pub u32);
 
@@ -180,6 +178,12 @@ impl ByteIndex {
 }
 
 impl fmt::Display for ByteIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl fmt::Debug for ByteIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }

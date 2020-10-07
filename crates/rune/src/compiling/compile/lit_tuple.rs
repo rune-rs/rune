@@ -8,6 +8,7 @@ impl Compile<(&ast::LitTuple, Needs)> for Compiler<'_> {
 
         for (expr, _) in &lit_tuple.items {
             self.compile((expr, Needs::Value))?;
+            self.scopes.decl_anon(expr.span())?;
         }
 
         self.asm.push(
@@ -16,6 +17,8 @@ impl Compile<(&ast::LitTuple, Needs)> for Compiler<'_> {
             },
             span,
         );
+
+        self.scopes.undecl_anon(span, lit_tuple.items.len())?;
 
         if !needs.value() {
             self.warnings.not_used(self.source_id, span, self.context());

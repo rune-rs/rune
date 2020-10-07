@@ -12,6 +12,7 @@ pub const ITER: Symbol = Symbol("iter");
 pub const OPTIONAL: Symbol = Symbol("optional");
 pub const META: Symbol = Symbol("meta");
 pub const SPAN: Symbol = Symbol("span");
+pub const PARSE_WITH: Symbol = Symbol("parse_with");
 pub const PARSE: Symbol = Symbol("parse");
 
 impl PartialEq<Symbol> for syn::Ident {
