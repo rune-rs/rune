@@ -15,7 +15,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::signal::module()?)?;
+//! context.install(&rune_modules::signal::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -32,7 +32,7 @@
 use tokio::signal;
 
 /// Construct the `signal` module.
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
+pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["signal"]);
     module.async_function(&["ctrl_c"], signal::ctrl_c)?;
     Ok(module)

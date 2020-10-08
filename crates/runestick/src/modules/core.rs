@@ -1,23 +1,15 @@
 //! The core `std` module.
 
-use crate::{ContextError, Module, Panic, Stack, Value, VmError};
-use std::io;
-use std::io::Write as _;
+use crate::{ContextError, Module, Panic, Value, VmError};
 
 /// Construct the `std` module.
-pub fn module(io: bool) -> Result<Module, ContextError> {
+pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(&["std"]);
 
     module.unit("unit")?;
     module.ty::<bool>()?;
     module.ty::<char>()?;
     module.ty::<u8>()?;
-
-    if io {
-        module.function(&["print"], print_impl)?;
-        module.function(&["println"], println_impl)?;
-        module.raw_fn(&["dbg"], dbg_impl)?;
-    }
 
     module.function(&["panic"], panic_impl)?;
     module.function(&["drop"], drop_impl)?;
@@ -68,30 +60,6 @@ fn drop_impl(value: Value) -> Result<(), VmError> {
     }
 
     Ok::<(), VmError>(())
-}
-
-fn dbg_impl(stack: &mut Stack, args: usize) -> Result<(), VmError> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
-
-    for value in stack.drain_stack_top(args)? {
-        writeln!(stdout, "{:?}", value).map_err(VmError::panic)?;
-    }
-
-    stack.push(Value::Unit);
-    Ok(())
-}
-
-fn print_impl(m: &str) -> Result<(), Panic> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
-    write!(stdout, "{}", m).map_err(Panic::custom)
-}
-
-fn println_impl(m: &str) -> Result<(), Panic> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
-    writeln!(stdout, "{}", m).map_err(Panic::custom)
 }
 
 fn panic_impl(m: &str) -> Result<(), Panic> {

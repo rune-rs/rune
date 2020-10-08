@@ -15,8 +15,8 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::http::module()?)?;
-//! context.install(&rune_modules::json::module()?)?;
+//! context.install(&rune_modules::http::module(true)?)?;
+//! context.install(&rune_modules::json::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -55,7 +55,7 @@ use std::fmt;
 use std::fmt::Write as _;
 
 /// Construct the `http` module.
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
+pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["http"]);
 
     module.ty::<Client>()?;

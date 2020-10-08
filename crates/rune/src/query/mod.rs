@@ -683,7 +683,7 @@ impl QueryInner {
                 QueryError::new(
                     span,
                     QueryErrorKind::MissingId {
-                        what: "internal macro",
+                        what: "builtin macro",
                         id,
                     },
                 )

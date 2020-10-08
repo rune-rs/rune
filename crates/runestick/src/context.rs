@@ -241,11 +241,11 @@ impl Context {
 
     /// Construct a default set of modules with the given configuration.
     ///
-    /// * `io` determines if we include I/O functions, like `dbg`, `print`, and
-    ///   `println`.
-    pub fn with_config(io: bool) -> Result<Self, ContextError> {
+    /// * `stdio` determines if we include I/O functions that interact with
+    ///   stdout and stderr by default, like `dbg`, `print`, and `println`.
+    pub fn with_config(stdio: bool) -> Result<Self, ContextError> {
         let mut this = Self::new();
-        this.install(&crate::modules::core::module(io)?)?;
+        this.install(&crate::modules::core::module()?)?;
         this.install(&crate::modules::generator::module()?)?;
         this.install(&crate::modules::bytes::module()?)?;
         this.install(&crate::modules::string::module()?)?;
@@ -258,7 +258,7 @@ impl Context {
         this.install(&crate::modules::option::module()?)?;
         this.install(&crate::modules::future::module()?)?;
         this.install(&crate::modules::stream::module()?)?;
-        this.install(&crate::modules::io::module()?)?;
+        this.install(&crate::modules::io::module(stdio)?)?;
         this.install(&crate::modules::fmt::module()?)?;
         this.has_default_modules = true;
         Ok(this)
@@ -483,16 +483,6 @@ impl Context {
         let hash = Hash::type_hash(&item);
 
         self.macros.insert(hash, m.handler.clone());
-
-        self.meta.insert(
-            item.clone(),
-            CompileMeta {
-                item,
-                kind: CompileMetaKind::Macro,
-                source: None,
-            },
-        );
-
         Ok(())
     }
 

@@ -15,7 +15,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::toml::module()?)?;
+//! context.install(&rune_modules::toml::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -34,7 +34,7 @@
 use runestick::{Bytes, ContextError, Module, Value};
 
 /// Construct the `toml` module.
-pub fn module() -> Result<Module, ContextError> {
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::new(&["toml"]);
     module.function(&["from_bytes"], from_bytes)?;
     module.function(&["from_string"], from_string)?;

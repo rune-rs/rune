@@ -15,7 +15,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::test::module()?)?;
+//! context.install(&rune_modules::test::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -26,7 +26,7 @@ use rune::macros::stringify;
 use rune::{quote, Parser, TokenStream};
 
 /// Construct the `std::test` module.
-pub fn module() -> Result<runestick::Module, runestick::ContextError> {
+pub fn module(_stdio: bool) -> Result<runestick::Module, runestick::ContextError> {
     let mut module = runestick::Module::new(&["std", "test"]);
     module.macro_(&["assert"], assert_macro)?;
     module.macro_(&["assert_eq"], assert_eq_macro)?;

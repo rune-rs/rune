@@ -80,7 +80,6 @@ impl Lit {
 /// testing::roundtrip::<ast::Lit>("#{\"foo\": b\"bar\"}");
 /// testing::roundtrip::<ast::Lit>("Disco {\"never_died\": true }");
 /// testing::roundtrip::<ast::Lit>("\"mary had a little lamb\"");
-/// testing::roundtrip::<ast::Lit>("`{taco_tuesday}`");
 /// testing::roundtrip::<ast::Lit>("(false, 1, 'n')");
 /// testing::roundtrip::<ast::Lit>("[false, 1, 'b']");
 /// ```

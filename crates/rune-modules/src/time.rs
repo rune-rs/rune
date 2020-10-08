@@ -15,7 +15,7 @@
 //! ```rust
 //! # fn main() -> runestick::Result<()> {
 //! let mut context = runestick::Context::with_default_modules()?;
-//! context.install(&rune_modules::time::module()?)?;
+//! context.install(&rune_modules::time::module(true)?)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -34,7 +34,7 @@
 use runestick::{Any, ContextError, Module};
 
 /// Construct the `time` module.
-pub fn module() -> Result<Module, ContextError> {
+pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::new(&["time"]);
     module.function(&["Duration", "from_secs"], Duration::from_secs)?;
     module.async_function(&["delay_for"], delay_for)?;
