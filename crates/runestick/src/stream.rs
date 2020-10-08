@@ -30,12 +30,10 @@ impl Stream {
 
     /// Get the next value produced by this stream.
     pub async fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
-        let execution = match &mut self.execution {
-            Some(execution) => execution,
-            None => {
-                return Err(VmError::from(VmErrorKind::GeneratorComplete));
-            }
-        };
+        let execution = self
+            .execution
+            .as_mut()
+            .ok_or_else(|| VmErrorKind::GeneratorComplete)?;
 
         if !mem::take(&mut self.first) {
             execution.vm_mut()?.stack_mut().push(value);

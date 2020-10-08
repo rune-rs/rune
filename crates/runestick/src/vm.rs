@@ -647,7 +647,7 @@ impl Vm {
             InstOp::Add => {
                 self.internal_num(
                     crate::ADD,
-                    || VmError::from(VmErrorKind::Overflow),
+                    || VmErrorKind::Overflow,
                     i64::checked_add,
                     std::ops::Add::add,
                     "+",
@@ -656,7 +656,7 @@ impl Vm {
             InstOp::Sub => {
                 self.internal_num(
                     crate::SUB,
-                    || VmError::from(VmErrorKind::Underflow),
+                    || VmErrorKind::Underflow,
                     i64::checked_sub,
                     std::ops::Sub::sub,
                     "-",
@@ -665,7 +665,7 @@ impl Vm {
             InstOp::Mul => {
                 self.internal_num(
                     crate::ADD,
-                    || VmError::from(VmErrorKind::Overflow),
+                    || VmErrorKind::Overflow,
                     i64::checked_mul,
                     std::ops::Mul::mul,
                     "*",
@@ -674,7 +674,7 @@ impl Vm {
             InstOp::Div => {
                 self.internal_num(
                     crate::ADD,
-                    || VmError::from(VmErrorKind::DivideByZero),
+                    || VmErrorKind::DivideByZero,
                     i64::checked_div,
                     std::ops::Div::div,
                     "+",
@@ -683,7 +683,7 @@ impl Vm {
             InstOp::Rem => {
                 self.internal_num(
                     crate::REM,
-                    || VmError::from(VmErrorKind::DivideByZero),
+                    || VmErrorKind::DivideByZero,
                     i64::checked_rem,
                     std::ops::Rem::rem,
                     "%",
@@ -701,7 +701,7 @@ impl Vm {
             InstOp::Shl => {
                 self.internal_bitwise(
                     crate::SHL,
-                    || VmError::from(VmErrorKind::Overflow),
+                    || VmErrorKind::Overflow,
                     |a, b| a.checked_shl(u32::try_from(b).ok()?),
                     "<<",
                 )?;
@@ -759,7 +759,7 @@ impl Vm {
                 self.internal_num_assign(
                     target,
                     crate::ADD_ASSIGN,
-                    || VmError::from(VmErrorKind::Overflow),
+                    || VmErrorKind::Overflow,
                     i64::checked_add,
                     std::ops::Add::add,
                     "+=",
@@ -769,7 +769,7 @@ impl Vm {
                 self.internal_num_assign(
                     target,
                     crate::SUB_ASSIGN,
-                    || VmError::from(VmErrorKind::Underflow),
+                    || VmErrorKind::Underflow,
                     i64::checked_sub,
                     std::ops::Sub::sub,
                     "-=",
@@ -779,7 +779,7 @@ impl Vm {
                 self.internal_num_assign(
                     target,
                     crate::MUL_ASSIGN,
-                    || VmError::from(VmErrorKind::Overflow),
+                    || VmErrorKind::Overflow,
                     i64::checked_mul,
                     std::ops::Mul::mul,
                     "*=",
@@ -789,7 +789,7 @@ impl Vm {
                 self.internal_num_assign(
                     target,
                     crate::DIV_ASSIGN,
-                    || VmError::from(VmErrorKind::DivideByZero),
+                    || VmErrorKind::DivideByZero,
                     i64::checked_div,
                     std::ops::Div::div,
                     "/=",
@@ -799,7 +799,7 @@ impl Vm {
                 self.internal_num_assign(
                     target,
                     crate::REM_ASSIGN,
-                    || VmError::from(VmErrorKind::DivideByZero),
+                    || VmErrorKind::DivideByZero,
                     i64::checked_rem,
                     std::ops::Rem::rem,
                     "%=",
@@ -833,7 +833,7 @@ impl Vm {
                 self.internal_bitwise_assign(
                     target,
                     crate::SHL_ASSIGN,
-                    || VmError::from(VmErrorKind::Overflow),
+                    || VmErrorKind::Overflow,
                     |a, b| a.checked_shl(u32::try_from(b).ok()?),
                     "<<=",
                 )?;
@@ -1418,7 +1418,7 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
+            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
 
         let mut object = Object::with_capacity(keys.len());
         let values = self.stack.drain_stack_top(keys.len())?;
@@ -1437,7 +1437,7 @@ impl Vm {
         let rtti = self
             .unit
             .lookup_rtti(hash)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
 
         self.stack.push(UnitStruct { rtti: rtti.clone() });
         Ok(())
@@ -1449,12 +1449,12 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
+            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
 
         let rtti = self
             .unit
             .lookup_rtti(hash)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+            .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
 
         let values = self.stack.drain_stack_top(keys.len())?;
         let mut data = Object::with_capacity(keys.len());
@@ -1477,7 +1477,7 @@ impl Vm {
         let rtti = self
             .unit
             .lookup_variant_rtti(hash)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingVariantRtti { hash }))?;
+            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
 
         self.stack.push(UnitVariant { rtti: rtti.clone() });
         Ok(())
@@ -1489,12 +1489,12 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
+            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
 
         let rtti = self
             .unit
             .lookup_variant_rtti(hash)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingVariantRtti { hash }))?;
+            .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
 
         let mut data = Object::with_capacity(keys.len());
         let values = self.stack.drain_stack_top(keys.len())?;
@@ -1877,7 +1877,7 @@ impl Vm {
         let keys = self
             .unit
             .lookup_object_keys(slot)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingStaticObjectKeys { slot }))?;
+            .ok_or_else(|| VmErrorKind::MissingStaticObjectKeys { slot })?;
 
         match (type_check, value) {
             (TypeCheck::Object, Value::Object(object)) => {
@@ -1952,56 +1952,57 @@ impl Vm {
 
     /// Load a function as a value onto the stack.
     fn op_load_fn(&mut self, hash: Hash) -> Result<(), VmError> {
-        let function =
-            match self.unit.lookup(hash) {
-                Some(info) => match info {
-                    UnitFn::Offset { offset, call, args } => Function::from_offset(
-                        self.context.clone(),
-                        self.unit.clone(),
-                        offset,
-                        call,
-                        args,
-                    ),
-                    UnitFn::UnitStruct { hash } => {
-                        let rtti = self
-                            .unit
-                            .lookup_rtti(hash)
-                            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
+        let function = match self.unit.lookup(hash) {
+            Some(info) => match info {
+                UnitFn::Offset { offset, call, args } => Function::from_offset(
+                    self.context.clone(),
+                    self.unit.clone(),
+                    offset,
+                    call,
+                    args,
+                ),
+                UnitFn::UnitStruct { hash } => {
+                    let rtti = self
+                        .unit
+                        .lookup_rtti(hash)
+                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
 
-                        Function::from_unit_struct(rtti.clone())
-                    }
-                    UnitFn::TupleStruct { hash, args } => {
-                        let rtti = self
-                            .unit
-                            .lookup_rtti(hash)
-                            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
-
-                        Function::from_tuple_struct(rtti.clone(), args)
-                    }
-                    UnitFn::UnitVariant { hash } => {
-                        let rtti = self.unit.lookup_variant_rtti(hash).ok_or_else(|| {
-                            VmError::from(VmErrorKind::MissingVariantRtti { hash })
-                        })?;
-
-                        Function::from_empty_variant(rtti.clone())
-                    }
-                    UnitFn::TupleVariant { hash, args } => {
-                        let rtti = self.unit.lookup_variant_rtti(hash).ok_or_else(|| {
-                            VmError::from(VmErrorKind::MissingVariantRtti { hash })
-                        })?;
-
-                        Function::from_tuple_variant(rtti.clone(), args)
-                    }
-                },
-                None => {
-                    let handler = self
-                        .context
-                        .lookup(hash)
-                        .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
-
-                    Function::from_handler(handler.clone())
+                    Function::from_unit_struct(rtti.clone())
                 }
-            };
+                UnitFn::TupleStruct { hash, args } => {
+                    let rtti = self
+                        .unit
+                        .lookup_rtti(hash)
+                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+
+                    Function::from_tuple_struct(rtti.clone(), args)
+                }
+                UnitFn::UnitVariant { hash } => {
+                    let rtti = self
+                        .unit
+                        .lookup_variant_rtti(hash)
+                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+                    Function::from_empty_variant(rtti.clone())
+                }
+                UnitFn::TupleVariant { hash, args } => {
+                    let rtti = self
+                        .unit
+                        .lookup_variant_rtti(hash)
+                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+                    Function::from_tuple_variant(rtti.clone(), args)
+                }
+            },
+            None => {
+                let handler = self
+                    .context
+                    .lookup(hash)
+                    .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
+
+                Function::from_handler(handler.clone())
+            }
+        };
 
         self.stack.push(Value::Function(Shared::new(function)));
         Ok(())
@@ -2012,7 +2013,7 @@ impl Vm {
         let info = self
             .unit
             .lookup(hash)
-            .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
+            .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
 
         let (offset, call, args) = match info {
             UnitFn::Offset { offset, call, args } => (offset, call, args),
@@ -2038,69 +2039,69 @@ impl Vm {
     /// Implementation of a function call.
     fn op_call(&mut self, hash: Hash, args: usize) -> Result<(), VmError> {
         match self.unit.lookup(hash) {
-            Some(info) => {
-                match info {
-                    UnitFn::Offset {
-                        offset,
-                        call,
-                        args: expected,
-                    } => {
-                        Self::check_args(args, expected)?;
-                        self.call_offset_fn(offset, call, args)?;
-                    }
-                    UnitFn::UnitStruct { hash } => {
-                        Self::check_args(args, 0)?;
-
-                        let rtti = self
-                            .unit
-                            .lookup_rtti(hash)
-                            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
-
-                        self.stack.push(Value::unit_struct(rtti.clone()));
-                    }
-                    UnitFn::TupleStruct {
-                        hash,
-                        args: expected,
-                    } => {
-                        Self::check_args(args, expected)?;
-                        let tuple = self.stack.pop_sequence(args)?;
-
-                        let rtti = self
-                            .unit
-                            .lookup_rtti(hash)
-                            .ok_or_else(|| VmError::from(VmErrorKind::MissingRtti { hash }))?;
-
-                        self.stack.push(Value::tuple_struct(rtti.clone(), tuple));
-                    }
-                    UnitFn::TupleVariant {
-                        hash,
-                        args: expected,
-                    } => {
-                        Self::check_args(args, expected)?;
-
-                        let rtti = self.unit.lookup_variant_rtti(hash).ok_or_else(|| {
-                            VmError::from(VmErrorKind::MissingVariantRtti { hash })
-                        })?;
-
-                        let tuple = self.stack.pop_sequence(args)?;
-                        self.stack.push(Value::tuple_variant(rtti.clone(), tuple));
-                    }
-                    UnitFn::UnitVariant { hash } => {
-                        Self::check_args(args, 0)?;
-
-                        let rtti = self.unit.lookup_variant_rtti(hash).ok_or_else(|| {
-                            VmError::from(VmErrorKind::MissingVariantRtti { hash })
-                        })?;
-
-                        self.stack.push(Value::empty_variant(rtti.clone()));
-                    }
+            Some(info) => match info {
+                UnitFn::Offset {
+                    offset,
+                    call,
+                    args: expected,
+                } => {
+                    Self::check_args(args, expected)?;
+                    self.call_offset_fn(offset, call, args)?;
                 }
-            }
+                UnitFn::UnitStruct { hash } => {
+                    Self::check_args(args, 0)?;
+
+                    let rtti = self
+                        .unit
+                        .lookup_rtti(hash)
+                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+
+                    self.stack.push(Value::unit_struct(rtti.clone()));
+                }
+                UnitFn::TupleStruct {
+                    hash,
+                    args: expected,
+                } => {
+                    Self::check_args(args, expected)?;
+                    let tuple = self.stack.pop_sequence(args)?;
+
+                    let rtti = self
+                        .unit
+                        .lookup_rtti(hash)
+                        .ok_or_else(|| VmErrorKind::MissingRtti { hash })?;
+
+                    self.stack.push(Value::tuple_struct(rtti.clone(), tuple));
+                }
+                UnitFn::TupleVariant {
+                    hash,
+                    args: expected,
+                } => {
+                    Self::check_args(args, expected)?;
+
+                    let rtti = self
+                        .unit
+                        .lookup_variant_rtti(hash)
+                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+                    let tuple = self.stack.pop_sequence(args)?;
+                    self.stack.push(Value::tuple_variant(rtti.clone(), tuple));
+                }
+                UnitFn::UnitVariant { hash } => {
+                    Self::check_args(args, 0)?;
+
+                    let rtti = self
+                        .unit
+                        .lookup_variant_rtti(hash)
+                        .ok_or_else(|| VmErrorKind::MissingVariantRtti { hash })?;
+
+                    self.stack.push(Value::empty_variant(rtti.clone()));
+                }
+            },
             None => {
                 let handler = self
                     .context
                     .lookup(hash)
-                    .ok_or_else(|| VmError::from(VmErrorKind::MissingFunction { hash }))?;
+                    .ok_or_else(|| VmErrorKind::MissingFunction { hash })?;
 
                 handler(&mut self.stack, args)?;
             }
@@ -2110,10 +2111,11 @@ impl Vm {
     }
 
     #[inline]
-    fn op_call_instance<H>(&mut self, inst_fn: H, args: usize) -> Result<(), VmError>
-    where
-        H: InstFnNameHash,
-    {
+    fn op_call_instance(
+        &mut self,
+        inst_fn: impl InstFnNameHash,
+        args: usize,
+    ) -> Result<(), VmError> {
         // NB: +1 to include the instance itself.
         let args = args + 1;
         let instance = self.stack.at_offset_from_top(args)?;
@@ -2191,7 +2193,7 @@ impl Vm {
             let inst = *self
                 .unit
                 .instruction_at(self.ip)
-                .ok_or_else(|| VmError::from(VmErrorKind::IpOutOfBounds))?;
+                .ok_or_else(|| VmErrorKind::IpOutOfBounds)?;
 
             log::trace!("{}: {}", self.ip, inst);
 
@@ -2405,21 +2407,15 @@ impl Vm {
         }
     }
 
-    fn internal_num_assign<H, E, I, F>(
+    fn internal_num_assign(
         &mut self,
         target: InstTarget,
-        hash: H,
-        error: E,
-        integer_op: I,
-        float_op: F,
+        hash: impl IntoTypeHash,
+        error: impl FnOnce() -> VmErrorKind,
+        integer_op: impl FnOnce(i64, i64) -> Option<i64>,
+        float_op: impl FnOnce(f64, f64) -> f64,
         op: &'static str,
-    ) -> Result<(), VmError>
-    where
-        H: IntoTypeHash,
-        E: FnOnce() -> VmError,
-        I: FnOnce(i64, i64) -> Option<i64>,
-        F: FnOnce(f64, f64) -> f64,
-    {
+    ) -> Result<(), VmError> {
         let lhs;
         let mut guard;
 
@@ -2452,20 +2448,14 @@ impl Vm {
     }
 
     /// Internal impl of a numeric operation.
-    fn internal_num<H, E, I, F>(
+    fn internal_num(
         &mut self,
-        hash: H,
-        error: E,
-        integer_op: I,
-        float_op: F,
+        hash: impl IntoTypeHash,
+        error: impl FnOnce() -> VmErrorKind,
+        integer_op: impl FnOnce(i64, i64) -> Option<i64>,
+        float_op: impl FnOnce(f64, f64) -> f64,
         op: &'static str,
-    ) -> Result<(), VmError>
-    where
-        H: IntoTypeHash,
-        E: FnOnce() -> VmError,
-        I: FnOnce(i64, i64) -> Option<i64>,
-        F: FnOnce(f64, f64) -> f64,
-    {
+    ) -> Result<(), VmError> {
         let rhs = self.stack.pop()?;
         let lhs = self.stack.pop()?;
 
@@ -2493,16 +2483,12 @@ impl Vm {
     }
 
     /// Internal impl of a numeric operation.
-    fn internal_infallible_bitwise<H, I>(
+    fn internal_infallible_bitwise(
         &mut self,
-        hash: H,
-        integer_op: I,
+        hash: impl IntoTypeHash,
+        integer_op: impl FnOnce(i64, i64) -> i64,
         op: &'static str,
-    ) -> Result<(), VmError>
-    where
-        H: IntoTypeHash,
-        I: FnOnce(i64, i64) -> i64,
-    {
+    ) -> Result<(), VmError> {
         let rhs = self.stack.pop()?;
         let lhs = self.stack.pop()?;
 
@@ -2525,17 +2511,13 @@ impl Vm {
         Ok(())
     }
 
-    fn internal_infallible_bitwise_assign<H, I>(
+    fn internal_infallible_bitwise_assign(
         &mut self,
         target: InstTarget,
-        hash: H,
-        integer_op: I,
+        hash: impl IntoTypeHash,
+        integer_op: impl FnOnce(&mut i64, i64),
         op: &'static str,
-    ) -> Result<(), VmError>
-    where
-        H: IntoTypeHash,
-        I: FnOnce(&mut i64, i64),
-    {
+    ) -> Result<(), VmError> {
         let lhs;
         let mut guard;
 
@@ -2561,18 +2543,13 @@ impl Vm {
         Ok(())
     }
 
-    fn internal_bitwise<H, E, I>(
+    fn internal_bitwise(
         &mut self,
-        hash: H,
-        error: E,
-        integer_op: I,
+        hash: impl IntoTypeHash,
+        error: impl FnOnce() -> VmErrorKind,
+        integer_op: impl FnOnce(i64, i64) -> Option<i64>,
         op: &'static str,
-    ) -> Result<(), VmError>
-    where
-        H: IntoTypeHash,
-        E: FnOnce() -> VmError,
-        I: FnOnce(i64, i64) -> Option<i64>,
-    {
+    ) -> Result<(), VmError> {
         let rhs = self.stack.pop()?;
         let lhs = self.stack.pop()?;
 
@@ -2595,19 +2572,14 @@ impl Vm {
         Ok(())
     }
 
-    fn internal_bitwise_assign<H, E, I>(
+    fn internal_bitwise_assign(
         &mut self,
         target: InstTarget,
-        hash: H,
-        error: E,
-        integer_op: I,
+        hash: impl IntoTypeHash,
+        error: impl FnOnce() -> VmErrorKind,
+        integer_op: impl FnOnce(i64, i64) -> Option<i64>,
         op: &'static str,
-    ) -> Result<(), VmError>
-    where
-        H: IntoTypeHash,
-        E: FnOnce() -> VmError,
-        I: FnOnce(i64, i64) -> Option<i64>,
-    {
+    ) -> Result<(), VmError> {
         let lhs;
         let mut guard;
 
