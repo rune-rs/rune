@@ -3,9 +3,8 @@
 use crate::ast;
 use crate::collections::{HashMap, HashSet};
 use crate::indexing::Visibility;
-use crate::ir::ir;
-use crate::ir::{IrBudget, IrInterpreter};
-use crate::ir::{IrCompiler, IrQuery};
+use crate::ir;
+use crate::ir::{IrBudget, IrCompiler, IrInterpreter, IrQuery};
 use crate::parsing::Opaque;
 use crate::shared::{Consts, Location};
 use crate::{

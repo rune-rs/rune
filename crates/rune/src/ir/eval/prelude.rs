@@ -1,7 +1,7 @@
 //! prelude that can should be used for eval implementations.
 
+pub(crate) use crate::ir;
 pub(crate) use crate::ir::eval::{ConstAs, IrEval, IrEvalBreak, IrEvalOutcome, Matches};
-pub(crate) use crate::ir::ir;
 pub(crate) use crate::ir::IrInterpreter;
 pub(crate) use crate::ir::IrValue;
 pub(crate) use crate::query::Used;

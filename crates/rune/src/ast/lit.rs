@@ -104,10 +104,11 @@ impl Parse for Lit {
                 });
             }
             K!['['] => return Ok(Lit::Vec(p.parse()?)),
-            K![#] | K![ident] => match p.nth(1)? {
-                K!['{'] => return Ok(Lit::Object(p.parse()?)),
-                _ => (),
-            },
+            K![#] | K![ident] => {
+                if let K!['{'] = p.nth(1)? {
+                    return Ok(Lit::Object(p.parse()?));
+                }
+            }
             _ => (),
         }
 

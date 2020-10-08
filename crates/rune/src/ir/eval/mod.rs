@@ -1,5 +1,4 @@
-use crate::ir::ir::IrPat;
-use crate::ir::{IrInterpreter, IrValue};
+use crate::ir::{IrInterpreter, IrPat, IrValue};
 use crate::query::Used;
 use crate::{IrError, Spanned};
 use runestick::Span;

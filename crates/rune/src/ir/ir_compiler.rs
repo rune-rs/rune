@@ -1,4 +1,4 @@
-use crate::ir::ir;
+use crate::ir;
 use crate::{Resolve, Spanned, Storage};
 use runestick::{ConstValue, Source};
 use std::sync::Arc;

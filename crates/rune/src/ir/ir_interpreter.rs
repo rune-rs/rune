@@ -1,5 +1,5 @@
+use crate::ir;
 use crate::ir::eval::{IrEval, IrEvalOutcome};
-use crate::ir::ir;
 use crate::ir::{IrQuery, IrValue};
 use crate::query::{QueryMod, Used};
 use crate::shared::Consts;
