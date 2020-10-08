@@ -22,7 +22,7 @@ pub use self::scopes::Var;
 pub use self::unit_builder::{InsertMetaError, LinkerError, UnitBuilder};
 use crate::parsing::Resolve as _;
 
-pub(crate) use self::assemble::Assemble;
+pub(crate) use self::assemble::{Assemble, AssembleClosure, AssembleConst, AssembleFn};
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
 pub(crate) use self::compiler::{Compiler, Needs};
 pub(crate) use self::loops::{Loop, Loops};
@@ -199,7 +199,7 @@ impl CompileBuildEntry<'_> {
                 let span = f.ast.span();
                 let count = f.ast.args.len();
                 compiler.contexts.push(span);
-                (&*f.ast, false).assemble(&mut compiler, Needs::Value)?;
+                f.ast.assemble_fn(&mut compiler, false)?;
 
                 if used.is_unused() {
                     compiler.warnings.not_used(location.source_id, span, None);
@@ -237,10 +237,10 @@ impl CompileBuildEntry<'_> {
                     })?;
 
                 let type_of = meta
-                    .type_of()
+                    .base_type_of()
                     .ok_or_else(|| CompileError::expected_meta(span, meta, "instance function"))?;
 
-                (&*f.ast, true).assemble(&mut compiler, Needs::Value)?;
+                f.ast.assemble_fn(&mut compiler, true)?;
 
                 if used.is_unused() {
                     compiler.warnings.not_used(location.source_id, span, None);
@@ -267,7 +267,7 @@ impl CompileBuildEntry<'_> {
                 let count = c.ast.args.len();
                 let span = c.ast.span();
                 compiler.contexts.push(span);
-                (&*c.ast, &c.captures[..]).assemble(&mut compiler, Needs::Value)?;
+                c.ast.assemble_closure(&mut compiler, &c.captures)?;
 
                 if used.is_unused() {
                     compiler
@@ -288,7 +288,7 @@ impl CompileBuildEntry<'_> {
                 let args = b.captures.len();
                 let span = b.ast.span();
                 compiler.contexts.push(span);
-                (&b.ast, &b.captures[..]).assemble(&mut compiler, Needs::Value)?;
+                b.ast.assemble_closure(&mut compiler, &b.captures)?;
 
                 if used.is_unused() {
                     compiler

@@ -230,11 +230,11 @@ impl IndexScopes {
         // mark all traversed closures to capture the given variable.
         if found {
             for closure in closures {
-                closure.captures.push(CompileMetaCapture {
-                    ident: var.to_owned(),
-                });
+                closure
+                    .captures
+                    .push(CompileMetaCapture { ident: var.into() });
 
-                let inserted = closure.existing.insert(var.to_owned());
+                let inserted = closure.existing.insert(var.into());
 
                 // NB: should be checked above, because closures where it's
                 // already captured are skipped.

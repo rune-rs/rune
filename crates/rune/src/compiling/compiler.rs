@@ -1,6 +1,8 @@
 use crate::ast;
 use crate::collections::HashMap;
-use crate::compiling::{Assemble as _, Assembly, CompileVisitor, Loops, Scope, ScopeGuard, Scopes};
+use crate::compiling::{
+    Assemble as _, AssembleConst as _, Assembly, CompileVisitor, Loops, Scope, ScopeGuard, Scopes,
+};
 use crate::ir::{IrBudget, IrCompiler, IrInterpreter};
 use crate::query::{Named, Query, QueryConstFn, QueryItem, Used};
 use crate::shared::Consts;
@@ -209,7 +211,7 @@ impl<'a> Compiler<'a> {
                         .push_with_comment(Inst::LoadFn { hash }, span, meta.to_string());
                 }
                 CompileMetaKind::Const { const_value, .. } => {
-                    (const_value, span).assemble(self, Needs::Value)?;
+                    const_value.assemble_const(self, Needs::Value, span)?;
                 }
                 _ => {
                     return Err(CompileError::expected_meta(
@@ -223,14 +225,13 @@ impl<'a> Compiler<'a> {
             return Ok(());
         }
 
-        let type_of = meta.type_of().ok_or_else(|| {
+        let type_of = meta.base_type_of().ok_or_else(|| {
             CompileError::expected_meta(span, meta.clone(), "something that has a type")
         })?;
 
-        let hash = *type_of;
         self.asm.push(
             Inst::Push {
-                value: InstValue::Type(hash),
+                value: InstValue::Type(*type_of),
             },
             span,
         );
@@ -580,7 +581,7 @@ impl<'a> Compiler<'a> {
                         return Err(CompileError::new(
                             span,
                             CompileErrorKind::LitObjectNotField {
-                                field: binding.key().to_string(),
+                                field: binding.key().into(),
                                 item: meta.item.clone(),
                             },
                         ));

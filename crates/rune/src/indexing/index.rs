@@ -460,7 +460,7 @@ impl Index for ast::ExprBlock {
 
         let c = guard.into_closure(span)?;
 
-        let captures = Arc::new(c.captures);
+        let captures = Arc::from(c.captures);
 
         let call = match Indexer::call(c.generator, c.kind) {
             Some(call) => call,
@@ -1203,7 +1203,7 @@ impl Index for Box<ast::ExprClosure> {
 
         let c = guard.into_closure(span)?;
 
-        let captures = Arc::new(c.captures);
+        let captures = Arc::from(c.captures);
 
         let call = match Indexer::call(c.generator, c.kind) {
             Some(call) => call,

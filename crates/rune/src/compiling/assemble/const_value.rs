@@ -1,18 +1,16 @@
 use crate::compiling::assemble::prelude::*;
 
-/// Call an async block.
-impl Assemble for (&ConstValue, Span) {
-    fn assemble(&self, c: &mut Compiler<'_>, needs: Needs) -> CompileResult<()> {
+/// Assemble a constant value.
+impl AssembleConst for ConstValue {
+    fn assemble_const(&self, c: &mut Compiler<'_>, needs: Needs, span: Span) -> CompileResult<()> {
         use num::ToPrimitive as _;
-
-        let (const_value, span) = *self;
 
         if !needs.value() {
             c.warnings.not_used(c.source_id, span, c.context());
             return Ok(());
         }
 
-        match const_value {
+        match self {
             ConstValue::Unit => {
                 c.asm.push(Inst::unit(), span);
             }
@@ -51,14 +49,14 @@ impl Assemble for (&ConstValue, Span) {
             }
             ConstValue::Vec(vec) => {
                 for value in vec.iter() {
-                    (value, span).assemble(c, Needs::Value)?;
+                    value.assemble_const(c, Needs::Value, span)?;
                 }
 
                 c.asm.push(Inst::Vec { count: vec.len() }, span);
             }
             ConstValue::Tuple(tuple) => {
                 for value in tuple.iter() {
-                    (value, span).assemble(c, Needs::Value)?;
+                    value.assemble_const(c, Needs::Value, span)?;
                 }
 
                 c.asm.push(Inst::Tuple { count: tuple.len() }, span);
@@ -68,7 +66,7 @@ impl Assemble for (&ConstValue, Span) {
                 entries.sort_by_key(|k| k.0);
 
                 for (_, value) in entries.iter().copied() {
-                    (value, span).assemble(c, Needs::Value)?;
+                    value.assemble_const(c, Needs::Value, span)?;
                 }
 
                 let slot = c

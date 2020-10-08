@@ -175,9 +175,9 @@ pub enum CompileErrorKind {
     #[error("{meta} is not an object")]
     UnsupportedLitObject { meta: CompileMeta },
     #[error("missing field `{field}` in declaration of `{item}`")]
-    LitObjectMissingField { field: String, item: Item },
+    LitObjectMissingField { field: Box<str>, item: Item },
     #[error("`{field}` is not a field in `{item}`")]
-    LitObjectNotField { field: String, item: Item },
+    LitObjectNotField { field: Box<str>, item: Item },
     #[error("cannot assign to expression")]
     UnsupportedAssignExpr,
     #[error("unsupported binary expression")]

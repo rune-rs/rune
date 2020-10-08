@@ -69,7 +69,7 @@ fn test_bad_struct_declaration() {
         r#"struct Foo { a, b } fn main() { Foo { a: 12 } }"#,
         span, LitObjectMissingField { field, .. } => {
             assert_eq!(span, Span::new(32, 45));
-            assert_eq!(field, "b");
+            assert_eq!(field.as_ref(), "b");
         }
     };
 
@@ -77,7 +77,7 @@ fn test_bad_struct_declaration() {
         r#"struct Foo { a, b } fn main() { Foo { not_field: 12 } }"#,
         span, LitObjectNotField { field, .. } => {
             assert_eq!(span, Span::new(38, 47));
-            assert_eq!(field, "not_field");
+            assert_eq!(field.as_ref(), "not_field");
         }
     };
 
