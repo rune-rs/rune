@@ -404,40 +404,6 @@ pub enum Inst {
     /// The stack frame will be cleared, and a unit value will be pushed to the
     /// top of the stack.
     ReturnUnit,
-    /// Compare two values on the stack for lt and push the result as a
-    /// boolean on the stack.
-    Lt,
-    /// Compare two values on the stack for gt and push the result as a
-    /// boolean on the stack.
-    Gt,
-    /// Compare two values on the stack for lte and push the result as a
-    /// boolean on the stack.
-    Lte,
-    /// Compare two values on the stack for gte and push the result as a
-    /// boolean on the stack.
-    Gte,
-    /// Compare two values on the stack for equality and push the result as a
-    /// boolean on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <b>
-    /// <a>
-    /// => <bool>
-    /// ```
-    Eq,
-    /// Compare two values on the stack for inequality and push the result as a
-    /// boolean on the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <b>
-    /// <a>
-    /// => <bool>
-    /// ```
-    Neq,
     /// Unconditionally jump to `offset` relative to the current instruction
     /// pointer.
     ///
@@ -672,49 +638,6 @@ pub enum Inst {
         /// The minimum string size used.
         size_hint: usize,
     },
-    /// Test if the top of the stack is an instance of the second item on the
-    /// stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <type>
-    /// <value>
-    /// => <boolean>
-    /// ```
-    Is,
-    /// Test if the top of the stack is not an instance of the second item on
-    /// the stack.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <type>
-    /// <value>
-    /// => <boolean>
-    /// ```
-    IsNot,
-    /// Pop two values from the stack and test if they are both boolean true.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <boolean>
-    /// <boolean>
-    /// => <boolean>
-    /// ```
-    And,
-    /// Pop two values from the stack and test if either of them are boolean
-    /// true.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <boolean>
-    /// <boolean>
-    /// => <boolean>
-    /// ```
-    Or,
     /// Test if the top of the stack is a unit.
     ///
     /// # Operation
@@ -881,7 +804,7 @@ pub enum Inst {
         /// The target of the operation.
         target: InstTarget,
         /// The actual operation.
-        op: InstOp,
+        op: InstAssignOp,
     },
     /// Cause the VM to panic and error out without a reason.
     ///
@@ -1024,24 +947,6 @@ impl fmt::Display for Inst {
             Self::ReturnUnit => {
                 write!(fmt, "return-unit")?;
             }
-            Self::Lt => {
-                write!(fmt, "lt")?;
-            }
-            Self::Gt => {
-                write!(fmt, "gt")?;
-            }
-            Self::Lte => {
-                write!(fmt, "lte")?;
-            }
-            Self::Gte => {
-                write!(fmt, "gte")?;
-            }
-            Self::Eq => {
-                write!(fmt, "eq")?;
-            }
-            Self::Neq => {
-                write!(fmt, "neq")?;
-            }
             Self::Jump { offset } => {
                 write!(fmt, "jump {}", offset)?;
             }
@@ -1092,18 +997,6 @@ impl fmt::Display for Inst {
             }
             Self::StringConcat { len, size_hint } => {
                 write!(fmt, "string-concat {}, {}", len, size_hint)?;
-            }
-            Self::Is => {
-                write!(fmt, "is")?;
-            }
-            Self::IsNot => {
-                write!(fmt, "is-not")?;
-            }
-            Self::And => {
-                write!(fmt, "and")?;
-            }
-            Self::Or => {
-                write!(fmt, "or")?;
             }
             Self::IsUnit => {
                 write!(fmt, "is-unit")?;
@@ -1184,7 +1077,7 @@ impl fmt::Display for InstTarget {
 
 /// An operation between two values on the machine.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum InstOp {
+pub enum InstAssignOp {
     /// The add operation. `a + b`.
     Add,
     /// The sub operation. `a - b`.
@@ -1207,20 +1100,213 @@ pub enum InstOp {
     Shr,
 }
 
+impl fmt::Display for InstAssignOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Add => {
+                write!(f, "+")?;
+            }
+            Self::Sub => {
+                write!(f, "-")?;
+            }
+            Self::Mul => {
+                write!(f, "*")?;
+            }
+            Self::Div => {
+                write!(f, "/")?;
+            }
+            Self::Rem => {
+                write!(f, "%")?;
+            }
+            Self::BitAnd => {
+                write!(f, "&")?;
+            }
+            Self::BitXor => {
+                write!(f, "^")?;
+            }
+            Self::BitOr => {
+                write!(f, "|")?;
+            }
+            Self::Shl => {
+                write!(f, "<<")?;
+            }
+            Self::Shr => {
+                write!(f, ">>")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// An operation between two values on the machine.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum InstOp {
+    /// The add operation. `a + b`.
+    Add,
+    /// The sub operation. `a - b`.
+    Sub,
+    /// The multiply operation. `a * b`.
+    Mul,
+    /// The division operation. `a / b`.
+    Div,
+    /// The remainder operation. `a % b`.
+    Rem,
+    /// The bitwise and operation. `a & b`.
+    BitAnd,
+    /// The bitwise xor operation. `a ^ b`.
+    BitXor,
+    /// The bitwise or operation. `a | b`.
+    BitOr,
+    /// The shift left operation. `a << b`.
+    Shl,
+    /// The shift right operation. `a << b`.
+    Shr,
+    /// Compare two values on the stack for lt and push the result as a
+    /// boolean on the stack.
+    Lt,
+    /// Compare two values on the stack for gt and push the result as a
+    /// boolean on the stack.
+    Gt,
+    /// Compare two values on the stack for lte and push the result as a
+    /// boolean on the stack.
+    Lte,
+    /// Compare two values on the stack for gte and push the result as a
+    /// boolean on the stack.
+    Gte,
+    /// Compare two values on the stack for equality and push the result as a
+    /// boolean on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <b>
+    /// <a>
+    /// => <bool>
+    /// ```
+    Eq,
+    /// Compare two values on the stack for inequality and push the result as a
+    /// boolean on the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <b>
+    /// <a>
+    /// => <bool>
+    /// ```
+    Neq,
+    /// Test if the top of the stack is an instance of the second item on the
+    /// stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <type>
+    /// <value>
+    /// => <boolean>
+    /// ```
+    Is,
+    /// Test if the top of the stack is not an instance of the second item on
+    /// the stack.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <type>
+    /// <value>
+    /// => <boolean>
+    /// ```
+    IsNot,
+    /// Pop two values from the stack and test if they are both boolean true.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <boolean>
+    /// <boolean>
+    /// => <boolean>
+    /// ```
+    And,
+    /// Pop two values from the stack and test if either of them are boolean
+    /// true.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <boolean>
+    /// <boolean>
+    /// => <boolean>
+    /// ```
+    Or,
+}
+
 impl fmt::Display for InstOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Add => write!(f, "+"),
-            Self::Sub => write!(f, "-"),
-            Self::Mul => write!(f, "*"),
-            Self::Div => write!(f, "/"),
-            Self::Rem => write!(f, "%"),
-            Self::BitAnd => write!(f, "&"),
-            Self::BitXor => write!(f, "^"),
-            Self::BitOr => write!(f, "|"),
-            Self::Shl => write!(f, "<<"),
-            Self::Shr => write!(f, ">>"),
+            Self::Add => {
+                write!(f, "+")?;
+            }
+            Self::Sub => {
+                write!(f, "-")?;
+            }
+            Self::Mul => {
+                write!(f, "*")?;
+            }
+            Self::Div => {
+                write!(f, "/")?;
+            }
+            Self::Rem => {
+                write!(f, "%")?;
+            }
+            Self::BitAnd => {
+                write!(f, "&")?;
+            }
+            Self::BitXor => {
+                write!(f, "^")?;
+            }
+            Self::BitOr => {
+                write!(f, "|")?;
+            }
+            Self::Shl => {
+                write!(f, "<<")?;
+            }
+            Self::Shr => {
+                write!(f, ">>")?;
+            }
+            Self::Lt => {
+                write!(f, "<")?;
+            }
+            Self::Gt => {
+                write!(f, ">")?;
+            }
+            Self::Lte => {
+                write!(f, "<=")?;
+            }
+            Self::Gte => {
+                write!(f, ">=")?;
+            }
+            Self::Eq => {
+                write!(f, "==")?;
+            }
+            Self::Neq => {
+                write!(f, "!=")?;
+            }
+            Self::Is => {
+                write!(f, "is")?;
+            }
+            Self::IsNot => {
+                write!(f, "is not")?;
+            }
+            Self::And => {
+                write!(f, "&&")?;
+            }
+            Self::Or => {
+                write!(f, "||")?;
+            }
         }
+
+        Ok(())
     }
 }
 

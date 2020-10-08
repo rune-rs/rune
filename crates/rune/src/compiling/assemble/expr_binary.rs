@@ -37,16 +37,16 @@ impl Assemble for ast::ExprBinary {
         c.scopes.decl_anon(span)?;
 
         let inst = match self.op {
-            ast::BinOp::Eq => Inst::Eq,
-            ast::BinOp::Neq => Inst::Neq,
-            ast::BinOp::Lt => Inst::Lt,
-            ast::BinOp::Gt => Inst::Gt,
-            ast::BinOp::Lte => Inst::Lte,
-            ast::BinOp::Gte => Inst::Gte,
-            ast::BinOp::Is => Inst::Is,
-            ast::BinOp::IsNot => Inst::IsNot,
-            ast::BinOp::And => Inst::And,
-            ast::BinOp::Or => Inst::Or,
+            ast::BinOp::Eq => Inst::Op { op: InstOp::Eq },
+            ast::BinOp::Neq => Inst::Op { op: InstOp::Neq },
+            ast::BinOp::Lt => Inst::Op { op: InstOp::Lt },
+            ast::BinOp::Gt => Inst::Op { op: InstOp::Gt },
+            ast::BinOp::Lte => Inst::Op { op: InstOp::Lte },
+            ast::BinOp::Gte => Inst::Op { op: InstOp::Gte },
+            ast::BinOp::Is => Inst::Op { op: InstOp::Is },
+            ast::BinOp::IsNot => Inst::Op { op: InstOp::IsNot },
+            ast::BinOp::And => Inst::Op { op: InstOp::And },
+            ast::BinOp::Or => Inst::Op { op: InstOp::Or },
             ast::BinOp::Add => Inst::Op { op: InstOp::Add },
             ast::BinOp::Sub => Inst::Op { op: InstOp::Sub },
             ast::BinOp::Div => Inst::Op { op: InstOp::Div },
@@ -189,16 +189,16 @@ fn compile_assign_binop(
     };
 
     let op = match bin_op {
-        ast::BinOp::AddAssign => InstOp::Add,
-        ast::BinOp::SubAssign => InstOp::Sub,
-        ast::BinOp::MulAssign => InstOp::Mul,
-        ast::BinOp::DivAssign => InstOp::Div,
-        ast::BinOp::RemAssign => InstOp::Rem,
-        ast::BinOp::BitAndAssign => InstOp::BitAnd,
-        ast::BinOp::BitXorAssign => InstOp::BitXor,
-        ast::BinOp::BitOrAssign => InstOp::BitOr,
-        ast::BinOp::ShlAssign => InstOp::Shl,
-        ast::BinOp::ShrAssign => InstOp::Shr,
+        ast::BinOp::AddAssign => InstAssignOp::Add,
+        ast::BinOp::SubAssign => InstAssignOp::Sub,
+        ast::BinOp::MulAssign => InstAssignOp::Mul,
+        ast::BinOp::DivAssign => InstAssignOp::Div,
+        ast::BinOp::RemAssign => InstAssignOp::Rem,
+        ast::BinOp::BitAndAssign => InstAssignOp::BitAnd,
+        ast::BinOp::BitXorAssign => InstAssignOp::BitXor,
+        ast::BinOp::BitOrAssign => InstAssignOp::BitOr,
+        ast::BinOp::ShlAssign => InstAssignOp::Shl,
+        ast::BinOp::ShrAssign => InstAssignOp::Shr,
         _ => {
             return Err(CompileError::new(
                 span,

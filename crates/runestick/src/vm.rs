@@ -3,9 +3,9 @@ use crate::future::SelectFuture;
 use crate::unit::UnitFn;
 use crate::{
     Args, Awaited, BorrowMut, Bytes, Call, Context, FromValue, Function, Future, Generator,
-    GuardedArgs, Hash, Inst, InstFnNameHash, InstOp, InstTarget, IntoTypeHash, Object, Panic,
-    Select, Shared, Stack, Stream, Struct, StructVariant, Tuple, TypeCheck, Unit, UnitStruct,
-    UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    GuardedArgs, Hash, Inst, InstAssignOp, InstFnNameHash, InstOp, InstTarget, IntoTypeHash,
+    Object, Panic, Select, Shared, Stack, Stream, Struct, StructVariant, Tuple, TypeCheck, Unit,
+    UnitStruct, UnitVariant, Value, Vec, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
 };
 use std::fmt;
 use std::mem;
@@ -478,26 +478,6 @@ impl Vm {
         Ok(())
     }
 
-    fn op_gt(&mut self) -> Result<(), VmError> {
-        self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">")?;
-        Ok(())
-    }
-
-    fn op_gte(&mut self) -> Result<(), VmError> {
-        self.internal_boolean_ops(|a, b| a >= b, |a, b| a >= b, ">=")?;
-        Ok(())
-    }
-
-    fn op_lt(&mut self) -> Result<(), VmError> {
-        self.internal_boolean_ops(|a, b| a < b, |a, b| a < b, "<")?;
-        Ok(())
-    }
-
-    fn op_lte(&mut self) -> Result<(), VmError> {
-        self.internal_boolean_ops(|a, b| a <= b, |a, b| a <= b, "<=")?;
-        Ok(())
-    }
-
     /// Push a new call frame.
     ///
     /// This will cause the `args` number of elements on the stack to be
@@ -527,24 +507,6 @@ impl Vm {
         self.stack.pop_stack_top(frame.stack_bottom)?;
         self.ip = frame.ip;
         Ok(false)
-    }
-
-    /// Optimized equality implementation.
-    #[inline]
-    fn op_eq(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        self.stack.push(Value::value_ptr_eq(&a, &b)?);
-        Ok(())
-    }
-
-    /// Optimized inequality implementation.
-    #[inline]
-    fn op_neq(&mut self) -> Result<(), VmError> {
-        let b = self.stack.pop()?;
-        let a = self.stack.pop()?;
-        self.stack.push(!Value::value_ptr_eq(&a, &b)?);
-        Ok(())
     }
 
     /// Perform a jump operation.
@@ -747,17 +709,53 @@ impl Vm {
             InstOp::Shr => {
                 self.internal_infallible_bitwise(crate::SHR, std::ops::Shr::shr, ">>")?;
             }
+            InstOp::Gt => {
+                self.internal_boolean_ops(|a, b| a > b, |a, b| a > b, ">")?;
+            }
+            InstOp::Gte => {
+                self.internal_boolean_ops(|a, b| a >= b, |a, b| a >= b, ">=")?;
+            }
+            InstOp::Lt => {
+                self.internal_boolean_ops(|a, b| a < b, |a, b| a < b, "<")?;
+            }
+            InstOp::Lte => {
+                self.internal_boolean_ops(|a, b| a <= b, |a, b| a <= b, "<=")?;
+            }
+            InstOp::Eq => {
+                let b = self.stack.pop()?;
+                let a = self.stack.pop()?;
+                self.stack.push(Value::value_ptr_eq(&a, &b)?);
+            }
+            InstOp::Neq => {
+                let b = self.stack.pop()?;
+                let a = self.stack.pop()?;
+                self.stack.push(!Value::value_ptr_eq(&a, &b)?);
+            }
+            InstOp::And => {
+                self.internal_boolean_op(|a, b| a && b, "&&")?;
+            }
+            InstOp::Or => {
+                self.internal_boolean_op(|a, b| a || b, "||")?;
+            }
+            InstOp::Is => {
+                let is_instance = self.is_instance()?;
+                self.stack.push(is_instance);
+            }
+            InstOp::IsNot => {
+                let is_instance = self.is_instance()?;
+                self.stack.push(!is_instance);
+            }
         }
 
         Ok(())
     }
 
     #[inline]
-    fn op_assign(&mut self, target: InstTarget, op: InstOp) -> Result<(), VmError> {
+    fn op_assign(&mut self, target: InstTarget, op: InstAssignOp) -> Result<(), VmError> {
         use std::convert::TryFrom as _;
 
         match op {
-            InstOp::Add => {
+            InstAssignOp::Add => {
                 self.internal_num_assign(
                     target,
                     crate::ADD_ASSIGN,
@@ -767,7 +765,7 @@ impl Vm {
                     "+=",
                 )?;
             }
-            InstOp::Sub => {
+            InstAssignOp::Sub => {
                 self.internal_num_assign(
                     target,
                     crate::SUB_ASSIGN,
@@ -777,7 +775,7 @@ impl Vm {
                     "-=",
                 )?;
             }
-            InstOp::Mul => {
+            InstAssignOp::Mul => {
                 self.internal_num_assign(
                     target,
                     crate::MUL_ASSIGN,
@@ -787,7 +785,7 @@ impl Vm {
                     "*=",
                 )?;
             }
-            InstOp::Div => {
+            InstAssignOp::Div => {
                 self.internal_num_assign(
                     target,
                     crate::DIV_ASSIGN,
@@ -797,7 +795,7 @@ impl Vm {
                     "/=",
                 )?;
             }
-            InstOp::Rem => {
+            InstAssignOp::Rem => {
                 self.internal_num_assign(
                     target,
                     crate::REM_ASSIGN,
@@ -807,7 +805,7 @@ impl Vm {
                     "%=",
                 )?;
             }
-            InstOp::BitAnd => {
+            InstAssignOp::BitAnd => {
                 self.internal_infallible_bitwise_assign(
                     target,
                     crate::BIT_AND_ASSIGN,
@@ -815,7 +813,7 @@ impl Vm {
                     "&=",
                 )?;
             }
-            InstOp::BitXor => {
+            InstAssignOp::BitXor => {
                 self.internal_infallible_bitwise_assign(
                     target,
                     crate::BIT_XOR_ASSIGN,
@@ -823,7 +821,7 @@ impl Vm {
                     "^=",
                 )?;
             }
-            InstOp::BitOr => {
+            InstAssignOp::BitOr => {
                 self.internal_infallible_bitwise_assign(
                     target,
                     crate::BIT_OR_ASSIGN,
@@ -831,7 +829,7 @@ impl Vm {
                     "|=",
                 )?;
             }
-            InstOp::Shl => {
+            InstAssignOp::Shl => {
                 self.internal_bitwise_assign(
                     target,
                     crate::SHL_ASSIGN,
@@ -840,7 +838,7 @@ impl Vm {
                     "<<=",
                 )?;
             }
-            InstOp::Shr => {
+            InstAssignOp::Shr => {
                 self.internal_infallible_bitwise_assign(
                     target,
                     crate::SHR_ASSIGN,
@@ -1627,20 +1625,6 @@ impl Vm {
     }
 
     #[inline]
-    fn op_is(&mut self) -> Result<(), VmError> {
-        let is_instance = self.is_instance()?;
-        self.stack.push(is_instance);
-        Ok(())
-    }
-
-    #[inline]
-    fn op_is_not(&mut self) -> Result<(), VmError> {
-        let is_instance = self.is_instance()?;
-        self.stack.push(!is_instance);
-        Ok(())
-    }
-
-    #[inline]
     fn op_is_unit(&mut self) -> Result<(), VmError> {
         let value = self.stack.pop()?;
         self.stack.push(matches!(value, Value::Unit));
@@ -1686,20 +1670,6 @@ impl Vm {
         };
 
         self.stack.push(out);
-        Ok(())
-    }
-
-    /// Operation associated with `and` instruction.
-    #[inline]
-    fn op_and(&mut self) -> Result<(), VmError> {
-        self.internal_boolean_op(|a, b| a && b, "&&")?;
-        Ok(())
-    }
-
-    /// Operation associated with `or` instruction.
-    #[inline]
-    fn op_or(&mut self) -> Result<(), VmError> {
-        self.internal_boolean_op(|a, b| a || b, "||")?;
         Ok(())
     }
 
@@ -2323,24 +2293,6 @@ impl Vm {
                 Inst::Replace { offset } => {
                     self.op_replace(offset)?;
                 }
-                Inst::Gt => {
-                    self.op_gt()?;
-                }
-                Inst::Gte => {
-                    self.op_gte()?;
-                }
-                Inst::Lt => {
-                    self.op_lt()?;
-                }
-                Inst::Lte => {
-                    self.op_lte()?;
-                }
-                Inst::Eq => {
-                    self.op_eq()?;
-                }
-                Inst::Neq => {
-                    self.op_neq()?;
-                }
                 Inst::Jump { offset } => {
                     self.op_jump(offset)?;
                 }
@@ -2392,12 +2344,6 @@ impl Vm {
                 Inst::StringConcat { len, size_hint } => {
                     self.op_string_concat(len, size_hint)?;
                 }
-                Inst::Is => {
-                    self.op_is()?;
-                }
-                Inst::IsNot => {
-                    self.op_is_not()?;
-                }
                 Inst::IsUnit => {
                     self.op_is_unit()?;
                 }
@@ -2406,12 +2352,6 @@ impl Vm {
                 }
                 Inst::Unwrap => {
                     self.op_unwrap()?;
-                }
-                Inst::And => {
-                    self.op_and()?;
-                }
-                Inst::Or => {
-                    self.op_or()?;
                 }
                 Inst::EqByte { byte } => {
                     self.op_eq_byte(byte)?;
