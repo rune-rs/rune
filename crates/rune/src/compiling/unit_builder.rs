@@ -31,28 +31,33 @@ impl UnitBuilder {
         this.prelude
             .insert("dbg".into(), Item::of(&["std", "io", "dbg"]));
         this.prelude
-            .insert("drop".into(), Item::of(&["std", "drop"]));
+            .insert("drop".into(), Item::of(&["std", "core", "drop"]));
+        this.prelude.insert(
+            "is_readable".into(),
+            Item::of(&["std", "core", "is_readable"]),
+        );
+        this.prelude.insert(
+            "is_writable".into(),
+            Item::of(&["std", "core", "is_writable"]),
+        );
         this.prelude
-            .insert("is_readable".into(), Item::of(&["std", "is_readable"]));
-        this.prelude
-            .insert("is_writable".into(), Item::of(&["std", "is_writable"]));
-        this.prelude
-            .insert("panic".into(), Item::of(&["std", "panic"]));
+            .insert("panic".into(), Item::of(&["std", "core", "panic"]));
         this.prelude
             .insert("print".into(), Item::of(&["std", "io", "print"]));
         this.prelude
             .insert("println".into(), Item::of(&["std", "io", "println"]));
         this.prelude
-            .insert("unit".into(), Item::of(&["std", "unit"]));
+            .insert("unit".into(), Item::of(&["std", "core", "unit"]));
         this.prelude
-            .insert("bool".into(), Item::of(&["std", "bool"]));
+            .insert("bool".into(), Item::of(&["std", "core", "bool"]));
         this.prelude
-            .insert("byte".into(), Item::of(&["std", "byte"]));
+            .insert("byte".into(), Item::of(&["std", "core", "byte"]));
         this.prelude
-            .insert("char".into(), Item::of(&["std", "char"]));
-        this.prelude.insert("int".into(), Item::of(&["std", "int"]));
+            .insert("char".into(), Item::of(&["std", "core", "char"]));
         this.prelude
-            .insert("float".into(), Item::of(&["std", "float"]));
+            .insert("int".into(), Item::of(&["std", "core", "int"]));
+        this.prelude
+            .insert("float".into(), Item::of(&["std", "core", "float"]));
         this.prelude
             .insert("Object".into(), Item::of(&["std", "object", "Object"]));
         this.prelude

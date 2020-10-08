@@ -17,11 +17,10 @@ crate::__internal_impl_any!(ParseFloatError);
 
 /// Install the core package into the given functions namespace.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std"]);
+    let mut module = Module::new(&["std", "float"]);
 
-    module.ty::<f64>()?;
     module.ty::<ParseFloatError>()?;
-    module.function(&["float", "parse"], parse)?;
+    module.function(&["parse"], parse)?;
     module.inst_fn("to_integer", to_integer)?;
 
     Ok(module)

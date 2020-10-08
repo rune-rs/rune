@@ -287,6 +287,8 @@ pub enum BuiltIn {
     FormatSpec,
     /// `builtin`.
     BuiltIn,
+    /// `literal`.
+    Literal,
 }
 
 impl BuiltIn {
@@ -296,6 +298,7 @@ impl BuiltIn {
             Self::Template => "template",
             Self::FormatSpec => "formatspec",
             Self::BuiltIn => "builtin",
+            Self::Literal => "literal",
         }
     }
 }

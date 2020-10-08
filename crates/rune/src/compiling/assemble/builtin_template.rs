@@ -33,7 +33,7 @@ impl Assemble for BuiltInTemplate {
             c.scopes.decl_anon(span)?;
         }
 
-        if expansions == 0 {
+        if self.from_literal && expansions == 0 {
             c.warnings
                 .template_without_expansions(c.source_id, span, c.context());
         }

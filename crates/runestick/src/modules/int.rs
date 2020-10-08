@@ -5,12 +5,11 @@ use std::num::ParseIntError;
 
 /// Construct the `std::int` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std"]);
+    let mut module = Module::new(&["std", "int"]);
 
-    module.ty::<i64>()?;
     module.ty::<ParseIntError>()?;
 
-    module.function(&["int", "parse"], parse)?;
+    module.function(&["parse"], parse)?;
 
     module.inst_fn("to_float", to_float)?;
 

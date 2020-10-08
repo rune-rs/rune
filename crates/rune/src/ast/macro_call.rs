@@ -1,7 +1,9 @@
 use crate::ast;
 use crate::parsing::Opaque;
-use crate::{Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens, TokenStream};
-use runestick::Id;
+use crate::{
+    OptionSpanned, Parse, ParseError, ParseErrorKind, Parser, Spanned, ToTokens, TokenStream,
+};
+use runestick::{Id, Span};
 
 /// A function call `<expr>!(<args>)`.
 #[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
@@ -28,6 +30,15 @@ pub struct MacroCall {
 }
 
 impl MacroCall {
+    /// The span of the token stream.
+    pub fn stream_span(&self) -> Span {
+        if let Some(span) = self.stream.option_span() {
+            span
+        } else {
+            self.open.span.end()
+        }
+    }
+
     /// Parse with an expression.
     pub fn parse_with_meta_path(
         parser: &mut Parser,

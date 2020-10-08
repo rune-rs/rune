@@ -1,5 +1,5 @@
 use crate::ast;
-use crate::{Parse, ParseError, Parser, Peek, Spanned, ToTokens};
+use crate::{Parse, ParseError, Parser, Peek, Peeker, Spanned, ToTokens};
 
 macro_rules! grouped {
     ($(#[$meta:meta])* $name:ident { $field:ident, $open:ty, $close:ty }) => {
@@ -136,6 +136,12 @@ macro_rules! grouped {
                     $field,
                     close,
                 })
+            }
+        }
+
+        impl<T, S> Peek for $name<T, S> {
+            fn peek(p: &mut Peeker<'_>) -> bool {
+                <$open>::peek(p)
             }
         }
     }

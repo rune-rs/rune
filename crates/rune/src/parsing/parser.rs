@@ -20,6 +20,7 @@ use std::ops;
 #[derive(Debug)]
 pub struct Parser<'a> {
     peeker: Peeker<'a>,
+    /// The default span to use in case no better one is available.
     span: Option<Span>,
 }
 
@@ -31,11 +32,6 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// Get the span for the given range offset of tokens.
-    pub fn span(&mut self, range: ops::Range<usize>) -> Span {
-        self.span_at(range.start).join(self.span_at(range.end))
-    }
-
     /// Construct a parser from a token stream.
     pub fn from_token_stream(token_stream: &'a TokenStream) -> Self {
         Self::with_source(Source {
@@ -45,16 +41,22 @@ impl<'a> Parser<'a> {
 
     /// Construct a new parser with a source.
     fn with_source(source: Source<'a>) -> Self {
-        let span = source.span();
+        let span = source.span().or_else(crate::macros::current_span);
 
         Self {
             peeker: Peeker {
                 source,
                 buf: VecDeque::new(),
                 error: None,
+                last: None,
             },
             span,
         }
+    }
+
+    /// Get the span for the given range offset of tokens.
+    pub fn span(&mut self, range: ops::Range<usize>) -> Span {
+        self.span_at(range.start).join(self.span_at(range.end))
     }
 
     /// Parse a specific item from the parser.
@@ -102,7 +104,7 @@ impl<'a> Parser<'a> {
         match self.peeker.source.next()? {
             Some(t) => Ok(t),
             None => Err(ParseError::new(
-                self.span.unwrap_or_default().end(),
+                self.last_span().end(),
                 ParseErrorKind::UnexpectedEof,
             )),
         }
@@ -140,7 +142,7 @@ impl<'a> Parser<'a> {
         if let Ok(Some(t)) = self.peeker.at(n) {
             t.span
         } else {
-            self.span.unwrap_or_default().end()
+            self.last_span().end()
         }
     }
 
@@ -151,9 +153,14 @@ impl<'a> Parser<'a> {
         } else {
             Token {
                 kind: Kind::Eof,
-                span: self.span.unwrap_or_default().end(),
+                span: self.last_span().end(),
             }
         })
+    }
+
+    /// The last known span in this parser.
+    pub fn last_span(&self) -> Span {
+        self.peeker.last.or(self.span).unwrap_or_default()
     }
 }
 
@@ -164,6 +171,8 @@ pub struct Peeker<'a> {
     buf: VecDeque<Token>,
     // NB: parse errors encountered during peeking.
     error: Option<ParseError>,
+    /// The last span we encountered. Used to provide better EOF diagnostics.
+    last: Option<Span>,
 }
 
 impl<'a> Peeker<'a> {
@@ -200,10 +209,22 @@ impl<'a> Peeker<'a> {
                 None => break,
             };
 
+            self.last = Some(token.span);
             self.buf.push_back(token);
         }
 
         Ok(self.buf.get(n).copied())
+    }
+
+    /// Test if we are at end of file.
+    pub fn is_eof(&mut self) -> bool {
+        match self.at(0) {
+            Ok(t) => t.is_none(),
+            Err(error) => {
+                self.error = Some(error);
+                false
+            }
+        }
     }
 }
 

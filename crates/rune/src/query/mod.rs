@@ -34,7 +34,10 @@ pub(crate) enum BuiltInMacro {
 
 /// An internally resolved template.
 pub(crate) struct BuiltInTemplate {
+    /// The span of the built-in template.
     pub(crate) span: Span,
+    /// Indicate if template originated from literal.
+    pub(crate) from_literal: bool,
     /// Expressions being concatenated as a template.
     pub(crate) exprs: Vec<ast::Expr>,
 }

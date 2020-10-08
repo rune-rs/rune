@@ -54,6 +54,40 @@ impl<'a> Lexer<'a> {
         self.iter.end_span(0)
     }
 
+    fn emit_builtin_attribute(&mut self, span: Span) {
+        self.buffer.push_back(ast::Token { kind: K![#], span });
+
+        self.buffer.push_back(ast::Token {
+            kind: K!['['],
+            span,
+        });
+
+        self.buffer.push_back(ast::Token {
+            kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::BuiltIn)),
+            span,
+        });
+
+        self.buffer.push_back(ast::Token {
+            kind: K!['('],
+            span,
+        });
+
+        self.buffer.push_back(ast::Token {
+            kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Literal)),
+            span,
+        });
+
+        self.buffer.push_back(ast::Token {
+            kind: K![')'],
+            span,
+        });
+
+        self.buffer.push_back(ast::Token {
+            kind: K![']'],
+            span,
+        });
+    }
+
     fn next_ident(&mut self, start: usize) -> Result<Option<ast::Token>, ParseError> {
         while let Some(c) = self.iter.peek() {
             if !matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9') {
@@ -604,24 +638,7 @@ impl<'a> Lexer<'a> {
                     '`' => {
                         let span = self.iter.span_from(start);
 
-                        self.buffer.push_back(ast::Token { kind: K![#], span });
-
-                        self.buffer.push_back(ast::Token {
-                            kind: K!['['],
-                            span,
-                        });
-
-                        self.buffer.push_back(ast::Token {
-                            kind: ast::Kind::Ident(ast::StringSource::BuiltIn(
-                                ast::BuiltIn::BuiltIn,
-                            )),
-                            span,
-                        });
-
-                        self.buffer.push_back(ast::Token {
-                            kind: K![']'],
-                            span,
-                        });
+                        self.emit_builtin_attribute(span);
 
                         self.buffer.push_back(ast::Token {
                             kind: ast::Kind::Ident(ast::StringSource::BuiltIn(
@@ -1015,6 +1032,18 @@ mod tests {
                 span: span!(0, 1),
             },
             ast::Token {
+                kind: K!['('],
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Literal)),
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: K![')'],
+                span: span!(0, 1),
+            },
+            ast::Token {
                 kind: K![']'],
                 span: span!(0, 1),
             },
@@ -1077,6 +1106,18 @@ mod tests {
             },
             ast::Token {
                 kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::BuiltIn)),
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: K!['('],
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: ast::Kind::Ident(ast::StringSource::BuiltIn(ast::BuiltIn::Literal)),
+                span: span!(0, 1),
+            },
+            ast::Token {
+                kind: K![')'],
                 span: span!(0, 1),
             },
             ast::Token {
