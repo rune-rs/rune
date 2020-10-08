@@ -14,6 +14,14 @@ error! {
 }
 
 impl ParseError {
+    /// Construct a custom parse error.
+    pub(crate) fn custom<A>(spanned: A, message: &'static str) -> Self
+    where
+        A: Spanned,
+    {
+        Self::new(spanned.span(), ParseErrorKind::Custom { message })
+    }
+
     /// Construct an expectation error.
     pub(crate) fn expected<A, E>(actual: A, expected: E) -> Self
     where
@@ -48,6 +56,9 @@ impl ParseError {
 #[derive(Debug, Clone, Copy, Error)]
 #[allow(missing_docs)]
 pub enum ParseErrorKind {
+    /// A custom message.
+    #[error("{message}")]
+    Custom { message: &'static str },
     #[error("expected end of file, but got `{actual}`")]
     ExpectedEof { actual: ast::Kind },
     #[error("unexpected end of file")]

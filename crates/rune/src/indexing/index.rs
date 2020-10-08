@@ -63,10 +63,12 @@ impl<'a> Indexer<'a> {
         attributes: &mut attrs::Attributes,
         ast: &mut ast::MacroCall,
     ) -> Result<bool, CompileError> {
-        // Internal macros must be marked with the `#[builtin]` attribute.
-        if attributes.try_parse::<attrs::BuiltIn>()?.is_none() {
-            return Ok(false);
-        }
+        let builtin = match attributes.try_parse::<attrs::BuiltIn>()? {
+            Some(builtin) => builtin,
+            None => return Ok(false),
+        };
+
+        let args = builtin.args(&self.storage, &self.source)?;
 
         // NB: internal macros are
         let ident = match ast.path.try_as_ident() {
@@ -84,8 +86,8 @@ impl<'a> Indexer<'a> {
         let ident = ident.resolve(&self.storage, &self.source)?;
 
         let mut internal_macro = match ident.as_ref() {
-            "template" => self.expand_template_macro(ast)?,
-            "format_spec" => self.expand_fmtspec_macro(ast)?,
+            "template" => self.expand_template_macro(ast, &args)?,
+            "format_spec" => self.expand_fmtspec_macro(ast, &args)?,
             _ => {
                 return Err(CompileError::new(
                     ast.path.span(),
@@ -116,6 +118,7 @@ impl<'a> Indexer<'a> {
     fn expand_template_macro(
         &mut self,
         ast: &mut ast::MacroCall,
+        args: &attrs::BuiltInArgs,
     ) -> Result<BuiltInMacro, ParseError> {
         let mut p = Parser::from_token_stream(&ast.stream);
         let mut exprs = Vec::new();
@@ -132,6 +135,7 @@ impl<'a> Indexer<'a> {
 
         Ok(BuiltInMacro::Template(BuiltInTemplate {
             span: ast.span(),
+            from_literal: args.literal,
             exprs,
         }))
     }
@@ -140,6 +144,7 @@ impl<'a> Indexer<'a> {
     fn expand_fmtspec_macro(
         &mut self,
         ast: &mut ast::MacroCall,
+        _: &attrs::BuiltInArgs,
     ) -> Result<BuiltInMacro, ParseError> {
         let mut p = Parser::from_token_stream(&ast.stream);
 

@@ -23,7 +23,7 @@ async fn main() {
 
     let response = response.json().await?;
 
-    let content_length = int::parse(response["headers"]["content-length"])?;
+    let content_length = std::int::parse(response["headers"]["content-length"])?;
 
     if content_length is int {
         dbg("it is indeed an integer");

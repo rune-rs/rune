@@ -21,6 +21,12 @@ thread_local! {
     static MACRO_CONTEXT: RefCell<Option<MacroContext>> = RefCell::new(None);
 }
 
+/// Optionally get the span associated with the current context if it is
+/// specified.
+pub(crate) fn current_span() -> Option<Span> {
+    MACRO_CONTEXT.with(|ctx| Some(ctx.borrow().as_ref()?.span))
+}
+
 /// Perform the given operation with the current macro context fetched from TLS.
 ///
 /// # Panics
@@ -96,10 +102,10 @@ pub(crate) struct EvaluationContext {
 
 /// Context for a running macro.
 pub struct MacroContext {
-    /// The current source.
-    pub(crate) source: Arc<Source>,
     /// Temporary recorded default span.
     pub(crate) span: Span,
+    /// The current source.
+    pub(crate) source: Arc<Source>,
     /// Storage used in macro context.
     pub(crate) storage: Storage,
     /// Evaluation context (if available).
@@ -110,8 +116,8 @@ impl MacroContext {
     /// Construct an empty macro context, primarily used for testing.
     pub fn empty() -> Self {
         Self {
-            source: Arc::new(Source::default()),
             span: Span::empty(),
+            source: Arc::new(Source::default()),
             storage: Storage::default(),
             eval_context: None,
         }

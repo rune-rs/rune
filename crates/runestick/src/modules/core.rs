@@ -4,12 +4,14 @@ use crate::{ContextError, Module, Panic, Value, VmError};
 
 /// Construct the `std` module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::new(&["std"]);
+    let mut module = Module::new(&["std", "core"]);
 
     module.unit("unit")?;
     module.ty::<bool>()?;
     module.ty::<char>()?;
     module.ty::<u8>()?;
+    module.ty::<f64>()?;
+    module.ty::<i64>()?;
 
     module.function(&["panic"], panic_impl)?;
     module.function(&["drop"], drop_impl)?;
