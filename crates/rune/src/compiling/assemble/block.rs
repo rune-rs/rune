@@ -40,8 +40,7 @@ impl Assemble for ast::Block {
                     local.assemble(c, Needs::None)?;
                     continue;
                 }
-                ast::Stmt::Expr(expr) => (expr, false),
-                ast::Stmt::Semi(expr, _) => (expr, true),
+                ast::Stmt::Expr(expr, semi) => (expr, semi.is_some()),
                 ast::Stmt::Item(..) => continue,
             };
 

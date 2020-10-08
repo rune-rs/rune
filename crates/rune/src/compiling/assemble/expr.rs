@@ -77,6 +77,9 @@ impl Assemble for ast::Expr {
             ast::Expr::ExprLit(expr_lit) => {
                 expr_lit.lit.assemble(c, needs)?;
             }
+            ast::Expr::ForceSemi(force_semi) => {
+                force_semi.expr.assemble(c, needs)?;
+            }
             ast::Expr::MacroCall(expr_call_macro) => {
                 let internal_macro = c.query.builtin_macro_for(&**expr_call_macro)?;
 

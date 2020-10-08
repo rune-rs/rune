@@ -44,7 +44,7 @@ impl ops::Deref for Callable {
 }
 
 /// A rune expression.
-#[derive(Debug, Clone, ToTokens, Spanned, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, ToTokens, Spanned)]
 pub enum Expr {
     /// An path expression.
     Path(Box<ast::Path>),
@@ -66,8 +66,6 @@ pub enum Expr {
     ExprMatch(Box<ast::ExprMatch>),
     /// A function call,
     ExprCall(Box<ast::ExprCall>),
-    /// A macro call,
-    MacroCall(Box<ast::MacroCall>),
     /// A field access on an expression.
     ExprFieldAccess(Box<ast::ExprFieldAccess>),
     /// A grouped expression.
@@ -96,6 +94,10 @@ pub enum Expr {
     ExprClosure(Box<ast::ExprClosure>),
     /// A literal expression.
     ExprLit(Box<ast::ExprLit>),
+    /// Force a specific semi-colon policy.
+    ForceSemi(Box<ast::ForceSemi>),
+    /// A macro call,
+    MacroCall(Box<ast::MacroCall>),
 }
 
 impl Expr {
@@ -109,6 +111,8 @@ impl Expr {
             Self::ExprMatch(_) => false,
             Self::ExprBlock(_) => false,
             Self::ExprSelect(_) => false,
+            Self::MacroCall(macro_call) => macro_call.needs_semi(),
+            Self::ForceSemi(force_semi) => force_semi.needs_semi,
             _ => true,
         }
     }
@@ -123,6 +127,7 @@ impl Expr {
             Self::ExprIf(_) => callable,
             Self::ExprMatch(_) => callable,
             Self::ExprSelect(_) => callable,
+            Self::ForceSemi(expr) => expr.expr.is_callable(callable),
             _ => true,
         }
     }
@@ -130,62 +135,64 @@ impl Expr {
     /// Take the attributes from the expression.
     pub fn take_attributes(&mut self) -> Vec<ast::Attribute> {
         match self {
-            Expr::Path(_) => Vec::new(),
-            Expr::Item(item) => item.take_attributes(),
-            Expr::ExprBreak(expr) => take(&mut expr.attributes),
-            Expr::ExprYield(expr) => take(&mut expr.attributes),
-            Expr::ExprBlock(expr) => take(&mut expr.attributes),
-            Expr::ExprReturn(expr) => take(&mut expr.attributes),
-            Expr::ExprClosure(expr) => take(&mut expr.attributes),
-            Expr::ExprMatch(expr) => take(&mut expr.attributes),
-            Expr::ExprWhile(expr) => take(&mut expr.attributes),
-            Expr::ExprLoop(expr) => take(&mut expr.attributes),
-            Expr::ExprFor(expr) => take(&mut expr.attributes),
-            Expr::ExprLet(expr) => take(&mut expr.attributes),
-            Expr::ExprIf(expr) => take(&mut expr.attributes),
-            Expr::ExprSelect(expr) => take(&mut expr.attributes),
-            Expr::ExprLit(expr) => take(&mut expr.attributes),
-            Expr::ExprAssign(expr) => take(&mut expr.attributes),
-            Expr::ExprBinary(expr) => take(&mut expr.attributes),
-            Expr::ExprCall(expr) => take(&mut expr.attributes),
-            Expr::MacroCall(expr) => take(&mut expr.attributes),
-            Expr::ExprFieldAccess(expr) => take(&mut expr.attributes),
-            Expr::ExprGroup(expr) => take(&mut expr.attributes),
-            Expr::ExprUnary(expr) => take(&mut expr.attributes),
-            Expr::ExprIndex(expr) => take(&mut expr.attributes),
-            Expr::ExprAwait(expr) => take(&mut expr.attributes),
-            Expr::ExprTry(expr) => take(&mut expr.attributes),
+            Self::Path(_) => Vec::new(),
+            Self::Item(item) => item.take_attributes(),
+            Self::ExprBreak(expr) => take(&mut expr.attributes),
+            Self::ExprYield(expr) => take(&mut expr.attributes),
+            Self::ExprBlock(expr) => take(&mut expr.attributes),
+            Self::ExprReturn(expr) => take(&mut expr.attributes),
+            Self::ExprClosure(expr) => take(&mut expr.attributes),
+            Self::ExprMatch(expr) => take(&mut expr.attributes),
+            Self::ExprWhile(expr) => take(&mut expr.attributes),
+            Self::ExprLoop(expr) => take(&mut expr.attributes),
+            Self::ExprFor(expr) => take(&mut expr.attributes),
+            Self::ExprLet(expr) => take(&mut expr.attributes),
+            Self::ExprIf(expr) => take(&mut expr.attributes),
+            Self::ExprSelect(expr) => take(&mut expr.attributes),
+            Self::ExprLit(expr) => take(&mut expr.attributes),
+            Self::ExprAssign(expr) => take(&mut expr.attributes),
+            Self::ExprBinary(expr) => take(&mut expr.attributes),
+            Self::ExprCall(expr) => take(&mut expr.attributes),
+            Self::ExprFieldAccess(expr) => take(&mut expr.attributes),
+            Self::ExprGroup(expr) => take(&mut expr.attributes),
+            Self::ExprUnary(expr) => take(&mut expr.attributes),
+            Self::ExprIndex(expr) => take(&mut expr.attributes),
+            Self::ExprAwait(expr) => take(&mut expr.attributes),
+            Self::ExprTry(expr) => take(&mut expr.attributes),
+            Self::ForceSemi(expr) => expr.expr.take_attributes(),
+            Self::MacroCall(expr) => take(&mut expr.attributes),
         }
     }
 
     /// Access the attributes of the expression.
     pub fn attributes(&self) -> &[ast::Attribute] {
         match self {
-            Expr::Path(_) => &[],
-            Expr::Item(expr) => expr.attributes(),
-            Expr::ExprBreak(expr) => &expr.attributes,
-            Expr::ExprYield(expr) => &expr.attributes,
-            Expr::ExprBlock(expr) => &expr.attributes,
-            Expr::ExprReturn(expr) => &expr.attributes,
-            Expr::ExprClosure(expr) => &expr.attributes,
-            Expr::ExprMatch(expr) => &expr.attributes,
-            Expr::ExprWhile(expr) => &expr.attributes,
-            Expr::ExprLoop(expr) => &expr.attributes,
-            Expr::ExprFor(expr) => &expr.attributes,
-            Expr::ExprLet(expr) => &expr.attributes,
-            Expr::ExprIf(expr) => &expr.attributes,
-            Expr::ExprSelect(expr) => &expr.attributes,
-            Expr::ExprLit(expr) => &expr.attributes,
-            Expr::ExprAssign(expr) => &expr.attributes,
-            Expr::ExprBinary(expr) => &expr.attributes,
-            Expr::ExprCall(expr) => &expr.attributes,
-            Expr::MacroCall(expr) => &expr.attributes,
-            Expr::ExprFieldAccess(expr) => &expr.attributes,
-            Expr::ExprGroup(expr) => &expr.attributes,
-            Expr::ExprUnary(expr) => &expr.attributes,
-            Expr::ExprIndex(expr) => &expr.attributes,
-            Expr::ExprAwait(expr) => &expr.attributes,
-            Expr::ExprTry(expr) => &expr.attributes,
+            Self::Path(_) => &[],
+            Self::Item(expr) => expr.attributes(),
+            Self::ExprBreak(expr) => &expr.attributes,
+            Self::ExprYield(expr) => &expr.attributes,
+            Self::ExprBlock(expr) => &expr.attributes,
+            Self::ExprReturn(expr) => &expr.attributes,
+            Self::ExprClosure(expr) => &expr.attributes,
+            Self::ExprMatch(expr) => &expr.attributes,
+            Self::ExprWhile(expr) => &expr.attributes,
+            Self::ExprLoop(expr) => &expr.attributes,
+            Self::ExprFor(expr) => &expr.attributes,
+            Self::ExprLet(expr) => &expr.attributes,
+            Self::ExprIf(expr) => &expr.attributes,
+            Self::ExprSelect(expr) => &expr.attributes,
+            Self::ExprLit(expr) => &expr.attributes,
+            Self::ExprAssign(expr) => &expr.attributes,
+            Self::ExprBinary(expr) => &expr.attributes,
+            Self::ExprCall(expr) => &expr.attributes,
+            Self::ExprFieldAccess(expr) => &expr.attributes,
+            Self::ExprGroup(expr) => &expr.attributes,
+            Self::ExprUnary(expr) => &expr.attributes,
+            Self::ExprIndex(expr) => &expr.attributes,
+            Self::ExprAwait(expr) => &expr.attributes,
+            Self::ExprTry(expr) => &expr.attributes,
+            Self::ForceSemi(expr) => expr.expr.attributes(),
+            Self::MacroCall(expr) => &expr.attributes,
         }
     }
 

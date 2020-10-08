@@ -417,8 +417,7 @@ impl IrCompile for ast::Block {
                     instructions.push(local.compile(c)?);
                     continue;
                 }
-                ast::Stmt::Expr(expr) => (expr, false),
-                ast::Stmt::Semi(expr, _) => (expr, true),
+                ast::Stmt::Expr(expr, semi) => (expr, semi.is_some()),
                 ast::Stmt::Item(..) => continue,
             };
 

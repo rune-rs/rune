@@ -226,6 +226,8 @@ pub enum CompileErrorKind {
     SelectMultipleDefaults,
     #[error("expected expression to be terminated by a semicolon `;`")]
     ExpectedBlockSemiColon { followed_span: Span },
+    #[error("macro call must be terminated by a semicolon `;`")]
+    ExpectedMacroSemi,
     #[error("an `fn` can't both be `async` and `const` at the same time")]
     FnConstAsyncConflict,
     #[error("const functions can't be generators")]

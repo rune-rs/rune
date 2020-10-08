@@ -65,6 +65,7 @@ mod expr_while;
 mod expr_yield;
 mod file;
 mod fn_arg;
+mod force_semi;
 mod grouped;
 mod ident;
 mod item;
@@ -124,6 +125,7 @@ pub use self::expr_while::ExprWhile;
 pub use self::expr_yield::ExprYield;
 pub use self::file::File;
 pub use self::fn_arg::FnArg;
+pub use self::force_semi::ForceSemi;
 pub use self::generated::Kind;
 pub use self::grouped::{Braced, Bracketed, Parenthesized};
 pub use self::ident::Ident;
@@ -153,7 +155,7 @@ pub use self::local::Local;
 pub use self::macro_call::MacroCall;
 pub use self::pat::{Pat, PatBinding, PatLit, PatObject, PatPath, PatTuple, PatVec};
 pub use self::path::{Path, PathKind, PathSegment};
-pub use self::stmt::Stmt;
+pub use self::stmt::{ItemOrExpr, Stmt};
 pub use self::token::{
     BuiltIn, CopySource, Delimiter, Number, NumberBase, NumberSource, NumberText, StrSource,
     StrText, StringSource, Token,

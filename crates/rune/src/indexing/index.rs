@@ -323,7 +323,7 @@ impl<'a> Indexer<'a> {
                         },
                     )?;
                 }
-                ast::Stmt::Item(ast::Item::MacroCall(mut macro_call), comma) => {
+                ast::Stmt::Item(ast::Item::MacroCall(mut macro_call), semi) => {
                     let mut attributes = attrs::Attributes::new(
                         macro_call.attributes.to_vec(),
                         self.storage.clone(),
@@ -332,15 +332,18 @@ impl<'a> Indexer<'a> {
 
                     if self.try_expand_internal_macro(&mut attributes, &mut macro_call)? {
                         // Expand into an expression so that it gets compiled.
-                        if let Some(semi) = comma {
-                            stmts.push(ast::Stmt::Semi(ast::Expr::MacroCall(macro_call), semi));
-                        } else {
-                            stmts.push(ast::Stmt::Expr(ast::Expr::MacroCall(macro_call)));
-                        }
+                        stmts.push(ast::Stmt::Expr(ast::Expr::MacroCall(macro_call), semi));
                     } else {
-                        let out = self.expand_macro::<Vec<ast::Stmt>>(&mut macro_call)?;
+                        if let Some(out) =
+                            self.expand_macro::<Option<ast::ItemOrExpr>>(&mut macro_call)?
+                        {
+                            let stmt = match out {
+                                ast::ItemOrExpr::Item(item) => ast::Stmt::Item(item, semi),
+                                ast::ItemOrExpr::Expr(expr) => {
+                                    ast::Stmt::Expr(macro_call.adjust_expr_semi(expr), semi)
+                                }
+                            };
 
-                        for stmt in out.into_iter().rev() {
                             queue.push_front(stmt);
                         }
                     }
@@ -704,14 +707,14 @@ impl Index for ast::Block {
 
                     item.index(idx)?;
                 }
-                ast::Stmt::Expr(expr) => {
+                ast::Stmt::Expr(expr, None) => {
                     if expr.needs_semi() {
                         must_be_last = Some(expr.span());
                     }
 
                     expr.index(idx)?;
                 }
-                ast::Stmt::Semi(expr, semi) => {
+                ast::Stmt::Expr(expr, Some(semi)) => {
                     if !expr.needs_semi() {
                         idx.warnings
                             .uneccessary_semi_colon(idx.source_id, semi.span());
@@ -940,6 +943,9 @@ impl Index for ast::Expr {
             }
             ast::Expr::ExprLit(expr_lit) => {
                 expr_lit.index(idx)?;
+            }
+            ast::Expr::ForceSemi(force_semi) => {
+                force_semi.expr.index(idx)?;
             }
             // NB: macros have nothing to index, they don't export language
             // items.

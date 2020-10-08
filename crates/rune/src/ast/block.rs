@@ -43,8 +43,7 @@ impl Block {
 
         while let Some(stmt) = it.next_back() {
             match stmt {
-                ast::Stmt::Expr(..) => return false,
-                ast::Stmt::Semi(..) => return true,
+                ast::Stmt::Expr(_, semi) => return semi.is_some(),
                 _ => (),
             }
         }
