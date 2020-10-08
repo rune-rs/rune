@@ -8,7 +8,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct CompileMetaCapture {
     /// Identity of the captured variable.
-    pub ident: String,
+    pub ident: Box<str>,
 }
 
 /// Compile-time metadata about a unit.
@@ -35,7 +35,7 @@ pub struct CompileSource {
 
 impl CompileMeta {
     /// Get the value type of the meta item.
-    pub fn type_of(&self) -> Option<Type> {
+    pub fn base_type_of(&self) -> Option<Type> {
         match &self.kind {
             CompileMetaKind::UnitStruct { type_of, .. } => Some(*type_of),
             CompileMetaKind::TupleStruct { type_of, .. } => Some(*type_of),
@@ -172,14 +172,14 @@ pub enum CompileMetaKind {
         /// The value type associated with this meta item.
         type_of: Type,
         /// Sequence of captured variables.
-        captures: Arc<Vec<CompileMetaCapture>>,
+        captures: Arc<[CompileMetaCapture]>,
     },
     /// An async block.
     AsyncBlock {
         /// The span where the async block is declared.
         type_of: Type,
         /// Sequence of captured variables.
-        captures: Arc<Vec<CompileMetaCapture>>,
+        captures: Arc<[CompileMetaCapture]>,
     },
     /// The constant expression.
     Const {
@@ -211,7 +211,7 @@ pub struct CompileMetaEmpty {
 #[derive(Debug, Clone)]
 pub struct CompileMetaStruct {
     /// Fields associated with the type.
-    pub fields: Option<HashSet<String>>,
+    pub fields: Option<HashSet<Box<str>>>,
 }
 
 /// The metadata about a variant.

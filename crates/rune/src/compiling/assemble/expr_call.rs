@@ -145,7 +145,7 @@ impl Assemble for ast::ExprCall {
                 let value =
                     c.call_const_fn(self, &meta, &from, &*const_fn, self.args.as_slice())?;
 
-                (&value, self.span()).assemble(c, Needs::Value)?;
+                value.assemble_const(c, Needs::Value, self.span())?;
                 c.scopes.pop(guard, span)?;
                 return Ok(());
             }

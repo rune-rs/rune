@@ -1,15 +1,17 @@
 use crate::compiling::assemble::prelude::*;
 
 /// Compile the body of a closure function.
-impl Assemble for (&ast::ExprClosure, &[CompileMetaCapture]) {
-    fn assemble(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<()> {
-        let (expr_closure, captures) = *self;
-
-        let span = expr_closure.span();
+impl AssembleClosure for ast::ExprClosure {
+    fn assemble_closure(
+        &self,
+        c: &mut Compiler<'_>,
+        captures: &[CompileMetaCapture],
+    ) -> CompileResult<()> {
+        let span = self.span();
         log::trace!("ExprClosure => {:?}", c.source.source(span));
 
         let count = {
-            for (arg, _) in expr_closure.args.as_slice() {
+            for (arg, _) in self.args.as_slice() {
                 let span = arg.span();
 
                 match arg {
@@ -38,7 +40,7 @@ impl Assemble for (&ast::ExprClosure, &[CompileMetaCapture]) {
             c.scopes.total_var_count(span)?
         };
 
-        expr_closure.body.assemble(c, Needs::Value)?;
+        self.body.assemble(c, Needs::Value)?;
 
         if count != 0 {
             c.asm.push(Inst::Clean { count }, span);

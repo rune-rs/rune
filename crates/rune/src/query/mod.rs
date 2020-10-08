@@ -357,7 +357,7 @@ impl Query {
         query_item: &Rc<QueryItem>,
         source: &Arc<Source>,
         ast: Box<ast::ExprClosure>,
-        captures: Arc<Vec<CompileMetaCapture>>,
+        captures: Arc<[CompileMetaCapture]>,
         call: Call,
     ) -> Result<(), QueryError> {
         log::trace!("new closure: {:?}", query_item.item);
@@ -384,7 +384,7 @@ impl Query {
         query_item: &Rc<QueryItem>,
         source: &Arc<Source>,
         ast: ast::Block,
-        captures: Arc<Vec<CompileMetaCapture>>,
+        captures: Arc<[CompileMetaCapture]>,
         call: Call,
     ) -> Result<(), QueryError> {
         log::trace!("new closure: {:?}", query_item.item);
@@ -1382,7 +1382,7 @@ pub(crate) struct Closure {
     /// Ast for closure.
     pub(crate) ast: Box<ast::ExprClosure>,
     /// Captures.
-    pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
+    pub(crate) captures: Arc<[CompileMetaCapture]>,
     /// Calling convention used for closure.
     pub(crate) call: Call,
 }
@@ -1392,7 +1392,7 @@ pub(crate) struct AsyncBlock {
     /// Ast for block.
     pub(crate) ast: ast::Block,
     /// Captures.
-    pub(crate) captures: Arc<Vec<CompileMetaCapture>>,
+    pub(crate) captures: Arc<[CompileMetaCapture]>,
     /// Calling convention used for async block.
     pub(crate) call: Call,
 }
@@ -1557,7 +1557,7 @@ fn struct_body_meta(
 
     for (ast::Field { name, .. }, _) in st {
         let name = name.resolve(&storage, &*source)?;
-        fields.insert(name.to_string());
+        fields.insert(name.into());
     }
 
     let object = CompileMetaStruct {

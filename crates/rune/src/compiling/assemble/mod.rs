@@ -38,6 +38,8 @@ mod lit_vec;
 mod local;
 mod prelude;
 
+use runestick::{CompileMetaCapture, Span};
+
 /// Compiler trait implemented for things that can be compiled.
 ///
 /// This is the new compiler trait to implement.
@@ -47,5 +49,34 @@ pub(crate) trait Assemble {
         &self,
         c: &mut crate::compiling::Compiler<'_>,
         needs: crate::compiling::Needs,
+    ) -> crate::compiling::CompileResult<()>;
+}
+
+/// Assemble a constant.
+pub(crate) trait AssembleConst {
+    fn assemble_const(
+        &self,
+        c: &mut crate::compiling::Compiler<'_>,
+        needs: crate::compiling::Needs,
+        span: Span,
+    ) -> crate::compiling::CompileResult<()>;
+}
+
+/// Assemble a function.
+pub(crate) trait AssembleFn {
+    /// Walk the current type with the given item.
+    fn assemble_fn(
+        &self,
+        c: &mut crate::compiling::Compiler<'_>,
+        instance_fn: bool,
+    ) -> crate::compiling::CompileResult<()>;
+}
+
+/// Assemble a closure with captures.
+pub(crate) trait AssembleClosure {
+    fn assemble_closure(
+        &self,
+        c: &mut crate::compiling::Compiler<'_>,
+        captures: &[CompileMetaCapture],
     ) -> crate::compiling::CompileResult<()>;
 }

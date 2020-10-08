@@ -7,17 +7,17 @@ impl Assemble for ast::LitObject {
         let span = self.span();
         log::trace!("LitObject => {:?} {:?}", c.source.source(span), needs);
 
-        let mut keys = Vec::new();
+        let mut keys = Vec::<Box<str>>::new();
         let mut check_keys = Vec::new();
         let mut keys_dup = HashMap::new();
 
         for (assign, _) in &self.assignments {
             let span = assign.span();
-            let key = assign.key.resolve(&c.storage, &*c.source)?.to_string();
-            keys.push(key.clone());
-            check_keys.push((key.clone(), assign.key.span()));
+            let key = assign.key.resolve(&c.storage, &*c.source)?;
+            keys.push(key.as_ref().into());
+            check_keys.push((key.as_ref().into(), assign.key.span()));
 
-            if let Some(existing) = keys_dup.insert(key, span) {
+            if let Some(existing) = keys_dup.insert(key.into_owned(), span) {
                 return Err(CompileError::new(
                     span,
                     CompileErrorKind::DuplicateObjectKey {
@@ -101,8 +101,8 @@ impl Assemble for ast::LitObject {
 }
 
 fn check_object_fields(
-    fields: Option<&HashSet<String>>,
-    check_keys: Vec<(String, Span)>,
+    fields: Option<&HashSet<Box<str>>>,
+    check_keys: Vec<(Box<str>, Span)>,
     span: Span,
     item: &Item,
 ) -> CompileResult<()> {

@@ -1,11 +1,13 @@
 use crate::compiling::assemble::prelude::*;
 
 /// Compile an async block.
-impl Assemble for (&ast::Block, &[CompileMetaCapture]) {
-    fn assemble(&self, c: &mut Compiler<'_>, _: Needs) -> CompileResult<()> {
-        let (block, captures) = *self;
-
-        let span = block.span();
+impl AssembleClosure for ast::Block {
+    fn assemble_closure(
+        &self,
+        c: &mut Compiler<'_>,
+        captures: &[CompileMetaCapture],
+    ) -> CompileResult<()> {
+        let span = self.span();
         log::trace!("ExprBlock (procedure) => {:?}", c.source.source(span));
 
         let guard = c.scopes.push_child(span)?;
@@ -14,7 +16,7 @@ impl Assemble for (&ast::Block, &[CompileMetaCapture]) {
             c.scopes.new_var(&capture.ident, span)?;
         }
 
-        block.assemble(c, Needs::Value)?;
+        self.assemble(c, Needs::Value)?;
         c.clean_last_scope(span, guard, Needs::Value)?;
         c.asm.push(Inst::Return, span);
         Ok(())
